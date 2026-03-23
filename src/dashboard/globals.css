@@ -1,0 +1,543 @@
+@import 'tailwindcss';
+@config "../../tailwind.config.mjs";
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: unset;
+    font-weight: unset;
+  }
+
+  :root,
+  [data-theme='light'] {
+    /* Light background - light gray-blue for exercise view */
+    --background: 210 33% 97%; /* #f4f7fa */
+    --foreground: 220 9% 11%; /* #1a1c1e */
+
+    /* Card: pure white for elevated surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 220 9% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 9% 11%;
+
+    /* Primary: warm burgundy red (brand color) */
+    --primary: 353 73% 29%; /* #91262C */
+    --primary-soft: 0 45% 98%; /* #fdf2f2 - light wash for hover states */
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: muted sage green (accent) */
+    --secondary: 113 12% 41%; /* #5D725B */
+    --secondary-foreground: 0 0% 100%;
+
+    /* Muted: light backgrounds and secondary text */
+    --muted: 210 14% 95%; /* #f8f9fa */
+    --muted-foreground: 220 8% 45%; /* #6c7278 */
+
+    /* Accent: vivid purple (keeping for backward compatibility) */
+    --accent: 271 91% 65%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Border: extremely subtle borders */
+    --border: 0 0% 0% / 0.05; /* rgba(0,0,0,0.05) */
+    --input: 210 14% 97%; /* #f8f9fa */
+
+    /* Focus ring follows primary */
+    --ring: 353 73% 29%;
+
+    /* Radius system */
+    --radius: 0.75rem; /* 12px - default */
+
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --error: 0 72% 51%;
+
+    /* Badge colors - for course categories */
+    --badge-orange: 25 95% 53%; /* Orange badge */
+    --badge-orange-bg: 24 95% 97%; /* Light orange background */
+
+    /* Semantic colors - components use these */
+    --header-bg: var(--card);
+    --header-fg: var(--card-foreground);
+    --footer-bg: var(--card);
+
+    /* Interactive element states */
+    --hover-bg: var(--muted);
+    --selected-bg: var(--muted);
+    --selected-fg: var(--foreground);
+
+    /* Form elements - slightly altered background for visual distinction */
+    --form-bg: var(--input);
+    --form-border: var(--border);
+    --form-placeholder: var(--muted-foreground);
+
+    /* Command palette / Modals */
+    --surface-elevated: var(--background);
+    --surface-elevated-fg: var(--foreground);
+
+    /* Text highlight tokens - for markdown ::text-highlight-N{} syntax */
+    --text-highlight-1: 0 72% 51%; /* Red */
+    --text-highlight-2: 25 95% 53%; /* Orange */
+    --text-highlight-3: 45 93% 47%; /* Yellow */
+    --text-highlight-4: 142 71% 45%; /* Green */
+    --text-highlight-5: 217 91% 60%; /* Blue */
+    --text-highlight-6: 271 91% 65%; /* Purple */
+    --text-highlight-7: 330 81% 60%; /* Pink */
+    --text-highlight-8: 220 8% 45%; /* Gray */
+
+    /* Course tab accent colors */
+    --tab-learn: 217 91% 60%; /* Blue */
+    --tab-practice: 0 72% 51%; /* Red */
+    --tab-exams: 330 81% 60%; /* Pink */
+    --tab-ask: 142 71% 45%; /* Green */
+  }
+
+  [data-theme='dark'] {
+    /* Deep navy blue background - slightly darker for depth */
+    --background: 222 47% 7%;
+    --foreground: 210 40% 98%;
+
+    /* Card surfaces - slightly elevated from background */
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    /* Primary: vibrant coral-red (brand-aligned with light mode burgundy) */
+    --primary: 353 73% 56%;
+    --primary-soft: 353 73% 15%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: muted blue-gray (different from muted) */
+    --secondary: 220 25% 16%;
+    --secondary-foreground: 210 40% 90%;
+
+    /* Muted: dark gray-blue */
+    --muted: 215 20% 14%;
+    --muted-foreground: 215 15% 60%;
+
+    /* Accent: vibrant purple (complementary to coral) */
+    --accent: 261 75% 65%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 35%;
+    --destructive-foreground: 0 0% 95%;
+
+    /* Borders - subtle borders with alpha */
+    --border: 222 25% 18% / 0.7;
+    --input: 222 20% 14%;
+
+    /* Focus ring follows primary */
+    --ring: 353 73% 56%;
+
+    /* Shadow system - darker shadows for dark mode */
+    --shadow-card: 0 4px 16px 0 rgb(0 0 0 / 0.3);
+    --shadow-card-hover: 0 8px 24px 0 rgb(0 0 0 / 0.4);
+    --shadow-modal: 0 20px 40px -10px rgb(0 0 0 / 0.5);
+    --shadow-dropdown: 0 8px 12px -2px rgb(0 0 0 / 0.3), 0 4px 8px -2px rgb(0 0 0 / 0.2);
+
+    /* Semantic colors - optimized for dark background visibility */
+    --success: 158 64% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 90% 50%;
+    --warning-foreground: 0 0% 10%;
+    --error: 0 72% 45%;
+    --error-foreground: 0 0% 100%;
+
+    /* Badge colors - for course categories */
+    --badge-orange: 25 95% 60%;
+    --badge-orange-bg: 25 90% 15%;
+
+    /* Semantic colors - components use these */
+    --header-bg: var(--card);
+    --header-fg: var(--card-foreground);
+    --footer-bg: var(--card);
+
+    /* Interactive element states */
+    --hover-bg: 222 25% 16%;
+    --selected-bg: 220 25% 20%;
+    --selected-fg: 210 40% 95%;
+
+    /* Form elements - slightly altered background for visual distinction */
+    --form-bg: var(--card);
+    --form-border: var(--border);
+    --form-placeholder: var(--muted-foreground);
+
+    /* Command palette / Modals */
+    --surface-elevated: var(--card);
+    --surface-elevated-fg: var(--card-foreground);
+
+    /* Text highlight tokens - for markdown ::text-highlight-N{} syntax */
+    --text-highlight-1: 0 72% 51%; /* Red */
+    --text-highlight-2: 25 95% 53%; /* Orange */
+    --text-highlight-3: 45 93% 47%; /* Yellow */
+    --text-highlight-4: 142 71% 45%; /* Green */
+    --text-highlight-5: 217 91% 60%; /* Blue */
+    --text-highlight-6: 271 91% 65%; /* Purple */
+    --text-highlight-7: 330 81% 60%; /* Pink */
+    --text-highlight-8: 220 8% 45%; /* Gray */
+
+    /* Course tab accent colors */
+    --tab-learn: 217 91% 60%; /* Blue */
+    --tab-practice: 0 72% 51%; /* Red */
+    --tab-exams: 330 81% 60%; /* Pink */
+    --tab-ask: 142 71% 45%; /* Green */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground min-h-[100vh] flex flex-col;
+    font-family:
+      'Assistant',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      sans-serif;
+  }
+}
+
+@layer utilities {
+  /* Smooth scrolling for anchor links */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Backdrop blur support */
+  @supports (backdrop-filter: blur(10px)) {
+    .backdrop-blur-lg {
+      backdrop-filter: blur(16px);
+    }
+  }
+
+  /* Smooth transitions for theme changes */
+  * {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+
+  /* Prevent transition on page load */
+  .no-transition {
+    transition: none !important;
+  }
+
+  /* Gradient utilities inspired by LearnFlow */
+  .gradient-border {
+    position: relative;
+    border-radius: var(--radius);
+    background: linear-gradient(to bottom right, hsl(var(--card)), hsl(var(--secondary)));
+  }
+
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.4), hsl(var(--accent) / 0.2));
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Improved gradient for dark mode */
+  [data-theme='dark'] .gradient-border::before {
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.6), hsl(var(--accent) / 0.4));
+  }
+
+  .glass-card {
+    background: hsl(var(--card) / 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border));
+  }
+}
+
+html {
+  opacity: 0;
+}
+
+html[data-theme='dark'],
+html[data-theme='light'] {
+  opacity: initial;
+}
+
+/* Rich Text Content Styles */
+.rich-text-content {
+  p {
+    @apply my-2 first:mt-0 last:mb-0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply mt-6 mb-3 font-semibold text-foreground leading-tight first:mt-0;
+  }
+
+  h1 {
+    @apply text-3xl;
+  }
+  h2 {
+    @apply text-2xl;
+  }
+  h3 {
+    @apply text-xl;
+  }
+  h4 {
+    @apply text-lg;
+  }
+
+  ul,
+  ol {
+    @apply my-3 pl-6;
+
+    li {
+      @apply my-1;
+    }
+  }
+
+  strong {
+    @apply font-semibold text-foreground;
+  }
+
+  em {
+    @apply italic;
+  }
+
+  a {
+    @apply text-primary underline underline-offset-2 transition-colors hover:text-primary/80;
+  }
+
+  code {
+    @apply bg-muted text-foreground px-1.5 py-0.5 rounded text-sm font-mono;
+  }
+
+  pre {
+    @apply bg-muted p-4 rounded-lg overflow-x-auto my-4 border border-border;
+
+    code {
+      @apply bg-transparent p-0 text-sm;
+    }
+  }
+
+  blockquote {
+    @apply border-l-4 border-primary my-4 pl-4 text-muted-foreground italic;
+  }
+
+  hr {
+    @apply border-0 border-t border-border my-6;
+  }
+
+  img {
+    @apply max-w-full h-auto rounded-lg my-4;
+  }
+
+  table {
+    @apply w-full border-collapse my-4;
+
+    th,
+    td {
+      @apply p-2 border border-border text-left;
+    }
+
+    th {
+      @apply bg-muted font-semibold;
+    }
+  }
+
+  /* KaTeX math rendering */
+  .katex {
+    @apply text-foreground;
+    font-size: 1.1em;
+  }
+
+  .katex-display {
+    @apply my-5 overflow-x-auto overflow-y-hidden py-2;
+
+    /* Scrollbar styling for dark mode support */
+    &::-webkit-scrollbar {
+      height: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+      @apply bg-muted rounded;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      @apply bg-border rounded hover:bg-muted-foreground/50;
+    }
+  }
+
+  .katex-inline {
+    @apply inline-block;
+  }
+}
+
+/* MathLive mathfield theming */
+math-field {
+  --primary: hsl(var(--primary));
+  --caret-color: hsl(var(--foreground));
+  --selection-background-color: hsl(var(--accent));
+  --selection-color: hsl(var(--accent-foreground));
+  --placeholder-color: hsl(var(--muted-foreground));
+  --placeholder-opacity: 0.5;
+  font-size: 1.1em;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  background: hsl(var(--input));
+  color: hsl(var(--foreground));
+  min-height: 2.5rem;
+  width: 100%;
+  direction: ltr;
+}
+
+math-field:focus-within {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Exercise View Animations */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+/* Scrollbar hide utility */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* RTL/LTR Isolation for Math - must be flat selectors */
+.math-inline {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.math-block {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: block;
+  text-align: center;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+/* KaTeX math expression styling in chat */
+.chat-message-content .katex {
+  @apply bg-muted text-foreground p-5 rounded-xl inline-block;
+  margin: calc(var(--spacing) * 1);
+}
+
+/* Dark mode: keep original secondary background */
+[data-theme='dark'] .chat-message-content .katex {
+  @apply bg-secondary text-secondary-foreground;
+}
+
+/* KaTeX in user messages: inherit background from parent (primary) */
+.bg-primary .chat-message-content .katex {
+  @apply bg-inherit text-inherit;
+}
+
+/* Chat table: reset KaTeX math padding inside table cells */
+.chat-message-content .chat-table .katex {
+  @apply bg-transparent p-0 m-0 rounded-none text-primary;
+  font-size: 1em;
+}
+
+[data-theme='dark'] .chat-message-content .chat-table .katex {
+  @apply bg-transparent text-primary;
+}
+
+/* ===================================================================
+   Color Syntax Support
+   =================================================================== */
+
+/* Text highlight classes for ::text-highlight-N{} markdown syntax (exercise editor) */
+.aguy-text-highlight-1 {
+  color: hsl(var(--text-highlight-1));
+}
+
+.aguy-text-highlight-2 {
+  color: hsl(var(--text-highlight-2));
+}
+
+.aguy-text-highlight-3 {
+  color: hsl(var(--text-highlight-3));
+}
+
+.aguy-text-highlight-4 {
+  color: hsl(var(--text-highlight-4));
+}
+
+.aguy-text-highlight-5 {
+  color: hsl(var(--text-highlight-5));
+}
+
+.aguy-text-highlight-6 {
+  color: hsl(var(--text-highlight-6));
+}
+
+.aguy-text-highlight-7 {
+  color: hsl(var(--text-highlight-7));
+}
+
+.aguy-text-highlight-8 {
+  color: hsl(var(--text-highlight-8));
+}
