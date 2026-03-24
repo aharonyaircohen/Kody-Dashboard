@@ -10,7 +10,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     req.nextUrl.searchParams.get("returnTo") ?? "/",
   );
 
-  const baseUrl = getPublicBaseUrl(req);
+  const _baseUrl = getPublicBaseUrl(req);
   // TEMP: hardcode for debug
   const callbackUrl = `https://kody-aguy.vercel.app/api/oauth/github/callback`;
 

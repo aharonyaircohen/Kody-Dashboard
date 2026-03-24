@@ -23,7 +23,6 @@
 
 import { z } from "zod";
 import { PipelineStatusSchema, StageStatusSchema } from "./state.js";
-import type { StageStatus } from "./state.js";
 
 // ============ Kody Stage Status Schema ============
 
