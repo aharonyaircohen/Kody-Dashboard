@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Github, Lock, AlertCircle, Loader2 } from "lucide-react";
 
 const TOKEN_URL = "https://github.com/settings/tokens/new?description=Kody+Dashboard&scopes=repo,workflow";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [repoUrl, setRepoUrl] = useState("");
   const [token, setToken] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +51,9 @@ export default function LoginPage() {
         }),
       );
 
-      router.push("/");
+      // Force full page reload so React Query cache is cleared and dashboard
+      // initializes fresh with the new auth state (no stale cache from login page)
+      window.location.href = "/";
     } catch (err) {
       setError("Network error. Please check your connection and try again.");
       setLoading(false);
