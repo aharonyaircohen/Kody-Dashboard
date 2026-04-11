@@ -8,7 +8,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { kodyApi, RateLimitError, NoTokenError, SessionExpiredError, getStoredAuth } from '../api'
+import { kodyApi, RateLimitError, NoTokenError, SessionExpiredError, ApiError, getStoredAuth } from '../api'
 import type { KodyTask } from '../types'
 import type { ViewMode } from '../components/FilterBar'
 import { POLLING_INTERVALS } from '../constants'
@@ -139,6 +139,15 @@ export function useTaskDetails(issueNumber: number | null, actorLogin?: string) 
     // Don't fire if no auth — prevents 401 on initial render before localStorage loads
     enabled: !!getStoredAuth() && !!issueNumber,
     staleTime: 60_000, // 60s — assignee updates are reflected via list polling; detail is fetched on select
+    // Don't retry on auth failures — token is missing/invalid/expired
+    retry: (failureCount, error) => {
+      if (error instanceof SessionExpiredError) return false
+      if (error instanceof NoTokenError) return false
+      if (error instanceof RateLimitError) return false
+      // 401/403 from the API route = bad token, don't retry
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) return false
+      return failureCount < 2
+    },
   })
 
   // Mutations for task actions — only invalidate the detail query, not the task list.
