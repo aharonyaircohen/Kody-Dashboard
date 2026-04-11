@@ -146,6 +146,6 @@ jobs:
         run: pnpm test:e2e
         env:
           # Test against production
-          BASE_URL: https://kody-dashboard-aharon-yair-cohens-projects.vercel.app
+          BASE_URL: https://kody-dashboard-mwoy3ttr6-aharon-yair-cohens-projects.vercel.app
           KODY_BOT_TOKEN: ${{ secrets.KODY_BOT_TOKEN }}
           CI: "true"
