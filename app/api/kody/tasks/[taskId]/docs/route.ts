@@ -6,18 +6,25 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 
-import { requireKodyAuth } from '@dashboard/lib/auth'
+import { requireKodyAuth, getRequestAuth } from '@dashboard/lib/auth'
 import {
   findTaskBranch,
   findBranchByIssueNumber,
   fetchTaskDocuments,
   fetchBranchDocuments,
+  setGitHubContext,
+  clearGitHubContext,
 } from '@dashboard/lib/github-client'
 import { TASK_ID_REGEX } from '@dashboard/lib/constants'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ taskId: string }> }) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     const { taskId } = await params
@@ -57,5 +64,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ task
   } catch (error) {
     console.error('[task-docs] Error:', error)
     return NextResponse.json({ error: 'Failed to fetch documents' }, { status: 500 })
+  } finally {
+    clearGitHubContext()
   }
 }

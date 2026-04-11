@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { handleKodyApiError } from '@dashboard/lib/github-error-handler'
 import { pipelineParamsSchema } from '@dashboard/lib/schemas'
 import { apiValidationError } from '@dashboard/lib/api-responses'
-import { requireKodyAuth } from '@dashboard/lib/auth'
+import { requireKodyAuth, getRequestAuth } from '@dashboard/lib/auth'
 import {
   findTaskBranch,
   findBranchByIssueNumber,
@@ -17,6 +17,8 @@ import {
   findStatusOnBranch,
   getStatusFromArtifact,
   fetchWorkflowRuns,
+  setGitHubContext,
+  clearGitHubContext,
 } from '@dashboard/lib/github-client'
 import { matchWorkflowRunToTask } from '@dashboard/lib/workflow-matching'
 
@@ -34,6 +36,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ task
     )
   }
   const { taskId } = parsed.data
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     // Try branch status first (for running tasks)
@@ -87,5 +94,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ task
     })
   } catch (error: unknown) {
     return handleKodyApiError(error, 'pipeline')
+  } finally {
+    clearGitHubContext()
   }
 }

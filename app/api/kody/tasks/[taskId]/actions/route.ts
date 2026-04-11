@@ -8,7 +8,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireKodyAuth, verifyActorLogin, getUserOctokit } from '@dashboard/lib/auth'
+import { requireKodyAuth, verifyActorLogin, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
 
 import {
   postComment,
@@ -29,6 +29,8 @@ import {
   invalidateBoardCache,
   invalidateBranchCache,
   getOctokit,
+  setGitHubContext,
+  clearGitHubContext,
 } from '@dashboard/lib/github-client'
 import { GITHUB_OWNER, GITHUB_REPO } from '@dashboard/lib/constants'
 
@@ -123,6 +125,11 @@ async function postWithFallback(
 export async function POST(req: NextRequest, { params }: { params: Promise<{ taskId: string }> }) {
   const authResult = await requireKodyAuth(req)
   if (authResult instanceof NextResponse) return authResult
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     const { taskId } = await params
@@ -485,5 +492,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
       { error: 'internal_error', message: error?.message || 'Internal error' },
       { status: 500 },
     )
+  } finally {
+    clearGitHubContext()
   }
 }

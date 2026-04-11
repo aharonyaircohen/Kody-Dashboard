@@ -6,13 +6,18 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 
-import { requireKodyAuth } from '@dashboard/lib/auth'
-import { findTaskBranch, findBranchByIssueNumber, getOctokit } from '@dashboard/lib/github-client'
+import { requireKodyAuth, getRequestAuth } from '@dashboard/lib/auth'
+import { findTaskBranch, findBranchByIssueNumber, getOctokit, setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
 import { GITHUB_OWNER, GITHUB_REPO, TASK_ID_REGEX } from '@dashboard/lib/constants'
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     const url = new URL(req.url)
@@ -62,5 +67,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('[chat-load] Error:', error)
     return NextResponse.json({ error: 'Failed to load chat' }, { status: 500 })
+  } finally {
+    clearGitHubContext()
   }
 }

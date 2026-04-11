@@ -8,8 +8,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { handleKodyApiError } from '@dashboard/lib/github-error-handler'
-import { requireKodyAuth, getUserOctokit, verifyActorLogin } from '@dashboard/lib/auth'
-import { fetchPRComments, postComment, invalidateTaskCache } from '@dashboard/lib/github-client'
+import { requireKodyAuth, getUserOctokit, verifyActorLogin, getRequestAuth } from '@dashboard/lib/auth'
+import { fetchPRComments, postComment, invalidateTaskCache, setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
 
 const getSchema = z.object({
   prNumber: z.coerce.number().int().positive(),
@@ -25,6 +25,11 @@ export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
 
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
+
   try {
     const { searchParams } = new URL(req.url)
     const parsed = getSchema.safeParse({ prNumber: searchParams.get('prNumber') })
@@ -36,12 +41,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ comments })
   } catch (error: unknown) {
     return handleKodyApiError(error, 'pr-comments')
+  } finally {
+    clearGitHubContext()
   }
 }
 
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     const body = await req.json()
@@ -73,5 +85,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, message: 'Comment posted' })
   } catch (error: unknown) {
     return handleKodyApiError(error, 'pr-comments')
+  } finally {
+    clearGitHubContext()
   }
 }

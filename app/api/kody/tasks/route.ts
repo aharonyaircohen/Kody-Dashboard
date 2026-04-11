@@ -7,7 +7,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireKodyAuth, verifyActorLogin, getUserOctokit } from '@dashboard/lib/auth'
+import { requireKodyAuth, verifyActorLogin, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
 
 import {
   fetchIssues,
@@ -20,6 +20,8 @@ import {
   createIssue,
   uploadIssueAttachment,
   postComment,
+  setGitHubContext,
+  clearGitHubContext,
 } from '@dashboard/lib/github-client'
 import type {
   KodyTask,
@@ -130,21 +132,27 @@ export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req)
   if (authResult instanceof NextResponse) return authResult
 
-  const { searchParams } = new URL(req.url)
-  const board = searchParams.get('board') || 'all'
-  const since = searchParams.get('since') || undefined // ISO date string, e.g., "2026-02-01"
-  // includeDetails param is no longer needed — pipeline data is auto-fetched for active tasks
-
-  // Date filter presets
-  let sinceDate: string | undefined = since
-  if (!sinceDate && searchParams.get('days')) {
-    const days = parseInt(searchParams.get('days')!, 10)
-    const date = new Date()
-    date.setDate(date.getDate() - days)
-    sinceDate = date.toISOString()
+  // Set per-user repo context so github-client uses the correct owner/repo
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
   }
 
   try {
+    const { searchParams } = new URL(req.url)
+    const board = searchParams.get('board') || 'all'
+    const since = searchParams.get('since') || undefined // ISO date string, e.g., "2026-02-01"
+    // includeDetails param is no longer needed — pipeline data is auto-fetched for active tasks
+
+    // Date filter presets
+    let sinceDate: string | undefined = since
+    if (!sinceDate && searchParams.get('days')) {
+      const days = parseInt(searchParams.get('days')!, 10)
+      const date = new Date()
+      date.setDate(date.getDate() - days)
+      sinceDate = date.toISOString()
+    }
+
     // Fetch issues, workflow runs, and open PRs in parallel (3 API calls, all cached)
     const [issues, workflowRuns, openPRs] = await Promise.all([
       fetchIssues({
@@ -376,12 +384,20 @@ export async function GET(req: NextRequest) {
       tasks: [],
       error: error?.message || 'Failed to fetch tasks',
     })
+  } finally {
+    clearGitHubContext()
   }
 }
 
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req)
   if (authResult instanceof NextResponse) return authResult
+
+  // Set per-user repo context so github-client uses the correct owner/repo
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   // Zod validation schema for POST body
   const createTaskSchema = z.object({

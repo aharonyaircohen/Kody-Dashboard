@@ -10,13 +10,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { handleKodyApiError } from '@dashboard/lib/github-error-handler'
-import { requireKodyAuth } from '@dashboard/lib/auth'
-import { fetchLabels, fetchMilestones } from '@dashboard/lib/github-client'
+import { requireKodyAuth, getRequestAuth } from '@dashboard/lib/auth'
+import { fetchLabels, fetchMilestones, setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
 import type { Board } from '@dashboard/lib/types'
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     // Fetch labels and milestones in parallel
@@ -40,5 +45,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ boards })
   } catch (error: unknown) {
     return handleKodyApiError(error, 'boards')
+  } finally {
+    clearGitHubContext()
   }
 }

@@ -106,6 +106,73 @@ export function invalidateBranchCache(): void {
   invalidateCache('refs-')
 }
 
+// ============ Per-Request Repo Context ============
+//
+// The dashboard supports per-user repos (user logs in with their own GitHub token
+// and a target repo). These variables hold the current request's repo context.
+// In Vercel serverless (Fluid Compute), each request is processed sequentially,
+// so this module-level state is safe as long as routes clear it after use.
+
+let _owner: string = getOwner()
+let _repo: string = getRepo()
+let _octokit: Octokit | null = null
+
+export function getOwner(): string {
+  return _owner
+}
+
+export function getRepo(): string {
+  return _repo
+}
+
+/**
+ * Set the repo context for the current request.
+ * API routes MUST call this before any github-client calls and clearRepoContext() after.
+ *
+ * @param owner - GitHub repo owner (e.g. "aharonyaircohen")
+ * @param repo  - GitHub repo name (e.g. "Kody-ADE-Engine")
+ * @param token - GitHub token (user's PAT). Falls back to env token if omitted.
+ */
+export function setGitHubContext(owner: string, repo: string, token?: string): void {
+  _owner = owner
+  _repo = repo
+
+  const authToken = token ?? process.env.KODY_BOT_TOKEN ?? process.env.GITHUB_TOKEN ?? process.env.GH_PAT ?? null
+  if (!authToken) {
+    throw new Error('No GitHub token configured. Set KODY_BOT_TOKEN, GITHUB_TOKEN, or GH_PAT.')
+  }
+
+  const MyOctokit = Octokit.plugin(throttling)
+  _octokit = new MyOctokit({
+    auth: authToken,
+    throttle: {
+      onRateLimit: (retryAfter, _options, _octokit) => {
+        if (_options.request?.headers?.['x-octokit-retry-count'] === 0) {
+          console.warn(`[Kody] Rate limited, retrying after ${retryAfter}s`)
+          return true
+        }
+        console.error(`[Kody] Rate limit hit twice, giving up`)
+        return false
+      },
+      onSecondaryRateLimit: (retryAfter, _options, _octokit) => {
+        const retryCount = (_options.request?.retryCount as number) ?? 0
+        if (retryCount < 2) {
+          console.warn(`[Kody] Secondary rate limit, retrying after ${retryAfter}s (attempt ${retryCount + 1}/2)`)
+          return true
+        }
+        console.error(`[Kody] Secondary rate limit hit ${retryCount + 1} times, giving up`)
+        return false
+      },
+    },
+  })
+}
+
+export function clearGitHubContext(): void {
+  _owner = getOwner()
+  _repo = getRepo()
+  _octokit = null
+}
+
 // ============ Octokit Singleton ============
 
 let octokitInstance: Octokit | null = null
@@ -113,6 +180,8 @@ let octokitInstance: Octokit | null = null
 type ThrottledOctokit = Octokit & ReturnType<typeof throttling>
 
 export function getOctokit(): Octokit {
+  // Use the per-request context Octokit when set (via setGitHubContext)
+  if (_octokit) return _octokit as ThrottledOctokit
   if (octokitInstance) return octokitInstance as ThrottledOctokit
 
   // Prefer KODY_BOT_TOKEN if set (for bot attribution), otherwise fall back to GITHUB_TOKEN / GH_PAT
@@ -199,8 +268,8 @@ export async function findTaskBranch(taskId: string): Promise<string | null> {
       const branchName = `${prefix}/${taskId}`
       try {
         await octokit.repos.getBranch({
-          owner: GITHUB_OWNER,
-          repo: GITHUB_REPO,
+          owner: getOwner(),
+          repo: getRepo(),
           branch: branchName,
         })
         return branchName
@@ -241,8 +310,8 @@ export async function findBranchByIssueNumber(
     BRANCH_PREFIXES.map(async (prefix) => {
       try {
         const { data } = await octokit.git.listMatchingRefs({
-          owner: GITHUB_OWNER,
-          repo: GITHUB_REPO,
+          owner: getOwner(),
+          repo: getRepo(),
           ref: `heads/${prefix}/`,
         })
 
@@ -299,8 +368,8 @@ export async function findBranchesByIssueNumbers(
         // Not cached, fetch from GitHub
         try {
           const { data } = await octokit.git.listMatchingRefs({
-            owner: GITHUB_OWNER,
-            repo: GITHUB_REPO,
+            owner: getOwner(),
+            repo: getRepo(),
             ref: `heads/${prefix}/`,
           })
           branches = data.map((ref: any) => ref.ref.replace('refs/heads/', ''))
@@ -413,8 +482,8 @@ export async function getStatusFromBranch(
 
   try {
     const { data } = await octokit.repos.getContent({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       path: `.tasks/${taskId}/status.json`,
       ref: branch,
     })
@@ -454,8 +523,8 @@ export async function findStatusOnBranch(
   try {
     // List .tasks/ directory on the branch
     const { data } = await octokit.repos.getContent({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       path: '.tasks',
       ref: branch,
     })
@@ -504,8 +573,8 @@ export async function getStatusFromArtifact(
   try {
     // Find artifact
     const { data: artifacts } = await octokit.actions.listWorkflowRunArtifacts({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       run_id: parseInt(runId),
     })
 
@@ -519,8 +588,8 @@ export async function getStatusFromArtifact(
 
     // Download artifact
     await octokit.actions.downloadArtifact({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       artifact_id: artifact.id,
       archive_format: 'zipball',
     })
@@ -552,8 +621,8 @@ export async function fetchIssue(issueNumber: number): Promise<GitHubIssue | nul
 
   try {
     const { data } = await octokit.issues.get({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       issue_number: issueNumber,
     })
 
@@ -613,8 +682,8 @@ export async function fetchIssues(options?: {
   const octokit = getOctokit()
 
   const { data } = await octokit.issues.listForRepo({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     state: options?.state || 'open',
     labels: options?.labels,
     milestone: options?.milestone ? String(options.milestone) : undefined,
@@ -670,8 +739,8 @@ export async function fetchComments(issueNumber: number): Promise<GitHubComment[
   const octokit = getOctokit()
 
   const { data } = await octokit.issues.listComments({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     issue_number: issueNumber,
     per_page: 100,
   })
@@ -708,8 +777,8 @@ export async function fetchWorkflowRuns(options?: {
   const octokit = getOctokit()
 
   const { data } = await octokit.actions.listWorkflowRuns({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     workflow_id: WORKFLOW_ID,
     status: options?.status,
     per_page: options?.perPage || 20,
@@ -754,8 +823,8 @@ export async function fetchCheckRunsForRun(runId: number): Promise<CheckRunResul
   try {
     // Get jobs for the workflow run - these contain lint, test, typecheck results
     const { data } = await octokit.actions.listJobsForWorkflowRun({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       run_id: runId,
       per_page: 50,
     })
@@ -801,8 +870,8 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
   const octokit = getOctokit()
 
   const { data } = await octokit.pulls.list({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     state: 'open',
     per_page: 50,
     sort: 'updated',
@@ -849,8 +918,8 @@ export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<str
   try {
     // 1. Bulk fetch recent Preview deployments (1 API call)
     const { data: deployments } = await octokit.repos.listDeployments({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       environment: 'Preview',
       per_page: 30,
     })
@@ -864,8 +933,8 @@ export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<str
       matched.map(async (deployment) => {
         try {
           const { data: statuses } = await octokit.repos.listDeploymentStatuses({
-            owner: GITHUB_OWNER,
-            repo: GITHUB_REPO,
+            owner: getOwner(),
+            repo: getRepo(),
             deployment_id: deployment.id,
             per_page: 1,
           })
@@ -887,16 +956,16 @@ export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<str
         missedShas.map(async (sha) => {
           try {
             const { data: shaDeployments } = await octokit.repos.listDeployments({
-              owner: GITHUB_OWNER,
-              repo: GITHUB_REPO,
+              owner: getOwner(),
+              repo: getRepo(),
               sha,
               environment: 'Preview',
               per_page: 1,
             })
             if (shaDeployments.length > 0) {
               const { data: statuses } = await octokit.repos.listDeploymentStatuses({
-                owner: GITHUB_OWNER,
-                repo: GITHUB_REPO,
+                owner: getOwner(),
+                repo: getRepo(),
                 deployment_id: shaDeployments[0].id,
                 per_page: 1,
               })
@@ -937,9 +1006,9 @@ export async function findAssociatedPR(taskId: string): Promise<GitHubPR | null>
   for (const branchName of branchNames) {
     try {
       const { data } = await octokit.pulls.list({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
-        head: `${GITHUB_OWNER}:${branchName}`,
+        owner: getOwner(),
+        repo: getRepo(),
+        head: `${getOwner()}:${branchName}`,
         state: 'open',
       })
 
@@ -1007,9 +1076,9 @@ export async function findAssociatedPRByIssueNumber(issueNumber: number): Promis
     const octokit = getOctokit()
     try {
       const { data } = await octokit.pulls.list({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
-        head: `${GITHUB_OWNER}:${branch}`,
+        owner: getOwner(),
+        repo: getRepo(),
+        head: `${getOwner()}:${branch}`,
         state: 'open',
       })
       if (data.length > 0) {
@@ -1046,8 +1115,8 @@ export async function fetchPRComments(prNumber: number): Promise<PRComment[]> {
 
   try {
     const { data } = await octokit.issues.listComments({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       issue_number: prNumber,
       per_page: 50,
     })
@@ -1082,8 +1151,8 @@ export async function fetchPRFileChanges(prNumber: number): Promise<FileChange[]
 
   try {
     const { data } = await octokit.pulls.listFiles({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       pull_number: prNumber,
       per_page: 100,
     })
@@ -1110,8 +1179,8 @@ export async function closePR(prNumber: number, userOctokit?: Octokit): Promise<
   const octokit = userOctokit ?? getOctokit()
 
   await octokit.pulls.update({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     pull_number: prNumber,
     state: 'closed',
   })
@@ -1134,8 +1203,8 @@ export async function deleteBranch(branchName: string, userOctokit?: Octokit): P
 
   try {
     await octokit.git.deleteRef({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       ref: `heads/${branchName}`,
     })
     console.log(`[Kody] Deleted branch: ${branchName}`)
@@ -1164,8 +1233,8 @@ export async function fetchTaskDocuments(taskId: string, branch: string): Promis
   try {
     // List all files in the task directory
     const { data } = await octokit.repos.getContent({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       path: taskPath,
       ref: branch,
     })
@@ -1179,8 +1248,8 @@ export async function fetchTaskDocuments(taskId: string, branch: string): Promis
       files.map(async (file: any) => {
         try {
           const { data: fileData } = await octokit.repos.getContent({
-            owner: GITHUB_OWNER,
-            repo: GITHUB_REPO,
+            owner: getOwner(),
+            repo: getRepo(),
             path: file.path,
             ref: branch,
           })
@@ -1225,8 +1294,8 @@ export async function fetchBranchDocuments(branch: string): Promise<TaskDocument
   try {
     // 1. List .tasks/ directory on the branch
     const { data } = await octokit.repos.getContent({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       path: '.tasks',
       ref: branch,
     })
@@ -1268,8 +1337,8 @@ export async function fetchLabels(): Promise<Array<{ name: string; color: string
   const octokit = getOctokit()
 
   const { data } = await octokit.issues.listLabelsForRepo({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     per_page: 100,
   })
 
@@ -1295,8 +1364,8 @@ export async function fetchMilestones(): Promise<
   const octokit = getOctokit()
 
   const { data } = await octokit.issues.listMilestones({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     state: 'open',
     per_page: 50,
   })
@@ -1324,8 +1393,8 @@ export async function postComment(
   const octokit = userOctokit ?? getOctokit()
 
   await octokit.issues.createComment({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     issue_number: issueNumber,
     body,
   })
@@ -1349,8 +1418,8 @@ export async function triggerWorkflow(
   const octokit = userOctokit ?? getOctokit()
 
   await octokit.actions.createWorkflowDispatch({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     workflow_id: WORKFLOW_ID,
     ref: 'main',
     inputs: {
@@ -1369,8 +1438,8 @@ export async function cancelWorkflowRun(runId: number, userOctokit?: Octokit): P
   const octokit = userOctokit ?? getOctokit()
 
   await octokit.actions.cancelWorkflowRun({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     run_id: runId,
   })
 }
@@ -1392,8 +1461,8 @@ export async function createIssue(
   const octokit = userOctokit ?? getOctokit()
 
   const { data } = await octokit.issues.create({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     title: options.title,
     body: options.body ?? '',
     labels: options.labels,
@@ -1442,8 +1511,8 @@ export async function uploadIssueAttachment(
   const response = await octokit.request(
     'POST /repos/{owner}/{repo}/issues/{issue_number}/attachments',
     {
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       issue_number: issueNumber,
       name: file.name,
       file: buffer,
@@ -1473,8 +1542,8 @@ export async function updateIssue(
   const octokit = userOctokit ?? getOctokit()
 
   await octokit.issues.update({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     issue_number: issueNumber,
     title: options.title,
     body: options.body,
@@ -1499,8 +1568,8 @@ export async function addAssignees(
   const octokit = userOctokit ?? getOctokit()
 
   await octokit.issues.addAssignees({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     issue_number: issueNumber,
     assignees,
   })
@@ -1520,8 +1589,8 @@ export async function removeAssignees(
   const octokit = userOctokit ?? getOctokit()
 
   await octokit.issues.removeAssignees({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     issue_number: issueNumber,
     assignees,
   })
@@ -1541,8 +1610,8 @@ export async function addLabels(
   const octokit = userOctokit ?? getOctokit()
 
   await octokit.issues.addLabels({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     issue_number: issueNumber,
     labels,
   })
@@ -1562,8 +1631,8 @@ export async function removeLabel(
   const octokit = userOctokit ?? getOctokit()
 
   await octokit.issues.removeLabel({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     issue_number: issueNumber,
     name: label,
   })
@@ -1583,8 +1652,8 @@ export async function fetchCollaborators(): Promise<GitHubCollaborator[]> {
   const octokit = getOctokit()
 
   const { data } = await octokit.repos.listCollaborators({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    owner: getOwner(),
+    repo: getRepo(),
     per_page: 100,
   })
 
@@ -1665,8 +1734,8 @@ export async function fetchPRCIStatus(prNumber: number): Promise<{
   try {
     // 1. Get the PR — GitHub computes mergeable state for us
     const { data: pr } = await octokit.pulls.get({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       pull_number: prNumber,
     })
 
@@ -1749,15 +1818,15 @@ async function resolveCommitCIStatus(
   try {
     // Get combined status (covers status API integrations like Vercel)
     const { data: combinedStatus } = await octokit.repos.getCombinedStatusForRef({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       ref: sha,
     })
 
     // Get check runs (covers GitHub Actions checks)
     const { data: checkRuns } = await octokit.checks.listForRef({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       ref: sha,
       per_page: 100,
     })

@@ -73,7 +73,8 @@ test.describe("Dashboard Smoke", () => {
         !e.includes("Extension context invalidated") &&
         !e.includes("chrome-extension") &&
         !e.includes("Failed to load resource") &&
-        !e.includes("Hydration failed because the server rendered HTML didn't match the client"),
+        !e.includes("Hydration failed because the server rendered HTML didn't match the client") &&
+        !e.includes("Minified React error #418"),
     );
     expect(criticalErrors, `Console errors: ${criticalErrors.join("\n")}`).toHaveLength(0);
   });

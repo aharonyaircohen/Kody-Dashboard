@@ -6,7 +6,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
-import { requireKodyAuth } from '@dashboard/lib/auth'
+import { requireKodyAuth, getRequestAuth } from '@dashboard/lib/auth'
 
 import {
   fetchIssue,
@@ -16,6 +16,8 @@ import {
   getStatusFromBranch,
   findAssociatedPRByIssueNumber,
   fetchWorkflowRuns,
+  setGitHubContext,
+  clearGitHubContext,
 } from '@dashboard/lib/github-client'
 import { parseAllComments } from '@dashboard/lib/task-parser'
 import { matchWorkflowRunToTask } from '@dashboard/lib/workflow-matching'
@@ -123,6 +125,11 @@ function buildKodyTask(options: {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ taskId: string }> }) {
   const authResult = await requireKodyAuth(req)
   if (authResult instanceof NextResponse) return authResult
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     const { taskId } = await params
@@ -275,5 +282,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ task
       { error: 'internal_error', message: error?.message || 'Internal error' },
       { status: 500 },
     )
+  } finally {
+    clearGitHubContext()
   }
 }

@@ -9,8 +9,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { handleKodyApiError } from '@dashboard/lib/github-error-handler'
 import { workflowsQuerySchema } from '@dashboard/lib/schemas'
 import { parseQueryParams } from '@dashboard/lib/api-responses'
-import { requireKodyAuth } from '@dashboard/lib/auth'
-import { fetchWorkflowRuns } from '@dashboard/lib/github-client'
+import { requireKodyAuth, getRequestAuth } from '@dashboard/lib/auth'
+import { fetchWorkflowRuns, setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
 
 export async function GET(req: NextRequest) {
   // Check auth
@@ -22,6 +22,11 @@ export async function GET(req: NextRequest) {
   if ('error' in parsed) return parsed.error
   const { status } = parsed.data
 
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
+
   try {
     const runs = await fetchWorkflowRuns({
       status,
@@ -31,5 +36,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ runs })
   } catch (error: unknown) {
     return handleKodyApiError(error, 'workflows')
+  } finally {
+    clearGitHubContext()
   }
 }

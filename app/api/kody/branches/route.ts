@@ -7,9 +7,9 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireKodyAuth, getUserOctokit } from '@dashboard/lib/auth'
+import { requireKodyAuth, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
 import { GITHUB_OWNER, GITHUB_REPO } from '@dashboard/lib/constants'
-import { getOctokit } from '@dashboard/lib/github-client'
+import { getOctokit, setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
 
 const DELETE_BRANCH_SCHEMA = z.object({
   branch: z.string(),
@@ -23,6 +23,11 @@ const BULK_DELETE_SCHEMA = z.object({
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     const octokit = getOctokit()
@@ -69,6 +74,8 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('Error fetching branches:', error)
     return NextResponse.json({ error: 'Failed to fetch branches' }, { status: 500 })
+  } finally {
+    clearGitHubContext()
   }
 }
 
@@ -76,6 +83,11 @@ export async function GET(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     const userOctokit = await getUserOctokit(req)
@@ -106,6 +118,8 @@ export async function DELETE(req: NextRequest) {
   } catch (error) {
     console.error('Error deleting branch:', error)
     return NextResponse.json({ error: 'Failed to delete branch' }, { status: 500 })
+  } finally {
+    clearGitHubContext()
   }
 }
 
@@ -113,6 +127,11 @@ export async function DELETE(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     const userOctokit = await getUserOctokit(req)
@@ -154,5 +173,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('Error deleting branches:', error)
     return NextResponse.json({ error: 'Failed to delete branches' }, { status: 500 })
+  } finally {
+    clearGitHubContext()
   }
 }

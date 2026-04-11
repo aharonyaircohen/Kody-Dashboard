@@ -18,6 +18,7 @@ dist/
 # IDE
 .vscode/
 .idea/
+.history/
 
 # OS
 .DS_Store
@@ -30,6 +31,9 @@ pnpm-debug.log*
 
 # Vercel
 .vercel
+
+# Test results
+test-results/
 
 # Coverage
 coverage/

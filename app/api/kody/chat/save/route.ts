@@ -8,8 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { requireKodyAuth, getUserOctokit } from '@dashboard/lib/auth'
-import { findTaskBranch, findBranchByIssueNumber, getOctokit } from '@dashboard/lib/github-client'
+import { requireKodyAuth, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
+import { findTaskBranch, findBranchByIssueNumber, getOctokit, setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
 import { GITHUB_OWNER, GITHUB_REPO, TASK_ID_REGEX } from '@dashboard/lib/constants'
 import type { ChatHistory } from '@dashboard/lib/chat-types'
 
@@ -27,6 +27,11 @@ const saveChatSchema = z.object({
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     const body = await req.json()
@@ -133,5 +138,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[chat-save] Error:', error)
     return NextResponse.json({ error: 'Failed to save chat' }, { status: 500 })
+  } finally {
+    clearGitHubContext()
   }
 }

@@ -5,13 +5,18 @@
  * @ai-summary API route to fetch repository collaborators for assignee picker
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { requireKodyAuth } from '@dashboard/lib/auth'
+import { requireKodyAuth, getRequestAuth } from '@dashboard/lib/auth'
 
-import { fetchCollaborators } from '@dashboard/lib/github-client'
+import { fetchCollaborators, setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
 
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req)
   if (authResult instanceof NextResponse) return authResult
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     const collaborators = await fetchCollaborators()
@@ -23,5 +28,7 @@ export async function GET(req: NextRequest) {
       { error: 'Failed to fetch collaborators', details: message },
       { status: 500 },
     )
+  } finally {
+    clearGitHubContext()
   }
 }

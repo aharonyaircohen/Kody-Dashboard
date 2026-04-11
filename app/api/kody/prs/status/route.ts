@@ -6,8 +6,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireKodyAuth } from '@dashboard/lib/auth'
-import { fetchPRCIStatus } from '@dashboard/lib/github-client'
+import { requireKodyAuth, getRequestAuth } from '@dashboard/lib/auth'
+import { fetchPRCIStatus, setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
 import { logger } from '@dashboard/lib/logger'
 
 const querySchema = z.object({
@@ -17,6 +17,11 @@ const querySchema = z.object({
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     const { searchParams } = new URL(req.url)
@@ -36,5 +41,7 @@ export async function GET(req: NextRequest) {
     const msg = error instanceof Error ? error.message : String(error)
     logger.error({ err: error }, `Error fetching PR CI status: ${msg}`)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  } finally {
+    clearGitHubContext()
   }
 }

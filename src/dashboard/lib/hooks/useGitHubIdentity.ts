@@ -58,14 +58,22 @@ export function useGitHubIdentity() {
   }, [])
 
   const clearGitHubUser = useCallback(async () => {
-    // Clear session cookie server-side
+    // Clear session cookie server-side (for legacy OAuth sessions)
     try {
       await fetch('/api/kody/auth/logout', { method: 'POST', credentials: 'include' })
     } catch {
       // Ignore errors — cookie may already be cleared
     }
+    // Clear the new localStorage-based auth token
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('kody_auth')
+    }
     // Invalidate cached identity — UI will show the login screen
     queryClient.setQueryData(QUERY_KEY, null)
+    // Redirect to login page
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login'
+    }
   }, [queryClient])
 
   return { githubUser, isLoaded, setGitHubUser, clearGitHubUser }
