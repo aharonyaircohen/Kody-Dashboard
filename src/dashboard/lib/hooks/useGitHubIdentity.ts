@@ -9,7 +9,8 @@
  */
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 export interface GitHubIdentity {
@@ -69,10 +70,11 @@ async function fetchIdentity(): Promise<{ identity: GitHubIdentity | null; repo:
  * - `githubUser` is `null` when not authenticated (session missing or expired).
  * - `isLoaded` is `false` while the initial fetch is in progress.
  * - `setGitHubUser` is a no-op (identity is set by OAuth, not manually).
- * - `clearGitHubUser()` signs out: clears cookie and shows login screen (no auto-redirect).
+ * - `clearGitHubUser()` signs out: clears cookie and navigates to login.
  */
 export function useGitHubIdentity() {
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEY,
@@ -86,6 +88,21 @@ export function useGitHubIdentity() {
   const authError = data?.error ?? null
   const isLoaded = !isLoading
 
+  // Invalidate cache whenever kody_auth changes in localStorage.
+  // This keeps the React Query cache in sync with the localStorage source of truth,
+  // so logout takes effect immediately without a full page reload.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const stored = localStorage.getItem('kody_auth')
+    const hasAuth = stored !== null && stored !== 'null'
+
+    if (!hasAuth) {
+      // localStorage is empty — clear the cache so githubUser becomes null immediately
+      queryClient.setQueryData(QUERY_KEY, null)
+    }
+  }, [queryClient])
+
   // No-op: identity is set by OAuth flow, not manually
   const setGitHubUser = useCallback(() => {
     // Identity is managed by OAuth session — use clearGitHubUser() to sign out
@@ -98,17 +115,13 @@ export function useGitHubIdentity() {
     } catch {
       // Ignore errors — cookie may already be cleared
     }
-    // Clear the new localStorage-based auth token
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('kody_auth')
-    }
-    // Invalidate cached identity — UI will show the login screen
+    // Clear localStorage and React Query cache
+    localStorage.removeItem('kody_auth')
     queryClient.setQueryData(QUERY_KEY, null)
-    // Redirect to login page
-    if (typeof window !== 'undefined') {
-      window.location.href = '/login'
-    }
-  }, [queryClient])
+    queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+    // Soft navigation to login — no full page reload
+    router.push('/login')
+  }, [queryClient, router])
 
   return { githubUser, connectedRepo, authError, isLoaded, setGitHubUser, clearGitHubUser }
 }
