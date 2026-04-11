@@ -136,7 +136,8 @@ export function useTaskDetails(issueNumber: number | null, actorLogin?: string) 
   const query = useQuery({
     queryKey: queryKeys.taskDetails(issueNumber ?? -1),
     queryFn: () => kodyApi.tasks.get(issueNumber!),
-    enabled: !!issueNumber,
+    // Don't fire if no auth — prevents 401 on initial render before localStorage loads
+    enabled: !!getStoredAuth() && !!issueNumber,
     staleTime: 60_000, // 60s — assignee updates are reflected via list polling; detail is fetched on select
   })
 

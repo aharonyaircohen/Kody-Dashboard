@@ -35,6 +35,17 @@ type KodyState =
   | { status: 'failed'; task: KodyTask; failedAgo: string }
   | { status: 'gate-waiting'; task: KodyTask }
 
+/** Client-only relative time — avoids hydration mismatch from new Date() during SSR */
+function RelativeTime({ date }: { date: string }) {
+  const [text, setText] = useState<string>('')
+  useEffect(() => {
+    setText(formatRelativeTime(date))
+    const interval = setInterval(() => setText(formatRelativeTime(date)), 60_000)
+    return () => clearInterval(interval)
+  }, [date])
+  return <>{text}</>
+}
+
 function deriveKodyState(tasks: KodyTask[]): KodyState {
   // Priority: working > gate-waiting > failed > idle
 
@@ -267,7 +278,7 @@ export function KodyStatusBanner({
       </span>
       <RefreshIndicator isFetching={isFetching} dataUpdatedAt={dataUpdatedAt} />
       <span className="text-xs text-muted-foreground" title="Failed at">
-        {state.failedAgo}
+        <RelativeTime date={state.task.updatedAt} />
       </span>
     </div>
   )

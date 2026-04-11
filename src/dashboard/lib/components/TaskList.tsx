@@ -6,7 +6,7 @@
  */
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { cn, formatRelativeTime } from '../utils'
 import { getGitHubIssueUrl, parsePriorityLabel, PRIORITY_META } from '../constants'
 import { MiniPipelineProgress } from './MiniPipelineProgress'
@@ -113,6 +113,18 @@ const statusColors: Record<ColumnId, { dot: string; text: string; bg: string; bo
     bg: 'bg-emerald-500/[0.03]',
     border: 'border-l-emerald-500/50',
   },
+}
+
+// ── Client-only relative time (prevents hydration mismatch) ──
+function RelativeTime({ date }: { date: string }) {
+  const [text, setText] = useState<string>('')
+  useEffect(() => {
+    setText(formatRelativeTime(date))
+    const interval = setInterval(() => setText(formatRelativeTime(date)), 60_000)
+    return () => clearInterval(interval)
+  }, [date])
+  // Render empty on server and first client render to avoid hydration mismatch
+  return <span>{text}</span>
 }
 
 // ── Status icon ──
@@ -409,7 +421,7 @@ export function TaskList({
                     </SimpleTooltip>
                   )}
 
-                  <span className="text-zinc-600">{formatRelativeTime(task.updatedAt)}</span>
+                  <span className="text-zinc-600"><RelativeTime date={task.updatedAt} /></span>
 
                   {task.labels.length > 0 && (
                     <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-medium truncate max-w-24">
