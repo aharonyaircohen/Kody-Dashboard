@@ -88,17 +88,40 @@ export const GITHUB_OWNER = process.env.GITHUB_OWNER?.trim() ?? '';
 export const GITHUB_REPO = process.env.GITHUB_REPO?.trim() ?? '';
 
 /**
- * Generate a GitHub issue URL from an issue number
+ * Read the connected repo from localStorage kody_auth.
+ * Falls back to GITHUB_OWNER/GITHUB_REPO env vars if not set.
  */
-export function getGitHubIssueUrl(issueNumber: number): string {
-  return `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/issues/${issueNumber}`;
+function getConnectedRepo(): { owner: string; repo: string } {
+  if (typeof window === 'undefined') {
+    return { owner: GITHUB_OWNER, repo: GITHUB_REPO };
+  }
+  try {
+    const raw = localStorage.getItem('kody_auth');
+    if (!raw) return { owner: GITHUB_OWNER, repo: GITHUB_REPO };
+    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
+    if (auth.owner && auth.repo) return { owner: auth.owner, repo: auth.repo };
+  } catch {
+    // ignore
+  }
+  return { owner: GITHUB_OWNER, repo: GITHUB_REPO };
 }
 
 /**
- * Generate a GitHub PR URL from a PR number
+ * Generate a GitHub issue URL from an issue number.
+ * Uses the user's connected repo from localStorage, falling back to env defaults.
+ */
+export function getGitHubIssueUrl(issueNumber: number): string {
+  const { owner, repo } = getConnectedRepo();
+  return `https://github.com/${owner}/${repo}/issues/${issueNumber}`;
+}
+
+/**
+ * Generate a GitHub PR URL from a PR number.
+ * Uses the user's connected repo from localStorage, falling back to env defaults.
  */
 export function getGitHubPrUrl(prNumber: number): string {
-  return `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${prNumber}`;
+  const { owner, repo } = getConnectedRepo();
+  return `https://github.com/${owner}/${repo}/pull/${prNumber}`;
 }
 
 export const WORKFLOW_ID = "kody.yml";

@@ -15,7 +15,7 @@ import { Textarea } from '@dashboard/ui/textarea'
 import { cn } from '@dashboard/lib/utils/ui'
 import { usePostComment } from '../hooks'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
-import { EMOJI_LIST } from '../constants'
+import { EMOJI_LIST, getGitHubIssueUrl } from '../constants'
 import { Bold, Italic, Code, Link2, List, Eye, Send, Play, ExternalLink } from 'lucide-react'
 
 interface CommentEditorProps {
@@ -367,7 +367,7 @@ export function CommentEditor({
         </Button>
         <Button
           onClick={() =>
-            window.open(`https://github.com/${process.env.NEXT_PUBLIC_GITHUB_OWNER}/${process.env.NEXT_PUBLIC_GITHUB_REPO}/issues/${issueNumber}`, '_blank')
+            window.open(getGitHubIssueUrl(issueNumber), '_blank')
           }
           size="sm"
           variant="outline"
