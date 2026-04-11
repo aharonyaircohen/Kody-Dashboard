@@ -62,6 +62,7 @@ import {
   GitBranch,
   ChevronDown,
   Plus,
+  Github,
 } from "lucide-react";
 import { useKodyTasks, queryKeys } from "../hooks";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
@@ -209,7 +210,7 @@ export function KodyDashboard({
   );
 
   // GitHub identity — verified via OAuth session cookie
-  const { githubUser, clearGitHubUser } = useGitHubIdentity();
+  const { githubUser, connectedRepo, authError, clearGitHubUser } = useGitHubIdentity();
 
   // Theme toggle
   const { theme, setTheme } = useTheme();
@@ -860,12 +861,53 @@ export function KodyDashboard({
     );
   }
 
+  // Auth error from /api/kody/auth/me (token valid but repo access denied)
+  if (authError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center max-w-md p-6">
+          <div className="text-6xl mb-4">🔒</div>
+          <h2 className="text-xl font-semibold text-foreground mb-2">
+            Authentication Failed
+          </h2>
+          <p className="text-muted-foreground mb-4">
+            {authError}
+          </p>
+          <p className="text-sm text-muted-foreground mb-4">
+            Check that your token has access to the repository and try logging in again.
+          </p>
+          <Button onClick={() => { localStorage.removeItem('kody_auth'); window.location.href = '/login' }}>
+            Log in again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Generic error fallback
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center max-w-md p-6">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-semibold text-foreground mb-2">
+            Failed to Load Tasks
+          </h2>
+          <p className="text-muted-foreground mb-4">{error.message}</p>
+          <div className="flex gap-2 justify-center">
+            <Button onClick={() => refetch()}>Retry</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Build an inline error banner message for rate limit / generic errors
   const errorBannerMessage = !errorDismissed
     ? isRateLimited
       ? `GitHub API rate limited${retryAfter ? ` — retry after ${retryAfter}` : ""}`
       : error
-        ? error.message
+        ? (error as Error).message
         : null
     : null;
 
@@ -906,28 +948,43 @@ export function KodyDashboard({
                 {/* Desktop controls */}
                 <div className="hidden md:flex items-center gap-3">
                   {/* GitHub identity badge with dropdown */}
-                  {githubUser && (
+                  {(githubUser || connectedRepo) && (
                     <div className="relative">
                       <button
                         type="button"
                         onClick={() => setShowUserDropdown((prev) => !prev)}
-                        className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-accent transition-colors"
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-accent transition-colors max-w-[180px]"
                       >
-                        <Avatar className="h-5 w-5">
-                          <AvatarImage
-                            src={githubUser.avatar_url}
-                            alt={githubUser.login}
-                          />
-                          <AvatarFallback>
-                            {githubUser.login[0]?.toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs text-muted-foreground">
-                          @{githubUser.login}
+                        {githubUser ? (
+                          <Avatar className="h-5 w-5 shrink-0">
+                            <AvatarImage
+                              src={githubUser.avatar_url}
+                              alt={githubUser.login}
+                            />
+                            <AvatarFallback>
+                              {githubUser.login[0]?.toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        ) : (
+                          <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center shrink-0">
+                            <Github className="h-3 w-3 text-muted-foreground" />
+                          </div>
+                        )}
+                        <span className="text-xs text-muted-foreground truncate">
+                          {githubUser ? `@${githubUser.login}` : 'Connected'}
+                          {connectedRepo && (
+                            <span className="text-muted-foreground/60"> · {connectedRepo}</span>
+                          )}
                         </span>
                       </button>
                       {showUserDropdown && (
-                        <div className="absolute top-full right-0 mt-1 w-36 py-1 bg-popover border rounded-md shadow-lg z-50">
+                        <div className="absolute top-full right-0 mt-1 w-56 py-1 bg-popover border rounded-md shadow-lg z-50">
+                          {connectedRepo && (
+                            <div className="px-3 py-1.5 text-xs text-muted-foreground border-b mb-1">
+                              <span className="font-medium text-foreground">Repo:</span>{' '}
+                              {connectedRepo}
+                            </div>
+                          )}
                           <button
                             type="button"
                             onClick={() => {

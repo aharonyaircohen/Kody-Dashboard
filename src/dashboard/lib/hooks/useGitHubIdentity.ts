@@ -21,15 +21,46 @@ export interface GitHubIdentity {
 interface MeResponse {
   authenticated: boolean
   user?: GitHubIdentity
+  owner?: string
+  repo?: string
+  error?: string
 }
 
 const QUERY_KEY = ['kody-github-identity']
 
-async function fetchIdentity(): Promise<GitHubIdentity | null> {
-  const res = await fetch('/api/kody/auth/me', { credentials: 'include' })
-  if (!res.ok) return null
+function buildHeaders(): Record<string, string> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = localStorage.getItem('kody_auth')
+    if (!raw) return {}
+    const auth = JSON.parse(raw) as { token?: string; owner?: string; repo?: string }
+    if (!auth.token || !auth.owner || !auth.repo) return {}
+    return {
+      'x-kody-token': auth.token,
+      'x-kody-owner': auth.owner,
+      'x-kody-repo': auth.repo,
+    }
+  } catch {
+    return {}
+  }
+}
+
+async function fetchIdentity(): Promise<{ identity: GitHubIdentity | null; repo: string | null; error: string | null }> {
+  const headers = buildHeaders()
+  const res = await fetch('/api/kody/auth/me', {
+    headers,
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as MeResponse
+    return { identity: null, repo: null, error: data.error ?? `Error ${res.status}` }
+  }
   const data = (await res.json()) as MeResponse
-  return data.authenticated && data.user ? data.user : null
+  return {
+    identity: data.authenticated && data.user ? data.user : null,
+    repo: data.repo ?? null,
+    error: data.error ?? null,
+  }
 }
 
 /**
@@ -43,13 +74,16 @@ async function fetchIdentity(): Promise<GitHubIdentity | null> {
 export function useGitHubIdentity() {
   const queryClient = useQueryClient()
 
-  const { data: githubUser = null, isLoading } = useQuery<GitHubIdentity | null>({
+  const { data, isLoading } = useQuery({
     queryKey: QUERY_KEY,
     queryFn: fetchIdentity,
     staleTime: 5 * 60 * 1000, // 5 minutes — session is stable within a visit
     retry: false,
   })
 
+  const githubUser = data?.identity ?? null
+  const connectedRepo = data?.repo ?? null
+  const authError = data?.error ?? null
   const isLoaded = !isLoading
 
   // No-op: identity is set by OAuth flow, not manually
@@ -76,5 +110,5 @@ export function useGitHubIdentity() {
     }
   }, [queryClient])
 
-  return { githubUser, isLoaded, setGitHubUser, clearGitHubUser }
+  return { githubUser, connectedRepo, authError, isLoaded, setGitHubUser, clearGitHubUser }
 }
