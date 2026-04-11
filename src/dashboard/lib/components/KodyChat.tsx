@@ -12,7 +12,7 @@ import {
   MessageSquare,
   History,
 } from 'lucide-react'
-import { AGENTS, type AgentId } from '../agents'
+import { AGENT } from '../agents'
 import type { KodyTask } from '../types'
 import type { ChatMessage, ChatSession } from '../chat-types'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -21,18 +21,11 @@ import { useVoiceChat } from '../hooks/useVoiceChat'
 import { VoiceButton } from './VoiceButton'
 import { VoiceChatOverlay } from './VoiceChatOverlay'
 import { useChatSessions } from '../hooks/useChatSessions'
+import { useKodyActionState } from '../hooks/useKodyActionState'
 import { SessionSidebar } from './SessionSidebar'
 import { TaskSessionHistory } from './TaskSessionHistory'
 import { ToolCallList } from './ToolCallCard'
 import { MessageActions } from './MessageActions'
-
-const AGENT_LIST = Object.values(AGENTS).map(({ id, name, description, icon, capabilities }) => ({
-  id,
-  name,
-  description,
-  icon,
-  capabilities,
-}))
 
 interface Message {
   role: 'user' | 'assistant'
@@ -125,15 +118,12 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [loading, setLoading] = useState(false)
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([])
-  const [selectedAgent, setSelectedAgent] = useState<AgentId>('dashboard-manager')
-  const [showAgentDropdown, setShowAgentDropdown] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [voiceMuted, setVoiceMuted] = useState(false)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const eventSourceRef = useRef<EventSource | null>(null)
 
   // Remote dev status (only polls when actorLogin is provided)
   const { data: remoteStatus } = useRemoteStatus(actorLogin)
@@ -146,7 +136,10 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
   const [showTaskHistory, setShowTaskHistory] = useState(false)
 
   // Use session hook for global (non-task) chat
-  const sessionHook = useChatSessions(selectedAgent)
+  const sessionHook = useChatSessions()
+
+  // Poll action state — detects when Kody is waiting for instructions
+  const { state: actionState, isWaiting: isKodyWaiting } = useKodyActionState(selectedTask?.id)
 
   // Determine if we're in task mode or global mode
   const isTaskMode = !!selectedTask
@@ -172,6 +165,81 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
     },
     [isTaskMode, sessionHook],
   )
+
+  // ─── SSE for chat streaming ────────────────────────────────────────────────
+
+  const connectSSE = useCallback(
+    (sessionId: string) => {
+      // Close any existing connection
+      eventSourceRef.current?.close()
+
+      const url = `/api/kody/events/stream?taskId=${encodeURIComponent(sessionId)}`
+      const es = new EventSource(url)
+      eventSourceRef.current = es
+
+      es.onmessage = (event) => {
+        if (!event.data) return
+        try {
+          const parsed = JSON.parse(event.data)
+          switch (parsed.type) {
+            case 'connected':
+              break
+            case 'chat.message': {
+              const { role, content, timestamp } = parsed
+              setMessages((prev) => [
+                ...prev.filter((m) => !(m.role === 'assistant' && m.isLoading)),
+                {
+                  role: role === 'user' ? 'user' : 'assistant',
+                  content: content ?? '',
+                  timestamp: timestamp ?? new Date().toISOString(),
+                  isLoading: false,
+                },
+              ])
+              break
+            }
+            case 'chat.done':
+              setLoading(false)
+              es.close()
+              break
+            case 'chat.error': {
+              setLoading(false)
+              setMessages((prev) => {
+                const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
+                return [
+                  ...filtered,
+                  {
+                    role: 'assistant',
+                    content: `Error: ${parsed.error ?? 'Unknown error'}`,
+                    isLoading: false,
+                  },
+                ]
+              })
+              es.close()
+              break
+            }
+          }
+        } catch {
+          // skip malformed
+        }
+      }
+
+      es.onerror = () => {
+        setLoading(false)
+        es.close()
+      }
+    },
+    [setMessages],
+  )
+
+  // Open SSE when a task is selected
+  useEffect(() => {
+    if (selectedTask?.id) {
+      connectSSE(selectedTask.id)
+    }
+    return () => {
+      eventSourceRef.current?.close()
+    }
+  }, [selectedTask?.id, connectSSE])
 
   // Load task chat when task changes
   useEffect(() => {
@@ -254,47 +322,12 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
     scrollToBottom()
   }, [messages, loading, scrollToBottom])
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowAgentDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  // Cleanup abort controller on unmount
+  // Cleanup SSE on unmount
   useEffect(() => {
     return () => {
-      abortControllerRef.current?.abort()
+      eventSourceRef.current?.close()
     }
   }, [])
-
-  const currentAgent = AGENT_LIST.find((a) => a.id === selectedAgent) ?? AGENT_LIST[0]
-
-  const handleAgentChange = (agentId: AgentId) => {
-    if (agentId === selectedAgent) {
-      setShowAgentDropdown(false)
-      return
-    }
-
-    // Abort any in-flight request before switching
-    if (loading) {
-      abortControllerRef.current?.abort()
-      setLoading(false)
-    }
-
-    if (voiceOverlayOpen) {
-      voiceChat.stopConversation()
-      setVoiceOverlayOpen(false)
-      setVoiceMuted(false)
-    }
-    setSelectedAgent(agentId)
-    setShowAgentDropdown(false)
-    setToolCalls([])
-  }
 
   const executeClearHistory = () => {
     // Clear active session when clearing history in non-task mode
@@ -385,189 +418,94 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         fullContent = attachmentDescriptions + (messageContent ? `\n\n${messageContent}` : '')
       }
 
+      const timestamp = new Date().toISOString()
+
+      // Build message list (current messages + the new user message)
+      const allMessages = [
+        ...messages.map((m) => ({ role: m.role, content: m.content, timestamp: m.timestamp ?? timestamp })),
+        { role: 'user' as const, content: fullContent, timestamp },
+      ]
+
       setMessages((prev) => [
         ...prev,
-        { role: 'user', content: fullContent, timestamp: new Date().toISOString() },
+        { role: 'user', content: fullContent, timestamp },
       ])
+
+      // In task mode, use the selected task as sessionId.
+      // In global mode, auto-create a task first so every chat has a sessionId.
+      let sessionId: string
+      if (selectedTask) {
+        sessionId = selectedTask.id
+      } else {
+        // Auto-create a task for global chat
+        try {
+          const taskRes = await fetch('/api/kody/tasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: `Chat ${new Date().toLocaleDateString()}`,
+              body: 'Auto-created task for global chat session',
+            }),
+          })
+          if (!taskRes.ok) throw new Error(`Task creation failed: ${taskRes.status}`)
+          const taskData = await taskRes.json() as { task?: { id: string }; id?: string }
+          sessionId = (taskData.task?.id ?? taskData.id) as string
+          if (!sessionId) throw new Error('No taskId returned')
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : 'Failed to create task'
+          setMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false },
+          ])
+          return null
+        }
+      }
+
       setLoading(true)
       setToolCalls([])
-      abortControllerRef.current = new AbortController()
+
+      // Placeholder assistant message — will be replaced by SSE events
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: '', isLoading: true, timestamp: new Date().toISOString() },
       ])
 
-      let accumulatedContent = ''
-
       try {
-        const requestBody: {
-          agentId: AgentId
-          messages: Array<{ role: 'user' | 'assistant'; content: string }>
-          taskId?: string
-          taskData?: {
-            issueNumber: number
-            title: string
-            body: string
-            state: string
-            labels: string[]
-            column: string
-            pipeline?: {
-              state: string
-              currentStage: string | null
-              stages: Record<string, { state: string }>
-            }
-            taskDefinition?: {
-              task_type: string
-              risk_level: string
-              primary_domain: string
-              scope: string[]
-            }
-            associatedPR?: { number: number; state: string; html_url: string }
-          }
-          attachments?: Array<{ name: string; mimeType: string; data: string }>
-        } = {
-          agentId: selectedAgent,
-          messages: [
-            ...messages.map((m) => ({ role: m.role, content: m.content })),
-            { role: 'user', content: fullContent },
-          ],
-        }
-
-        if (currentAttachments.length > 0) {
-          requestBody.attachments = currentAttachments.map((a) => ({
-            name: a.name,
-            mimeType: a.mimeType,
-            data: a.data,
-          }))
-        }
-
-        if (selectedTask) {
-          requestBody.taskId = selectedTask.id
-          requestBody.taskData = {
-            issueNumber: selectedTask.issueNumber,
-            title: selectedTask.title,
-            body: selectedTask.body,
-            state: selectedTask.state,
-            labels: selectedTask.labels,
-            column: selectedTask.column,
-            pipeline: selectedTask.pipeline
-              ? {
-                  state: selectedTask.pipeline.state,
-                  currentStage: selectedTask.pipeline.currentStage,
-                  stages: selectedTask.pipeline.stages,
-                }
-              : undefined,
-            taskDefinition: selectedTask.taskDefinition,
-            associatedPR: selectedTask.associatedPR
-              ? {
-                  number: selectedTask.associatedPR.number,
-                  state: selectedTask.associatedPR.state,
-                  html_url: selectedTask.associatedPR.html_url,
-                }
-              : undefined,
-          }
-        }
-
-        const response = await fetch('/api/kody/chat', {
+        const triggerRes = await fetch('/api/kody/chat/trigger', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-          signal: abortControllerRef.current.signal,
+          body: JSON.stringify({
+            taskId: sessionId,
+            messages: allMessages,
+            dashboardUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+          }),
         })
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || `HTTP ${response.status}`)
-        }
-        if (!response.body) throw new Error('No response body')
-
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ''
-
-        const parseSSEChunk = (text: string) => {
-          const lines = text.split('\n')
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue
-            const data = line.slice(6)
-            if (data === '[DONE]') continue
-            try {
-              const parsed = JSON.parse(data)
-              switch (parsed.type) {
-                case 'text-delta': {
-                  accumulatedContent += parsed.delta
-                  setMessages((prev) => {
-                    const newMessages = [...prev]
-                    const lastMsg = newMessages[newMessages.length - 1]
-                    if (lastMsg?.role === 'assistant') lastMsg.content = accumulatedContent
-                    return newMessages
-                  })
-                  break
-                }
-                case 'tool-input-start':
-                  setToolCalls((prev) => [
-                    ...prev,
-                    {
-                      name: parsed.toolName,
-                      arguments: {},
-                      status: 'running' as const,
-                      startedAt: Date.now(),
-                    },
-                  ])
-                  break
-                case 'tool-output-available':
-                  break
-                case 'error':
-                  console.error('Stream error:', parsed.errorText)
-                  break
-              }
-            } catch {
-              /* skip malformed JSON */
-            }
-          }
+        if (!triggerRes.ok) {
+          const errorData = await triggerRes.json()
+          throw new Error(errorData.error || `HTTP ${triggerRes.status}`)
         }
 
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
-          const lastNewline = buffer.lastIndexOf('\n')
-          if (lastNewline !== -1) {
-            parseSSEChunk(buffer.slice(0, lastNewline + 1))
-            buffer = buffer.slice(lastNewline + 1)
-          }
-        }
-        if (buffer.trim()) parseSSEChunk(buffer)
-
-        return accumulatedContent
+        // SSE will take over — streaming is handled by connectSSE
+        return null
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           setMessages((prev) => prev.slice(0, -1))
           return null
         }
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        setMessages((prev) => {
-          const newMessages = [...prev]
-          const lastMsg = newMessages[newMessages.length - 1]
-          if (lastMsg?.role === 'assistant') {
-            lastMsg.content = `Error: ${errorMessage}`
-            lastMsg.isLoading = false
-          }
-          return newMessages
-        })
-        return null
-      } finally {
         setLoading(false)
         setMessages((prev) => {
-          const newMessages = [...prev]
-          const lastMsg = newMessages[newMessages.length - 1]
-          if (lastMsg?.role === 'assistant') lastMsg.isLoading = false
-          return newMessages
+          const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
+          return [
+            ...filtered,
+            { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false },
+          ]
         })
-        abortControllerRef.current = null
+        return null
       }
     },
-    [selectedAgent, selectedTask, setMessages, messages],
+    [selectedTask, setMessages, messages],
   )
 
   const sendMessage = async () => {
@@ -576,6 +514,38 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
     setInput('')
     const currentAttachments = [...attachments]
     setAttachments([])
+
+    // If Kody is waiting for instructions, route to the action instruction endpoint
+    if (isKodyWaiting && selectedTask?.id) {
+      try {
+        await fetch('/api/kody/action/instruction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            runId: selectedTask.id,
+            instruction: userMessage,
+          }),
+        })
+        // Add a temporary "instruction sent" message to the chat
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'user' as const,
+            content: userMessage,
+            timestamp: new Date().toISOString(),
+          },
+          {
+            role: 'assistant' as const,
+            content: `📬 Instruction sent to Kody — waiting for response...`,
+            timestamp: new Date().toISOString(),
+          },
+        ])
+      } catch (err) {
+        console.error('Failed to send instruction:', err)
+      }
+      return
+    }
+
     await sendText(userMessage, currentAttachments)
   }
 
@@ -612,7 +582,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
   }
 
   const handleStop = () => {
-    abortControllerRef.current?.abort()
+    eventSourceRef.current?.close()
     setLoading(false)
     setMessages((prev) => {
       const newMessages = [...prev]
@@ -625,9 +595,11 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
   }
 
   // Generate placeholder based on mode
-  const placeholder = isTaskMode
+  const placeholder = isKodyWaiting
+    ? `Give Kody instructions...`
+    : isTaskMode
     ? `Ask about task #${selectedTask?.issueNumber}...`
-    : `Ask ${currentAgent.name}...`
+    : `Ask Kody...`
 
   const canSend = input.trim() || attachments.length > 0
 
@@ -638,7 +610,6 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         <SessionSidebar
           sessions={sessionHook.sessions}
           activeSessionId={sessionHook.activeSession?.id || null}
-          agentId={selectedAgent}
           onSwitchSession={sessionHook.switchSession}
           onCreateSession={sessionHook.createSession}
           onDeleteSession={sessionHook.deleteSession}
@@ -655,7 +626,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
           turnCount={voiceChat.turnCount}
           error={voiceChat.error}
           messages={messages}
-          agentName={currentAgent.name}
+          agentName={AGENT.name}
           onStop={() => {
             voiceChat.stopConversation()
             setVoiceOverlayOpen(false)
@@ -668,15 +639,15 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
           isMuted={voiceMuted}
         />
       )}
-      {/* Header with agent and context */}
-      <div className="pl-4 pr-12 md:pr-4 py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
+      {/* Header with context */}
+      <div className="pl-4 pr-4 py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
         <div className="flex items-center justify-between">
-          {/* Left: Agent icon + name + message count */}
+          {/* Left: Kody branding */}
           <div className="flex items-center gap-2">
-            <span className="text-xl" role="img" aria-label={currentAgent.name}>
-              {currentAgent.icon}
+            <span className="text-xl" role="img" aria-label={AGENT.name}>
+              {AGENT.icon}
             </span>
-            <span className="font-semibold text-base">{currentAgent.name}</span>
+            <span className="font-semibold text-base">{AGENT.name}</span>
             {messages.length > 0 && (
               <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
                 {messages.length}
@@ -697,48 +668,6 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
               <span className="hidden sm:inline">{remoteStatus.online ? 'Remote' : 'Offline'}</span>
             </div>
           )}
-
-          {/* Right: Agent selector dropdown */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setShowAgentDropdown(!showAgentDropdown)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-background rounded-md border border-transparent hover:border-border transition-all"
-            >
-              <span>Switch</span>
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </button>
-            {showAgentDropdown && (
-              <div className="absolute right-0 top-full mt-1 w-64 bg-background border rounded-lg shadow-xl z-50 overflow-hidden">
-                <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b">
-                  Select Agent
-                </div>
-                {AGENT_LIST.map((agent) => (
-                  <button
-                    key={agent.id}
-                    onClick={() => handleAgentChange(agent.id)}
-                    className={`w-full text-left px-3 py-2.5 hover:bg-muted/50 flex items-start gap-3 transition-colors ${
-                      agent.id === selectedAgent ? 'bg-primary/5 border-l-2 border-primary' : ''
-                    }`}
-                  >
-                    <span className="text-lg mt-0.5">{agent.icon}</span>
-                    <div>
-                      <div className="font-medium text-sm">{agent.name}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-1">
-                        {agent.description}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Right: Action buttons (session sidebar, task history) */}
           <div className="flex items-center gap-1">
@@ -793,6 +722,20 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
           )}
         </div>
       </div>
+
+      {/* Kody waiting for instructions banner */}
+      {isKodyWaiting && actionState && (
+        <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2 text-sm text-amber-800">
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500" />
+          </span>
+          <span className="font-medium">Kody is waiting for your instructions</span>
+          {actionState.step && (
+            <span className="text-amber-600">— paused at <code className="bg-amber-100 px-1 rounded">{actionState.step}</code></span>
+          )}
+        </div>
+      )}
 
       {/* Messages area */}
       <div className="flex-1 overflow-auto p-4 space-y-4">

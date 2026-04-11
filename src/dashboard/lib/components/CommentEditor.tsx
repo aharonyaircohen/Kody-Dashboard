@@ -367,7 +367,7 @@ export function CommentEditor({
         </Button>
         <Button
           onClick={() =>
-            window.open(`https://github.com/A-Guy-educ/A-Guy/issues/${issueNumber}`, '_blank')
+            window.open(`https://github.com/${process.env.NEXT_PUBLIC_GITHUB_OWNER}/${process.env.NEXT_PUBLIC_GITHUB_REPO}/issues/${issueNumber}`, '_blank')
           }
           size="sm"
           variant="outline"

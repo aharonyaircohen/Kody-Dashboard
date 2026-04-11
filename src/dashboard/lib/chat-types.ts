@@ -5,8 +5,6 @@
  * @ai-summary Shared types for chat persistence across dashboard and pipeline
  */
 
-import type { AgentId } from './agents'
-
 /**
  * A single message in a chat conversation.
  * Used for both dashboard chat and pipeline agent sessions.
@@ -57,7 +55,7 @@ export interface ChatHistory {
 }
 
 // ===========================================
-// NEW SESSION MANAGEMENT TYPES (v2)
+// SESSION MANAGEMENT TYPES (v2)
 // ===========================================
 
 /**
@@ -67,8 +65,6 @@ export interface ChatHistory {
 export interface SessionMeta {
   /** Unique session identifier */
   id: string
-  /** Which agent this session belongs to */
-  agentId: AgentId
   /** User-editable or auto-generated title */
   title: string
   /** When this session was created */
@@ -87,13 +83,13 @@ export interface SessionMeta {
  */
 export interface GlobalChatStore {
   /** Schema version */
-  version: 2
+  version: 3
   /** Session metadata list */
   sessions: SessionMeta[]
   /** Messages keyed by session ID */
   messages: Record<string, ChatMessage[]>
-  /** Active session ID per agent */
-  activeSessionId: Record<AgentId, string>
+  /** Active session ID (single, not per-agent) */
+  activeSessionId: string
 }
 
 /**
@@ -101,13 +97,9 @@ export interface GlobalChatStore {
  */
 export function createEmptyGlobalStore(): GlobalChatStore {
   return {
-    version: 2,
+    version: 3,
     sessions: [],
     messages: {},
-    activeSessionId: {
-      'dashboard-manager': '',
-      'prd-refiner': '',
-      'system-architect': '',
-    },
+    activeSessionId: '',
   }
 }

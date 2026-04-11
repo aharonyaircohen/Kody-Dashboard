@@ -365,7 +365,7 @@ export async function GET(req: NextRequest) {
         {
           error: 'no_token',
           message:
-            'GitHub token is not configured. Set KODY_BOT_TOKEN or GITHUB_TOKEN in environment variables.',
+            'GitHub token is not configured. Set GITHUB_TOKEN, KODY_BOT_TOKEN, or GH_PAT in environment variables.',
         },
         { status: 401 },
       )

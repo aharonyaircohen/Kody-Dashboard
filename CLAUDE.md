@@ -22,13 +22,15 @@ Next.js dashboard for monitoring and managing the Kody CI/CD pipeline.
 
 ## Environment Variables
 
-| Variable | Purpose |
-|----------|---------|
-| `KODY_SESSION_SECRET` | JWT session signing secret |
-| `GITHUB_TOKEN` / `KODY_BOT_TOKEN` | GitHub API token |
-| `GITHUB_APP_CLIENT_ID` | GitHub OAuth App client ID |
-| `GITHUB_APP_CLIENT_SECRET` | GitHub OAuth App client secret |
-| `KODY_PUBLIC_SERVER_URL` | Public URL for OAuth redirects |
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `KODY_SESSION_SECRET` | Yes | JWT session signing secret |
+| `GITHUB_TOKEN` | Yes | GitHub API token (needs `workflows: write`) |
+| `GITHUB_APP_CLIENT_ID` | Yes | GitHub OAuth App client ID |
+| `GITHUB_APP_CLIENT_SECRET` | Yes | GitHub OAuth App client secret |
+| `NEXT_PUBLIC_SERVER_URL` | Dev | Public URL for OAuth redirects |
+| `KODY_CHAT_WORKFLOW_REPO` | No | Engine repo for chat workflow (default: `GITHUB_OWNER/GITHUB_REPO`) |
+| `KODY_ENGINE_LOCAL_PATH` | Dev | Local path to engine repo (for local SSE polling) |
 
 ## Deployment
 

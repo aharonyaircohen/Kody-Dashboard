@@ -37,7 +37,7 @@ export class RateLimitError extends Error {
 
 export class NoTokenError extends Error {
   constructor(
-    message = "GitHub token is not configured. Set KODY_BOT_TOKEN or GITHUB_TOKEN in environment variables.",
+    message = "GitHub token is not configured. Set GITHUB_TOKEN, KODY_BOT_TOKEN, or GH_PAT in environment variables.",
   ) {
     super(message);
     this.name = "NoTokenError";
@@ -65,12 +65,11 @@ export class ApiError extends Error {
 
 /**
  * Redirect to GitHub OAuth login when session expires.
- * Call this in mutation onError handlers to handle expired credentials.
- * @param returnTo - Optional path to return to after login (defaults to /)
+ * No-op in token-only auth mode — kept for backwards compatibility.
  */
-export function redirectToLogin(returnTo = "/"): void {
-  const encoded = encodeURIComponent(returnTo);
-  window.location.href = `/api/oauth/github?returnTo=${encoded}`;
+export function redirectToLogin(_returnTo = "/"): void {
+  // Token-only auth: no login flow available
+  // OAuth redirect removed — operator should configure GITHUB_TOKEN
 }
 
 // ============ Helpers ============

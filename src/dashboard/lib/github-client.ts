@@ -115,10 +115,10 @@ type ThrottledOctokit = Octokit & ReturnType<typeof throttling>
 export function getOctokit(): Octokit {
   if (octokitInstance) return octokitInstance as ThrottledOctokit
 
-  // Prefer KODY_BOT_TOKEN if set (for bot attribution), otherwise fall back to GITHUB_TOKEN
-  const token = process.env.KODY_BOT_TOKEN || process.env.GITHUB_TOKEN
+  // Prefer KODY_BOT_TOKEN if set (for bot attribution), otherwise fall back to GITHUB_TOKEN / GH_PAT
+  const token = process.env.KODY_BOT_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_PAT
   if (!token) {
-    throw new Error('Neither KODY_BOT_TOKEN nor GITHUB_TOKEN is configured')
+    throw new Error('No GitHub token configured. Set KODY_BOT_TOKEN, GITHUB_TOKEN, or GH_PAT.')
   }
 
   // Create Octokit with throttling plugin - auto-retries on rate limits

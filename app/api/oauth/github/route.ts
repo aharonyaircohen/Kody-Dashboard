@@ -25,6 +25,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const authUrl = new URL(GITHUB_AUTH_URL);
   authUrl.searchParams.set("client_id", clientId);
   authUrl.searchParams.set("redirect_uri", callbackUrl);
+  authUrl.searchParams.set("scope", "repo user:email");
 
   const res = NextResponse.redirect(authUrl);
   const state = await storeOAuthState(res, returnTo);

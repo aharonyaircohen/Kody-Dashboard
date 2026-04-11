@@ -5,11 +5,11 @@
  * @ai-summary Session management hook for Kody global chat - CRUD operations with localStorage persistence
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import type { AgentId } from '../agents'
+import { createEmptyGlobalStore } from '../chat-types'
 import type { ChatMessage, GlobalChatStore, SessionMeta } from '../chat-types'
 
-const STORAGE_KEY = 'kody-sessions-v2'
-const MAX_SESSIONS_PER_AGENT = 50
+const STORAGE_KEY = 'kody-sessions-v3'
+const MAX_SESSIONS = 50
 const DEBOUNCE_MS = 1000
 
 /**
@@ -20,55 +20,36 @@ function generateSessionId(): string {
 }
 
 /**
- * Convert legacy v1 format (Record<AgentId, Message[]>) to v2 format
+ * Migrate v2 store (agent-scoped) to v3 store (single session).
+ * Sessions from all agents are merged — agentId field is dropped.
  */
-function migrateFromV1(v1Data: Record<AgentId, ChatMessage[]> | null): GlobalChatStore {
-  if (!v1Data) {
-    return {
-      version: 2,
-      sessions: [],
-      messages: {},
-      activeSessionId: {
-        'dashboard-manager': '',
-        'prd-refiner': '',
-        'system-architect': '',
-      },
-    }
-  }
-
+function migrateFromV2(v2Data: GlobalChatStore | null): GlobalChatStore {
   const store: GlobalChatStore = {
-    version: 2,
+    version: 3,
     sessions: [],
     messages: {},
-    activeSessionId: {
-      'dashboard-manager': '',
-      'prd-refiner': '',
-      'system-architect': '',
-    },
+    activeSessionId: '',
   }
 
-  // Migrate each agent's messages to a session
-  const now = new Date().toISOString()
-  for (const agentId of Object.keys(v1Data) as AgentId[]) {
-    const messages = v1Data[agentId]
-    if (messages && messages.length > 0) {
-      const sessionId = generateSessionId()
-      const firstUserMessage = messages.find((m) => m.role === 'user')
-      const title = firstUserMessage?.text?.slice(0, 60) || 'Imported conversation'
+  if (!v2Data) return store
 
-      store.sessions.push({
-        id: sessionId,
-        agentId,
-        title,
-        createdAt: now,
-        updatedAt: now,
-        messageCount: messages.length,
-        pinned: false,
-      })
+  // Migrate sessions (drop agentId which no longer exists)
+  for (const session of v2Data.sessions) {
+    store.sessions.push({
+      id: session.id,
+      title: session.title,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      messageCount: session.messageCount,
+      pinned: session.pinned,
+    })
+    store.messages[session.id] = (v2Data.messages as Record<string, import('../chat-types').ChatMessage[]>)[session.id] || []
+  }
 
-      store.messages[sessionId] = messages
-      store.activeSessionId[agentId] = sessionId
-    }
+  // Pick any non-empty active session as the new active
+  if (v2Data.activeSessionId && typeof v2Data.activeSessionId === 'object') {
+    const activeIds = Object.values(v2Data.activeSessionId) as string[]
+    store.activeSessionId = activeIds.find((id) => id && store.messages[id]?.length > 0) || ''
   }
 
   return store
@@ -79,53 +60,26 @@ function migrateFromV1(v1Data: Record<AgentId, ChatMessage[]> | null): GlobalCha
  */
 function loadStore(): GlobalChatStore {
   if (typeof window === 'undefined') {
-    return {
-      version: 2,
-      sessions: [],
-      messages: {},
-      activeSessionId: {
-        'dashboard-manager': '',
-        'prd-refiner': '',
-        'system-architect': '',
-      },
-    }
+    return createEmptyGlobalStore()
   }
 
   try {
-    // Try to load v2 format
-    const v2Data = localStorage.getItem(STORAGE_KEY)
-    if (v2Data) {
-      const parsed = JSON.parse(v2Data) as GlobalChatStore
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as GlobalChatStore
+      if (parsed.version === 3) return parsed
+      // Migrate older versions
       if (parsed.version === 2) {
-        return parsed
+        const migrated = migrateFromV2(parsed)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
+        return migrated
       }
-    }
-
-    // Try to load legacy v1 format
-    const v1Data = localStorage.getItem('kody-global-chat')
-    if (v1Data) {
-      const parsed = JSON.parse(v1Data)
-      const migrated = migrateFromV1(parsed)
-      // Save migrated data
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
-      // Remove legacy key
-      localStorage.removeItem('kody-global-chat')
-      return migrated
     }
   } catch (error) {
     console.error('Failed to load chat sessions:', error)
   }
 
-  return {
-    version: 2,
-    sessions: [],
-    messages: {},
-    activeSessionId: {
-      'dashboard-manager': '',
-      'prd-refiner': '',
-      'system-architect': '',
-    },
-  }
+  return createEmptyGlobalStore()
 }
 
 /**
@@ -136,9 +90,7 @@ let saveTimeout: ReturnType<typeof setTimeout> | null = null
 function saveStore(store: GlobalChatStore): void {
   if (typeof window === 'undefined') return
 
-  if (saveTimeout) {
-    clearTimeout(saveTimeout)
-  }
+  if (saveTimeout) clearTimeout(saveTimeout)
 
   saveTimeout = setTimeout(() => {
     try {
@@ -150,7 +102,7 @@ function saveStore(store: GlobalChatStore): void {
 }
 
 export interface UseChatSessionsResult {
-  /** All sessions for the current agent */
+  /** All sessions, sorted by updatedAt descending */
   sessions: SessionMeta[]
   /** The currently active session */
   activeSession: SessionMeta | null
@@ -173,9 +125,9 @@ export interface UseChatSessionsResult {
 }
 
 /**
- * Hook for managing chat sessions for a specific agent
+ * Hook for managing chat sessions.
  */
-export function useChatSessions(agentId: AgentId): UseChatSessionsResult {
+export function useChatSessions(): UseChatSessionsResult {
   const [store, setStore] = useState<GlobalChatStore | null>(null)
 
   // Load on mount (client-side only)
@@ -183,19 +135,19 @@ export function useChatSessions(agentId: AgentId): UseChatSessionsResult {
     setStore(loadStore())
   }, [])
 
-  // Get sessions for this agent, sorted by updatedAt descending
+  // Get sessions sorted by updatedAt descending
   const sessions = useMemo(() => {
     if (!store) return []
-    return store.sessions
-      .filter((s) => s.agentId === agentId)
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-  }, [store, agentId])
+    return [...store.sessions].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    )
+  }, [store])
 
   // Get active session
   const activeSession = useMemo(() => {
-    if (!store || !store.activeSessionId[agentId]) return null
-    return store.sessions.find((s) => s.id === store.activeSessionId[agentId]) || null
-  }, [store, agentId])
+    if (!store || !store.activeSessionId) return null
+    return store.sessions.find((s) => s.id === store.activeSessionId) || null
+  }, [store])
 
   // Get messages for active session
   const messages = useMemo(() => {
@@ -209,7 +161,6 @@ export function useChatSessions(agentId: AgentId): UseChatSessionsResult {
     const sessionId = generateSessionId()
     const newSession: SessionMeta = {
       id: sessionId,
-      agentId,
       title: 'New conversation',
       createdAt: now,
       updatedAt: now,
@@ -220,62 +171,60 @@ export function useChatSessions(agentId: AgentId): UseChatSessionsResult {
     setStore((prev) => {
       if (!prev) return prev
 
-      const agentSessions = prev.sessions.filter((s) => s.agentId === agentId)
-
       // Enforce session limit - delete oldest non-pinned session
-      let updatedSessions = prev.sessions
-      if (agentSessions.length >= MAX_SESSIONS_PER_AGENT) {
-        const nonPinned = agentSessions
+      if (prev.sessions.length >= MAX_SESSIONS) {
+        const nonPinned = prev.sessions
           .filter((s) => !s.pinned)
           .sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime())
+
         if (nonPinned.length > 0) {
           const oldestId = nonPinned[0].id
-          updatedSessions = prev.sessions.filter((s) => s.id !== oldestId)
+          const updatedSessions = prev.sessions.filter((s) => s.id !== oldestId)
           const { [oldestId]: _, ...restMessages } = prev.messages
-          const newStore = {
+          const newStore: GlobalChatStore = {
             ...prev,
             sessions: updatedSessions,
             messages: restMessages,
+            activeSessionId: sessionId,
           }
-          saveStore(newStore)
-          return newStore
+          const withNew = {
+            ...newStore,
+            sessions: [...newStore.sessions, newSession],
+            messages: { ...newStore.messages, [sessionId]: [] },
+          }
+          saveStore(withNew)
+          return withNew
         }
       }
 
-      const newStore = {
+      const newStore: GlobalChatStore = {
         ...prev,
         sessions: [...prev.sessions, newSession],
         messages: { ...prev.messages, [sessionId]: [] },
-        activeSessionId: { ...prev.activeSessionId, [agentId]: sessionId },
+        activeSessionId: sessionId,
       }
       saveStore(newStore)
       return newStore
     })
 
     return sessionId
-  }, [agentId])
+  }, [])
 
   // Switch to a different session
-  const switchSession = useCallback(
-    (sessionId: string) => {
-      setStore((prev) => {
-        if (!prev) return prev
-        const newStore = {
-          ...prev,
-          activeSessionId: { ...prev.activeSessionId, [agentId]: sessionId },
-        }
-        saveStore(newStore)
-        return newStore
-      })
-    },
-    [agentId],
-  )
+  const switchSession = useCallback((sessionId: string) => {
+    setStore((prev) => {
+      if (!prev) return prev
+      const newStore: GlobalChatStore = { ...prev, activeSessionId: sessionId }
+      saveStore(newStore)
+      return newStore
+    })
+  }, [])
 
   // Rename a session
   const renameSession = useCallback((sessionId: string, title: string) => {
     setStore((prev) => {
       if (!prev) return prev
-      const newStore = {
+      const newStore: GlobalChatStore = {
         ...prev,
         sessions: prev.sessions.map((s) =>
           s.id === sessionId ? { ...s, title, updatedAt: new Date().toISOString() } : s,
@@ -287,46 +236,37 @@ export function useChatSessions(agentId: AgentId): UseChatSessionsResult {
   }, [])
 
   // Delete a session
-  const deleteSession = useCallback(
-    (sessionId: string) => {
-      setStore((prev) => {
-        if (!prev) return prev
+  const deleteSession = useCallback((sessionId: string) => {
+    setStore((prev) => {
+      if (!prev) return prev
 
-        const wasActive = prev.activeSessionId[agentId] === sessionId
+      const wasActive = prev.activeSessionId === sessionId
+      const newSessions = prev.sessions.filter((s) => s.id !== sessionId)
+      const { [sessionId]: _, ...restMessages } = prev.messages
 
-        // Remove session from list
-        const newSessions = prev.sessions.filter((s) => s.id !== sessionId)
+      // If was active, switch to most recent remaining session
+      const newActiveId = wasActive
+        ? [...newSessions].sort(
+            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+          )[0]?.id || ''
+        : prev.activeSessionId
 
-        // Remove messages
-        const { [sessionId]: _, ...restMessages } = prev.messages
-
-        // If was active, switch to most recent session
-        let newActiveId = prev.activeSessionId[agentId]
-        if (wasActive) {
-          const remainingForAgent = newSessions
-            .filter((s) => s.agentId === agentId)
-            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-          newActiveId = remainingForAgent[0]?.id || ''
-        }
-
-        const newStore = {
-          ...prev,
-          sessions: newSessions,
-          messages: restMessages,
-          activeSessionId: { ...prev.activeSessionId, [agentId]: newActiveId },
-        }
-        saveStore(newStore)
-        return newStore
-      })
-    },
-    [agentId],
-  )
+      const newStore: GlobalChatStore = {
+        ...prev,
+        sessions: newSessions,
+        messages: restMessages,
+        activeSessionId: newActiveId,
+      }
+      saveStore(newStore)
+      return newStore
+    })
+  }, [])
 
   // Pin/unpin a session
   const pinSession = useCallback((sessionId: string) => {
     setStore((prev) => {
       if (!prev) return prev
-      const newStore = {
+      const newStore: GlobalChatStore = {
         ...prev,
         sessions: prev.sessions.map((s) =>
           s.id === sessionId ? { ...s, pinned: !s.pinned, updatedAt: new Date().toISOString() } : s,
@@ -343,12 +283,9 @@ export function useChatSessions(agentId: AgentId): UseChatSessionsResult {
 
     setStore((prev) => {
       if (!prev) return prev
-      const newStore = {
+      const newStore: GlobalChatStore = {
         ...prev,
-        messages: {
-          ...prev.messages,
-          [activeSession.id]: [],
-        },
+        messages: { ...prev.messages, [activeSession.id]: [] },
         sessions: prev.sessions.map((s) =>
           s.id === activeSession.id
             ? { ...s, messageCount: 0, updatedAt: new Date().toISOString() }
@@ -373,24 +310,19 @@ export function useChatSessions(agentId: AgentId): UseChatSessionsResult {
             ? newMessagesOrUpdater(prev.messages[activeSession.id] || [])
             : newMessagesOrUpdater
 
-        const newStore = {
+        const newStore: GlobalChatStore = {
           ...prev,
-          messages: {
-            ...prev.messages,
-            [activeSession.id]: newMessages,
-          },
+          messages: { ...prev.messages, [activeSession.id]: newMessages },
           sessions: prev.sessions.map((s) =>
             s.id === activeSession.id
               ? {
                   ...s,
                   messageCount: newMessages.length,
                   updatedAt: new Date().toISOString(),
-                  // Auto-title from first user message if still "New conversation"
                   title:
                     s.title === 'New conversation' && newMessages.length > 0
-                      ? newMessages
-                          .find((m: ChatMessage) => m.role === 'user')
-                          ?.text?.slice(0, 60) || s.title
+                      ? newMessages.find((m: ChatMessage) => m.role === 'user')?.text?.slice(0, 60) ||
+                        s.title
                       : s.title,
                 }
               : s,

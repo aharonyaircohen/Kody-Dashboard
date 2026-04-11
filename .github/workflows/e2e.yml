@@ -1,0 +1,147 @@
+name: E2E Tests
+
+on:
+  # Run on every PR preview deployment
+  pull_request:
+    branches: [main]
+  # Also run on demand for the production deployment
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target deployment"
+        required: false
+        default: "production"
+        type: choice
+        options:
+          - production
+          - preview
+  # Nightly smoke test against production
+  schedule:
+    - cron: "0 6 * * 1-5" # Weekdays at 6am UTC
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  # Token-only auth — allows the dashboard to work without OAuth in tests
+  KODY_BOT_TOKEN: ${{ secrets.KODY_BOT_TOKEN }}
+
+jobs:
+  # ─── Deploy to Vercel Preview ──────────────────────────────────────────────
+  deploy-preview:
+    name: Deploy Preview
+    runs-on: ubuntu-latest
+    # Only run deploy for PRs; use a fixed URL for scheduled runs
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Deploy Preview
+        id: deploy
+        run: |
+          OUTPUT=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} 2>&1)
+          echo "output=$OUTPUT" >> $GITHUB_OUTPUT
+          echo "$OUTPUT"
+          # Extract URL — Vercel prints "https://<project>-<hash>.vercel.app"
+          URL=$(echo "$OUTPUT" | grep -E "https://[^ ]+\.vercel\.app" | tail -1)
+          echo "preview_url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Comment deployment URL on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const previewUrl = '${{ steps.deploy.outputs.preview_url }}';
+            const prNumber = context.payload.pull_request?.number;
+            if (!previewUrl || !prNumber) return;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: `🚀 E2E preview deployed: ${previewUrl}\n\nRunning tests...`,
+            });
+
+  # ─── Run E2E Tests ──────────────────────────────────────────────────────────
+  e2e:
+    name: Playwright E2E (${{ matrix.browser }})
+    needs: deploy-preview
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, mobile-chrome]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run E2E Tests
+        run: pnpm test:e2e
+        env:
+          # Point to the preview URL from the deploy step
+          BASE_URL: ${{ needs.deploy-preview.outputs.preview_url }}
+          # Bot token for token-only auth (dashboard works without OAuth)
+          KODY_BOT_TOKEN: ${{ secrets.KODY_BOT_TOKEN }}
+          # Skip snapshot updates
+          CI: "true"
+
+  # ─── Production Smoke (scheduled / manual) ───────────────────────────────────
+  smoke-prod:
+    name: Production Smoke
+    runs-on: ubuntu-latest
+    # Don't run deploy step — use production URL directly
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'production')
+    steps:
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run API smoke tests against production
+        run: pnpm test:e2e
+        env:
+          # Test against production
+          BASE_URL: https://kody-dashboard-dccviesc9-aharon-yair-cohens-projects.vercel.app
+          KODY_BOT_TOKEN: ${{ secrets.KODY_BOT_TOKEN }}
+          CI: "true"

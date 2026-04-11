@@ -84,8 +84,8 @@ export const BRANCH_PREFIXES = [
 
 // ============ GitHub Configuration ============
 
-export const GITHUB_OWNER = process.env.GITHUB_OWNER?.trim() ?? "A-Guy-educ";
-export const GITHUB_REPO = process.env.GITHUB_REPO?.trim() ?? "A-Guy";
+export const GITHUB_OWNER = process.env.GITHUB_OWNER?.trim() ?? '';
+export const GITHUB_REPO = process.env.GITHUB_REPO?.trim() ?? '';
 
 /**
  * Generate a GitHub issue URL from an issue number

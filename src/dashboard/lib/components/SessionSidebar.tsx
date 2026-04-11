@@ -10,12 +10,10 @@ import { useState, useRef, useEffect } from 'react'
 import { cn } from '@dashboard/lib/utils/ui'
 import { ConfirmDialog } from './ConfirmDialog'
 import type { SessionMeta } from '../chat-types'
-import type { AgentId } from '../agents'
 
 interface SessionSidebarProps {
   sessions: SessionMeta[]
   activeSessionId: string | null
-  agentId: AgentId
   onSwitchSession: (sessionId: string) => void
   onCreateSession: () => void
   onDeleteSession: (sessionId: string) => void
@@ -47,7 +45,6 @@ function formatRelativeTime(dateString: string): string {
 export function SessionSidebar({
   sessions,
   activeSessionId,
-  agentId: _agentId,
   onSwitchSession,
   onCreateSession,
   onDeleteSession,

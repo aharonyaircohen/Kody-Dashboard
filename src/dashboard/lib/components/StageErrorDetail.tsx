@@ -140,7 +140,7 @@ export function StageErrorDetail({
 
               {/* View logs link */}
               <a
-                href={`https://github.com/${process.env.NEXT_PUBLIC_GITHUB_OWNER || 'A-Guy-educ'}/${process.env.NEXT_PUBLIC_GITHUB_REPO || 'A-Guy'}/actions/runs/${runId}`}
+                href={`https://github.com/${process.env.NEXT_PUBLIC_GITHUB_OWNER}/${process.env.NEXT_PUBLIC_GITHUB_REPO}/actions/runs/${runId}`}
                 target="_blank"
                 rel="noopener noreferrer"
               >

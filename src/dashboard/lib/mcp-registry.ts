@@ -8,8 +8,6 @@
  * enablement condition, tool prefix, and optional system prompt extension.
  */
 
-import type { AgentId } from './agents'
-
 // ===========================================
 // TYPES
 // ===========================================
@@ -36,8 +34,6 @@ export interface MCPConfig {
   toolPrefix?: string
   /** Init timeout in ms (default: 5000) */
   timeoutMs?: number
-  /** Which agents get these tools (default: all agents) */
-  scope?: AgentId[]
   /** Additional prompt text when this MCP is active */
   systemPromptExtension?: string
 }
@@ -106,7 +102,6 @@ export const MCP_REGISTRY: MCPConfig[] = [
     transport: buildGitHubTransport,
     enabled: isGitHubEnabled,
     timeoutMs: 5000,
-    scope: undefined, // All agents
   },
   {
     id: 'figma',
@@ -115,7 +110,6 @@ export const MCP_REGISTRY: MCPConfig[] = [
     transport: buildFigmaTransport,
     enabled: isFigmaEnabled,
     timeoutMs: 15000, // Longer timeout for Figma MCP startup
-    scope: ['system-architect'], // Only System Architect needs Figma for design analysis
     systemPromptExtension: `
 ## Figma Integration
 
@@ -127,15 +121,6 @@ Available Figma tools:
 - figma_download_figma_images: Download images from Figma files
 `,
   },
-  // Future MCPs can be added here:
-  // {
-  //   id: 'browser',
-  //   name: 'Browser',
-  //   description: 'Web browsing and content extraction',
-  //   transport: buildBrowserTransport,
-  //   enabled: isBrowserEnabled,
-  //   scope: ['dashboard-manager'],
-  // },
 ]
 
 // ===========================================
@@ -147,28 +132,7 @@ export function getEnabledMCPs(): MCPConfig[] {
   return MCP_REGISTRY.filter((mcp) => mcp.enabled())
 }
 
-/** Get MCPs available for a specific agent */
-export function getMCPsForAgent(agentId: AgentId): MCPConfig[] {
-  return getEnabledMCPs().filter((mcp) => {
-    // If scope is undefined, the MCP is available to all agents
-    if (!mcp.scope) return true
-    // Otherwise, check if the agent is in the scope
-    return mcp.scope.includes(agentId)
-  })
-}
-
 /** Get MCP config by ID */
 export function getMCPById(id: string): MCPConfig | undefined {
   return MCP_REGISTRY.find((mcp) => mcp.id === id)
-}
-
-/** Get all unique agent IDs that have any MCPs scoped to them */
-export function getScopedAgents(): AgentId[] {
-  const agents = new Set<AgentId>()
-  for (const mcp of MCP_REGISTRY) {
-    if (mcp.scope) {
-      mcp.scope.forEach((a) => agents.add(a))
-    }
-  }
-  return Array.from(agents)
 }

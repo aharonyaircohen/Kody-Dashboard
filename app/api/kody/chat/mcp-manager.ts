@@ -10,15 +10,12 @@
 
 import { createMCPClient, type MCPClient } from '@ai-sdk/mcp'
 import type { ToolSet } from 'ai'
-import * as net from 'net'
 import { logger } from '@dashboard/lib/logger'
 import {
-  getMCPsForAgent,
   getEnabledMCPs,
   type MCPConfig,
   type MCPHealthStatus,
 } from '@dashboard/lib/mcp-registry'
-import type { AgentId } from '@dashboard/lib/agents'
 
 // ===========================================
 // TYPES
@@ -76,15 +73,12 @@ export class MCPManager {
   }
 
   /**
-   * Get tools for a specific agent, merging from all scoped MCPs.
+   * Get tools from all enabled MCPs.
    * Handles timeout, caching, and graceful degradation.
    */
-  async getTools(agentId: AgentId): Promise<ToolSet> {
-    const mcpConfigs = getMCPsForAgent(agentId)
+  async getTools(): Promise<ToolSet> {
+    const mcpConfigs = getEnabledMCPs()
     const allTools: ToolSet = {}
-
-    // Collect all system prompt extensions
-    const systemPromptExtensions: string[] = []
 
     for (const mcpConfig of mcpConfigs) {
       try {
@@ -99,19 +93,14 @@ export class MCPManager {
             Object.assign(allTools, mcpTools)
           }
 
-          // Collect system prompt extension
-          if (mcpConfig.systemPromptExtension) {
-            systemPromptExtensions.push(mcpConfig.systemPromptExtension)
-          }
-
           logger.info(
-            { mcpId: mcpConfig.id, agentId, toolCount: Object.keys(mcpTools).length },
-            'MCP tools loaded for agent',
+            { mcpId: mcpConfig.id, toolCount: Object.keys(mcpTools).length },
+            'MCP tools loaded',
           )
         }
       } catch (error) {
         logger.warn(
-          { err: error, mcpId: mcpConfig.id, agentId },
+          { err: error, mcpId: mcpConfig.id },
           'Failed to load MCP tools - continuing without them',
         )
       }
@@ -121,10 +110,10 @@ export class MCPManager {
   }
 
   /**
-   * Get system prompt extensions for all MCPs available to an agent
+   * Get system prompt extensions from all enabled MCPs
    */
-  async getSystemPromptExtensions(agentId: AgentId): Promise<string> {
-    const mcpConfigs = getMCPsForAgent(agentId)
+  async getSystemPromptExtensions(): Promise<string> {
+    const mcpConfigs = getEnabledMCPs()
     const extensions: string[] = []
 
     for (const mcpConfig of mcpConfigs) {
@@ -172,24 +161,6 @@ export class MCPManager {
     }
 
     return statuses
-  }
-
-  /**
-   * Get tool counts per agent (for UI capability display)
-   */
-  async getToolCountsPerAgent(): Promise<Record<AgentId, number>> {
-    const counts: Record<AgentId, number> = {
-      'dashboard-manager': 0,
-      'prd-refiner': 0,
-      'system-architect': 0,
-    }
-
-    for (const agentId of Object.keys(counts) as AgentId[]) {
-      const tools = await this.getTools(agentId)
-      counts[agentId] = Object.keys(tools).length
-    }
-
-    return counts
   }
 
   /**
@@ -290,55 +261,14 @@ export class MCPManager {
   }
 
   /**
-   * Handle stdio-based MCP (like Figma) - spawn local server
+   * Handle stdio-based MCP (like Figma) — placeholder for future stdio MCP support.
+   * Currently not implemented; Figma MCP uses HTTP transport via local stdio→HTTP bridge.
    */
   private async getToolsViaStdio(
-    config: MCPConfig,
+    _config: MCPConfig,
     entry: MCPClientEntry,
   ): Promise<ToolSet | null> {
-    const transportConfig = config.transport()
-    if (!transportConfig || transportConfig.type !== 'stdio') {
-      return null
-    }
-
-    // For Figma, we need to spawn a local HTTP server (npx figma-developer-mcp)
-    // This is a simplified version - in production you'd handle the specific stdio command
-    try {
-      // For now, we'll skip stdio-based MCPs and log a warning
-      // In a full implementation, this would spawn the MCP server and connect via stdio
-      logger.warn({ mcpId: config.id }, 'stdio MCP not yet implemented - skipping')
-      return null
-    } catch (error) {
-      entry.lastError = error instanceof Error ? error : new Error(String(error))
-      logger.error({ err: error, mcpId: config.id }, 'Failed to initialize stdio MCP')
-      return null
-    }
-  }
-
-  /**
-   * Wait for a port to become available (for spawned MCP servers)
-   */
-  private async waitForPort(port: number, timeoutMs: number): Promise<boolean> {
-    const startTime = Date.now()
-
-    while (Date.now() - startTime < timeoutMs) {
-      const available = await new Promise<boolean>((resolve) => {
-        const client = new net.Socket()
-        client.connect(port, '127.0.0.1', () => {
-          client.destroy()
-          resolve(true)
-        })
-        client.on('error', () => {
-          client.destroy()
-          resolve(false)
-        })
-      })
-
-      if (available) return true
-
-      await new Promise((r) => setTimeout(r, 200))
-    }
-
-    return false
+    logger.warn({ mcpId: entry.config.id }, 'stdio MCP not implemented — skipping')
+    return null
   }
 }

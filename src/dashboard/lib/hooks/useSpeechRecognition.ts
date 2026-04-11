@@ -56,7 +56,14 @@ export function useSpeechRecognition(
     onErrorRef.current = onError;
   }, [onError]);
 
-  const isSupported = typeof window !== "undefined" && getCtor() !== null;
+  // isSupported must be stateful to avoid SSR/hydration mismatch.
+  // SSR renders with window=undefined (isSupported=false → VoiceButton=null).
+  // Initial client render also uses false so it matches SSR.
+  // After hydration, useEffect sets the real value.
+  const [isSupported, setIsSupported] = useState(false);
+  useEffect(() => {
+    setIsSupported(typeof window !== "undefined" && getCtor() !== null);
+  }, []);
 
   const stop = useCallback(() => {
     // Clear any pending restart/silence timers

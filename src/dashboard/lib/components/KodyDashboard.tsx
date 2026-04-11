@@ -823,26 +823,19 @@ export function KodyDashboard({
     </>
   );
 
-  // Session expired — show login prompt (no auto-redirect to avoid loops)
+  // Session expired — only possible when using OAuth sessions (token-only mode shouldn't reach here)
   if (isSessionExpired) {
-    const returnTo = encodeURIComponent(
-      typeof window !== "undefined" ? window.location.pathname : "/",
-    );
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center max-w-md p-6">
-          <div className="text-6xl mb-4">🔒</div>
+          <div className="text-6xl mb-4">⚠️</div>
           <h2 className="text-xl font-semibold text-foreground mb-2">
-            Session Expired
+            Authentication Error
           </h2>
           <p className="text-muted-foreground mb-4">
-            Your session has expired. Please log in again to continue.
+            Your session is invalid. Ensure <code>GITHUB_TOKEN</code> is set in your environment variables.
           </p>
-          <Button asChild>
-            <a href={`/api/oauth/github?returnTo=${returnTo}`}>
-              Log In with GitHub
-            </a>
-          </Button>
+          <Button onClick={() => refetch()}>Retry</Button>
         </div>
       </div>
     );
@@ -859,7 +852,7 @@ export function KodyDashboard({
           </h2>
           <p className="text-muted-foreground mb-4">
             {error?.message ||
-              "GitHub token is not configured. Set KODY_BOT_TOKEN or GITHUB_TOKEN in environment variables."}
+              "GitHub token is not configured. Set GITHUB_TOKEN, KODY_BOT_TOKEN, or GH_PAT in environment variables."}
           </p>
           <Button onClick={() => refetch()}>Retry</Button>
         </div>

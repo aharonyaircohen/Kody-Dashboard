@@ -32,20 +32,22 @@ Open http://localhost:3333
 Create a `.env` file:
 
 ```env
+GEMINI_API_KEY=your_gemini_api_key
 KODY_SESSION_SECRET=your-jwt-secret
 GITHUB_TOKEN=ghp_...
 GITHUB_APP_CLIENT_ID=your-oauth-client-id
 GITHUB_APP_CLIENT_SECRET=your-oauth-client-secret
-KODY_PUBLIC_SERVER_URL=http://localhost:3333
+NEXT_PUBLIC_SERVER_URL=http://localhost:3333
 ```
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
+| `GEMINI_API_KEY` | Yes | Gemini AI model for chat |
 | `KODY_SESSION_SECRET` | Yes | JWT session signing |
 | `GITHUB_TOKEN` / `KODY_BOT_TOKEN` | Yes | GitHub API access |
 | `GITHUB_APP_CLIENT_ID` | Yes | GitHub OAuth App |
 | `GITHUB_APP_CLIENT_SECRET` | Yes | GitHub OAuth App |
-| `KODY_PUBLIC_SERVER_URL` | Yes | Public URL for OAuth redirects |
+| `NEXT_PUBLIC_SERVER_URL` | Dev | Public URL for OAuth redirects |
 
 ## Development
 

@@ -33,7 +33,11 @@ export function useKodyTTS(options: UseKodyTTSOptions = {}): UseKodyTTSReturn {
     onErrorRef.current = onError
   }, [onError])
 
-  const isSupported = typeof window !== 'undefined' && 'speechSynthesis' in window
+  // isSupported must be stateful to avoid SSR/hydration mismatch (same fix as useSpeechRecognition)
+  const [isSupported, setIsSupported] = useState(false)
+  useEffect(() => {
+    setIsSupported(typeof window !== 'undefined' && 'speechSynthesis' in window)
+  }, [])
 
   const cancel = useCallback(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
