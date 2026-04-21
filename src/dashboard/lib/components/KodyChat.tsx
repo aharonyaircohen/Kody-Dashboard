@@ -494,8 +494,19 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
             }),
           })
           if (!taskRes.ok) throw new Error(`Task creation failed: ${taskRes.status}`)
-          const taskData = await taskRes.json() as { task?: { id: string }; id?: string }
-          sessionId = (taskData.task?.id ?? taskData.id) as string
+          const taskData = (await taskRes.json()) as {
+            success?: boolean
+            issue?: { number?: number }
+            task?: { id?: string }
+            id?: string
+          }
+          // Current tasks API returns { success, issue: { number } }.
+          // Older shapes ({ task: { id } } or { id }) kept as fallbacks.
+          sessionId =
+            (taskData.issue?.number != null ? String(taskData.issue.number) : undefined) ??
+            taskData.task?.id ??
+            taskData.id ??
+            ''
           if (!sessionId) throw new Error('No taskId returned')
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : 'Failed to create task'
