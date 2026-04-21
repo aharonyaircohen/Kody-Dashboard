@@ -1184,7 +1184,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
                       isStreaming={!!msg.isLoading}
                     />
                   )}
-                  {msg.isLoading && !msg.content ? (
+                  {!msg.content && loading && i === messages.length - 1 ? (
                     <TypingIndicator label={currentAgent.name} />
                   ) : (
                     <div className="prose prose-base dark:prose-invert max-w-none">
@@ -1195,9 +1195,12 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
               ) : (
                 msg.content
               )}
-              {msg.isLoading && msg.role === 'assistant' && msg.content && (
-                <span className="inline-block ml-2 animate-pulse text-primary">●</span>
-              )}
+              {loading &&
+                i === messages.length - 1 &&
+                msg.role === 'assistant' &&
+                msg.content && (
+                  <span className="inline-block ml-2 animate-pulse text-primary">●</span>
+                )}
             </div>
           </div>
         ))}
