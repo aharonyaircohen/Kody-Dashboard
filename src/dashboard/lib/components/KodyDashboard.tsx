@@ -127,6 +127,54 @@ export function KodyDashboard({
   const [sortField, setSortField] = useState<string>("updatedAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const CHAT_WIDTH_KEY = "kody.chatPanelWidth";
+  const CHAT_WIDTH_MIN = 320;
+  const CHAT_WIDTH_MAX = 960;
+  const CHAT_WIDTH_DEFAULT = 400;
+  const [chatPanelWidth, setChatPanelWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return CHAT_WIDTH_DEFAULT;
+    const stored = Number(window.localStorage.getItem(CHAT_WIDTH_KEY));
+    if (!Number.isFinite(stored) || stored <= 0) return CHAT_WIDTH_DEFAULT;
+    return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, stored));
+  });
+  const isResizingChatRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(CHAT_WIDTH_KEY, String(chatPanelWidth));
+    }
+  }, [chatPanelWidth]);
+
+  const startChatResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingChatRef.current = true;
+    const prevUserSelect = document.body.style.userSelect;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+
+    const onMove = (ev: MouseEvent) => {
+      if (!isResizingChatRef.current) return;
+      const nextWidth = window.innerWidth - ev.clientX;
+      const clamped = Math.min(
+        CHAT_WIDTH_MAX,
+        Math.max(CHAT_WIDTH_MIN, nextWidth),
+      );
+      setChatPanelWidth(clamped);
+    };
+
+    const onUp = () => {
+      isResizingChatRef.current = false;
+      document.body.style.userSelect = prevUserSelect;
+      document.body.style.cursor = prevCursor;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, []);
   const filterBarRef = useRef<{ focusSearch: () => void } | null>(null);
 
   const handleSearchChange = useCallback((value: string) => {
@@ -1242,7 +1290,19 @@ export function KodyDashboard({
         </div>
 
         {/* Desktop: Chat Panel (right side, always visible) */}
-        <div className="hidden md:block w-[400px] border-l border-border">
+        <div
+          className="relative hidden md:block border-l border-border shrink-0"
+          style={{ width: `${chatPanelWidth}px` }}
+        >
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize chat panel"
+            onMouseDown={startChatResize}
+            onDoubleClick={() => setChatPanelWidth(CHAT_WIDTH_DEFAULT)}
+            className="absolute top-0 left-0 h-full w-1 -translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
+            title="Drag to resize • Double-click to reset"
+          />
           <KodyChat
             selectedTask={selectedTask}
             actorLogin={githubUser?.login}

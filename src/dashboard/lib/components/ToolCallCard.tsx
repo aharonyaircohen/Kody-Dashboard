@@ -150,3 +150,46 @@ export function ToolCallList({ toolCalls, className }: ToolCallListProps) {
     </div>
   )
 }
+
+/**
+ * Collapsible "thinking" panel that consolidates all tool calls for a single
+ * assistant turn behind one header. Keeps the chat thread clean while still
+ * letting the user expand to audit what the agent ran.
+ */
+interface ThinkingPanelProps {
+  toolCalls: ToolCall[]
+  /** Whether the agent is still producing output (affects the summary label). */
+  isStreaming?: boolean
+  className?: string
+}
+
+export function ThinkingPanel({ toolCalls, isStreaming, className }: ThinkingPanelProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  if (toolCalls.length === 0) return null
+
+  const running = toolCalls.some((tc) => tc.status === 'running')
+  const errored = toolCalls.filter((tc) => tc.status === 'error').length
+  const label = isStreaming || running ? 'Thinking' : 'Thought'
+  const summary =
+    `${label} — ${toolCalls.length} tool${toolCalls.length === 1 ? '' : 's'}` +
+    (errored > 0 ? `, ${errored} failed` : '')
+
+  return (
+    <div className={cn('my-1 rounded-md border border-border/60 bg-background/50', className)}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-2 py-1 flex items-center gap-2 text-left text-xs text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
+        aria-expanded={isOpen}
+      >
+        <span>{running ? '⏳' : errored > 0 ? '⚠️' : '🧠'}</span>
+        <span className="flex-1 italic">{summary}</span>
+        <span>{isOpen ? '▼' : '▶'}</span>
+      </button>
+      {isOpen && (
+        <div className="px-2 pb-2">
+          <ToolCallList toolCalls={toolCalls} />
+        </div>
+      )}
+    </div>
+  )
+}

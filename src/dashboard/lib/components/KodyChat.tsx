@@ -52,7 +52,7 @@ import { useChatSessions } from '../hooks/useChatSessions'
 import { useKodyActionState } from '../hooks/useKodyActionState'
 import { SessionSidebar } from './SessionSidebar'
 import { TaskSessionHistory } from './TaskSessionHistory'
-import { ToolCallList } from './ToolCallCard'
+import { ToolCallList, ThinkingPanel } from './ToolCallCard'
 import { MessageActions } from './MessageActions'
 
 interface Message {
@@ -569,6 +569,15 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
             }
           : undefined
 
+        // For Brain we send the clean user text plus attachments as a separate
+        // structured field so the Brain server can build a proper multimodal
+        // prompt (text + image blocks) rather than treating data URLs as text.
+        const brainAttachments = currentAttachments.map((a) => ({
+          name: a.name,
+          mimeType: a.mimeType,
+          data: a.data,
+        }))
+
         try {
           const res = await fetch('/api/kody/chat/brain', {
             method: 'POST',
@@ -579,8 +588,9 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
             },
             body: JSON.stringify({
               chatId: brainChatId,
-              message: fullContent,
+              message: messageContent,
               ...(taskContext ? { taskContext } : {}),
+              ...(brainAttachments.length > 0 ? { attachments: brainAttachments } : {}),
             }),
             signal: abort.signal,
           })
@@ -593,19 +603,70 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
           const decoder = new TextDecoder()
           let buf = ''
 
-          const applyEvent = (parsed: { type?: string; role?: string; content?: string; timestamp?: string; error?: string }) => {
+          const applyEvent = (parsed: {
+            type?: string
+            role?: string
+            content?: string
+            timestamp?: string
+            error?: string
+            id?: string
+            name?: string
+            input?: Record<string, unknown>
+          }) => {
             if (parsed.type === 'chat.message') {
               setMessages((prev) => {
                 const copy = [...prev]
                 const idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
-                const next: Message = {
-                  role: (parsed.role === 'user' ? 'user' : 'assistant') as Message['role'],
-                  content: parsed.content ?? '',
-                  timestamp: parsed.timestamp ?? new Date().toISOString(),
-                  isLoading: true,
+                if (idx >= 0) {
+                  // Preserve any toolCalls already attached to the in-flight
+                  // message so the thinking panel doesn't flicker on each text
+                  // delta.
+                  copy[idx] = {
+                    ...copy[idx],
+                    role: (parsed.role === 'user' ? 'user' : 'assistant') as Message['role'],
+                    content: parsed.content ?? '',
+                    timestamp: parsed.timestamp ?? copy[idx].timestamp,
+                    isLoading: true,
+                  }
+                } else {
+                  copy.push({
+                    role: (parsed.role === 'user' ? 'user' : 'assistant') as Message['role'],
+                    content: parsed.content ?? '',
+                    timestamp: parsed.timestamp ?? new Date().toISOString(),
+                    isLoading: true,
+                  })
                 }
-                if (idx >= 0) copy[idx] = next
-                else copy.push(next)
+                return copy
+              })
+            } else if (parsed.type === 'chat.tool_use') {
+              // Attach the tool call to the current in-flight assistant
+              // message. If the text deltas haven't started yet, create a
+              // placeholder loading bubble so the panel has somewhere to live.
+              setMessages((prev) => {
+                const copy = [...prev]
+                let idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
+                if (idx < 0) {
+                  copy.push({
+                    role: 'assistant',
+                    content: '',
+                    timestamp: parsed.timestamp ?? new Date().toISOString(),
+                    isLoading: true,
+                    toolCalls: [],
+                  })
+                  idx = copy.length - 1
+                }
+                const existing = copy[idx].toolCalls ?? []
+                copy[idx] = {
+                  ...copy[idx],
+                  toolCalls: [
+                    ...existing,
+                    {
+                      name: parsed.name ?? 'tool',
+                      arguments: parsed.input ?? {},
+                      status: 'success',
+                    },
+                  ],
+                }
                 return copy
               })
             } else if (parsed.type === 'chat.done') {
@@ -1081,11 +1142,19 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
               />
 
               {msg.role === 'assistant' ? (
-                <div className="prose prose-base dark:prose-invert max-w-none">
-                  <ReactMarkdown>
-                    {msg.content || (msg.isLoading ? '_Thinking..._' : '')}
-                  </ReactMarkdown>
-                </div>
+                <>
+                  {msg.toolCalls && msg.toolCalls.length > 0 && (
+                    <ThinkingPanel
+                      toolCalls={msg.toolCalls}
+                      isStreaming={!!msg.isLoading}
+                    />
+                  )}
+                  <div className="prose prose-base dark:prose-invert max-w-none">
+                    <ReactMarkdown>
+                      {msg.content || (msg.isLoading ? '_Thinking..._' : '')}
+                    </ReactMarkdown>
+                  </div>
+                </>
               ) : (
                 msg.content
               )}

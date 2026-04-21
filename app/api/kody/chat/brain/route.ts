@@ -64,7 +64,19 @@ export async function POST(req: NextRequest) {
     associatedPR?: { number?: number; state?: string; html_url?: string }
   }
 
-  let body: { chatId?: string; message?: string; taskContext?: TaskContextInput }
+  interface AttachmentInput {
+    name?: string
+    mimeType?: string
+    /** Data URL like `data:image/png;base64,...` or raw base64. */
+    data?: string
+  }
+
+  let body: {
+    chatId?: string
+    message?: string
+    taskContext?: TaskContextInput
+    attachments?: AttachmentInput[]
+  }
   try {
     body = await req.json()
   } catch {
@@ -112,6 +124,10 @@ export async function POST(req: NextRequest) {
   const preamble = formatTaskContext(body.taskContext)
   const decoratedMessage = preamble ? `${preamble}\n\n[User]\n${message}` : message
 
+  // Forward attachments unchanged; Brain server converts them to multimodal
+  // content blocks. Data URLs like `data:image/png;base64,...` are accepted.
+  const attachments = Array.isArray(body.attachments) ? body.attachments : undefined
+
   const requestId = crypto.randomUUID()
   const target = `${brainUrl.replace(/\/+$/, '')}/chats/${encodeURIComponent(chatId)}/messages`
 
@@ -123,7 +139,10 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
         'X-Api-Key': brainKey,
       },
-      body: JSON.stringify({ message: decoratedMessage }),
+      body: JSON.stringify({
+        message: decoratedMessage,
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      }),
     })
   } catch (err) {
     logger.error({ err, requestId, chatId }, 'Brain proxy: fetch failed')
@@ -189,14 +208,16 @@ export async function POST(req: NextRequest) {
               break
 
             case 'tool_use':
-              // Surface tool use inline so the user sees what Brain did.
-              // Brain doesn't stream tool output separately; the next `text`
-              // event will contain the narrated result.
-              assistantBuffer += `\n\n\u2699\ufe0f Tool: \`${ev.name ?? 'tool'}\`\n`
+              // Emit a structured tool event so the client can attach it to
+              // the in-flight assistant message and render a consolidated
+              // "thinking" panel, rather than polluting the prose with inline
+              // tool markers. Brain doesn't stream tool results separately —
+              // the narrated output arrives in the next `text` chunk.
               emit({
-                type: 'chat.message',
-                role: 'assistant',
-                content: assistantBuffer,
+                type: 'chat.tool_use',
+                id: crypto.randomUUID(),
+                name: ev.name ?? 'tool',
+                input: ev.input ?? {},
                 timestamp: new Date().toISOString(),
               })
               break
