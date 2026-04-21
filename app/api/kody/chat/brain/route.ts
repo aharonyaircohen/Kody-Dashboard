@@ -36,12 +36,19 @@ export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
 
-  const brainUrl = process.env.BRAIN_CHAT_URL
-  const brainKey = process.env.BRAIN_CHAT_API_KEY
+  // Prefer per-user Brain config supplied by the client (x-brain-url, x-brain-key)
+  // over the server-wide env fallback. This keeps the dashboard repo/server-agnostic.
+  const brainUrl =
+    req.headers.get('x-brain-url')?.trim() || process.env.BRAIN_CHAT_URL
+  const brainKey =
+    req.headers.get('x-brain-key')?.trim() || process.env.BRAIN_CHAT_API_KEY
 
   if (!brainUrl || !brainKey) {
     return NextResponse.json(
-      { error: 'BRAIN_CHAT_URL or BRAIN_CHAT_API_KEY is not configured' },
+      {
+        error:
+          'Brain is not configured for this session. Add a Brain server URL and API key on the login page.',
+      },
       { status: 503 },
     )
   }

@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Github, Lock, AlertCircle, Loader2 } from "lucide-react";
+import { Github, Lock, AlertCircle, Loader2, Brain, ChevronDown, ChevronRight } from "lucide-react";
 
 const TOKEN_URL = "https://github.com/settings/tokens/new?description=Kody+Dashboard&scopes=repo,workflow";
 
 export default function LoginPage() {
   const [repoUrl, setRepoUrl] = useState("");
   const [token, setToken] = useState("");
+  const [brainUrl, setBrainUrl] = useState("");
+  const [brainKey, setBrainKey] = useState("");
+  const [showBrain, setShowBrain] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -39,6 +42,8 @@ export default function LoginPage() {
       }
 
       // Store auth data in localStorage
+      const trimmedBrainUrl = brainUrl.trim()
+      const trimmedBrainKey = brainKey.trim()
       localStorage.setItem(
         "kody_auth",
         JSON.stringify({
@@ -48,6 +53,11 @@ export default function LoginPage() {
           token: token.trim(),
           user: data.user,
           loggedInAt: Date.now(),
+          // Optional — only stored when both URL and key are present.
+          brain:
+            trimmedBrainUrl && trimmedBrainKey
+              ? { url: trimmedBrainUrl, apiKey: trimmedBrainKey }
+              : undefined,
         }),
       );
 
@@ -134,6 +144,61 @@ export default function LoginPage() {
               </a>
               .
             </p>
+          </div>
+
+          {/* Optional: Brain assistant */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowBrain((v) => !v)}
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+              aria-expanded={showBrain}
+            >
+              {showBrain ? (
+                <ChevronDown className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5" />
+              )}
+              <Brain className="w-3.5 h-3.5" />
+              Connect Brain assistant (optional)
+            </button>
+
+            {showBrain && (
+              <div className="space-y-3 rounded-md border border-dashed bg-muted/30 p-3">
+                <div className="space-y-2">
+                  <label htmlFor="brainUrl" className="text-sm font-medium">
+                    Brain server URL
+                  </label>
+                  <input
+                    id="brainUrl"
+                    type="url"
+                    placeholder="https://your-brain-host.ts.net"
+                    value={brainUrl}
+                    onChange={(e) => setBrainUrl(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="brainKey" className="text-sm font-medium">
+                    Brain API key
+                  </label>
+                  <input
+                    id="brainKey"
+                    type="password"
+                    placeholder="shared secret from your Brain .env"
+                    value={brainKey}
+                    onChange={(e) => setBrainKey(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Adds the &quot;Brain&quot; assistant to the chat dropdown. Both fields must
+                  be provided or both left empty. Stored only in this browser.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Error */}

@@ -12,15 +12,21 @@ import {
   MessageSquare,
   History,
 } from 'lucide-react'
-import { AGENT, AGENTS, type AgentId } from '../agents'
+import { AGENT, AGENTS, type AgentId, type AgentConfig } from '../agents'
 
-const AGENT_LIST = Object.values(AGENTS).map(({ id, name, description, icon }) => ({
-  id,
-  name,
-  description,
-  icon,
-}))
-import { getStoredAuth } from '../api'
+function buildAgentList(brainConfigured: boolean): Omit<AgentConfig, 'systemPrompt'>[] {
+  return Object.values(AGENTS)
+    .filter((a) => a.id !== 'brain' || brainConfigured)
+    .map(({ id, name, description, icon, backend, capabilities }) => ({
+      id,
+      name,
+      description,
+      icon,
+      backend,
+      capabilities,
+    }))
+}
+import { getStoredAuth, getStoredBrainConfig } from '../api'
 import type { KodyTask } from '../types'
 
 /** Build fetch headers including client auth when available */
@@ -29,6 +35,12 @@ function authHeaders(): Record<string, string> {
   return auth
     ? { 'x-kody-token': auth.token, 'x-kody-owner': auth.owner, 'x-kody-repo': auth.repo }
     : {}
+}
+
+/** Add per-user Brain config headers on Brain-path requests. */
+function brainHeaders(): Record<string, string> {
+  const b = getStoredBrainConfig()
+  return b ? { 'x-brain-url': b.url, 'x-brain-key': b.apiKey } : {}
 }
 import type { ChatMessage, ChatSession } from '../chat-types'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -136,8 +148,22 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(AGENT.id)
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
+  const [brainConfigured, setBrainConfigured] = useState(false)
   const brainAbortRef = useRef<AbortController | null>(null)
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT
+  const agentList = buildAgentList(brainConfigured)
+
+  // Read Brain config once on mount so the dropdown knows whether to show it.
+  useEffect(() => {
+    setBrainConfigured(getStoredBrainConfig() !== null)
+  }, [])
+
+  // If the user had Brain selected but then removed the config, fall back to Kody.
+  useEffect(() => {
+    if (selectedAgentId === 'brain' && !brainConfigured) {
+      setSelectedAgentId(AGENT.id)
+    }
+  }, [brainConfigured, selectedAgentId])
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [voiceMuted, setVoiceMuted] = useState(false)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
@@ -499,7 +525,11 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         try {
           const res = await fetch('/api/kody/chat/brain', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            headers: {
+              'Content-Type': 'application/json',
+              ...authHeaders(),
+              ...brainHeaders(),
+            },
             body: JSON.stringify({ chatId: sessionId, message: fullContent }),
             signal: abort.signal,
           })
@@ -800,7 +830,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
                 role="listbox"
                 className="absolute top-full left-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
               >
-                {AGENT_LIST.map((a) => (
+                {agentList.map((a) => (
                   <li key={a.id}>
                     <button
                       type="button"

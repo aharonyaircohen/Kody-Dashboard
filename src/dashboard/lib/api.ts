@@ -40,6 +40,24 @@ export function getStoredAuth(): {
   }
 }
 
+/**
+ * Read optional Brain assistant config stored at login. Returns null unless
+ * both `url` and `apiKey` are present — partial config is treated as missing.
+ */
+export function getStoredBrainConfig(): { url: string; apiKey: string } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("kody_auth");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { brain?: { url?: string; apiKey?: string } };
+    const b = parsed.brain;
+    if (!b?.url || !b.apiKey) return null;
+    return { url: b.url, apiKey: b.apiKey };
+  } catch {
+    return null;
+  }
+}
+
 function buildHeaders(extra: Record<string, string> = {}): Record<string, string> {
   const auth = getStoredAuth();
   return {
