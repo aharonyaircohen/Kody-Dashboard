@@ -174,8 +174,13 @@ export async function POST(req: NextRequest) {
   if (!upstream.ok || !upstream.body) {
     const text = await upstream.text().catch(() => '')
     logger.error({ requestId, chatId, status: upstream.status, text }, 'Brain upstream error')
+    const detail = text.trim().slice(0, 500)
     return NextResponse.json(
-      { error: `Brain upstream returned ${upstream.status}` },
+      {
+        error: detail
+          ? `Brain upstream returned ${upstream.status}: ${detail}`
+          : `Brain upstream returned ${upstream.status}`,
+      },
       { status: 502 },
     )
   }

@@ -54,6 +54,7 @@ async function downloadAttachment(url: string): Promise<IssueAttachment | null> 
     if (!res.ok) return null
     const mimeType =
       res.headers.get('content-type')?.split(';')[0]?.trim() || 'application/octet-stream'
+    if (!mimeType.startsWith('image/')) return null
     const buf = await res.arrayBuffer()
     if (buf.byteLength === 0 || buf.byteLength > MAX_PER_FILE_BYTES) return null
     return {
