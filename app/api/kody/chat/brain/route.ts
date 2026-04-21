@@ -20,6 +20,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireKodyAuth } from '@dashboard/lib/auth'
 import { logger } from '@dashboard/lib/logger'
+import { fetchIssueAttachments } from '@dashboard/lib/issue-attachments'
 
 export const runtime = 'nodejs'
 
@@ -126,7 +127,25 @@ export async function POST(req: NextRequest) {
 
   // Forward attachments unchanged; Brain server converts them to multimodal
   // content blocks. Data URLs like `data:image/png;base64,...` are accepted.
-  const attachments = Array.isArray(body.attachments) ? body.attachments : undefined
+  const clientAttachments = Array.isArray(body.attachments) ? body.attachments : []
+
+  // When we're chatting in the context of a GitHub issue, also pull every
+  // attachment referenced in the issue body and comments and hand them to
+  // Brain alongside the user's chat attachments. We always re-send because
+  // dashboard-side per-session caching isn't worth the complexity yet.
+  let issueAttachments: Awaited<ReturnType<typeof fetchIssueAttachments>> = []
+  if (body.taskContext?.issueNumber) {
+    try {
+      issueAttachments = await fetchIssueAttachments(body.taskContext.issueNumber)
+    } catch (err) {
+      logger.warn(
+        { err, requestId: 'pre', issueNumber: body.taskContext.issueNumber },
+        'Brain proxy: failed to resolve issue attachments (continuing without them)',
+      )
+    }
+  }
+
+  const attachments = [...clientAttachments, ...issueAttachments]
 
   const requestId = crypto.randomUUID()
   const target = `${brainUrl.replace(/\/+$/, '')}/chats/${encodeURIComponent(chatId)}/messages`
