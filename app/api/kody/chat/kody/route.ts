@@ -30,7 +30,9 @@ export const runtime = "nodejs"
 // Short chats only; 60 s is plenty for a single LLM call + streaming.
 export const maxDuration = 60
 
-const DEFAULT_MODEL = process.env.KODY_DIRECT_MODEL ?? "gemini-2.0-flash"
+// `gemini-2.0-flash` is retired for new API keys. Default to the current
+// flash generation; override via KODY_DIRECT_MODEL env for other models.
+const DEFAULT_MODEL = process.env.KODY_DIRECT_MODEL ?? "gemini-2.5-flash"
 
 interface IncomingMessage {
   role: "user" | "assistant" | "system"
