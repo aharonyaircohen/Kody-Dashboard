@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
 import { createUserOctokit } from "@dashboard/lib/github-client";
+import { subscribe } from "@dashboard/lib/chat-event-bus";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -127,6 +128,8 @@ export async function GET(req: NextRequest) {
   let active = true;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let controllerRef: ReadableStreamDefaultController<any> | null = null;
+  let unsubscribe: (() => void) | null = null;
+  const seenEventIds = new Set<string>();
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -134,8 +137,43 @@ export async function GET(req: NextRequest) {
     },
     cancel() {
       active = false;
+      unsubscribe?.();
       lastReadIndex.delete(sessionId);
     },
+  });
+
+  // Push channel: in-memory subscription fed by /api/kody/events/ingest.
+  // Falls back transparently to the GitHub poll below when the engine runs
+  // on a different Vercel instance or without the dashboardUrl token.
+  unsubscribe = subscribe(sessionId, (raw) => {
+    const ctrl = controllerRef;
+    if (!active || !ctrl) return;
+    const event = raw as ChatEventEntry;
+    const eventKey = `${event.runId ?? ""}:${event.emittedAt ?? ""}:${event.event}`;
+    if (seenEventIds.has(eventKey)) return;
+    seenEventIds.add(eventKey);
+
+    if (event.event === "chat.done" || event.event === "chat.error") {
+      const data = event.event === "chat.done"
+        ? JSON.stringify({ type: "chat.done", sessionId, runId: event.runId })
+        : JSON.stringify({ type: "chat.error", sessionId, error: event.payload?.error });
+      try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+      active = false;
+      try { ctrl.close(); } catch { /* already closed */ }
+      return;
+    }
+
+    if (event.event === "chat.message") {
+      const data = JSON.stringify({
+        type: "chat.message",
+        sessionId: event.payload?.sessionId ?? sessionId,
+        runId: event.runId,
+        role: event.payload?.role,
+        content: event.payload?.content,
+        timestamp: event.payload?.timestamp,
+      });
+      try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+    }
   });
 
   const poll = setInterval(async () => {
@@ -158,6 +196,10 @@ export async function GET(req: NextRequest) {
       let event: ChatEventEntry | null = null;
       try { event = JSON.parse(line) as ChatEventEntry; }
       catch { continue; }
+
+      const eventKey = `${event.runId ?? ""}:${event.emittedAt ?? ""}:${event.event}`;
+      if (seenEventIds.has(eventKey)) continue;
+      seenEventIds.add(eventKey);
 
       if (event.event === "chat.done" || event.event === "chat.error") {
         const data = event.event === "chat.done"
@@ -197,6 +239,7 @@ export async function GET(req: NextRequest) {
   req.signal.addEventListener("abort", () => {
     active = false;
     clearInterval(poll);
+    unsubscribe?.();
     lastReadIndex.delete(sessionId);
   });
 

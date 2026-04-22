@@ -5,38 +5,41 @@
  *
  * POST /api/kody/chat/trigger
  *
- * Persists a chat message to the engine repo session file, then
- * triggers the engine's `chat.yml` workflow via GitHub Actions API.
+ * Persists the chat session file to the target repo, then dispatches the
+ * engine's `kody2.yml` workflow with chat-mode inputs. The engine reads
+ * `.kody/sessions/{sessionId}.jsonl`, runs `kody2 dispatch` → chat flow,
+ * and streams events back to the dashboard via the ingest endpoint using
+ * the inline HMAC token embedded in `dashboardUrl`.
  *
  * Body: {
  *   taskId: string       // sessionId (= taskId)
  *   messages: Array<{ role: "user" | "assistant"; content: string; timestamp: string }>
- *   dashboardUrl?: string // passed to workflow so it knows where to POST events
+ *   dashboardUrl?: string // base dashboard URL; the ingest token is appended server-side
  * }
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
+import { mintSessionToken } from "@dashboard/lib/chat-token";
 import { Buffer } from "buffer";
 
 export const runtime = "nodejs";
 
-// The engine repo is determined from auth headers (client's repo).
-// Chat workflow must live in the same repo as the dashboard.
+// The chat workflow dispatches against the connected repo by default — that's
+// where the user wants chat to operate (reads their code, runs tools on it).
+// `KODY_CHAT_WORKFLOW_REPO` is an explicit override for deployments that
+// centralize the engine workflow in one repo.
 function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
-  // 1. From client header (localStorage auth)
-  const headerAuth = getRequestAuth(req);
-  if (headerAuth) {
-    return { owner: headerAuth.owner, repo: headerAuth.repo };
-  }
-  // 2. Fallback to env var
   const override = process.env.KODY_CHAT_WORKFLOW_REPO;
   if (override && override.includes("/")) {
     const [owner, repo] = override.split("/");
     return { owner, repo };
   }
-  // 3. Fallback to GITHUB_OWNER/GITHUB_REPO constants
+  const headerAuth = getRequestAuth(req);
+  if (headerAuth) {
+    return { owner: headerAuth.owner, repo: headerAuth.repo };
+  }
   const { GITHUB_OWNER, GITHUB_REPO } = process.env as Record<string, string>;
   return {
     owner: GITHUB_OWNER ?? "aharonyaircohen",
@@ -45,7 +48,13 @@ function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
 }
 
 function getChatWorkflowId(): string {
-  return process.env.KODY_CHAT_WORKFLOW_ID ?? "kody.yml";
+  return process.env.KODY_CHAT_WORKFLOW_ID ?? "kody2.yml";
+}
+
+function appendIngestToken(baseUrl: string, sessionId: string): string {
+  const token = mintSessionToken(sessionId);
+  const joiner = baseUrl.includes("?") ? "&" : "?";
+  return `${baseUrl}${joiner}token=${token}`;
 }
 
 interface ChatMessage {
@@ -103,7 +112,6 @@ export async function POST(req: NextRequest) {
   try {
     logger.info({ taskId, owner, repo, messageCount: messages.length }, "chat: writing session file");
 
-    // Try to get the existing file SHA (for update), or create new
     let sha: string | undefined;
     try {
       const existing = await octokit.rest.repos.getContent({
@@ -116,14 +124,12 @@ export async function POST(req: NextRequest) {
         sha = existing.data.sha;
       }
     } catch (err: unknown) {
-      // File doesn't exist yet — that's fine, we'll create it
       const e = err as { status?: number };
       if (e.status !== 404) {
         logger.warn({ err, taskId }, "chat: could not check existing session file");
       }
     }
 
-    // Write (or overwrite) the session file
     await octokit.rest.repos.createOrUpdateFileContents({
       owner,
       repo,
@@ -136,14 +142,14 @@ export async function POST(req: NextRequest) {
 
     logger.info({ taskId, owner, repo }, "chat: triggering workflow");
 
-    // Trigger the chat workflow. kody.yml requires task_id; for chat we
-    // reuse the sessionId as the task_id so concurrency keys stay unique.
+    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+
     const workflowInputs: Record<string, string> = {
-      task_id: taskId,
       sessionId: taskId,
+      message: lastUserMessage,
     };
     if (dashboardUrl) {
-      workflowInputs.dashboardUrl = dashboardUrl;
+      workflowInputs.dashboardUrl = appendIngestToken(dashboardUrl, taskId);
     }
 
     await octokit.rest.actions.createWorkflowDispatch({
