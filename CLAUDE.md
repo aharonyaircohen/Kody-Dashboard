@@ -31,7 +31,6 @@ Next.js dashboard for monitoring and managing the Kody CI/CD pipeline.
 | `NEXT_PUBLIC_SERVER_URL` | Dev | Public URL for OAuth redirects |
 | `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from login) |
 | `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody2.yml`) |
-| `KODY_ENGINE_LOCAL_PATH` | Dev | Local path to engine repo (for local SSE polling) |
 
 ## Chat flow
 

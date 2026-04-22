@@ -148,7 +148,7 @@ No per-hook webhook auth in v1 (deferred to v2).
 ## Lifecycle Management
 
 ### Ignite (Start)
-- **Dashboard:** `POST /repos/{owner}/{repo}/actions/workflows/kody.yml/dispatches` via `workflow_dispatch` with sessionId
+- **Dashboard:** `POST /repos/{owner}/{repo}/actions/workflows/kody2.yml/dispatches` via `workflow_dispatch` with `sessionId` (chat mode) or `issue_number` (agent mode)
 - **Manual:** GitHub Actions UI
 - **On event:** `push`, `pull_request`, etc.
 
