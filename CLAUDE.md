@@ -30,7 +30,6 @@ Next.js dashboard for monitoring and managing the Kody CI/CD pipeline.
 | `GITHUB_APP_CLIENT_SECRET` | Yes | GitHub OAuth App client secret |
 | `NEXT_PUBLIC_SERVER_URL` | Dev | Public URL for OAuth redirects |
 | `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from login) |
-| `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody2.yml`) |
 
 ## Chat flow
 

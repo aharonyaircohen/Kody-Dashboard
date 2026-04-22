@@ -52,9 +52,6 @@ vercel env add NEXT_PUBLIC_SERVER_URL
 # Optional: centralize the chat workflow on a single engine repo.
 # Without this, chat dispatches against the repo the user connected at login.
 vercel env add KODY_CHAT_WORKFLOW_REPO
-
-# Optional: override the chat workflow filename (default: kody2.yml).
-vercel env add KODY_CHAT_WORKFLOW_ID
 ```
 
 > **Note:** After adding secrets, you must **redeploy** for them to take effect. Environment variables added in the Vercel dashboard are not applied to existing deployments until a new deployment is triggered.

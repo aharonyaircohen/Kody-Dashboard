@@ -50,10 +50,7 @@ function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
   }
 }
 
-function getChatWorkflowId(): string {
-  const raw = (process.env.KODY_CHAT_WORKFLOW_ID ?? "").trim()
-  return raw || "kody2.yml"
-}
+const CHAT_WORKFLOW_ID = "kody2.yml"
 
 function appendToken(baseUrl: string, token: string): string {
   // The runner uses this base URL for both /api/kody/chat/pull (long-poll for
@@ -108,7 +105,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { owner, repo } = getEngineRepo(req)
-  const workflowId = getChatWorkflowId()
+  const workflowId = CHAT_WORKFLOW_ID
 
   const octokit = await getUserOctokit(req)
   if (!octokit) {
