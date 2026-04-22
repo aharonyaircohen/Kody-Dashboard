@@ -45,7 +45,7 @@ function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
 }
 
 function getChatWorkflowId(): string {
-  return process.env.KODY_CHAT_WORKFLOW_ID ?? "chat.yml";
+  return process.env.KODY_CHAT_WORKFLOW_ID ?? "kody.yml";
 }
 
 interface ChatMessage {
@@ -136,12 +136,14 @@ export async function POST(req: NextRequest) {
 
     logger.info({ taskId, owner, repo }, "chat: triggering workflow");
 
-    // Trigger the chat.yml workflow
-    const workflowInputs: Record<string, { value: string }> = {
-      sessionId: { value: taskId },
+    // Trigger the chat workflow. kody.yml requires task_id; for chat we
+    // reuse the sessionId as the task_id so concurrency keys stay unique.
+    const workflowInputs: Record<string, string> = {
+      task_id: taskId,
+      sessionId: taskId,
     };
     if (dashboardUrl) {
-      workflowInputs.dashboardUrl = { value: dashboardUrl };
+      workflowInputs.dashboardUrl = dashboardUrl;
     }
 
     await octokit.rest.actions.createWorkflowDispatch({
