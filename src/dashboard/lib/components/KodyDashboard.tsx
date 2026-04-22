@@ -130,12 +130,20 @@ export function KodyDashboard({
 
   const CHAT_WIDTH_KEY = "kody.chatPanelWidth";
   const CHAT_WIDTH_MIN = 320;
-  const CHAT_WIDTH_MAX = 960;
-  const CHAT_WIDTH_DEFAULT = 400;
+  const CHAT_WIDTH_MAX = 1600;
+  const CHAT_WIDTH_SSR_FALLBACK = 600;
+  const getDefaultChatWidth = useCallback(() => {
+    if (typeof window === "undefined") return CHAT_WIDTH_SSR_FALLBACK;
+    const half = Math.floor(window.innerWidth / 2);
+    return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, half));
+  }, []);
   const [chatPanelWidth, setChatPanelWidth] = useState<number>(() => {
-    if (typeof window === "undefined") return CHAT_WIDTH_DEFAULT;
+    if (typeof window === "undefined") return CHAT_WIDTH_SSR_FALLBACK;
     const stored = Number(window.localStorage.getItem(CHAT_WIDTH_KEY));
-    if (!Number.isFinite(stored) || stored <= 0) return CHAT_WIDTH_DEFAULT;
+    if (!Number.isFinite(stored) || stored <= 0) {
+      const half = Math.floor(window.innerWidth / 2);
+      return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, half));
+    }
     return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, stored));
   });
   const isResizingChatRef = useRef(false);
@@ -156,7 +164,7 @@ export function KodyDashboard({
 
     const onMove = (ev: MouseEvent) => {
       if (!isResizingChatRef.current) return;
-      const nextWidth = window.innerWidth - ev.clientX;
+      const nextWidth = ev.clientX;
       const clamped = Math.min(
         CHAT_WIDTH_MAX,
         Math.max(CHAT_WIDTH_MIN, nextWidth),
@@ -978,6 +986,26 @@ export function KodyDashboard({
             isMerging={!!(mergingTaskId === selectedTask.id)}
           />
         )}
+        {/* Desktop: Chat Panel (left side, always visible) */}
+        <div
+          className="relative hidden md:block border-r border-border shrink-0"
+          style={{ width: `${chatPanelWidth}px` }}
+        >
+          <KodyChat
+            selectedTask={selectedTask}
+            actorLogin={githubUser?.login}
+          />
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize chat panel"
+            onMouseDown={startChatResize}
+            onDoubleClick={() => setChatPanelWidth(getDefaultChatWidth())}
+            className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
+            title="Drag to resize • Double-click to reset"
+          />
+        </div>
+
         {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* When a task is selected, TaskDetail takes over the entire left column */}
@@ -1294,26 +1322,6 @@ export function KodyDashboard({
               </div>
             </>
           )}
-        </div>
-
-        {/* Desktop: Chat Panel (right side, always visible) */}
-        <div
-          className="relative hidden md:block border-l border-border shrink-0"
-          style={{ width: `${chatPanelWidth}px` }}
-        >
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize chat panel"
-            onMouseDown={startChatResize}
-            onDoubleClick={() => setChatPanelWidth(CHAT_WIDTH_DEFAULT)}
-            className="absolute top-0 left-0 h-full w-1 -translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
-            title="Drag to resize • Double-click to reset"
-          />
-          <KodyChat
-            selectedTask={selectedTask}
-            actorLogin={githubUser?.login}
-          />
         </div>
 
         {/* Mobile Menu Sheet */}
