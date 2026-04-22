@@ -34,10 +34,10 @@ export const runtime = "nodejs"
 const RUNNER_FRESHNESS_MS = 3 * 60 * 1000
 
 function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
-  const override = (process.env.KODY_CHAT_WORKFLOW_REPO ?? "").trim()
+  const override = process.env.KODY_CHAT_WORKFLOW_REPO
   if (override && override.includes("/")) {
-    const [owner, repo] = override.split("/").map((s) => s.trim())
-    if (owner && repo) return { owner, repo }
+    const [owner, repo] = override.split("/")
+    return { owner, repo }
   }
   const headerAuth = getRequestAuth(req)
   if (headerAuth) {
@@ -45,14 +45,13 @@ function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
   }
   const { GITHUB_OWNER, GITHUB_REPO } = process.env as Record<string, string>
   return {
-    owner: (GITHUB_OWNER ?? "aharonyaircohen").trim(),
-    repo: (GITHUB_REPO ?? "Kody-Dashboard").trim(),
+    owner: GITHUB_OWNER ?? "aharonyaircohen",
+    repo: GITHUB_REPO ?? "Kody-Dashboard",
   }
 }
 
 function getChatWorkflowId(): string {
-  const raw = (process.env.KODY_CHAT_WORKFLOW_ID ?? "").trim()
-  return raw || "kody2.yml"
+  return process.env.KODY_CHAT_WORKFLOW_ID ?? "kody2.yml"
 }
 
 function appendToken(baseUrl: string, token: string): string {
