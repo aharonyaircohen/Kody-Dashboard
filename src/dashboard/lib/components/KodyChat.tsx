@@ -243,7 +243,17 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
       // Close any existing connection
       eventSourceRef.current?.close()
 
-      const url = `/api/kody/events/stream?taskId=${encodeURIComponent(sessionId)}`
+      // EventSource cannot attach custom headers — we pass the same auth
+      // triplet as query params so the stream route can resolve the target
+      // repo + GitHub token the same way the other chat endpoints do.
+      const auth = getStoredAuth()
+      const params = new URLSearchParams({ taskId: sessionId })
+      if (auth) {
+        params.set('owner', auth.owner)
+        params.set('repo', auth.repo)
+        params.set('token', auth.token)
+      }
+      const url = `/api/kody/events/stream?${params.toString()}`
       const es = new EventSource(url)
       eventSourceRef.current = es
 

@@ -18,6 +18,24 @@ import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { subscribe } from "@dashboard/lib/chat-event-bus";
 
+/**
+ * EventSource can't send custom headers, so the client mirrors the
+ * x-kody-* header triplet into query params. We promote those params
+ * to a header-shaped NextRequest so requireKodyAuth / getRequestAuth /
+ * getUserOctokit work unchanged.
+ */
+function promoteAuthFromQuery(req: NextRequest): NextRequest {
+  const token = req.nextUrl.searchParams.get("token");
+  const owner = req.nextUrl.searchParams.get("owner");
+  const repo = req.nextUrl.searchParams.get("repo");
+  if (!token && !owner && !repo) return req;
+  const headers = new Headers(req.headers);
+  if (token && !headers.has("x-kody-token")) headers.set("x-kody-token", token);
+  if (owner && !headers.has("x-kody-owner")) headers.set("x-kody-owner", owner);
+  if (repo && !headers.has("x-kody-repo")) headers.set("x-kody-repo", repo);
+  return new NextRequest(req.url, { headers, method: req.method });
+}
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -86,7 +104,8 @@ async function readEventFile(
 
 // ─── Handler ───────────────────────────────────────────────────────────────────
 
-export async function GET(req: NextRequest) {
+export async function GET(rawReq: NextRequest) {
+  const req = promoteAuthFromQuery(rawReq);
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
