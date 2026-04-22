@@ -72,13 +72,19 @@ test.describe("Real chat flow @real", () => {
     const viewport = await page.viewportSize()
     if ((viewport?.width ?? 1280) < 768) test.skip(true, "chat hidden on mobile")
 
+    // Capture what the browser actually requests so we can distinguish
+    // server-side failures from client-side bugs (EventSource auth, bundle
+    // cache, etc.).
+    const streamRequests: string[] = []
+    page.on("request", (req) => {
+      if (req.url().includes("/api/kody/events/stream")) streamRequests.push(req.url())
+    })
+
     const input = page.getByPlaceholder(/ask kody|kody is waiting/i).first()
     await input.waitFor({ state: "visible", timeout: 15_000 })
 
     const marker = `RE2E-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
-    // Intercept the trigger POST so we learn which sessionId the UI generated.
-    // Don't fulfill — let the real dispatch proceed.
     const triggerPromise = page.waitForRequest("**/api/kody/chat/trigger")
     await input.fill(`Reply with exactly "pong ${marker}" and nothing else.`)
     await input.press("Enter")
@@ -87,8 +93,9 @@ test.describe("Real chat flow @real", () => {
     const sessionId = triggerBody.taskId
     expect(sessionId, "UI must send a taskId to /chat/trigger").toBeTruthy()
 
-    // Poll the target repo's events file via GitHub API — ground truth that
-    // the engine ran, the LLM replied, and the engine pushed/committed back.
+    // Phase 1 — engine-side ground truth: poll the target repo's events
+    // file via GitHub API. If this fails, the server pipeline is broken
+    // (dispatch / workflow / kody2 / commit).
     const { owner, repo } = parseRepo(TEST_REPO)
     const eventsPath = `.kody/events/${sessionId}.jsonl`
     const deadline = Date.now() + 150_000
@@ -110,5 +117,29 @@ test.describe("Real chat flow @real", () => {
       await new Promise((r) => setTimeout(r, 5_000))
     }
     expect(markerFound, `engine did not emit the marker "pong ${marker}" within 2.5min`).toBe(true)
+
+    // Phase 2 — browser-side render: once the engine has committed the
+    // reply, the SSE stream should surface it to the UI within a few
+    // seconds. This catches client-side bugs the server side can't (e.g.
+    // EventSource dropping auth headers, bundle cache, state bugs).
+    const assistantBubble = page
+      .locator(".bg-muted")
+      .filter({ has: page.locator(".prose") })
+      .filter({ hasText: new RegExp(`pong\\s+${marker}`, "i") })
+      .first()
+
+    try {
+      await expect(assistantBubble).toBeVisible({ timeout: 30_000 })
+    } catch (e) {
+      const sample = streamRequests[0] ?? "<no /events/stream request was made>"
+      const hasAuth = /[?&]token=|[?&]owner=|[?&]repo=/.test(sample)
+      throw new Error(
+        `engine reply reached the repo but UI never rendered it.\n` +
+        `  stream requests made: ${streamRequests.length}\n` +
+        `  first stream URL:     ${sample}\n` +
+        `  carries query auth?:  ${hasAuth}\n` +
+        `  original error:       ${e instanceof Error ? e.message : String(e)}`,
+      )
+    }
   })
 })

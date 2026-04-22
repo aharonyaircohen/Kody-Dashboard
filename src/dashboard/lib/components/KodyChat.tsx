@@ -792,7 +792,11 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
           throw new Error(errorData.error || `HTTP ${triggerRes.status}`)
         }
 
-        // SSE will take over — streaming is handled by connectSSE
+        // For task chats a separate useEffect opens the SSE on
+        // selectedTask.id; global chats (no task) would otherwise never
+        // see the engine's reply because nothing watches the session id.
+        // Open the stream here so both modes are covered.
+        connectSSE(sessionId)
         return null
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
@@ -811,7 +815,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         return null
       }
     },
-    [selectedTask, setMessages, messages, selectedAgentId, actorLogin, sessionHook],
+    [selectedTask, setMessages, messages, selectedAgentId, actorLogin, sessionHook, connectSSE],
   )
 
   const sendMessage = async () => {
