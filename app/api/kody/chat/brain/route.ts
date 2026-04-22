@@ -18,7 +18,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireKodyAuth } from '@dashboard/lib/auth'
+import { getRequestAuth, requireKodyAuth } from '@dashboard/lib/auth'
 import { logger } from '@dashboard/lib/logger'
 import { fetchIssueAttachments } from '@dashboard/lib/issue-attachments'
 
@@ -147,6 +147,13 @@ export async function POST(req: NextRequest) {
 
   const attachments = [...clientAttachments, ...issueAttachments]
 
+  // Brain now supports optional per-chat repo selection (owner/name). When the
+  // dashboard knows which repo the user is connected to, forward it so Brain
+  // can clone it into a worktree and enable code-context tools. The repo is
+  // locked on the first turn, so sending it on every request is safe.
+  const headerAuth = getRequestAuth(req)
+  const repo = headerAuth ? `${headerAuth.owner}/${headerAuth.repo}` : undefined
+
   const requestId = crypto.randomUUID()
   const target = `${brainUrl.replace(/\/+$/, '')}/chats/${encodeURIComponent(chatId)}/messages`
 
@@ -161,6 +168,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         message: decoratedMessage,
         ...(attachments && attachments.length > 0 ? { attachments } : {}),
+        ...(repo ? { repo } : {}),
       }),
     })
   } catch (err) {
