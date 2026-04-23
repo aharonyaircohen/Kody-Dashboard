@@ -21,6 +21,7 @@ import {
 } from '@dashboard/lib/github-client'
 import { parseAllComments } from '@dashboard/lib/task-parser'
 import { matchWorkflowRunToTask } from '@dashboard/lib/workflow-matching'
+import { parseKodyPhase, parseKodyFlow } from '@dashboard/lib/constants'
 import type {
   KodyTask,
   GitHubIssue,
@@ -100,14 +101,18 @@ function buildKodyTask(options: {
   // Also check workflow run for timeout (GitHub Actions conclusion)
   const isTimeoutFromWorkflow = workflowRun?.conclusion === 'timed_out'
 
+  const taskLabels = issue.labels.map((l) => l.name)
+
   return {
     id: taskId,
     issueNumber: issue.number,
     title: issue.title,
     body: issue.body || '',
     state: issue.state,
-    labels: issue.labels.map((l) => l.name),
+    labels: taskLabels,
     column,
+    kodyPhase: parseKodyPhase(taskLabels),
+    kodyFlow: parseKodyFlow(taskLabels),
     createdAt: issue.created_at,
     updatedAt: issue.updated_at,
     workflowRun,

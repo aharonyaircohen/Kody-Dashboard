@@ -32,6 +32,7 @@ import type {
   KodyPipelineStatus,
 } from '@dashboard/lib/types'
 import { matchWorkflowRunToTask } from '@dashboard/lib/workflow-matching'
+import { parseKodyPhase, parseKodyFlow } from '@dashboard/lib/constants'
 
 /**
  * Derive column from live pipeline status.
@@ -78,15 +79,24 @@ function getColumnForIssue(
 
   // 0. Terminal lifecycle labels (highest priority)
   if (labelNames.includes('kody:failed')) return 'failed'
-  // kody:done = pipeline finished, PR created → task goes to review
-  // Task is only truly "done" when the PR is merged and the issue is closed.
-  if (labelNames.includes('kody:done') || labelNames.includes('kody:reviewing')) {
-    return 'review'
-  }
+  if (labelNames.includes('kody:done')) return 'done'
 
-  // Kody active-work labels
-  if (labelNames.includes('kody:planning') || labelNames.includes('kody:running'))
+  // 1. Review phase — pipeline finished, PR open, awaiting human review
+  if (labelNames.includes('kody:reviewing')) return 'review'
+
+  // 2. Any other kody:* active phase collapses to the "building" lane
+  if (
+    labelNames.includes('kody:classifying') ||
+    labelNames.includes('kody:researching') ||
+    labelNames.includes('kody:planning') ||
+    labelNames.includes('kody:running') ||
+    labelNames.includes('kody:fixing') ||
+    labelNames.includes('kody:resolving') ||
+    labelNames.includes('kody:syncing') ||
+    labelNames.includes('kody:orchestrating')
+  ) {
     return 'building'
+  }
 
   // 4. Active workflow run (only reached when NOT gated and no kody:* label)
   if (workflowRun?.status === 'in_progress') return 'building'
@@ -265,6 +275,7 @@ export async function GET(req: NextRequest) {
 
         // Derive gate type: prefer pipeline controlMode, fall back to issue labels
         const gateType = deriveGateType(pipelineStatus)
+        const taskLabels = issue.labels.map((l) => l.name)
 
         return {
           id: taskId ? `${taskId}-${issue.number}` : issue.number.toString(),
@@ -272,8 +283,10 @@ export async function GET(req: NextRequest) {
           title: issue.title,
           body: issue.body || '',
           state: issue.state,
-          labels: issue.labels.map((l) => l.name),
+          labels: taskLabels,
           column,
+          kodyPhase: parseKodyPhase(taskLabels),
+          kodyFlow: parseKodyFlow(taskLabels),
           createdAt: issue.created_at,
           updatedAt: issue.updated_at,
           pipeline: pipelineStatus,

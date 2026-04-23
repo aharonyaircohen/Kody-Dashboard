@@ -219,6 +219,10 @@ export interface KodyTask {
   state: 'open' | 'closed'
   labels: string[]
   column: ColumnId
+  /** Active kody:* lifecycle phase, derived from labels. Mutex. */
+  kodyPhase: import('./constants').KodyPhase | null
+  /** Flow type from kody-flow:*, derived from labels. Persistent. */
+  kodyFlow: import('./constants').KodyFlow | null
   createdAt: string
   updatedAt: string
   pipeline?: KodyPipelineStatus

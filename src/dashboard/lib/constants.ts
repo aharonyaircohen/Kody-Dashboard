@@ -295,6 +295,51 @@ export const SITE_URLS = {
 export const DEV_BRANCH = "dev";
 export const PROD_BRANCH = "main";
 
+// ============ Kody Lifecycle & Flow Labels ============
+
+/** Lifecycle phases set by the engine on issues/PRs. Mutex — one at a time. */
+export const KODY_PHASES = [
+  "classifying",
+  "researching",
+  "planning",
+  "running",
+  "fixing",
+  "resolving",
+  "reviewing",
+  "syncing",
+  "orchestrating",
+  "done",
+  "failed",
+] as const;
+export type KodyPhase = (typeof KODY_PHASES)[number];
+
+/** Flow types set by classify/orchestrator — persistent metadata on the issue. */
+export const KODY_FLOWS = ["feature", "bug", "spec", "chore"] as const;
+export type KodyFlow = (typeof KODY_FLOWS)[number];
+
+const KODY_PHASE_SET = new Set<string>(KODY_PHASES);
+const KODY_FLOW_SET = new Set<string>(KODY_FLOWS);
+
+/** Extract the active kody:* phase from a label list, or null if none set. */
+export function parseKodyPhase(labels: string[]): KodyPhase | null {
+  for (const l of labels) {
+    if (!l.startsWith("kody:")) continue;
+    const suffix = l.slice("kody:".length);
+    if (KODY_PHASE_SET.has(suffix)) return suffix as KodyPhase;
+  }
+  return null;
+}
+
+/** Extract the flow type from a label list, or null if none set. */
+export function parseKodyFlow(labels: string[]): KodyFlow | null {
+  for (const l of labels) {
+    if (!l.startsWith("kody-flow:")) continue;
+    const suffix = l.slice("kody-flow:".length);
+    if (KODY_FLOW_SET.has(suffix)) return suffix as KodyFlow;
+  }
+  return null;
+}
+
 // ============ Priority Labels ============
 
 export const PRIORITY_LEVELS = ["P0", "P1", "P2", "P3"] as const;

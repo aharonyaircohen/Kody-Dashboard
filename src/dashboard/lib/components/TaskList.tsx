@@ -13,6 +13,7 @@ import { MiniPipelineProgress } from './MiniPipelineProgress'
 import { AnimatedStatusBar } from './v2/AnimatedStatusBar'
 import { SimpleTooltip } from './SimpleTooltip'
 import { StatusTooltipContent, SubStatusTooltipContent } from './tooltip-content'
+import { KodyPhaseChip, KodyFlowChip } from './KodyLabelChips'
 import type { KodyTask, ColumnId } from '../types'
 import { Button } from '@dashboard/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
@@ -354,6 +355,9 @@ export function TaskList({
                       </span>
                     </SimpleTooltip>
                   )}
+
+                  <KodyFlowChip flow={task.kodyFlow} />
+                  <KodyPhaseChip phase={task.kodyPhase} />
 
                   {/* Priority badge */}
                   {task.labels
