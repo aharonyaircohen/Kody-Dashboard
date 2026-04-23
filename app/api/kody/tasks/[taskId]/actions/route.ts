@@ -282,9 +282,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
         const labelsToRemove = [
           'kody:done',
           'kody:failed',
-          'kody:building',
+          'kody:running',
           'kody:planning',
-          'kody:review',
+          'kody:reviewing',
           'hard-stop',
           'risk-gated',
         ]

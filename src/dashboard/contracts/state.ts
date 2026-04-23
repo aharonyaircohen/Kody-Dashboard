@@ -80,7 +80,7 @@ export type PipelineStatus = z.infer<typeof PipelineStatusSchema>;
  * Format: `{engine}:{suffix}`
  */
 export const LABEL_SUFFIX_TO_STATE: Record<string, PipelineStatus["state"]> = {
-  building: "running",
+  running: "running",
   done: "completed",
   failed: "failed",
   paused: "paused",
@@ -91,7 +91,7 @@ export const LABEL_SUFFIX_TO_STATE: Record<string, PipelineStatus["state"]> = {
  * Pipeline state → label suffix mapping.
  */
 export const STATE_TO_LABEL_SUFFIX: Record<PipelineStatus["state"], string> = {
-  running: "building",
+  running: "running",
   completed: "done",
   failed: "failed",
   paused: "paused",
@@ -101,7 +101,7 @@ export const STATE_TO_LABEL_SUFFIX: Record<PipelineStatus["state"], string> = {
 /**
  * Check if a label matches the engine label pattern `{engine}:{suffix}`.
  *
- * @param label - Full label name (e.g., 'kody:building')
+ * @param label - Full label name (e.g., 'kody:running')
  * @param engineName - Engine name to match (e.g., 'kody')
  * @returns true if label matches the pattern
  */
@@ -114,7 +114,7 @@ export function isEngineLabel(label: string, engineName: string): boolean {
 /**
  * Extract the pipeline state from a label.
  *
- * @param label - Full label name (e.g., 'kody:building')
+ * @param label - Full label name (e.g., 'kody:running')
  * @param engineName - Engine name to match
  * @returns Pipeline state or null if not a valid engine label
  */
@@ -132,7 +132,7 @@ export function getStateFromLabel(
  *
  * @param engineName - Engine name (e.g., 'kody')
  * @param state - Pipeline state
- * @returns Full label name (e.g., 'kody:building')
+ * @returns Full label name (e.g., 'kody:running')
  */
 export function buildLabel(
   engineName: string,

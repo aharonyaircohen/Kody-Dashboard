@@ -159,7 +159,7 @@ describe("Label Mapping", () => {
 
   describe("isEngineLabel", () => {
     it("should return true for valid engine labels", () => {
-      expect(isEngineLabel("kody:building", engineName)).toBe(true);
+      expect(isEngineLabel("kody:running", engineName)).toBe(true);
       expect(isEngineLabel("kody:done", engineName)).toBe(true);
       expect(isEngineLabel("kody:failed", engineName)).toBe(true);
       expect(isEngineLabel("kody:paused", engineName)).toBe(true);
@@ -175,8 +175,8 @@ describe("Label Mapping", () => {
   });
 
   describe("getStateFromLabel", () => {
-    it("should map building to running", () => {
-      expect(getStateFromLabel("kody:building", engineName)).toBe("running");
+    it("should map running to running", () => {
+      expect(getStateFromLabel("kody:running", engineName)).toBe("running");
     });
 
     it("should map done to completed", () => {
@@ -203,7 +203,7 @@ describe("Label Mapping", () => {
 
   describe("buildLabel", () => {
     it("should build correct label for each state", () => {
-      expect(buildLabel(engineName, "running")).toBe("kody:building");
+      expect(buildLabel(engineName, "running")).toBe("kody:running");
       expect(buildLabel(engineName, "completed")).toBe("kody:done");
       expect(buildLabel(engineName, "failed")).toBe("kody:failed");
       expect(buildLabel(engineName, "paused")).toBe("kody:paused");
@@ -213,7 +213,7 @@ describe("Label Mapping", () => {
 
   describe("LABEL_SUFFIX_TO_STATE", () => {
     it("should have all expected suffixes", () => {
-      expect(LABEL_SUFFIX_TO_STATE.building).toBe("running");
+      expect(LABEL_SUFFIX_TO_STATE.running).toBe("running");
       expect(LABEL_SUFFIX_TO_STATE.done).toBe("completed");
       expect(LABEL_SUFFIX_TO_STATE.failed).toBe("failed");
       expect(LABEL_SUFFIX_TO_STATE.paused).toBe("paused");
@@ -223,7 +223,7 @@ describe("Label Mapping", () => {
 
   describe("STATE_TO_LABEL_SUFFIX", () => {
     it("should have all expected states", () => {
-      expect(STATE_TO_LABEL_SUFFIX.running).toBe("building");
+      expect(STATE_TO_LABEL_SUFFIX.running).toBe("running");
       expect(STATE_TO_LABEL_SUFFIX.completed).toBe("done");
       expect(STATE_TO_LABEL_SUFFIX.failed).toBe("failed");
       expect(STATE_TO_LABEL_SUFFIX.paused).toBe("paused");
@@ -574,7 +574,7 @@ describe("Kody Extension", () => {
 
   describe("isKodyLabel", () => {
     it("should return true for valid Kody labels", () => {
-      expect(isKodyLabel("kody:building")).toBe(true);
+      expect(isKodyLabel("kody:running")).toBe(true);
       expect(isKodyLabel("kody:done")).toBe(true);
       expect(isKodyLabel("kody:failed")).toBe(true);
     });
@@ -587,7 +587,7 @@ describe("Kody Extension", () => {
 
   describe("getKodyStateFromLabel", () => {
     it("should extract state from Kody label", () => {
-      expect(getKodyStateFromLabel("kody:building")).toBe("running");
+      expect(getKodyStateFromLabel("kody:running")).toBe("running");
       expect(getKodyStateFromLabel("kody:done")).toBe("completed");
       expect(getKodyStateFromLabel("kody:failed")).toBe("failed");
       expect(getKodyStateFromLabel("kody:paused")).toBe("paused");

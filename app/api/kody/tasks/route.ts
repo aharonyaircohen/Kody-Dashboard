@@ -83,18 +83,18 @@ function getColumnForIssue(
   if (labelNames.includes('kody:failed')) return 'failed'
   // kody:done = pipeline finished, PR created → task goes to review
   // Task is only truly "done" when the PR is merged and the issue is closed.
-  if (labelNames.includes('kody:done') || labelNames.includes('kody:review')) {
+  if (labelNames.includes('kody:done') || labelNames.includes('kody:reviewing')) {
     return 'review'
   }
 
   // 1. Gate labels — pipeline paused waiting for approval.
-  // Must be checked BEFORE kody:planning/kody:building and in_progress workflow,
+  // Must be checked BEFORE kody:planning/kody:running and in_progress workflow,
   // because the pipeline keeps running (polling for approval) while gated,
   // and the kody:planning label is never removed when a gate fires.
   if (labelNames.includes('hard-stop') || labelNames.includes('risk-gated')) return 'gate-waiting'
 
   // 3. Kody active-work labels (only reached when NOT gated)
-  if (labelNames.includes('kody:planning') || labelNames.includes('kody:building'))
+  if (labelNames.includes('kody:planning') || labelNames.includes('kody:running'))
     return 'building'
 
   // 4. Active workflow run (only reached when NOT gated and no kody:* label)
@@ -210,7 +210,7 @@ export async function GET(req: NextRequest) {
       const isLikelyActive =
         workflowRun?.status === 'in_progress' ||
         workflowRun?.status === 'queued' ||
-        labelNames.includes('kody:building') ||
+        labelNames.includes('kody:running') ||
         labelNames.includes('kody:planning') ||
         labelNames.includes('kody:failed') ||
         labelNames.includes('hard-stop') ||
