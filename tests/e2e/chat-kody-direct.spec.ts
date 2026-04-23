@@ -42,13 +42,14 @@ async function injectAuth(page: Page): Promise<void> {
 }
 
 async function selectKodyAgent(page: Page): Promise<void> {
-  // Agent switcher button shows the current agent's name. Open it, pick "Kody".
+  // Agent switcher button shows the current agent's name. The dropdown
+  // uses role=listbox / role=option (not a menu), so target the Kody
+  // option inside the listbox rather than getByRole('menuitem').
   const trigger = page.locator('button').filter({ hasText: /Gemini|Kody(\s|$)|Brain/ }).first()
   await trigger.click()
-  await page.getByRole('menuitem', { name: /^Kody$/ }).click().catch(async () => {
-    // Fallback: generic button with the exact name.
-    await page.getByRole('button', { name: /^Kody$/ }).click()
-  })
+  const listbox = page.getByRole('listbox')
+  await listbox.waitFor({ state: 'visible', timeout: 5_000 })
+  await listbox.getByRole('option', { name: /^Kody\b/ }).click()
 }
 
 test.describe("Kody direct agent", () => {

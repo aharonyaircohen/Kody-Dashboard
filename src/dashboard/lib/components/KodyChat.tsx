@@ -78,6 +78,7 @@ function chatToMessage(chat: ChatMessage): Message {
     content: chat.text,
     timestamp: chat.timestamp,
     toolCalls: chat.toolCalls,
+    isLoading: chat.isLoading,
   }
 }
 
@@ -90,6 +91,7 @@ function messageToChat(msg: Message): ChatMessage {
     text: msg.content,
     timestamp: msg.timestamp || new Date().toISOString(),
     toolCalls: msg.toolCalls,
+    isLoading: msg.isLoading,
   }
 }
 

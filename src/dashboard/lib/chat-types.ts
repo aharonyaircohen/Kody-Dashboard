@@ -23,6 +23,12 @@ export interface ChatMessage {
     status: 'running' | 'success' | 'error'
     durationMs?: number
   }>
+  /**
+   * True while a reply is being streamed into this message. Persisted so the
+   * UI→storage→UI round-trip preserves the in-flight marker; without this,
+   * streaming updates can't find the placeholder to append chunks to.
+   */
+  isLoading?: boolean
 }
 
 /**
