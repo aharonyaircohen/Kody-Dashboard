@@ -20,12 +20,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { streamText, type ModelMessage } from "ai"
+import { streamText, stepCountIs, type ModelMessage } from "ai"
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { AGENT_KODY } from "@dashboard/lib/agents"
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
+import { createUserOctokit, setGitHubContext, clearGitHubContext } from "@dashboard/lib/github-client"
 import { logger } from "@dashboard/lib/logger"
 import { buildSystemPrompt, type TaskContext } from "./system-prompt"
+import { createGitHubTools } from "../tools/github-tools"
+import { createPipelineTools } from "../tools/pipeline-tools"
+import { createRemoteTools } from "../tools/remote-tools"
+import { fetchUrlTool } from "../tools/fetch-url"
 
 export const runtime = "nodejs"
 // Short chats only; 60 s is plenty for a single LLM call + streaming.
@@ -159,6 +164,8 @@ export async function POST(req: NextRequest) {
     messages?: IncomingMessage[]
     model?: string
     task?: TaskContext
+    /** GitHub login of the requester — gates remote_* tools. Optional. */
+    actorLogin?: string
   }
   try {
     body = (await req.json()) as typeof body
@@ -180,32 +187,76 @@ export async function POST(req: NextRequest) {
     body.task,
   )
 
+  // Build the per-request tool set. GitHub + pipeline tools require a
+  // resolved repo; remote tools require a configured actorLogin. The
+  // built-in `fetch_url` is always wired so the model can browse links.
+  //
+  // We intentionally do NOT use Gemini's provider tools (urlContext,
+  // googleSearch) — Gemini forbids combining provider-defined tools
+  // with custom function tools in one request, which would silently
+  // disable everything else. `fetch_url` is the swap-in replacement.
+  const baseTools: Record<string, unknown> = {
+    fetch_url: fetchUrlTool,
+  }
+  let extraTools: Record<string, unknown> = {}
+  if (repo) {
+    // Per-request Octokit (no shared singleton) so the GitHub tools
+    // don't race other concurrent /api/kody/chat/kody requests.
+    const octokit = createUserOctokit(repo.token)
+    extraTools = {
+      ...extraTools,
+      ...createGitHubTools({ octokit, owner: repo.owner, repo: repo.repo }),
+    }
+    // Pipeline tools currently use github-client's module-level context
+    // (setGitHubContext below) — they do *not* take the per-request
+    // octokit. Concurrent requests can race that state; we accept the
+    // existing risk to reuse cached helpers.
+    extraTools = {
+      ...extraTools,
+      ...createPipelineTools({ owner: repo.owner, repo: repo.repo }),
+    }
+    setGitHubContext(repo.owner, repo.repo, repo.token)
+  }
+  extraTools = {
+    ...extraTools,
+    ...createRemoteTools(body.actorLogin ?? null),
+  }
+  const tools = { ...baseTools, ...extraTools } as Parameters<typeof streamText>[0]["tools"]
+
   try {
     logger.info(
-      { modelId, messageCount: messages.length, repo: repo ? `${repo.owner}/${repo.repo}` : null, task: body.task?.issueNumber ?? null },
+      {
+        modelId,
+        messageCount: messages.length,
+        repo: repo ? `${repo.owner}/${repo.repo}` : null,
+        task: body.task?.issueNumber ?? null,
+        toolCount: Object.keys(tools ?? {}).length,
+      },
       "kody-direct: streaming",
     )
     const result = streamText({
       model: google(modelId),
       system: systemPrompt,
       messages,
-      // Native Gemini URL Context tool: when the user mentions a URL,
-      // Gemini fetches it server-side and grounds the reply on the page
-      // content. No client wiring needed — it's invoked by the model
-      // when relevant. The tool name MUST be `url_context` per the
-      // provider spec.
-      tools: { url_context: google.tools.urlContext({}) },
+      tools,
+      // Allow up to 5 tool-calling rounds so the model can chain
+      // (e.g. listIssues → getIssue → getFile in one turn).
+      stopWhen: stepCountIs(5),
       onError: ({ error }) => {
         // streamText swallows per-chunk errors into the stream unless we
         // surface them here — without this a bad API key / quota /
         // 429 silently produces a zero-byte response.
         logger.error({ err: error, modelId }, "kody-direct: stream onError")
       },
+      onFinish: () => {
+        clearGitHubContext()
+      },
     })
     return result.toTextStreamResponse({
       headers: { "content-type": "text/plain; charset=utf-8" },
     })
   } catch (err) {
+    clearGitHubContext()
     logger.error({ err }, "kody-direct: stream failed")
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Stream failed" },

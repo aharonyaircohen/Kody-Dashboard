@@ -953,6 +953,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
             body: JSON.stringify({
               messages: kodyMessages,
               task: kodyTaskContext,
+              ...(actorLogin ? { actorLogin } : {}),
             }),
           })
 
