@@ -42,7 +42,13 @@ function brainHeaders(): Record<string, string> {
   const b = getStoredBrainConfig()
   return b ? { 'x-brain-url': b.url, 'x-brain-key': b.apiKey } : {}
 }
-import type { ChatMessage, ChatSession } from '../chat-types'
+import type { AttachmentRef, ChatMessage, ChatSession } from '../chat-types'
+import {
+  putAttachment,
+  getAttachmentDataUrl,
+  deleteAttachment,
+  purgeOrphans,
+} from '../attachment-store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useRemoteStatus } from '../hooks/useRemoteStatus'
 import { useVoiceChat } from '../hooks/useVoiceChat'
@@ -67,6 +73,8 @@ interface Message {
     status: 'running' | 'success' | 'error'
     durationMs?: number
   }>
+  /** Attachment refs (blobs live in IndexedDB). */
+  attachments?: AttachmentRef[]
 }
 
 /**
@@ -79,6 +87,7 @@ function chatToMessage(chat: ChatMessage): Message {
     timestamp: chat.timestamp,
     toolCalls: chat.toolCalls,
     isLoading: chat.isLoading,
+    attachments: chat.attachments,
   }
 }
 
@@ -92,6 +101,7 @@ function messageToChat(msg: Message): ChatMessage {
     timestamp: msg.timestamp || new Date().toISOString(),
     toolCalls: msg.toolCalls,
     isLoading: msg.isLoading,
+    attachments: msg.attachments,
   }
 }
 
@@ -105,11 +115,13 @@ interface ToolCall {
 }
 
 interface Attachment {
+  /** IndexedDB record id — used to look up the blob on send/render. */
   id: string
   name: string
   type: string
   size: number
-  data: string // base64
+  /** Base64 data URL kept in memory for the live composer preview + send. */
+  data: string
   mimeType: string
 }
 
@@ -137,6 +149,79 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/**
+ * Render attachment chips (image preview for images, file icon otherwise)
+ * inside a user message bubble. Pulls the blob bytes from IndexedDB on
+ * mount so reload-from-history still shows the picture.
+ */
+function MessageAttachments({ attachments }: { attachments: AttachmentRef[] }) {
+  const [previews, setPreviews] = useState<Record<string, string | null>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const next: Record<string, string | null> = {}
+      for (const a of attachments) {
+        if (!a.mimeType.startsWith('image/')) {
+          next[a.id] = null
+          continue
+        }
+        try {
+          next[a.id] = await getAttachmentDataUrl(a.id)
+        } catch {
+          next[a.id] = null
+        }
+      }
+      if (!cancelled) setPreviews(next)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [attachments])
+
+  return (
+    <div className="mb-2 flex flex-wrap gap-2">
+      {attachments.map((a) => {
+        const dataUrl = previews[a.id]
+        if (a.mimeType.startsWith('image/')) {
+          return (
+            <div
+              key={a.id}
+              className="relative max-w-[180px] rounded-md overflow-hidden border border-primary-foreground/20 bg-background/40"
+              title={`${a.name} (${formatFileSize(a.size)})`}
+            >
+              {dataUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={dataUrl}
+                  alt={a.name}
+                  className="block max-h-[180px] w-auto object-contain"
+                />
+              ) : (
+                <div className="px-3 py-6 text-xs text-muted-foreground flex items-center gap-1.5">
+                  <ImageIcon className="w-4 h-4" />
+                  {dataUrl === null ? a.name : 'Loading…'}
+                </div>
+              )}
+            </div>
+          )
+        }
+        return (
+          <div
+            key={a.id}
+            className="flex items-center gap-1.5 px-2 py-1 bg-background/30 rounded-md text-xs"
+            title={`${a.mimeType} • ${formatFileSize(a.size)}`}
+          >
+            {getFileIcon(a.mimeType)}
+            <span className="max-w-[140px] truncate">{a.name}</span>
+            <span className="opacity-70">{formatFileSize(a.size)}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function TypingIndicator({ label }: { label: string }) {
@@ -411,6 +496,29 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
     }
   }, [])
 
+  // Garbage-collect IDB attachment blobs that no message references any
+  // more. Runs once on mount across all stored sessions plus the current
+  // task chat — cheap, since the cursor only reads keys.
+  useEffect(() => {
+    const referenced = new Set<string>()
+    // Global sessions (from the session hook)
+    for (const m of sessionHook.messages) {
+      m.attachments?.forEach((a) => referenced.add(a.id))
+    }
+    // Current task chat
+    for (const m of taskMessages) {
+      m.attachments?.forEach((a) => referenced.add(a.id))
+    }
+    // Pending composer attachments (not yet sent)
+    attachments.forEach((a) => referenced.add(a.id))
+    purgeOrphans(referenced).catch((err) =>
+      console.error('IDB purgeOrphans failed:', err),
+    )
+    // We intentionally only run this on mount — running on every message
+    // change would race with in-flight uploads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const executeClearHistory = () => {
     // Clear active session when clearing history in non-task mode
     if (!isTaskMode) {
@@ -455,8 +563,28 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
           reader.readAsDataURL(file)
         })
 
+        // Persist the blob in IndexedDB so it survives reload and we can
+        // re-render the chip from history without keeping base64 in
+        // localStorage. The returned `id` is the canonical attachment id.
+        let storedId: string
+        try {
+          const ref = await putAttachment({
+            name: file.name,
+            mimeType: file.type,
+            size: file.size,
+            blob: file,
+          })
+          storedId = ref.id
+        } catch (idbErr) {
+          // IDB unavailable (private mode, quota, etc.) — fall back to
+          // a transient id; the message just won't be re-renderable
+          // after reload.
+          console.error('IDB putAttachment failed:', idbErr)
+          storedId = `mem-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        }
+
         newAttachments.push({
-          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          id: storedId,
           name: file.name,
           type: file.type,
           size: file.size,
@@ -479,6 +607,11 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
 
   const removeAttachment = (id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id))
+    // Drop the IDB blob too — the user removed it before sending, so
+    // nothing references it any more.
+    deleteAttachment(id).catch((err) =>
+      console.error('IDB deleteAttachment failed:', err),
+    )
   }
 
   const sendText = useCallback(
@@ -488,80 +621,52 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
     ): Promise<string | null> => {
       if (!messageContent.trim() && currentAttachments.length === 0) return null
 
-      let fullContent = messageContent
-      if (currentAttachments.length > 0) {
-        const attachmentDescriptions = currentAttachments
-          .map((a) => {
-            const sizeStr = formatFileSize(a.size)
-            if (a.mimeType.startsWith('image/')) return `[Image: ${a.name} (${sizeStr})]\n${a.data}`
-            return `[File: ${a.name} (${a.mimeType}, ${sizeStr})]\n${a.data}`
-          })
-          .join('\n\n')
-        fullContent = attachmentDescriptions + (messageContent ? `\n\n${messageContent}` : '')
-      }
-
       const timestamp = new Date().toISOString()
 
-      // Build message list (current messages + the new user message)
-      const allMessages = [
-        ...messages.map((m) => ({ role: m.role, content: m.content, timestamp: m.timestamp ?? timestamp })),
-        { role: 'user' as const, content: fullContent, timestamp },
-      ]
+      // Attachment refs (id + metadata) for the persisted message. The blob
+      // itself lives in IDB; the data URL stays in `currentAttachments` for
+      // this turn's outgoing request only.
+      const attachmentRefs: AttachmentRef[] = currentAttachments.map((a) => ({
+        id: a.id,
+        name: a.name,
+        mimeType: a.mimeType,
+        size: a.size,
+      }))
+
+      // The user's bubble shows just the typed text — the attachment chips
+      // are rendered separately from `attachments`. No base64 in the text.
+      const displayContent = messageContent
+
+      // Build the prior-conversation transcript for the Kody backend. It
+      // gets the cleaned-up text only; older attachments are referenced by
+      // ref count only (not re-uploaded) — Kody's stateless route only
+      // needs the current turn's images.
+      const priorMessages = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp ?? timestamp,
+      }))
 
       setMessages((prev) => [
         ...prev,
-        { role: 'user', content: fullContent, timestamp },
+        {
+          role: 'user',
+          content: displayContent,
+          timestamp,
+          attachments: attachmentRefs.length > 0 ? attachmentRefs : undefined,
+        },
       ])
 
-      // Resolve the session id used downstream:
-      //   • task mode → the selected task's id.
-      //   • Brain + global → the persisted UI chat session id. Reusing it
-      //     keeps Brain's memory continuous across turns (Brain's chat server
-      //     scopes history by chatId) and avoids littering the repo with an
-      //     auto-created GitHub issue per message.
-      //   • Kody engine + global → auto-create a GitHub task as before.
-      let sessionId: string
-      if (selectedTask) {
-        sessionId = selectedTask.id
-      } else if (selectedAgentId === 'brain' || selectedAgentId === 'kody') {
-        // Kody-direct has no server-side session; reuse the local chat
-        // session id purely for local history/key continuity.
-        sessionId = sessionHook.activeSession?.id || sessionHook.createSession()
-      } else {
-        // Auto-create a task for global chat
-        try {
-          const taskRes = await fetch('/api/kody/tasks', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: JSON.stringify({
-              title: `Chat ${new Date().toLocaleDateString()}`,
-              body: 'Auto-created task for global chat session',
-              autoTrigger: false,
-            }),
-          })
-          if (!taskRes.ok) throw new Error(`Task creation failed: ${taskRes.status}`)
-          const taskData = (await taskRes.json()) as {
-            success?: boolean
-            issue?: { number?: number }
-            task?: { id?: string }
-            id?: string
-          }
-          // Current tasks API returns { success, issue: { number } }.
-          // Older shapes ({ task: { id } } or { id }) kept as fallbacks.
-          sessionId =
-            (taskData.issue?.number != null ? String(taskData.issue.number) : undefined) ??
-            taskData.task?.id ??
-            taskData.id ??
-            ''
-          if (!sessionId) throw new Error('No taskId returned')
-        } catch (err) {
-          const errorMessage = err instanceof Error ? err.message : 'Failed to create task'
-          setMessages((prev) => [
-            ...prev,
-            { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false },
-          ])
-          return null
-        }
+      // Resolve the session id only for backends that actually need one
+      // (engine + brain). The kody-direct route is stateless and doesn't
+      // use it. We defer createSession() to those branches because calling
+      // it eagerly here creates a *second* session — the first setMessages
+      // above already auto-created one, but `sessionHook.activeSession` is
+      // a stale closure and reads as null, tripping createSession() into
+      // splitting user/assistant across two sessions.
+      const resolveSessionId = (): string => {
+        if (selectedTask) return selectedTask.id
+        return sessionHook.activeSession?.id ?? sessionHook.createSession()
       }
 
       setLoading(true)
@@ -583,9 +688,10 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         // Brain session. `sessionId` alone (a bare issue number) would collide
         // across users working on the same task.
         const userKey = actorLogin ?? 'anon'
+        const brainSessionId = resolveSessionId()
         const brainChatId = selectedTask
           ? `${userKey}--task-${selectedTask.id}`
-          : `${userKey}--global-${sessionId}`
+          : `${userKey}--global-${brainSessionId}`
 
         // When chatting about a specific task, pass a compact context blob so
         // Brain answers in the context of that issue. Brain's route injects it
@@ -808,12 +914,44 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
             }
           : undefined
 
+        // Build the user-turn content. If we have attachments, send them as
+        // structured parts (text + image) so Gemini sees real images, not
+        // base64 strings stuffed into the text. Without attachments, send
+        // a plain string to keep the request shape identical to before.
+        const userTurnContent: unknown =
+          currentAttachments.length > 0
+            ? [
+                ...(messageContent.trim()
+                  ? [{ type: 'text' as const, text: messageContent }]
+                  : []),
+                ...currentAttachments.map((a) =>
+                  a.mimeType.startsWith('image/')
+                    ? {
+                        type: 'image' as const,
+                        image: a.data,
+                        mimeType: a.mimeType,
+                      }
+                    : {
+                        type: 'file' as const,
+                        data: a.data,
+                        mediaType: a.mimeType,
+                        filename: a.name,
+                      },
+                ),
+              ]
+            : messageContent
+
+        const kodyMessages = [
+          ...priorMessages.map((m) => ({ role: m.role, content: m.content })),
+          { role: 'user' as const, content: userTurnContent },
+        ]
+
         try {
           const res = await fetch('/api/kody/chat/kody', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify({
-              messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
+              messages: kodyMessages,
               task: kodyTaskContext,
             }),
           })
@@ -867,13 +1005,36 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
       }
 
       // ─── Kody engine backend: async via GH Actions workflow ───
+      const sessionId = resolveSessionId()
+      // The engine's trigger workflow expects plain string content. To keep
+      // attachment info available on the workflow side without breaking the
+      // schema, inline a compact descriptor + base64 into the user turn the
+      // same way the previous behavior did.
+      const engineUserContent =
+        currentAttachments.length > 0
+          ? currentAttachments
+              .map((a) => {
+                const sizeStr = formatFileSize(a.size)
+                if (a.mimeType.startsWith('image/')) {
+                  return `[Image: ${a.name} (${sizeStr})]\n${a.data}`
+                }
+                return `[File: ${a.name} (${a.mimeType}, ${sizeStr})]\n${a.data}`
+              })
+              .join('\n\n') + (messageContent ? `\n\n${messageContent}` : '')
+          : messageContent
+
+      const engineMessages = [
+        ...priorMessages,
+        { role: 'user' as const, content: engineUserContent, timestamp },
+      ]
+
       try {
         const triggerRes = await fetch('/api/kody/chat/trigger', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({
             taskId: sessionId,
-            messages: allMessages,
+            messages: engineMessages,
             dashboardUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
           }),
         })
@@ -1300,7 +1461,12 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
                   )}
                 </>
               ) : (
-                msg.content
+                <>
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <MessageAttachments attachments={msg.attachments} />
+                  )}
+                  {msg.content}
+                </>
               )}
               {loading &&
                 i === messages.length - 1 &&

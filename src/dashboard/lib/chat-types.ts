@@ -6,6 +6,18 @@
  */
 
 /**
+ * Reference to an attachment blob stored in IndexedDB.
+ * Lives on a ChatMessage; the binary itself is in the `kody-attachments`
+ * IDB store keyed by `id`. Cheap to round-trip through localStorage.
+ */
+export interface AttachmentRef {
+  id: string
+  name: string
+  mimeType: string
+  size: number
+}
+
+/**
  * A single message in a chat conversation.
  * Used for both dashboard chat and pipeline agent sessions.
  */
@@ -23,6 +35,8 @@ export interface ChatMessage {
     status: 'running' | 'success' | 'error'
     durationMs?: number
   }>
+  /** Attachments uploaded with this user message (blobs in IndexedDB). */
+  attachments?: AttachmentRef[]
   /**
    * True while a reply is being streamed into this message. Persisted so the
    * UI→storage→UI round-trip preserves the in-flight marker; without this,

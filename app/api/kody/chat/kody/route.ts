@@ -35,15 +35,112 @@ export const maxDuration = 60
 // flash generation; override via KODY_DIRECT_MODEL env for other models.
 const DEFAULT_MODEL = process.env.KODY_DIRECT_MODEL ?? "gemini-2.5-flash"
 
+interface IncomingTextPart {
+  type: "text"
+  text: string
+}
+interface IncomingImagePart {
+  type: "image"
+  /** base64 data URL (data:<mime>;base64,<...>) or raw http(s) URL */
+  image: string
+  mimeType?: string
+}
+interface IncomingFilePart {
+  type: "file"
+  data: string
+  mediaType: string
+  filename?: string
+}
+type IncomingPart = IncomingTextPart | IncomingImagePart | IncomingFilePart
+
 interface IncomingMessage {
   role: "user" | "assistant" | "system"
-  content: string
+  content: string | IncomingPart[]
+}
+
+function isPartsArray(c: unknown): c is IncomingPart[] {
+  return Array.isArray(c) && c.every((p) => p && typeof p === "object" && "type" in p)
+}
+
+/**
+ * The Vercel AI SDK accepts an `image` part as either a URL or raw
+ * base64-encoded bytes. If we pass a `data:` URL string, it tries to
+ * resolve it as a URL and rejects the `data:` scheme. Strip the
+ * `data:<mime>;base64,` prefix and recover the mime type from it.
+ */
+function parseImageData(
+  image: string,
+  fallbackMime?: string,
+): { data: string; mediaType?: string } {
+  const m = /^data:([^;,]+);base64,(.*)$/s.exec(image)
+  if (m) return { data: m[2], mediaType: m[1] || fallbackMime }
+  return { data: image, mediaType: fallbackMime }
+}
+
+function parseFileData(
+  data: string,
+  fallbackMime: string,
+): { data: string; mediaType: string } {
+  const m = /^data:([^;,]+);base64,(.*)$/s.exec(data)
+  if (m) return { data: m[2], mediaType: m[1] || fallbackMime }
+  return { data, mediaType: fallbackMime }
 }
 
 function normalizeMessages(raw: IncomingMessage[]): ModelMessage[] {
-  return raw
-    .filter((m) => typeof m?.content === "string" && m.content.trim() !== "")
-    .map((m) => ({ role: m.role, content: m.content }) as ModelMessage)
+  const out: ModelMessage[] = []
+  for (const m of raw) {
+    if (!m || (m.role !== "user" && m.role !== "assistant" && m.role !== "system")) continue
+
+    if (typeof m.content === "string") {
+      if (m.content.trim() === "") continue
+      out.push({ role: m.role, content: m.content } as ModelMessage)
+      continue
+    }
+
+    if (!isPartsArray(m.content)) continue
+
+    // Multimodal parts are only valid on a user message in the SDK shape.
+    // Strip empty text parts; drop the message if nothing remains.
+    const parts = m.content
+      .map((p) => {
+        if (p.type === "text") {
+          return p.text.trim() === "" ? null : { type: "text" as const, text: p.text }
+        }
+        if (p.type === "image") {
+          const parsed = parseImageData(p.image, p.mimeType)
+          return {
+            type: "image" as const,
+            image: parsed.data,
+            ...(parsed.mediaType ? { mediaType: parsed.mediaType } : {}),
+          }
+        }
+        if (p.type === "file") {
+          const parsed = parseFileData(p.data, p.mediaType)
+          return {
+            type: "file" as const,
+            data: parsed.data,
+            mediaType: parsed.mediaType,
+            ...(p.filename ? { filename: p.filename } : {}),
+          }
+        }
+        return null
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null)
+
+    if (parts.length === 0) continue
+    if (m.role === "user") {
+      out.push({ role: "user", content: parts })
+    } else {
+      // assistant/system can't carry image parts — collapse to text only.
+      const text = parts
+        .filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join("\n")
+      if (text.trim() === "") continue
+      out.push({ role: m.role, content: text } as ModelMessage)
+    }
+  }
+  return out
 }
 
 export async function POST(req: NextRequest) {
