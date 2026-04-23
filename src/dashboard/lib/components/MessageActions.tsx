@@ -7,6 +7,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Check, Copy, Pencil, RotateCw, Trash2 } from 'lucide-react'
 import { cn } from '@dashboard/lib/utils/ui'
 import { ConfirmDialog } from './ConfirmDialog'
 
@@ -86,7 +87,11 @@ export function MessageActions({
           className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
           title={copied ? 'Copied!' : 'Copy'}
         >
-          {copied ? '✓' : '📋'}
+          {copied ? (
+            <Check className="w-3.5 h-3.5" />
+          ) : (
+            <Copy className="w-3.5 h-3.5" />
+          )}
         </button>
 
         {/* Retry button (only for last assistant message) */}
@@ -96,7 +101,7 @@ export function MessageActions({
             className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
             title="Regenerate response"
           >
-            🔄
+            <RotateCw className="w-3.5 h-3.5" />
           </button>
         )}
 
@@ -107,7 +112,7 @@ export function MessageActions({
             className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
             title="Edit and resend"
           >
-            ✏️
+            <Pencil className="w-3.5 h-3.5" />
           </button>
         )}
 
@@ -118,7 +123,7 @@ export function MessageActions({
             className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-destructive"
             title="Delete message"
           >
-            🗑️
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
