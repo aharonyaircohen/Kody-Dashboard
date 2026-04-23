@@ -23,7 +23,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { streamText, type ModelMessage } from "ai"
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { AGENT_KODY } from "@dashboard/lib/agents"
-import { requireKodyAuth } from "@dashboard/lib/auth"
+import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
 import { logger } from "@dashboard/lib/logger"
 
 export const runtime = "nodejs"
@@ -39,10 +39,70 @@ interface IncomingMessage {
   content: string
 }
 
+/**
+ * Compact task context the UI forwards when the user is chatting about
+ * a specific task (same shape Brain receives). All fields optional.
+ */
+interface TaskContext {
+  issueNumber?: number | string
+  title?: string
+  body?: string
+  state?: string
+  labels?: string[]
+  column?: string
+  pipeline?: { state?: string; currentStage?: string }
+  associatedPR?: { number?: number; state?: string; html_url?: string }
+}
+
 function normalizeMessages(raw: IncomingMessage[]): ModelMessage[] {
   return raw
     .filter((m) => typeof m?.content === "string" && m.content.trim() !== "")
     .map((m) => ({ role: m.role, content: m.content }) as ModelMessage)
+}
+
+export function buildSystemPromptForTest(
+  base: string,
+  repo: { owner: string; repo: string } | null,
+  task: TaskContext | undefined,
+): string {
+  return buildSystemPrompt(base, repo, task)
+}
+
+function buildSystemPrompt(
+  base: string,
+  repo: { owner: string; repo: string } | null,
+  task: TaskContext | undefined,
+): string {
+  const sections: string[] = [base]
+  if (repo) {
+    sections.push(
+      `## Connected repository\n\nYou are helping the user with the repository **${repo.owner}/${repo.repo}**. When the user refers to "the repo", "this repo", "the codebase", or a file path, they mean this repository. Ground your answers in the conversation context the user provides — do not invent file contents or PR numbers you haven't seen.`,
+    )
+  }
+  if (task) {
+    const lines: string[] = ["## Current task"]
+    if (task.issueNumber != null) lines.push(`- Issue #${task.issueNumber}`)
+    if (task.title) lines.push(`- Title: ${task.title}`)
+    if (task.state) lines.push(`- State: ${task.state}`)
+    if (task.column) lines.push(`- Column: ${task.column}`)
+    if (task.labels?.length) lines.push(`- Labels: ${task.labels.join(", ")}`)
+    if (task.pipeline?.state || task.pipeline?.currentStage) {
+      lines.push(
+        `- Pipeline: state=${task.pipeline.state ?? "?"}, stage=${task.pipeline.currentStage ?? "?"}`,
+      )
+    }
+    if (task.associatedPR?.number) {
+      lines.push(
+        `- Associated PR: #${task.associatedPR.number} (${task.associatedPR.state ?? "?"}) ${task.associatedPR.html_url ?? ""}`.trim(),
+      )
+    }
+    if (task.body) {
+      const bodyPreview = task.body.length > 2000 ? `${task.body.slice(0, 2000)}…` : task.body
+      lines.push(`\n### Task body\n\n${bodyPreview}`)
+    }
+    sections.push(lines.join("\n"))
+  }
+  return sections.join("\n\n")
 }
 
 export async function POST(req: NextRequest) {
@@ -57,9 +117,13 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: { messages?: IncomingMessage[]; model?: string }
+  let body: {
+    messages?: IncomingMessage[]
+    model?: string
+    task?: TaskContext
+  }
   try {
-    body = (await req.json()) as { messages?: IncomingMessage[]; model?: string }
+    body = (await req.json()) as typeof body
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
@@ -71,12 +135,21 @@ export async function POST(req: NextRequest) {
 
   const modelId = body.model ?? DEFAULT_MODEL
   const google = createGoogleGenerativeAI({ apiKey })
+  const repo = getRequestAuth(req)
+  const systemPrompt = buildSystemPrompt(
+    AGENT_KODY.systemPrompt,
+    repo ? { owner: repo.owner, repo: repo.repo } : null,
+    body.task,
+  )
 
   try {
-    logger.info({ modelId, messageCount: messages.length }, "kody-direct: streaming")
+    logger.info(
+      { modelId, messageCount: messages.length, repo: repo ? `${repo.owner}/${repo.repo}` : null, task: body.task?.issueNumber ?? null },
+      "kody-direct: streaming",
+    )
     const result = streamText({
       model: google(modelId),
-      system: AGENT_KODY.systemPrompt,
+      system: systemPrompt,
       messages,
       onError: ({ error }) => {
         // streamText swallows per-chunk errors into the stream unless we

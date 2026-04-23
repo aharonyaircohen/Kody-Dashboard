@@ -781,12 +781,40 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
 
       // ─── Kody direct backend: in-process LLM stream, no Actions/Brain ───
       if (selectedAgentId === 'kody') {
+        // Forward task context when the user is chatting about a specific
+        // task — same shape Brain receives, so the server can anchor the
+        // reply in the right issue/PR.
+        const kodyTaskContext = selectedTask
+          ? {
+              issueNumber: selectedTask.issueNumber,
+              title: selectedTask.title,
+              body: selectedTask.body,
+              state: selectedTask.state,
+              labels: selectedTask.labels,
+              column: selectedTask.column,
+              pipeline: selectedTask.pipeline
+                ? {
+                    state: selectedTask.pipeline.state,
+                    currentStage: selectedTask.pipeline.currentStage,
+                  }
+                : undefined,
+              associatedPR: selectedTask.associatedPR
+                ? {
+                    number: selectedTask.associatedPR.number,
+                    state: selectedTask.associatedPR.state,
+                    html_url: selectedTask.associatedPR.html_url,
+                  }
+                : undefined,
+            }
+          : undefined
+
         try {
           const res = await fetch('/api/kody/chat/kody', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify({
               messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
+              task: kodyTaskContext,
             }),
           })
 

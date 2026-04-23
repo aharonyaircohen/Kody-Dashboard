@@ -78,4 +78,32 @@ describe("POST /api/kody/chat/kody", () => {
     const res = await kodyChatPOST(req)
     expect([401, 403]).toContain(res.status)
   })
+
+  it("builds a system prompt that names the connected repo + task context", async () => {
+    // We can't observe the system prompt the SDK sends without mocking the
+    // provider, so we unit-test buildSystemPrompt by re-importing it.
+    const { buildSystemPromptForTest } = await import("../../app/api/kody/chat/kody/route")
+    const prompt = buildSystemPromptForTest(
+      "You are Kody.",
+      { owner: "acme", repo: "widgets" },
+      {
+        issueNumber: 42,
+        title: "Add dark mode",
+        state: "open",
+        labels: ["ui", "good-first-issue"],
+        associatedPR: { number: 101, state: "open", html_url: "https://github.com/acme/widgets/pull/101" },
+      },
+    )
+    expect(prompt).toContain("acme/widgets")
+    expect(prompt).toContain("Issue #42")
+    expect(prompt).toContain("Add dark mode")
+    expect(prompt).toContain("ui, good-first-issue")
+    expect(prompt).toContain("Associated PR: #101")
+  })
+
+  it("builds a repo-less prompt when no auth headers are present", async () => {
+    const { buildSystemPromptForTest } = await import("../../app/api/kody/chat/kody/route")
+    const prompt = buildSystemPromptForTest("base", null, undefined)
+    expect(prompt).toBe("base")
+  })
 })
