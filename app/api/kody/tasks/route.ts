@@ -55,17 +55,14 @@ function deriveColumnFromPipeline(pipeline: KodyPipelineStatus): ColumnId {
 }
 
 /**
- * Derive gate type from pipeline controlMode, falling back to label names.
- * Pipeline data is preferred since labels may lag by 10–30 s.
+ * Derive gate type from pipeline controlMode. The dashboard no longer reads
+ * `hard-stop` / `risk-gated` labels; gate state is sourced from pipeline JSON.
  */
 function deriveGateType(
   pipeline?: KodyPipelineStatus | null,
-  labelNames?: string[],
 ): 'hard-stop' | 'risk-gated' | undefined {
   if (pipeline?.controlMode === 'hard-stop') return 'hard-stop'
   if (pipeline?.controlMode === 'risk-gated') return 'risk-gated'
-  if (labelNames?.includes('hard-stop')) return 'hard-stop'
-  if (labelNames?.includes('risk-gated')) return 'risk-gated'
   return undefined
 }
 
@@ -87,13 +84,7 @@ function getColumnForIssue(
     return 'review'
   }
 
-  // 1. Gate labels — pipeline paused waiting for approval.
-  // Must be checked BEFORE kody:planning/kody:running and in_progress workflow,
-  // because the pipeline keeps running (polling for approval) while gated,
-  // and the kody:planning label is never removed when a gate fires.
-  if (labelNames.includes('hard-stop') || labelNames.includes('risk-gated')) return 'gate-waiting'
-
-  // 3. Kody active-work labels (only reached when NOT gated)
+  // Kody active-work labels
   if (labelNames.includes('kody:planning') || labelNames.includes('kody:running'))
     return 'building'
 
@@ -212,9 +203,7 @@ export async function GET(req: NextRequest) {
         workflowRun?.status === 'queued' ||
         labelNames.includes('kody:running') ||
         labelNames.includes('kody:planning') ||
-        labelNames.includes('kody:failed') ||
-        labelNames.includes('hard-stop') ||
-        labelNames.includes('risk-gated')
+        labelNames.includes('kody:failed')
 
       if (isLikelyActive && issue.number) {
         activeIssueNumbers.push(issue.number)
@@ -275,7 +264,7 @@ export async function GET(req: NextRequest) {
           : getColumnForIssue(issue, workflowRun ?? undefined, pr ?? null)
 
         // Derive gate type: prefer pipeline controlMode, fall back to issue labels
-        const gateType = deriveGateType(pipelineStatus, labelNames)
+        const gateType = deriveGateType(pipelineStatus)
 
         return {
           id: taskId ? `${taskId}-${issue.number}` : issue.number.toString(),

@@ -285,8 +285,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
           'kody:running',
           'kody:planning',
           'kody:reviewing',
-          'hard-stop',
-          'risk-gated',
         ]
         for (const lbl of labelsToRemove) {
           try {

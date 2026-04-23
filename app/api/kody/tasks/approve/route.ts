@@ -10,11 +10,6 @@ import { z } from 'zod'
 import { requireKodyAuth, verifyActorLogin, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
 import { getOctokit, setGitHubContext, clearGitHubContext, getOwner, getRepo } from '@dashboard/lib/github-client'
 
-const GATE_LABELS = {
-  HARD_STOP: 'hard-stop',
-  RISK_GATED: 'risk-gated',
-} as const
-
 // Zod schema for request validation
 const ApproveRequestSchema = z.object({
   issueNumber: z.number().int().positive(),
@@ -116,21 +111,6 @@ export async function POST(req: NextRequest) {
       const msg = error instanceof Error ? error.message : String(error)
       results.push(`Issue close note: ${msg}`)
     }
-
-    // 4. Remove gate labels
-    for (const label of [GATE_LABELS.HARD_STOP, GATE_LABELS.RISK_GATED]) {
-      try {
-        await octokit.issues.removeLabel({
-          owner: getOwner(),
-          repo: getRepo(),
-          issue_number: issueNumber,
-          name: label,
-        })
-      } catch {
-        // Label might not be present
-      }
-    }
-    results.push('Removed gate labels')
 
     return NextResponse.json({ success: true, results })
   } catch (error: unknown) {
