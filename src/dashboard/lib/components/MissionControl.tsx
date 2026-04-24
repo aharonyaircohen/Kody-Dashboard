@@ -12,12 +12,14 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
+  Calendar,
   ExternalLink,
   FileText,
   Pencil,
   Play,
   Plus,
   RefreshCw,
+  Sparkles,
   Target,
   Trash2,
 } from 'lucide-react'
@@ -144,24 +146,44 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
             />
           ) : (
             <ul className="divide-y divide-border">
-              {missions.map((mission) => (
-                <li key={mission.number}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedNumber(mission.number)}
-                    className={cn(
-                      'w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors',
-                      selectedNumber === mission.number && 'bg-accent/70',
-                    )}
-                  >
-                    <div className="font-medium text-sm truncate">{mission.title}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      #{mission.number} · updated{' '}
-                      {new Date(mission.updatedAt).toLocaleDateString()}
-                    </div>
-                  </button>
-                </li>
-              ))}
+              {missions.map((mission) => {
+                const isActive = selectedNumber === mission.number
+                return (
+                  <li key={mission.number}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedNumber(mission.number)}
+                      className={cn(
+                        'w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative',
+                        isActive && 'bg-accent/70',
+                      )}
+                    >
+                      {isActive ? (
+                        <span className="absolute inset-y-0 left-0 w-0.5 bg-emerald-400" />
+                      ) : null}
+                      <div className="flex items-center gap-2">
+                        <Target
+                          className={cn(
+                            'w-3.5 h-3.5 shrink-0',
+                            isActive ? 'text-emerald-400' : 'text-muted-foreground',
+                          )}
+                        />
+                        <span className="font-medium text-sm truncate flex-1">
+                          {mission.title}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                        <span className="font-mono opacity-80">#{mission.number}</span>
+                        <span>·</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(mission.updatedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </aside>
@@ -275,62 +297,118 @@ function MissionDetail({
   onRun: () => void
   isRunning: boolean
 }) {
+  const hasBody = mission.body.trim().length > 0
   return (
-    <article className="p-4 md:p-6 max-w-3xl">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onBack}
-        className="md:hidden gap-1 -ml-2 mb-2 text-muted-foreground"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        All missions
-      </Button>
-      <header className="flex items-start justify-between gap-3 mb-4 flex-wrap">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-lg md:text-xl font-semibold break-words">{mission.title}</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            #{mission.number} · created {new Date(mission.createdAt).toLocaleDateString()}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <a
-            href={mission.htmlUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            title="Open on GitHub"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">GitHub</span>
-          </a>
+    <article className="min-h-full">
+      {/* Hero */}
+      <div className="border-b border-white/[0.06] bg-gradient-to-b from-emerald-500/[0.06] via-emerald-500/[0.02] to-transparent">
+        <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
           <Button
+            variant="ghost"
             size="sm"
-            onClick={onRun}
-            disabled={isRunning}
-            className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={onBack}
+            className="md:hidden gap-1 -ml-2 text-muted-foreground"
           >
-            <Play className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{isRunning ? 'Dispatching…' : 'Run'}</span>
+            <ArrowLeft className="w-4 h-4" />
+            All missions
           </Button>
-          <Button variant="outline" size="sm" onClick={onEdit} className="gap-1">
-            <Pencil className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Edit</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={onDelete} className="gap-1 text-red-400">
-            <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Close</span>
-          </Button>
-        </div>
-      </header>
+          <header className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="inline-flex items-center gap-2 text-xs text-emerald-400 font-medium uppercase tracking-wider">
+                <Target className="w-3.5 h-3.5" />
+                Mission
+              </div>
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words">
+                {mission.title}
+              </h1>
+              <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
+                <span className="font-mono opacity-80">#{mission.number}</span>
+                <span>·</span>
+                <span className="inline-flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  created {new Date(mission.createdAt).toLocaleDateString()}
+                </span>
+                <span>·</span>
+                <a
+                  href={mission.htmlUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                  title="Open on GitHub"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  GitHub
+                </a>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                onClick={onRun}
+                disabled={isRunning}
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">
+                  {isRunning ? 'Dispatching…' : 'Run'}
+                </span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={onEdit} className="gap-1.5">
+                <Pencil className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Edit</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onDelete}
+                className="gap-1.5 text-red-400"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Close</span>
+              </Button>
+            </div>
+          </header>
 
-      <div className="prose prose-sm dark:prose-invert max-w-none">
-        {mission.body.trim() ? (
-          <ReactMarkdown>{mission.body}</ReactMarkdown>
-        ) : (
-          <p className="text-muted-foreground italic">No description yet.</p>
-        )}
+          {/* Description card inside the hero when present */}
+          {hasBody ? (
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown>{mission.body}</ReactMarkdown>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
+
+      {/* Empty body fallback below the hero (mirrors goal detail's empty tasks card) */}
+      {!hasBody ? (
+        <div className="max-w-4xl mx-auto p-4 md:p-8">
+          <div className="rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] py-12 text-center space-y-3">
+            <div className="w-10 h-10 mx-auto rounded-full bg-emerald-500/10 flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">
+                No description yet
+              </p>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                Use <span className="font-medium text-foreground">Edit</span> to
+                describe the mission&apos;s intent, system prompt, allowed
+                commands, and restrictions.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onEdit}
+              className="gap-1.5 mt-1"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Edit mission
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </article>
   )
 }
