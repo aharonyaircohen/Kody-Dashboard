@@ -6,7 +6,7 @@
  */
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { formatRelativeTime } from '../utils'
 import { formatElapsed } from '../pipeline-utils'
 import type { KodyTask } from '../types'
@@ -20,6 +20,8 @@ interface KodyStatusBannerProps {
   isFetching?: boolean
   /** Timestamp (ms) of last successful data update */
   dataUpdatedAt?: number
+  /** Extra controls rendered on the right side of the banner (e.g. expand/collapse all). */
+  trailing?: ReactNode
 }
 
 type KodyState =
@@ -94,6 +96,7 @@ export function KodyStatusBanner({
   tasks,
   isFetching,
   dataUpdatedAt,
+  trailing,
 }: KodyStatusBannerProps) {
   const state = deriveKodyState(tasks)
 
@@ -108,6 +111,7 @@ export function KodyStatusBanner({
           issues in backlog
         </span>
         <RefreshIndicator isFetching={isFetching} dataUpdatedAt={dataUpdatedAt} />
+        {trailing}
       </div>
     )
   }
@@ -127,6 +131,7 @@ export function KodyStatusBanner({
           Kody is <span className="text-foreground font-medium">{label}</span>
         </span>
         <RefreshIndicator isFetching={isFetching} dataUpdatedAt={dataUpdatedAt} />
+        {trailing}
       </div>
     )
   }
@@ -160,6 +165,7 @@ export function KodyStatusBanner({
         >
           Gate
         </Badge>
+        {trailing}
       </div>
     )
   }
@@ -188,6 +194,7 @@ export function KodyStatusBanner({
       <span className="text-xs text-muted-foreground" title="Failed at">
         <RelativeTime date={state.task.updatedAt} />
       </span>
+      {trailing}
     </div>
   )
 }

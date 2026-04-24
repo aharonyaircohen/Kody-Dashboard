@@ -1071,10 +1071,16 @@ export async function findAssociatedPRByIssueNumber(issueNumber: number): Promis
   const issueStr = String(issueNumber)
 
   for (const pr of openPRs) {
-    // Match by branch name pattern: {prefix}/{YYMMDD}-auto-{issueNumber}-{title}
-    // or {prefix}/{issueNumber}-{title}
+    // Kody-auto branches put the issue number after "-auto-", so check that
+    // before the generic first-digits pattern (which would capture YYMMDD).
+    const autoMatch = pr.head.ref.match(/-auto-(\d+)-/)
+    if (autoMatch && autoMatch[1] === issueStr) {
+      setCache(cacheKey, CACHE_TTL.prs, pr)
+      return pr
+    }
+    // Traditional: {prefix}/{issueNumber}-{title}
     const branchMatch = pr.head.ref.match(/\/(\d{3,})-/)
-    if (branchMatch && branchMatch[1] === issueStr) {
+    if (!autoMatch && branchMatch && branchMatch[1] === issueStr) {
       setCache(cacheKey, CACHE_TTL.prs, pr)
       return pr
     }

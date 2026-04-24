@@ -10,7 +10,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { KodyTask, SortField } from "../types";
 import { filterTasksByView, getViewModeCounts, sortTasks } from "../utils";
 import { TaskList } from "./TaskList";
-import { GoalGroupedView } from "./GoalGroupedView";
+import { GoalGroupedView, useGoalCollapse } from "./GoalGroupedView";
 import { CreateGoalDialog, EditGoalDialog } from "./GoalControl";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useGoals, useDeleteGoal } from "../hooks/useGoals";
@@ -59,6 +59,8 @@ import {
   GitBranch,
   Github,
   Layers,
+  ChevronsDownUp,
+  ChevronsUpDown,
 } from "lucide-react";
 import Link from "next/link";
 import { useKodyTasks, queryKeys } from "../hooks";
@@ -287,6 +289,16 @@ export function KodyDashboard({
   // Goals — drive the goal-first dashboard grouping
   const { data: goals = [] } = useGoals();
   const deleteGoalMutation = useDeleteGoal(githubUser?.login);
+  // Collapse state for the goal-grouped view, kept in KodyDashboard so the
+  // expand/collapse toolbar and the list share the same state.
+  const {
+    collapsed: collapsedGoalKeys,
+    toggle: toggleGoalCollapsed,
+    allCollapsed: allGoalsCollapsed,
+    expandAll: expandAllGoals,
+    collapseAll: collapseAllGoals,
+    hasMultipleGroups: hasMultipleGoalGroups,
+  } = useGoalCollapse(goals, tasks);
 
   // Mutations for assign/unassign
   const assignMutation = useMutation({
@@ -588,6 +600,10 @@ export function KodyDashboard({
   );
 
   const filteredTasks = sortedTasks;
+
+  // Shared goal collapse controller — drives both the section headers and the
+  // expand/collapse toggle that lives in the Kody status banner.
+  const goalCollapse = useGoalCollapse(goals, filteredTasks);
 
   // Keyboard shortcuts (after sortedTasks is defined)
   useKeyboardShortcuts({
@@ -1398,9 +1414,36 @@ export function KodyDashboard({
                     <div className="text-muted-foreground">Loading...</div>
                   </div>
                 ) : (
-                  <GoalGroupedView
-                    goals={goals}
-                    tasks={filteredTasks}
+                  <>
+                    {hasMultipleGoalGroups ? (
+                      <div className="flex items-center justify-end px-4 md:px-6 pt-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={
+                            allGoalsCollapsed ? expandAllGoals : collapseAllGoals
+                          }
+                          className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          {allGoalsCollapsed ? (
+                            <>
+                              <ChevronsUpDown className="w-3.5 h-3.5" />
+                              Expand all
+                            </>
+                          ) : (
+                            <>
+                              <ChevronsDownUp className="w-3.5 h-3.5" />
+                              Collapse all
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    ) : null}
+                    <GoalGroupedView
+                      collapsed={collapsedGoalKeys}
+                      onToggleCollapsed={toggleGoalCollapsed}
+                      goals={goals}
+                      tasks={filteredTasks}
                     selectedTask={selectedTask}
                     executingTaskId={executingTaskId}
                     mergingTaskId={mergingTaskId}
@@ -1446,7 +1489,8 @@ export function KodyDashboard({
                     onCreateTaskInGoal={handleCreateInGoal}
                     onReportBugInGoal={handleReportBugInGoal}
                     onMoveTask={handleMoveTask}
-                  />
+                    />
+                  </>
                 )}
               </div>
             </>

@@ -9,15 +9,13 @@
  */
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   Bug,
   Calendar,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  ChevronsDownUp,
-  ChevronsUpDown,
   Flag,
   Inbox,
   Pencil,
@@ -62,6 +60,10 @@ interface GoalGroupedViewProps {
   onReportBugInGoal?: (goal: Goal | null) => void
   /** Move a task between goals (null targetGoalId = Ungrouped). */
   onMoveTask?: (task: KodyTask, targetGoalId: string | null) => void
+  /** Collapsed group keys. Drive this with {@link useGoalCollapse}. */
+  collapsed: Set<string>
+  /** Toggle a single group's collapsed state. */
+  onToggleCollapsed: (key: string) => void
 }
 
 interface Group {
@@ -157,6 +159,57 @@ function describeDueDate(iso: string | undefined): DueChip | null {
   }
 }
 
+/**
+ * Controller hook for goal collapse state. Extracted so the toggle button can
+ * live outside the list (e.g. in the Kody status banner) while rows read/write
+ * the same state.
+ *
+ * Why: the view itself and the expand/collapse toolbar need to agree on
+ * `visibleGroups` to compute `allCollapsed`. Sharing this hook keeps them
+ * honest without prop-drilling the full groups array.
+ */
+export function useGoalCollapse(goals: Goal[], tasks: KodyTask[]) {
+  const groups = useMemo(() => buildGroups(goals, tasks), [goals, tasks])
+  const visibleGroups = useMemo(
+    () => groups.filter((g) => g.tasks.length > 0 || g.goal !== null),
+    [groups],
+  )
+
+  // Collapse "Ungrouped" by default when goals exist; keep goals expanded.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    const initial = new Set<string>()
+    if (goals.length > 0) initial.add('ungrouped')
+    return initial
+  })
+
+  const toggle = useCallback((key: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
+  const allKeys = visibleGroups.map((g) => g.key)
+  const allCollapsed =
+    allKeys.length > 0 && allKeys.every((k) => collapsed.has(k))
+  const expandAll = useCallback(() => setCollapsed(new Set()), [])
+  const collapseAll = useCallback(
+    () => setCollapsed(new Set(allKeys)),
+    [allKeys],
+  )
+
+  return {
+    collapsed,
+    toggle,
+    allCollapsed,
+    expandAll,
+    collapseAll,
+    hasMultipleGroups: visibleGroups.length > 1,
+  }
+}
+
 export function GoalGroupedView({
   goals,
   tasks,
@@ -166,25 +219,14 @@ export function GoalGroupedView({
   onCreateTaskInGoal,
   onReportBugInGoal,
   onMoveTask,
+  collapsed,
+  onToggleCollapsed,
   ...taskListProps
 }: GoalGroupedViewProps) {
   const [dragTask, setDragTask] = useState<KodyTask | null>(null)
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
   const groups = useMemo(() => buildGroups(goals, tasks), [goals, tasks])
-  // Collapse "Ungrouped" by default when goals exist; keep goals expanded.
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
-    const initial = new Set<string>()
-    if (goals.length > 0) initial.add('ungrouped')
-    return initial
-  })
-
-  const toggle = (key: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
+  const toggle = onToggleCollapsed
 
   const hasAnyTask = tasks.length > 0
   const visibleGroups = groups.filter(
@@ -225,38 +267,8 @@ export function GoalGroupedView({
     )
   }
 
-  const allKeys = visibleGroups.map((g) => g.key)
-  const allCollapsed =
-    allKeys.length > 0 && allKeys.every((k) => collapsed.has(k))
-  const handleExpandAll = () => setCollapsed(new Set())
-  const handleCollapseAll = () => setCollapsed(new Set(allKeys))
-
   return (
     <div>
-      {/* Expand / collapse toolbar */}
-      {visibleGroups.length > 1 ? (
-        <div className="flex items-center justify-end gap-1 px-4 md:px-6 py-2 border-b border-white/[0.04] bg-black/10">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={allCollapsed ? handleExpandAll : handleCollapseAll}
-            className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          >
-            {allCollapsed ? (
-              <>
-                <ChevronsUpDown className="w-3.5 h-3.5" />
-                Expand all
-              </>
-            ) : (
-              <>
-                <ChevronsDownUp className="w-3.5 h-3.5" />
-                Collapse all
-              </>
-            )}
-          </Button>
-        </div>
-      ) : null}
-
       <div className="space-y-4 md:space-y-5 px-2 md:px-4 pt-3">
         {visibleGroups.map((group) => {
           const isCollapsed = collapsed.has(group.key)

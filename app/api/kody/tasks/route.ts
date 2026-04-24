@@ -176,11 +176,18 @@ export async function GET(req: NextRequest) {
     const prsByIssueNumber = new Map<number, (typeof openPRs)[number]>()
     for (const pr of openPRs) {
       prsByIssueTitle.set(pr.title, pr)
-      // Extract issue number from branch name (e.g., "feat/501-add-loading" -> 501)
-      // or from PR title "Closes #501"
-      const branchMatch = pr.head.ref.match(/\/(\d{3,})-/)
-      if (branchMatch) {
-        prsByIssueNumber.set(parseInt(branchMatch[1], 10), pr)
+      // Kody-generated branches: "{prefix}/{YYMMDD}-auto-{issueNumber}-{title}".
+      // The issue number lives after "-auto-", not at the start — check it first
+      // so the YYMMDD prefix doesn't get captured as a bogus issue number.
+      const autoMatch = pr.head.ref.match(/-auto-(\d+)-/)
+      if (autoMatch) {
+        prsByIssueNumber.set(parseInt(autoMatch[1], 10), pr)
+      } else {
+        // Traditional: "{prefix}/{issueNumber}-{title}"
+        const branchMatch = pr.head.ref.match(/\/(\d{3,})-/)
+        if (branchMatch) {
+          prsByIssueNumber.set(parseInt(branchMatch[1], 10), pr)
+        }
       }
       const closesMatch = pr.title.match(/(?:closes|fixes|resolves)\s+#(\d+)/i)
       if (closesMatch) {
