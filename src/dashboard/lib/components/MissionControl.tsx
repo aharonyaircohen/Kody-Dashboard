@@ -12,12 +12,15 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
+  Check,
+  Copy,
   ExternalLink,
   FileText,
   Pencil,
   Plus,
   RefreshCw,
   Target,
+  Terminal,
   Trash2,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -42,6 +45,7 @@ import {
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import type { Mission } from '../api'
 import { MISSION_TEMPLATE } from '../mission-template'
+import { composeMissionPrompt } from '../mission-prompt'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
 
@@ -226,6 +230,20 @@ function MissionDetail({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const [showComposed, setShowComposed] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const composed = useMemo(() => composeMissionPrompt(mission), [mission])
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(composed)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Clipboard may be blocked in some contexts; fail silently
+    }
+  }
+
   return (
     <article className="p-6 max-w-3xl">
       <header className="flex items-start justify-between gap-4 mb-4">
@@ -246,6 +264,15 @@ function MissionDetail({
             <ExternalLink className="w-3.5 h-3.5" />
             GitHub
           </a>
+          <Button
+            variant={showComposed ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => setShowComposed((prev) => !prev)}
+            className="gap-1"
+          >
+            <Terminal className="w-3.5 h-3.5" />
+            {showComposed ? 'Mission body' : 'Composed prompt'}
+          </Button>
           <Button variant="outline" size="sm" onClick={onEdit} className="gap-1">
             <Pencil className="w-3.5 h-3.5" />
             Edit
@@ -257,13 +284,35 @@ function MissionDetail({
         </div>
       </header>
 
-      <div className="prose prose-sm dark:prose-invert max-w-none">
-        {mission.body.trim() ? (
-          <ReactMarkdown>{mission.body}</ReactMarkdown>
-        ) : (
-          <p className="text-muted-foreground italic">No description yet.</p>
-        )}
-      </div>
+      {showComposed ? (
+        <div className="border border-border rounded-md overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b border-border text-xs">
+            <span className="text-muted-foreground">
+              System prompt + mission body, as the executor will see it.
+            </span>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="inline-flex items-center gap-1 hover:text-foreground text-muted-foreground"
+              title="Copy composed prompt"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <pre className="p-4 text-xs whitespace-pre-wrap break-words font-mono bg-background max-h-[70vh] overflow-y-auto">
+            {composed}
+          </pre>
+        </div>
+      ) : (
+        <div className="prose prose-sm dark:prose-invert max-w-none">
+          {mission.body.trim() ? (
+            <ReactMarkdown>{mission.body}</ReactMarkdown>
+          ) : (
+            <p className="text-muted-foreground italic">No description yet.</p>
+          )}
+        </div>
+      )}
     </article>
   )
 }
