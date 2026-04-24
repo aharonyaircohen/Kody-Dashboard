@@ -38,21 +38,21 @@ function ControlTabs({
   return (
     <div
       role="tablist"
-      aria-label="Mission or goal view"
-      className="inline-flex items-center gap-1 rounded-md border border-border bg-black/20 p-0.5"
+      aria-label="Switch between missions and goals"
+      className="relative inline-flex items-center rounded-md border border-border bg-black/30 p-0.5 h-8"
     >
       <TabButton
         active={active === 'missions'}
         onClick={() => onChange('missions')}
         label="Missions"
-        icon={<Target className="w-4 h-4" />}
+        icon={<Target className="w-3.5 h-3.5" />}
         activeColor="text-emerald-400"
       />
       <TabButton
         active={active === 'goals'}
         onClick={() => onChange('goals')}
         label="Goals"
-        icon={<Flag className="w-4 h-4" />}
+        icon={<Flag className="w-3.5 h-3.5" />}
         activeColor="text-sky-400"
       />
     </div>
@@ -79,10 +79,10 @@ function TabButton({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors',
+        'inline-flex items-center gap-1.5 px-3 h-7 rounded text-sm transition-colors',
         active
-          ? cn('bg-accent/80 text-foreground', activeColor)
-          : 'text-muted-foreground hover:text-foreground hover:bg-accent/40',
+          ? cn('bg-white/10 font-medium shadow-sm', activeColor)
+          : 'text-muted-foreground hover:text-foreground',
       )}
     >
       {icon}

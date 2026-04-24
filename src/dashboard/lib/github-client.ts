@@ -86,24 +86,28 @@ function invalidateCache(prefix: string): void {
  * Instead of clearing everything, only clear relevant caches
  */
 export function invalidateTaskCache(): void {
-  invalidateCache('issues-')
-  invalidateCache('workflow-')
+  invalidateCache('issues:')
+  invalidateCache('issue:')
+  invalidateCache('workflows:')
 }
 
 export function invalidatePRCache(): void {
-  invalidateCache('prs-')
+  invalidateCache('pr:')
   invalidateCache('pr-')
+  invalidateCache('open-prs:')
+  invalidateCache('previews:')
 }
 
 export function invalidateBoardCache(): void {
-  invalidateCache('boards-')
-  invalidateCache('labels-')
-  invalidateCache('milestones-')
+  invalidateCache('boards:')
+  invalidateCache('labels:')
+  invalidateCache('milestones:')
 }
 
 export function invalidateBranchCache(): void {
-  invalidateCache('branches-')
-  invalidateCache('refs-')
+  invalidateCache('branch:')
+  invalidateCache('branches:')
+  invalidateCache('refs:')
 }
 
 // ============ Per-Request Repo Context ============

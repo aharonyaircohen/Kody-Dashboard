@@ -63,7 +63,7 @@ import {
   ChevronDown,
   Plus,
   Github,
-  Target,
+  Layers,
 } from "lucide-react";
 import Link from "next/link";
 import { useKodyTasks, queryKeys } from "../hooks";
@@ -1194,17 +1194,17 @@ export function KodyDashboard({
                     </Button>
                   </SimpleTooltip>
 
-                  {/* Mission Control */}
-                  <SimpleTooltip content="Manage missions" side="bottom">
+                  {/* Work (missions + goals) */}
+                  <SimpleTooltip content="Missions & goals" side="bottom">
                     <Button
                       asChild
                       variant="outline"
                       size="sm"
                       className="gap-1"
                     >
-                      <Link href="/missions" aria-label="Mission Control">
-                        <Target className="w-4 h-4" />
-                        Missions
+                      <Link href="/missions" aria-label="Missions and goals">
+                        <Layers className="w-4 h-4" />
+                        Work
                       </Link>
                     </Button>
                   </SimpleTooltip>
