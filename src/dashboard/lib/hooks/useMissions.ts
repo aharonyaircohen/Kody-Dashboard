@@ -85,6 +85,22 @@ export function useUpdateMission(number: number, actorLogin?: string) {
   })
 }
 
+export function useRunMission() {
+  return useMutation<
+    { sessionId: string; workflowId: string },
+    Error,
+    { number: number; title: string; body: string }
+  >({
+    mutationFn: (mission) => kodyApi.missions.run(mission),
+    onSuccess: () => {
+      toast.success('Mission dispatched to kody engine')
+    },
+    onError: (error) => {
+      toast.error('Failed to dispatch mission', { description: error.message })
+    },
+  })
+}
+
 export function useDeleteMission(actorLogin?: string) {
   const queryClient = useQueryClient()
 

@@ -15,6 +15,7 @@ import {
   ExternalLink,
   FileText,
   Pencil,
+  Play,
   Plus,
   RefreshCw,
   Target,
@@ -37,6 +38,7 @@ import {
   useCreateMission,
   useDeleteMission,
   useMissions,
+  useRunMission,
   useUpdateMission,
 } from '../hooks/useMissions'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
@@ -60,6 +62,7 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
   const [showCreate, setShowCreate] = useState(false)
   const [editingMission, setEditingMission] = useState<Mission | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Mission | null>(null)
+  const [pendingRun, setPendingRun] = useState<Mission | null>(null)
 
   const selectedMission = useMemo(
     () => missions.find((m) => m.number === selectedNumber) ?? null,
@@ -74,6 +77,7 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
 
   const { githubUser } = useGitHubIdentity()
   const deleteMutation = useDeleteMission(githubUser?.login)
+  const runMutation = useRunMission()
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
@@ -175,6 +179,10 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
               onBack={() => setSelectedNumber(null)}
               onEdit={() => setEditingMission(selectedMission)}
               onDelete={() => setPendingDelete(selectedMission)}
+              onRun={() => setPendingRun(selectedMission)}
+              isRunning={
+                runMutation.isPending && runMutation.variables?.number === selectedMission.number
+              }
             />
           ) : (
             <EmptyState
@@ -204,6 +212,27 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
           onSaved={() => setEditingMission(null)}
         />
       ) : null}
+
+      {/* Run confirm */}
+      <ConfirmDialog
+        open={!!pendingRun}
+        title="Run this mission?"
+        description={
+          pendingRun
+            ? `Dispatches kody.yml with mission #${pendingRun.number} "${pendingRun.title}" as the prompt. GitHub Actions minutes will be consumed and kody may make real repo writes.`
+            : ''
+        }
+        confirmLabel="Run mission"
+        onConfirm={() => {
+          if (!pendingRun) return
+          runMutation.mutate({
+            number: pendingRun.number,
+            title: pendingRun.title,
+            body: pendingRun.body,
+          })
+        }}
+        onClose={() => setPendingRun(null)}
+      />
 
       {/* Delete confirm */}
       <ConfirmDialog
@@ -236,11 +265,15 @@ function MissionDetail({
   onBack,
   onEdit,
   onDelete,
+  onRun,
+  isRunning,
 }: {
   mission: Mission
   onBack: () => void
   onEdit: () => void
   onDelete: () => void
+  onRun: () => void
+  isRunning: boolean
 }) {
   return (
     <article className="p-4 md:p-6 max-w-3xl">
@@ -271,6 +304,15 @@ function MissionDetail({
             <ExternalLink className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">GitHub</span>
           </a>
+          <Button
+            size="sm"
+            onClick={onRun}
+            disabled={isRunning}
+            className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <Play className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{isRunning ? 'Dispatching…' : 'Run'}</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={onEdit} className="gap-1">
             <Pencil className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Edit</span>

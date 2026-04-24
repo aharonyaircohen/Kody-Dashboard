@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   ArrowLeft,
@@ -52,6 +53,7 @@ import { GOAL_LABEL_PREFIX } from '../goals'
 import { getGitHubIssueUrl } from '../constants'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
+import { TaskList } from './TaskList'
 
 interface GoalProgress {
   total: number
@@ -304,118 +306,173 @@ function GoalDetail({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const router = useRouter()
   const [showAttach, setShowAttach] = useState(false)
   const pct = progress.total > 0 ? (progress.done / progress.total) * 100 : 0
-  const openTasks = progress.tasks.filter(
+  const inProgressTasks = progress.tasks.filter(
     (t) => !(t.state === 'closed' || t.column === 'done'),
   )
   const doneTasks = progress.tasks.filter(
     (t) => t.state === 'closed' || t.column === 'done',
   )
   const attachedIds = new Set(progress.tasks.map((t) => t.issueNumber))
+
   return (
-    <article className="p-4 md:p-6 max-w-3xl space-y-6">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onBack}
-        className="md:hidden gap-1 -ml-2 text-muted-foreground"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        All goals
-      </Button>
-      <header className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-lg md:text-xl font-semibold break-words">{goal.name}</h2>
-          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
-            <span className="font-mono">{goal.id}</span>
-            <span>created {new Date(goal.createdAt).toLocaleDateString()}</span>
-            {goal.dueDate ? (
-              <span className="inline-flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                due {formatDueDate(goal.dueDate)}
-              </span>
-            ) : null}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={onEdit} className="gap-1">
-            <Pencil className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Edit</span>
+    <article className="min-h-full">
+      {/* Hero */}
+      <div className="border-b border-white/[0.06] bg-gradient-to-b from-sky-500/[0.06] via-sky-500/[0.02] to-transparent">
+        <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="md:hidden gap-1 -ml-2 text-muted-foreground"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            All goals
           </Button>
-          <Button variant="outline" size="sm" onClick={onDelete} className="gap-1 text-red-400">
-            <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Remove</span>
-          </Button>
-        </div>
-      </header>
+          <header className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="inline-flex items-center gap-2 text-xs text-sky-400 font-medium uppercase tracking-wider">
+                <Flag className="w-3.5 h-3.5" />
+                Goal
+              </div>
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words">
+                {goal.name}
+              </h1>
+              <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
+                <span className="font-mono opacity-80">{goal.id}</span>
+                <span>·</span>
+                <span>created {new Date(goal.createdAt).toLocaleDateString()}</span>
+                {goal.dueDate ? (
+                  <>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      due {formatDueDate(goal.dueDate)}
+                    </span>
+                  </>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button variant="outline" size="sm" onClick={onEdit} className="gap-1.5">
+                <Pencil className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Edit</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onDelete}
+                className="gap-1.5 text-red-400"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Remove</span>
+              </Button>
+            </div>
+          </header>
 
-      {/* Progress */}
-      <section className="space-y-2">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <CheckCircle className="w-3.5 h-3.5 text-sky-400" />
-            <span className="tabular-nums text-foreground font-medium">
-              {progress.done}
-            </span>
-            <span>of</span>
-            <span className="tabular-nums text-foreground font-medium">
-              {progress.total}
-            </span>
-            <span>{progress.total === 1 ? 'task done' : 'tasks done'}</span>
-          </span>
-          <span className="tabular-nums">{Math.round(pct)}%</span>
-        </div>
-        <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-          <div
-            className="h-full bg-sky-400/80 transition-[width] duration-300"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </section>
+          {/* Progress card */}
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5 space-y-3">
+            <div className="flex items-end justify-between gap-4 flex-wrap">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl md:text-4xl font-semibold tabular-nums">
+                  {Math.round(pct)}%
+                </span>
+                <span className="text-sm text-muted-foreground">complete</span>
+              </div>
+              <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-sky-400" />
+                  <span className="tabular-nums text-foreground font-medium">
+                    {inProgressTasks.length}
+                  </span>
+                  in progress
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="tabular-nums text-foreground font-medium">
+                    {progress.done}
+                  </span>
+                  done
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="tabular-nums text-foreground font-medium">
+                    {progress.total}
+                  </span>
+                  total
+                </span>
+              </div>
+            </div>
+            <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-sky-500 to-sky-400 transition-[width] duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
 
-      {/* Description */}
-      <section className="prose prose-sm dark:prose-invert max-w-none">
-        {goal.description?.trim() ? (
-          <ReactMarkdown>{goal.description}</ReactMarkdown>
-        ) : (
-          <p className="text-muted-foreground italic">No description yet.</p>
-        )}
-      </section>
+          {/* Description */}
+          {goal.description?.trim() ? (
+            <section className="prose prose-sm dark:prose-invert max-w-none">
+              <ReactMarkdown>{goal.description}</ReactMarkdown>
+            </section>
+          ) : null}
+        </div>
+      </div>
 
       {/* Tasks */}
-      <section className="space-y-3">
+      <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-foreground">Tasks</h3>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAttach(true)}
-            className="gap-1"
-          >
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+            Tasks
+          </h3>
+          <Button size="sm" onClick={() => setShowAttach(true)} className="gap-1.5">
             <Plus className="w-3.5 h-3.5" />
             Attach tasks
           </Button>
         </div>
+
         {progress.total === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            No tasks attached yet. Use <span className="font-medium">Attach tasks</span>{' '}
-            to link any open issues to this goal.
-          </p>
+          <div className="rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] py-12 text-center space-y-3">
+            <div className="w-10 h-10 mx-auto rounded-full bg-sky-500/10 flex items-center justify-center">
+              <Plus className="w-5 h-5 text-sky-400" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">
+                No tasks attached yet
+              </p>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                Use <span className="font-medium text-foreground">Attach tasks</span>{' '}
+                to link open issues to this goal and start tracking progress.
+              </p>
+            </div>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {openTasks.length > 0 ? (
-              <TaskGroup
-                heading={`In progress (${openTasks.length})`}
-                tasks={openTasks}
+          <div className="space-y-5">
+            {inProgressTasks.length > 0 ? (
+              <TaskSection
+                heading="In progress"
+                count={inProgressTasks.length}
+                tasks={inProgressTasks}
+                onTaskSelect={(task) =>
+                  task && router.push(`/${task.issueNumber}`)
+                }
               />
             ) : null}
             {doneTasks.length > 0 ? (
-              <TaskGroup heading={`Done (${doneTasks.length})`} tasks={doneTasks} />
+              <TaskSection
+                heading="Done"
+                count={doneTasks.length}
+                tasks={doneTasks}
+                onTaskSelect={(task) =>
+                  task && router.push(`/${task.issueNumber}`)
+                }
+              />
             ) : null}
           </div>
         )}
-      </section>
+      </div>
 
       <AttachTasksDialog
         open={showAttach}
@@ -426,6 +483,30 @@ function GoalDetail({
         onClose={() => setShowAttach(false)}
       />
     </article>
+  )
+}
+
+function TaskSection({
+  heading,
+  count,
+  tasks,
+  onTaskSelect,
+}: {
+  heading: string
+  count: number
+  tasks: KodyTask[]
+  onTaskSelect: (task: KodyTask | null) => void
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
+        <span>{heading}</span>
+        <span className="tabular-nums opacity-70">{count}</span>
+      </div>
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] overflow-hidden">
+        <TaskList tasks={tasks} onTaskSelect={onTaskSelect} />
+      </div>
+    </section>
   )
 }
 

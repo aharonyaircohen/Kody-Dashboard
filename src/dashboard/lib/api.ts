@@ -769,6 +769,33 @@ export const missionsApi = {
     });
     await handleResponse<{ success: boolean }>(res);
   },
+
+  run: async (
+    mission: { number: number; title: string; body: string },
+  ): Promise<{ sessionId: string; workflowId: string }> => {
+    const sessionId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `mission-${mission.number}-${Date.now()}`;
+    const content = `Execute mission #${mission.number}: ${mission.title}\n\n${mission.body}`;
+    const res = await fetch(`${API_BASE}/chat/trigger`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({
+        taskId: sessionId,
+        messages: [
+          {
+            role: "user",
+            content,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        dashboardUrl: typeof window !== "undefined" ? window.location.origin : undefined,
+      }),
+    });
+    const data = await handleResponse<{ ok: boolean; taskId: string; workflowId: string }>(res);
+    return { sessionId: data.taskId, workflowId: data.workflowId };
+  },
 };
 
 // ============ Goals API ============

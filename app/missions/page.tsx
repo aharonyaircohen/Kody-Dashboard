@@ -4,7 +4,8 @@
  * @pattern mission-control-page
  * @ai-summary Mission Control entry point. Renders under AuthGuard like the main dashboard.
  */
-import { ControlCenter } from "@dashboard/lib/components/ControlCenter";
+import { MissionControl } from "@dashboard/lib/components/MissionControl";
+import { ControlTabs } from "@dashboard/lib/components/ControlTabs";
 import { buildKodyMetadata } from "../metadata";
 
 export const dynamic = "force-static";
@@ -13,10 +14,10 @@ export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
   title: "Mission Control — Kody Operations Dashboard",
-  description: "Manage Kody missions and goals from a single control center.",
+  description: "Manage Kody missions: intent, system prompt, allowed commands, and restrictions.",
   path: "/missions",
 });
 
 export default function MissionsPage() {
-  return <ControlCenter />;
+  return <MissionControl titleSlot={<ControlTabs active="missions" />} />;
 }
