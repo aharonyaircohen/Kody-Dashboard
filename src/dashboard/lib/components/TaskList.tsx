@@ -77,6 +77,16 @@ interface TaskListProps {
   draggable?: boolean
   onDragStartTask?: (task: KodyTask, event: React.DragEvent) => void
   onDragEndTask?: (task: KodyTask) => void
+  /**
+   * Optional goal palette — tints dividers, hover state, and neutral-status
+   * rows with the enclosing goal's accent color. Active-status rows (building,
+   * review, failed, etc.) keep their meaningful colors.
+   */
+  accent?: {
+    divide: string
+    rowBg: string
+    rowHover: string
+  }
 }
 
 // ── Status colors — single source of truth ──
@@ -177,6 +187,7 @@ export function TaskList({
   draggable,
   onDragStartTask,
   onDragEndTask,
+  accent,
 }: TaskListProps) {
   const handleTaskClick = useCallback(
     (task: KodyTask) => {
@@ -209,7 +220,14 @@ export function TaskList({
   }
 
   return (
-    <div className="divide-y divide-white/[0.06]" role="listbox" aria-label="Tasks">
+    <div
+      className={cn(
+        'divide-y',
+        accent?.divide ?? 'divide-white/[0.06]',
+      )}
+      role="listbox"
+      aria-label="Tasks"
+    >
       {tasks.map((task, index) => {
         const isSelected = task.id === selectedTask?.id
         const isFocused = index === focusedIndex
@@ -260,8 +278,11 @@ export function TaskList({
             }}
             className={cn(
               'group relative cursor-pointer transition-colors duration-100 border-l-2 border-l-transparent',
-              'hover:bg-white/[0.04]',
-              colors.bg,
+              // Hover: palette-tinted if provided, otherwise the default neutral hover
+              accent?.rowHover ?? 'hover:bg-white/[0.04]',
+              // Status-driven bg wins when set; otherwise fall back to the
+              // palette-tinted neutral row bg (so 'open' rows pick up the goal color)
+              colors.bg || accent?.rowBg || '',
               isSelected && cn('bg-white/[0.06] border-l-2', colors.border),
               isFocused && 'ring-1 ring-blue-500/40 bg-blue-500/5',
               isHardStop && 'ring-1 ring-red-500/30 ring-inset',

@@ -445,6 +445,15 @@ export function GoalGroupedView({
                         setDragTask(null)
                         setDropTargetKey(null)
                       }}
+                      accent={
+                        palette
+                          ? {
+                              divide: palette.divide,
+                              rowBg: palette.rowBg,
+                              rowHover: palette.rowHover,
+                            }
+                          : undefined
+                      }
                     />
                   ) : (
                     <div className="px-4 md:px-6 py-5 text-center">
