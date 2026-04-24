@@ -887,28 +887,67 @@ export function KodyDashboard({
     </>
   );
 
+  // Mobile-only button that opens the chat Sheet — used in error takeovers so
+  // mobile users can still reach Kody when the dashboard is otherwise blocked.
+  const mobileChatEscapeHatch = (
+    <Button
+      variant="outline"
+      onClick={handleOpenChat}
+      className="md:hidden mt-2"
+    >
+      <MessageSquare className="w-4 h-4 mr-2" />
+      Chat with Kody
+    </Button>
+  );
+
   // Wrap error takeovers in a layout that keeps the chat sidebar mounted
   // so users can still talk to Kody (e.g. ask it to unblock a GitHub rate limit)
-  // even when task fetching is broken.
+  // even when task fetching is broken. On mobile, chat opens via the button
+  // in the error content and renders into the Sheet mounted below.
   const renderErrorTakeover = (content: React.ReactNode) => (
-    <div className="flex h-screen bg-background overflow-hidden">
-      <div
-        className="relative hidden md:block border-r border-border shrink-0"
-        style={{ width: `${chatPanelWidth}px` }}
-      >
-        <KodyChat selectedTask={null} actorLogin={githubUser?.login} />
+    <>
+      <div className="flex h-screen bg-background overflow-hidden">
         <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize chat panel"
-          onMouseDown={startChatResize}
-          onDoubleClick={() => setChatPanelWidth(getDefaultChatWidth())}
-          className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
-          title="Drag to resize • Double-click to reset"
-        />
+          className="relative hidden md:block border-r border-border shrink-0"
+          style={{ width: `${chatPanelWidth}px` }}
+        >
+          <KodyChat selectedTask={null} actorLogin={githubUser?.login} />
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize chat panel"
+            onMouseDown={startChatResize}
+            onDoubleClick={() => setChatPanelWidth(getDefaultChatWidth())}
+            className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
+            title="Drag to resize • Double-click to reset"
+          />
+        </div>
+        <div className="flex-1 flex items-center justify-center">{content}</div>
       </div>
-      <div className="flex-1 flex items-center justify-center">{content}</div>
-    </div>
+      {!isDesktop && (
+        <Sheet open={showMobileChat} onOpenChange={handleCloseChat}>
+          <SheetContent side="right" className="w-full sm:w-[400px] p-0">
+            <SheetHeader className="sr-only">
+              <SheetTitle>Chat with Kody</SheetTitle>
+              <SheetDescription>AI assistant chat</SheetDescription>
+            </SheetHeader>
+            <div className="flex justify-end p-2 border-b border-border">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleCloseChat(false)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Close chat"
+              >
+                <XIcon className="w-5 h-5 mr-1" />
+                Close
+              </Button>
+            </div>
+            <KodyChat selectedTask={null} actorLogin={githubUser?.login} />
+          </SheetContent>
+        </Sheet>
+      )}
+    </>
   );
 
   // Session expired — only possible when using OAuth sessions (token-only mode shouldn't reach here)
@@ -922,7 +961,10 @@ export function KodyDashboard({
         <p className="text-muted-foreground mb-4">
           Your session is invalid. Ensure <code>GITHUB_TOKEN</code> is set in your environment variables.
         </p>
-        <Button onClick={() => refetch()}>Retry</Button>
+        <div className="flex flex-col items-center gap-2">
+          <Button onClick={() => refetch()}>Retry</Button>
+          {mobileChatEscapeHatch}
+        </div>
       </div>
     );
   }
@@ -939,7 +981,10 @@ export function KodyDashboard({
           {error?.message ||
             "GitHub token is not configured. Set GITHUB_TOKEN, KODY_BOT_TOKEN, or GH_PAT in environment variables."}
         </p>
-        <Button onClick={() => refetch()}>Retry</Button>
+        <div className="flex flex-col items-center gap-2">
+          <Button onClick={() => refetch()}>Retry</Button>
+          {mobileChatEscapeHatch}
+        </div>
       </div>
     );
   }
@@ -956,9 +1001,12 @@ export function KodyDashboard({
         <p className="text-sm text-muted-foreground mb-4">
           Check that your token has access to the repository and try logging in again.
         </p>
-        <Button onClick={() => { localStorage.removeItem('kody_auth'); window.location.href = '/login' }}>
-          Log in again
-        </Button>
+        <div className="flex flex-col items-center gap-2">
+          <Button onClick={() => { localStorage.removeItem('kody_auth'); window.location.href = '/login' }}>
+            Log in again
+          </Button>
+          {mobileChatEscapeHatch}
+        </div>
       </div>
     );
   }
@@ -973,8 +1021,9 @@ export function KodyDashboard({
           Failed to Load Tasks
         </h2>
         <p className="text-muted-foreground mb-4">{error.message}</p>
-        <div className="flex gap-2 justify-center">
+        <div className="flex flex-col items-center gap-2">
           <Button onClick={() => refetch()}>Retry</Button>
+          {mobileChatEscapeHatch}
         </div>
       </div>
     );
