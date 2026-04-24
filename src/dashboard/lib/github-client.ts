@@ -671,6 +671,7 @@ export async function fetchIssue(issueNumber: number): Promise<GitHubIssue | nul
 export async function fetchIssues(options?: {
   state?: 'open' | 'closed' | 'all'
   labels?: string
+  excludeLabels?: string[]
   milestone?: number
   perPage?: number
   since?: string // ISO 8601 date string - only returns issues updated after this date
@@ -693,9 +694,20 @@ export async function fetchIssues(options?: {
     since: options?.since as any, // Octokit accepts ISO string
   })
 
+  const excludeSet = new Set((options?.excludeLabels ?? []).map((l) => l.toLowerCase()))
+
   // Filter out pull requests — GitHub issues API returns both issues and PRs
+  // Also drop issues that carry any of the excluded labels (post-fetch because
+  // the REST API's `labels` param only supports intersection, not negation).
   const issues: GitHubIssue[] = data
     .filter((issue: any) => !issue.pull_request)
+    .filter((issue: any) => {
+      if (excludeSet.size === 0) return true
+      const names: string[] = (issue.labels ?? []).map((l: any) =>
+        (typeof l === 'string' ? l : (l.name ?? '')).toLowerCase(),
+      )
+      return !names.some((n) => excludeSet.has(n))
+    })
     .map((issue: any) => ({
       id: issue.id,
       number: issue.number,

@@ -63,7 +63,9 @@ import {
   ChevronDown,
   Plus,
   Github,
+  Target,
 } from "lucide-react";
+import Link from "next/link";
 import { useKodyTasks, queryKeys } from "../hooks";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { useBrowserNotifications } from "../hooks/useBrowserNotifications";
@@ -1189,6 +1191,21 @@ export function KodyDashboard({
                       ) : (
                         <Moon className="w-4 h-4" />
                       )}
+                    </Button>
+                  </SimpleTooltip>
+
+                  {/* Mission Control */}
+                  <SimpleTooltip content="Manage missions" side="bottom">
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                    >
+                      <Link href="/missions" aria-label="Mission Control">
+                        <Target className="w-4 h-4" />
+                        Missions
+                      </Link>
                     </Button>
                   </SimpleTooltip>
 

@@ -703,6 +703,74 @@ export const remoteApi = {
   },
 };
 
+// ============ Missions API ============
+
+export interface Mission {
+  number: number;
+  title: string;
+  body: string;
+  state: "open" | "closed";
+  labels: string[];
+  assignees: Array<{ login: string; avatar_url: string }>;
+  createdAt: string;
+  updatedAt: string;
+  htmlUrl: string;
+}
+
+export const missionsApi = {
+  list: async (): Promise<Mission[]> => {
+    const res = await fetch(`${API_BASE}/missions`, { headers: buildHeaders() });
+    const data = await handleResponse<{ missions: Mission[] }>(res);
+    return data.missions;
+  },
+
+  get: async (number: number): Promise<Mission> => {
+    const res = await fetch(`${API_BASE}/missions/${number}`, {
+      headers: buildHeaders(),
+    });
+    const data = await handleResponse<{ mission: Mission }>(res);
+    return data.mission;
+  },
+
+  create: async (data: {
+    title: string;
+    body: string;
+    actorLogin?: string;
+  }): Promise<Mission> => {
+    const res = await fetch(`${API_BASE}/missions`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ mission: Mission }>(res);
+    return payload.mission;
+  },
+
+  update: async (
+    number: number,
+    data: { title?: string; body?: string; actorLogin?: string },
+  ): Promise<Mission> => {
+    const res = await fetch(`${API_BASE}/missions/${number}`, {
+      method: "PATCH",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ mission: Mission }>(res);
+    return payload.mission;
+  },
+
+  remove: async (number: number, actorLogin?: string): Promise<void> => {
+    const params = new URLSearchParams();
+    if (actorLogin) params.set("actorLogin", actorLogin);
+    const suffix = params.toString() ? `?${params}` : "";
+    const res = await fetch(`${API_BASE}/missions/${number}${suffix}`, {
+      method: "DELETE",
+      headers: buildHeaders(),
+    });
+    await handleResponse<{ success: boolean }>(res);
+  },
+};
+
 // ============ Combined API ============
 
 export const kodyApi = {
@@ -714,4 +782,5 @@ export const kodyApi = {
   workflows: workflowsApi,
   publish: publishApi.publish,
   remote: remoteApi,
+  missions: missionsApi,
 };
