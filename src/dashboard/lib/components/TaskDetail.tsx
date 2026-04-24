@@ -28,6 +28,9 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { CommentEditor } from "./CommentEditor";
 import { CommentList } from "./CommentList";
 import { AssigneePicker, type AssigneeChangeEvent } from "./AssigneePicker";
+import { GoalPicker } from "./GoalPicker";
+import { useGoals } from "../hooks/useGoals";
+import { GOAL_LABEL_PREFIX } from "../goals";
 import { KodyPhaseChip, KodyFlowChip } from "./KodyLabelChips";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { WorkflowRunsPopover } from "./WorkflowRunsPopover";
@@ -71,6 +74,7 @@ import {
   Copy,
   ListPlus,
   ListMinus,
+  Flag,
 } from "lucide-react";
 
 interface TaskDetailProps {
@@ -1067,6 +1071,20 @@ export function TaskDetail({
     </>
   );
 
+  // Goals attached to this task (matched against manifest)
+  const { data: goals = [] } = useGoals();
+  const attachedGoalIds = task.labels
+    .filter((l) => l.startsWith(GOAL_LABEL_PREFIX))
+    .map((l) => l.slice(GOAL_LABEL_PREFIX.length));
+  const attachedGoals = goals.filter((g) => attachedGoalIds.includes(g.id));
+
+  const handleGoalsChange = () => {
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.taskDetails(task.issueNumber),
+    });
+    refetch();
+  };
+
   // --- Assignee handler (shared between desktop & mobile) ---
   const handleAssigneeChange = (event: AssigneeChangeEvent) => {
     const current = fullDetails?.assignees || [];
@@ -1460,14 +1478,46 @@ export function TaskDetail({
               );
             })}
 
-          {/* Labels — hide kody:* and kody-flow:* (already shown above as chips)
-              and priority:* (already shown above as its own block) */}
+          {/* Goals — attached via `goal:<id>` labels, rendered from the manifest */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-0.5">
+              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Goals
+              </h4>
+              <GoalPicker
+                issueNumber={task.issueNumber}
+                currentLabels={task.labels}
+                onChange={handleGoalsChange}
+              />
+            </div>
+            {attachedGoals.length > 0 ? (
+              <div className="flex flex-wrap gap-1 px-0.5">
+                {attachedGoals.map((goal) => (
+                  <span
+                    key={goal.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20"
+                  >
+                    <Flag className="w-3 h-3" />
+                    {goal.name}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-muted-foreground px-0.5">
+                No goals attached.
+              </p>
+            )}
+          </div>
+
+          {/* Labels — hide kody:* / kody-flow:* (shown as chips), priority:*
+              (shown as its own block), and goal:* (shown in the Goals block) */}
           {(() => {
             const rest = task.labels.filter(
               (l) =>
                 !l.startsWith("kody:") &&
                 !l.startsWith("kody-flow:") &&
-                !l.startsWith("priority:"),
+                !l.startsWith("priority:") &&
+                !l.startsWith(GOAL_LABEL_PREFIX),
             );
             if (rest.length === 0) return null;
             return (
@@ -1665,7 +1715,10 @@ export function TaskDetail({
             )}
             {(() => {
               const rest = task.labels.filter(
-                (l) => !l.startsWith("kody:") && !l.startsWith("kody-flow:"),
+                (l) =>
+                  !l.startsWith("kody:") &&
+                  !l.startsWith("kody-flow:") &&
+                  !l.startsWith(GOAL_LABEL_PREFIX),
               );
               if (rest.length === 0) return null;
               return (
@@ -1682,6 +1735,26 @@ export function TaskDetail({
                 </div>
               );
             })()}
+
+            {/* Goals (mobile) */}
+            {attachedGoals.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {attachedGoals.map((goal) => (
+                  <span
+                    key={goal.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20"
+                  >
+                    <Flag className="w-3 h-3" />
+                    {goal.name}
+                  </span>
+                ))}
+              </div>
+            )}
+            <GoalPicker
+              issueNumber={task.issueNumber}
+              currentLabels={task.labels}
+              onChange={handleGoalsChange}
+            />
 
             {/* Assignee picker */}
             <AssigneePicker
