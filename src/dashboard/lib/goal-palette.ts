@@ -59,7 +59,7 @@ const PALETTES: Record<GoalPaletteKey, GoalPalette> = {
     createHover:
       'hover:border-sky-500/40 hover:bg-sky-500/[0.04] hover:text-sky-300',
     divide: 'divide-sky-500/10',
-    rowBg: 'bg-sky-500/[0.03]',
+    rowBg: 'bg-sky-500/[0.04]',
     rowHover: 'hover:bg-sky-500/[0.08]',
   },
   emerald: {
@@ -78,7 +78,7 @@ const PALETTES: Record<GoalPaletteKey, GoalPalette> = {
     createHover:
       'hover:border-emerald-500/40 hover:bg-emerald-500/[0.04] hover:text-emerald-300',
     divide: 'divide-emerald-500/10',
-    rowBg: 'bg-emerald-500/[0.03]',
+    rowBg: 'bg-emerald-500/[0.04]',
     rowHover: 'hover:bg-emerald-500/[0.08]',
   },
   amber: {
@@ -97,7 +97,7 @@ const PALETTES: Record<GoalPaletteKey, GoalPalette> = {
     createHover:
       'hover:border-amber-500/40 hover:bg-amber-500/[0.04] hover:text-amber-300',
     divide: 'divide-amber-500/10',
-    rowBg: 'bg-amber-500/[0.03]',
+    rowBg: 'bg-amber-500/[0.04]',
     rowHover: 'hover:bg-amber-500/[0.08]',
   },
   rose: {
@@ -116,7 +116,7 @@ const PALETTES: Record<GoalPaletteKey, GoalPalette> = {
     createHover:
       'hover:border-rose-500/40 hover:bg-rose-500/[0.04] hover:text-rose-300',
     divide: 'divide-rose-500/10',
-    rowBg: 'bg-rose-500/[0.03]',
+    rowBg: 'bg-rose-500/[0.04]',
     rowHover: 'hover:bg-rose-500/[0.08]',
   },
   violet: {
@@ -135,7 +135,7 @@ const PALETTES: Record<GoalPaletteKey, GoalPalette> = {
     createHover:
       'hover:border-violet-500/40 hover:bg-violet-500/[0.04] hover:text-violet-300',
     divide: 'divide-violet-500/10',
-    rowBg: 'bg-violet-500/[0.03]',
+    rowBg: 'bg-violet-500/[0.04]',
     rowHover: 'hover:bg-violet-500/[0.08]',
   },
   indigo: {
@@ -154,7 +154,7 @@ const PALETTES: Record<GoalPaletteKey, GoalPalette> = {
     createHover:
       'hover:border-indigo-500/40 hover:bg-indigo-500/[0.04] hover:text-indigo-300',
     divide: 'divide-indigo-500/10',
-    rowBg: 'bg-indigo-500/[0.03]',
+    rowBg: 'bg-indigo-500/[0.04]',
     rowHover: 'hover:bg-indigo-500/[0.08]',
   },
   teal: {
@@ -173,7 +173,7 @@ const PALETTES: Record<GoalPaletteKey, GoalPalette> = {
     createHover:
       'hover:border-teal-500/40 hover:bg-teal-500/[0.04] hover:text-teal-300',
     divide: 'divide-teal-500/10',
-    rowBg: 'bg-teal-500/[0.03]',
+    rowBg: 'bg-teal-500/[0.04]',
     rowHover: 'hover:bg-teal-500/[0.08]',
   },
   fuchsia: {
@@ -192,7 +192,7 @@ const PALETTES: Record<GoalPaletteKey, GoalPalette> = {
     createHover:
       'hover:border-fuchsia-500/40 hover:bg-fuchsia-500/[0.04] hover:text-fuchsia-300',
     divide: 'divide-fuchsia-500/10',
-    rowBg: 'bg-fuchsia-500/[0.03]',
+    rowBg: 'bg-fuchsia-500/[0.04]',
     rowHover: 'hover:bg-fuchsia-500/[0.08]',
   },
 }
