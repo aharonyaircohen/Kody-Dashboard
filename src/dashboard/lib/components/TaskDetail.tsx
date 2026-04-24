@@ -1483,33 +1483,35 @@ export function TaskDetail({
 
           {/* Goals — attached via `goal:<id>` labels, rendered from the manifest */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between px-0.5">
-              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Goals
-              </h4>
+            <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-0.5">
+              Goals
+            </h4>
+            <div className="rounded-lg p-3 bg-white/[0.03] border border-white/[0.06] space-y-2">
+              {attachedGoals.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {attachedGoals.map((goal) => (
+                    <span
+                      key={goal.id}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20"
+                    >
+                      <Flag className="w-3 h-3" />
+                      {goal.name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  No goals attached.
+                </p>
+              )}
               <GoalPicker
                 issueNumber={task.issueNumber}
                 currentLabels={task.labels}
                 onChange={handleGoalsChange}
+                fullWidth
+                triggerLabel={attachedGoals.length > 0 ? 'Manage goals' : 'Attach to a goal'}
               />
             </div>
-            {attachedGoals.length > 0 ? (
-              <div className="flex flex-wrap gap-1 px-0.5">
-                {attachedGoals.map((goal) => (
-                  <span
-                    key={goal.id}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20"
-                  >
-                    <Flag className="w-3 h-3" />
-                    {goal.name}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-[11px] text-muted-foreground px-0.5">
-                No goals attached.
-              </p>
-            )}
           </div>
 
           {/* Labels — hide kody:* / kody-flow:* (shown as chips), priority:*
@@ -1740,24 +1742,37 @@ export function TaskDetail({
             })()}
 
             {/* Goals (mobile) */}
-            {attachedGoals.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {attachedGoals.map((goal) => (
-                  <span
-                    key={goal.id}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20"
-                  >
-                    <Flag className="w-3 h-3" />
-                    {goal.name}
-                  </span>
-                ))}
+            <div className="space-y-2">
+              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Goals
+              </h4>
+              <div className="rounded-lg p-3 bg-white/[0.03] border border-white/[0.06] space-y-2">
+                {attachedGoals.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {attachedGoals.map((goal) => (
+                      <span
+                        key={goal.id}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20"
+                      >
+                        <Flag className="w-3 h-3" />
+                        {goal.name}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No goals attached.
+                  </p>
+                )}
+                <GoalPicker
+                  issueNumber={task.issueNumber}
+                  currentLabels={task.labels}
+                  onChange={handleGoalsChange}
+                  fullWidth
+                  triggerLabel={attachedGoals.length > 0 ? 'Manage goals' : 'Attach to a goal'}
+                />
               </div>
-            )}
-            <GoalPicker
-              issueNumber={task.issueNumber}
-              currentLabels={task.labels}
-              onChange={handleGoalsChange}
-            />
+            </div>
 
             {/* Assignee picker */}
             <AssigneePicker

@@ -13,6 +13,9 @@ import Link from 'next/link'
 import {
   ArrowLeft,
   Calendar,
+  CheckCircle,
+  CircleDashed,
+  ExternalLink,
   Flag,
   Pencil,
   Plus,
@@ -38,10 +41,25 @@ import {
   useGoals,
   useUpdateGoal,
 } from '../hooks/useGoals'
+import { useKodyTasks } from '../hooks'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import type { Goal } from '../api'
+import type { KodyTask } from '../types'
+import { GOAL_LABEL_PREFIX } from '../goals'
+import { getGitHubIssueUrl } from '../constants'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
+
+interface GoalProgress {
+  total: number
+  done: number
+  tasks: KodyTask[]
+}
+
+function computeProgress(tasks: KodyTask[]): GoalProgress {
+  const done = tasks.filter((t) => t.state === 'closed' || t.column === 'done').length
+  return { total: tasks.length, done, tasks }
+}
 
 export function GoalControl({ titleSlot }: { titleSlot?: React.ReactNode } = {}) {
   return (
@@ -53,6 +71,7 @@ export function GoalControl({ titleSlot }: { titleSlot?: React.ReactNode } = {})
 
 export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) {
   const { data: goals = [], isLoading, isFetching, refetch, error } = useGoals()
+  const { data: tasks = [] } = useKodyTasks()
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -63,6 +82,16 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
     () => goals.find((g) => g.id === selectedId) ?? null,
     [goals, selectedId],
   )
+
+  const progressByGoal = useMemo(() => {
+    const map = new Map<string, GoalProgress>()
+    for (const goal of goals) {
+      const label = `${GOAL_LABEL_PREFIX}${goal.id}`
+      const attached = tasks.filter((t) => t.labels.includes(label))
+      map.set(goal.id, computeProgress(attached))
+    }
+    return map
+  }, [goals, tasks])
 
   useEffect(() => {
     if (!selectedId && goals.length > 0) {
@@ -131,29 +160,49 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
             />
           ) : (
             <ul className="divide-y divide-border">
-              {goals.map((goal) => (
-                <li key={goal.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(goal.id)}
-                    className={cn(
-                      'w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors',
-                      selectedId === goal.id && 'bg-accent/70',
-                    )}
-                  >
-                    <div className="font-medium text-sm truncate">{goal.name}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
-                      <span className="font-mono opacity-70">{goal.id}</span>
-                      {goal.dueDate ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {formatDueDate(goal.dueDate)}
+              {goals.map((goal) => {
+                const progress = progressByGoal.get(goal.id) ?? {
+                  total: 0,
+                  done: 0,
+                  tasks: [],
+                }
+                const pct =
+                  progress.total > 0 ? (progress.done / progress.total) * 100 : 0
+                return (
+                  <li key={goal.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(goal.id)}
+                      className={cn(
+                        'w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors',
+                        selectedId === goal.id && 'bg-accent/70',
+                      )}
+                    >
+                      <div className="font-medium text-sm truncate">{goal.name}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1 tabular-nums">
+                          <CheckCircle className="w-3 h-3" />
+                          {progress.done}/{progress.total}
                         </span>
+                        {goal.dueDate ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {formatDueDate(goal.dueDate)}
+                          </span>
+                        ) : null}
+                      </div>
+                      {progress.total > 0 ? (
+                        <div className="mt-2 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                          <div
+                            className="h-full bg-sky-400/70 transition-[width] duration-300"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
                       ) : null}
-                    </div>
-                  </button>
-                </li>
-              ))}
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </aside>
@@ -162,6 +211,13 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
           {selectedGoal ? (
             <GoalDetail
               goal={selectedGoal}
+              progress={
+                progressByGoal.get(selectedGoal.id) ?? {
+                  total: 0,
+                  done: 0,
+                  tasks: [],
+                }
+              }
               onEdit={() => setEditingGoal(selectedGoal)}
               onDelete={() => setPendingDelete(selectedGoal)}
             />
@@ -219,16 +275,25 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
 
 function GoalDetail({
   goal,
+  progress,
   onEdit,
   onDelete,
 }: {
   goal: Goal
+  progress: GoalProgress
   onEdit: () => void
   onDelete: () => void
 }) {
+  const pct = progress.total > 0 ? (progress.done / progress.total) * 100 : 0
+  const openTasks = progress.tasks.filter(
+    (t) => !(t.state === 'closed' || t.column === 'done'),
+  )
+  const doneTasks = progress.tasks.filter(
+    (t) => t.state === 'closed' || t.column === 'done',
+  )
   return (
-    <article className="p-6 max-w-3xl">
-      <header className="flex items-start justify-between gap-4 mb-4">
+    <article className="p-6 max-w-3xl space-y-6">
+      <header className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 className="text-xl font-semibold break-words">{goal.name}</h2>
           <p className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
@@ -254,14 +319,113 @@ function GoalDetail({
         </div>
       </header>
 
-      <div className="prose prose-sm dark:prose-invert max-w-none">
+      {/* Progress */}
+      <section className="space-y-2">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <CheckCircle className="w-3.5 h-3.5 text-sky-400" />
+            <span className="tabular-nums text-foreground font-medium">
+              {progress.done}
+            </span>
+            <span>of</span>
+            <span className="tabular-nums text-foreground font-medium">
+              {progress.total}
+            </span>
+            <span>{progress.total === 1 ? 'task done' : 'tasks done'}</span>
+          </span>
+          <span className="tabular-nums">{Math.round(pct)}%</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+          <div
+            className="h-full bg-sky-400/80 transition-[width] duration-300"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </section>
+
+      {/* Description */}
+      <section className="prose prose-sm dark:prose-invert max-w-none">
         {goal.description?.trim() ? (
           <ReactMarkdown>{goal.description}</ReactMarkdown>
         ) : (
           <p className="text-muted-foreground italic">No description yet.</p>
         )}
-      </div>
+      </section>
+
+      {/* Tasks */}
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold text-foreground">Tasks</h3>
+        {progress.total === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            No tasks attached yet. Open a task and use the Goals picker to attach it.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {openTasks.length > 0 ? (
+              <TaskGroup
+                heading={`In progress (${openTasks.length})`}
+                tasks={openTasks}
+              />
+            ) : null}
+            {doneTasks.length > 0 ? (
+              <TaskGroup heading={`Done (${doneTasks.length})`} tasks={doneTasks} />
+            ) : null}
+          </div>
+        )}
+      </section>
     </article>
+  )
+}
+
+function TaskGroup({
+  heading,
+  tasks,
+}: {
+  heading: string
+  tasks: KodyTask[]
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+        {heading}
+      </div>
+      <ul className="divide-y divide-white/[0.04] rounded-lg border border-white/[0.06] bg-white/[0.02]">
+        {tasks.map((task) => {
+          const isDone = task.state === 'closed' || task.column === 'done'
+          return (
+            <li
+              key={task.issueNumber}
+              className="flex items-center gap-3 px-3 py-2 text-sm"
+            >
+              {isDone ? (
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              ) : (
+                <CircleDashed className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              )}
+              <span className="font-mono text-xs text-muted-foreground shrink-0">
+                #{task.issueNumber}
+              </span>
+              <Link
+                href={`/${task.issueNumber}`}
+                className="truncate flex-1 hover:text-sky-400 transition-colors"
+                title={task.title}
+              >
+                {task.title}
+              </Link>
+              <a
+                href={getGitHubIssueUrl(task.issueNumber)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-muted-foreground hover:text-foreground shrink-0"
+                title="Open on GitHub"
+              >
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }
 

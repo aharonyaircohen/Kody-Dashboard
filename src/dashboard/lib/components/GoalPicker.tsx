@@ -27,9 +27,17 @@ interface GoalPickerProps {
   issueNumber: number
   currentLabels: string[]
   onChange?: () => void
+  fullWidth?: boolean
+  triggerLabel?: string
 }
 
-export function GoalPicker({ issueNumber, currentLabels, onChange }: GoalPickerProps) {
+export function GoalPicker({
+  issueNumber,
+  currentLabels,
+  onChange,
+  fullWidth = false,
+  triggerLabel = 'Attach to goals',
+}: GoalPickerProps) {
   const { data: goals = [], isLoading } = useGoals()
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -70,12 +78,20 @@ export function GoalPicker({ issueNumber, currentLabels, onChange }: GoalPickerP
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1 h-7 text-xs">
-          <Flag className="w-3 h-3 text-sky-400" />
-          Goals
+        <Button
+          variant="outline"
+          size="sm"
+          className={
+            fullWidth
+              ? 'w-full justify-start gap-1.5'
+              : 'gap-1.5'
+          }
+        >
+          <Flag className="w-3.5 h-3.5 text-sky-400" />
+          {triggerLabel}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
+      <DropdownMenuContent align={fullWidth ? 'start' : 'end'} className="w-64">
         <DropdownMenuLabel className="text-xs text-muted-foreground">
           Attach to goals
         </DropdownMenuLabel>
