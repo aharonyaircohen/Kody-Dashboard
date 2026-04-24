@@ -28,6 +28,7 @@ import { cn } from '../utils'
 import type { KodyTask } from '../types'
 import type { Goal } from '../api'
 import { GOAL_LABEL_PREFIX } from '../goals'
+import { goalPalette } from '../goal-palette'
 import { TaskList } from './TaskList'
 
 interface GoalGroupedViewProps {
@@ -217,6 +218,7 @@ export function GoalGroupedView({
           const total = group.tasks.length
           const pct = total > 0 ? (group.done / total) * 100 : 0
           const targetGoalId = group.goal?.id ?? null
+          const palette = group.goal ? goalPalette(group.goal.id) : null
           const isDragSource =
             dragTask !== null &&
             (isUngrouped
@@ -249,22 +251,24 @@ export function GoalGroupedView({
               }}
               className={cn(
                 'relative rounded-xl overflow-hidden ring-1 transition-all',
-                isUngrouped
-                  ? 'ring-white/[0.06] bg-white/[0.01]'
-                  : 'ring-sky-500/25 bg-sky-500/[0.015]',
+                palette
+                  ? cn(palette.ring, palette.cardBg)
+                  : 'ring-white/[0.06] bg-white/[0.01]',
                 isHotDropZone &&
-                  'ring-2 ring-sky-400 shadow-[0_0_0_4px_rgba(56,189,248,0.18)]',
+                  (palette
+                    ? cn('ring-2', palette.hotRing, palette.glow)
+                    : 'ring-2 ring-white/30'),
                 canDropHere &&
                   !isHotDropZone &&
-                  'ring-sky-400/40 ring-dashed',
+                  (palette
+                    ? cn(palette.hintRing, 'ring-dashed')
+                    : 'ring-white/20 ring-dashed'),
               )}
             >
               <header
                 className={cn(
                   'relative flex items-center gap-3 px-4 md:px-6 py-4 md:py-5 transition-colors',
-                  isUngrouped
-                    ? 'bg-black/30'
-                    : 'bg-gradient-to-r from-sky-500/[0.1] via-sky-500/[0.04] to-transparent',
+                  palette ? palette.headerBg : 'bg-black/30',
                 )}
               >
 
@@ -282,9 +286,9 @@ export function GoalGroupedView({
                   <span
                     className={cn(
                       'w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center shrink-0 ring-1',
-                      isUngrouped
-                        ? 'bg-white/[0.04] ring-white/[0.06] text-muted-foreground'
-                        : 'bg-sky-500/15 ring-sky-500/30 text-sky-300',
+                      palette
+                        ? palette.tile
+                        : 'bg-white/[0.04] ring-white/[0.06] text-muted-foreground',
                     )}
                   >
                     {isUngrouped ? (
@@ -324,10 +328,13 @@ export function GoalGroupedView({
                       </p>
                     ) : null}
                     {/* Progress bar beneath the title */}
-                    {group.goal && total > 0 ? (
+                    {group.goal && palette && total > 0 ? (
                       <div className="w-full max-w-sm h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-sky-500 to-sky-300 transition-[width] duration-500"
+                          className={cn(
+                            'h-full bg-gradient-to-r transition-[width] duration-500',
+                            palette.progress,
+                          )}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -392,16 +399,21 @@ export function GoalGroupedView({
                         onCreateTaskInGoal && onReportBugInGoal
                           ? 'grid-cols-2'
                           : 'grid-cols-1',
-                        isUngrouped
-                          ? 'border-white/[0.04] bg-black/10'
-                          : 'border-sky-500/10 bg-sky-500/[0.02]',
+                        palette
+                          ? cn(palette.footerBorder, palette.footerBg)
+                          : 'border-white/[0.04] bg-black/10',
                       )}
                     >
                       {onCreateTaskInGoal ? (
                         <button
                           type="button"
                           onClick={() => onCreateTaskInGoal(group.goal)}
-                          className="group flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-white/[0.1] bg-white/[0.01] text-muted-foreground text-sm hover:border-sky-500/40 hover:bg-sky-500/[0.04] hover:text-sky-300 transition-colors"
+                          className={cn(
+                            'group flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-white/[0.1] bg-white/[0.01] text-muted-foreground text-sm transition-colors',
+                            palette
+                              ? palette.createHover
+                              : 'hover:border-white/30 hover:text-foreground',
+                          )}
                         >
                           <Plus className="w-3.5 h-3.5" />
                           New task

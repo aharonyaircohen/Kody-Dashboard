@@ -87,20 +87,8 @@ export function ViewToggle({
       >
         Backlog ({backlogCount})
       </button>
-      {queueCount !== undefined && (
-        <button
-          type="button"
-          onClick={() => onViewModeChange('queue')}
-          className={cn(
-            'px-3 py-1 rounded text-xs font-medium transition-colors',
-            viewMode === 'queue'
-              ? 'bg-purple-600 text-white shadow-sm'
-              : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.06]',
-          )}
-        >
-          Queue ({queueCount})
-        </button>
-      )}
+      {/* Queue view retired — left in the ViewMode type for URL backwards-compat
+          but the toggle UI no longer exposes it. */}
     </div>
   )
 }

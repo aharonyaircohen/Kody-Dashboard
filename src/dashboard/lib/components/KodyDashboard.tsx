@@ -10,7 +10,6 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { KodyTask, SortField } from "../types";
 import { filterTasksByView, getViewModeCounts, sortTasks } from "../utils";
 import { TaskList } from "./TaskList";
-import { QueueView } from "./QueueView";
 import { GoalGroupedView } from "./GoalGroupedView";
 import { CreateGoalDialog, EditGoalDialog } from "./GoalControl";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -49,12 +48,6 @@ import {
   SheetDescription,
 } from "@dashboard/ui/sheet";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@dashboard/ui/dropdown-menu";
-import {
   MessageSquare,
   Bug,
   Menu,
@@ -64,8 +57,6 @@ import {
   Sun,
   Moon,
   GitBranch,
-  ChevronDown,
-  Plus,
   Github,
   Layers,
 } from "lucide-react";
@@ -1325,26 +1316,6 @@ export function KodyDashboard({
                     </Button>
                   </SimpleTooltip>
 
-                  {/* New/Report dropdown */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button size="sm" className="gap-1">
-                        <Plus className="w-4 h-4" />
-                        <span className="hidden sm:inline">New</span>
-                        <ChevronDown className="w-3 h-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setShowCreateGoal(true)}>
-                        <Layers className="w-4 h-4 mr-2" />
-                        New Goal
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleOpenBug}>
-                        <Bug className="w-4 h-4 mr-2" />
-                        Report Bug
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
 
                 {/* Mobile hamburger */}
@@ -1426,21 +1397,6 @@ export function KodyDashboard({
                   <div className="flex items-center justify-center h-full">
                     <div className="text-muted-foreground">Loading...</div>
                   </div>
-                ) : viewMode === "queue" ? (
-                  <QueueView
-                    tasks={filteredTasks}
-                    onTaskSelect={handleTaskSelect}
-                    onRemoveFromQueue={(issueNumber) => {
-                      tasksApi
-                        .removeFromQueue(issueNumber, githubUser?.login)
-                        .then(() => {
-                          toast.success("Removed from queue");
-                          refetch();
-                        });
-                    }}
-                    onRetry={(taskId) => handleExecuteTask(taskId)}
-                    selectedTask={selectedTask}
-                  />
                 ) : (
                   <GoalGroupedView
                     goals={goals}
