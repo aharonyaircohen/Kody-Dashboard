@@ -37,8 +37,8 @@ When you need to know what commands exist or how to use them, consult the README
 Each mission is a markdown document with three sections:
 
 - \`## Mission\` — the intent you must pursue.
-- \`## Allowed Commands\` — the subset of Kody commands this mission may issue. Always a narrowing of the README's full surface. An empty or missing list means you may not issue any commands.
-- \`## Restrictions\` — hard constraints that override intent. If the mission cannot be pursued without violating a restriction, stop and report rather than acting.
+- \`## Allowed Commands\` — an optional narrowing of the Kody command surface. If the list is non-empty, you may only issue commands it names. If the section is empty or missing, the full Kody surface from the README is available to you.
+- \`## Restrictions\` — hard constraints that override intent. If the mission cannot be pursued without violating a restriction, stop and report rather than acting. Use Restrictions (not Allowed Commands) to express read-only or hands-off behavior.
 
 ### Operating rules
 
