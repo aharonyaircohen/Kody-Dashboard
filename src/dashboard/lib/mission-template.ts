@@ -1,6 +1,9 @@
 /**
  * Default scaffold for a new mission's markdown body.
- * Sections are locked early so the body stays parseable for future enforcement
+ *
+ * Every placeholder is an HTML comment so the author never has to delete
+ * anything to write real content — comments are invisible in the rendered
+ * preview, and the H2 section skeleton stays parseable for future enforcement
  * (e.g. extracting the allowed command list to gate what the mission can do).
  */
 export const MISSION_TEMPLATE = `## Mission
@@ -10,10 +13,8 @@ export const MISSION_TEMPLATE = `## Mission
 <!-- How should this mission behave when invoked? Tone, priorities, defaults. -->
 
 ## Allowed Commands
-<!-- The kody commands this mission is authorised to run on GitHub. -->
-- kody <command>
+<!-- One kody command per line as a bullet, e.g. "- kody plan". Leave empty to deny all. -->
 
 ## Restrictions
-<!-- Hard no-go constraints. What must this mission never do? -->
--
+<!-- One restriction per line as a bullet. Leave empty if there are no hard no-go constraints. -->
 `
