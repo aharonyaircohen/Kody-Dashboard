@@ -771,6 +771,72 @@ export const missionsApi = {
   },
 };
 
+// ============ Goals API ============
+
+export interface Goal {
+  id: string;
+  name: string;
+  description?: string;
+  dueDate?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export const goalsApi = {
+  list: async (): Promise<Goal[]> => {
+    const res = await fetch(`${API_BASE}/goals`, { headers: buildHeaders() });
+    const data = await handleResponse<{ goals: Goal[] }>(res);
+    return data.goals;
+  },
+
+  create: async (data: {
+    name: string;
+    description?: string;
+    dueDate?: string;
+    actorLogin?: string;
+  }): Promise<Goal> => {
+    const res = await fetch(`${API_BASE}/goals`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ goal: Goal }>(res);
+    return payload.goal;
+  },
+
+  update: async (
+    id: string,
+    data: {
+      name?: string;
+      description?: string | null;
+      dueDate?: string | null;
+      actorLogin?: string;
+    },
+  ): Promise<Goal> => {
+    const res = await fetch(`${API_BASE}/goals/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ goal: Goal }>(res);
+    return payload.goal;
+  },
+
+  remove: async (id: string, actorLogin?: string): Promise<void> => {
+    const params = new URLSearchParams();
+    if (actorLogin) params.set("actorLogin", actorLogin);
+    const suffix = params.toString() ? `?${params}` : "";
+    const res = await fetch(
+      `${API_BASE}/goals/${encodeURIComponent(id)}${suffix}`,
+      {
+        method: "DELETE",
+        headers: buildHeaders(),
+      },
+    );
+    await handleResponse<{ success: boolean }>(res);
+  },
+};
+
 // ============ Combined API ============
 
 export const kodyApi = {
@@ -783,4 +849,5 @@ export const kodyApi = {
   publish: publishApi.publish,
   remote: remoteApi,
   missions: missionsApi,
+  goals: goalsApi,
 };

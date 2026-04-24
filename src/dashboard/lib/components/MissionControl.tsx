@@ -49,15 +49,15 @@ import { composeMissionPrompt } from '../mission-prompt'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
 
-export function MissionControl() {
+export function MissionControl({ titleSlot }: { titleSlot?: React.ReactNode } = {}) {
   return (
     <AuthGuard>
-      <MissionControlInner />
+      <MissionControlInner titleSlot={titleSlot} />
     </AuthGuard>
   )
 }
 
-function MissionControlInner() {
+export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) {
   const { data: missions = [], isLoading, isFetching, refetch, error } = useMissions()
 
   const [selectedNumber, setSelectedNumber] = useState<number | null>(null)
@@ -91,10 +91,12 @@ function MissionControlInner() {
             Dashboard
           </Link>
           <span className="h-4 w-px bg-border" />
-          <h1 className="inline-flex items-center gap-2 text-lg md:text-xl font-semibold">
-            <Target className="w-5 h-5 text-emerald-400" />
-            Mission Control
-          </h1>
+          {titleSlot ?? (
+            <h1 className="inline-flex items-center gap-2 text-lg md:text-xl font-semibold">
+              <Target className="w-5 h-5 text-emerald-400" />
+              Mission Control
+            </h1>
+          )}
           <span className="text-xs text-muted-foreground">
             {missions.length} {missions.length === 1 ? 'mission' : 'missions'}
           </span>
