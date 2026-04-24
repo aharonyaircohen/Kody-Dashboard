@@ -547,6 +547,40 @@ export const tasksApi = {
     });
     return handleResponse(res);
   },
+
+  addLabel: async (
+    issueNumber: number,
+    label: string,
+    actorLogin?: string,
+  ): Promise<ActionResponse> => {
+    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({
+        action: "add-label",
+        label,
+        ...(actorLogin && { actorLogin }),
+      }),
+    });
+    return handleResponse(res);
+  },
+
+  removeLabel: async (
+    issueNumber: number,
+    label: string,
+    actorLogin?: string,
+  ): Promise<ActionResponse> => {
+    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({
+        action: "remove-label",
+        label,
+        ...(actorLogin && { actorLogin }),
+      }),
+    });
+    return handleResponse(res);
+  },
 };
 
 // ============ PRs API ============

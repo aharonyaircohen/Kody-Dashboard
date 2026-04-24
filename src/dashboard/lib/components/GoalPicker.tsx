@@ -21,6 +21,8 @@ import {
   DropdownMenuTrigger,
 } from '@dashboard/ui/dropdown-menu'
 import { useGoals } from '../hooks/useGoals'
+import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
+import { tasksApi } from '../api'
 import { GOAL_LABEL_PREFIX } from '../goals'
 
 interface GoalPickerProps {
@@ -39,6 +41,7 @@ export function GoalPicker({
   triggerLabel = 'Attach to goals',
 }: GoalPickerProps) {
   const { data: goals = [], isLoading } = useGoals()
+  const { githubUser } = useGitHubIdentity()
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
 
@@ -52,17 +55,10 @@ export function GoalPicker({
     const label = `${GOAL_LABEL_PREFIX}${goalId}`
     setPendingId(goalId)
     try {
-      const res = await fetch(`/api/kody/tasks/issue-${issueNumber}/actions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: isApplied ? 'remove-label' : 'add-label',
-          label,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err?.error || 'Failed to update goal')
+      if (isApplied) {
+        await tasksApi.removeLabel(issueNumber, label, githubUser?.login)
+      } else {
+        await tasksApi.addLabel(issueNumber, label, githubUser?.login)
       }
       onChange?.()
     } catch (e) {

@@ -47,7 +47,7 @@ import {
 } from '../hooks/useGoals'
 import { useKodyTasks } from '../hooks'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
-import type { Goal } from '../api'
+import { tasksApi, type Goal } from '../api'
 import type { KodyTask } from '../types'
 import { GOAL_LABEL_PREFIX } from '../goals'
 import { getGitHubIssueUrl } from '../constants'
@@ -522,6 +522,7 @@ function AttachTasksDialog({
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
+  const { githubUser } = useGitHubIdentity()
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [pending, setPending] = useState(false)
@@ -559,14 +560,7 @@ function AttachTasksDialog({
     const ids = Array.from(selected)
     const results = await Promise.allSettled(
       ids.map((issueNumber) =>
-        fetch(`/api/kody/tasks/issue-${issueNumber}/actions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'add-label', label }),
-        }).then((res) => {
-          if (!res.ok) throw new Error(`Issue ${issueNumber} failed`)
-          return issueNumber
-        }),
+        tasksApi.addLabel(issueNumber, label, githubUser?.login),
       ),
     )
     const ok = results.filter((r) => r.status === 'fulfilled').length
