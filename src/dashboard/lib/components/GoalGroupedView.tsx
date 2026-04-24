@@ -12,6 +12,7 @@
 import { useMemo, useState } from 'react'
 import {
   Bug,
+  Calendar,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -109,6 +110,51 @@ function buildGroups(goals: Goal[], tasks: KodyTask[]): Group[] {
       done: ungroupedDone,
     },
   ]
+}
+
+interface DueChip {
+  label: string
+  /** Tailwind bg/text classes for the chip */
+  className: string
+}
+
+function describeDueDate(iso: string | undefined): DueChip | null {
+  if (!iso) return null
+  const due = new Date(iso)
+  if (Number.isNaN(due.getTime())) return null
+
+  const now = new Date()
+  // Compare by calendar day (ignore time-of-day drift)
+  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate())
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const msPerDay = 24 * 60 * 60 * 1000
+  const diffDays = Math.round(
+    (dueDay.getTime() - today.getTime()) / msPerDay,
+  )
+
+  if (diffDays < 0) {
+    const n = Math.abs(diffDays)
+    return {
+      label: n === 1 ? 'Overdue 1d' : `Overdue ${n}d`,
+      className: 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30',
+    }
+  }
+  if (diffDays === 0) {
+    return {
+      label: 'Due today',
+      className: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30',
+    }
+  }
+  if (diffDays <= 3) {
+    return {
+      label: `In ${diffDays}d`,
+      className: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30',
+    }
+  }
+  return {
+    label: `In ${diffDays}d`,
+    className: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30',
+  }
 }
 
 export function GoalGroupedView({
@@ -317,6 +363,22 @@ export function GoalGroupedView({
                           empty
                         </span>
                       )}
+                      {(() => {
+                        const chip = describeDueDate(group.goal?.dueDate)
+                        if (!chip) return null
+                        return (
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0',
+                              chip.className,
+                            )}
+                            title={`Due ${new Date(group.goal!.dueDate!).toLocaleDateString()}`}
+                          >
+                            <Calendar className="w-3 h-3" />
+                            {chip.label}
+                          </span>
+                        )
+                      })()}
                     </div>
                     {/* One-line description */}
                     {group.goal?.description?.trim() ? (

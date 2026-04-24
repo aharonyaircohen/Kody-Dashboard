@@ -1273,17 +1273,17 @@ export function KodyDashboard({
                     </Button>
                   </SimpleTooltip>
 
-                  {/* Work (goals + missions) */}
-                  <SimpleTooltip content="Goals & missions" side="bottom">
+                  {/* Missions */}
+                  <SimpleTooltip content="Missions" side="bottom">
                     <Button
                       asChild
                       variant="outline"
                       size="sm"
                       className="gap-1"
                     >
-                      <Link href="/goals" aria-label="Goals and missions">
+                      <Link href="/missions" aria-label="Missions">
                         <Layers className="w-4 h-4" />
-                        Work
+                        Missions
                       </Link>
                     </Button>
                   </SimpleTooltip>
@@ -1506,16 +1506,16 @@ export function KodyDashboard({
                 Chat with Kody
               </Button>
 
-              {/* Goals & Missions */}
+              {/* Missions */}
               <Button
                 asChild
                 variant="outline"
                 className="w-full justify-start gap-2"
                 onClick={() => setShowMobileMenu(false)}
               >
-                <Link href="/goals">
+                <Link href="/missions">
                   <Layers className="w-4 h-4" />
-                  Goals & Missions
+                  Missions
                 </Link>
               </Button>
 
