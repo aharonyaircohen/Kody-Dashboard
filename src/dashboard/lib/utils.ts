@@ -187,22 +187,28 @@ export function sortTasks(
 
 /**
  * Create an iframe-friendly URL for Vercel preview deployments.
- * Uses Vercel's Protection Bypass for Automation with SameSite=None
- * to allow embedding in iframes.
- *
- * @param previewUrl - The Vercel preview deployment URL
- * @returns URL with bypass query params appended, or original URL if no secret configured
+ * Reads the per-user bypass secret from kody_auth in localStorage (set on the
+ * login page). Returns the URL untouched when no secret is configured — the
+ * iframe will then redirect to Vercel's login.
  */
 export function getPreviewBypassUrl(previewUrl: string | undefined | null): string | null {
   if (!previewUrl) return null
+  if (typeof window === 'undefined') return previewUrl
 
-  // Read env var at runtime to support test mocking
-  const bypassSecret = process.env.NEXT_PUBLIC_VERCEL_BYPASS_SECRET
-
-  if (!bypassSecret) {
-    console.warn('[Kody] NEXT_PUBLIC_VERCEL_BYPASS_SECRET not set - iframe preview may be blocked')
-    return previewUrl
+  let bypassSecret: string | undefined
+  try {
+    const raw = window.localStorage.getItem('kody_auth')
+    if (raw) {
+      const parsed = JSON.parse(raw) as { vercelBypassSecret?: unknown }
+      if (typeof parsed.vercelBypassSecret === 'string' && parsed.vercelBypassSecret.trim()) {
+        bypassSecret = parsed.vercelBypassSecret.trim()
+      }
+    }
+  } catch {
+    // Malformed kody_auth — fall through to the no-secret path.
   }
+
+  if (!bypassSecret) return previewUrl
 
   try {
     const url = new URL(previewUrl)

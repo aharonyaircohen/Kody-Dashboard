@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Github, Lock, AlertCircle, Loader2, Brain, ChevronDown, ChevronRight } from "lucide-react";
+import { Github, Lock, AlertCircle, Loader2, Brain, ChevronDown, ChevronRight, ShieldCheck } from "lucide-react";
 
 const TOKEN_URL = "https://github.com/settings/tokens/new?description=Kody+Dashboard&scopes=repo,workflow";
 
@@ -11,6 +11,8 @@ export default function LoginPage() {
   const [brainUrl, setBrainUrl] = useState("");
   const [brainKey, setBrainKey] = useState("");
   const [showBrain, setShowBrain] = useState(false);
+  const [vercelBypassSecret, setVercelBypassSecret] = useState("");
+  const [showVercel, setShowVercel] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -44,6 +46,7 @@ export default function LoginPage() {
       // Store auth data in localStorage
       const trimmedBrainUrl = brainUrl.trim()
       const trimmedBrainKey = brainKey.trim()
+      const trimmedBypass = vercelBypassSecret.trim()
       localStorage.setItem(
         "kody_auth",
         JSON.stringify({
@@ -58,6 +61,9 @@ export default function LoginPage() {
             trimmedBrainUrl && trimmedBrainKey
               ? { url: trimmedBrainUrl, apiKey: trimmedBrainKey }
               : undefined,
+          // Optional — Vercel "Protection Bypass for Automation" secret for the
+          // previewed project. Used to embed protected previews in the iframe.
+          vercelBypassSecret: trimmedBypass || undefined,
         }),
       );
 
@@ -196,6 +202,49 @@ export default function LoginPage() {
                 <p className="text-xs text-muted-foreground">
                   Adds the &quot;Brain&quot; assistant to the chat dropdown. Both fields must
                   be provided or both left empty. Stored only in this browser.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Optional: Vercel preview bypass */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowVercel((v) => !v)}
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+              aria-expanded={showVercel}
+            >
+              {showVercel ? (
+                <ChevronDown className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5" />
+              )}
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Vercel preview bypass (optional)
+            </button>
+
+            {showVercel && (
+              <div className="space-y-3 rounded-md border border-dashed bg-muted/30 p-3">
+                <div className="space-y-2">
+                  <label htmlFor="vercelBypass" className="text-sm font-medium">
+                    Protection Bypass secret
+                  </label>
+                  <input
+                    id="vercelBypass"
+                    type="password"
+                    placeholder="copied from Vercel → Deployment Protection"
+                    value={vercelBypassSecret}
+                    onChange={(e) => setVercelBypassSecret(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Generated in the previewed project under{" "}
+                  <em>Settings → Deployment Protection → Protection Bypass for Automation</em>.
+                  Lets the dashboard embed protected previews in an iframe. Stored only in this
+                  browser.
                 </p>
               </div>
             )}
