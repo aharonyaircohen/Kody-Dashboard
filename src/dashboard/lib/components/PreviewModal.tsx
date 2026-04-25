@@ -12,6 +12,8 @@ import { prsApi, taskDocsApi } from "../api";
 import { PreviewActions } from "./PreviewActions";
 import { PRCommentList } from "./PRCommentList";
 import { MarkdownViewer } from "./MarkdownViewer";
+import { CIStatusBadge } from "./CIStatusBadge";
+import { MergeConflictBanner } from "./MergeConflictBanner";
 import { cn, getPreviewBypassUrl } from "../utils";
 import {
   ArrowLeft,
@@ -239,6 +241,7 @@ export function PreviewModal({
         <span className="text-sm font-medium text-white truncate">
           PR #{pr.number}
         </span>
+        <CIStatusBadge prNumber={pr.number} />
         <span className="text-sm text-zinc-500 truncate hidden sm:inline">
           {pr.title}
         </span>
@@ -552,6 +555,9 @@ export function PreviewModal({
           </div>
         )}
       </div>
+
+      {/* Conflict banner — only renders when hasConflicts === true */}
+      <MergeConflictBanner prNumber={pr.number} />
 
       {/* Action bar */}
       <PreviewActions

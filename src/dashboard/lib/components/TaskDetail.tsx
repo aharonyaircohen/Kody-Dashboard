@@ -1764,8 +1764,8 @@ export function TaskDetail({
       {tabBar}
       <div className="flex-1 min-h-0 overflow-hidden">{tabContent}</div>
 
-      {/* Bottom toolbar — single row, always visible */}
-      <div className="shrink-0 border-t border-white/10 bg-card px-3 py-2 flex items-center gap-1.5 overflow-x-auto">
+      {/* Bottom toolbar — wraps onto multiple rows on narrow screens */}
+      <div className="shrink-0 border-t border-white/10 bg-card px-3 py-2 flex flex-wrap items-center gap-1.5">
         {/* Primary action */}
         {primaryAction && (
           <Button
@@ -1836,16 +1836,15 @@ export function TaskDetail({
           </a>
         )}
 
-        {/* Spacer */}
-        <div className="flex-1 min-w-0" />
-
         {/* Overflow — opens UPWARD, uses fixed positioning */}
-        <OverflowMenu
-          actions={overflowActions}
-          isPending={taskActions.isPending}
-          pendingAction={taskActions.pendingAction}
-          direction="up"
-        />
+        <div className="ml-auto">
+          <OverflowMenu
+            actions={overflowActions}
+            isPending={taskActions.isPending}
+            pendingAction={taskActions.pendingAction}
+            direction="up"
+          />
+        </div>
       </div>
     </div>
   );
