@@ -52,6 +52,18 @@ function getRetryAfter(error: OctokitError): string | undefined {
 }
 
 /**
+ * Gets the rate-limit reset time as ISO string from `x-ratelimit-reset` header
+ * (Unix epoch seconds), if present.
+ */
+function getResetTime(error: OctokitError): string | undefined {
+  const reset = error.response?.headers?.['x-ratelimit-reset']
+  if (!reset) return undefined
+  const epochSeconds = parseInt(reset, 10)
+  if (!Number.isFinite(epochSeconds)) return undefined
+  return new Date(epochSeconds * 1000).toISOString()
+}
+
+/**
  * Handles GitHub/Octokit and other upstream errors, mapping them to consistent API responses.
  *
  * @param error - The caught error (typically unknown type)
@@ -98,8 +110,9 @@ export function handleKodyApiError(
     if (status === 403) {
       if (isRateLimited(error)) {
         const retryAfter = getRetryAfter(error)
+        const resetTime = getResetTime(error)
         console.error(`[Kody] ${routeName}: GitHub rate limited`)
-        return ApiErrors.rateLimited(retryAfter)
+        return ApiErrors.rateLimited(retryAfter, resetTime)
       }
       console.error(`[Kody] ${routeName}: GitHub access denied`)
       return ApiErrors.forbidden('GitHub access denied')
@@ -114,8 +127,9 @@ export function handleKodyApiError(
     // 429 - rate limited
     if (status === 429) {
       const retryAfter = getRetryAfter(error)
+      const resetTime = getResetTime(error)
       console.error(`[Kody] ${routeName}: GitHub rate limited (429)`)
-      return ApiErrors.rateLimited(retryAfter)
+      return ApiErrors.rateLimited(retryAfter, resetTime)
     }
 
     // 5xx - upstream errors

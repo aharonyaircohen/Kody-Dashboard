@@ -679,6 +679,42 @@ export function KodyDashboard({
   const retryAfter = isRateLimited
     ? (error as RateLimitError).retryAfter
     : null;
+  const resetTime = isRateLimited
+    ? (error as RateLimitError).resetTime
+    : null;
+
+  // Live-tick "X minutes" countdown derived from the GitHub
+  // x-ratelimit-reset epoch. Falls back to the static `retryAfter` string
+  // (e.g. "45 minutes") that the server snapshotted at error time.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isRateLimited) return;
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, [isRateLimited]);
+
+  const minutesUntilReset = useMemo(() => {
+    if (!resetTime) return null;
+    const ts = Date.parse(resetTime);
+    if (!Number.isFinite(ts)) return null;
+    return Math.max(0, Math.ceil((ts - now) / 60_000));
+  }, [resetTime, now]);
+
+  const rateLimitCountdown =
+    minutesUntilReset !== null
+      ? minutesUntilReset === 0
+        ? "any moment now"
+        : `in ${minutesUntilReset} minute${minutesUntilReset === 1 ? "" : "s"}`
+      : retryAfter
+        ? `in ${retryAfter}`
+        : null;
+
+  const rateLimitResetClock = useMemo(() => {
+    if (!resetTime) return null;
+    const d = new Date(resetTime);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }, [resetTime]);
 
   // Helper: extract issue number from URL pathname
   const getIssueFromUrl = () => {
@@ -1124,8 +1160,33 @@ export function KodyDashboard({
     );
   }
 
-  // Generic error fallback (covers GitHub rate-limit responses that arrive
-  // as ApiError rather than RateLimitError)
+  // Rate limit takeover — show live countdown until the GitHub limit refreshes
+  if (isRateLimited) {
+    return renderErrorTakeover(
+      <div className="text-center max-w-md p-6">
+        <div className="text-6xl mb-4">🚦</div>
+        <h2 className="text-xl font-semibold text-foreground mb-2">
+          GitHub API rate limit reached
+        </h2>
+        <p className="text-muted-foreground mb-2">
+          {rateLimitCountdown
+            ? `Refreshes ${rateLimitCountdown}`
+            : "Refresh window unknown"}
+          {rateLimitResetClock ? ` (at ${rateLimitResetClock})` : ""}
+        </p>
+        <p className="text-sm text-muted-foreground mb-4">
+          The dashboard shares one GitHub token across all users. Polling will
+          resume automatically once the window resets.
+        </p>
+        <div className="flex flex-col items-center gap-2">
+          <Button onClick={() => refetch()}>Retry now</Button>
+          {mobileChatEscapeHatch}
+        </div>
+      </div>
+    );
+  }
+
+  // Generic error fallback (covers non-rate-limit GitHub failures)
   if (error) {
     return renderErrorTakeover(
       <div className="text-center max-w-md p-6">
@@ -1145,7 +1206,7 @@ export function KodyDashboard({
   // Build an inline error banner message for rate limit / generic errors
   const errorBannerMessage = !errorDismissed
     ? isRateLimited
-      ? `GitHub API rate limited${retryAfter ? ` — retry after ${retryAfter}` : ""}`
+      ? `GitHub API rate limited${rateLimitCountdown ? ` — refreshes ${rateLimitCountdown}` : ""}${rateLimitResetClock ? ` (at ${rateLimitResetClock})` : ""}`
       : error
         ? (error as Error).message
         : null

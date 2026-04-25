@@ -6,6 +6,7 @@ export interface ApiErrorResponse {
   code?: string
   details?: Array<{ path: string; message: string }>
   retryAfter?: string
+  resetTime?: string
 }
 
 export const ApiErrors = {
@@ -19,9 +20,9 @@ export const ApiErrors = {
     NextResponse.json<ApiErrorResponse>({ error: msg }, { status: 400 }),
   internal: (msg = 'Internal server error') =>
     NextResponse.json<ApiErrorResponse>({ error: msg }, { status: 500 }),
-  rateLimited: (retryAfter?: string) =>
+  rateLimited: (retryAfter?: string, resetTime?: string) =>
     NextResponse.json<ApiErrorResponse>(
-      { error: 'Rate limited', code: 'RATE_LIMITED', retryAfter },
+      { error: 'Rate limited', code: 'RATE_LIMITED', retryAfter, resetTime },
       { status: 429 },
     ),
   upstreamError: (msg = 'Upstream error') =>
