@@ -54,8 +54,6 @@ import {
   AlertTriangle,
   Loader2,
   Zap,
-  ShieldCheck,
-  ShieldX,
   RotateCcw,
   Ban,
   Send,
@@ -271,20 +269,6 @@ function getPrimaryAction(
   pendingKey: string;
   variant: "blue" | "yellow" | "red" | "green";
 } | null {
-  // Gate waiting → Approve
-  if (task.column === "gate-waiting" && !completedActions.has("approve")) {
-    return {
-      icon: ShieldCheck,
-      label: "Approve Gate",
-      pendingLabel: "Approving…",
-      onClick: () => {
-        setCompletedActions((prev) => new Set([...prev, "approve"]));
-        taskActions.approveGate();
-      },
-      pendingKey: "approve",
-      variant: "yellow",
-    };
-  }
   // Failed → Retry
   if (task.column === "failed") {
     return {
@@ -356,21 +340,6 @@ function getOverflowActions(
       pendingLabel: "Rerunning…",
       onClick: () => taskActions.rerun(),
       pendingKey: "rerun",
-    });
-  }
-
-  // Reject Gate
-  if (task.column === "gate-waiting" && !completedActions.has("reject")) {
-    actions.push({
-      icon: ShieldX,
-      label: "Reject Gate",
-      pendingLabel: "Rejecting…",
-      onClick: () => {
-        setCompletedActions((prev) => new Set([...prev, "reject"]));
-        taskActions.rejectGate();
-      },
-      pendingKey: "reject",
-      destructive: true,
     });
   }
 
@@ -960,8 +929,7 @@ export function TaskDetail({
           />
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
-              Posts <code className="text-orange-400">@kody retry</code> +
-              context
+              Posts <code className="text-orange-400">@kody</code> + context
             </p>
             <Button
               variant="outline"

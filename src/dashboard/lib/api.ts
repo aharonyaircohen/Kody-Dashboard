@@ -410,16 +410,15 @@ export const tasksApi = {
     return handleResponse(res);
   },
 
-  // Retry with context: posts comment with @kody retry then triggers execution
+  // Retry with context: posts a bare @kody comment. The engine has no `retry`
+  // executable — bare @kody routes to classify (issue) or fix (PR). On PRs the
+  // trailing context becomes the fix feedback; on issues it's currently dropped.
   retryWithContext: async (
     issueNumber: number,
     context: string,
     actorLogin?: string,
   ): Promise<ActionResponse> => {
-    // First post comment with retry command and context
-    const comment = context.trim()
-      ? `@kody retry\n\n${context.trim()}`
-      : "@kody retry";
+    const comment = context.trim() ? `@kody\n\n${context.trim()}` : "@kody";
 
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
