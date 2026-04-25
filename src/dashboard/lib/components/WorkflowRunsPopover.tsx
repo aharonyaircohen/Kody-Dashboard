@@ -59,6 +59,7 @@ interface WorkflowRunsPopoverProps {
 
 export function WorkflowRunsPopover({ taskTitle, fallbackRun }: WorkflowRunsPopoverProps) {
   const [open, setOpen] = useState(false)
+  const [showSkipped, setShowSkipped] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; alignRight: boolean } | null>(
     null,
@@ -66,8 +67,14 @@ export function WorkflowRunsPopover({ taskTitle, fallbackRun }: WorkflowRunsPopo
 
   const { data: runs, isLoading } = useWorkflowRuns(open ? taskTitle : undefined)
 
-  // Display runs from query when open; fall back to single run from task data
-  const displayRuns: WorkflowRun[] = runs ?? (fallbackRun ? [fallbackRun] : [])
+  // The kody workflow re-triggers itself on its own progress comments and
+  // short-circuits via a guard step, so the run list is mostly "skipped"
+  // entries that don't represent real executions. Hide them by default.
+  const visibleRuns: WorkflowRun[] = (runs ?? (fallbackRun ? [fallbackRun] : [])).filter(
+    (run) => showSkipped || run.conclusion !== 'skipped',
+  )
+  const skippedCount =
+    (runs ?? (fallbackRun ? [fallbackRun] : [])).filter((r) => r.conclusion === 'skipped').length
 
   const POPOVER_WIDTH = 224 // w-56
 
@@ -91,7 +98,7 @@ export function WorkflowRunsPopover({ taskTitle, fallbackRun }: WorkflowRunsPopo
     return null
   }
 
-  const runCount = runs?.length ?? (fallbackRun ? 1 : 0)
+  const runCount = visibleRuns.length
 
   return (
     <>
@@ -127,15 +134,17 @@ export function WorkflowRunsPopover({ taskTitle, fallbackRun }: WorkflowRunsPopo
               Workflow Runs
             </div>
 
-            {isLoading && displayRuns.length === 0 ? (
+            {isLoading && visibleRuns.length === 0 ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
               </div>
-            ) : displayRuns.length === 0 ? (
-              <div className="px-3 py-3 text-xs text-zinc-500">No runs found</div>
+            ) : visibleRuns.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-zinc-500">
+                {skippedCount > 0 ? 'Only skipped runs' : 'No runs found'}
+              </div>
             ) : (
               <div className="max-h-48 overflow-y-auto">
-                {displayRuns.map((run) => (
+                {visibleRuns.map((run) => (
                   <a
                     key={run.id}
                     href={run.html_url}
@@ -166,6 +175,18 @@ export function WorkflowRunsPopover({ taskTitle, fallbackRun }: WorkflowRunsPopo
                   </a>
                 ))}
               </div>
+            )}
+
+            {skippedCount > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowSkipped((s) => !s)
+                }}
+                className="w-full px-3 py-1.5 text-[10px] text-zinc-500 hover:text-zinc-300 border-t border-white/[0.06] mt-0.5 text-left"
+              >
+                {showSkipped ? 'Hide' : 'Show'} {skippedCount} skipped
+              </button>
             )}
           </div>
         </>

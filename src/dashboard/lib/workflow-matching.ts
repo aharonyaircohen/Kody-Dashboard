@@ -57,6 +57,12 @@ export function matchWorkflowRunToTask(
   const queued = candidates.find((r) => r.status === 'queued')
   if (queued) return queued
 
-  // 3. Fall back to first candidate (most recent completed, since runs are sorted desc)
+  // 3. Prefer the most recent run that actually executed. Skipped runs come
+  //    from the kody workflow re-triggering on its own progress comments and
+  //    short-circuiting via a guard — they're noise, not real work.
+  const executed = candidates.find((r) => r.conclusion !== 'skipped')
+  if (executed) return executed
+
+  // 4. Fall back to first candidate (most recent completed, since runs are sorted desc)
   return candidates[0]
 }
