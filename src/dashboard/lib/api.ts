@@ -839,7 +839,10 @@ export interface Goal {
 
 export const goalsApi = {
   list: async (): Promise<Goal[]> => {
-    const res = await fetch(`${API_BASE}/goals`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/goals`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
     const data = await handleResponse<{ goals: Goal[] }>(res);
     return data.goals;
   },

@@ -117,10 +117,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const { manifest, issue } = await readManifest()
-    return NextResponse.json({
-      goals: manifest.goals,
-      manifest: { issueNumber: issue?.number ?? null },
-    })
+    return NextResponse.json(
+      {
+        goals: manifest.goals,
+        manifest: { issueNumber: issue?.number ?? null },
+      },
+      { headers: { 'Cache-Control': 'no-store' } },
+    )
   } catch (error: any) {
     console.error('[Goals] Error listing goals:', error)
     return mapGithubError(error, 'list_failed')
