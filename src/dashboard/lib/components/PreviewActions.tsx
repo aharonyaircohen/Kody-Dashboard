@@ -13,8 +13,27 @@ import { MergeButton } from './MergeButton'
 import { FixRequestDialog } from './FixRequestDialog'
 import { AddCommentDialog } from './AddCommentDialog'
 import { ConfirmDialog } from './ConfirmDialog'
-import { XCircle, Wrench, Loader2, CheckCircle, GitPullRequest, MessageSquare } from 'lucide-react'
+import {
+  XCircle,
+  Wrench,
+  Loader2,
+  CheckCircle,
+  GitPullRequest,
+  MessageSquare,
+  Eye,
+  Camera,
+  RefreshCw,
+  Activity,
+  GitMerge,
+  ChevronDown,
+} from 'lucide-react'
 import { tasksApi, prsApi } from '../api'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@dashboard/ui/dropdown-menu'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { toast } from 'sonner'
 import { cn } from '../utils'
@@ -91,6 +110,15 @@ export function PreviewActions({
     }
   }
 
+  const postKodyCommand = async (command: string, successMessage: string) => {
+    try {
+      await prsApi.postComment(pr.number, command, actorLogin)
+      toast.success(successMessage)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `Failed to post ${command}`)
+    }
+  }
+
   const handleCommentSubmit = async (body: string) => {
     try {
       await prsApi.postComment(pr.number, body, actorLogin)
@@ -162,6 +190,99 @@ export function PreviewActions({
           <Wrench className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Fix</span>
         </Button>
+
+        {/* Review — posts @kody review */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => postKodyCommand('@kody review', 'Review requested')}
+          className="gap-1.5 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10"
+          title="Structured diff review"
+        >
+          <Eye className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Review</span>
+        </Button>
+
+        {/* UI Review — posts @kody ui-review */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => postKodyCommand('@kody ui-review', 'UI review requested')}
+          className="gap-1.5 text-pink-300 border-pink-500/30 hover:bg-pink-500/10"
+          title="Playwright-based UI review"
+        >
+          <Camera className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">UI Review</span>
+        </Button>
+
+        {/* Sync — posts @kody sync */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => postKodyCommand('@kody sync', 'Sync requested')}
+          className="gap-1.5 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/10"
+          title="Merge default branch into PR branch"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Sync</span>
+        </Button>
+
+        {/* Fix CI — posts @kody fix-ci */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => postKodyCommand('@kody fix-ci', 'Fix CI requested')}
+          className="gap-1.5 text-yellow-300 border-yellow-500/30 hover:bg-yellow-500/10"
+          title="Fix failing CI"
+        >
+          <Activity className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Fix CI</span>
+        </Button>
+
+        {/* Resolve — split menu for ours/theirs */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-slate-300 border-slate-500/30 hover:bg-slate-500/10"
+              title="Resolve merge conflicts"
+            >
+              <GitMerge className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Resolve</span>
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onSelect={() =>
+                postKodyCommand('@kody resolve', 'Resolve requested')
+              }
+            >
+              Auto
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() =>
+                postKodyCommand(
+                  '@kody resolve --prefer ours',
+                  'Resolve requested (prefer mine)',
+                )
+              }
+            >
+              Prefer mine (PR branch)
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() =>
+                postKodyCommand(
+                  '@kody resolve --prefer theirs',
+                  'Resolve requested (prefer base)',
+                )
+              }
+            >
+              Prefer base
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Comment */}
         <Button
