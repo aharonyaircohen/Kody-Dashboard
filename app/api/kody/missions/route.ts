@@ -55,10 +55,15 @@ export async function GET(req: NextRequest) {
   if (headerAuth) setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
 
   try {
+    // Skip the in-process issue cache for missions: low volume, and the
+    // user expects newly-created missions to show up immediately on
+    // refresh. Cached responses can serve stale lists for up to the
+    // 2-minute TTL otherwise.
     const issues = await fetchIssues({
       state: 'open',
       labels: MISSION_LABEL,
       perPage: 100,
+      noCache: true,
     })
 
     const missions = issues.map(toMission)

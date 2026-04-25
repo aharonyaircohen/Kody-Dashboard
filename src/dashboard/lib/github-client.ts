@@ -661,12 +661,21 @@ export async function fetchIssues(options?: {
   milestone?: number
   perPage?: number
   since?: string // ISO 8601 date string - only returns issues updated after this date
+  /**
+   * When true, skip the in-process cache entirely (no read, no write). Use
+   * for low-volume endpoints (e.g. missions list) where always-fresh data
+   * matters more than the few API calls saved by caching.
+   */
+  noCache?: boolean
 }): Promise<GitHubIssue[]> {
-  const cacheKey = `issues:${JSON.stringify(options)}`
-  const cached = getCached<GitHubIssue[]>(cacheKey)
-  if (cached) return cached
+  const { noCache, ...rest } = options ?? {}
+  const cacheKey = `issues:${JSON.stringify(rest)}`
+  if (!noCache) {
+    const cached = getCached<GitHubIssue[]>(cacheKey)
+    if (cached) return cached
+  }
 
-  const stale = getStale<GitHubIssue[]>(cacheKey)
+  const stale = noCache ? null : getStale<GitHubIssue[]>(cacheKey)
   const octokit = getOctokit()
 
   let response
@@ -737,7 +746,9 @@ export async function fetchIssues(options?: {
         ) ?? false,
     }))
 
-  setCache(cacheKey, CACHE_TTL.tasks, issues, { etag: newEtag })
+  if (!noCache) {
+    setCache(cacheKey, CACHE_TTL.tasks, issues, { etag: newEtag })
+  }
   return issues
 }
 

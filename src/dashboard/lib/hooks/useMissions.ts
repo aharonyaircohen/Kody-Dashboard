@@ -55,19 +55,7 @@ export function useCreateMission(actorLogin?: string) {
         body: data.body,
         ...(actorLogin && { actorLogin }),
       }),
-    onSuccess: (mission) => {
-      // Optimistically prepend the new mission to the cached list so the UI
-      // updates instantly. The GitHub list endpoint can take 30–60s to
-      // reflect a freshly-created issue (server-side cache + GitHub
-      // eventual consistency), and a plain invalidate would leave the user
-      // staring at an empty refetch result. The background invalidate still
-      // runs to reconcile once the upstream catches up.
-      queryClient.setQueryData<Mission[] | undefined>(missionQueryKeys.list, (prev) => {
-        if (!prev) return [mission]
-        if (prev.some((m) => m.number === mission.number)) return prev
-        return [mission, ...prev]
-      })
-      queryClient.setQueryData(missionQueryKeys.detail(mission.number), mission)
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: missionQueryKeys.list })
       toast.success('Mission created')
     },
