@@ -134,7 +134,7 @@ export function PreviewActions({
     <>
       <div
         className={cn(
-          'flex items-center gap-2 px-4 py-3 border-t border-zinc-800 bg-zinc-950/80 backdrop-blur-sm',
+          'flex flex-wrap items-center gap-2 px-4 py-3 border-t border-zinc-800 bg-zinc-950/80 backdrop-blur-sm max-h-[40vh] overflow-y-auto',
           className,
         )}
       >
