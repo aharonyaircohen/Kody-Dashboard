@@ -13,6 +13,7 @@ import { PreviewActions } from "./PreviewActions";
 import { PRCommentList } from "./PRCommentList";
 import { MarkdownViewer } from "./MarkdownViewer";
 import { CIStatusBadge } from "./CIStatusBadge";
+import { ActionStatusBadge } from "./ActionStatusBadge";
 import { MergeConflictBanner } from "./MergeConflictBanner";
 import { KodyChat } from "./KodyChat";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
@@ -304,6 +305,7 @@ export function PreviewModal({
           PR #{pr.number}
         </span>
         <CIStatusBadge prNumber={pr.number} />
+        <ActionStatusBadge taskId={task.id} />
         <span className="text-sm text-zinc-500 truncate hidden sm:inline">
           {pr.title}
         </span>
