@@ -347,8 +347,8 @@ export function CommentEditor({
         {error && <span className="text-destructive text-xs mr-auto">{error.message}</span>}
         <Button
           onClick={() => {
-            // Execute /kody command - post and trigger
-            const cmdComment = comment.trim() || '/kody'
+            // Execute @kody command - post and trigger
+            const cmdComment = comment.trim() || '@kody'
             postComment(cmdComment, {
               onSuccess: () => {
                 setComment('')

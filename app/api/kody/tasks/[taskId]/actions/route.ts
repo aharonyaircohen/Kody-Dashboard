@@ -159,12 +159,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
 
     switch (action) {
       case 'approve': {
-        await postWithFallback(issueNumber, '/kody approve', actor, userOctokit)
+        await postWithFallback(issueNumber, '@kody approve', actor, userOctokit)
         return NextResponse.json({ success: true, message: 'Gate approved' })
       }
 
       case 'reject': {
-        await postWithFallback(issueNumber, '/kody reject', actor, userOctokit)
+        await postWithFallback(issueNumber, '@kody reject', actor, userOctokit)
         return NextResponse.json({ success: true, message: 'Gate rejected' })
       }
 
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
       }
 
       case 'execute': {
-        await postWithFallback(issueNumber, '/kody', actor, userOctokit)
+        await postWithFallback(issueNumber, '@kody', actor, userOctokit)
         return NextResponse.json({ success: true, message: 'Kody execution triggered' })
       }
 
@@ -298,7 +298,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
 
         // Re-trigger pipeline
         await postWithFallback(issueNumber, '🔄 Task reset and re-triggered', actor, userOctokit)
-        await postComment(issueNumber, '/kody', userOctokit ?? undefined)
+        await postComment(issueNumber, '@kody', userOctokit ?? undefined)
 
         invalidateTaskCache()
         invalidatePRCache()
