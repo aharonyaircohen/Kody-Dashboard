@@ -70,3 +70,41 @@ https://kody-aguy.vercel.app/api/oauth/github/callback
 import { ... } from '@dashboard/...'    // src/dashboard/
 import { ... } from '@/...'             // src/
 ```
+
+## GitHub API rate-limit rules (do not break)
+
+The polling token is shared across all dashboard users (5000 REST req/hr per
+token). When the budget is drained the entire dashboard goes dark — the same
+window that just blew up takes ~1 hour to reset. Every cache miss matters.
+
+These rules are load-bearing — past regressions of any of them have caused
+multi-hour outages. Read [src/dashboard/lib/github-client.ts](src/dashboard/lib/github-client.ts) before changing anything in this file.
+
+1. **Never add `noCache: true` to a polled endpoint to "fix staleness."**
+   Bypassing the cache turns every poll into a fresh GitHub call. To make
+   data feel fresh, use one of:
+   - Lower `ttl` (e.g. `ttl: 15_000`) — post-TTL revalidation is a free 304
+     via `If-None-Match` when nothing changed.
+   - `invalidateIssueCache(issueNumber)` after writes that mutate that issue
+     or a manifest stored in it.
+   - Client-side optimistic `setQueryData` for the writer's own UI.
+
+2. **Every `fetchIssue` / `fetchIssues` cache miss must go through the
+   ETag/`If-None-Match` path.** A cache miss with no ETag = a full read
+   against the budget. With an ETag, GitHub returns 304 (free) when the
+   resource is unchanged. Don't strip the `headers: { 'If-None-Match': ... }`
+   plumbing.
+
+3. **New GraphQL queries on the polling path need three things:**
+   in-process cache (with TTL ≥ 60s for low-churn data), in-flight request
+   dedup, and a stale fallback that *refreshes the cache TTL on error* so
+   GraphQL throttling doesn't compound. See `fetchOpenPRs` for the pattern.
+   GraphQL has its own 5000-points/hr bucket and no ETag/304 escape hatch.
+
+4. **Polling cadence ≥ 15s on any endpoint that touches GitHub.**
+   Faster polling forces a token bucket reset to drain instantly when all
+   tabs reconnect, restarting the 1-hour wait.
+
+5. **After every write that mutates an issue, call `invalidateIssueCache(n)`.**
+   Same-instance reads then see the change immediately without waiting for
+   TTL — and without forcing every reader to bypass the cache.
