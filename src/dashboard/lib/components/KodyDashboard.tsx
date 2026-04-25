@@ -240,6 +240,9 @@ export function KodyDashboard({
   } = useKodyTasks({
     days,
     viewMode: viewMode === "queue" ? "running" : viewMode,
+    // Pause list polling while a task is open — the modal owns the foreground;
+    // background list will refresh on close via invalidation.
+    refetchInterval: selectedIssueNumber ? false : "auto",
   });
 
   // Initialize filters from URL params after hydration (prevents server/client mismatch)
@@ -838,9 +841,11 @@ export function KodyDashboard({
         setSelectedIssueNumber(null);
         setShowMobileDetail(false);
         window.history.pushState(null, "", "/");
+        // Refresh once on close — polling was paused while the modal was open.
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks(days) });
       }
     },
-    [isDesktop],
+    [isDesktop, queryClient, days],
   );
 
   // Auto-select task from URL on initial load
