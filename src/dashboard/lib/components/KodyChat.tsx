@@ -18,6 +18,7 @@ import { AGENT, AGENTS, type AgentId, type AgentConfig } from '../agents'
 
 function buildAgentList(brainConfigured: boolean): Omit<AgentConfig, 'systemPrompt'>[] {
   return Object.values(AGENTS)
+    .filter((a) => a.id !== 'kody-assistant')
     .filter((a) => a.id !== 'brain' || brainConfigured)
     .map(({ id, name, description, icon, backend, capabilities }) => ({
       id,
@@ -282,7 +283,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [loading, setLoading] = useState(false)
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([])
-  const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(AGENT.id)
+  const [selectedAgentId, setSelectedAgentId] = useState<AgentId>('kody')
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [brainConfigured, setBrainConfigured] = useState(false)
   const brainAbortRef = useRef<AbortController | null>(null)
@@ -290,7 +291,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   const agentList = buildAgentList(brainConfigured)
 
   // Read Brain config once on mount. When Brain credentials were provided at
-  // login, Brain becomes the default selection; otherwise Gemini is the default.
+  // login, Brain becomes the default selection; otherwise Kody is the default.
   useEffect(() => {
     const configured = getStoredBrainConfig() !== null
     setBrainConfigured(configured)
@@ -299,10 +300,10 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     }
   }, [])
 
-  // If the user had Brain selected but then removed the config, fall back to Gemini.
+  // If the user had Brain selected but then removed the config, fall back to Kody.
   useEffect(() => {
     if (selectedAgentId === 'brain' && !brainConfigured) {
-      setSelectedAgentId(AGENT.id)
+      setSelectedAgentId('kody')
     }
   }, [brainConfigured, selectedAgentId])
   const [showClearConfirm, setShowClearConfirm] = useState(false)
