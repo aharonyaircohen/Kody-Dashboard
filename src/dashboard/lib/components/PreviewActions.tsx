@@ -35,8 +35,28 @@ import {
   DropdownMenuItem,
 } from '@dashboard/ui/dropdown-menu'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { cn } from '../utils'
+
+/**
+ * Optimistically add a label to this task in every cached tasks list, so the
+ * approve buttons flip immediately after a successful action without waiting
+ * for the next poll. Mirrors the backend, which adds the same label.
+ */
+function applyOptimisticLabel(
+  queryClient: ReturnType<typeof useQueryClient>,
+  issueNumber: number,
+  label: string,
+): void {
+  queryClient.setQueriesData<KodyTask[]>({ queryKey: ['kody-tasks'] }, (old) =>
+    old?.map((t) =>
+      t.issueNumber === issueNumber && !t.labels?.includes(label)
+        ? { ...t, labels: [...(t.labels ?? []), label] }
+        : t,
+    ),
+  )
+}
 
 interface PreviewActionsProps {
   task: KodyTask
@@ -60,11 +80,13 @@ export function PreviewActions({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const { githubUser } = useGitHubIdentity()
+  const queryClient = useQueryClient()
 
   const actorLogin = githubUser?.login
 
-  // Check if UI is already approved
+  // Check if UI / PR are already approved (label-driven, mirrors backend)
   const isUIApproved = task.labels?.includes('ui-approved')
+  const isPRApproved = task.labels?.includes('pr-approved')
 
   const pr = task.associatedPR
   if (!pr) return null
@@ -95,6 +117,7 @@ export function PreviewActions({
   const handleApproveUI = async () => {
     try {
       await tasksApi.approveUI(task.issueNumber, actorLogin)
+      applyOptimisticLabel(queryClient, task.issueNumber, 'ui-approved')
       toast.success('Preview UI approved')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to approve UI')
@@ -104,6 +127,7 @@ export function PreviewActions({
   const handleApprovePR = async () => {
     try {
       await tasksApi.approvePR(task.issueNumber, actorLogin)
+      applyOptimisticLabel(queryClient, task.issueNumber, 'pr-approved')
       toast.success('PR approved')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to approve PR')
@@ -157,15 +181,22 @@ export function PreviewActions({
         )}
 
         {/* Approve PR */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleApprovePR}
-          className="gap-1.5 text-purple-400 border-purple-500/30 hover:bg-purple-500/10"
-        >
-          <GitPullRequest className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Approve PR</span>
-        </Button>
+        {isPRApproved ? (
+          <div className="flex items-center gap-1.5 text-purple-400">
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span className="text-xs hidden sm:inline">PR Approved</span>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleApprovePR}
+            className="gap-1.5 text-purple-400 border-purple-500/30 hover:bg-purple-500/10"
+          >
+            <GitPullRequest className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Approve PR</span>
+          </Button>
+        )}
 
         {/* Merge */}
         <div className="flex items-center gap-1.5">
