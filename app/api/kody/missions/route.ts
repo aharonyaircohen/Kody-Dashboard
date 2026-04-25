@@ -18,6 +18,7 @@ import {
 import {
   fetchIssues,
   createIssue,
+  invalidateIssueCache,
   setGitHubContext,
   clearGitHubContext,
 } from '@dashboard/lib/github-client'
@@ -55,15 +56,13 @@ export async function GET(req: NextRequest) {
   if (headerAuth) setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
 
   try {
-    // Skip the in-process issue cache for missions: low volume, and the
-    // user expects newly-created missions to show up immediately on
-    // refresh. Cached responses can serve stale lists for up to the
-    // 2-minute TTL otherwise.
+    // Short TTL so newly-created missions appear quickly. Post-TTL revalidation
+    // is a free 304 via the cached ETag in the unchanged case.
     const issues = await fetchIssues({
       state: 'open',
       labels: MISSION_LABEL,
       perPage: 100,
-      noCache: true,
+      ttl: 15_000,
     })
 
     const missions = issues.map(toMission)
@@ -120,6 +119,10 @@ export async function POST(req: NextRequest) {
       },
       userOctokit ?? undefined,
     )
+
+    // Same-instance writes: drop cached listings so the next GET on this
+    // instance picks up the new mission immediately.
+    invalidateIssueCache(issue.number)
 
     return NextResponse.json({
       mission: toMission({

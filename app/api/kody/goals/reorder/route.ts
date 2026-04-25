@@ -19,6 +19,7 @@ import {
   fetchIssues,
   fetchIssue,
   updateIssue,
+  invalidateIssueCache,
   setGitHubContext,
   clearGitHubContext,
 } from '@dashboard/lib/github-client'
@@ -38,11 +39,11 @@ async function readManifest(): Promise<{
     state: 'open',
     labels: GOALS_MANIFEST_LABEL,
     perPage: 5,
-    noCache: true,
+    ttl: 15_000,
   })
   if (!issues.length) return { manifest: { version: 1, goals: [] }, issueNumber: null }
   const first = [...issues].sort((a, b) => a.number - b.number)[0]
-  const full = await fetchIssue(first.number, { noCache: true })
+  const full = await fetchIssue(first.number, { ttl: 15_000 })
   return {
     manifest: parseManifestBody(full?.body ?? ''),
     issueNumber: first.number,
@@ -111,6 +112,7 @@ export async function POST(req: NextRequest) {
       { body: serializeManifestBody(nextManifest) },
       userOctokit ?? undefined,
     )
+    invalidateIssueCache(issueNumber)
 
     return NextResponse.json({ goals: ordered })
   } catch (error: any) {

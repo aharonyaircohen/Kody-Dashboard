@@ -122,6 +122,19 @@ export function invalidateBranchCache(): void {
   invalidateCache('refs:')
 }
 
+/**
+ * Invalidate cache entries for a single issue plus every cached issues listing.
+ * Use after a write that mutates an issue (or a manifest stored in an issue),
+ * so the next read on this serverless instance picks up the change without
+ * waiting for the TTL.
+ */
+export function invalidateIssueCache(issueNumber?: number): void {
+  if (typeof issueNumber === 'number') {
+    cache.delete(`issue:${issueNumber}`)
+  }
+  invalidateCache('issues:')
+}
+
 // ============ Per-Request Repo Context ============
 //
 // The dashboard supports per-user repos (user logs in with their own GitHub token
@@ -596,70 +609,97 @@ export async function getStatusFromArtifact(
 // ============ Issue & Comment Fetching ============
 
 /**
- * Fetch a single issue by number (optimized for detail view)
+ * Fetch a single issue by number (optimized for detail view).
+ *
+ * Caching:
+ * - Default TTL is `CACHE_TTL.tasks` (2min). Pass `ttl` to shorten it for
+ *   endpoints that need fresher data (e.g. goals manifest, missions detail).
+ * - When the TTL expires, the cached ETag is replayed via `If-None-Match`.
+ *   GitHub returns 304 (free, doesn't count against the rate limit) when the
+ *   issue is unchanged, and we just refresh the TTL on the existing payload.
+ * - `noCache` skips the cache entirely (rarely needed; prefer `ttl`).
  */
 export async function fetchIssue(
   issueNumber: number,
-  options?: { noCache?: boolean },
+  options?: { noCache?: boolean; ttl?: number },
 ): Promise<GitHubIssue | null> {
   const cacheKey = `issue:${issueNumber}`
+  const ttl = options?.ttl ?? CACHE_TTL.tasks
+
   if (!options?.noCache) {
     const cached = getCached<GitHubIssue>(cacheKey)
     if (cached) return cached
   }
 
+  const stale = options?.noCache ? null : getStale<GitHubIssue>(cacheKey)
   const octokit = getOctokit()
 
+  let response
   try {
-    const { data } = await octokit.issues.get({
+    response = await octokit.issues.get({
       owner: getOwner(),
       repo: getRepo(),
       issue_number: issueNumber,
+      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
     })
-
-    const issue: GitHubIssue = {
-      id: data.id,
-      number: data.number,
-      title: data.title,
-      body: data.body ?? null,
-      state: data.state as 'open' | 'closed',
-      labels: data.labels.map((l: any) =>
-        typeof l === 'string'
-          ? { name: l, color: '000000' }
-          : { name: l.name ?? '', color: l.color ?? '000000' },
-      ),
-      milestone: data.milestone ? { title: data.milestone.title ?? '' } : null,
-      assignees:
-        data.assignees?.map((a: any) => ({
-          login: a.login ?? '',
-          avatar_url: a.avatar_url ?? '',
-        })) ?? [],
-      created_at: data.created_at ?? '',
-      updated_at: data.updated_at ?? '',
-      closed_at: data.closed_at ?? null,
-      html_url: data.html_url ?? '',
-      isKodyAssigned:
-        data.assignees?.some(
-          (a: any) =>
-            a.login === 'github-actions[bot]' || a.login === 'Copilot' || (a as any).type === 'Bot',
-        ) ?? false,
-    }
-
-    // Single issue, cache for longer
-    if (!options?.noCache) {
-      setCache(cacheKey, CACHE_TTL.tasks, issue)
-    }
-    return issue
   } catch (error: any) {
+    if (error.status === 304 && stale) {
+      setCache(cacheKey, ttl, stale.data, { etag: stale.etag })
+      return stale.data
+    }
     if (error.status === 404) {
       return null
     }
     throw error
   }
+
+  const data = response.data
+  const newEtag = (response.headers as Record<string, string | undefined>)?.etag
+
+  const issue: GitHubIssue = {
+    id: data.id,
+    number: data.number,
+    title: data.title,
+    body: data.body ?? null,
+    state: data.state as 'open' | 'closed',
+    labels: data.labels.map((l: any) =>
+      typeof l === 'string'
+        ? { name: l, color: '000000' }
+        : { name: l.name ?? '', color: l.color ?? '000000' },
+    ),
+    milestone: data.milestone ? { title: data.milestone.title ?? '' } : null,
+    assignees:
+      data.assignees?.map((a: any) => ({
+        login: a.login ?? '',
+        avatar_url: a.avatar_url ?? '',
+      })) ?? [],
+    created_at: data.created_at ?? '',
+    updated_at: data.updated_at ?? '',
+    closed_at: data.closed_at ?? null,
+    html_url: data.html_url ?? '',
+    isKodyAssigned:
+      data.assignees?.some(
+        (a: any) =>
+          a.login === 'github-actions[bot]' || a.login === 'Copilot' || (a as any).type === 'Bot',
+      ) ?? false,
+  }
+
+  if (!options?.noCache) {
+    setCache(cacheKey, ttl, issue, { etag: newEtag })
+  }
+  return issue
 }
 
 /**
- * Fetch issues with optional filters
+ * Fetch issues with optional filters.
+ *
+ * Caching:
+ * - Default TTL is `CACHE_TTL.tasks` (2min). Pass `ttl` to shorten it for
+ *   endpoints that need fresher data (e.g. goals/missions list).
+ * - Post-TTL revalidation replays the cached ETag via `If-None-Match`. GitHub
+ *   returns 304 (free, doesn't count against the rate limit) when the listing
+ *   is unchanged, and the TTL is refreshed on the existing payload.
+ * - `noCache` skips the cache entirely (rarely needed; prefer `ttl`).
  */
 export async function fetchIssues(options?: {
   state?: 'open' | 'closed' | 'all'
@@ -668,15 +708,13 @@ export async function fetchIssues(options?: {
   milestone?: number
   perPage?: number
   since?: string // ISO 8601 date string - only returns issues updated after this date
-  /**
-   * When true, skip the in-process cache entirely (no read, no write). Use
-   * for low-volume endpoints (e.g. missions list) where always-fresh data
-   * matters more than the few API calls saved by caching.
-   */
+  ttl?: number
   noCache?: boolean
 }): Promise<GitHubIssue[]> {
-  const { noCache, ...rest } = options ?? {}
+  const { noCache, ttl: ttlOpt, ...rest } = options ?? {}
   const cacheKey = `issues:${JSON.stringify(rest)}`
+  const ttl = ttlOpt ?? CACHE_TTL.tasks
+
   if (!noCache) {
     const cached = getCached<GitHubIssue[]>(cacheKey)
     if (cached) return cached
@@ -702,7 +740,7 @@ export async function fetchIssues(options?: {
   } catch (err: any) {
     // 304 Not Modified — reuse stale data, refresh TTL, no rate cost
     if (err.status === 304 && stale) {
-      setCache(cacheKey, CACHE_TTL.tasks, stale.data, { etag: stale.etag })
+      setCache(cacheKey, ttl, stale.data, { etag: stale.etag })
       return stale.data
     }
     throw err
@@ -754,7 +792,7 @@ export async function fetchIssues(options?: {
     }))
 
   if (!noCache) {
-    setCache(cacheKey, CACHE_TTL.tasks, issues, { etag: newEtag })
+    setCache(cacheKey, ttl, issues, { etag: newEtag })
   }
   return issues
 }
@@ -926,12 +964,25 @@ interface OpenPRsGraphQL {
  * Fetch all open PRs in one GraphQL call. Returns each PR with the issue
  * numbers it links via "Closes/Fixes/Resolves #N" so the dashboard can match
  * PRs to tasks without parsing branch names.
+ *
+ * GraphQL doesn't expose ETag/304 the way REST does, so the rate-limit budget
+ * relies on:
+ * - The `CACHE_TTL.prs` cache (5min) keeping fresh polls off the wire.
+ * - In-flight dedup (concurrent callers in the same instance share one query).
+ * - A stale fallback: if GitHub throttles or errors, return the previous list
+ *   instead of bubbling the failure (and instead of retrying immediately).
  */
+const inflightOpenPRs = new Map<string, Promise<GitHubPR[]>>()
+
 export async function fetchOpenPRs(): Promise<GitHubPR[]> {
   const cacheKey = `open-prs:${getOwner()}:${getRepo()}`
   const cached = getCached<GitHubPR[]>(cacheKey)
   if (cached) return cached
 
+  const existing = inflightOpenPRs.get(cacheKey)
+  if (existing) return existing
+
+  const stale = getStale<GitHubPR[]>(cacheKey)
   const octokit = getOctokit()
 
   const query = `
@@ -955,25 +1006,42 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
     }
   `
 
-  const data = await octokit.graphql<OpenPRsGraphQL>(query, {
-    owner: getOwner(),
-    repo: getRepo(),
-  })
+  const promise = (async () => {
+    try {
+      const data = await octokit.graphql<OpenPRsGraphQL>(query, {
+        owner: getOwner(),
+        repo: getRepo(),
+      })
 
-  const prs: GitHubPR[] = data.repository.pullRequests.nodes.map((pr) => ({
-    id: pr.databaseId,
-    number: pr.number,
-    title: pr.title,
-    state: pr.state.toLowerCase(),
-    head: { ref: pr.headRefName, sha: pr.headRefOid },
-    merged_at: pr.mergedAt,
-    html_url: pr.url,
-    labels: pr.labels.nodes.map((l) => l.name).filter(Boolean),
-    closingIssueNumbers: pr.closingIssuesReferences.nodes.map((n) => n.number),
-  }))
+      const prs: GitHubPR[] = data.repository.pullRequests.nodes.map((pr) => ({
+        id: pr.databaseId,
+        number: pr.number,
+        title: pr.title,
+        state: pr.state.toLowerCase(),
+        head: { ref: pr.headRefName, sha: pr.headRefOid },
+        merged_at: pr.mergedAt,
+        html_url: pr.url,
+        labels: pr.labels.nodes.map((l) => l.name).filter(Boolean),
+        closingIssueNumbers: pr.closingIssuesReferences.nodes.map((n) => n.number),
+      }))
 
-  setCache(cacheKey, CACHE_TTL.prs, prs)
-  return prs
+      setCache(cacheKey, CACHE_TTL.prs, prs)
+      return prs
+    } catch (err) {
+      if (stale) {
+        // Refresh the TTL on stale data so we don't hammer GraphQL on every
+        // subsequent poll while we're being throttled.
+        setCache(cacheKey, Math.min(CACHE_TTL.prs, 60_000), stale.data)
+        return stale.data
+      }
+      throw err
+    } finally {
+      inflightOpenPRs.delete(cacheKey)
+    }
+  })()
+
+  inflightOpenPRs.set(cacheKey, promise)
+  return promise
 }
 
 // ============ Vercel Preview URLs ============

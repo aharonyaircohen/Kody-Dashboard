@@ -18,6 +18,7 @@ import {
   fetchIssues,
   fetchIssue,
   updateIssue,
+  invalidateIssueCache,
   setGitHubContext,
   clearGitHubContext,
 } from '@dashboard/lib/github-client'
@@ -33,18 +34,17 @@ async function readManifest(): Promise<{
   manifest: GoalsManifest
   issueNumber: number | null
 }> {
-  // Skip the in-process issue cache: serverless instances cache independently,
-  // so a freshly-mutated manifest can be invisible from another instance for
-  // the full 2-minute TTL otherwise.
+  // Short TTL keeps cross-instance staleness bounded. Post-TTL revalidation
+  // returns 304 (free) via the cached ETag when nothing changed.
   const issues = await fetchIssues({
     state: 'open',
     labels: GOALS_MANIFEST_LABEL,
     perPage: 5,
-    noCache: true,
+    ttl: 15_000,
   })
   if (!issues.length) return { manifest: { version: 1, goals: [] }, issueNumber: null }
   const first = [...issues].sort((a, b) => a.number - b.number)[0]
-  const full = await fetchIssue(first.number, { noCache: true })
+  const full = await fetchIssue(first.number, { ttl: 15_000 })
   return {
     manifest: parseManifestBody(full?.body ?? ''),
     issueNumber: first.number,
@@ -131,6 +131,7 @@ export async function PATCH(
       { body: serializeManifestBody(nextManifest) },
       userOctokit ?? undefined,
     )
+    invalidateIssueCache(issueNumber)
 
     return NextResponse.json({ goal: updated })
   } catch (error: any) {
@@ -182,6 +183,7 @@ export async function DELETE(
       { body: serializeManifestBody(nextManifest) },
       userOctokit ?? undefined,
     )
+    invalidateIssueCache(issueNumber)
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

@@ -21,6 +21,7 @@ import {
   createIssue,
   updateIssue,
   ensureLabel,
+  invalidateIssueCache,
   setGitHubContext,
   clearGitHubContext,
 } from '@dashboard/lib/github-client'
@@ -43,20 +44,20 @@ import { Octokit } from '@octokit/rest'
 type ManifestIssueRef = { number: number; body: string }
 
 async function findManifestIssue(): Promise<ManifestIssueRef | null> {
-  // Skip the in-process issue cache: serverless instances cache independently,
-  // so a fresh goal written on one instance can be invisible from another for
-  // the full 2-minute TTL otherwise.
+  // Short TTL keeps cross-instance staleness bounded. Post-TTL revalidation
+  // returns 304 (free) via the cached ETag when nothing changed; on writes,
+  // the route invalidates this instance's cache directly.
   const issues = await fetchIssues({
     state: 'open',
     labels: GOALS_MANIFEST_LABEL,
     perPage: 5,
-    noCache: true,
+    ttl: 15_000,
   })
   if (!issues.length) return null
   // If multiple exist, prefer the earliest created (stable anchor).
   const sorted = [...issues].sort((a, b) => a.number - b.number)
   const first = sorted[0]
-  const full = await fetchIssue(first.number, { noCache: true })
+  const full = await fetchIssue(first.number, { ttl: 15_000 })
   return { number: first.number, body: full?.body ?? '' }
 }
 
@@ -171,7 +172,11 @@ export async function POST(req: NextRequest) {
       goals: [...manifest.goals, newGoal],
     }
 
-    await writeManifest(nextManifest, issue, userOctokit ?? undefined)
+    const written = await writeManifest(nextManifest, issue, userOctokit ?? undefined)
+
+    // Same-instance writes: drop cached issue/listings so the next read on
+    // this instance reflects the new manifest immediately.
+    invalidateIssueCache(written.number)
 
     // Pre-create the `goal:<id>` repo label so attach operations later don't
     // 422. GitHub's addLabels endpoint requires the label to exist already.
