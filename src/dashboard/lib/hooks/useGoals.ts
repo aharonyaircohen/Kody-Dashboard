@@ -48,7 +48,15 @@ export function useCreateGoal(actorLogin?: string) {
         ...data,
         ...(actorLogin && { actorLogin }),
       }),
-    onSuccess: () => {
+    onSuccess: (created) => {
+      // Insert the new goal directly so it appears instantly, regardless of
+      // GitHub eventual consistency or any downstream cache. The invalidation
+      // below schedules a background refetch to reconcile.
+      queryClient.setQueryData<Goal[]>(goalQueryKeys.list, (prev) => {
+        if (!prev) return [created]
+        if (prev.some((g) => g.id === created.id)) return prev
+        return [...prev, created]
+      })
       queryClient.invalidateQueries({ queryKey: goalQueryKeys.list })
       toast.success('Goal created')
     },
@@ -71,7 +79,10 @@ export function useUpdateGoal(id: string, actorLogin?: string) {
         ...data,
         ...(actorLogin && { actorLogin }),
       }),
-    onSuccess: () => {
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Goal[]>(goalQueryKeys.list, (prev) =>
+        prev ? prev.map((g) => (g.id === updated.id ? updated : g)) : prev,
+      )
       queryClient.invalidateQueries({ queryKey: goalQueryKeys.list })
       toast.success('Goal updated')
     },
@@ -86,7 +97,10 @@ export function useDeleteGoal(actorLogin?: string) {
 
   return useMutation<void, Error, string>({
     mutationFn: (id) => kodyApi.goals.remove(id, actorLogin),
-    onSuccess: () => {
+    onSuccess: (_, removedId) => {
+      queryClient.setQueryData<Goal[]>(goalQueryKeys.list, (prev) =>
+        prev ? prev.filter((g) => g.id !== removedId) : prev,
+      )
       queryClient.invalidateQueries({ queryKey: goalQueryKeys.list })
       toast.success('Goal removed')
     },

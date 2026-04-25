@@ -188,6 +188,12 @@ export const tasksApi = {
     assignees?: string[];
     attachments?: Array<{ name: string; content: string }>;
     actorLogin?: string;
+    /**
+     * When false, the server skips the @kody auto-comment so the issue is
+     * created without kicking off the Kody pipeline. Defaults to true
+     * server-side.
+     */
+    autoTrigger?: boolean;
   }): Promise<KodyTask> => {
     const res = await fetch(`${API_BASE}/tasks`, {
       method: "POST",

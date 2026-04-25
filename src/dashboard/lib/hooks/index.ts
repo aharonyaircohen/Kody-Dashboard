@@ -227,6 +227,7 @@ export function useCreateTask() {
       assignees?: string[]
       attachments?: Array<{ name: string; content: string }>
       actorLogin?: string
+      autoTrigger?: boolean
     }) => kodyApi.tasks.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kody-tasks'] })

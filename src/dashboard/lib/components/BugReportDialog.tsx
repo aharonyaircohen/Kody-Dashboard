@@ -114,6 +114,7 @@ export function BugReportDialog({
       assignees?: string[];
       attachments?: Array<{ name: string; content: string }>;
       actorLogin?: string;
+      autoTrigger?: boolean;
     }) => kodyApi.tasks.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kody-tasks"] });
@@ -229,6 +230,8 @@ export function BugReportDialog({
           content: a.content,
         })),
         actorLogin: githubUser?.login,
+        // Don't auto-trigger the Kody pipeline; user runs explicitly.
+        autoTrigger: false,
       },
       {
         onSuccess: () => {

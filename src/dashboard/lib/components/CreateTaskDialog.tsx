@@ -332,6 +332,9 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
             ? attachments.map((a) => ({ name: a.name, content: a.content }))
             : undefined,
         actorLogin: githubUser?.login,
+        // Don't kick off the Kody pipeline on creation — the user
+        // explicitly runs a task via the Run button when they're ready.
+        autoTrigger: false,
       },
       {
         onSuccess: () => {
