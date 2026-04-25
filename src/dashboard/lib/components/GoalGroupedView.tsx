@@ -9,7 +9,7 @@
  */
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import {
   Bug,
   Calendar,
@@ -17,17 +17,38 @@ import {
   ChevronDown,
   ChevronRight,
   Flag,
+  GripVertical,
   Inbox,
   Pencil,
   Plus,
   Trash2,
 } from 'lucide-react'
+import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { Button } from '@dashboard/ui/button'
 import { cn } from '../utils'
 import type { KodyTask } from '../types'
 import type { Goal } from '../api'
 import { GOAL_LABEL_PREFIX } from '../goals'
 import { goalPalette } from '../goal-palette'
+import { useReorderGoals } from '../hooks/useGoals'
+import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { TaskList } from './TaskList'
 
 interface GoalGroupedViewProps {
@@ -228,9 +249,37 @@ export function GoalGroupedView({
   const groups = useMemo(() => buildGroups(goals, tasks), [goals, tasks])
   const toggle = onToggleCollapsed
 
+  const { githubUser } = useGitHubIdentity()
+  const reorderMutation = useReorderGoals(githubUser?.login)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+  const handleGoalDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = goals.findIndex((g) => g.id === active.id)
+    const newIndex = goals.findIndex((g) => g.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const next = arrayMove(goals, oldIndex, newIndex)
+    reorderMutation.mutate(next.map((g) => g.id))
+  }
+
   const hasAnyTask = tasks.length > 0
   const visibleGroups = groups.filter(
     (g) => g.tasks.length > 0 || g.goal !== null,
+  )
+  const sortableGoalIds = useMemo(
+    () =>
+      visibleGroups
+        .filter((g): g is Group & { goal: Goal } => g.goal !== null)
+        .map((g) => g.goal.id),
+    [visibleGroups],
   )
 
   if (!hasAnyTask && goals.length === 0) {
@@ -267,27 +316,23 @@ export function GoalGroupedView({
     )
   }
 
-  return (
-    <div>
-      <div className="space-y-4 md:space-y-5 px-2 md:px-4 pt-3">
-        {visibleGroups.map((group) => {
-          const isCollapsed = collapsed.has(group.key)
-          const isUngrouped = group.goal === null
-          const total = group.tasks.length
-          const pct = total > 0 ? (group.done / total) * 100 : 0
-          const targetGoalId = group.goal?.id ?? null
-          const palette = group.goal ? goalPalette(group.goal.id) : null
-          const isDragSource =
-            dragTask !== null &&
-            (isUngrouped
-              ? dragTask.labels.every((l) => !l.startsWith(GOAL_LABEL_PREFIX))
-              : dragTask.labels.includes(`${GOAL_LABEL_PREFIX}${targetGoalId}`))
-          const canDropHere = dragTask !== null && !isDragSource
-          const isHotDropZone = canDropHere && dropTargetKey === group.key
-          return (
-            <section
-              key={group.key}
-              aria-label={group.goal?.name ?? 'Ungrouped'}
+  const renderSection = (group: Group, handleProps?: HandleProps) => {
+    const isCollapsed = collapsed.has(group.key)
+    const isUngrouped = group.goal === null
+    const total = group.tasks.length
+    const pct = total > 0 ? (group.done / total) * 100 : 0
+    const targetGoalId = group.goal?.id ?? null
+    const palette = group.goal ? goalPalette(group.goal.id) : null
+    const isDragSource =
+      dragTask !== null &&
+      (isUngrouped
+        ? dragTask.labels.every((l) => !l.startsWith(GOAL_LABEL_PREFIX))
+        : dragTask.labels.includes(`${GOAL_LABEL_PREFIX}${targetGoalId}`))
+    const canDropHere = dragTask !== null && !isDragSource
+    const isHotDropZone = canDropHere && dropTargetKey === group.key
+    return (
+      <section
+        aria-label={group.goal?.name ?? 'Ungrouped'}
               onDragOver={(e) => {
                 if (!canDropHere || !onMoveTask) return
                 e.preventDefault()
@@ -329,6 +374,16 @@ export function GoalGroupedView({
                   palette ? palette.headerBg : 'bg-black/30',
                 )}
               >
+                {handleProps ? (
+                  <button
+                    type="button"
+                    aria-label={`Reorder ${group.goal?.name ?? 'group'}`}
+                    className="touch-none cursor-grab active:cursor-grabbing -ml-2 px-1 py-1 text-muted-foreground/50 hover:text-foreground"
+                    {...handleProps}
+                  >
+                    <GripVertical className="w-4 h-4" />
+                  </button>
+                ) : null}
 
                 <button
                   type="button"
@@ -522,9 +577,33 @@ export function GoalGroupedView({
                 </div>
               ) : null}
             </section>
-          )
-        })}
-      </div>
+    )
+  }
+
+  return (
+    <div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleGoalDragEnd}
+      >
+        <SortableContext
+          items={sortableGoalIds}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="space-y-4 md:space-y-5 px-2 md:px-4 pt-3">
+            {visibleGroups.map((group) =>
+              group.goal ? (
+                <SortableGoalWrapper key={group.key} id={group.goal.id}>
+                  {(handleProps) => renderSection(group, handleProps)}
+                </SortableGoalWrapper>
+              ) : (
+                <div key={group.key}>{renderSection(group)}</div>
+              ),
+            )}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       {/* Big dashed "+ New goal" footer */}
       {onCreateGoal ? (
@@ -541,6 +620,37 @@ export function GoalGroupedView({
           </button>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+type HandleProps = Record<string, unknown>
+
+function SortableGoalWrapper({
+  id,
+  children,
+}: {
+  id: string
+  children: (handleProps: HandleProps) => ReactNode
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    zIndex: isDragging ? 10 : undefined,
+    position: 'relative',
+  }
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ ...attributes, ...listeners })}
     </div>
   )
 }
