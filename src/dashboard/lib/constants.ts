@@ -68,7 +68,7 @@ export const COLUMN_DEFS: Record<ColumnId, ColumnDef> = {
 export const POLLING_INTERVALS = {
   idle: 60_000, // 60s - no running tasks
   board: 30_000, // 30s - has running tasks
-  active: 15_000, // 15s - selected task is running
+  active: 30_000, // 30s - selected task is running (was 15s; Kody stages take minutes)
   backlog: 120_000, // 120s - backlog view, tasks change rarely
 } as const;
 

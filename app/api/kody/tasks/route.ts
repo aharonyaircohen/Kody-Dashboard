@@ -144,7 +144,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const board = searchParams.get('board') || 'all'
     const since = searchParams.get('since') || undefined // ISO date string, e.g., "2026-02-01"
-    // includeDetails param is no longer needed — pipeline data is auto-fetched for active tasks
+    // view=running — only return tasks the user can act on (drops `done`/`failed`).
+    // Cuts payload size and lets the dashboard's Active tab skip terminal items.
+    const view = searchParams.get('view') ?? 'all'
 
     // Date filter presets
     let sinceDate: string | undefined = since
@@ -216,17 +218,22 @@ export async function GET(req: NextRequest) {
     }
 
     // First pass: identify all issue numbers that need branch lookup
-    // (those with active workflows or pipeline labels)
+    // (those with active workflows or pipeline labels). Terminal states
+    // (`kody:done`, `kody:failed`) are excluded — their pipeline JSON won't
+    // change and re-fetching it on every poll burns rate-limit budget.
     const activeIssueNumbers: number[] = []
     for (const issue of issues) {
       const taskIdMatch = issue.title.match(/\[[^\]]+\]/)
       const taskId = taskIdMatch ? taskIdMatch[0].replace(/[\[\]]/g, '') : ''
       const workflowRun = matchWorkflowRunToTask(workflowRuns, issue.title, issue.number, taskId)
       const labelNames = issue.labels.map((l) => l.name.toLowerCase())
+      const isTerminal =
+        labelNames.includes('kody:done') || labelNames.includes('kody:failed')
       const isLikelyActive =
-        workflowRun?.status === 'in_progress' ||
-        workflowRun?.status === 'queued' ||
-        labelNames.some((n) => n.startsWith('kody:'))
+        !isTerminal &&
+        (workflowRun?.status === 'in_progress' ||
+          workflowRun?.status === 'queued' ||
+          labelNames.some((n) => n.startsWith('kody:')))
 
       if (isLikelyActive && issue.number) {
         activeIssueNumbers.push(issue.number)
@@ -251,16 +258,20 @@ export async function GET(req: NextRequest) {
 
         // Fetch pipeline status for tasks with active workflows or pipeline labels.
         // Uses pre-fetched branch map (batch call above) instead of per-task API calls.
+        // Terminal states (`kody:done`, `kody:failed`) are skipped — pipeline JSON
+        // is settled and re-reading it on every poll wastes the rate-limit budget.
         let pipelineStatus = undefined
         const labelNames = issue.labels.map((l) => l.name.toLowerCase())
+        const isTerminal =
+          labelNames.includes('kody:done') || labelNames.includes('kody:failed')
         const isLikelyActive =
-          workflowRun?.status === 'in_progress' ||
-          workflowRun?.status === 'queued' ||
-          labelNames.includes('kody:building') ||
-          labelNames.includes('kody:planning') ||
-          labelNames.includes('kody:failed') ||
-          labelNames.includes('hard-stop') ||
-          labelNames.includes('risk-gated')
+          !isTerminal &&
+          (workflowRun?.status === 'in_progress' ||
+            workflowRun?.status === 'queued' ||
+            labelNames.includes('kody:building') ||
+            labelNames.includes('kody:planning') ||
+            labelNames.includes('hard-stop') ||
+            labelNames.includes('risk-gated'))
 
         if (isLikelyActive && issue.number) {
           const branch = branchByIssueNumber.get(issue.number)
@@ -344,6 +355,17 @@ export async function GET(req: NextRequest) {
         // Would need to filter by milestone - for now just return all
         filteredTasks = tasks
       }
+    }
+
+    // view=running drops terminal tasks from the response so the Active tab
+    // doesn't ship them over the wire on every poll. Backlog (`open` column)
+    // is also dropped — the Active tab is for in-flight work only.
+    if (view === 'running') {
+      filteredTasks = filteredTasks.filter(
+        (t) => t.column !== 'done' && t.column !== 'failed' && t.column !== 'open',
+      )
+    } else if (view === 'backlog') {
+      filteredTasks = filteredTasks.filter((t) => t.column === 'open')
     }
 
     return NextResponse.json({ tasks: filteredTasks })
