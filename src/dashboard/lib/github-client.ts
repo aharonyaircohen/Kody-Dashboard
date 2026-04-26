@@ -835,17 +835,37 @@ export async function fetchIssues(options?: {
  */
 export async function fetchComments(issueNumber: number): Promise<GitHubComment[]> {
   const cacheKey = `comments:${issueNumber}`
+  const ttl = CACHE_TTL.tasks * 2
   const cached = getCached<GitHubComment[]>(cacheKey)
   if (cached) return cached
 
+  // Stale-with-ETag path: post-TTL revalidation replays the cached ETag via
+  // `If-None-Match`. GitHub returns 304 (free, no rate cost) when comments
+  // haven't changed, and we refresh TTL on the existing payload. This was a
+  // hot rate-limit drain when the fallback task lookup batched dozens of
+  // comment fetches per request.
+  const stale = getStale<GitHubComment[]>(cacheKey)
   const octokit = getOctokit()
 
-  const { data } = await octokit.issues.listComments({
-    owner: getOwner(),
-    repo: getRepo(),
-    issue_number: issueNumber,
-    per_page: 100,
-  })
+  let response
+  try {
+    response = await octokit.issues.listComments({
+      owner: getOwner(),
+      repo: getRepo(),
+      issue_number: issueNumber,
+      per_page: 100,
+      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
+    })
+  } catch (err: any) {
+    if (err.status === 304 && stale) {
+      setCache(cacheKey, ttl, stale.data, { etag: stale.etag })
+      return stale.data
+    }
+    throw err
+  }
+
+  const data = response.data
+  const newEtag = (response.headers as Record<string, string | undefined>)?.etag
 
   const comments: GitHubComment[] = data.map((comment: any) => ({
     id: comment.id,
@@ -859,7 +879,7 @@ export async function fetchComments(issueNumber: number): Promise<GitHubComment[
   }))
 
   // Comments are less likely to change, cache longer
-  setCache(cacheKey, CACHE_TTL.tasks * 2, comments)
+  setCache(cacheKey, ttl, comments, { etag: newEtag })
   return comments
 }
 

@@ -19,7 +19,6 @@ import {
 } from '@dashboard/lib/auth'
 import {
   fetchIssues,
-  fetchIssue,
   ensureLabel,
   setGitHubContext,
   clearGitHubContext,
@@ -44,6 +43,9 @@ async function findManifestIssue(): Promise<ManifestIssueRef | null> {
   // Short TTL keeps cross-instance staleness bounded. Post-TTL revalidation
   // returns 304 (free) via the cached ETag when nothing changed; on writes,
   // the route invalidates this instance's cache directly.
+  // NOTE: `fetchIssues` already returns the full body for list items, so we
+  // intentionally do NOT make a follow-up `fetchIssue` call here — that
+  // doubled GitHub REST cost on every poll and was a rate-limit hot spot.
   const issues = await fetchIssues({
     state: 'open',
     labels: GOALS_MANIFEST_LABEL,
@@ -54,8 +56,7 @@ async function findManifestIssue(): Promise<ManifestIssueRef | null> {
   // If multiple exist, prefer the earliest created (stable anchor).
   const sorted = [...issues].sort((a, b) => a.number - b.number)
   const first = sorted[0]
-  const full = await fetchIssue(first.number, { ttl: 15_000 })
-  return { number: first.number, body: full?.body ?? '' }
+  return { number: first.number, body: first.body ?? '' }
 }
 
 async function readManifest(): Promise<{
