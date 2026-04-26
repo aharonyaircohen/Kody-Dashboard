@@ -219,6 +219,7 @@ export interface GitHubPR {
   trackingIssueNumbers?: number[]
   ciStatus?: 'pending' | 'success' | 'failure' | 'running'
   mergeable?: boolean
+  hasConflicts?: boolean
 }
 export interface KodyTask {
   id: string // taskId

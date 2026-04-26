@@ -363,6 +363,11 @@ export async function GET(req: NextRequest) {
                 head: pr.head,
                 merged_at: pr.merged_at,
                 html_url: pr.html_url,
+                // CI rollup is now folded into fetchOpenPRs — pass through so
+                // CIStatusBadge / merge button can read it without a per-PR fetch.
+                ciStatus: pr.ciStatus,
+                mergeable: pr.mergeable,
+                hasConflicts: pr.hasConflicts,
               }
             : null,
           assignees: issue.assignees,

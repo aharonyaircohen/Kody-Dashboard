@@ -597,16 +597,7 @@ export const prsApi = {
     const data = await handleResponse<{ files: FileChange[] }>(res);
     return data.files;
   },
-  ciStatus: async (
-    prNumber: number,
-  ): Promise<{
-    ciStatus: "pending" | "success" | "failure" | "running";
-    mergeable: boolean;
-    hasConflicts: boolean;
-  }> => {
-    const res = await fetch(`${API_BASE}/prs/status?prNumber=${prNumber}`, { headers: buildHeaders() });
-    return handleResponse(res);
-  },
+  // PR CI status is sourced from the bulk tasks list — see usePRCIStatus.
   comments: async (prNumber: number): Promise<PRComment[]> => {
     const res = await fetch(`${API_BASE}/prs/comments?prNumber=${prNumber}`, { headers: buildHeaders() });
     const data = await handleResponse<{ comments: PRComment[] }>(res);

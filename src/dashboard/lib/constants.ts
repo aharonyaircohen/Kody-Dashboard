@@ -148,8 +148,12 @@ export const STAGE_ICONS = {
 export const BRANCH_CACHE_TTL = 600000; // 10min - branches rarely change
 
 export const CACHE_TTL = {
-  tasks: 120000, // 2min - reduced API calls while staying fresh
-  pipeline: 60000, // 1min - fresh enough for status checks
+  // ETag/304 revalidation kicks in after the TTL — these windows just gate the
+  // optimistic "definitely fresh" path. Issue/workflow data lags a few minutes
+  // is fine because state changes that matter (task moves, PR opens, comments)
+  // already invalidate explicitly via invalidateIssueCache / invalidatePRCache.
+  tasks: 300000, // 5min - issues/comments listings; ETag handles freshness
+  pipeline: 180000, // 3min - workflow runs + pipeline JSON; multi-minute stages
   boards: 900000, // 15min - labels/milestones rarely change
   prs: 300000, // 5min - PRs don't change that often
 } as const;
