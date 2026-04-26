@@ -210,6 +210,13 @@ export interface GitHubPR {
   labels?: string[]
   /** Issue numbers linked via "Closes/Fixes/Resolves #N" in the PR body. */
   closingIssueNumbers?: number[]
+  /**
+   * Issue numbers referenced via non-closing markers in the PR body
+   * (currently `Tracking-Issue: #N` — used by the Kody release flow so
+   * the issue stays open through publish + deploy after PR merge while
+   * still linking to its release PR for dashboard preview).
+   */
+  trackingIssueNumbers?: number[]
   ciStatus?: 'pending' | 'success' | 'failure' | 'running'
   mergeable?: boolean
 }

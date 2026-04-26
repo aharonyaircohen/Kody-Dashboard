@@ -986,11 +986,29 @@ interface OpenPRsGraphQL {
         mergedAt: string | null
         headRefName: string
         headRefOid: string
+        body: string | null
         labels: { nodes: Array<{ name: string }> }
         closingIssuesReferences: { nodes: Array<{ number: number }> }
       }>
     }
   }
+}
+
+// Non-closing issue references in PR bodies. Currently:
+//   Tracking-Issue: #1352
+// The release-prepare script writes this so the dashboard can preview the
+// release PR on the originating issue's task without auto-closing the issue
+// on merge (see kody2/src/executables/release-prepare/prepare.sh).
+const TRACKING_ISSUE_RE = /(?:^|\n)\s*Tracking-Issue\s*:\s*#(\d+)\b/gi
+
+function parseTrackingIssueRefs(body: string | null | undefined): number[] {
+  if (!body) return []
+  const out = new Set<number>()
+  for (const m of body.matchAll(TRACKING_ISSUE_RE)) {
+    const n = parseInt(m[1]!, 10)
+    if (Number.isFinite(n) && n > 0) out.add(n)
+  }
+  return [...out]
 }
 
 /**
@@ -1031,6 +1049,7 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
             mergedAt
             headRefName
             headRefOid
+            body
             labels(first: 20) { nodes { name } }
             closingIssuesReferences(first: 10) { nodes { number } }
           }
@@ -1056,6 +1075,7 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
         html_url: pr.url,
         labels: pr.labels.nodes.map((l) => l.name).filter(Boolean),
         closingIssueNumbers: pr.closingIssuesReferences.nodes.map((n) => n.number),
+        trackingIssueNumbers: parseTrackingIssueRefs(pr.body),
       }))
 
       setCache(cacheKey, CACHE_TTL.prs, prs)
@@ -1275,6 +1295,13 @@ export async function findAssociatedPRByIssueNumber(issueNumber: number): Promis
   for (const pr of openPRs) {
     // Strongest signal: GraphQL "Closes/Fixes/Resolves #N" links from the PR body.
     if (pr.closingIssueNumbers?.includes(issueNumber)) {
+      setCache(cacheKey, CACHE_TTL.prs, pr)
+      return pr
+    }
+    // Non-closing tracker (e.g. release-prepare's `Tracking-Issue: #N` —
+    // can't use a closing keyword because the orchestrator needs the
+    // issue to stay open through publish + deploy after PR merge).
+    if (pr.trackingIssueNumbers?.includes(issueNumber)) {
       setCache(cacheKey, CACHE_TTL.prs, pr)
       return pr
     }

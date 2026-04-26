@@ -183,7 +183,19 @@ export async function GET(req: NextRequest) {
       for (const linkedIssue of pr.closingIssueNumbers ?? []) {
         prsByIssueNumber.set(linkedIssue, pr)
       }
-      if ((pr.closingIssueNumbers?.length ?? 0) > 0) continue
+      // Non-closing references (e.g. release-prepare's `Tracking-Issue: #N`).
+      // Lower precedence than closingIssueNumbers — only fills gaps.
+      for (const trackedIssue of pr.trackingIssueNumbers ?? []) {
+        if (!prsByIssueNumber.has(trackedIssue)) {
+          prsByIssueNumber.set(trackedIssue, pr)
+        }
+      }
+      if (
+        (pr.closingIssueNumbers?.length ?? 0) > 0 ||
+        (pr.trackingIssueNumbers?.length ?? 0) > 0
+      ) {
+        continue
+      }
 
       // Fallbacks for PRs without a closing keyword.
       const autoMatch = pr.head.ref.match(/-auto-(\d+)-/)
