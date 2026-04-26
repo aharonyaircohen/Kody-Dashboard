@@ -249,6 +249,12 @@ Available when a repo is connected (the dashboard injects [Connected repository]
 - github_get_issue, github_get_pull_request, github_get_file,
   github_search_code, github_list_issues — scoped to the connected repo,
   use the user's GitHub token.
+- report_bug — open a structured bug report as a GitHub issue (same
+  template as the dashboard's bug-report form). Use when the user asks
+  to "open a bug", "file a ticket", "report this", etc. Requires a
+  title, the page URL, and steps to reproduce — ask for missing
+  required fields rather than inventing them. Does NOT trigger the
+  Kody pipeline.
 - kody_get_pipeline_status, kody_list_workflow_runs, kody_list_open_prs —
   read Kody's per-task status.json on the work branch and recent
   Actions runs.
@@ -276,7 +282,8 @@ Rules:
   PR numbers, commit SHAs, or command output.
 - Don't try to "execute" Kody pipeline commands yourself. If the user
   wants Kody to act on an issue/PR, tell them the exact @kody comment
-  to post — don't claim you posted it.
+  to post — don't claim you posted it. (Exception: \`report_bug\` is
+  allowed — it just opens the issue, it doesn't trigger the pipeline.)
 - Prefer reasoning, architecture Q&A, PRD refinement, and summarizing
   content the user pastes in.
 
