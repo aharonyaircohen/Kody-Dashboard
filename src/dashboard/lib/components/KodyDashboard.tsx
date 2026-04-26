@@ -240,9 +240,13 @@ export function KodyDashboard({
   } = useKodyTasks({
     days,
     viewMode: viewMode === "queue" ? "running" : viewMode,
-    // Pause list polling while a task is open — the modal owns the foreground;
-    // background list will refresh on close via invalidation.
-    refetchInterval: selectedIssueNumber ? false : "auto",
+    // Pause list polling while a task is open OR a full-screen modal is up
+    // (/new, /bug). The modal owns the foreground; background list will
+    // refresh on close via invalidation.
+    refetchInterval:
+      selectedIssueNumber || showCreateDialog || showBugDialog
+        ? false
+        : "auto",
   });
 
   // Initialize filters from URL params after hydration (prevents server/client mismatch)
