@@ -302,9 +302,15 @@ export function PreviewModal({
         <div className="h-4 w-px bg-zinc-800" />
 
         <GitPullRequest className="w-4 h-4 text-purple-400 shrink-0" />
-        <span className="text-sm font-medium text-white truncate">
+        <a
+          href={pr.html_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-medium text-white truncate hover:text-purple-400 hover:underline transition-colors"
+          title="Open PR on GitHub"
+        >
           PR #{pr.number}
-        </span>
+        </a>
         <CIStatusBadge prNumber={pr.number} />
         <ActionStatusBadge taskId={task.id} />
         <span className="text-sm text-zinc-500 truncate hidden sm:inline">
