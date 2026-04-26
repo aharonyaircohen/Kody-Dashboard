@@ -481,6 +481,7 @@ export const tasksApi = {
       headers: buildHeaders(),
       body: JSON.stringify({
         prNumber: task.associatedPR.number,
+        issueNumber: task.issueNumber,
         ...(actorLogin && { actorLogin }),
       }),
     });

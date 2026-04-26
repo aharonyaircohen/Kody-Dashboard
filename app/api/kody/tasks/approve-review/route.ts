@@ -9,7 +9,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireKodyAuth, verifyActorLogin, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
-import { getOctokit, setGitHubContext, clearGitHubContext, getOwner, getRepo } from '@dashboard/lib/github-client'
+import {
+  getOctokit,
+  setGitHubContext,
+  clearGitHubContext,
+  getOwner,
+  getRepo,
+  updateIssue,
+  invalidateIssueCache,
+  invalidateTaskCache,
+} from '@dashboard/lib/github-client'
 
 const DEV_BRANCH = 'dev'
 const PROD_BRANCH = 'main'
@@ -27,12 +36,13 @@ export async function POST(req: NextRequest) {
   const bodySchema = z.object({
     prNumber: z.number().int().positive(),
     actorLogin: z.string().optional(),
+    issueNumber: z.number().int().positive().optional(),
   })
 
   try {
     const body = await req.json()
     const validated = bodySchema.parse(body)
-    const { prNumber, actorLogin } = validated
+    const { prNumber, actorLogin, issueNumber } = validated
 
     // Verify actorLogin matches the authenticated session (prevents impersonation)
     const actorResult = await verifyActorLogin(req, actorLogin)
@@ -110,6 +120,21 @@ export async function POST(req: NextRequest) {
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : String(error)
         results.push(`Branch cleanup note: ${msg}`)
+      }
+    }
+
+    // 4. Close the linked task issue (best-effort — GitHub usually auto-closes
+    //    via "Closes #N" in the PR body, but we close explicitly so the UI
+    //    state is deterministic and the user returns to a clean dashboard).
+    if (issueNumber && !isPublishPR) {
+      try {
+        await updateIssue(issueNumber, { state: 'closed' }, userOctokit ?? undefined)
+        invalidateIssueCache(issueNumber)
+        invalidateTaskCache()
+        results.push(`Closed issue #${issueNumber}`)
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error)
+        results.push(`Issue close note: ${msg}`)
       }
     }
 

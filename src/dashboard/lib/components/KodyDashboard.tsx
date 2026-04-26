@@ -429,6 +429,13 @@ export function KodyDashboard({
     },
     onSuccess: () => {
       toast.success("PR merged");
+      // Return user to the dashboard: close preview modal, deselect task,
+      // and refresh the task list (server already closed the issue).
+      setShowPreview(false);
+      setSelectedIssueNumber(null);
+      setShowMobileDetail(false);
+      window.history.pushState(null, "", "/");
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks(days) });
     },
   });
 
