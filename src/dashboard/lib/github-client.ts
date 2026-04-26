@@ -467,34 +467,48 @@ export function normalizePipelineStatus(status: KodyPipelineStatus): KodyPipelin
 }
 
 /**
- * Read status.json from a branch
+ * Read status.json from a branch.
+ *
+ * Caching: 60s TTL with ETag/`If-None-Match` revalidation. Polled per active
+ * task on every /tasks tick — without 304 support, cache misses each cost a
+ * full REST point. With ETag, unchanged status files revalidate for free.
  */
 export async function getStatusFromBranch(
   taskId: string,
   branch: string,
 ): Promise<KodyPipelineStatus | null> {
-  const cacheKey = `status:branch:${taskId}:${branch}`
+  const cacheKey = `status:branch:${getOwner()}:${getRepo()}:${taskId}:${branch}`
   const cached = getCached<KodyPipelineStatus>(cacheKey)
   if (cached) return cached
 
+  const stale = getStale<KodyPipelineStatus>(cacheKey)
   const octokit = getOctokit()
 
   try {
-    const { data } = await octokit.repos.getContent({
+    const response = await octokit.repos.getContent({
       owner: getOwner(),
       repo: getRepo(),
       path: `.tasks/${taskId}/status.json`,
       ref: branch,
+      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
     })
+
+    const data = response.data
+    const newEtag = (response.headers as Record<string, string | undefined>)?.etag
 
     if ('content' in data && data.content) {
       const content = Buffer.from(data.content, 'base64').toString('utf-8')
       const raw = JSON.parse(content) as KodyPipelineStatus
       const status = normalizePipelineStatus(raw)
-      setCache(cacheKey, CACHE_TTL.pipeline, status)
+      setCache(cacheKey, CACHE_TTL.pipeline, status, { etag: newEtag })
       return status
     }
   } catch (error: any) {
+    // 304 Not Modified — file unchanged. Refresh TTL on stale data, no rate cost.
+    if (error.status === 304 && stale) {
+      setCache(cacheKey, CACHE_TTL.pipeline, stale.data, { etag: stale.etag })
+      return stale.data
+    }
     if (error.status !== 404) {
       console.error('[Kody] Error fetching status from branch:', error)
     }
@@ -513,43 +527,62 @@ export async function findStatusOnBranch(
   branch: string,
   issueNumber?: number,
 ): Promise<KodyPipelineStatus | null> {
-  const cacheKey = `status:discover:${branch}:${issueNumber ?? 'any'}`
+  // Cache the .tasks/ directory listing separately from the resolved status,
+  // so the listing call can revalidate via ETag while different issueNumber
+  // queries still get distinct resolved-status caching.
+  const listingKey = `status:tasks-listing:${getOwner()}:${getRepo()}:${branch}`
+  const cacheKey = `status:discover:${getOwner()}:${getRepo()}:${branch}:${issueNumber ?? 'any'}`
   const cached = getCached<KodyPipelineStatus>(cacheKey)
   if (cached) return cached
 
   const octokit = getOctokit()
 
-  try {
-    // List .tasks/ directory on the branch
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: '.tasks',
-      ref: branch,
-    })
+  // Fetch (or revalidate) the .tasks/ listing with ETag/304.
+  let taskDirs: string[] | null = getCached<string[]>(listingKey)
+  if (!taskDirs) {
+    const stale = getStale<string[]>(listingKey)
+    try {
+      const response = await octokit.repos.getContent({
+        owner: getOwner(),
+        repo: getRepo(),
+        path: '.tasks',
+        ref: branch,
+        headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
+      })
 
-    if (!Array.isArray(data)) return null
+      const data = response.data
+      const newEtag = (response.headers as Record<string, string | undefined>)?.etag
 
-    // Find directories matching YYMMDD-* pattern (pipeline task IDs)
-    const taskDirs = data
-      .filter((item: any) => item.type === 'dir' && TASK_ID_REGEX.test(item.name))
-      .map((item: any) => item.name)
-      .sort()
-      .reverse() // Newest first (YYMMDD sorts chronologically)
-
-    // Try the newest task directory first (check up to 3).
-    // When issueNumber is provided, skip status files belonging to different issues
-    // (branches can accumulate status.json files from multiple pipeline runs).
-    for (const taskDir of taskDirs.slice(0, 3)) {
-      const status = await getStatusFromBranch(taskDir, branch)
-      if (status) {
-        if (issueNumber && status.issueNumber && status.issueNumber !== issueNumber) continue
-        return status
+      if (Array.isArray(data)) {
+        taskDirs = data
+          .filter((item: any) => item.type === 'dir' && TASK_ID_REGEX.test(item.name))
+          .map((item: any) => item.name as string)
+          .sort()
+          .reverse() // Newest first (YYMMDD sorts chronologically)
+        setCache(listingKey, CACHE_TTL.pipeline, taskDirs, { etag: newEtag })
+      }
+    } catch (error: any) {
+      // 304 Not Modified — directory unchanged. Reuse the stale listing.
+      if (error.status === 304 && stale) {
+        setCache(listingKey, CACHE_TTL.pipeline, stale.data, { etag: stale.etag })
+        taskDirs = stale.data
+      } else if (error.status !== 404) {
+        console.error('[Kody] Error listing .tasks/ on branch:', error)
       }
     }
-  } catch (error: any) {
-    if (error.status !== 404) {
-      console.error('[Kody] Error listing .tasks/ on branch:', error)
+  }
+
+  if (!taskDirs || taskDirs.length === 0) return null
+
+  // Try the newest task directory first (check up to 3).
+  // When issueNumber is provided, skip status files belonging to different issues
+  // (branches can accumulate status.json files from multiple pipeline runs).
+  for (const taskDir of taskDirs.slice(0, 3)) {
+    const status = await getStatusFromBranch(taskDir, branch)
+    if (status) {
+      if (issueNumber && status.issueNumber && status.issueNumber !== issueNumber) continue
+      setCache(cacheKey, CACHE_TTL.pipeline, status)
+      return status
     }
   }
 
@@ -1046,10 +1079,86 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
 
 // ============ Vercel Preview URLs ============
 
+type DeploymentSummary = { id: number; sha: string }
+
+/**
+ * Fetch (or revalidate via ETag) the most recent 100 Preview deployments.
+ * Cached by owner/repo only — independent of which SHAs the caller wants —
+ * so the SHA-set in fetchDeploymentPreviews's lookup key doesn't blow away
+ * the deployments list every time a PR pushes a new commit.
+ */
+async function getRecentPreviewDeployments(): Promise<DeploymentSummary[]> {
+  const cacheKey = `deployments:${getOwner()}:${getRepo()}:preview`
+  const cached = getCached<DeploymentSummary[]>(cacheKey)
+  if (cached) return cached
+
+  const stale = getStale<DeploymentSummary[]>(cacheKey)
+  const octokit = getOctokit()
+
+  try {
+    const response = await octokit.repos.listDeployments({
+      owner: getOwner(),
+      repo: getRepo(),
+      environment: 'Preview',
+      per_page: 100,
+      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
+    })
+
+    const newEtag = (response.headers as Record<string, string | undefined>)?.etag
+    const summaries: DeploymentSummary[] = response.data.map((d) => ({ id: d.id, sha: d.sha }))
+    setCache(cacheKey, CACHE_TTL.prs, summaries, { etag: newEtag })
+    return summaries
+  } catch (error: any) {
+    // 304 Not Modified — deployments list unchanged. Reuse stale, no rate cost.
+    if (error.status === 304 && stale) {
+      setCache(cacheKey, CACHE_TTL.prs, stale.data, { etag: stale.etag })
+      return stale.data
+    }
+    console.error('[Kody] Error fetching deployment list:', error)
+    return stale?.data ?? []
+  }
+}
+
+/**
+ * Fetch the latest deployment status URL for a deployment, with ETag/304
+ * revalidation. Per-deployment URLs rarely change after the first ready
+ * status, so most polls become free 304s.
+ */
+async function getDeploymentStatusUrl(deploymentId: number): Promise<string | null> {
+  const cacheKey = `deployment-status:${getOwner()}:${getRepo()}:${deploymentId}`
+  const cached = getCached<string | null>(cacheKey)
+  if (cached !== null) return cached
+
+  const stale = getStale<string | null>(cacheKey)
+  const octokit = getOctokit()
+
+  try {
+    const response = await octokit.repos.listDeploymentStatuses({
+      owner: getOwner(),
+      repo: getRepo(),
+      deployment_id: deploymentId,
+      per_page: 1,
+      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
+    })
+
+    const newEtag = (response.headers as Record<string, string | undefined>)?.etag
+    const url = response.data[0]?.environment_url ?? null
+    setCache(cacheKey, CACHE_TTL.prs, url, { etag: newEtag })
+    return url
+  } catch (error: any) {
+    if (error.status === 304 && stale) {
+      setCache(cacheKey, CACHE_TTL.prs, stale.data, { etag: stale.etag })
+      return stale.data
+    }
+    return null
+  }
+}
+
 /**
  * Fetch Vercel preview URLs for a set of PR head SHAs.
  * Strategy: 1 bulk call for the 100 most recent Preview deployments (GitHub's
- * max page size), then 1 status call per matched deployment.
+ * max page size, ETag-revalidated), then 1 status call per matched deployment
+ * (also ETag-revalidated and per-deployment cached).
  *
  * Older SHAs that fall outside the 100-deployment window simply don't get a
  * preview URL — accepted tradeoff to avoid the previous per-SHA fanout, which
@@ -1062,40 +1171,17 @@ export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<str
   const cached = getCached<Map<string, string>>(cacheKey)
   if (cached) return cached
 
-  const octokit = getOctokit()
   const result = new Map<string, string>()
+  const deployments = await getRecentPreviewDeployments()
+  const shaSet = new Set(prShas)
+  const matched = deployments.filter((d) => shaSet.has(d.sha))
 
-  try {
-    const { data: deployments } = await octokit.repos.listDeployments({
-      owner: getOwner(),
-      repo: getRepo(),
-      environment: 'Preview',
-      per_page: 100,
-    })
-
-    const shaSet = new Set(prShas)
-    const matched = deployments.filter((d) => shaSet.has(d.sha))
-
-    await Promise.all(
-      matched.map(async (deployment) => {
-        try {
-          const { data: statuses } = await octokit.repos.listDeploymentStatuses({
-            owner: getOwner(),
-            repo: getRepo(),
-            deployment_id: deployment.id,
-            per_page: 1,
-          })
-          if (statuses.length > 0 && statuses[0].environment_url) {
-            result.set(deployment.sha, statuses[0].environment_url)
-          }
-        } catch {
-          // Skip individual failures
-        }
-      }),
-    )
-  } catch (error) {
-    console.error('[Kody] Error fetching deployment previews:', error)
-  }
+  await Promise.all(
+    matched.map(async (deployment) => {
+      const url = await getDeploymentStatusUrl(deployment.id)
+      if (url) result.set(deployment.sha, url)
+    }),
+  )
 
   setCache(cacheKey, CACHE_TTL.prs, result)
   return result
