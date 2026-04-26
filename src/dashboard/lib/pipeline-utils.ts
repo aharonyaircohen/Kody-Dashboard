@@ -75,7 +75,7 @@ export function calculatePipelineProgress(pipeline: KodyPipelineStatus): Pipelin
     : -1
 
   const completedStages = Object.values(pipeline.stages || {}).filter(
-    (s) => s.state === 'completed',
+    (s) => s.state === 'completed' || s.state === 'skipped',
   ).length
 
   // Stage percent from elapsed time
@@ -102,6 +102,51 @@ export function calculatePipelineProgress(pipeline: KodyPipelineStatus): Pipelin
     completedStages,
     state: pipeline.state,
   }
+}
+
+/**
+ * Weighted overall progress (0-99) for an active task.
+ *
+ * Each stage contributes weight proportional to its typical duration
+ * (`stageMaxDurations`), so a long `build` stage advances more bar pixels than
+ * a short `commit`. The currently running stage is fractionally filled by
+ * `elapsed / weight` (capped at 0.95) so the bar moves smoothly within a stage
+ * instead of jumping in 12 equal steps. Skipped stages count as completed.
+ */
+export function getWeightedActiveProgress(task: KodyTask): number {
+  const pipeline = task.pipeline
+  if (!pipeline) return 0
+
+  const stages = pipeline.stages || {}
+  const totalWeight = ALL_STAGES.reduce(
+    (sum, s) => sum + (stageMaxDurations[s] || DEFAULT_MAX_MS),
+    0,
+  )
+  if (totalWeight === 0) return 0
+
+  let cumulative = 0
+  for (const stage of ALL_STAGES) {
+    const weight = stageMaxDurations[stage] || DEFAULT_MAX_MS
+    const data = stages[stage]
+    if (!data) continue
+
+    if (data.state === 'completed' || data.state === 'skipped') {
+      cumulative += weight
+      continue
+    }
+
+    if (data.state === 'running') {
+      const elapsedMs = (data.elapsed || 0) * 1000
+      const frac = Math.min(0.95, elapsedMs / weight)
+      cumulative += weight * frac
+      break
+    }
+
+    // pending / failed / timeout / gate-waiting / paused — stop accumulating
+    break
+  }
+
+  return Math.min(99, (cumulative / totalWeight) * 100)
 }
 
 /**

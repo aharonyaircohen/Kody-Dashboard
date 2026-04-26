@@ -10,7 +10,12 @@ import { useState, useEffect } from 'react'
 import { cn } from '../../utils'
 import type { KodyTask, ColumnId } from '../../types'
 import { ALL_STAGES } from '../../constants'
-import { derivePipelineDisplayState, formatElapsed, stageLabels } from '../../pipeline-utils'
+import {
+  derivePipelineDisplayState,
+  formatElapsed,
+  getWeightedActiveProgress,
+  stageLabels,
+} from '../../pipeline-utils'
 
 // ═══════════════════════════════════════════
 // STATUS BAR CONFIG — color + animation per state
@@ -158,7 +163,7 @@ export function AnimatedStatusBar({ task, className }: AnimatedStatusBarProps) {
 
   // ── Active states: building, retrying, gate-waiting ──
   const displayState = derivePipelineDisplayState(task)
-  const percent = getActivePercent(displayState, totalStages)
+  const percent = getActivePercent(displayState, task, totalStages)
 
   return (
     <div className={cn('relative', className)}>
@@ -271,16 +276,24 @@ function BarLabel({ task, style: _style }: { task: KodyTask; style: StatusBarSty
 
 function getActivePercent(
   displayState: ReturnType<typeof derivePipelineDisplayState>,
+  task: KodyTask,
   totalStages: number,
 ): number {
   switch (displayState.kind) {
-    case 'stage-progress':
-      // Each stage is a segment. Current stage gets partial fill.
+    case 'stage-progress': {
+      // Prefer duration-weighted progress with within-stage elapsed fill.
+      // Fall back to equal-segment estimate when stages map is empty.
+      const weighted = getWeightedActiveProgress(task)
+      if (weighted > 0) return Math.round(weighted)
       return Math.round(((displayState.stageIndex + 0.5) / totalStages) * 100)
-    case 'gate-paused':
+    }
+    case 'gate-paused': {
+      const weighted = getWeightedActiveProgress(task)
+      if (weighted > 0) return Math.round(weighted)
       return displayState.stageIndex >= 0
         ? Math.round(((displayState.stageIndex + 0.5) / totalStages) * 100)
         : 15
+    }
     case 'starting':
       return 5
     case 'no-data':
