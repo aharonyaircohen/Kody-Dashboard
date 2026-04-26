@@ -1081,14 +1081,22 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
 
 type DeploymentSummary = { id: number; sha: string }
 
+// Short TTL for the deployments list and per-deployment status: a new PR
+// commit creates a new deployment within seconds, and we want the dashboard
+// to surface its preview URL on the next /tasks poll. With ETag/304 the
+// short TTL is essentially free — unchanged data revalidates without
+// counting against the rate limit.
+const PREVIEW_REVALIDATE_TTL = 30_000
+
 /**
  * Fetch (or revalidate via ETag) the most recent 100 Preview deployments.
  * Cached by owner/repo only — independent of which SHAs the caller wants —
- * so the SHA-set in fetchDeploymentPreviews's lookup key doesn't blow away
- * the deployments list every time a PR pushes a new commit.
+ * so a new PR push doesn't invalidate the entire derived view, just forces
+ * a cheap 200 (when truly new) or 304 (free) on the underlying list.
  */
 async function getRecentPreviewDeployments(): Promise<DeploymentSummary[]> {
-  const cacheKey = `deployments:${getOwner()}:${getRepo()}:preview`
+  // Prefix with `previews:` so invalidatePRCache() catches this key.
+  const cacheKey = `previews:list:${getOwner()}:${getRepo()}`
   const cached = getCached<DeploymentSummary[]>(cacheKey)
   if (cached) return cached
 
@@ -1106,12 +1114,12 @@ async function getRecentPreviewDeployments(): Promise<DeploymentSummary[]> {
 
     const newEtag = (response.headers as Record<string, string | undefined>)?.etag
     const summaries: DeploymentSummary[] = response.data.map((d) => ({ id: d.id, sha: d.sha }))
-    setCache(cacheKey, CACHE_TTL.prs, summaries, { etag: newEtag })
+    setCache(cacheKey, PREVIEW_REVALIDATE_TTL, summaries, { etag: newEtag })
     return summaries
   } catch (error: any) {
     // 304 Not Modified — deployments list unchanged. Reuse stale, no rate cost.
     if (error.status === 304 && stale) {
-      setCache(cacheKey, CACHE_TTL.prs, stale.data, { etag: stale.etag })
+      setCache(cacheKey, PREVIEW_REVALIDATE_TTL, stale.data, { etag: stale.etag })
       return stale.data
     }
     console.error('[Kody] Error fetching deployment list:', error)
@@ -1121,15 +1129,22 @@ async function getRecentPreviewDeployments(): Promise<DeploymentSummary[]> {
 
 /**
  * Fetch the latest deployment status URL for a deployment, with ETag/304
- * revalidation. Per-deployment URLs rarely change after the first ready
- * status, so most polls become free 304s.
+ * revalidation. Per-deployment URLs change as a deployment progresses
+ * (in_progress → success), so we keep a short TTL but pay no quota when
+ * unchanged.
+ *
+ * Returns the URL or `null` (no environment_url, e.g., still building or
+ * errored). Cached `null` is also valid — the next call after TTL still
+ * revalidates via ETag. We use a presence sentinel inside `data` so a
+ * cache hit on a null URL is distinguishable from a cache miss.
  */
 async function getDeploymentStatusUrl(deploymentId: number): Promise<string | null> {
-  const cacheKey = `deployment-status:${getOwner()}:${getRepo()}:${deploymentId}`
-  const cached = getCached<string | null>(cacheKey)
-  if (cached !== null) return cached
+  // Prefix with `previews:` so invalidatePRCache() catches this key.
+  const cacheKey = `previews:status:${getOwner()}:${getRepo()}:${deploymentId}`
+  const cached = getCached<{ url: string | null }>(cacheKey)
+  if (cached) return cached.url
 
-  const stale = getStale<string | null>(cacheKey)
+  const stale = getStale<{ url: string | null }>(cacheKey)
   const octokit = getOctokit()
 
   try {
@@ -1143,12 +1158,12 @@ async function getDeploymentStatusUrl(deploymentId: number): Promise<string | nu
 
     const newEtag = (response.headers as Record<string, string | undefined>)?.etag
     const url = response.data[0]?.environment_url ?? null
-    setCache(cacheKey, CACHE_TTL.prs, url, { etag: newEtag })
+    setCache(cacheKey, PREVIEW_REVALIDATE_TTL, { url }, { etag: newEtag })
     return url
   } catch (error: any) {
     if (error.status === 304 && stale) {
-      setCache(cacheKey, CACHE_TTL.prs, stale.data, { etag: stale.etag })
-      return stale.data
+      setCache(cacheKey, PREVIEW_REVALIDATE_TTL, stale.data, { etag: stale.etag })
+      return stale.data.url
     }
     return null
   }
@@ -1163,13 +1178,14 @@ async function getDeploymentStatusUrl(deploymentId: number): Promise<string | nu
  * Older SHAs that fall outside the 100-deployment window simply don't get a
  * preview URL — accepted tradeoff to avoid the previous per-SHA fanout, which
  * cost 2 extra REST calls per missed PR on every tasks-list poll.
+ *
+ * No derived per-SHA-list cache: the underlying `getRecentPreviewDeployments`
+ * and `getDeploymentStatusUrl` are both cheap (cache hit or free 304), so
+ * recomputing the SHA → URL map on each call avoids stale results when a PR
+ * pushes a new commit.
  */
 export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<string, string>> {
   if (prShas.length === 0) return new Map()
-
-  const cacheKey = `previews:${getOwner()}:${getRepo()}:${prShas.sort().join(',')}`
-  const cached = getCached<Map<string, string>>(cacheKey)
-  if (cached) return cached
 
   const result = new Map<string, string>()
   const deployments = await getRecentPreviewDeployments()
@@ -1183,7 +1199,6 @@ export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<str
     }),
   )
 
-  setCache(cacheKey, CACHE_TTL.prs, result)
   return result
 }
 
