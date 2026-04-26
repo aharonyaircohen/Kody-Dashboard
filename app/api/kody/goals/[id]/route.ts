@@ -3,7 +3,9 @@
  * @domain kody
  * @pattern goals-api
  * @ai-summary Goal detail API — PATCH updates goal metadata; DELETE removes the
- *   goal from the manifest. Backed by a single manifest issue.
+ *   goal from the manifest. Backed by a single manifest issue. Writes go
+ *   through `mutateGoalsManifest` so concurrent goal mutations can't silently
+ *   overwrite each other (per-instance mutex + verify-after-write retry).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
@@ -15,41 +17,11 @@ import {
   getRequestAuth,
 } from '@dashboard/lib/auth'
 import {
-  fetchIssues,
-  fetchIssue,
-  updateIssue,
-  invalidateIssueCache,
   setGitHubContext,
   clearGitHubContext,
 } from '@dashboard/lib/github-client'
-import {
-  GOALS_MANIFEST_LABEL,
-  parseManifestBody,
-  serializeManifestBody,
-  type Goal,
-  type GoalsManifest,
-} from '@dashboard/lib/goals'
-
-async function readManifest(): Promise<{
-  manifest: GoalsManifest
-  issueNumber: number | null
-}> {
-  // Short TTL keeps cross-instance staleness bounded. Post-TTL revalidation
-  // returns 304 (free) via the cached ETag when nothing changed.
-  const issues = await fetchIssues({
-    state: 'open',
-    labels: GOALS_MANIFEST_LABEL,
-    perPage: 5,
-    ttl: 15_000,
-  })
-  if (!issues.length) return { manifest: { version: 1, goals: [] }, issueNumber: null }
-  const first = [...issues].sort((a, b) => a.number - b.number)[0]
-  const full = await fetchIssue(first.number, { ttl: 15_000 })
-  return {
-    manifest: parseManifestBody(full?.body ?? ''),
-    issueNumber: first.number,
-  }
-}
+import { type Goal, type GoalsManifest } from '@dashboard/lib/goals'
+import { mutateGoalsManifest } from '@dashboard/lib/goals-server'
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
@@ -74,6 +46,10 @@ const patchGoalSchema = z.object({
   actorLogin: z.string().optional(),
 })
 
+type PatchOutcome =
+  | { ok: true; goal: Goal }
+  | { ok: false; reason: 'not_found' }
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -92,48 +68,46 @@ export async function PATCH(
     const actorResult = await verifyActorLogin(req, patch.actorLogin)
     if (actorResult instanceof NextResponse) return actorResult
 
-    const { manifest, issueNumber } = await readManifest()
-    if (!issueNumber) {
-      return NextResponse.json({ error: 'not_found' }, { status: 404 })
-    }
-
-    const index = manifest.goals.findIndex((g) => g.id === id)
-    if (index === -1) {
-      return NextResponse.json({ error: 'not_found' }, { status: 404 })
-    }
-
-    const current = manifest.goals[index]
-    const updated: Goal = {
-      ...current,
-      name: patch.name?.trim() ?? current.name,
-      description:
-        patch.description === null
-          ? undefined
-          : patch.description === undefined
-            ? current.description
-            : patch.description.trim() || undefined,
-      dueDate:
-        patch.dueDate === null
-          ? undefined
-          : patch.dueDate === undefined
-            ? current.dueDate
-            : patch.dueDate.trim() || undefined,
-      updatedAt: new Date().toISOString(),
-    }
-
-    const nextGoals = [...manifest.goals]
-    nextGoals[index] = updated
-    const nextManifest: GoalsManifest = { version: 1, goals: nextGoals }
-
     const userOctokit = await getUserOctokit(req)
-    await updateIssue(
-      issueNumber,
-      { body: serializeManifestBody(nextManifest) },
-      userOctokit ?? undefined,
-    )
-    invalidateIssueCache(issueNumber)
 
-    return NextResponse.json({ goal: updated })
+    const outcome = await mutateGoalsManifest<PatchOutcome>(
+      (current) => {
+        const index = current.goals.findIndex((g) => g.id === id)
+        if (index === -1) {
+          return { kind: 'noop' as const, result: { ok: false, reason: 'not_found' } as const }
+        }
+        const cur = current.goals[index]
+        const updated: Goal = {
+          ...cur,
+          name: patch.name?.trim() ?? cur.name,
+          description:
+            patch.description === null
+              ? undefined
+              : patch.description === undefined
+                ? cur.description
+                : patch.description.trim() || undefined,
+          dueDate:
+            patch.dueDate === null
+              ? undefined
+              : patch.dueDate === undefined
+                ? cur.dueDate
+                : patch.dueDate.trim() || undefined,
+          updatedAt: new Date().toISOString(),
+        }
+        const nextGoals = [...current.goals]
+        nextGoals[index] = updated
+        const next: GoalsManifest = { version: 1, goals: nextGoals }
+        return { next, result: { ok: true, goal: updated } }
+      },
+      { userOctokit: userOctokit ?? undefined },
+    )
+
+    const result =
+      'kind' in outcome ? outcome.result : (outcome.result as PatchOutcome)
+    if (!result.ok) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    }
+    return NextResponse.json({ goal: result.goal })
   } catch (error: any) {
     console.error('[Goals] Error updating goal:', error)
     if (error instanceof z.ZodError) {
@@ -147,6 +121,10 @@ export async function PATCH(
     clearGitHubContext()
   }
 }
+
+type DeleteOutcome =
+  | { ok: true }
+  | { ok: false; reason: 'not_found' }
 
 export async function DELETE(
   req: NextRequest,
@@ -166,25 +144,25 @@ export async function DELETE(
     const actorResult = await verifyActorLogin(req, actorLogin)
     if (actorResult instanceof NextResponse) return actorResult
 
-    const { manifest, issueNumber } = await readManifest()
-    if (!issueNumber) {
-      return NextResponse.json({ error: 'not_found' }, { status: 404 })
-    }
-
-    const nextGoals = manifest.goals.filter((g) => g.id !== id)
-    if (nextGoals.length === manifest.goals.length) {
-      return NextResponse.json({ error: 'not_found' }, { status: 404 })
-    }
-
     const userOctokit = await getUserOctokit(req)
-    const nextManifest: GoalsManifest = { version: 1, goals: nextGoals }
-    await updateIssue(
-      issueNumber,
-      { body: serializeManifestBody(nextManifest) },
-      userOctokit ?? undefined,
-    )
-    invalidateIssueCache(issueNumber)
 
+    const outcome = await mutateGoalsManifest<DeleteOutcome>(
+      (current) => {
+        const nextGoals = current.goals.filter((g) => g.id !== id)
+        if (nextGoals.length === current.goals.length) {
+          return { kind: 'noop' as const, result: { ok: false, reason: 'not_found' } as const }
+        }
+        const next: GoalsManifest = { version: 1, goals: nextGoals }
+        return { next, result: { ok: true } }
+      },
+      { userOctokit: userOctokit ?? undefined },
+    )
+
+    const result =
+      'kind' in outcome ? outcome.result : (outcome.result as DeleteOutcome)
+    if (!result.ok) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    }
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('[Goals] Error deleting goal:', error)

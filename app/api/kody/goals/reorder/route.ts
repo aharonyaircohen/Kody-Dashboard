@@ -5,6 +5,8 @@
  * @ai-summary Reorder goals — POST accepts an ordered list of goal IDs and
  *   rewrites the manifest with goals in that order. Goals not present in the
  *   payload are appended at the end (preserving their existing relative order).
+ *   Goes through `mutateGoalsManifest` so concurrent goal mutations can't
+ *   silently overwrite each other (per-instance mutex + verify-after-write).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
@@ -16,39 +18,11 @@ import {
   getRequestAuth,
 } from '@dashboard/lib/auth'
 import {
-  fetchIssues,
-  fetchIssue,
-  updateIssue,
-  invalidateIssueCache,
   setGitHubContext,
   clearGitHubContext,
 } from '@dashboard/lib/github-client'
-import {
-  GOALS_MANIFEST_LABEL,
-  parseManifestBody,
-  serializeManifestBody,
-  type Goal,
-  type GoalsManifest,
-} from '@dashboard/lib/goals'
-
-async function readManifest(): Promise<{
-  manifest: GoalsManifest
-  issueNumber: number | null
-}> {
-  const issues = await fetchIssues({
-    state: 'open',
-    labels: GOALS_MANIFEST_LABEL,
-    perPage: 5,
-    ttl: 15_000,
-  })
-  if (!issues.length) return { manifest: { version: 1, goals: [] }, issueNumber: null }
-  const first = [...issues].sort((a, b) => a.number - b.number)[0]
-  const full = await fetchIssue(first.number, { ttl: 15_000 })
-  return {
-    manifest: parseManifestBody(full?.body ?? ''),
-    issueNumber: first.number,
-  }
-}
+import { type Goal, type GoalsManifest } from '@dashboard/lib/goals'
+import { mutateGoalsManifest } from '@dashboard/lib/goals-server'
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
@@ -71,6 +45,10 @@ const reorderSchema = z.object({
   actorLogin: z.string().optional(),
 })
 
+type ReorderOutcome =
+  | { ok: true; goals: Goal[] }
+  | { ok: false; reason: 'not_found' }
+
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req)
   if (authResult instanceof NextResponse) return authResult
@@ -85,36 +63,40 @@ export async function POST(req: NextRequest) {
     const actorResult = await verifyActorLogin(req, parsed.actorLogin)
     if (actorResult instanceof NextResponse) return actorResult
 
-    const { manifest, issueNumber } = await readManifest()
-    if (!issueNumber) {
+    const userOctokit = await getUserOctokit(req)
+
+    const outcome = await mutateGoalsManifest<ReorderOutcome>(
+      (current) => {
+        if (current.goals.length === 0) {
+          return { kind: 'noop' as const, result: { ok: false, reason: 'not_found' } as const }
+        }
+
+        const byId = new Map(current.goals.map((g) => [g.id, g]))
+        const ordered: Goal[] = []
+        const seen = new Set<string>()
+        for (const id of parsed.orderedIds) {
+          const goal = byId.get(id)
+          if (goal && !seen.has(id)) {
+            ordered.push(goal)
+            seen.add(id)
+          }
+        }
+        // Append any goals missing from the payload (keeps their original order).
+        for (const goal of current.goals) {
+          if (!seen.has(goal.id)) ordered.push(goal)
+        }
+        const next: GoalsManifest = { version: 1, goals: ordered }
+        return { next, result: { ok: true, goals: ordered } }
+      },
+      { userOctokit: userOctokit ?? undefined },
+    )
+
+    const result =
+      'kind' in outcome ? outcome.result : (outcome.result as ReorderOutcome)
+    if (!result.ok) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 })
     }
-
-    const byId = new Map(manifest.goals.map((g) => [g.id, g]))
-    const ordered: Goal[] = []
-    const seen = new Set<string>()
-    for (const id of parsed.orderedIds) {
-      const goal = byId.get(id)
-      if (goal && !seen.has(id)) {
-        ordered.push(goal)
-        seen.add(id)
-      }
-    }
-    // Append any goals missing from the payload (keeps their original order).
-    for (const goal of manifest.goals) {
-      if (!seen.has(goal.id)) ordered.push(goal)
-    }
-
-    const nextManifest: GoalsManifest = { version: 1, goals: ordered }
-    const userOctokit = await getUserOctokit(req)
-    await updateIssue(
-      issueNumber,
-      { body: serializeManifestBody(nextManifest) },
-      userOctokit ?? undefined,
-    )
-    invalidateIssueCache(issueNumber)
-
-    return NextResponse.json({ goals: ordered })
+    return NextResponse.json({ goals: result.goals })
   } catch (error: any) {
     console.error('[Goals] Error reordering goals:', error)
     if (error instanceof z.ZodError) {
