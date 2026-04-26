@@ -55,26 +55,69 @@ function getOrCreateOctokit(octokit?: Octokit | null): Octokit | null {
 
 const STORE_FILE = ".kody/action-state.json";
 
+/**
+ * Per-instance ETag + payload cache for the action-state file.
+ *
+ * The dashboard polls action state every 20s per open task. Without ETag
+ * conditional requests, every poll burns one full GitHub REST quota point
+ * — multiple open tabs/tasks drain the shared 5000/hr budget within an hour
+ * and the entire dashboard goes dark. With `If-None-Match`, unchanged reads
+ * come back as 304 (free, doesn't count against the rate limit), so we
+ * only pay quota when state actually changes.
+ *
+ * The cache stores the raw JSON string (not parsed objects) so each call
+ * reparses into a fresh map — mutations by callers (e.g. pollInstruction's
+ * `instructions.shift()`) can't poison the cache. Keyed by owner/repo/branch.
+ */
+const readCache = new Map<string, { etag: string; json: string }>();
+
+function cacheKey(owner: string, repo: string, branch: string): string {
+  return `${owner}/${repo}@${branch}`;
+}
+
+function parseToMap(json: string): Map<string, ActionState> {
+  const map = new Map<string, ActionState>();
+  const arr: ActionState[] = JSON.parse(json);
+  for (const s of arr) map.set(s.runId, s);
+  return map;
+}
+
 async function readMap(
   octokit: Octokit,
   owner: string,
   repo: string,
   branch: string,
 ): Promise<Map<string, ActionState>> {
-  const map = new Map<string, ActionState>();
+  const key = cacheKey(owner, repo, branch);
+  const cached = readCache.get(key);
   try {
-    const { data } = await octokit.rest.repos.getContent({ owner, repo, path: STORE_FILE, ref: branch });
+    const response = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: STORE_FILE,
+      ref: branch,
+      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
+    });
+    const { data, headers } = response;
+    const newEtag = (headers as Record<string, string | undefined>)?.etag;
     if ("content" in data && data.content) {
       const json = Buffer.from(data.content, "base64").toString("utf-8");
-      const arr: ActionState[] = JSON.parse(json);
-      for (const s of arr) map.set(s.runId, s);
+      if (newEtag) readCache.set(key, { etag: newEtag, json });
+      return parseToMap(json);
     }
   } catch (err: unknown) {
     const e = err as { status?: number };
+    // 304 — file unchanged. Reparse from cached JSON. Does NOT count against the rate limit.
+    if (e.status === 304 && cached) return parseToMap(cached.json);
     if (e.status !== 404) throw err;
     // File doesn't exist yet — return empty map
   }
-  return map;
+  return new Map<string, ActionState>();
+}
+
+/** Invalidate the read cache after a write so the next read picks up changes. */
+function invalidateReadCache(owner: string, repo: string, branch: string): void {
+  readCache.delete(cacheKey(owner, repo, branch));
 }
 
 async function writeMap(
@@ -95,6 +138,9 @@ async function writeMap(
     branch,
     ...(existingSha ? { sha: existingSha } : {}),
   });
+  // We just changed the file — drop the cached ETag so the next read pulls
+  // fresh content (rather than a 304 against the now-stale ETag).
+  invalidateReadCache(owner, repo, branch);
 }
 
 async function getSha(
