@@ -2107,12 +2107,28 @@ function mapRollupState(state: string | null | undefined): CIStatus {
  * and check runs (GitHub Actions), already deduped to the latest run per name —
  * identical semantics to the previous REST 3-call combo (pulls.get +
  * getCombinedStatusForRef + checks.listForRef), at 1 GraphQL point budget.
+ *
+ * Rate-limit discipline (CLAUDE.md rule 3 — GraphQL has no ETag/304 escape
+ * and shares a single 5000-points/hr bucket):
+ * - 60s TTL (matches the slowest UI poll cadence; faster client polling
+ *   becomes a free in-process hit).
+ * - In-flight request dedup so concurrent rows mounting at the same time
+ *   share a single GraphQL call.
+ * - Stale fallback on error that *refreshes the TTL* on the prior result, so
+ *   throttling doesn't compound into a tight retry loop.
  */
+const PR_CI_STATUS_TTL = 60_000
+const inflightPRCIStatus = new Map<string, Promise<PRCIStatusResult>>()
+
 export async function fetchPRCIStatus(prNumber: number): Promise<PRCIStatusResult> {
-  const cacheKey = `pr-ci-status:${prNumber}`
+  const cacheKey = `pr-ci-status:${getOwner()}:${getRepo()}:${prNumber}`
   const cached = getCached<PRCIStatusResult>(cacheKey)
   if (cached) return cached
 
+  const existing = inflightPRCIStatus.get(cacheKey)
+  if (existing) return existing
+
+  const stale = getStale<PRCIStatusResult>(cacheKey)
   const octokit = getOctokit()
 
   const query = `
@@ -2133,62 +2149,89 @@ export async function fetchPRCIStatus(prNumber: number): Promise<PRCIStatusResul
     }
   `
 
-  try {
-    const data = await octokit.graphql<PRCIStatusGraphQL>(query, {
-      owner: getOwner(),
-      repo: getRepo(),
-      number: prNumber,
-    })
+  const promise = (async (): Promise<PRCIStatusResult> => {
+    try {
+      const data = await octokit.graphql<PRCIStatusGraphQL>(query, {
+        owner: getOwner(),
+        repo: getRepo(),
+        number: prNumber,
+      })
 
-    const pr = data.repository?.pullRequest
-    if (!pr) {
-      return { ciStatus: 'pending', mergeable: false, hasConflicts: false }
+      const pr = data.repository?.pullRequest
+      if (!pr) {
+        const empty: PRCIStatusResult = {
+          ciStatus: 'pending',
+          mergeable: false,
+          hasConflicts: false,
+        }
+        setCache(cacheKey, PR_CI_STATUS_TTL, empty)
+        return empty
+      }
+
+      const rollupState = pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null
+      const noConflicts = pr.mergeable === 'MERGEABLE'
+      let ciStatus: CIStatus
+      let hasConflicts = false
+
+      switch (pr.mergeStateStatus) {
+        case 'CLEAN':
+          // All required checks passed and no failing non-required checks.
+          ciStatus = 'success'
+          break
+        case 'UNSTABLE':
+          // Mergeable, but some non-required check failed. The PR is still mergeable
+          // (GitHub doesn't block it) — but the user wants to see real CI status,
+          // not gate status, so surface the rollup (FAILURE → failure, etc.).
+          ciStatus = mapRollupState(rollupState)
+          break
+        case 'BLOCKED':
+          // Steady state for repos without branch protection — fall back to rollup.
+          ciStatus = noConflicts ? mapRollupState(rollupState) : 'running'
+          break
+        case 'BEHIND':
+        case 'HAS_HOOKS':
+          ciStatus = 'running'
+          break
+        case 'DIRTY':
+          ciStatus = 'failure'
+          hasConflicts = true
+          break
+        case 'UNKNOWN':
+        default:
+          ciStatus = 'pending'
+      }
+
+      const mergeable =
+        noConflicts &&
+        (ciStatus === 'success' ||
+          pr.mergeStateStatus === 'CLEAN' ||
+          pr.mergeStateStatus === 'UNSTABLE')
+
+      const result: PRCIStatusResult = { ciStatus, mergeable, hasConflicts }
+      setCache(cacheKey, PR_CI_STATUS_TTL, result)
+      return result
+    } catch (error) {
+      // GraphQL throttle / transient error: refresh the TTL on stale data so
+      // we stop hammering the bucket while it recovers. With no stale data,
+      // cache the placeholder for the same window — it's better to show
+      // "pending" briefly than to retry on every poll.
+      console.error('[Kody] Error fetching PR CI status:', error)
+      if (stale) {
+        setCache(cacheKey, PR_CI_STATUS_TTL, stale.data)
+        return stale.data
+      }
+      const placeholder: PRCIStatusResult = {
+        ciStatus: 'pending',
+        mergeable: false,
+        hasConflicts: false,
+      }
+      setCache(cacheKey, PR_CI_STATUS_TTL, placeholder)
+      return placeholder
+    } finally {
+      inflightPRCIStatus.delete(cacheKey)
     }
+  })()
 
-    const rollupState = pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null
-    const noConflicts = pr.mergeable === 'MERGEABLE'
-    let ciStatus: CIStatus
-    let hasConflicts = false
-
-    switch (pr.mergeStateStatus) {
-      case 'CLEAN':
-        // All required checks passed and no failing non-required checks.
-        ciStatus = 'success'
-        break
-      case 'UNSTABLE':
-        // Mergeable, but some non-required check failed. The PR is still mergeable
-        // (GitHub doesn't block it) — but the user wants to see real CI status,
-        // not gate status, so surface the rollup (FAILURE → failure, etc.).
-        ciStatus = mapRollupState(rollupState)
-        break
-      case 'BLOCKED':
-        // Steady state for repos without branch protection — fall back to rollup.
-        ciStatus = noConflicts ? mapRollupState(rollupState) : 'running'
-        break
-      case 'BEHIND':
-      case 'HAS_HOOKS':
-        ciStatus = 'running'
-        break
-      case 'DIRTY':
-        ciStatus = 'failure'
-        hasConflicts = true
-        break
-      case 'UNKNOWN':
-      default:
-        ciStatus = 'pending'
-    }
-
-    const mergeable =
-      noConflicts &&
-      (ciStatus === 'success' ||
-        pr.mergeStateStatus === 'CLEAN' ||
-        pr.mergeStateStatus === 'UNSTABLE')
-
-    const result: PRCIStatusResult = { ciStatus, mergeable, hasConflicts }
-    setCache(cacheKey, 15_000, result)
-    return result
-  } catch (error) {
-    console.error('[Kody] Error fetching PR CI status:', error)
-    return { ciStatus: 'pending', mergeable: false, hasConflicts: false }
-  }
+  inflightPRCIStatus.set(cacheKey, promise)
+  return promise
 }
