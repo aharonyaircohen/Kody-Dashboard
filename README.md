@@ -49,6 +49,27 @@ NEXT_PUBLIC_SERVER_URL=http://localhost:3333
 | `GITHUB_APP_CLIENT_SECRET` | Yes | GitHub OAuth App |
 | `NEXT_PUBLIC_SERVER_URL` | Dev | Public URL for OAuth redirects |
 
+### GitHub token / PAT scopes
+
+The GitHub Personal Access Token used for `GITHUB_TOKEN` / `KODY_BOT_TOKEN`,
+and the OAuth scopes the app requests, must cover:
+
+| Scope | Why |
+|-------|-----|
+| `repo` | Full repo access — issues, PRs, comments, **webhooks** (the `repo` scope already includes `admin:repo_hook`, so no separate webhook scope is needed). |
+| `workflow` | Dispatch and cancel GitHub Actions workflow runs. |
+| `user:email` | Identify the logged-in user during OAuth (required by the OAuth flow). |
+
+A classic PAT with `repo` + `workflow` is the simplest setup. Create one at
+[github.com/settings/tokens](https://github.com/settings/tokens) → "Generate
+new token (classic)".
+
+The dashboard auto-registers a GitHub webhook on the connected repo at
+login (push-based cache invalidation, no shared secret — verified by
+GitHub's source IP). If the user's token lacks `admin:repo_hook`
+permission on the repo, registration fails silently and the dashboard
+falls back to the existing polling path.
+
 ## Development
 
 ```bash
