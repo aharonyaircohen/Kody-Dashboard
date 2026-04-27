@@ -17,6 +17,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { subscribe } from "@dashboard/lib/chat-event-bus";
+import { logger } from "@dashboard/lib/logger";
+
+// ─── Rate-limit tuning ─────────────────────────────────────────────────────────
+// 15s base poll (was 3s) — pushes are the real freshness path; this is fallback.
+const POLL_INTERVAL_MS = 15_000;
+// 120s grace after any push (was 5s) — while engine is delivering inline events,
+// the GitHub poll stays dormant.
+const PUSH_GRACE_MS = 120_000;
+// Reconnect dedup: a flapping client cannot force a fresh poll faster than this.
+const MIN_POLL_GAP_MS = 10_000;
 
 /**
  * EventSource can't send custom headers, so the client mirrors the
@@ -71,6 +81,10 @@ const lastReadIndex = new Map<string, number>();
 // ETag cache so unchanged GitHub reads return 304 (does not count against rate limit)
 const etagCache = new Map<string, { etag: string; lines: string[] }>();
 
+// Last GitHub poll timestamp per sessionId — survives SSE reconnects so a
+// flapping client can't reset the polling cadence to zero.
+const lastPolledAt = new Map<string, number>();
+
 // ─── GitHub file helpers ────────────────────────────────────────────────────────
 
 function getDefaultOwner(): string {
@@ -107,7 +121,15 @@ async function readEventFile(
       headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
     const { data, headers } = response;
-    const newEtag = (headers as Record<string, string> | undefined)?.etag;
+    const h = headers as Record<string, string> | undefined;
+    const newEtag = h?.etag;
+    const remaining = h?.["x-ratelimit-remaining"];
+    if (remaining !== undefined && Number(remaining) < 500) {
+      logger.warn(
+        { remaining, sessionId, resource: h?.["x-ratelimit-resource"] },
+        "github rate-limit low",
+      );
+    }
     if ("content" in data && data.content) {
       const content = Buffer.from(data.content, "base64").toString("utf-8");
       const lines = content.trim().split("\n").filter(Boolean);
@@ -182,8 +204,10 @@ export async function GET(rawReq: NextRequest) {
     cancel() {
       active = false;
       unsubscribe?.();
-      lastReadIndex.delete(sessionId);
-      etagCache.delete(sessionId);
+      // Note: we intentionally do NOT clear lastPolledAt here — it must
+      // survive reconnects to prevent flapping clients from resetting cadence.
+      // lastReadIndex / etagCache are kept for the same reason: a quick
+      // reconnect should resume from where we left off, not refetch.
     },
   });
 
@@ -230,8 +254,14 @@ export async function GET(rawReq: NextRequest) {
 
     // Skip GitHub entirely while the in-memory push channel is live. The poll
     // is a fallback for cross-instance SSE; when push is delivering, it's pure
-    // waste. 5s grace covers brief gaps between engine events.
-    if (Date.now() - lastPushAt < 5000) return;
+    // waste. 120s grace covers an entire engine reply burst.
+    if (Date.now() - lastPushAt < PUSH_GRACE_MS) return;
+
+    // Reconnect-storm guard: if another SSE connection for this sessionId
+    // polled GitHub recently, skip. Survives client reconnects via module map.
+    const last = lastPolledAt.get(sessionId) ?? 0;
+    if (Date.now() - last < MIN_POLL_GAP_MS) return;
+    lastPolledAt.set(sessionId, Date.now());
 
     const { lines } = await readEventFile(octokit, owner, repo, branch, sessionId);
 
@@ -275,7 +305,7 @@ export async function GET(rawReq: NextRequest) {
         try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
       }
     }
-  }, 3000);
+  }, POLL_INTERVAL_MS);
 
   // Send initial connected heartbeat
   if (controllerRef) {
@@ -286,13 +316,12 @@ export async function GET(rawReq: NextRequest) {
     } catch { /* closed */ }
   }
 
-  // Clean up on client disconnect
+  // Clean up on client disconnect. Keep lastReadIndex / etagCache /
+  // lastPolledAt across reconnects so a flapping client cannot reset state.
   req.signal.addEventListener("abort", () => {
     active = false;
     clearInterval(poll);
     unsubscribe?.();
-    lastReadIndex.delete(sessionId);
-    etagCache.delete(sessionId);
   });
 
   return new NextResponse(stream, {
