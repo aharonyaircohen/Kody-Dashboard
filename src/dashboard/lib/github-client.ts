@@ -130,8 +130,10 @@ export function invalidateBranchCache(): void {
  */
 export function invalidateIssueCache(issueNumber?: number): void {
   if (typeof issueNumber === 'number') {
-    cache.delete(`issue:${issueNumber}`)
-    cache.delete(`comments:${issueNumber}`)
+    // Cache keys are repo-scoped (`issue:owner:repo:N`, `comments:owner:repo:N`).
+    // Webhooks don't carry repo context, so wipe across all repos via prefix.
+    invalidateCache('issue:')
+    invalidateCache('comments:')
   }
   invalidateCache('issues:')
 }
@@ -142,7 +144,8 @@ export function invalidateIssueCache(issueNumber?: number): void {
  */
 export function invalidateMissionsCache(slug?: string): void {
   if (typeof slug === 'string' && slug.length > 0) {
-    cache.delete(`mission:${slug}`)
+    // Repo-scoped key shape: `mission:owner:repo:slug`. Wipe across repos.
+    invalidateCache('mission:')
   }
   invalidateCache('missions:')
 }
@@ -309,7 +312,7 @@ export function createUserOctokit(token: string): Octokit {
  * Shared by findTaskBranch and findBranchesByIssueNumbers.
  */
 async function getBranchesForPrefix(prefix: string): Promise<string[]> {
-  const cacheKey = `branches:prefix:${prefix}`
+  const cacheKey = `branches:${getOwner()}:${getRepo()}:prefix:${prefix}`
   const cached = getCached<string[]>(cacheKey)
   if (cached) return cached
 
@@ -337,7 +340,7 @@ export async function findTaskBranch(taskId: string): Promise<string | null> {
     return null
   }
 
-  const cacheKey = `branch:task:${taskId}`
+  const cacheKey = `branch:${getOwner()}:${getRepo()}:task:${taskId}`
   const cached = getCached<string | null>(cacheKey)
   if (cached !== null) return cached
 
@@ -366,7 +369,7 @@ export async function findTaskBranch(taskId: string): Promise<string | null> {
 export async function findBranchByIssueNumber(
   issueNumber: string | number,
 ): Promise<string | null> {
-  const cacheKey = `branch:issue:${issueNumber}`
+  const cacheKey = `branch:${getOwner()}:${getRepo()}:issue:${issueNumber}`
   const cached = getCached<string>(cacheKey)
   if (cached) return cached
 
@@ -618,7 +621,7 @@ export async function getStatusFromArtifact(
   taskId: string,
   runId: string,
 ): Promise<KodyPipelineStatus | null> {
-  const cacheKey = `status:artifact:${taskId}:${runId}`
+  const cacheKey = `status:artifact:${getOwner()}:${getRepo()}:${taskId}:${runId}`
   const cached = getCached<KodyPipelineStatus>(cacheKey)
   if (cached) return cached
 
@@ -678,7 +681,7 @@ export async function fetchIssue(
   issueNumber: number,
   options?: { noCache?: boolean; ttl?: number },
 ): Promise<GitHubIssue | null> {
-  const cacheKey = `issue:${issueNumber}`
+  const cacheKey = `issue:${getOwner()}:${getRepo()}:${issueNumber}`
   const ttl = options?.ttl ?? CACHE_TTL.tasks
 
   if (!options?.noCache) {
@@ -767,7 +770,7 @@ export async function fetchIssues(options?: {
   noCache?: boolean
 }): Promise<GitHubIssue[]> {
   const { noCache, ttl: ttlOpt, ...rest } = options ?? {}
-  const cacheKey = `issues:${JSON.stringify(rest)}`
+  const cacheKey = `issues:${getOwner()}:${getRepo()}:${JSON.stringify(rest)}`
   const ttl = ttlOpt ?? CACHE_TTL.tasks
 
   if (!noCache) {
@@ -856,7 +859,7 @@ export async function fetchIssues(options?: {
  * Fetch comments for an issue
  */
 export async function fetchComments(issueNumber: number): Promise<GitHubComment[]> {
-  const cacheKey = `comments:${issueNumber}`
+  const cacheKey = `comments:${getOwner()}:${getRepo()}:${issueNumber}`
   const ttl = CACHE_TTL.tasks * 2
   const cached = getCached<GitHubComment[]>(cacheKey)
   if (cached) return cached
@@ -914,7 +917,7 @@ export async function fetchWorkflowRuns(options?: {
   status?: 'queued' | 'in_progress' | 'completed'
   perPage?: number
 }): Promise<WorkflowRun[]> {
-  const cacheKey = `workflows:${JSON.stringify(options)}`
+  const cacheKey = `workflows:${getOwner()}:${getRepo()}:${JSON.stringify(options)}`
   const cached = getCached<WorkflowRun[]>(cacheKey)
   if (cached) return cached
 
@@ -972,7 +975,7 @@ export async function getWorkflowRunForTask(taskId: string): Promise<WorkflowRun
  * Fetch check runs (lint, test, typecheck, etc.) for a workflow run
  */
 export async function fetchCheckRunsForRun(runId: number): Promise<CheckRunResult[]> {
-  const cacheKey = `check-runs:${runId}`
+  const cacheKey = `check-runs:${getOwner()}:${getRepo()}:${runId}`
   const cached = getCached<CheckRunResult[]>(cacheKey)
   if (cached) return cached
 
@@ -1376,7 +1379,7 @@ export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<str
  * Find PR associated with a task by branch name
  */
 export async function findAssociatedPR(taskId: string): Promise<GitHubPR | null> {
-  const cacheKey = `pr:${taskId}`
+  const cacheKey = `pr:${getOwner()}:${getRepo()}:${taskId}`
   const cached = getCached<GitHubPR | null>(cacheKey)
   if (cached !== null) return cached
 
@@ -1536,7 +1539,7 @@ export async function findAssociatedPRByIssueNumber(issueNumber: number): Promis
  * Fetch comments for a PR
  */
 export async function fetchPRComments(prNumber: number): Promise<PRComment[]> {
-  const cacheKey = `pr-comments:${prNumber}`
+  const cacheKey = `pr-comments:${getOwner()}:${getRepo()}:${prNumber}`
   const cached = getCached<PRComment[]>(cacheKey)
   if (cached) return cached
 
@@ -1572,7 +1575,7 @@ export async function fetchPRComments(prNumber: number): Promise<PRComment[]> {
  * Fetch file changes for a PR
  */
 export async function fetchPRFileChanges(prNumber: number): Promise<FileChange[]> {
-  const cacheKey = `pr-files:${prNumber}`
+  const cacheKey = `pr-files:${getOwner()}:${getRepo()}:${prNumber}`
   const cached = getCached<FileChange[]>(cacheKey)
   if (cached) return cached
 
@@ -1759,7 +1762,7 @@ export async function fetchBranchDocuments(branch: string): Promise<TaskDocument
  * Fetch all labels
  */
 export async function fetchLabels(): Promise<Array<{ name: string; color: string }>> {
-  const cacheKey = 'labels'
+  const cacheKey = `labels:${getOwner()}:${getRepo()}`
   const cached = getCached<Array<{ name: string; color: string }>>(cacheKey)
   if (cached) return cached
 
@@ -1786,7 +1789,7 @@ export async function fetchLabels(): Promise<Array<{ name: string; color: string
 export async function fetchMilestones(): Promise<
   Array<{ id: number; title: string; number: number }>
 > {
-  const cacheKey = 'milestones'
+  const cacheKey = `milestones:${getOwner()}:${getRepo()}`
   const cached = getCached<Array<{ id: number; title: string; number: number }>>(cacheKey)
   if (cached) return cached
 
@@ -1829,7 +1832,7 @@ export async function postComment(
   })
 
   // Invalidate comment cache
-  cache.delete(`comments:${issueNumber}`)
+  cache.delete(`comments:${getOwner()}:${getRepo()}:${issueNumber}`)
 }
 
 /**
@@ -1983,7 +1986,7 @@ export async function updateIssue(
 
   // Invalidate task cache
   invalidateTaskCache()
-  cache.delete(`comments:${issueNumber}`)
+  cache.delete(`comments:${getOwner()}:${getRepo()}:${issueNumber}`)
 }
 
 /**
