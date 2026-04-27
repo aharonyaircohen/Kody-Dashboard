@@ -32,6 +32,31 @@ Next.js dashboard for monitoring and managing the Kody CI/CD pipeline.
 | `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from login) |
 | `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody.yml`) |
 | `JINA_API_KEY` | No | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier) |
+| `KODY_WEBHOOK_SECRET` | Yes (push path) | HMAC secret for verifying GitHub webhook deliveries |
+
+## GitHub webhooks (push-based cache invalidation)
+
+To replace polling with push, the dashboard receives webhooks from GitHub
+and invalidates its in-memory cache when resources change.
+
+- Receiver: [app/api/webhooks/github/route.ts](app/api/webhooks/github/route.ts)
+  Verifies HMAC against `KODY_WEBHOOK_SECRET`, dedupes by `X-GitHub-Delivery`,
+  dispatches to `invalidateIssueCache` / `invalidatePRCache` /
+  `invalidateWorkflowCache` / `invalidateBranchCache` based on event type.
+- Registrar: [app/api/webhooks/register/route.ts](app/api/webhooks/register/route.ts)
+  Idempotent. Authenticates via Kody session, lists hooks on the repo, and
+  either updates the existing one or creates a new one pointing at
+  `${baseUrl}/api/webhooks/github`. Caller's PAT must have `admin:repo_hook`
+  (the classic `repo` scope already includes it).
+
+Subscribed events: `issues`, `issue_comment`, `pull_request`,
+`pull_request_review`, `pull_request_review_comment`, `workflow_run`,
+`workflow_job`, `check_run`, `check_suite`, `push`, `create`, `delete`.
+
+Invalidation only affects the receiving Vercel instance — other instances
+serve cached data until their TTL expires (by design, as a backstop).
+Follow-up: swap the in-memory cache for Vercel's Data Cache (`fetch` +
+`revalidateTag`) for cross-instance invalidation without adding a database.
 
 ## Chat flow
 

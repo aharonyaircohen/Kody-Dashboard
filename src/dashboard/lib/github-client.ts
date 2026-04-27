@@ -131,8 +131,19 @@ export function invalidateBranchCache(): void {
 export function invalidateIssueCache(issueNumber?: number): void {
   if (typeof issueNumber === 'number') {
     cache.delete(`issue:${issueNumber}`)
+    cache.delete(`comments:${issueNumber}`)
   }
   invalidateCache('issues:')
+}
+
+/**
+ * Invalidate cache entries for workflow runs and check runs.
+ * Use after a webhook arrives signaling a run/job state change.
+ */
+export function invalidateWorkflowCache(): void {
+  invalidateCache('workflows:')
+  invalidateCache('checks:')
+  invalidateCache('runs:')
 }
 
 // ============ Per-Request Repo Context ============
