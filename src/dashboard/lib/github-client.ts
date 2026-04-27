@@ -849,10 +849,138 @@ export async function fetchIssues(options?: {
         ) ?? false,
     }))
 
-  if (!noCache) {
-    setCache(cacheKey, ttl, issues, { etag: newEtag })
+  // Fallback: GitHub's REST `/repos/{owner}/{repo}/issues` listing has gone
+  // wrong globally before (returns `[]` for repos with open issues). When the
+  // REST listing is empty, retry once via GraphQL — which uses a separate
+  // backend and stays up. We only do this on the empty path so genuinely
+  // empty repos still take the cheap REST path.
+  let finalIssues = issues
+  if (issues.length === 0) {
+    try {
+      const gql = await fetchIssuesViaGraphQL({
+        state: options?.state ?? 'open',
+        excludeLabels: options?.excludeLabels,
+        perPage: options?.perPage ?? 50,
+      })
+      if (gql.length > 0) {
+        finalIssues = gql
+      }
+    } catch {
+      // Fall through to the empty REST result; never let the fallback fail loud.
+    }
   }
-  return issues
+
+  if (!noCache) {
+    // Only cache the ETag when the REST result was authoritative. The
+    // GraphQL fallback path has no ETag, so we cache without one and let
+    // the TTL drive the next refresh.
+    if (finalIssues === issues) {
+      setCache(cacheKey, ttl, finalIssues, { etag: newEtag })
+    } else {
+      setCache(cacheKey, ttl, finalIssues)
+    }
+  }
+  return finalIssues
+}
+
+interface GraphQLIssuesResponse {
+  repository: {
+    issues: {
+      nodes: Array<{
+        databaseId: number
+        number: number
+        title: string
+        body: string | null
+        state: 'OPEN' | 'CLOSED'
+        url: string
+        createdAt: string
+        updatedAt: string
+        closedAt: string | null
+        labels: { nodes: Array<{ name: string; color: string }> }
+        milestone: { title: string } | null
+        assignees: { nodes: Array<{ login: string; avatarUrl: string }> }
+      }>
+    }
+  }
+}
+
+/**
+ * GraphQL fallback for fetchIssues. Used only when the REST listing is empty
+ * — see comment in fetchIssues for why. Uses a separate GraphQL rate-limit
+ * bucket. No ETag/304 (GraphQL doesn't expose them).
+ */
+async function fetchIssuesViaGraphQL(opts: {
+  state: 'open' | 'closed' | 'all'
+  excludeLabels?: string[]
+  perPage: number
+}): Promise<GitHubIssue[]> {
+  const states =
+    opts.state === 'all' ? '[OPEN, CLOSED]' : opts.state === 'closed' ? '[CLOSED]' : '[OPEN]'
+  const first = Math.min(opts.perPage, 100)
+
+  const query = `
+    query Issues($owner: String!, $repo: String!) {
+      repository(owner: $owner, name: $repo) {
+        issues(first: ${first}, states: ${states}, orderBy: { field: UPDATED_AT, direction: DESC }) {
+          nodes {
+            databaseId
+            number
+            title
+            body
+            state
+            url
+            createdAt
+            updatedAt
+            closedAt
+            labels(first: 30) { nodes { name color } }
+            milestone { title }
+            assignees(first: 10) { nodes { login avatarUrl } }
+          }
+        }
+      }
+    }
+  `
+
+  const octokit = getOctokit()
+  const data = await octokit.graphql<GraphQLIssuesResponse>(query, {
+    owner: getOwner(),
+    repo: getRepo(),
+  })
+
+  const excludeSet = new Set((opts.excludeLabels ?? []).map((l) => l.toLowerCase()))
+
+  return data.repository.issues.nodes
+    .filter((node) => {
+      if (excludeSet.size === 0) return true
+      const names = node.labels.nodes.map((l) => (l.name ?? '').toLowerCase())
+      return !names.some((n) => excludeSet.has(n))
+    })
+    .map((node): GitHubIssue => {
+      const assigneeLogins = node.assignees.nodes.map((a) => ({
+        login: a.login ?? '',
+        avatar_url: a.avatarUrl ?? '',
+      }))
+      return {
+        id: node.databaseId,
+        number: node.number,
+        title: node.title,
+        body: node.body ?? null,
+        state: node.state.toLowerCase() as 'open' | 'closed',
+        labels: node.labels.nodes.map((l) => ({
+          name: l.name ?? '',
+          color: l.color ?? '000000',
+        })),
+        milestone: node.milestone ? { title: node.milestone.title } : null,
+        assignees: assigneeLogins,
+        created_at: node.createdAt ?? '',
+        updated_at: node.updatedAt ?? '',
+        closed_at: node.closedAt,
+        html_url: node.url ?? '',
+        isKodyAssigned: assigneeLogins.some(
+          (a) => a.login === 'github-actions[bot]' || a.login === 'Copilot',
+        ),
+      }
+    })
 }
 
 /**
