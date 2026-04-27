@@ -6,10 +6,11 @@
  * @ai-summary Settings panel for notification preferences (per-type toggles, sound, browser)
  */
 
-import { ArrowLeft, Volume2, VolumeX, Monitor, Bell } from 'lucide-react'
+import { ArrowLeft, Volume2, VolumeX, Monitor, Bell, Play } from 'lucide-react'
 import { cn } from '@dashboard/lib/utils/ui'
 import type { UseNotificationStoreReturn } from './useNotificationStore'
 import { NOTIFICATION_META, type NotificationType } from './types'
+import { playNotificationSound } from './sounds'
 
 interface NotificationPreferencesProps {
   store: UseNotificationStoreReturn
@@ -140,12 +141,25 @@ export function NotificationPreferences({
                     {meta.priority}
                   </span>
                 </span>
-                <input
-                  type="checkbox"
-                  checked={enabled}
-                  onChange={() => toggleType(type)}
-                  className="w-4 h-4 rounded border-border accent-primary"
-                />
+                <span className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      playNotificationSound(type)
+                    }}
+                    title="Preview sound"
+                    className="p-0.5 text-muted-foreground hover:text-foreground rounded hover:bg-accent"
+                  >
+                    <Play className="w-3 h-3" />
+                  </button>
+                  <input
+                    type="checkbox"
+                    checked={enabled}
+                    onChange={() => toggleType(type)}
+                    className="w-4 h-4 rounded border-border accent-primary"
+                  />
+                </span>
               </label>
             )
           })}

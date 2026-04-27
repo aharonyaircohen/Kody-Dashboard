@@ -58,7 +58,7 @@ export function useBrowserNotifications({
 
       // Sound
       if (store?.prefs.soundEnabled !== false) {
-        playNotificationSound(meta.priority)
+        playNotificationSound(type)
       }
 
       // Browser (OS-level) notification

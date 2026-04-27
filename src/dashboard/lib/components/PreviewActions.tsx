@@ -23,7 +23,6 @@ import {
   Eye,
   Camera,
   RefreshCw,
-  Activity,
   GitMerge,
   ChevronDown,
 } from 'lucide-react'
@@ -263,20 +262,6 @@ export function PreviewActions({
           <RefreshCw className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Sync</span>
         </Button>
-
-        {/* Fix CI — only visible when CI is failing; posts @kody fix-ci */}
-        {ciFailed && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => postKodyCommand('@kody fix-ci', 'Fix CI requested')}
-            className="gap-1.5 cursor-pointer text-yellow-200 bg-yellow-500/10 border-yellow-500/40 shadow-sm shadow-yellow-500/10 transition-all hover:bg-yellow-500/20 hover:border-yellow-400/60 hover:text-yellow-100 hover:shadow-yellow-500/20 active:scale-[0.97]"
-            title="Fix failing CI"
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Fix CI</span>
-          </Button>
-        )}
 
         {/* Resolve — only when there are merge conflicts; replaces Merge */}
         {hasConflicts && (
