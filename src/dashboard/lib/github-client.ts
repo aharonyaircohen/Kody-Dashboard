@@ -859,6 +859,7 @@ export async function fetchIssues(options?: {
     try {
       const gql = await fetchIssuesViaGraphQL({
         state: options?.state ?? 'open',
+        labels: options?.labels,
         excludeLabels: options?.excludeLabels,
         perPage: options?.perPage ?? 50,
       })
@@ -911,6 +912,7 @@ interface GraphQLIssuesResponse {
  */
 async function fetchIssuesViaGraphQL(opts: {
   state: 'open' | 'closed' | 'all'
+  labels?: string
   excludeLabels?: string[]
   perPage: number
 }): Promise<GitHubIssue[]> {
@@ -918,10 +920,22 @@ async function fetchIssuesViaGraphQL(opts: {
     opts.state === 'all' ? '[OPEN, CLOSED]' : opts.state === 'closed' ? '[CLOSED]' : '[OPEN]'
   const first = Math.min(opts.perPage, 100)
 
+  // GraphQL accepts a `labels: [String!]` filter on issues(). Mirror REST's
+  // comma-separated `labels=a,b` semantics: results match all listed labels.
+  const labelList = opts.labels
+    ? opts.labels
+        .split(',')
+        .map((l) => l.trim())
+        .filter(Boolean)
+    : []
+  const labelsArg = labelList.length
+    ? `, labels: [${labelList.map((l) => JSON.stringify(l)).join(', ')}]`
+    : ''
+
   const query = `
     query Issues($owner: String!, $repo: String!) {
       repository(owner: $owner, name: $repo) {
-        issues(first: ${first}, states: ${states}, orderBy: { field: UPDATED_AT, direction: DESC }) {
+        issues(first: ${first}, states: ${states}${labelsArg}, orderBy: { field: UPDATED_AT, direction: DESC }) {
           nodes {
             databaseId
             number
