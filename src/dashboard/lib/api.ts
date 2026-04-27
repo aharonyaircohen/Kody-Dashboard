@@ -725,14 +725,13 @@ export const remoteApi = {
 // ============ Missions API ============
 
 export interface Mission {
-  number: number;
+  /** Filename without `.md` — stable identity. */
+  slug: string;
   title: string;
   body: string;
-  state: "open" | "closed";
-  labels: string[];
-  assignees: Array<{ login: string; avatar_url: string }>;
-  createdAt: string;
+  /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
+  /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
 
@@ -743,8 +742,8 @@ export const missionsApi = {
     return data.missions;
   },
 
-  get: async (number: number): Promise<Mission> => {
-    const res = await fetch(`${API_BASE}/missions/${number}`, {
+  get: async (slug: string): Promise<Mission> => {
+    const res = await fetch(`${API_BASE}/missions/${encodeURIComponent(slug)}`, {
       headers: buildHeaders(),
     });
     const data = await handleResponse<{ mission: Mission }>(res);
@@ -752,6 +751,7 @@ export const missionsApi = {
   },
 
   create: async (data: {
+    slug?: string;
     title: string;
     body: string;
     actorLogin?: string;
@@ -766,10 +766,10 @@ export const missionsApi = {
   },
 
   update: async (
-    number: number,
+    slug: string,
     data: { title?: string; body?: string; actorLogin?: string },
   ): Promise<Mission> => {
-    const res = await fetch(`${API_BASE}/missions/${number}`, {
+    const res = await fetch(`${API_BASE}/missions/${encodeURIComponent(slug)}`, {
       method: "PATCH",
       headers: buildHeaders(),
       body: JSON.stringify(data),
@@ -778,11 +778,11 @@ export const missionsApi = {
     return payload.mission;
   },
 
-  remove: async (number: number, actorLogin?: string): Promise<void> => {
+  remove: async (slug: string, actorLogin?: string): Promise<void> => {
     const params = new URLSearchParams();
     if (actorLogin) params.set("actorLogin", actorLogin);
     const suffix = params.toString() ? `?${params}` : "";
-    const res = await fetch(`${API_BASE}/missions/${number}${suffix}`, {
+    const res = await fetch(`${API_BASE}/missions/${encodeURIComponent(slug)}${suffix}`, {
       method: "DELETE",
       headers: buildHeaders(),
     });
@@ -790,13 +790,13 @@ export const missionsApi = {
   },
 
   run: async (
-    mission: { number: number; title: string; body: string },
+    mission: { slug: string; title: string; body: string },
   ): Promise<{ sessionId: string; workflowId: string }> => {
     const sessionId =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
-        : `mission-${mission.number}-${Date.now()}`;
-    const content = `Execute mission #${mission.number}: ${mission.title}\n\n${mission.body}`;
+        : `mission-${mission.slug}-${Date.now()}`;
+    const content = `Execute mission \`${mission.slug}\`: ${mission.title}\n\n${mission.body}`;
     const res = await fetch(`${API_BASE}/chat/trigger`, {
       method: "POST",
       headers: buildHeaders(),

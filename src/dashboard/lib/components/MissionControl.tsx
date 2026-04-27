@@ -3,8 +3,9 @@
  * @domain kody
  * @pattern mission-control-page
  * @ai-summary Mission Control — list, view, create, edit, and delete missions.
- *   A mission is a GitHub issue labelled `kody:mission` whose body describes
- *   its intent, system prompt, allowed commands, and restrictions.
+ *   A mission is a markdown file at `.kody/missions/<slug>.md` in the
+ *   connected repo whose body describes the mission's intent, allowed
+ *   commands, and restrictions.
  */
 'use client'
 
@@ -67,7 +68,7 @@ export function MissionControl({ titleSlot }: { titleSlot?: React.ReactNode } = 
 export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) {
   const { data: missions = [], isLoading, isFetching, refetch, error } = useMissions()
 
-  const [selectedNumber, setSelectedNumber] = useState<number | null>(null)
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [editingMission, setEditingMission] = useState<Mission | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Mission | null>(null)
@@ -89,15 +90,15 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
   const cancelDraft = () => setIsDrafting(false)
 
   const selectedMission = useMemo(
-    () => missions.find((m) => m.number === selectedNumber) ?? null,
-    [missions, selectedNumber],
+    () => missions.find((m) => m.slug === selectedSlug) ?? null,
+    [missions, selectedSlug],
   )
 
   useEffect(() => {
-    if (!selectedNumber && missions.length > 0) {
-      setSelectedNumber(missions[0].number)
+    if (!selectedSlug && missions.length > 0) {
+      setSelectedSlug(missions[0].slug)
     }
-  }, [missions, selectedNumber])
+  }, [missions, selectedSlug])
 
   const { githubUser } = useGitHubIdentity()
   const deleteMutation = useDeleteMission(githubUser?.login)
@@ -216,12 +217,12 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
           ) : (
             <ul className="divide-y divide-border">
               {missions.map((mission) => {
-                const isActive = selectedNumber === mission.number
+                const isActive = selectedSlug === mission.slug
                 return (
-                  <li key={mission.number}>
+                  <li key={mission.slug}>
                     <button
                       type="button"
-                      onClick={() => setSelectedNumber(mission.number)}
+                      onClick={() => setSelectedSlug(mission.slug)}
                       className={cn(
                         'w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative',
                         isActive && 'bg-accent/70',
@@ -242,7 +243,7 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
                         </span>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                        <span className="font-mono opacity-80">#{mission.number}</span>
+                        <span className="font-mono opacity-80">{mission.slug}</span>
                         <span>·</span>
                         <span className="inline-flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
@@ -267,12 +268,12 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
           {selectedMission ? (
             <MissionDetail
               mission={selectedMission}
-              onBack={() => setSelectedNumber(null)}
+              onBack={() => setSelectedSlug(null)}
               onEdit={() => setEditingMission(selectedMission)}
               onDelete={() => setPendingDelete(selectedMission)}
               onRun={() => setPendingRun(selectedMission)}
               isRunning={
-                runMutation.isPending && runMutation.variables?.number === selectedMission.number
+                runMutation.isPending && runMutation.variables?.slug === selectedMission.slug
               }
             />
           ) : (
@@ -294,7 +295,7 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
           setDraftPrefill(null)
         }}
         onCreated={(mission) => {
-          setSelectedNumber(mission.number)
+          setSelectedSlug(mission.slug)
           setShowCreate(false)
           setDraftPrefill(null)
           // Drop out of draft mode so the chat is now scoped to the
@@ -318,14 +319,14 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
         title="Run this mission?"
         description={
           pendingRun
-            ? `Dispatches kody.yml with mission #${pendingRun.number} "${pendingRun.title}" as the prompt. GitHub Actions minutes will be consumed and kody may make real repo writes.`
+            ? `Dispatches kody.yml with mission "${pendingRun.title}" (${pendingRun.slug}) as the prompt. GitHub Actions minutes will be consumed and kody may make real repo writes.`
             : ''
         }
         confirmLabel="Run mission"
         onConfirm={() => {
           if (!pendingRun) return
           runMutation.mutate({
-            number: pendingRun.number,
+            slug: pendingRun.slug,
             title: pendingRun.title,
             body: pendingRun.body,
           })
@@ -336,20 +337,20 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
       {/* Delete confirm */}
       <ConfirmDialog
         open={!!pendingDelete}
-        title="Close this mission?"
+        title="Delete this mission?"
         description={
           pendingDelete
-            ? `Mission #${pendingDelete.number} "${pendingDelete.title}" will be closed on GitHub. You can reopen it from there.`
+            ? `Mission "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/missions/ via a commit on the default branch.`
             : ''
         }
         variant="destructive"
-        confirmLabel="Close mission"
+        confirmLabel="Delete mission"
         onConfirm={() => {
           if (!pendingDelete) return
           const target = pendingDelete
-          deleteMutation.mutate(target.number, {
+          deleteMutation.mutate(target.slug, {
             onSuccess: () => {
-              if (selectedNumber === target.number) setSelectedNumber(null)
+              if (selectedSlug === target.slug) setSelectedSlug(null)
             },
           })
         }}
@@ -399,11 +400,11 @@ function MissionDetail({
                 {mission.title}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-                <span className="font-mono opacity-80">#{mission.number}</span>
+                <span className="font-mono opacity-80">{mission.slug}</span>
                 <span>·</span>
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  created {new Date(mission.createdAt).toLocaleDateString()}
+                  updated {new Date(mission.updatedAt).toLocaleDateString()}
                 </span>
                 <span>·</span>
                 <a
@@ -582,7 +583,7 @@ function EditMissionDialog({
   onSaved: () => void
 }) {
   const { githubUser } = useGitHubIdentity()
-  const updateMutation = useUpdateMission(mission.number, githubUser?.login)
+  const updateMutation = useUpdateMission(mission.slug, githubUser?.login)
 
   const [title, setTitle] = useState(mission.title)
   const [body, setBody] = useState(mission.body || '')
@@ -608,9 +609,9 @@ function EditMissionDialog({
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit mission #{mission.number}</DialogTitle>
+          <DialogTitle>Edit mission `{mission.slug}`</DialogTitle>
           <DialogDescription>
-            Update the mission&apos;s title or body. Changes are written back to the GitHub issue.
+            Update the mission&apos;s title or body. Saving commits the file to the default branch.
           </DialogDescription>
         </DialogHeader>
 

@@ -275,8 +275,8 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   // for the React session) — switching between missions preserves each
   // thread so users can jump around without losing context. Persistence
   // across reloads would need a dedicated save/load API; deferred.
-  const [missionMessagesByNumber, setMissionMessagesByNumber] = useState<
-    Record<number, Message[]>
+  const [missionMessagesBySlug, setMissionMessagesBySlug] = useState<
+    Record<string, Message[]>
   >({})
 
   const [input, setInput] = useState('')
@@ -337,12 +337,12 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
 
   // Current messages — four stores, picked by mode.
   //  • task mode    → `taskMessages`        (loaded/saved via API)
-  //  • mission mode → `missionMessagesByNumber[number]` (ephemeral, per mission)
+  //  • mission mode → `missionMessagesBySlug[slug]` (ephemeral, per mission)
   //  • draft mode   → `draftMessages`       (ephemeral React state)
   //  • global mode  → `sessionHook`         (localStorage-backed)
-  const missionNumber = selectedMission?.number ?? null
+  const missionSlug: string | null = selectedMission?.slug ?? null
   const currentMissionMessages: Message[] =
-    missionNumber != null ? missionMessagesByNumber[missionNumber] ?? [] : []
+    missionSlug != null ? missionMessagesBySlug[missionSlug] ?? [] : []
 
   const messages: Message[] = isTaskMode
     ? taskMessages
@@ -356,11 +356,11 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     (updater: Message[] | ((prev: Message[]) => Message[])) => {
       if (isTaskMode) {
         setTaskMessages((prev) => (typeof updater === 'function' ? updater(prev) : updater))
-      } else if (isMissionMode && missionNumber != null) {
-        setMissionMessagesByNumber((prev) => {
-          const prevForMission = prev[missionNumber] ?? []
+      } else if (isMissionMode && missionSlug != null) {
+        setMissionMessagesBySlug((prev) => {
+          const prevForMission = prev[missionSlug] ?? []
           const next = typeof updater === 'function' ? updater(prevForMission) : updater
-          return { ...prev, [missionNumber]: next }
+          return { ...prev, [missionSlug]: next }
         })
       } else if (isDraftMode) {
         setDraftMessages((prev) => (typeof updater === 'function' ? updater(prev) : updater))
@@ -372,7 +372,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         })
       }
     },
-    [isTaskMode, isMissionMode, missionNumber, isDraftMode, sessionHook],
+    [isTaskMode, isMissionMode, missionSlug, isDraftMode, sessionHook],
   )
 
   // ─── SSE for chat streaming ────────────────────────────────────────────────
@@ -463,7 +463,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   useEffect(() => {
     const sid =
       selectedTask?.id ??
-      (missionNumber != null ? `mission-${missionNumber}` : null) ??
+      (missionSlug != null ? `mission-${missionSlug}` : null) ??
       draftId ??
       null
     if (!sid) {
@@ -493,7 +493,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       document.removeEventListener('visibilitychange', handleVisibility)
       close()
     }
-  }, [selectedTask?.id, missionNumber, draftId, connectSSE])
+  }, [selectedTask?.id, missionSlug, draftId, connectSSE])
 
   // Reset the ephemeral draft buffer whenever a new draft session opens.
   useEffect(() => {
@@ -759,7 +759,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       // splitting user/assistant across two sessions.
       const resolveSessionId = (): string => {
         if (selectedTask) return selectedTask.id
-        if (missionNumber != null) return `mission-${missionNumber}`
+        if (missionSlug != null) return `mission-${missionSlug}`
         if (draftId) return draftId
         return sessionHook.activeSession?.id ?? sessionHook.createSession()
       }
@@ -787,7 +787,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         const brainChatId = selectedTask
           ? `${userKey}--task-${selectedTask.id}`
           : selectedMission
-            ? `${userKey}--mission-${selectedMission.number}`
+            ? `${userKey}--mission-${selectedMission.slug}`
             : draftId
               ? `${userKey}--mission-draft-${draftId}`
               : `${userKey}--global-${brainSessionId}`
@@ -843,11 +843,9 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
               ...(selectedMission
                 ? {
                     missionContext: {
-                      number: selectedMission.number,
+                      slug: selectedMission.slug,
                       title: selectedMission.title,
                       body: selectedMission.body,
-                      state: selectedMission.state,
-                      labels: selectedMission.labels,
                     },
                   }
                 : {}),
@@ -1069,11 +1067,9 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
               ...(selectedMission
                 ? {
                     mission: {
-                      number: selectedMission.number,
+                      slug: selectedMission.slug,
                       title: selectedMission.title,
                       body: selectedMission.body,
-                      state: selectedMission.state,
-                      labels: selectedMission.labels,
                     },
                   }
                 : {}),
@@ -1194,7 +1190,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     [
       selectedTask,
       selectedMission,
-      missionNumber,
+      missionSlug,
       draftId,
       isDraftMode,
       setMessages,
@@ -1298,7 +1294,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     : isTaskMode
       ? `Ask about task #${selectedTask?.issueNumber}...`
       : isMissionMode
-        ? `Ask about mission #${selectedMission?.number}...`
+        ? `Ask about mission \`${selectedMission?.slug ?? ''}\`...`
         : isDraftMode
           ? `Describe the mission you want Kody to run...`
           : `Ask Kody...`
@@ -1492,7 +1488,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
           ) : isMissionMode && selectedMission ? (
             <div className="flex items-center gap-2 text-sm">
               <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 rounded font-medium inline-flex items-center gap-1">
-                <Target className="w-3 h-3" />#{selectedMission.number}
+                <Target className="w-3 h-3" />{selectedMission.slug}
               </span>
               <span className="truncate text-muted-foreground">{selectedMission.title}</span>
             </div>
@@ -1536,7 +1532,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
             ) : isMissionMode && selectedMission ? (
               <>
                 <p className="font-medium text-foreground">
-                  Chat about mission #{selectedMission.number}
+                  Chat about `{selectedMission.slug}`
                 </p>
                 <p className="text-sm mt-1 max-w-sm mx-auto">
                   Ask anything about this mission&apos;s intent, scope, or rules.

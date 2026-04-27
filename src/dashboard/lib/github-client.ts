@@ -137,6 +137,17 @@ export function invalidateIssueCache(issueNumber?: number): void {
 }
 
 /**
+ * Invalidate cache entries for mission files. Pass a slug to scope to one
+ * mission, or omit to clear the listing cache (e.g. on bulk changes).
+ */
+export function invalidateMissionsCache(slug?: string): void {
+  if (typeof slug === 'string' && slug.length > 0) {
+    cache.delete(`mission:${slug}`)
+  }
+  invalidateCache('missions:')
+}
+
+/**
  * Invalidate cache entries for workflow runs and check runs.
  * Use after a webhook arrives signaling a run/job state change.
  */

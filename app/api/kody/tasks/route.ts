@@ -33,7 +33,6 @@ import type {
 } from '@dashboard/lib/types'
 import { matchWorkflowRunToTask } from '@dashboard/lib/workflow-matching'
 import { parseKodyPhase, parseKodyFlow } from '@dashboard/lib/constants'
-import { MISSION_LABEL } from '@dashboard/lib/missions'
 
 /**
  * Derive column from live pipeline status.
@@ -169,8 +168,6 @@ export async function GET(req: NextRequest) {
         state: 'open',
         perPage: 100,
         since: sinceDate,
-        // Missions live in their own page and must not appear in the task list
-        excludeLabels: [MISSION_LABEL],
       }),
       fetchWorkflowRuns({ perPage: 30 }),
       fetchOpenPRs(),

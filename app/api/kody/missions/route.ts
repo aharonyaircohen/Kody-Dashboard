@@ -3,8 +3,9 @@
  * @domain kody
  * @pattern missions-api
  * @ai-summary Mission Control API — GET lists missions, POST creates one.
- *   A mission is a GitHub issue carrying the `kody:mission` label. Unlike tasks,
- *   missions never auto-trigger the @kody pipeline.
+ *   A mission is a markdown file at `.kody/missions/<slug>.md` in the
+ *   connected repo. The kody engine's mission-scheduler enumerates the same
+ *   directory and ticks each file every cron wake.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
@@ -15,38 +16,13 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from '@dashboard/lib/auth'
+import { setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
 import {
-  fetchIssues,
-  createIssue,
-  invalidateIssueCache,
-  setGitHubContext,
-  clearGitHubContext,
-} from '@dashboard/lib/github-client'
-import { MISSION_LABEL } from '@dashboard/lib/missions'
-
-function toMission(issue: {
-  number: number
-  title: string
-  body: string | null
-  state: 'open' | 'closed'
-  labels: Array<{ name: string }>
-  created_at: string
-  updated_at: string
-  html_url: string
-  assignees: Array<{ login: string; avatar_url: string }>
-}) {
-  return {
-    number: issue.number,
-    title: issue.title,
-    body: issue.body ?? '',
-    state: issue.state,
-    labels: issue.labels.map((l) => l.name),
-    assignees: issue.assignees,
-    createdAt: issue.created_at,
-    updatedAt: issue.updated_at,
-    htmlUrl: issue.html_url,
-  }
-}
+  listMissionFiles,
+  readMissionFile,
+  writeMissionFile,
+  isValidSlug,
+} from '@dashboard/lib/missions-files'
 
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req)
@@ -56,16 +32,7 @@ export async function GET(req: NextRequest) {
   if (headerAuth) setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
 
   try {
-    // Short TTL so newly-created missions appear quickly. Post-TTL revalidation
-    // is a free 304 via the cached ETag in the unchanged case.
-    const issues = await fetchIssues({
-      state: 'open',
-      labels: MISSION_LABEL,
-      perPage: 100,
-      ttl: 15_000,
-    })
-
-    const missions = issues.map(toMission)
+    const missions = await listMissionFiles()
     return NextResponse.json({ missions })
   } catch (error: any) {
     console.error('[Missions] Error fetching missions:', error)
@@ -90,10 +57,21 @@ export async function GET(req: NextRequest) {
 }
 
 const createMissionSchema = z.object({
+  slug: z.string().min(1).max(64).optional(),
   title: z.string().min(1),
   body: z.string().default(''),
   actorLogin: z.string().optional(),
 })
+
+function slugifyTitle(title: string): string {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-')
+    .slice(0, 64)
+}
 
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req)
@@ -104,39 +82,43 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json()
-    const { title, body, actorLogin } = createMissionSchema.parse(payload)
+    const { slug: requestedSlug, title, body, actorLogin } = createMissionSchema.parse(payload)
+
+    const slug = (requestedSlug ?? slugifyTitle(title))
+    if (!slug || !isValidSlug(slug)) {
+      return NextResponse.json(
+        { error: 'invalid_slug', message: 'Mission slug must be lowercase letters, digits, dashes, or underscores.' },
+        { status: 400 },
+      )
+    }
+
+    const existing = await readMissionFile(slug)
+    if (existing) {
+      return NextResponse.json(
+        { error: 'slug_taken', message: `Mission "${slug}" already exists.` },
+        { status: 409 },
+      )
+    }
 
     const actorResult = await verifyActorLogin(req, actorLogin)
     if (actorResult instanceof NextResponse) return actorResult
 
     const userOctokit = await getUserOctokit(req)
+    if (!userOctokit) {
+      return NextResponse.json(
+        { error: 'no_user_token', message: 'A signed-in GitHub token is required to commit mission files.' },
+        { status: 401 },
+      )
+    }
 
-    const issue = await createIssue(
-      {
-        title,
-        body,
-        labels: [MISSION_LABEL],
-      },
-      userOctokit ?? undefined,
-    )
-
-    // Same-instance writes: drop cached listings so the next GET on this
-    // instance picks up the new mission immediately.
-    invalidateIssueCache(issue.number)
-
-    return NextResponse.json({
-      mission: toMission({
-        number: issue.number,
-        title: issue.title,
-        body: issue.body ?? '',
-        state: issue.state,
-        labels: issue.labels,
-        created_at: issue.created_at,
-        updated_at: issue.updated_at,
-        html_url: issue.html_url,
-        assignees: issue.assignees,
-      }),
+    const mission = await writeMissionFile({
+      octokit: userOctokit,
+      slug,
+      title,
+      body,
     })
+
+    return NextResponse.json({ mission })
   } catch (error: any) {
     console.error('[Missions] Error creating mission:', error)
 

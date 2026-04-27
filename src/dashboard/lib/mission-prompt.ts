@@ -57,8 +57,8 @@ Stay within the mission's scope. You are not a general-purpose assistant.`
  * it server-side: system prompt, separator, then the authored mission body
  * framed by a title line so the model can tell the sections apart.
  */
-export function composeMissionPrompt(mission: Pick<Mission, 'number' | 'title' | 'body'>): string {
+export function composeMissionPrompt(mission: Pick<Mission, 'slug' | 'title' | 'body'>): string {
   const body = (mission.body ?? '').trim()
-  const titleLine = `# Mission #${mission.number}: ${mission.title}`
+  const titleLine = `# Mission \`${mission.slug}\`: ${mission.title}`
   return `${KODY_MISSION_SYSTEM_PROMPT}\n\n---\n\n${titleLine}\n\n${body}\n`
 }
