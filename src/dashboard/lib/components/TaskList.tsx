@@ -435,159 +435,201 @@ const TaskRow = memo(function TaskRow({
                   </div>
                 </div>
 
-                {/* Meta row */}
-                <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500">
-                  <SimpleTooltip content="View issue on GitHub" side="bottom">
-                    <a
-                      href={getGitHubIssueUrl(task.issueNumber)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className={cn('font-mono font-semibold hover:underline', colors.text)}
-                    >
-                      #{task.issueNumber}
-                    </a>
-                  </SimpleTooltip>
+                {/* Meta row — grouped: identity · type · progress · outcomes.
+                    gap-x-3 between groups, gap-1.5 within. */}
+                {(() => {
+                  // Labels that are already represented by the flow chip — don't
+                  // re-print them in the trailing "first other label" slot.
+                  const FLOW_DERIVED_LABELS = new Set(['bug', 'feature', 'chore', 'spec'])
+                  const priorityLabel = task.labels.find((l) => l.startsWith('priority:'))
+                  const priorityLevel = priorityLabel ? parsePriorityLabel(priorityLabel) : null
+                  const priorityMeta = priorityLevel ? PRIORITY_META[priorityLevel] : null
+                  // Phase chip is suppressed when terminal — gate label already
+                  // says "Done"/"Failed", so the chip just doubles up.
+                  const phase = task.kodyPhase
+                  const showPhaseChip = phase && phase !== 'done' && phase !== 'failed'
+                  const firstOtherLabel = task.labels.find(
+                    (l) =>
+                      !l.startsWith('priority:') &&
+                      !l.startsWith('kody:') &&
+                      !l.startsWith('kody-flow:') &&
+                      !FLOW_DERIVED_LABELS.has(l) &&
+                      l !== 'ui-approved' &&
+                      l !== 'pr-approved',
+                  )
+                  const hasUIApproved = task.labels.includes('ui-approved')
+                  const hasPRApproved = task.labels.includes('pr-approved')
+                  const showTypeGroup = !!task.kodyFlow || !!priorityMeta
+                  // Progress group always renders (relative time always shows).
+                  const showOutcomesGroup =
+                    hasUIApproved || hasPRApproved || hasPR || !!firstOtherLabel
 
-                  <SimpleTooltip
-                    content={<StatusTooltipContent column={task.column} gateType={task.gateType} />}
-                    side="bottom"
-                  >
-                    <span className={cn('font-medium cursor-default', colors.text)}>
-                      {gateLabel}
-                    </span>
-                  </SimpleTooltip>
+                  return (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-zinc-500">
+                      {/* Group A — Identity: issue # · status word · KODY */}
+                      <div className="inline-flex items-center gap-1.5">
+                        <SimpleTooltip content="View issue on GitHub" side="bottom">
+                          <a
+                            href={getGitHubIssueUrl(task.issueNumber)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className={cn(
+                              'font-mono font-semibold hover:underline',
+                              colors.text,
+                            )}
+                          >
+                            #{task.issueNumber}
+                          </a>
+                        </SimpleTooltip>
 
-                  {task.isKodyAssigned && (
-                    <SimpleTooltip content="Assigned to Kody AI agent" side="bottom">
-                      <span className="inline-flex items-center gap-0.5 font-bold text-blue-400 cursor-default">
-                        <Bot className="w-3 h-3" />
-                        KODY
-                      </span>
-                    </SimpleTooltip>
-                  )}
+                        <SimpleTooltip
+                          content={
+                            <StatusTooltipContent
+                              column={task.column}
+                              gateType={task.gateType}
+                            />
+                          }
+                          side="bottom"
+                        >
+                          <span className={cn('font-medium cursor-default', colors.text)}>
+                            {gateLabel}
+                          </span>
+                        </SimpleTooltip>
 
-                  <KodyFlowChip flow={task.kodyFlow} />
-                  <KodyPhaseChip phase={task.kodyPhase} />
+                        {task.isKodyAssigned && (
+                          <SimpleTooltip content="Assigned to Kody AI agent" side="bottom">
+                            <span className="inline-flex items-center gap-0.5 font-bold text-blue-400 cursor-default">
+                              <Bot className="w-3 h-3" />
+                              KODY
+                            </span>
+                          </SimpleTooltip>
+                        )}
+                      </div>
 
-                  {/* Priority badge */}
-                  {task.labels
-                    .filter((l) => l.startsWith('priority:'))
-                    .map((label) => {
-                      const level = parsePriorityLabel(label)
-                      if (!level) return null
-                      const meta = PRIORITY_META[level]
-                      return (
-                        <span
-                          key={label}
-                          className={cn(
-                            'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border',
-                            meta.colorClass,
+                      {/* Group B — Type/priority: flow chip · priority chip */}
+                      {showTypeGroup && (
+                        <div className="inline-flex items-center gap-1.5">
+                          <KodyFlowChip flow={task.kodyFlow} compact />
+                          {priorityLabel && priorityLevel && priorityMeta && (
+                            <span
+                              className={cn(
+                                'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border',
+                                priorityMeta.colorClass,
+                              )}
+                            >
+                              {priorityLevel}
+                            </span>
                           )}
-                        >
-                          {level}
+                        </div>
+                      )}
+
+                      {/* Group C — Progress: phase chip (non-terminal) ·
+                          sub-status · pipeline · time */}
+                      <div className="inline-flex items-center gap-1.5">
+                        {showPhaseChip && <KodyPhaseChip phase={phase} />}
+
+                        {isActive && <MiniPipelineProgress task={task} variant="inline" />}
+
+                        {!isActive && task.isTimeout && (
+                          <SimpleTooltip
+                            content={<SubStatusTooltipContent type="timeout" />}
+                            side="bottom"
+                          >
+                            <span className="inline-flex items-center gap-0.5 font-semibold text-orange-400 cursor-default">
+                              <Clock className="w-3 h-3" />
+                              Timeout
+                            </span>
+                          </SimpleTooltip>
+                        )}
+                        {!isActive && task.isExhausted && (
+                          <SimpleTooltip
+                            content={<SubStatusTooltipContent type="exhausted" />}
+                            side="bottom"
+                          >
+                            <span className="inline-flex items-center gap-0.5 font-semibold text-red-400 cursor-default">
+                              <RefreshCw className="w-3 h-3" />
+                              Exhausted
+                            </span>
+                          </SimpleTooltip>
+                        )}
+                        {!isActive && task.isSupervisorError && (
+                          <SimpleTooltip
+                            content={<SubStatusTooltipContent type="error" />}
+                            side="bottom"
+                          >
+                            <span className="inline-flex items-center gap-0.5 font-semibold text-red-400 cursor-default">
+                              <AlertCircle className="w-3 h-3" />
+                              Error
+                            </span>
+                          </SimpleTooltip>
+                        )}
+                        {task.clarifyWaiting && (
+                          <SimpleTooltip
+                            content={<SubStatusTooltipContent type="needs-answer" />}
+                            side="bottom"
+                          >
+                            <span className="hidden sm:inline-flex items-center gap-0.5 font-semibold text-blue-400 cursor-default">
+                              <AlertCircle className="w-3 h-3" />
+                              Needs Answer
+                            </span>
+                          </SimpleTooltip>
+                        )}
+
+                        <span className="text-zinc-600">
+                          <RelativeTime date={task.updatedAt} />
                         </span>
-                      )
-                    })}
+                      </div>
 
-                  {/* Active pipeline progress — inline dots + stage label */}
-                  {isActive && <MiniPipelineProgress task={task} variant="inline" />}
+                      {/* Group D — Outcomes: approvals · other label · PR + CI */}
+                      {showOutcomesGroup && (
+                        <div className="inline-flex items-center gap-1.5">
+                          {hasUIApproved && (
+                            <SimpleTooltip content="UI approved from preview" side="bottom">
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold cursor-default">
+                                <CheckCircle2 className="w-3 h-3" />
+                                UI
+                              </span>
+                            </SimpleTooltip>
+                          )}
 
-                  {/* Non-pipeline sub-statuses (only shown when NOT active pipeline) */}
-                  {!isActive && task.isTimeout && (
-                    <SimpleTooltip
-                      content={<SubStatusTooltipContent type="timeout" />}
-                      side="bottom"
-                    >
-                      <span className="inline-flex items-center gap-0.5 font-semibold text-orange-400 cursor-default">
-                        <Clock className="w-3 h-3" />
-                        Timeout
-                      </span>
-                    </SimpleTooltip>
-                  )}
-                  {!isActive && task.isExhausted && (
-                    <SimpleTooltip
-                      content={<SubStatusTooltipContent type="exhausted" />}
-                      side="bottom"
-                    >
-                      <span className="inline-flex items-center gap-0.5 font-semibold text-red-400 cursor-default">
-                        <RefreshCw className="w-3 h-3" />
-                        Exhausted
-                      </span>
-                    </SimpleTooltip>
-                  )}
-                  {!isActive && task.isSupervisorError && (
-                    <SimpleTooltip content={<SubStatusTooltipContent type="error" />} side="bottom">
-                      <span className="inline-flex items-center gap-0.5 font-semibold text-red-400 cursor-default">
-                        <AlertCircle className="w-3 h-3" />
-                        Error
-                      </span>
-                    </SimpleTooltip>
-                  )}
-                  {task.clarifyWaiting && (
-                    <SimpleTooltip
-                      content={<SubStatusTooltipContent type="needs-answer" />}
-                      side="bottom"
-                    >
-                      <span className="hidden sm:inline-flex items-center gap-0.5 font-semibold text-blue-400 cursor-default">
-                        <AlertCircle className="w-3 h-3" />
-                        Needs Answer
-                      </span>
-                    </SimpleTooltip>
-                  )}
+                          {hasPRApproved && (
+                            <SimpleTooltip content="PR approved from preview" side="bottom">
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[10px] font-semibold cursor-default">
+                                <CheckCircle2 className="w-3 h-3" />
+                                PR
+                              </span>
+                            </SimpleTooltip>
+                          )}
 
-                  <span className="text-zinc-600"><RelativeTime date={task.updatedAt} /></span>
+                          {firstOtherLabel && (
+                            <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-medium truncate max-w-24">
+                              {firstOtherLabel}
+                            </span>
+                          )}
 
-                  {task.labels.includes('ui-approved') && (
-                    <SimpleTooltip content="UI approved from preview" side="bottom">
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold cursor-default">
-                        <CheckCircle2 className="w-3 h-3" />
-                        UI
-                      </span>
-                    </SimpleTooltip>
-                  )}
-
-                  {task.labels.includes('pr-approved') && (
-                    <SimpleTooltip content="PR approved from preview" side="bottom">
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[10px] font-semibold cursor-default">
-                        <CheckCircle2 className="w-3 h-3" />
-                        PR
-                      </span>
-                    </SimpleTooltip>
-                  )}
-
-                  {(() => {
-                    const firstOther = task.labels.find(
-                      (l) =>
-                        !l.startsWith('priority:') &&
-                        l !== 'ui-approved' &&
-                        l !== 'pr-approved',
-                    )
-                    return firstOther ? (
-                      <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-medium truncate max-w-24">
-                        {firstOther}
-                      </span>
-                    ) : null
-                  })()}
-
-                  {hasPR && (
-                    <span className="inline-flex items-center gap-1">
-                      <SimpleTooltip content="Open PR in GitHub" side="bottom">
-                        <a
-                          href={task.associatedPR!.html_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors font-medium"
-                        >
-                          <GitPullRequest className="w-3 h-3" />
-                          PR
-                        </a>
-                      </SimpleTooltip>
-                      <CIStatusBadge prNumber={task.associatedPR!.number} />
-                    </span>
-                  )}
-                </div>
+                          {hasPR && (
+                            <span className="inline-flex items-center gap-1">
+                              <SimpleTooltip content="Open PR in GitHub" side="bottom">
+                                <a
+                                  href={task.associatedPR!.html_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors font-medium"
+                                >
+                                  <GitPullRequest className="w-3 h-3" />
+                                  PR
+                                </a>
+                              </SimpleTooltip>
+                              <CIStatusBadge prNumber={task.associatedPR!.number} />
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
 
               {/* Actions */}

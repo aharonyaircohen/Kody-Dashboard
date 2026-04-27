@@ -132,9 +132,12 @@ export function KodyPhaseChip({
 export function KodyFlowChip({
   flow,
   className,
+  compact,
 }: {
   flow: KodyFlow | null
   className?: string
+  /** When true, hide the text label on mobile (<sm). Icon stays visible. */
+  compact?: boolean
 }) {
   if (!flow) return null
   const meta = FLOW_META[flow]
@@ -148,7 +151,7 @@ export function KodyFlowChip({
       title={`Flow: ${meta.label}`}
     >
       <Icon className="w-3 h-3" />
-      {meta.label}
+      <span className={cn(compact && 'hidden sm:inline')}>{meta.label}</span>
     </span>
   )
 }
