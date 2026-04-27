@@ -15,6 +15,7 @@ import { MarkdownViewer } from "./MarkdownViewer";
 import { CIStatusBadge } from "./CIStatusBadge";
 import { ActionStatusBadge } from "./ActionStatusBadge";
 import { MergeConflictBanner } from "./MergeConflictBanner";
+import { CIFailureBanner } from "./CIFailureBanner";
 import { KodyChat } from "./KodyChat";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { cn, getPreviewBypassUrl } from "../utils";
@@ -678,6 +679,9 @@ export function PreviewModal({
 
       {/* Conflict banner — only renders when hasConflicts === true */}
       <MergeConflictBanner prNumber={pr.number} />
+
+      {/* CI failure banner — only renders when ciStatus === 'failure' (and no conflicts) */}
+      <CIFailureBanner prNumber={pr.number} />
 
       {/* Action bar */}
       <PreviewActions
