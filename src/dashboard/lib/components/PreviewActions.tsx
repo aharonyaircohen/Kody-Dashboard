@@ -176,7 +176,7 @@ export function PreviewActions({
             variant="outline"
             size="sm"
             onClick={handleApproveUI}
-            className="gap-1.5 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+            className="gap-1.5 cursor-pointer text-emerald-300 bg-emerald-500/10 border-emerald-500/40 shadow-sm shadow-emerald-500/10 transition-all hover:bg-emerald-500/20 hover:border-emerald-400/60 hover:text-emerald-200 hover:shadow-emerald-500/20 active:scale-[0.97]"
           >
             <CheckCircle className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Approve UI</span>
@@ -194,7 +194,7 @@ export function PreviewActions({
             variant="outline"
             size="sm"
             onClick={handleApprovePR}
-            className="gap-1.5 text-purple-400 border-purple-500/30 hover:bg-purple-500/10"
+            className="gap-1.5 cursor-pointer text-purple-300 bg-purple-500/10 border-purple-500/40 shadow-sm shadow-purple-500/10 transition-all hover:bg-purple-500/20 hover:border-purple-400/60 hover:text-purple-200 hover:shadow-purple-500/20 active:scale-[0.97]"
           >
             <GitPullRequest className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Approve PR</span>
@@ -221,7 +221,7 @@ export function PreviewActions({
           variant="outline"
           size="sm"
           onClick={() => setShowFixDialog(true)}
-          className="gap-1.5 text-orange-400 border-orange-500/30 hover:bg-orange-500/10"
+          className="gap-1.5 cursor-pointer text-orange-300 bg-orange-500/10 border-orange-500/40 shadow-sm shadow-orange-500/10 transition-all hover:bg-orange-500/20 hover:border-orange-400/60 hover:text-orange-200 hover:shadow-orange-500/20 active:scale-[0.97]"
         >
           <Wrench className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Fix</span>
@@ -232,7 +232,7 @@ export function PreviewActions({
           variant="outline"
           size="sm"
           onClick={() => postKodyCommand('@kody review', 'Review requested')}
-          className="gap-1.5 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10"
+          className="gap-1.5 cursor-pointer text-indigo-200 bg-indigo-500/10 border-indigo-500/40 shadow-sm shadow-indigo-500/10 transition-all hover:bg-indigo-500/20 hover:border-indigo-400/60 hover:text-indigo-100 hover:shadow-indigo-500/20 active:scale-[0.97]"
           title="Structured diff review"
         >
           <Eye className="w-3.5 h-3.5" />
@@ -244,7 +244,7 @@ export function PreviewActions({
           variant="outline"
           size="sm"
           onClick={() => postKodyCommand('@kody ui-review', 'UI review requested')}
-          className="gap-1.5 text-pink-300 border-pink-500/30 hover:bg-pink-500/10"
+          className="gap-1.5 cursor-pointer text-pink-200 bg-pink-500/10 border-pink-500/40 shadow-sm shadow-pink-500/10 transition-all hover:bg-pink-500/20 hover:border-pink-400/60 hover:text-pink-100 hover:shadow-pink-500/20 active:scale-[0.97]"
           title="Playwright-based UI review"
         >
           <Camera className="w-3.5 h-3.5" />
@@ -256,7 +256,7 @@ export function PreviewActions({
           variant="outline"
           size="sm"
           onClick={() => postKodyCommand('@kody sync', 'Sync requested')}
-          className="gap-1.5 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/10"
+          className="gap-1.5 cursor-pointer text-cyan-200 bg-cyan-500/10 border-cyan-500/40 shadow-sm shadow-cyan-500/10 transition-all hover:bg-cyan-500/20 hover:border-cyan-400/60 hover:text-cyan-100 hover:shadow-cyan-500/20 active:scale-[0.97]"
           title="Merge default branch into PR branch"
         >
           <RefreshCw className="w-3.5 h-3.5" />
@@ -268,7 +268,7 @@ export function PreviewActions({
           variant="outline"
           size="sm"
           onClick={() => postKodyCommand('@kody fix-ci', 'Fix CI requested')}
-          className="gap-1.5 text-yellow-300 border-yellow-500/30 hover:bg-yellow-500/10"
+          className="gap-1.5 cursor-pointer text-yellow-200 bg-yellow-500/10 border-yellow-500/40 shadow-sm shadow-yellow-500/10 transition-all hover:bg-yellow-500/20 hover:border-yellow-400/60 hover:text-yellow-100 hover:shadow-yellow-500/20 active:scale-[0.97]"
           title="Fix failing CI"
         >
           <Activity className="w-3.5 h-3.5" />
@@ -282,7 +282,7 @@ export function PreviewActions({
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 text-orange-300 border-orange-500/30 hover:bg-orange-500/10"
+                className="gap-1.5 cursor-pointer text-orange-200 bg-orange-500/10 border-orange-500/40 shadow-sm shadow-orange-500/10 transition-all hover:bg-orange-500/20 hover:border-orange-400/60 hover:text-orange-100 hover:shadow-orange-500/20 active:scale-[0.97]"
                 title="Resolve merge conflicts"
               >
                 <GitMerge className="w-3.5 h-3.5" />
@@ -327,7 +327,7 @@ export function PreviewActions({
           variant="outline"
           size="sm"
           onClick={() => setShowCommentDialog(true)}
-          className="gap-1.5 text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
+          className="gap-1.5 cursor-pointer text-blue-300 bg-blue-500/10 border-blue-500/40 shadow-sm shadow-blue-500/10 transition-all hover:bg-blue-500/20 hover:border-blue-400/60 hover:text-blue-200 hover:shadow-blue-500/20 active:scale-[0.97]"
         >
           <MessageSquare className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Comment</span>
@@ -339,7 +339,7 @@ export function PreviewActions({
           size="sm"
           onClick={() => setShowCancelConfirm(true)}
           disabled={isCancelling}
-          className="gap-1.5 text-red-400 border-red-500/30 hover:bg-red-500/10 ml-auto"
+          className="gap-1.5 cursor-pointer text-red-300 bg-red-500/10 border-red-500/40 shadow-sm shadow-red-500/10 transition-all hover:bg-red-500/20 hover:border-red-400/60 hover:text-red-200 hover:shadow-red-500/20 active:scale-[0.97] ml-auto"
         >
           {isCancelling ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />

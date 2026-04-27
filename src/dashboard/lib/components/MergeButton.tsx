@@ -103,10 +103,10 @@ export function MergeButton({
             onClick={handleClick}
             onMouseDown={handleMouseDown}
             className={cn(
-              'h-8 text-sm px-2.5 gap-1.5 disabled:opacity-50',
+              'h-8 text-sm px-2.5 gap-1.5 border transition-all disabled:opacity-50',
               isApproved && canMerge
-                ? 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/30 hover:border-emerald-500/50 hover:shadow-lg cursor-pointer'
-                : 'text-muted-foreground bg-muted/30 cursor-not-allowed',
+                ? 'text-emerald-300 bg-emerald-500/15 border-emerald-500/40 shadow-sm shadow-emerald-500/10 hover:bg-emerald-500/30 hover:border-emerald-400/60 hover:text-emerald-200 hover:shadow-emerald-500/30 active:scale-[0.97] cursor-pointer'
+                : 'text-muted-foreground bg-muted/30 border-transparent cursor-not-allowed',
             )}
           >
             {isMerging ? (
