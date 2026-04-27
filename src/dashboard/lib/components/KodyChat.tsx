@@ -453,17 +453,45 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   // Open SSE whenever we have a scoped session id — task id for task mode,
   // `mission-{number}` for mission mode, draft id for mission drafting.
   // Global-mode streams are opened on demand inside the send path.
+  //
+  // Tab-visibility gate: the server-side SSE handler polls GitHub every 3s as
+  // a fallback for cross-instance push. With hundreds of background tabs that
+  // drains the shared GH rate-limit token. Closing the EventSource on
+  // `visibilityState=hidden` halts the server poll (req.signal.abort fires);
+  // we reopen on `visible`. Loss of in-flight push events is acceptable —
+  // chat history is hydrated from /api/kody/chat/load on next view.
   useEffect(() => {
     const sid =
       selectedTask?.id ??
       (missionNumber != null ? `mission-${missionNumber}` : null) ??
       draftId ??
       null
-    if (sid) {
+    if (!sid) {
+      return () => {
+        eventSourceRef.current?.close()
+      }
+    }
+
+    const open = () => {
+      if (eventSourceRef.current && eventSourceRef.current.readyState !== EventSource.CLOSED) return
       connectSSE(sid)
     }
-    return () => {
+    const close = () => {
       eventSourceRef.current?.close()
+      eventSourceRef.current = null
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') open()
+      else close()
+    }
+
+    if (document.visibilityState === 'visible') open()
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      close()
     }
   }, [selectedTask?.id, missionNumber, draftId, connectSSE])
 
