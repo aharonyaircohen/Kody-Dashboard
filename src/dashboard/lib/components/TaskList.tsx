@@ -538,11 +538,37 @@ const TaskRow = memo(function TaskRow({
 
                   <span className="text-zinc-600"><RelativeTime date={task.updatedAt} /></span>
 
-                  {task.labels.length > 0 && (
-                    <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-medium truncate max-w-24">
-                      {task.labels[0]}
-                    </span>
+                  {task.labels.includes('ui-approved') && (
+                    <SimpleTooltip content="UI approved from preview" side="bottom">
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold cursor-default">
+                        <CheckCircle2 className="w-3 h-3" />
+                        UI
+                      </span>
+                    </SimpleTooltip>
                   )}
+
+                  {task.labels.includes('pr-approved') && (
+                    <SimpleTooltip content="PR approved from preview" side="bottom">
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[10px] font-semibold cursor-default">
+                        <CheckCircle2 className="w-3 h-3" />
+                        PR
+                      </span>
+                    </SimpleTooltip>
+                  )}
+
+                  {(() => {
+                    const firstOther = task.labels.find(
+                      (l) =>
+                        !l.startsWith('priority:') &&
+                        l !== 'ui-approved' &&
+                        l !== 'pr-approved',
+                    )
+                    return firstOther ? (
+                      <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-medium truncate max-w-24">
+                        {firstOther}
+                      </span>
+                    ) : null
+                  })()}
 
                   {hasPR && (
                     <span className="inline-flex items-center gap-1">
