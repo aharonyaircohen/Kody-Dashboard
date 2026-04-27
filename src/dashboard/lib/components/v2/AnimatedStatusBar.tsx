@@ -233,18 +233,17 @@ export function AnimatedStatusBar({ task, className }: AnimatedStatusBarProps) {
 
 function BarLabel({ task, style: _style }: { task: KodyTask; style: StatusBarStyle }) {
   const displayState = derivePipelineDisplayState(task)
-  // Prefer the actual count of stages tracked for THIS pipeline (e.g.
-  // spec_only runs ~5 stages, not 12) so "step N of M" reflects reality.
-  const trackedCount = task.pipeline?.stages
-    ? ALL_STAGES.filter((s) => task.pipeline!.stages[s]).length
-    : 0
+  // Use the engine's actual stages (any name, in execution order) so step N/M
+  // reflects what the engine is really running — not just stages whose names
+  // happen to be in the dashboard's ALL_STAGES vocabulary.
+  const trackedStages = task.pipeline?.stages ? Object.keys(task.pipeline.stages) : []
+  const trackedCount = trackedStages.length
   const totalStages = trackedCount > 0 ? trackedCount : ALL_STAGES.length
 
   // Re-derive step number against tracked stages when we have them.
   const trackedStepNumber = (() => {
     if (displayState.kind !== 'stage-progress' || trackedCount === 0) return null
-    const tracked = ALL_STAGES.filter((s) => task.pipeline!.stages[s])
-    const idx = tracked.findIndex((s) => s === task.pipeline?.currentStage)
+    const idx = trackedStages.findIndex((s) => s === task.pipeline?.currentStage)
     return idx >= 0 ? idx + 1 : null
   })()
 

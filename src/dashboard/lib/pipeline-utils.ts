@@ -137,11 +137,42 @@ function stageFillFraction(stage: string, data: StageStatus): number {
 }
 
 /**
+ * Stages tracked for *this* pipeline run, in execution order.
+ *
+ * The kody engine writes stages incrementally with a wide vocabulary
+ * (`spec`, `gsd-research`, `plan`, `test`, `ship`, etc.) that doesn't fully
+ * overlap with the dashboard's `ALL_STAGES` constant. Filtering through
+ * ALL_STAGES used to drop most real stages and made the progress bar appear
+ * stuck. We now use the engine's actual stages map (insertion-ordered) so
+ * unknown stages still count.
+ */
+function getTrackedStages(stages: Record<string, StageStatus>): string[] {
+  return Object.keys(stages)
+}
+
+/**
+ * Time-based asymptotic progress floor (0-95). Uses `pipeline.startedAt` and a
+ * 30-minute median curve so the bar advances continuously over wall-clock time
+ * even when stage data is sparse, contains stages the dashboard doesn't know
+ * about, or stalls between engine polls. At 30min: 63%; at 60min: 86%; at
+ * 90min: 95%. Capped at 95 to leave headroom for "in progress" visual cue.
+ */
+function getTimeBasedProgress(task: KodyTask): number {
+  const startedAt = task.pipeline?.startedAt
+  if (!startedAt) return 0
+  const elapsedMs = Math.max(0, Date.now() - new Date(startedAt).getTime())
+  if (elapsedMs <= 0) return 0
+  const median = 30 * 60 * 1000
+  const frac = 1 - Math.exp(-elapsedMs / median)
+  return Math.min(95, frac * 100)
+}
+
+/**
  * Cumulative-weight stage boundaries (0-1) for tick marks on the progress bar.
  *
- * Returns one entry per stage tracked in `pipeline.stages` (the actual scope
- * for this pipeline mode), with `position` = fraction-of-total-weight where
- * that stage *ends*. The last entry will be at 1.0.
+ * Returns one entry per stage in `pipeline.stages` (insertion order = engine's
+ * execution order), with `position` = fraction-of-total-weight where that
+ * stage *ends*. Unknown stages use DEFAULT_MAX_MS so they still get a tick.
  */
 export function getStageBoundaries(
   task: KodyTask,
@@ -149,7 +180,7 @@ export function getStageBoundaries(
   const pipeline = task.pipeline
   if (!pipeline) return []
   const stages = pipeline.stages || {}
-  const tracked = ALL_STAGES.filter((s) => stages[s])
+  const tracked = getTrackedStages(stages)
   const totalWeight = tracked.reduce((sum, s) => sum + (stageMaxDurations[s] || DEFAULT_MAX_MS), 0)
   if (totalWeight === 0) return []
 
@@ -165,40 +196,54 @@ export function getStageBoundaries(
 /**
  * Weighted overall progress (0-99) for an active task.
  *
- * Denominator = sum of weights of stages actually tracked in `pipeline.stages`
- * (so a 5-stage `spec_only` pipeline can reach 99%, not just 40%). The current
- * stage uses a live, asymptotic fill curve so the bar advances every render
- * even between engine polls. Skipped stages count as completed.
+ * Combines two signals so the bar always advances visibly:
+ *  - **Stage-based**: walks `pipeline.stages` in engine insertion order,
+ *    summing weights for completed/skipped stages and an asymptotic fill for
+ *    the currently-running one. Uses the engine's full stage vocabulary, not
+ *    just `ALL_STAGES`, so stages like `spec`/`gsd-execute`/`test`/`ship` count.
+ *  - **Time-based**: asymptotic floor from `pipeline.startedAt` so wall-clock
+ *    time alone keeps the bar moving between engine polls.
+ *
+ * Returns the larger of the two, capped at 99.
  */
 export function getWeightedActiveProgress(task: KodyTask): number {
   const pipeline = task.pipeline
   if (!pipeline) return 0
 
   const stages = pipeline.stages || {}
-  const tracked = ALL_STAGES.filter((s) => stages[s])
-  const totalWeight = tracked.reduce((sum, s) => sum + (stageMaxDurations[s] || DEFAULT_MAX_MS), 0)
-  if (totalWeight === 0) return 0
+  const tracked = getTrackedStages(stages)
 
-  let cumulative = 0
-  for (const stage of tracked) {
-    const weight = stageMaxDurations[stage] || DEFAULT_MAX_MS
-    const data = stages[stage]
+  let stageBased = 0
+  if (tracked.length > 0) {
+    const totalWeight = tracked.reduce(
+      (sum, s) => sum + (stageMaxDurations[s] || DEFAULT_MAX_MS),
+      0,
+    )
+    if (totalWeight > 0) {
+      let cumulative = 0
+      for (const stage of tracked) {
+        const weight = stageMaxDurations[stage] || DEFAULT_MAX_MS
+        const data = stages[stage]
 
-    if (data.state === 'completed' || data.state === 'skipped') {
-      cumulative += weight
-      continue
+        if (data.state === 'completed' || data.state === 'skipped') {
+          cumulative += weight
+          continue
+        }
+
+        if (data.state === 'running') {
+          cumulative += weight * stageFillFraction(stage, data)
+          break
+        }
+
+        // pending / failed / timeout / gate-waiting / paused — stop accumulating
+        break
+      }
+      stageBased = (cumulative / totalWeight) * 100
     }
-
-    if (data.state === 'running') {
-      cumulative += weight * stageFillFraction(stage, data)
-      break
-    }
-
-    // pending / failed / timeout / gate-waiting / paused — stop accumulating
-    break
   }
 
-  return Math.min(99, (cumulative / totalWeight) * 100)
+  const timeBased = getTimeBasedProgress(task)
+  return Math.min(99, Math.max(stageBased, timeBased))
 }
 
 /**
@@ -341,31 +386,41 @@ export function derivePipelineDisplayState(task: KodyTask): PipelineDisplayState
     return { kind: 'stage-progress', stageIndex, label, stepNumber, totalStages }
   }
 
-  // Case 3: Pipeline running but currentStage not yet set
+  // Case 3: Pipeline running but currentStage not yet set.
+  // The kody engine often writes `cursor` instead of `currentStage`, and uses
+  // a wider stage vocabulary than dashboard's ALL_STAGES. Walk engine stages
+  // in execution order (insertion-ordered) so we find the real running stage.
   if (pipeline?.state === 'running') {
-    // Defensive: derive position from stages data when currentStage is null
-    if (pipeline.stages && Object.keys(pipeline.stages).length > 0) {
-      // Walk stages in order: find the first with data that isn't completed/skipped.
-      // Stages without data entries are skipped (they may not be tracked).
+    const engineStages = pipeline.stages ? Object.keys(pipeline.stages) : []
+    if (engineStages.length > 0) {
       let derivedStage: string | null = null
       let lastCompleted: string | null = null
-      for (const stage of ALL_STAGES) {
+      let derivedIndex = -1
+      let lastCompletedIndex = -1
+      engineStages.forEach((stage, i) => {
         const data = pipeline.stages[stage]
-        if (!data) continue // Stage not tracked — skip
+        if (!data) return
         if (data.state === 'completed' || data.state === 'skipped') {
           lastCompleted = stage
-          continue
+          lastCompletedIndex = i
+          return
         }
-        // This stage has data but isn't done — it's the current position
-        derivedStage = stage
-        break
-      }
+        if (derivedStage === null) {
+          derivedStage = stage
+          derivedIndex = i
+        }
+      })
       const resolvedStage = derivedStage || lastCompleted
+      const resolvedIndex = derivedStage ? derivedIndex : lastCompletedIndex
       if (resolvedStage) {
-        const stageIndex = ALL_STAGES.indexOf(resolvedStage as (typeof ALL_STAGES)[number])
+        // Prefer engine-relative index (1-based step) so labels align with the
+        // tracked-stages count used by the bar. Fall back to ALL_STAGES index
+        // for known stages so dot indicators in MiniPipelineProgress still light up.
+        const allStagesIdx = ALL_STAGES.indexOf(resolvedStage as (typeof ALL_STAGES)[number])
+        const stageIndex = allStagesIdx >= 0 ? allStagesIdx : resolvedIndex
         const label = stageLabels[resolvedStage] || resolvedStage
         const totalStages = ALL_STAGES.length
-        const stepNumber = stageIndex >= 0 ? stageIndex + 1 : 1
+        const stepNumber = resolvedIndex + 1
         return { kind: 'stage-progress', stageIndex, label, stepNumber, totalStages }
       }
     }
