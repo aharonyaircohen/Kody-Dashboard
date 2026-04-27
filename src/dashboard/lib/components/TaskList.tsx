@@ -299,7 +299,7 @@ const TaskRow = memo(function TaskRow({
   onDragEndTask,
   accent,
 }: TaskRowProps) {
-  const canExecute = task.state === 'open' && onExecuteTask
+  const canExecute = task.column === 'open' && onExecuteTask
   const hasPR = !!task.associatedPR
   const isHardStop = task.column === 'gate-waiting' && task.gateType === 'hard-stop'
   // gate-waiting tasks also show pipeline progress (they're paused mid-pipeline)
