@@ -2,18 +2,17 @@
  * @fileType component
  * @domain kody
  * @pattern preview-modal
- * @ai-summary Full-screen modal overlay showing PR preview: iframe, changes, docs, comments, actions
+ * @ai-summary Full-screen modal overlay showing PR preview: iframe, changes, comments, actions
  */
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { KodyTask, FileChange, TaskDocument } from "../types";
-import { prsApi, taskDocsApi } from "../api";
+import type { KodyTask, FileChange } from "../types";
+import { prsApi } from "../api";
 import { PreviewActions } from "./PreviewActions";
 import { PRCommentList } from "./PRCommentList";
 import { AddCommentDialog } from "./AddCommentDialog";
 import { toast } from "sonner";
-import { MarkdownViewer } from "./MarkdownViewer";
 import { CIStatusBadge } from "./CIStatusBadge";
 import { ActionStatusBadge } from "./ActionStatusBadge";
 import { MergeConflictBanner } from "./MergeConflictBanner";
@@ -25,25 +24,16 @@ import {
   ArrowLeft,
   GitPullRequest,
   ExternalLink,
-  FileText,
   GitBranch,
   MessageSquare,
-  BookOpen,
   Loader2,
   AlertCircle,
   RefreshCw,
   Monitor,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@dashboard/ui/dialog";
 
-type PreviewTab = "preview" | "changes" | "docs" | "comments";
+type PreviewTab = "preview" | "changes" | "comments";
 
 const CHAT_WIDTH_KEY = "kody.chatPanelWidth";
 const CHAT_WIDTH_MIN = 320;
@@ -80,12 +70,11 @@ export function PreviewModal({
   isMerging,
 }: PreviewModalProps) {
   const [activeTab, setActiveTab] = useState<PreviewTab>(() => {
-    if (typeof window === "undefined") return "changes";
+    if (typeof window === "undefined") return "preview";
     const path = window.location.pathname;
-    if (path.endsWith("/preview")) return "preview";
-    if (path.endsWith("/docs")) return "docs";
+    if (path.endsWith("/changes")) return "changes";
     if (path.endsWith("/comments")) return "comments";
-    return "changes";
+    return "preview";
   });
   const { githubUser } = useGitHubIdentity();
   const [chatPanelWidth, setChatPanelWidth] =
@@ -127,10 +116,8 @@ export function PreviewModal({
     window.addEventListener("mouseup", onUp);
   }, []);
   const [changes, setChanges] = useState<FileChange[]>([]);
-  const [documents, setDocuments] = useState<TaskDocument[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [selectedDoc, setSelectedDoc] = useState<TaskDocument | null>(null);
   const [commentCount, setCommentCount] = useState<number | null>(null);
   const [previewView, setPreviewView] = useState<"web" | "admin">("web");
   const [previewKey, setPreviewKey] = useState(0); // Bump to force iframe remount/refresh
@@ -169,22 +156,6 @@ export function PreviewModal({
     return baseUrl;
   };
 
-  // URL sync for doc viewer dialog
-  const openDoc = (doc: TaskDocument) => {
-    setSelectedDoc(doc);
-    const base = `/${task.issueNumber}/preview/docs`;
-    window.history.pushState(
-      null,
-      "",
-      `${base}?doc=${encodeURIComponent(doc.name)}`,
-    );
-  };
-
-  const closeDoc = () => {
-    setSelectedDoc(null);
-    window.history.pushState(null, "", `/${task.issueNumber}/preview/docs`);
-  };
-
   // Load tab data on demand
   useEffect(() => {
     if (!pr) return;
@@ -197,10 +168,6 @@ export function PreviewModal({
         if (activeTab === "changes") {
           const files = await prsApi.files(pr.number);
           if (!cancelled) setChanges(files);
-        } else if (activeTab === "docs") {
-          const branch = pr.head?.ref;
-          const docs = await taskDocsApi.list(task.id, branch);
-          if (!cancelled) setDocuments(docs);
         }
         // comments tab loads its own data via PRCommentList
       } catch (err) {
@@ -220,26 +187,16 @@ export function PreviewModal({
     };
   }, [activeTab, pr, task.id]);
 
-  // Auto-open doc from URL ?doc= param
-  useEffect(() => {
-    if (documents.length === 0) return;
-    const docParam = new URLSearchParams(window.location.search).get("doc");
-    if (docParam && !selectedDoc) {
-      const match = documents.find((d) => d.name === docParam);
-      if (match) setSelectedDoc(match);
-    }
-  }, [documents]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Close on Escape — skip if selectedDoc is open (Dialog handles its own Escape)
+  // Close on Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !selectedDoc) onClose();
+      if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, selectedDoc]);
+  }, [onClose]);
 
-  // Sync tab + doc from URL on browser back/forward
+  // Sync tab from URL on browser back/forward
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
@@ -247,24 +204,14 @@ export function PreviewModal({
       if (!path.includes("/preview")) return;
 
       // Sync tab
-      if (path.endsWith("/preview")) setActiveTab("preview");
-      else if (path.endsWith("/docs")) setActiveTab("docs");
+      if (path.endsWith("/changes")) setActiveTab("changes");
       else if (path.endsWith("/comments")) setActiveTab("comments");
-      else setActiveTab("changes");
-
-      // Sync doc dialog
-      const docParam = new URLSearchParams(window.location.search).get("doc");
-      if (docParam) {
-        const match = documents.find((d) => d.name === docParam);
-        setSelectedDoc(match || null);
-      } else {
-        setSelectedDoc(null);
-      }
+      else setActiveTab("preview");
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [documents]);
+  }, []);
 
   if (!pr) {
     return (
@@ -293,7 +240,6 @@ export function PreviewModal({
   }> = [
     { key: "preview", label: "Preview", icon: Monitor },
     { key: "changes", label: "Changes", icon: GitBranch },
-    { key: "docs", label: "Docs", icon: BookOpen },
     {
       key: "comments",
       label: "Comments",
@@ -386,7 +332,7 @@ export function PreviewModal({
             onClick={() => {
               setActiveTab(key);
               const base = `/${task.issueNumber}/preview`;
-              const path = key === "changes" ? base : `${base}/${key}`;
+              const path = key === "preview" ? base : `${base}/${key}`;
               window.history.pushState(null, "", path);
             }}
             className={cn(
@@ -595,82 +541,6 @@ export function PreviewModal({
                   ))}
                 </div>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* Docs tab */}
-        {activeTab === "docs" && (
-          <div
-            role="tabpanel"
-            id="preview-panel-docs"
-            aria-labelledby="preview-tab-docs"
-            className="p-4"
-          >
-            {loadError ? (
-              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  {loadError}
-                </div>
-                <button
-                  onClick={() => {
-                    setLoadError(null);
-                    setActiveTab("docs");
-                  }}
-                  className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-300"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  Retry
-                </button>
-              </div>
-            ) : loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
-              </div>
-            ) : documents.length === 0 ? (
-              <p className="text-center text-zinc-500 py-8">
-                No documents found
-              </p>
-            ) : (
-              <>
-                <div className="space-y-1">
-                  {documents.map((doc) => (
-                    <button
-                      key={doc.name}
-                      onClick={() => openDoc(doc)}
-                      className="w-full flex items-center gap-2 p-3 hover:bg-zinc-800/50 rounded text-left border border-zinc-800"
-                    >
-                      <FileText className="w-4 h-4 text-zinc-500" />
-                      <span className="text-sm">{doc.name}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <Dialog
-                  open={!!selectedDoc}
-                  onOpenChange={(open) => {
-                    if (!open) closeDoc();
-                  }}
-                >
-                  <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
-                    <DialogHeader>
-                      <DialogTitle>{selectedDoc?.name}</DialogTitle>
-                      <DialogDescription className="sr-only">
-                        Task document content
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex-1 overflow-y-auto min-h-0">
-                      {selectedDoc && (
-                        <MarkdownViewer
-                          content={selectedDoc.content}
-                          title={selectedDoc.name}
-                        />
-                      )}
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </>
             )}
           </div>
         )}
