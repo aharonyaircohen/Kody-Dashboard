@@ -105,7 +105,7 @@ export function MergeButton({
             className={cn(
               'h-8 text-sm px-2.5 gap-1.5 border transition-all disabled:opacity-50',
               isApproved && canMerge
-                ? 'text-white bg-emerald-600 border-emerald-500 shadow-md shadow-emerald-500/30 hover:bg-emerald-500 hover:border-emerald-400 hover:shadow-emerald-500/50 active:scale-[0.97] cursor-pointer'
+                ? 'text-zinc-900 bg-zinc-100 border-zinc-200 shadow-md hover:bg-white hover:border-white hover:shadow-zinc-100/30 active:scale-[0.97] cursor-pointer'
                 : 'text-muted-foreground bg-muted/30 border-transparent cursor-not-allowed',
             )}
           >

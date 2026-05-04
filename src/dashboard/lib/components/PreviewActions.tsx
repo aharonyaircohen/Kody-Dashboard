@@ -163,7 +163,7 @@ export function PreviewActions({
               size="sm"
               onClick={handleApproveUI}
               disabled={isApprovingUI}
-              className="gap-1.5 cursor-pointer text-emerald-300 bg-transparent border-emerald-500/40 transition-all hover:bg-emerald-500/10 hover:border-emerald-500/60 hover:text-emerald-200 active:scale-[0.97] justify-start"
+              className="gap-1.5 cursor-pointer text-zinc-200 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50 active:scale-[0.97] justify-start"
             >
               {isApprovingUI ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -177,7 +177,7 @@ export function PreviewActions({
           {/* Step 2: Approve PR — only visible after UI approved */}
           {isUIApproved &&
             (isPRApproved ? (
-              <div className="flex items-center gap-1.5 text-purple-400 text-xs px-1">
+              <div className="flex items-center gap-1.5 text-emerald-400 text-xs px-1">
                 <CheckCircle className="w-3.5 h-3.5" />
                 <span>PR Approved</span>
               </div>
@@ -187,7 +187,7 @@ export function PreviewActions({
                 size="sm"
                 onClick={handleApprovePR}
                 disabled={isApprovingPR}
-                className="gap-1.5 cursor-pointer text-purple-300 bg-transparent border-purple-500/40 transition-all hover:bg-purple-500/10 hover:border-purple-500/60 hover:text-purple-200 active:scale-[0.97] justify-start"
+                className="gap-1.5 cursor-pointer text-zinc-200 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50 active:scale-[0.97] justify-start"
               >
                 {isApprovingPR ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -245,7 +245,7 @@ export function PreviewActions({
               variant="ghost"
               size="icon"
               onClick={() => setShowFixDialog(true)}
-              className="h-8 w-8 cursor-pointer text-orange-300 hover:bg-orange-500/10 hover:text-orange-200 active:scale-[0.97]"
+              className="h-8 w-8 cursor-pointer text-zinc-300 hover:bg-zinc-800/60 hover:text-zinc-100 active:scale-[0.97]"
               aria-label="Fix"
             >
               <Wrench className="w-4 h-4" />
