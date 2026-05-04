@@ -929,13 +929,31 @@ export function TaskDetail({
           />
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
-              Posts <code className="text-orange-400">@kody</code> + context
+              {retryContext.trim() ? (
+                <>
+                  Posts <code className="text-orange-400">@kody</code> + context — <span className="text-orange-400">restarts flow from scratch</span>
+                </>
+              ) : (
+                <>
+                  Empty — posts <code className="text-orange-400">@kody resume</code> (continues from last step)
+                </>
+              )}
             </p>
             <Button
               variant="outline"
               size="sm"
               className="text-orange-400 border-orange-500/30 hover:bg-orange-500/10"
-              onClick={() => retryWithContext.mutate(retryContext)}
+              onClick={() => {
+                if (
+                  retryContext.trim() &&
+                  !window.confirm(
+                    "Retry with context restarts the flow from scratch (classify → research → plan → run). Continue?\n\nTo resume from the last step instead, clear the context and click Retry.",
+                  )
+                ) {
+                  return;
+                }
+                retryWithContext.mutate(retryContext);
+              }}
               disabled={retryWithContext.isPending}
             >
               {retryWithContext.isPending ? (
