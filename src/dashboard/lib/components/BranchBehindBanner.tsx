@@ -50,7 +50,7 @@ export function BranchBehindBanner({ prNumber }: BranchBehindBannerProps) {
     <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 border-t border-cyan-500/30 bg-cyan-500/10">
       <GitPullRequestArrow className="w-4 h-4 text-cyan-300 shrink-0" />
       <p className="flex-1 min-w-0 text-sm text-cyan-200 font-medium">
-        Preview is {behindBy} {plural} out of date.
+        Preview is out of date ({behindBy} {plural} behind).
       </p>
       <Button
         variant="outline"
