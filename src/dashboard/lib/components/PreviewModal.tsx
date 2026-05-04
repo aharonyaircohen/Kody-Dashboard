@@ -174,10 +174,8 @@ export function PreviewModal({
           const files = await prsApi.files(pr.number);
           if (!cancelled) {
             setChanges(files);
-            // Auto-expand all when small PR; otherwise collapsed by default.
-            if (files.length <= 5) {
-              setExpandedFiles(new Set(files.map((f) => f.filename)));
-            }
+            // All files collapsed by default; user expands what they want.
+            setExpandedFiles(new Set());
           }
         }
         // comments tab loads its own data via PRCommentList
