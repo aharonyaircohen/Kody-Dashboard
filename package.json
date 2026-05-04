@@ -1,6 +1,6 @@
 {
   "name": "kody-dashboard",
-  "version": "0.1.180",
+  "version": "0.1.181",
   "private": true,
   "license": "MIT",
   "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
@@ -40,6 +40,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "geist": "^1.3.0",
+    "highlight.js": "^11.11.1",
     "jose": "^6.1.3",
     "lucide-react": "^0.562.0",
     "next": "15.5.9",

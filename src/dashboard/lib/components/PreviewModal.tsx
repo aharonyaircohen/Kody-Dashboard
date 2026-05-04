@@ -617,7 +617,7 @@ export function PreviewModal({
                         {isOpen && (
                           <div className="border-t border-zinc-800">
                             {file.patch ? (
-                              <FileDiff patch={file.patch} />
+                              <FileDiff patch={file.patch} filename={file.filename} />
                             ) : (
                               <div className="p-3 text-xs text-zinc-500 text-center">
                                 Diff not available (binary or too large).{" "}

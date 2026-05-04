@@ -2,10 +2,12 @@
  * @fileType component
  * @domain kody
  * @pattern file-diff
- * @ai-summary Renders a unified-diff patch string with line numbers and red/green hunks.
+ * @ai-summary Renders a unified-diff patch string with line numbers, red/green hunks, and syntax-highlighted code.
  */
 "use client";
 
+import { useMemo } from "react";
+import hljs from "highlight.js/lib/common";
 import { cn } from "../utils";
 
 type DiffLine = {
@@ -22,7 +24,6 @@ function parsePatch(patch: string): DiffLine[] {
 
   for (const raw of patch.split("\n")) {
     if (raw.startsWith("@@")) {
-      // @@ -oldStart,oldLines +newStart,newLines @@ optional context
       const match = raw.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
       if (match) {
         oldNum = parseInt(match[1], 10);
@@ -42,19 +43,86 @@ function parsePatch(patch: string): DiffLine[] {
       oldNum++;
       newNum++;
     } else if (raw.startsWith("\\")) {
-      // "\ No newline at end of file" — render as context, no number bump
       lines.push({ type: "context", text: raw });
     }
   }
   return lines;
 }
 
-interface FileDiffProps {
-  patch: string;
+const EXT_TO_LANG: Record<string, string> = {
+  ts: "typescript",
+  tsx: "typescript",
+  js: "javascript",
+  jsx: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  json: "json",
+  md: "markdown",
+  mdx: "markdown",
+  css: "css",
+  scss: "scss",
+  html: "xml",
+  xml: "xml",
+  yml: "yaml",
+  yaml: "yaml",
+  sh: "bash",
+  bash: "bash",
+  zsh: "bash",
+  py: "python",
+  rb: "ruby",
+  go: "go",
+  rs: "rust",
+  java: "java",
+  kt: "kotlin",
+  swift: "swift",
+  c: "c",
+  h: "c",
+  cpp: "cpp",
+  hpp: "cpp",
+  cs: "csharp",
+  php: "php",
+  sql: "sql",
+  toml: "ini",
+  ini: "ini",
+  dockerfile: "dockerfile",
+};
+
+function detectLanguage(filename?: string): string | null {
+  if (!filename) return null;
+  const base = filename.split("/").pop()?.toLowerCase() ?? "";
+  if (base === "dockerfile") return "dockerfile";
+  const ext = base.split(".").pop();
+  if (!ext) return null;
+  const lang = EXT_TO_LANG[ext];
+  if (!lang) return null;
+  return hljs.getLanguage(lang) ? lang : null;
 }
 
-export function FileDiff({ patch }: FileDiffProps) {
-  const lines = parsePatch(patch);
+function highlightLine(text: string, lang: string | null): string {
+  if (!text) return "";
+  if (!lang) return escapeHtml(text);
+  try {
+    return hljs.highlight(text, { language: lang, ignoreIllegals: true }).value;
+  } catch {
+    return escapeHtml(text);
+  }
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+interface FileDiffProps {
+  patch: string;
+  filename?: string;
+}
+
+export function FileDiff({ patch, filename }: FileDiffProps) {
+  const lang = useMemo(() => detectLanguage(filename), [filename]);
+  const lines = useMemo(() => parsePatch(patch), [patch]);
 
   return (
     <div className="font-mono text-xs leading-5 overflow-x-auto bg-zinc-950/50 border border-zinc-800 rounded">
@@ -78,6 +146,7 @@ export function FileDiff({ patch }: FileDiffProps) {
                   : "";
             const sign =
               line.type === "add" ? "+" : line.type === "del" ? "-" : " ";
+            const html = highlightLine(line.text, lang);
             return (
               <tr key={i} className={cn(bg, "hover:bg-zinc-800/40")}>
                 <td className="px-2 text-right text-zinc-600 select-none w-12 align-top">
@@ -99,7 +168,7 @@ export function FileDiff({ patch }: FileDiffProps) {
                   >
                     {sign}
                   </span>
-                  {line.text}
+                  <span dangerouslySetInnerHTML={{ __html: html }} />
                 </td>
               </tr>
             );
