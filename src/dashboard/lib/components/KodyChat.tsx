@@ -63,6 +63,7 @@ import { SessionSidebar } from './SessionSidebar'
 import { TaskSessionHistory } from './TaskSessionHistory'
 import { ToolCallList, ThinkingPanel, ReasoningPanel, parseReasoning } from './ToolCallCard'
 import { MessageActions } from './MessageActions'
+import { loadTaskChatLocal, saveTaskChatLocal, clearTaskChatLocal } from '../task-chat-local'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -500,10 +501,23 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     if (isDraftMode) setDraftMessages([])
   }, [draftId, isDraftMode])
 
-  // Load task chat when task changes
+  // Load task chat when task changes.
+  //
+  // Two-tier hydration: localStorage first (instant, covers branchless tasks
+  // whose server save no-ops), then server. Server wins when it has data —
+  // it's canonical for any task with a pipeline branch. If the server returns
+  // empty, keep whatever local had (the task likely has no branch yet).
   useEffect(() => {
     if (selectedTask) {
-      // Load chat from API
+      // Tier 1 — local mirror, synchronous, no network.
+      const localMsgs = loadTaskChatLocal(selectedTask.id)
+      if (localMsgs.length > 0) {
+        setTaskMessages(localMsgs.map(chatToMessage))
+      } else {
+        setTaskMessages([])
+      }
+
+      // Tier 2 — server fetch. Reconcile when it returns.
       setIsLoadingTaskChat(true)
       fetch(`/api/kody/chat/load?taskId=${selectedTask.id}`)
         .then(async (res) => {
@@ -512,23 +526,28 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
           return data as { sessions: ChatSession[] } | null
         })
         .then((data) => {
-          if (data?.sessions) {
-            // Store all sessions for TaskSessionHistory
-            setTaskSessions(data.sessions)
+          if (!data?.sessions) return
 
-            // Convert dashboard sessions to messages
-            const dashboardSessions = data.sessions.filter((s) => s.stage === 'dashboard')
-            const converted: Message[] = []
-            for (const session of dashboardSessions) {
-              for (const msg of session.messages) {
-                converted.push({
-                  role: msg.role,
-                  content: msg.text,
-                  timestamp: msg.timestamp,
-                })
-              }
+          setTaskSessions(data.sessions)
+
+          const dashboardSessions = data.sessions.filter((s) => s.stage === 'dashboard')
+          const converted: Message[] = []
+          for (const session of dashboardSessions) {
+            for (const msg of session.messages) {
+              converted.push({
+                role: msg.role,
+                content: msg.text,
+                timestamp: msg.timestamp,
+              })
             }
+          }
+
+          // Server wins only when it actually has dashboard messages. Empty
+          // server response = branchless task, keep local mirror in place.
+          if (converted.length > 0) {
             setTaskMessages(converted)
+            // Server is now canonical — drop local mirror.
+            clearTaskChatLocal(selectedTask.id)
           }
         })
         .catch(console.error)
@@ -551,7 +570,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         timestamp: m.timestamp || new Date().toISOString(),
       }))
 
-      await fetch('/api/kody/chat/save', {
+      const res = await fetch('/api/kody/chat/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
@@ -559,11 +578,35 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
           messages: messagesForApi,
         }),
       })
+
+      // If the server actually persisted (branch exists, not the no-branch
+      // skip path), drop the local mirror — server is canonical now.
+      if (res.ok) {
+        const body = (await res.json().catch(() => null)) as
+          | { success?: boolean; skipped?: string }
+          | null
+        if (body?.success && body.skipped !== 'no-branch') {
+          clearTaskChatLocal(selectedTask.id)
+        }
+      }
     } catch (err) {
       console.error('Failed to save chat:', err)
-      // Non-fatal - don't bother user
+      // Non-fatal — local mirror still covers refresh.
     }
   }, [selectedTask, taskMessages])
+
+  // Mirror task chat to localStorage immediately on every change. Covers
+  // branchless tasks (where server save no-ops) and bridges the 2s debounce
+  // window before server save fires.
+  useEffect(() => {
+    if (!isTaskMode || !selectedTask) return
+    const messagesForLocal: ChatMessage[] = taskMessages.map((m) => ({
+      role: m.role,
+      text: m.content,
+      timestamp: m.timestamp || new Date().toISOString(),
+    }))
+    saveTaskChatLocal(selectedTask.id, messagesForLocal)
+  }, [taskMessages, isTaskMode, selectedTask])
 
   // Save after streaming completes — skip saves while loading to avoid race conditions
   useEffect(() => {
@@ -623,6 +666,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
 
     // If in task mode, also clear the saved chat
     if (isTaskMode && selectedTask) {
+      clearTaskChatLocal(selectedTask.id)
       fetch('/api/kody/chat/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
