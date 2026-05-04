@@ -1594,7 +1594,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
             className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} relative`}
           >
             <div
-              className={`max-w-[85%] rounded-lg px-3 py-2 text-base ${
+              className={`max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-base ${
                 msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
               }`}
             >
@@ -1640,7 +1640,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
                   {!msg.content && loading && i === messages.length - 1 ? (
                     <TypingIndicator label={currentAgent.name} />
                   ) : (
-                    <div className="prose prose-base dark:prose-invert max-w-none">
+                    <div className="prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words">
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
                   )}
