@@ -71,6 +71,8 @@ export function PreviewActions({
   const [showCommentDialog, setShowCommentDialog] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
+  const [isApprovingUI, setIsApprovingUI] = useState(false)
+  const [isApprovingPR, setIsApprovingPR] = useState(false)
   const { githubUser } = useGitHubIdentity()
   const queryClient = useQueryClient()
 
@@ -110,22 +112,28 @@ export function PreviewActions({
   }
 
   const handleApproveUI = async () => {
+    setIsApprovingUI(true)
     try {
       await tasksApi.approveUI(task.issueNumber, actorLogin)
       applyOptimisticLabel(queryClient, task.issueNumber, 'ui-approved')
       toast.success('Preview UI approved')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to approve UI')
+    } finally {
+      setIsApprovingUI(false)
     }
   }
 
   const handleApprovePR = async () => {
+    setIsApprovingPR(true)
     try {
       await tasksApi.approvePR(task.issueNumber, actorLogin)
       applyOptimisticLabel(queryClient, task.issueNumber, 'pr-approved')
       toast.success('PR approved')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to approve PR')
+    } finally {
+      setIsApprovingPR(false)
     }
   }
 
@@ -168,10 +176,17 @@ export function PreviewActions({
             variant="outline"
             size="sm"
             onClick={handleApproveUI}
+            disabled={isApprovingUI}
             className="gap-1.5 cursor-pointer text-emerald-300 bg-emerald-500/10 border-emerald-500/40 shadow-sm shadow-emerald-500/10 transition-all hover:bg-emerald-500/20 hover:border-emerald-400/60 hover:text-emerald-200 hover:shadow-emerald-500/20 active:scale-[0.97]"
           >
-            <CheckCircle className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Approve UI</span>
+            {isApprovingUI ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <CheckCircle className="w-3.5 h-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {isApprovingUI ? 'Approving…' : 'Approve UI'}
+            </span>
           </Button>
         )}
 
@@ -186,10 +201,17 @@ export function PreviewActions({
             variant="outline"
             size="sm"
             onClick={handleApprovePR}
+            disabled={isApprovingPR}
             className="gap-1.5 cursor-pointer text-purple-300 bg-purple-500/10 border-purple-500/40 shadow-sm shadow-purple-500/10 transition-all hover:bg-purple-500/20 hover:border-purple-400/60 hover:text-purple-200 hover:shadow-purple-500/20 active:scale-[0.97]"
           >
-            <GitPullRequest className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Approve PR</span>
+            {isApprovingPR ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <GitPullRequest className="w-3.5 h-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {isApprovingPR ? 'Approving…' : 'Approve PR'}
+            </span>
           </Button>
         )}
 
