@@ -287,10 +287,10 @@ export function useRetryWithContext({
 
   return useMutation({
     mutationFn: async (context: string) => {
-      // First post the comment with @kody retry and context
+      // Posting @kody (with optional context) already triggers the engine
+      // via the issue_comment webhook — no separate execute call needed,
+      // otherwise Kody runs twice and posts duplicate responses.
       await kodyApi.tasks.retryWithContext(issueNumber, context, actorLogin)
-      // Then trigger execution
-      await kodyApi.tasks.execute(issueNumber, actorLogin)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kody-tasks'] })
