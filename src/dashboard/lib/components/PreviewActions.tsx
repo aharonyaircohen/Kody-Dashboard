@@ -153,10 +153,15 @@ export function PreviewActions({
         <div className="flex flex-col items-stretch gap-1.5 min-w-[140px]" aria-label="Approve and merge">
           {/* Step 1: Approve UI — visible until done */}
           {isUIApproved ? (
-            <div className="flex items-center gap-1.5 text-emerald-400 text-xs px-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              className="gap-1.5 text-emerald-400 bg-transparent border-emerald-900/60 disabled:opacity-100 justify-start"
+            >
               <CheckCircle className="w-3.5 h-3.5" />
               <span>UI Approved</span>
-            </div>
+            </Button>
           ) : (
             <Button
               variant="outline"
@@ -177,10 +182,15 @@ export function PreviewActions({
           {/* Step 2: Approve PR — only visible after UI approved */}
           {isUIApproved &&
             (isPRApproved ? (
-              <div className="flex items-center gap-1.5 text-emerald-400 text-xs px-1">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled
+                className="gap-1.5 text-emerald-400 bg-transparent border-emerald-900/60 disabled:opacity-100 justify-start"
+              >
                 <CheckCircle className="w-3.5 h-3.5" />
                 <span>PR Approved</span>
-              </div>
+              </Button>
             ) : (
               <Button
                 variant="outline"
