@@ -187,6 +187,13 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
     }
   }, [open, initialData])
 
+  // --- Default assignee to the current user on fresh open ---
+  useEffect(() => {
+    if (open && !initialData && githubUser?.login) {
+      setAssignees((prev) => (prev.length === 0 ? [githubUser.login] : prev))
+    }
+  }, [open, initialData, githubUser?.login])
+
   // --- Apply presetLabels (goal-scoped create, separate from duplicate flow) ---
   useEffect(() => {
     if (open && !initialData && presetLabels && presetLabels.length > 0) {

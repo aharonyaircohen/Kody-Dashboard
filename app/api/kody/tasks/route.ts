@@ -542,12 +542,15 @@ export async function POST(req: NextRequest) {
     const actorNote = userOctokit
       ? ''
       : `\n\n---\n_Created by @${verifiedLogin} via Kody dashboard_`
+    // Default assignee to the initiating user when the caller didn't specify one.
+    const resolvedAssignees =
+      assignees && assignees.length > 0 ? assignees : [verifiedLogin]
     const issue = await createIssue(
       {
         title,
         body: (issueBody || '') + actorNote,
         labels: labels || [],
-        assignees: assignees || [],
+        assignees: resolvedAssignees,
       },
       userOctokit ?? undefined,
     )
