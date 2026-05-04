@@ -17,6 +17,7 @@ import { CIStatusBadge } from "./CIStatusBadge";
 import { ActionStatusBadge } from "./ActionStatusBadge";
 import { MergeConflictBanner } from "./MergeConflictBanner";
 import { CIFailureBanner } from "./CIFailureBanner";
+import { BranchBehindBanner } from "./BranchBehindBanner";
 import { KodyChat } from "./KodyChat";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { cn, getPreviewBypassUrl } from "../utils";
@@ -366,7 +367,12 @@ export function PreviewModal({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 min-h-0 overflow-y-auto pb-20">
+      <div
+        className={cn(
+          "flex-1 min-h-0",
+          activeTab === "preview" ? "flex flex-col" : "overflow-y-auto pb-20",
+        )}
+      >
         {/* Preview tab - iframe */}
         {activeTab === "preview" && (
           <div className="h-full flex flex-col">
@@ -586,6 +592,9 @@ export function PreviewModal({
 
       {/* CI failure banner — only renders when ciStatus === 'failure' (and no conflicts) */}
       <CIFailureBanner prNumber={pr.number} />
+
+      {/* Branch-behind banner — soft warning, only when no conflicts and CI not failing */}
+      <BranchBehindBanner prNumber={pr.number} />
 
       {/* Action bar */}
       <PreviewActions
