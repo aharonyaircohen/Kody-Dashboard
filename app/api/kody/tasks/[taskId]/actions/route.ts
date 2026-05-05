@@ -15,6 +15,8 @@ import {
   triggerWorkflow,
   cancelWorkflowRun,
   fetchComments,
+  fetchIssue,
+  fetchWorkflowRuns,
   updateIssue,
   addAssignees,
   removeAssignees,
@@ -35,6 +37,7 @@ import {
 } from '@dashboard/lib/github-client'
 import { GOAL_LABEL_PREFIX } from '@dashboard/lib/goals'
 import { getOwner, getRepo } from '@dashboard/lib/github-client'
+import { matchWorkflowRunsForTask } from '@dashboard/lib/workflow-matching'
 
 const actionSchema = z.object({
   action: z.enum([
@@ -187,32 +190,57 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
       }
 
       case 'abort': {
-        // Find runs the engine has linked to this issue. Each kody flow posts
-        // [logs](.../actions/runs/RUNID) markdown links into the issue, so the
-        // comment timeline is the authoritative task→run mapping. Earlier
-        // attempts at matching display_title / html_url against the taskId
-        // never matched (workflow_dispatch keeps display_title="kody" and the
-        // run html_url is /actions/runs/<numeric runId>), so the cancel call
-        // never fired.
-        const comments = await fetchComments(issueNumber)
-        const runUrlRegex = /\/actions\/runs\/(\d+)/g
-        const seen = new Set<number>()
-        const runIds: number[] = []
-        for (let i = comments.length - 1; i >= 0 && runIds.length < 5; i--) {
-          const body = comments[i]?.body ?? ''
-          let match: RegExpExecArray | null
-          runUrlRegex.lastIndex = 0
-          while ((match = runUrlRegex.exec(body)) !== null) {
-            const id = Number(match[1])
-            if (!Number.isFinite(id) || seen.has(id)) continue
-            seen.add(id)
-            runIds.push(id)
+        // Find runs linked to this issue. The dashboard already has a battle-
+        // tested matcher in src/dashboard/lib/workflow-matching.ts that's used
+        // when deriving columns; reuse it here so the cancel logic uses the
+        // exact same task→run mapping as the UI. Comment-scan is a backup for
+        // edge cases where the run's display_title doesn't reference the
+        // issue but the engine has posted a `[logs](.../actions/runs/N)`
+        // comment.
+        const issue = await fetchIssue(issueNumber, { noCache: true })
+        const issueTitle = issue?.title ?? ''
+        const taskIdMatch = issueTitle.match(/\[[^\]]+\]/)
+        const titleTaskId = taskIdMatch ? taskIdMatch[0].replace(/[\[\]]/g, '') : taskId
+
+        const candidateIds = new Set<number>()
+
+        // Primary: title/branch/issue-number matching against recent kody runs.
+        // perPage=100 covers a busy repo's last few hours of activity.
+        try {
+          const runs = await fetchWorkflowRuns({ perPage: 100 })
+          const matched = matchWorkflowRunsForTask(runs, issueTitle, issueNumber, titleTaskId)
+          for (const r of matched) {
+            if (r.status === 'in_progress' || r.status === 'queued') {
+              candidateIds.add(r.id)
+            }
           }
+        } catch (err) {
+          console.warn('[Kody] abort: fetchWorkflowRuns failed:', err)
+        }
+
+        // Backup: any [logs](.../actions/runs/N) URLs the engine posted on the
+        // issue. Catches cases where matchWorkflowRunsForTask misses (e.g. the
+        // run's display_title is the comment body, branch is "main").
+        try {
+          const comments = await fetchComments(issueNumber)
+          const runUrlRegex = /\/actions\/runs\/(\d+)/g
+          for (let i = comments.length - 1; i >= 0; i--) {
+            const body = comments[i]?.body ?? ''
+            let match: RegExpExecArray | null
+            runUrlRegex.lastIndex = 0
+            while ((match = runUrlRegex.exec(body)) !== null) {
+              const id = Number(match[1])
+              if (Number.isFinite(id)) candidateIds.add(id)
+            }
+            if (candidateIds.size >= 20) break
+          }
+        } catch (err) {
+          console.warn('[Kody] abort: fetchComments failed:', err)
         }
 
         const octokit = userOctokit ?? getOctokit()
         let cancelledCount = 0
-        for (const runId of runIds) {
+        for (const runId of candidateIds) {
           try {
             const { data: runDetail } = await octokit.actions.getWorkflowRun({
               owner: getOwner(),
@@ -228,14 +256,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
           }
         }
 
-        // Clear in-progress lifecycle labels so the task moves out of "building"
-        // immediately. Without this the next poll re-derives the column from
-        // the stale label and the card flips back to running.
+        // Clear in-progress kody:* lifecycle labels so the task moves out of
+        // "building" immediately even if the workflow couldn't be cancelled
+        // (e.g. it was already winding down). Terminal labels (kody:done,
+        // kody:failed) are intentionally preserved.
         const lifecycleLabels = [
           'kody:running',
           'kody:planning',
           'kody:reviewing',
           'kody:building',
+          'kody:classifying',
+          'kody:researching',
+          'kody:fixing',
+          'kody:resolving',
+          'kody:syncing',
+          'kody:orchestrating',
         ]
         let removedLabel = false
         for (const lbl of lifecycleLabels) {
