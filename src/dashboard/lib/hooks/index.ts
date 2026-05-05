@@ -12,6 +12,7 @@ import { kodyApi, RateLimitError, NoTokenError, SessionExpiredError, ApiError, g
 import type { KodyTask } from '../types'
 import type { ViewMode } from '../components/FilterBar'
 import { POLLING_INTERVALS } from '../constants'
+import { matchWorkflowRunsForTask } from '../workflow-matching'
 
 // Re-export new hooks
 export { useDashboardFilters } from './useDashboardFilters'
@@ -196,20 +197,27 @@ export function useTaskDetails(issueNumber: number | null, actorLogin?: string) 
 // ============ useWorkflowRuns ============
 
 /**
- * Fetches all workflow runs and optionally filters them by task title.
- * The /api/kody/workflows endpoint returns up to 20 runs (no per-task filter server-side),
- * so we filter client-side by matching display_title against the provided taskTitle.
+ * Fetches all workflow runs and filters them down to those that belong to a
+ * specific task. The /api/kody/workflows endpoint returns up to 20 runs with
+ * no per-task filter server-side, so scoping happens client-side via
+ * matchWorkflowRunsForTask (head_branch + #N + taskId predicates).
+ *
+ * Pass `undefined` for the whole `task` object to disable the query.
  */
-export function useWorkflowRuns(taskTitle?: string) {
+export function useWorkflowRuns(task?: {
+  issueTitle: string
+  issueNumber: number
+  taskId: string
+}) {
   return useQuery({
     queryKey: queryKeys.workflowRuns,
     queryFn: () => kodyApi.workflows.list(),
     select: (runs) => {
-      if (!taskTitle) return runs
-      return runs.filter((run) => run.display_title === taskTitle)
+      if (!task) return runs
+      return matchWorkflowRunsForTask(runs, task.issueTitle, task.issueNumber, task.taskId)
     },
     staleTime: 30_000,
-    enabled: !!taskTitle,
+    enabled: !!task,
   })
 }
 

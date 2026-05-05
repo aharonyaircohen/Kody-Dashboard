@@ -66,3 +66,40 @@ export function matchWorkflowRunToTask(
   // 4. Fall back to first candidate (most recent completed, since runs are sorted desc)
   return candidates[0]
 }
+
+/**
+ * Return ALL workflow runs that belong to a given task, in the order they were
+ * received (GitHub returns newest-first).
+ *
+ * A run is considered to belong to the task if any of these are true:
+ *  - its `head_branch` matches the kody-derived issue branch (`{issueNumber}` or `{issueNumber}-…`)
+ *  - its `display_title` exactly equals the issue title
+ *  - its `display_title` references `#{issueNumber}` (with non-digit boundary so #8 ≠ #839)
+ *  - its `display_title` contains the pipeline `taskId`
+ *
+ * The branch predicate is the load-bearing one — kody dispatches the workflow
+ * with `issue_number` as input and works on a branch derived from it
+ * (see kody2/src/branch.ts deriveBranchName), so head_branch is a reliable scope.
+ */
+export function matchWorkflowRunsForTask(
+  runs: WorkflowRun[],
+  issueTitle: string,
+  issueNumber: number,
+  taskId: string,
+): WorkflowRun[] {
+  const issueRegex = issueNumber > 0 ? new RegExp(`#${issueNumber}(?:\\D|$)`) : null
+  const branchRegex =
+    issueNumber > 0 ? new RegExp(`^${issueNumber}(?:-|$)`) : null
+
+  return runs.filter((run) => {
+    const title = run.display_title || ''
+    const branch = run.head_branch || ''
+
+    if (branchRegex && branchRegex.test(branch)) return true
+    if (issueTitle && title === issueTitle) return true
+    if (issueRegex && issueRegex.test(title)) return true
+    if (taskId && title.includes(taskId)) return true
+
+    return false
+  })
+}

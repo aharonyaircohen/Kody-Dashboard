@@ -1127,7 +1127,9 @@ export function TaskDetail({
       )}
       {task.workflowRun && (
         <WorkflowRunsPopover
-          taskTitle={task.title}
+          issueTitle={task.title}
+          issueNumber={task.issueNumber}
+          taskId={task.id}
           fallbackRun={task.workflowRun}
         />
       )}

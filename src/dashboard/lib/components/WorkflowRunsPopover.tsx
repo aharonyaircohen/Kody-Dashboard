@@ -52,12 +52,22 @@ function getRunColor(run: WorkflowRun): string {
 // ── WorkflowRunsPopover ───────────────────────────────────────────────────────
 
 interface WorkflowRunsPopoverProps {
-  taskTitle: string
+  /** Issue title used as one of the matching predicates (display_title === issueTitle). */
+  issueTitle: string
+  /** GitHub issue number — primary scoping signal (matches kody branch + `#N` in title). */
+  issueNumber: number
+  /** Pipeline taskId, included as a fallback display_title substring predicate. */
+  taskId: string
   /** Fallback run shown before data loads (task.workflowRun from list API) */
   fallbackRun?: WorkflowRun
 }
 
-export function WorkflowRunsPopover({ taskTitle, fallbackRun }: WorkflowRunsPopoverProps) {
+export function WorkflowRunsPopover({
+  issueTitle,
+  issueNumber,
+  taskId,
+  fallbackRun,
+}: WorkflowRunsPopoverProps) {
   const [open, setOpen] = useState(false)
   const [showSkipped, setShowSkipped] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -65,7 +75,9 @@ export function WorkflowRunsPopover({ taskTitle, fallbackRun }: WorkflowRunsPopo
     null,
   )
 
-  const { data: runs, isLoading } = useWorkflowRuns(open ? taskTitle : undefined)
+  const { data: runs, isLoading } = useWorkflowRuns(
+    open ? { issueTitle, issueNumber, taskId } : undefined,
+  )
 
   // The kody workflow re-triggers itself on its own progress comments and
   // short-circuits via a guard step, so the run list is mostly "skipped"
