@@ -24,6 +24,9 @@ interface Ctx {
   octokit: Octokit
   owner: string
   repo: string
+  // Login of the chat user. Auto-assigned to the release-tracking issue
+  // so every release on the board has a clear owner.
+  actorLogin: string | null
 }
 
 const RELEASE_MODES = [
@@ -78,7 +81,7 @@ function buildCommand(input: ReleaseRequestInput): string {
 }
 
 export function createReleaseTools(ctx: Ctx) {
-  const { octokit, owner, repo } = ctx
+  const { octokit, owner, repo, actorLogin } = ctx
 
   return {
     request_release: tool({
@@ -153,6 +156,7 @@ export function createReleaseTools(ctx: Ctx) {
             title,
             body,
             labels: ['release'],
+            assignees: actorLogin ? [actorLogin] : undefined,
           })
 
           try {

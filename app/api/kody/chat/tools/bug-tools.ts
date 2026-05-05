@@ -23,6 +23,9 @@ interface Ctx {
   octokit: Octokit
   owner: string
   repo: string
+  // Login of the chat user. Used as the default assignee when the model
+  // doesn't supply one — every chat-filed bug should be attributable.
+  actorLogin: string | null
 }
 
 const ENVIRONMENTS = ['dev', 'preview', 'prod'] as const
@@ -92,7 +95,7 @@ function formatBugReport(input: BugReportInput): string {
 }
 
 export function createBugTools(ctx: Ctx) {
-  const { octokit, owner, repo } = ctx
+  const { octokit, owner, repo, actorLogin } = ctx
 
   return {
     report_bug: tool({
@@ -157,6 +160,16 @@ export function createBugTools(ctx: Ctx) {
         const body = formatBugReport({ ...input, priority })
         const labels = Array.from(new Set(['bug', `priority:${priority}`]))
 
+        // Default assignee to the chat actor when the model didn't supply
+        // one, mirroring the dashboard's bug-report fallback so every
+        // chat-filed bug has an owner on the board.
+        const resolvedAssignees =
+          input.assignees && input.assignees.length > 0
+            ? input.assignees
+            : actorLogin
+              ? [actorLogin]
+              : undefined
+
         try {
           const { data } = await octokit.rest.issues.create({
             owner,
@@ -164,7 +177,7 @@ export function createBugTools(ctx: Ctx) {
             title: input.title,
             body,
             labels,
-            assignees: input.assignees,
+            assignees: resolvedAssignees,
           })
           logger.info(
             { owner, repo, number: data.number, priority },

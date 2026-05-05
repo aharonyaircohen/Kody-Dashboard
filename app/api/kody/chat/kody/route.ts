@@ -215,9 +215,24 @@ export async function POST(req: NextRequest) {
     extraTools = {
       ...extraTools,
       ...createGitHubTools({ octokit, owner: repo.owner, repo: repo.repo }),
-      ...createBugTools({ octokit, owner: repo.owner, repo: repo.repo }),
-      ...createTaskTools({ octokit, owner: repo.owner, repo: repo.repo }),
-      ...createReleaseTools({ octokit, owner: repo.owner, repo: repo.repo }),
+      ...createBugTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createTaskTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createReleaseTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
       ...createKodyTools({ octokit, owner: repo.owner, repo: repo.repo }),
     }
     // Pipeline tools currently use github-client's module-level context

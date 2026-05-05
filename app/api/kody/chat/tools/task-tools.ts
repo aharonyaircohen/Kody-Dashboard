@@ -23,6 +23,9 @@ interface Ctx {
   octokit: Octokit
   owner: string
   repo: string
+  // Login of the chat user. Used as the default assignee when the model
+  // doesn't supply one — every chat-created task should be attributable.
+  actorLogin: string | null
 }
 
 const SCOPES = ['frontend', 'backend', 'fullstack', 'infra', 'ci-cd'] as const
@@ -177,12 +180,22 @@ async function executeCreate(
     }
   | { error: string }
 > {
-  const { octokit, owner, repo } = ctx
+  const { octokit, owner, repo, actorLogin } = ctx
   const priority: PriorityLevel = input.priority ?? 'P2'
   const body = formatTaskBody(category, { ...input, priority })
   // Match CreateTaskDialog labeling: <category> + priority:<level>.
   // De-dupe in case the model passes something redundant.
   const labels = Array.from(new Set([category, `priority:${priority}`]))
+
+  // Default assignee to the chat actor when the model didn't supply one,
+  // mirroring the dashboard's CreateTaskDialog/POST fallback so every
+  // chat-created task is attributable to a person.
+  const resolvedAssignees =
+    input.assignees && input.assignees.length > 0
+      ? input.assignees
+      : actorLogin
+        ? [actorLogin]
+        : undefined
 
   try {
     const { data } = await octokit.rest.issues.create({
@@ -191,7 +204,7 @@ async function executeCreate(
       title: input.title,
       body,
       labels,
-      assignees: input.assignees,
+      assignees: resolvedAssignees,
     })
     logger.info(
       { owner, repo, number: data.number, category, priority },
