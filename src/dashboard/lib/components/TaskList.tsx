@@ -593,15 +593,24 @@ const TaskRow = memo(function TaskRow({
 
               {/* Actions */}
               <div className="flex items-center gap-1 shrink-0">
-                {/* PR-related cluster: approvals · PR link · CI · preview */}
-                {task.labels.includes('ui-approved') && (
+                {/* PR-related cluster: approvals · PR link · CI · preview.
+                    QA "needs-fix" takes the same slot as the UI-approved chip
+                    and is mutually exclusive — approving the UI clears it. */}
+                {task.labels.includes('kody:needs-fix') ? (
+                  <SimpleTooltip content="QA flagged unresolved issues" side="bottom">
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/40 text-red-300 text-[10px] font-semibold cursor-default">
+                      <AlertTriangle className="w-3 h-3" />
+                      Needs fix
+                    </span>
+                  </SimpleTooltip>
+                ) : task.labels.includes('ui-approved') ? (
                   <SimpleTooltip content="UI approved from preview" side="bottom">
                     <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold cursor-default">
                       <CheckCircle2 className="w-3 h-3" />
                       UI
                     </span>
                   </SimpleTooltip>
-                )}
+                ) : null}
 
                 {task.labels.includes('pr-approved') && (
                   <SimpleTooltip content="PR approved from preview" side="bottom">

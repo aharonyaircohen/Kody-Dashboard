@@ -11,6 +11,7 @@ import type { KodyTask } from '../types'
 import { Button } from '@dashboard/ui/button'
 import { MergeButton } from './MergeButton'
 import { FixRequestDialog } from './FixRequestDialog'
+import { ReportIssueDialog } from './ReportIssueDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SimpleTooltip } from './SimpleTooltip'
 import {
@@ -21,6 +22,7 @@ import {
   GitPullRequest,
   Eye,
   Camera,
+  AlertTriangle,
 } from 'lucide-react'
 import { tasksApi, prsApi } from '../api'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
@@ -48,6 +50,24 @@ function applyOptimisticLabel(
   )
 }
 
+/**
+ * Optimistically remove a label across all cached task lists. Mirrors the
+ * backend, which removes the label as part of the same action.
+ */
+function removeOptimisticLabel(
+  queryClient: ReturnType<typeof useQueryClient>,
+  issueNumber: number,
+  label: string,
+): void {
+  queryClient.setQueriesData<KodyTask[]>({ queryKey: ['kody-tasks'] }, (old) =>
+    old?.map((t) =>
+      t.issueNumber === issueNumber && t.labels?.includes(label)
+        ? { ...t, labels: t.labels.filter((l) => l !== label) }
+        : t,
+    ),
+  )
+}
+
 interface PreviewActionsProps {
   task: KodyTask
   onMerge: () => Promise<void>
@@ -64,6 +84,7 @@ export function PreviewActions({
   className,
 }: PreviewActionsProps) {
   const [showFixDialog, setShowFixDialog] = useState(false)
+  const [showReportDialog, setShowReportDialog] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isApprovingUI, setIsApprovingUI] = useState(false)
@@ -76,6 +97,7 @@ export function PreviewActions({
   // Check if UI / PR are already approved (label-driven, mirrors backend)
   const isUIApproved = task.labels?.includes('ui-approved')
   const isPRApproved = task.labels?.includes('pr-approved')
+  const hasNeedsFix = task.labels?.includes('kody:needs-fix')
 
   const pr = task.associatedPR
   const { data: ciData } = usePRCIStatus(pr?.number)
@@ -111,11 +133,25 @@ export function PreviewActions({
     try {
       await tasksApi.approveUI(task.issueNumber, actorLogin)
       applyOptimisticLabel(queryClient, task.issueNumber, 'ui-approved')
+      // Backend also clears kody:needs-fix — mirror that locally so the
+      // task list flips to the approved icon immediately.
+      removeOptimisticLabel(queryClient, task.issueNumber, 'kody:needs-fix')
       toast.success('Preview UI approved')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to approve UI')
     } finally {
       setIsApprovingUI(false)
+    }
+  }
+
+  const handleReportIssue = async (notes: string) => {
+    try {
+      await tasksApi.reportIssue(task.issueNumber, notes, actorLogin)
+      applyOptimisticLabel(queryClient, task.issueNumber, 'kody:needs-fix')
+      toast.success('Issue reported')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to report issue')
+      throw err // re-throw so dialog keeps open
     }
   }
 
@@ -176,6 +212,25 @@ export function PreviewActions({
                 <CheckCircle className="w-3.5 h-3.5" />
               )}
               <span>{isApprovingUI ? 'Approving…' : 'Approve UI'}</span>
+            </Button>
+          )}
+
+          {/* Report Issue — peer to Approve UI; visible until UI is approved.
+              QA can use this to flag unresolved problems with documentation. */}
+          {!isUIApproved && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowReportDialog(true)}
+              className={cn(
+                'gap-1.5 cursor-pointer bg-transparent transition-all active:scale-[0.97]',
+                hasNeedsFix
+                  ? 'text-red-300 border-red-900/60 hover:bg-red-500/10 hover:border-red-700'
+                  : 'text-zinc-200 border-zinc-700 hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50',
+              )}
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>{hasNeedsFix ? 'Issue reported' : 'Report Issue'}</span>
             </Button>
           )}
 
@@ -289,6 +344,13 @@ export function PreviewActions({
         onClose={() => setShowFixDialog(false)}
         onSubmit={handleFixSubmit}
         prNumber={pr.number}
+      />
+
+      <ReportIssueDialog
+        isOpen={showReportDialog}
+        onClose={() => setShowReportDialog(false)}
+        onSubmit={handleReportIssue}
+        issueNumber={task.issueNumber}
       />
 
       <ConfirmDialog

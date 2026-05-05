@@ -393,6 +393,23 @@ export const tasksApi = {
     return handleResponse(res);
   },
 
+  reportIssue: async (
+    issueNumber: number,
+    notes: string,
+    actorLogin?: string,
+  ): Promise<ActionResponse> => {
+    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({
+        action: "report-issue",
+        comment: notes,
+        ...(actorLogin && { actorLogin }),
+      }),
+    });
+    return handleResponse(res);
+  },
+
   comment: async (
     issueNumber: number,
     comment: string,

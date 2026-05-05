@@ -49,8 +49,30 @@ export function CommentList({ comments, loading }: CommentListProps) {
     return <div className="text-center py-8 text-muted-foreground text-sm">No comments yet</div>
   }
 
+  // Pin QA-issue comments to the top so unresolved-problem documentation is
+  // the first thing visible. They still appear inline in chronological order
+  // below — keeping the timeline intact.
+  const qaIssues = comments.filter((c) => c.body?.startsWith('🛑 QA:'))
+
   return (
     <div ref={containerRef} className="space-y-3">
+      {qaIssues.length > 0 && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/5 p-2">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-red-300">
+              Issues ({qaIssues.length})
+            </span>
+            <span className="text-[10px] text-red-300/60">
+              Resolved on UI approval
+            </span>
+          </div>
+          <div className="space-y-2">
+            {qaIssues.map((comment) => (
+              <CommentItem key={`qa-${comment.id}`} comment={comment} />
+            ))}
+          </div>
+        </div>
+      )}
       {comments.map((comment) => (
         <CommentItem key={comment.id} comment={comment} />
       ))}
@@ -60,6 +82,8 @@ export function CommentList({ comments, loading }: CommentListProps) {
 
 // Detect comment type from body content
 function detectCommentType(body: string): string {
+  // QA-flagged unresolved issues — convention used by the Report Issue flow.
+  if (body.startsWith('🛑 QA:')) return 'qa-issue'
   if (body.includes('🚫 Hard Stop')) return 'hard-stop'
   if (body.includes('🚦 Risk Gate') || body.includes('Risk assessment required'))
     return 'risk-gated'
@@ -89,6 +113,8 @@ function getCommentStyle(type: string, isBot: boolean) {
   const base = 'p-2 rounded-lg border text-sm'
 
   switch (type) {
+    case 'qa-issue':
+      return cn(base, 'bg-red-500/10 border-red-500/40')
     case 'hard-stop':
       return cn(base, 'bg-red-500/10 border-red-500/50')
     case 'risk-gated':
@@ -131,6 +157,7 @@ function CommentItem({ comment }: { comment: GitHubComment }) {
           <span
             className={cn(
               'text-[10px] px-1.5 py-0.5 rounded font-medium uppercase shrink-0',
+              commentType === 'qa-issue' && 'bg-red-600 text-white',
               commentType === 'hard-stop' && 'bg-red-600 text-white',
               commentType === 'risk-gated' && 'bg-yellow-600 text-white',
               commentType === 'gate-rejection' && 'bg-red-600 text-white',

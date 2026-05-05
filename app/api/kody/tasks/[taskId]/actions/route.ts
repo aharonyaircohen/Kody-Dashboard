@@ -58,6 +58,7 @@ const actionSchema = z.object({
     'fix',
     'approve-ui',
     'approve-pr',
+    'report-issue',
     'update',
   ]),
   feedback: z.string().optional(),
@@ -492,9 +493,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
 
       case 'approve-ui': {
         await addLabels(issueNumber, ['ui-approved'], userOctokit ?? undefined)
+        // Clear any prior QA "needs-fix" flag so approval is the latest signal.
+        try {
+          await removeLabel(issueNumber, 'kody:needs-fix', userOctokit ?? undefined)
+        } catch {
+          // 404 = label wasn't applied; ignore
+        }
         await postWithFallback(issueNumber, '✅ Preview UI approved', actor, userOctokit)
         invalidateTaskCache()
         return NextResponse.json({ success: true, message: 'Preview UI approved' })
+      }
+
+      case 'report-issue': {
+        if (!comment) {
+          return NextResponse.json({ error: 'Issue notes are required' }, { status: 400 })
+        }
+        // Auto-create the label defensively — repos that have never used it
+        // will 422 on addLabels otherwise.
+        try {
+          await ensureLabel(
+            'kody:needs-fix',
+            { color: 'b91c1c', description: 'QA flagged unresolved issues on this task' },
+            userOctokit ?? undefined,
+          )
+        } catch (labelErr) {
+          console.warn('[Kody] ensureLabel kody:needs-fix failed (continuing):', labelErr)
+        }
+        await addLabels(issueNumber, ['kody:needs-fix'], userOctokit ?? undefined)
+        const qaBody = `🛑 QA: ${comment}`
+        await postWithFallback(issueNumber, qaBody, actor, userOctokit)
+        invalidateTaskCache()
+        return NextResponse.json({ success: true, message: 'Issue reported' })
       }
 
       case 'approve-pr': {
