@@ -450,6 +450,23 @@ export const tasksApi = {
     return handleResponse(res);
   },
 
+  fixRequest: async (
+    issueNumber: number,
+    fixDescription: string,
+    actorLogin?: string,
+  ): Promise<ActionResponse> => {
+    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({
+        action: "fix",
+        comment: fixDescription,
+        ...(actorLogin && { actorLogin }),
+      }),
+    });
+    return handleResponse(res);
+  },
+
   approve: async (
     task: KodyTask,
     actorLogin?: string,

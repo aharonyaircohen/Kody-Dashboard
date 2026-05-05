@@ -1047,7 +1047,6 @@ export function TaskDetail({
             <CommentList
               comments={fullDetails?.comments || []}
               loading={isDetailsFetching}
-              prNumber={task.associatedPR?.number}
             />
           </div>
           <div className="shrink-0 border-t border-white/[0.08] p-3 bg-white/[0.05]">

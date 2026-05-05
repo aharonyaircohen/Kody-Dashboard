@@ -6,32 +6,20 @@
  */
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { formatRelativeTime } from '../utils'
 import type { GitHubComment } from '../types'
 import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
 import { cn } from '@dashboard/lib/utils/ui'
-import { Button } from '@dashboard/ui/button'
-import { Wrench, Loader2, CheckCircle } from 'lucide-react'
-import { toast } from 'sonner'
-import { prsApi } from '../api'
-import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 
 interface CommentListProps {
   comments: GitHubComment[]
   loading?: boolean
-  /** Associated PR number — enables the "Send to Kody to fix" button on QA issues. */
-  prNumber?: number
 }
 
-/** Strip the leading `🛑 QA:` marker so dispatch quotes the raw notes. */
-function stripQAPrefix(body: string): string {
-  return body.replace(/^🛑 QA:\s*/, '').trim()
-}
-
-export function CommentList({ comments, loading, prNumber }: CommentListProps) {
+export function CommentList({ comments, loading }: CommentListProps) {
   // Auto-scroll to bottom when comments change - must be called before any early returns
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -80,7 +68,7 @@ export function CommentList({ comments, loading, prNumber }: CommentListProps) {
           </div>
           <div className="space-y-2">
             {qaIssues.map((comment) => (
-              <QAIssueItem key={`qa-${comment.id}`} comment={comment} prNumber={prNumber} />
+              <CommentItem key={`qa-${comment.id}`} comment={comment} />
             ))}
           </div>
         </div>
@@ -88,74 +76,6 @@ export function CommentList({ comments, loading, prNumber }: CommentListProps) {
       {comments.map((comment) => (
         <CommentItem key={comment.id} comment={comment} />
       ))}
-    </div>
-  )
-}
-
-/**
- * Pinned QA issue card. Wraps CommentItem and adds a "Send to Kody to fix"
- * button that dispatches `@kody fix` on the PR with the original QA notes
- * quoted verbatim. The kody:needs-fix label deliberately stays — only
- * Approve UI clears it.
- */
-function QAIssueItem({
-  comment,
-  prNumber,
-}: {
-  comment: GitHubComment
-  prNumber?: number
-}) {
-  const [dispatching, setDispatching] = useState(false)
-  const [dispatched, setDispatched] = useState(false)
-  const { githubUser } = useGitHubIdentity()
-
-  const handleDispatch = async () => {
-    if (!prNumber || dispatched) return
-    const notes = stripQAPrefix(comment.body)
-    if (!notes) {
-      toast.error('Empty QA notes — nothing to dispatch')
-      return
-    }
-    setDispatching(true)
-    try {
-      await prsApi.postComment(prNumber, `@kody fix\n\n${notes}`, githubUser?.login)
-      setDispatched(true)
-      toast.success('Fix dispatched — Kody will work on it')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to dispatch fix')
-    } finally {
-      setDispatching(false)
-    }
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <CommentItem comment={comment} />
-      {prNumber && (
-        <div className="flex justify-end px-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDispatch}
-            disabled={dispatching || dispatched}
-            className={cn(
-              'h-7 gap-1.5 text-[11px] bg-transparent border-zinc-700',
-              dispatched
-                ? 'text-emerald-400 border-emerald-900/60'
-                : 'text-zinc-200 hover:bg-zinc-800/60 hover:border-zinc-600',
-            )}
-          >
-            {dispatching ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : dispatched ? (
-              <CheckCircle className="w-3 h-3" />
-            ) : (
-              <Wrench className="w-3 h-3" />
-            )}
-            <span>{dispatched ? 'Fix dispatched' : dispatching ? 'Sending…' : 'Send to Kody to fix'}</span>
-          </Button>
-        </div>
-      )}
     </div>
   )
 }
