@@ -637,7 +637,9 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       // a 5s wait. Subsequent ticks every 5s — same GitHub rate-limit story
       // as SSE poll, just simpler delivery.
       void tick()
-      pollIntervalRef.current = setInterval(tick, 5_000)
+      // 3s — most polls hit GitHub's 304/If-None-Match path (free, doesn't
+      // count against rate limit). Real cost is ~1 op per actual new event.
+      pollIntervalRef.current = setInterval(tick, 3_000)
     },
     [setMessages, stopInteractivePoll],
   )
