@@ -448,11 +448,11 @@ export function DiscussionsDisabledBadge({
     if (message) return message
     switch (reason) {
       case 'discussions_disabled':
-        return 'Enable Discussions in repo settings to chat on goals.'
+        return 'The dashboard tried to enable Discussions for this repo but does not have admin permission. Ask a repo admin to flip it on.'
       case 'category_missing':
-        return 'Create a "Goals" Discussion category in your repo to enable goal threads.'
+        return 'No discussion categories exist in this repo. Recreate at least one in the Discussions tab.'
       case 'provision_failed':
-        return 'Could not create the discussion thread. Check that you have permission to create discussions in this repo.'
+        return 'Could not create the discussion thread. Check that you have permission to post in this repo.'
       default:
         return 'Discussions are unavailable.'
     }

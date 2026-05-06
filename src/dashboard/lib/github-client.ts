@@ -2417,18 +2417,56 @@ export interface GoalDiscussionRef {
 
 interface RepoDiscussionMeta {
   enabled: boolean
-  /** GraphQL node ID for the "Goals" discussion category — null if not yet ensured. */
-  goalsCategoryId: string | null
+  /**
+   * GraphQL node ID for the discussion category goal threads will be filed
+   * under. Picks (in order of preference): a category named "Goals" if the
+   * user opted in by creating one, "General" (the default catch-all created
+   * automatically when Discussions are enabled), then the first non-
+   * announcements category, then any. Null only if no categories exist
+   * (Discussions disabled, or all categories deleted manually).
+   */
+  categoryId: string | null
+  /** Display name of the chosen category, for diagnostics. */
+  categoryName: string | null
 }
 
 const DISCUSSIONS_META_TTL = 10 * 60_000 // 10min — flips rarely, webhook invalidates
 const DISCUSSION_COMMENTS_TTL = 60_000 // 1min — UI-driven re-reads
-const GOALS_CATEGORY_NAME = 'Goals'
-const GOALS_CATEGORY_DESCRIPTION =
-  'Discussions backing Kody goals. The dashboard creates one discussion per goal here.'
+
+/**
+ * Names tried in order when picking the discussion category to file goal
+ * threads under. The first match wins. The dashboard never *creates* a
+ * category — GitHub doesn't expose category creation in any public API —
+ * so we rely on the defaults that get seeded when Discussions is enabled.
+ *
+ * Power users can opt into a dedicated bucket by creating one named "Goals"
+ * (or any preferred-list name) on github.com.
+ */
+const PREFERRED_CATEGORY_NAMES = ['Goals', 'General', 'Ideas', 'Show and tell']
 
 const inflightDiscussionsMeta = new Map<string, Promise<RepoDiscussionMeta>>()
 const inflightDiscussionComments = new Map<string, Promise<GoalDiscussionComment[]>>()
+
+/**
+ * Pick the best discussion category to file goal threads under, given the
+ * repo's actual category list. Walks the preferred-name list first, then
+ * falls back to the first non-announcements category, then any.
+ */
+function pickCategory(
+  cats: { id: string; name: string }[],
+): { id: string; name: string } | null {
+  if (cats.length === 0) return null
+  for (const preferred of PREFERRED_CATEGORY_NAMES) {
+    const hit = cats.find(
+      (c) => c.name.toLowerCase() === preferred.toLowerCase(),
+    )
+    if (hit) return hit
+  }
+  const nonAnnouncements = cats.find(
+    (c) => !c.name.toLowerCase().includes('announce'),
+  )
+  return nonAnnouncements ?? cats[0]
+}
 
 /**
  * Wipe discussion caches. Called from the webhook receiver on `discussion`,
@@ -2479,13 +2517,12 @@ export async function fetchRepoDiscussionMeta(): Promise<RepoDiscussionMeta> {
 
       const enabled = !!data.repository.hasDiscussionsEnabled
       const cats = data.repository.discussionCategories?.nodes ?? []
-      const goals = cats.find(
-        (c) => c.name.toLowerCase() === GOALS_CATEGORY_NAME.toLowerCase(),
-      )
+      const chosen = pickCategory(cats)
 
       const meta: RepoDiscussionMeta = {
         enabled,
-        goalsCategoryId: enabled && goals ? goals.id : null,
+        categoryId: enabled && chosen ? chosen.id : null,
+        categoryName: enabled && chosen ? chosen.name : null,
       }
       setCache(cacheKey, DISCUSSIONS_META_TTL, meta)
       return meta
@@ -2505,38 +2542,64 @@ export async function fetchRepoDiscussionMeta(): Promise<RepoDiscussionMeta> {
   return promise
 }
 
-interface CreateGoalsCategoryInput {
-  /**
-   * Repository GraphQL node ID. We don't fetch this for the meta query so it
-   * isn't on the cached meta — pass it explicitly when we need to create.
-   */
-  repositoryId: string
-  userOctokit?: Octokit
-}
+/**
+ * Outcome of a `enableRepoDiscussions` call. The caller surfaces these
+ * states to the UI to drive the disabled-badge copy.
+ */
+export type EnableDiscussionsOutcome =
+  | { ok: true; alreadyEnabled: boolean }
+  | { ok: false; reason: 'forbidden' | 'unknown'; status?: number; message?: string }
 
 /**
- * Best-effort create the "Goals" discussion category. Requires the user PAT
- * to be a repo admin; on lack of permission we surface a helpful error so
- * the UI can fall back to "Discussions off (no Goals category)".
+ * Idempotently turn on Discussions for the current repo. Uses the user PAT
+ * (must be repo admin) — never the shared polling token, since this is a
+ * permission-sensitive write that should be attributed to the human.
+ *
+ * Returns `{ ok: true, alreadyEnabled: true }` as a fast path when the
+ * cached meta already says it's on (no API call). On 403 we report
+ * `forbidden` so the UI can prompt the user to ask an admin.
+ *
+ * Cache: invalidates the discussions-meta cache on success so the next
+ * read sees the new state without waiting for the 10-minute TTL.
  */
-export async function ensureGoalsDiscussionCategory(
-  input: CreateGoalsCategoryInput,
-): Promise<string> {
-  const meta = await fetchRepoDiscussionMeta()
-  if (!meta.enabled) {
-    throw new Error('discussions_disabled')
+export async function enableRepoDiscussions(
+  userOctokit: Octokit,
+): Promise<EnableDiscussionsOutcome> {
+  // Cheap pre-check: if cached meta already says enabled, skip the PATCH.
+  const cached = getCached<RepoDiscussionMeta>(
+    `discussions-meta:${getOwner()}:${getRepo()}`,
+  )
+  if (cached?.enabled) {
+    return { ok: true, alreadyEnabled: true }
   }
-  if (meta.goalsCategoryId) return meta.goalsCategoryId
 
-  const octokit = input.userOctokit ?? getOctokit()
-  // GraphQL `createDiscussionCategory` is not in the public schema — only
-  // REST has the equivalent: POST /repos/{owner}/{repo}/discussions/categories
-  // (still in preview). For now we surface a clear error and require the
-  // user to create the "Goals" category once via repo settings.
-  // We deliberately keep the helper around so the error can be improved
-  // later once the GraphQL mutation is GA.
-  void octokit
-  throw new Error('goals_category_missing')
+  try {
+    await userOctokit.request('PATCH /repos/{owner}/{repo}', {
+      owner: getOwner(),
+      repo: getRepo(),
+      has_discussions: true,
+    })
+    invalidateDiscussionCache()
+    return { ok: true, alreadyEnabled: false }
+  } catch (err: unknown) {
+    const e = err as { status?: number; message?: string }
+    if (e.status === 403 || e.status === 401 || e.status === 404) {
+      // 404 from PATCH typically means "you don't have admin rights to see
+      // this endpoint on this repo" — treat as forbidden for UX purposes.
+      return {
+        ok: false,
+        reason: 'forbidden',
+        status: e.status,
+        message: e.message,
+      }
+    }
+    return {
+      ok: false,
+      reason: 'unknown',
+      status: e.status,
+      message: e.message,
+    }
+  }
 }
 
 /**
@@ -2807,4 +2870,3 @@ export async function postGoalDiscussionComment(
   }
 }
 
-void GOALS_CATEGORY_DESCRIPTION // exported placeholder for future create-category mutation

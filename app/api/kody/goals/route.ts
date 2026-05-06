@@ -24,6 +24,7 @@ import {
   clearGitHubContext,
   fetchRepoDiscussionMeta,
   createGoalDiscussion,
+  enableRepoDiscussions,
 } from '@dashboard/lib/github-client'
 import {
   EMPTY_MANIFEST,
@@ -104,7 +105,7 @@ export async function GET(req: NextRequest) {
     let discussionsEnabled = false
     try {
       const meta = await fetchRepoDiscussionMeta()
-      discussionsEnabled = meta.enabled && !!meta.goalsCategoryId
+      discussionsEnabled = meta.enabled && !!meta.categoryId
     } catch (capErr) {
       console.warn('[Goals] discussion capability lookup failed:', capErr)
     }
@@ -148,27 +149,31 @@ export async function POST(req: NextRequest) {
     const userOctokit = await getUserOctokit(req)
 
     // Try to provision a backing discussion *before* the manifest write so
-    // both halves land in one CAS. Failures are non-fatal — the goal is
-    // still created without a thread (UI shows the "Discussions off" badge).
+    // both halves land in one CAS. Auto-enables Discussions on the repo if
+    // they're off and the user has admin perms — silent fallback if not.
+    // Failures are non-fatal: the goal is still created without a thread
+    // and the UI shows the "Discussions off" badge with the right reason.
     let discussionRef:
       | { id: string; number: number }
       | null = null
-    let discussionTitle = ''
-    let discussionBody = ''
     try {
-      const meta = await fetchRepoDiscussionMeta()
-      if (meta.enabled && meta.goalsCategoryId) {
-        discussionTitle = `Goal: ${parsed.name.trim()}`
-        discussionBody = goalDiscussionSeedBody({
-          name: parsed.name.trim(),
-          description: parsed.description?.trim(),
-          dueDate: parsed.dueDate?.trim(),
-        })
+      let meta = await fetchRepoDiscussionMeta()
+      if (!meta.enabled && userOctokit) {
+        const enabled = await enableRepoDiscussions(userOctokit)
+        if (enabled.ok) {
+          meta = await fetchRepoDiscussionMeta()
+        }
+      }
+      if (meta.enabled && meta.categoryId) {
         const created = await createGoalDiscussion(
           {
-            title: discussionTitle,
-            body: discussionBody,
-            categoryId: meta.goalsCategoryId,
+            title: `Goal: ${parsed.name.trim()}`,
+            body: goalDiscussionSeedBody({
+              name: parsed.name.trim(),
+              description: parsed.description?.trim(),
+              dueDate: parsed.dueDate?.trim(),
+            }),
+            categoryId: meta.categoryId,
           },
           userOctokit ?? undefined,
         )

@@ -27,6 +27,7 @@ import {
   fetchGoalDiscussionComments,
   postGoalDiscussionComment,
   createGoalDiscussion,
+  enableRepoDiscussions,
   getOwner,
   getRepo,
 } from '@dashboard/lib/github-client'
@@ -60,18 +61,67 @@ type EnsureGoalResult =
 type UserOctokit = Awaited<ReturnType<typeof getUserOctokit>>
 
 /**
- * Returns the goal's discussion (creating it if missing). Returns null if
- * Discussions are disabled or the Goals category doesn't exist.
+ * Result of the auto-enable flow: either we have an enabled repo with a
+ * category to file goals under, or we explain why we couldn't get there.
+ * The reason matches the {@link DiscussionDisabledReason} union on the
+ * client so the UI can drive the disabled badge directly off it.
+ */
+type EnableMetaOutcome =
+  | { ok: true; categoryId: string }
+  | { ok: false; reason: 'discussions_disabled'; message: string }
+  | { ok: false; reason: 'category_missing'; message: string }
+
+async function ensureDiscussionsReady(
+  userOctokit: UserOctokit,
+): Promise<EnableMetaOutcome> {
+  let meta = await fetchRepoDiscussionMeta()
+  if (!meta.enabled) {
+    if (!userOctokit) {
+      return {
+        ok: false,
+        reason: 'discussions_disabled',
+        message:
+          'Discussions are off and the dashboard could not enable them automatically (no user token).',
+      }
+    }
+    const result = await enableRepoDiscussions(userOctokit)
+    if (!result.ok) {
+      return {
+        ok: false,
+        reason: 'discussions_disabled',
+        message:
+          result.reason === 'forbidden'
+            ? 'Discussions are off and could not be enabled — repo admin permission required.'
+            : `Could not enable Discussions: ${result.message ?? 'unknown error'}`,
+      }
+    }
+    meta = await fetchRepoDiscussionMeta()
+  }
+
+  if (!meta.categoryId) {
+    return {
+      ok: false,
+      reason: 'category_missing',
+      message:
+        'No discussion categories are available. Recreate at least one category in your repo Discussions tab.',
+    }
+  }
+  return { ok: true, categoryId: meta.categoryId }
+}
+
+/**
+ * Returns the goal's discussion, creating it if missing. The caller is
+ * responsible for ensuring Discussions are enabled + a category is
+ * available; we take the {@link categoryId} explicitly to avoid a second
+ * meta fetch and to make the contract honest.
+ *
+ * Returns `goal: null` only if the goal id doesn't exist in the manifest.
  */
 async function ensureGoalDiscussion(
   goalId: string,
+  categoryId: string,
   userOctokit: UserOctokit,
 ): Promise<{ ref: { id: string; number: number } | null; goal: Goal | null }> {
-  const meta = await fetchRepoDiscussionMeta()
-  if (!meta.enabled || !meta.goalsCategoryId) {
-    return { ref: null, goal: null }
-  }
-
   type MutatorReturn =
     | { kind: 'noop'; result: EnsureGoalResult }
     | { next: GoalsManifest; result: EnsureGoalResult }
@@ -99,7 +149,7 @@ async function ensureGoalDiscussion(
             description: goal.description,
             dueDate: goal.dueDate,
           }),
-          categoryId: meta.goalsCategoryId!,
+          categoryId,
         },
         userOctokit ?? undefined,
       )
@@ -143,27 +193,15 @@ export async function GET(
     const { id } = await params
     const userOctokit = await getUserOctokit(req)
 
-    const meta = await fetchRepoDiscussionMeta()
-    if (!meta.enabled) {
+    const ready = await ensureDiscussionsReady(userOctokit)
+    if (!ready.ok) {
       return NextResponse.json(
-        { enabled: false, reason: 'discussions_disabled', comments: [] },
-        { headers: { 'Cache-Control': 'no-store' } },
-      )
-    }
-    if (!meta.goalsCategoryId) {
-      return NextResponse.json(
-        {
-          enabled: false,
-          reason: 'category_missing',
-          message:
-            'Discussions are enabled but no "Goals" category exists. Create one in the repo Discussions tab to enable goal threads.',
-          comments: [],
-        },
+        { enabled: false, reason: ready.reason, message: ready.message, comments: [] },
         { headers: { 'Cache-Control': 'no-store' } },
       )
     }
 
-    const { ref, goal } = await ensureGoalDiscussion(id, userOctokit)
+    const { ref, goal } = await ensureGoalDiscussion(id, ready.categoryId, userOctokit)
     if (!goal) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 })
     }
@@ -227,7 +265,15 @@ export async function POST(
       return NextResponse.json({ error: 'no_user_token' }, { status: 401 })
     }
 
-    const { ref, goal } = await ensureGoalDiscussion(id, userOctokit)
+    const ready = await ensureDiscussionsReady(userOctokit)
+    if (!ready.ok) {
+      return NextResponse.json(
+        { error: 'discussions_unavailable', reason: ready.reason, message: ready.message },
+        { status: 409 },
+      )
+    }
+
+    const { ref, goal } = await ensureGoalDiscussion(id, ready.categoryId, userOctokit)
     if (!goal) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 })
     }
