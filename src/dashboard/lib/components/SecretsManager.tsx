@@ -15,6 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
   ArrowLeft,
+  BookOpen,
   KeyRound,
   Loader2,
   Pencil,
@@ -181,6 +182,12 @@ function SecretsManagerInner() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <Button asChild variant="ghost" size="sm" className="gap-1">
+            <Link href="/secrets/docs" aria-label="Vault docs">
+              <BookOpen className="w-4 h-4" />
+              Docs
+            </Link>
+          </Button>
           <Button
             size="sm"
             onClick={() => setEditing({ name: "", existing: false })}
