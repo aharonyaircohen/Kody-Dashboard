@@ -62,6 +62,7 @@ import {
   Github,
   Layers,
   Bell,
+  KeyRound,
   ChevronsDownUp,
   ChevronsUpDown,
   List,
@@ -1407,6 +1408,20 @@ export function KodyDashboard({
                     >
                       <Link href="/notifications" aria-label="Notifications">
                         <Bell className="w-4 h-4" />
+                      </Link>
+                    </Button>
+                  </SimpleTooltip>
+
+                  {/* Secrets */}
+                  <SimpleTooltip content="Secrets" side="bottom">
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                    >
+                      <Link href="/secrets" aria-label="Secrets">
+                        <KeyRound className="w-4 h-4" />
                       </Link>
                     </Button>
                   </SimpleTooltip>

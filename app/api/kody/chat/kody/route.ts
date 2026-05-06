@@ -26,6 +26,7 @@ import { AGENT_KODY } from "@dashboard/lib/agents"
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
 import { createUserOctokit, setGitHubContext, clearGitHubContext } from "@dashboard/lib/github-client"
 import { logger } from "@dashboard/lib/logger"
+import { getSecret } from "@dashboard/lib/vault/get-secret"
 import { buildSystemPrompt, type MissionContext, type TaskContext } from "./system-prompt"
 import { createGitHubTools } from "../tools/github-tools"
 import { createPipelineTools } from "../tools/pipeline-tools"
@@ -156,7 +157,12 @@ export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
 
-  const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  // Vault first (per-repo .kody/secrets.enc), then env fallback. The
+  // helper is a no-op when KODY_VAULT_KEY isn't set, so existing
+  // env-only deployments keep working.
+  const apiKey =
+    (await getSecret("GEMINI_API_KEY", { req })) ??
+    (await getSecret("GOOGLE_GENERATIVE_AI_API_KEY", { req }))
   if (!apiKey) {
     return NextResponse.json(
       { error: "GEMINI_API_KEY not configured on the server" },

@@ -32,6 +32,27 @@ Next.js dashboard for monitoring and managing the Kody CI/CD pipeline.
 | `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from login) |
 | `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody.yml`) |
 | `JINA_API_KEY` | No | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier) |
+| `KODY_VAULT_KEY` | No | 32-byte AES-256-GCM key (hex or base64) unlocking the per-repo secrets vault. Generate with `pnpm vault:init`. Without it the `/secrets` page is disabled and runtime falls back to env vars. |
+
+## Secrets vault (`/secrets`)
+
+Dashboard-managed alternative to Vercel env vars. Each connected repo has
+its own encrypted blob at `.kody/secrets.enc`. Values written via the
+`/secrets` page are AES-256-GCM-encrypted with `KODY_VAULT_KEY` (a single
+Vercel env var) and committed to the repo. Runtime code reads them via
+[`getSecret`](src/dashboard/lib/vault/get-secret.ts), which falls through
+to `process.env` when the vault is missing or unconfigured.
+
+- Crypto: [src/dashboard/lib/vault/crypto.ts](src/dashboard/lib/vault/crypto.ts)
+- Store (read/write + 60s cache): [src/dashboard/lib/vault/store.ts](src/dashboard/lib/vault/store.ts)
+- API: [app/api/kody/secrets/route.ts](app/api/kody/secrets/route.ts), [app/api/kody/secrets/[name]/route.ts](app/api/kody/secrets/[name]/route.ts)
+- UI: [src/dashboard/lib/components/SecretsManager.tsx](src/dashboard/lib/components/SecretsManager.tsx)
+
+Bootstrap: `pnpm vault:init` prints a fresh key. Paste into Vercel env
+**and** a password manager — losing the key means re-entering every
+secret (third-party API keys can be reissued; treat as inconvenience,
+not data loss). Engine workflows (`kody.yml`) are unchanged and still
+read from GitHub Actions secrets — the vault is dashboard-runtime only.
 
 ## GitHub webhooks (push-based cache invalidation)
 
