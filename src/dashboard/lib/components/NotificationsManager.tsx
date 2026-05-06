@@ -2,10 +2,9 @@
  * @fileType component
  * @domain kody
  * @pattern notifications-manager
- * @ai-summary CRUD UI for notification rules (slack-webhook channel today).
- *   List + add/edit dialog + delete confirm + test action. Mirrors the
- *   look-and-feel of MissionControl: header bar with title + back link, card
- *   list, and a single dialog for the form.
+ * @ai-summary CRUD UI for notification rules. Supports multiple channel
+ *   types (Slack, Telegram, Discord, generic webhook) via a discriminated
+ *   union. The form swaps fields based on the selected channel type.
  */
 "use client";
 
@@ -43,26 +42,44 @@ import {
 } from "../hooks/useNotifications";
 import {
   NOTIFICATION_EVENTS,
+  CHANNEL_TYPES,
+  channelTypeLabel,
   defaultTemplateForEvent,
   eventLabel,
+  type ChannelType,
+  type NotificationChannel,
   type NotificationEvent,
   type NotificationRule,
 } from "../notifications";
+import { validateChannel } from "../notifications/channels";
 
 interface FormState {
   id?: string;
   name: string;
   enabled: boolean;
   event: NotificationEvent;
-  webhookUrl: string;
+  channel: NotificationChannel;
   template: string;
+}
+
+function blankChannel(type: ChannelType): NotificationChannel {
+  switch (type) {
+    case "slack-webhook":
+      return { type: "slack-webhook", url: "" };
+    case "telegram-bot":
+      return { type: "telegram-bot", botToken: "", chatId: "" };
+    case "discord-webhook":
+      return { type: "discord-webhook", url: "" };
+    case "generic-webhook":
+      return { type: "generic-webhook", url: "" };
+  }
 }
 
 const blankForm: FormState = {
   name: "",
   enabled: true,
   event: "deploy_pr_merged",
-  webhookUrl: "",
+  channel: blankChannel("slack-webhook"),
   template: "",
 };
 
@@ -72,7 +89,7 @@ function ruleToForm(rule: NotificationRule): FormState {
     name: rule.name,
     enabled: rule.enabled,
     event: rule.event,
-    webhookUrl: rule.channel.url,
+    channel: rule.channel,
     template: rule.template ?? "",
   };
 }
@@ -120,13 +137,13 @@ function NotificationsManagerInner() {
       </header>
 
       <main className="px-4 md:px-6 py-6 max-w-4xl mx-auto space-y-3">
-        {isLoading && (
-          <p className="text-sm text-white/50">Loading rules…</p>
-        )}
+        {isLoading && <p className="text-sm text-white/50">Loading rules…</p>}
         {error && (
           <Card className="border-rose-500/30 bg-rose-950/20">
             <CardContent className="p-4 text-sm">
-              <p className="text-rose-300 font-medium">Couldn&apos;t load rules</p>
+              <p className="text-rose-300 font-medium">
+                Couldn&apos;t load rules
+              </p>
               <p className="text-rose-200/70 mt-1">
                 {error instanceof Error ? error.message : "Unknown error"}
               </p>
@@ -146,10 +163,13 @@ function NotificationsManagerInner() {
           <Card className="border-white/[0.08] bg-white/[0.02]">
             <CardContent className="p-6 text-center space-y-3">
               <Bell className="w-8 h-8 text-white/30 mx-auto" />
-              <p className="text-sm text-white/70">No notification rules yet.</p>
+              <p className="text-sm text-white/70">
+                No notification rules yet.
+              </p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                Add a rule to ping a Slack channel when a release deploy PR
-                merges, a kody flow fails, or other events fire.
+                Add a rule to ping Slack, Telegram, Discord, or a custom
+                webhook when a release deploy PR merges, a kody flow fails,
+                or other events fire.
               </p>
               <Button
                 size="sm"
@@ -172,7 +192,7 @@ function NotificationsManagerInner() {
               onDelete={() => setDeletingId(rule.id)}
               onTest={() =>
                 test.mutate({
-                  url: rule.channel.url,
+                  channel: rule.channel,
                   text: `:test_tube: kody test from rule \`${rule.name}\``,
                 })
               }
@@ -185,7 +205,8 @@ function NotificationsManagerInner() {
         <p className="text-[11px] text-white/30 pt-4">
           Rules are stored in a single GitHub issue labelled{" "}
           <code className="text-white/50">kody:notifications-manifest</code>.
-          Webhook URLs sit in that issue body — keep this repo private.
+          Channel secrets (Slack URLs, Telegram bot tokens, etc.) sit in that
+          issue body — keep this repo private.
         </p>
       </main>
 
@@ -254,7 +275,7 @@ function RuleCard({
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm">{rule.name}</p>
           <p className="text-xs text-white/50 mt-0.5">
-            {eventLabel(rule.event)} → Slack
+            {eventLabel(rule.event)} → {channelTypeLabel(rule.channel.type)}
           </p>
           {rule.template && (
             <p className="text-[11px] text-white/30 mt-1 font-mono truncate">
@@ -294,8 +315,6 @@ function RuleEditor({
   form: FormState;
   onClose: () => void;
   onSaved: () => void;
-  // Reusing the create mutation when adding; for edits we instantiate a
-  // separate update hook below.
   createMutation: ReturnType<typeof useCreateNotification>;
   actorLogin?: string;
 }) {
@@ -303,24 +322,26 @@ function RuleEditor({
   const [name, setName] = useState(form.name);
   const [enabled, setEnabled] = useState(form.enabled);
   const [event, setEvent] = useState<NotificationEvent>(form.event);
-  const [webhookUrl, setWebhookUrl] = useState(form.webhookUrl);
+  const [channel, setChannel] = useState<NotificationChannel>(form.channel);
   const [template, setTemplate] = useState(form.template);
-  const [testing, setTesting] = useState(false);
 
   const updateMutation = useUpdateNotification(form.id ?? "", actorLogin);
   const test = useTestNotification(actorLogin);
 
-  const trimmedUrl = webhookUrl.trim();
-  const validUrl = trimmedUrl.startsWith("https://hooks.slack.com/");
-  const canSave = name.trim().length > 0 && validUrl;
+  const channelError = validateChannel(channel);
+  const canSave = name.trim().length > 0 && channelError === null;
   const pending = createMutation.isPending || updateMutation.isPending;
+
+  function handleChannelTypeChange(type: ChannelType) {
+    setChannel(blankChannel(type));
+  }
 
   function handleSave() {
     const payload = {
       name: name.trim(),
       enabled,
       event,
-      channel: { type: "slack-webhook" as const, url: trimmedUrl },
+      channel,
       template: template.trim() || undefined,
     };
     if (isEdit) {
@@ -334,27 +355,23 @@ function RuleEditor({
   }
 
   function handleTest() {
-    if (!validUrl) return;
-    setTesting(true);
-    test.mutate(
-      {
-        url: trimmedUrl,
-        text: `:test_tube: kody test for rule \`${name || "(unnamed)"}\``,
-      },
-      { onSettled: () => setTesting(false) },
-    );
+    if (channelError !== null) return;
+    test.mutate({
+      channel,
+      text: `:test_tube: kody test for rule \`${name || "(unnamed)"}\``,
+    });
   }
-
-  const placeholder = template || defaultTemplateForEvent(event);
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit rule" : "New notification rule"}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? "Edit rule" : "New notification rule"}
+          </DialogTitle>
           <DialogDescription>
-            One event, one Slack channel. Slack incoming webhook URL only
-            (https://hooks.slack.com/services/...).
+            One event, one channel. Pick a transport then fill in the
+            channel-specific fields.
           </DialogDescription>
         </DialogHeader>
 
@@ -390,20 +407,29 @@ function RuleEditor({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="rule-url">Slack webhook URL</Label>
-            <Input
-              id="rule-url"
-              value={webhookUrl}
-              onChange={(e) => setWebhookUrl(e.target.value)}
-              placeholder="https://hooks.slack.com/services/T.../B.../..."
-              type="url"
-            />
-            {webhookUrl.length > 0 && !validUrl && (
-              <p className="text-xs text-rose-400">
-                Must be a Slack incoming webhook URL.
-              </p>
-            )}
+            <Label htmlFor="rule-channel-type">Channel</Label>
+            <Select
+              value={channel.type}
+              onValueChange={(v) => handleChannelTypeChange(v as ChannelType)}
+            >
+              <SelectTrigger id="rule-channel-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CHANNEL_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {channelTypeLabel(t)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
+          <ChannelFields channel={channel} onChange={setChannel} />
+
+          {channelError && (
+            <p className="text-xs text-rose-400">{channelError}</p>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="rule-template">
@@ -415,7 +441,7 @@ function RuleEditor({
               value={template}
               onChange={(e) => setTemplate(e.target.value)}
               rows={3}
-              placeholder={placeholder}
+              placeholder={defaultTemplateForEvent(event)}
               className="font-mono text-xs"
             />
             <p className="text-[11px] text-white/40">
@@ -440,17 +466,21 @@ function RuleEditor({
             variant="outline"
             size="sm"
             onClick={handleTest}
-            disabled={!validUrl || testing || test.isPending}
+            disabled={channelError !== null || test.isPending}
             className="gap-1"
           >
             <Send className="w-4 h-4" />
-            {testing || test.isPending ? "Sending…" : "Test"}
+            {test.isPending ? "Sending…" : "Test"}
           </Button>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={onClose}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={!canSave || pending}>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={!canSave || pending}
+            >
               {pending ? "Saving…" : isEdit ? "Save" : "Create"}
             </Button>
           </div>
@@ -458,4 +488,122 @@ function RuleEditor({
       </DialogContent>
     </Dialog>
   );
+}
+
+function ChannelFields({
+  channel,
+  onChange,
+}: {
+  channel: NotificationChannel;
+  onChange: (next: NotificationChannel) => void;
+}) {
+  switch (channel.type) {
+    case "slack-webhook":
+      return (
+        <div className="space-y-1.5">
+          <Label htmlFor="ch-slack-url">Webhook URL</Label>
+          <Input
+            id="ch-slack-url"
+            value={channel.url}
+            onChange={(e) => onChange({ ...channel, url: e.target.value })}
+            placeholder="https://hooks.slack.com/services/T.../B.../..."
+            type="url"
+          />
+          <p className="text-[11px] text-white/40">
+            Slack app → Incoming Webhooks → Add New Webhook to Workspace.
+          </p>
+        </div>
+      );
+    case "telegram-bot":
+      return (
+        <>
+          <div className="space-y-1.5">
+            <Label htmlFor="ch-tg-token">Bot token</Label>
+            <Input
+              id="ch-tg-token"
+              value={channel.botToken}
+              onChange={(e) =>
+                onChange({ ...channel, botToken: e.target.value })
+              }
+              placeholder="123456:AA-Ee-..."
+              type="password"
+            />
+            <p className="text-[11px] text-white/40">
+              Get one from @BotFather. Format:{" "}
+              <code>&lt;bot-id&gt;:&lt;35-char-token&gt;</code>.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ch-tg-chat">Chat ID</Label>
+            <Input
+              id="ch-tg-chat"
+              value={channel.chatId}
+              onChange={(e) =>
+                onChange({ ...channel, chatId: e.target.value })
+              }
+              placeholder="-1001234567890 or @channelname"
+            />
+            <p className="text-[11px] text-white/40">
+              Numeric for groups (negative), <code>@username</code> for public
+              channels. Add the bot to the chat first.
+            </p>
+          </div>
+        </>
+      );
+    case "discord-webhook":
+      return (
+        <div className="space-y-1.5">
+          <Label htmlFor="ch-discord-url">Webhook URL</Label>
+          <Input
+            id="ch-discord-url"
+            value={channel.url}
+            onChange={(e) => onChange({ ...channel, url: e.target.value })}
+            placeholder="https://discord.com/api/webhooks/..."
+            type="url"
+          />
+          <p className="text-[11px] text-white/40">
+            Server settings → Integrations → Webhooks → New Webhook.
+          </p>
+        </div>
+      );
+    case "generic-webhook":
+      return (
+        <>
+          <div className="space-y-1.5">
+            <Label htmlFor="ch-gen-url">URL (https only)</Label>
+            <Input
+              id="ch-gen-url"
+              value={channel.url}
+              onChange={(e) => onChange({ ...channel, url: e.target.value })}
+              placeholder="https://example.com/webhook"
+              type="url"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ch-gen-tmpl">
+              JSON body template{" "}
+              <span className="text-white/40 text-[11px]">(optional)</span>
+            </Label>
+            <Textarea
+              id="ch-gen-tmpl"
+              value={channel.jsonTemplate ?? ""}
+              onChange={(e) =>
+                onChange({
+                  ...channel,
+                  jsonTemplate: e.target.value || undefined,
+                })
+              }
+              rows={3}
+              placeholder='{"text":"{{repo}} {{version}} shipped"}'
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-white/40">
+              Empty = sends <code>{`{"text":"<rendered template>"}`}</code>.
+              Use <code>{"{{var}}"}</code> tokens; the rendered string must
+              parse as JSON.
+            </p>
+          </div>
+        </>
+      );
+  }
 }

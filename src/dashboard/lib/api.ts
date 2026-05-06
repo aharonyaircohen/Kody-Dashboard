@@ -1095,7 +1095,7 @@ export const notificationsApi = {
   },
 
   test: async (input: {
-    url: string;
+    channel: NotificationChannel;
     text: string;
     actorLogin?: string;
   }): Promise<{ ok: true }> => {

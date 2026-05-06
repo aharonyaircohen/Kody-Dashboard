@@ -38,10 +38,48 @@ export const NOTIFICATION_EVENTS = [
 
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
-export type NotificationChannel = {
-  type: "slack-webhook";
-  url: string;
-};
+export const CHANNEL_TYPES = [
+  "slack-webhook",
+  "telegram-bot",
+  "discord-webhook",
+  "generic-webhook",
+] as const;
+
+export type ChannelType = (typeof CHANNEL_TYPES)[number];
+
+/**
+ * Discriminated union over channel transport. Adding a new channel = add a
+ * variant here, add an adapter under `notifications/channels/`, and add a
+ * Zod variant in the API route's `channelSchema`.
+ */
+export type NotificationChannel =
+  | { type: "slack-webhook"; url: string }
+  | { type: "telegram-bot"; botToken: string; chatId: string }
+  | { type: "discord-webhook"; url: string }
+  | {
+      type: "generic-webhook";
+      url: string;
+      /**
+       * Optional JSON template POSTed as the body. Variables substituted
+       * the same way as `template`. When omitted, the body is
+       * `{"text": "<rendered template>"}` — same as Slack.
+       */
+      jsonTemplate?: string;
+      headers?: Record<string, string>;
+    };
+
+export function channelTypeLabel(type: ChannelType): string {
+  switch (type) {
+    case "slack-webhook":
+      return "Slack (incoming webhook)";
+    case "telegram-bot":
+      return "Telegram (bot API)";
+    case "discord-webhook":
+      return "Discord (webhook)";
+    case "generic-webhook":
+      return "Generic webhook (custom HTTP POST)";
+  }
+}
 
 export interface NotificationRule {
   id: string;
@@ -76,7 +114,63 @@ export function isNotificationEvent(v: unknown): v is NotificationEvent {
 function isChannel(v: unknown): v is NotificationChannel {
   if (!v || typeof v !== "object") return false;
   const c = v as Record<string, unknown>;
-  return c.type === "slack-webhook" && typeof c.url === "string";
+  switch (c.type) {
+    case "slack-webhook":
+    case "discord-webhook":
+      return typeof c.url === "string" && c.url.length > 0;
+    case "telegram-bot":
+      return (
+        typeof c.botToken === "string" &&
+        c.botToken.length > 0 &&
+        typeof c.chatId === "string" &&
+        c.chatId.length > 0
+      );
+    case "generic-webhook":
+      return typeof c.url === "string" && c.url.length > 0;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Best-effort sanitizer used after JSON.parse to drop unknown fields and
+ * coerce optional values into the right shape. Returns null when the input
+ * isn't a recognizable channel.
+ */
+function sanitizeChannel(v: unknown): NotificationChannel | null {
+  if (!isChannel(v)) return null;
+  const c = v as Record<string, unknown>;
+  switch (c.type) {
+    case "slack-webhook":
+      return { type: "slack-webhook", url: String(c.url) };
+    case "telegram-bot":
+      return {
+        type: "telegram-bot",
+        botToken: String(c.botToken),
+        chatId: String(c.chatId),
+      };
+    case "discord-webhook":
+      return { type: "discord-webhook", url: String(c.url) };
+    case "generic-webhook": {
+      const headers =
+        c.headers && typeof c.headers === "object" && !Array.isArray(c.headers)
+          ? Object.fromEntries(
+              Object.entries(c.headers as Record<string, unknown>)
+                .filter(([, v]) => typeof v === "string")
+                .map(([k, v]) => [k, String(v)]),
+            )
+          : undefined;
+      return {
+        type: "generic-webhook",
+        url: String(c.url),
+        jsonTemplate:
+          typeof c.jsonTemplate === "string" ? c.jsonTemplate : undefined,
+        headers: headers && Object.keys(headers).length > 0 ? headers : undefined,
+      };
+    }
+    default:
+      return null;
+  }
 }
 
 export function parseManifestBody(
@@ -108,27 +202,30 @@ export function parseManifestBody(
     ) {
       return { version: 1, rules: [] };
     }
-    const rules: NotificationRule[] = parsed.rules
-      .filter((r): r is NotificationRule => {
-        if (!r || typeof r !== "object") return false;
-        const rule = r as NotificationRule;
-        return (
-          typeof rule.id === "string" &&
-          typeof rule.name === "string" &&
-          isNotificationEvent(rule.event) &&
-          isChannel(rule.channel)
-        );
-      })
-      .map((r) => ({
-        id: r.id,
-        name: r.name,
-        enabled: r.enabled !== false,
-        event: r.event,
-        channel: r.channel,
-        template: typeof r.template === "string" ? r.template : undefined,
-        createdAt: r.createdAt ?? new Date().toISOString(),
-        updatedAt: r.updatedAt,
-      }));
+    const rules: NotificationRule[] = [];
+    for (const r of parsed.rules) {
+      if (!r || typeof r !== "object") continue;
+      const rule = r as NotificationRule;
+      if (
+        typeof rule.id !== "string" ||
+        typeof rule.name !== "string" ||
+        !isNotificationEvent(rule.event)
+      ) {
+        continue;
+      }
+      const channel = sanitizeChannel(rule.channel);
+      if (!channel) continue;
+      rules.push({
+        id: rule.id,
+        name: rule.name,
+        enabled: rule.enabled !== false,
+        event: rule.event,
+        channel,
+        template: typeof rule.template === "string" ? rule.template : undefined,
+        createdAt: rule.createdAt ?? new Date().toISOString(),
+        updatedAt: rule.updatedAt,
+      });
+    }
     return { version: 1, rules };
   } catch {
     return { version: 1, rules: [] };

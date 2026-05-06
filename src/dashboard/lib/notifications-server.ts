@@ -86,17 +86,22 @@ async function writeManifest(
 }
 
 function rulesEqual(a: NotificationRule, b: NotificationRule): boolean {
-  return (
-    a.id === b.id &&
-    a.name === b.name &&
-    a.enabled === b.enabled &&
-    a.event === b.event &&
-    a.channel.type === b.channel.type &&
-    a.channel.url === b.channel.url &&
-    (a.template ?? null) === (b.template ?? null) &&
-    a.createdAt === b.createdAt &&
-    (a.updatedAt ?? null) === (b.updatedAt ?? null)
-  );
+  if (
+    a.id !== b.id ||
+    a.name !== b.name ||
+    a.enabled !== b.enabled ||
+    a.event !== b.event ||
+    a.channel.type !== b.channel.type ||
+    (a.template ?? null) !== (b.template ?? null) ||
+    a.createdAt !== b.createdAt ||
+    (a.updatedAt ?? null) !== (b.updatedAt ?? null)
+  ) {
+    return false;
+  }
+  // Channel comparison — JSON-stringify is enough since fields are scalar
+  // and the union shapes don't overlap. Cheap and matches the manifest's
+  // serialized form bytewise.
+  return JSON.stringify(a.channel) === JSON.stringify(b.channel);
 }
 
 function manifestsEqual(

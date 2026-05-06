@@ -88,10 +88,33 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const channelSchema = z.object({
-  type: z.literal("slack-webhook"),
-  url: z.string().url().startsWith("https://hooks.slack.com/"),
-});
+// Discriminated union — one schema per channel type. The `type` field is the
+// discriminator. Adding a new channel: add a variant here, in the [id] route,
+// in `notifications.ts`, and create an adapter under `notifications/channels/`.
+const channelSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("slack-webhook"),
+    url: z.string().url().startsWith("https://hooks.slack.com/"),
+  }),
+  z.object({
+    type: z.literal("telegram-bot"),
+    botToken: z.string().min(1),
+    chatId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("discord-webhook"),
+    url: z
+      .string()
+      .url()
+      .regex(/^https:\/\/(?:discord\.com|discordapp\.com)\/api\/webhooks\//),
+  }),
+  z.object({
+    type: z.literal("generic-webhook"),
+    url: z.string().url().startsWith("https://"),
+    jsonTemplate: z.string().max(4000).optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+  }),
+]);
 
 const createRuleSchema = z.object({
   name: z.string().min(1).max(120),

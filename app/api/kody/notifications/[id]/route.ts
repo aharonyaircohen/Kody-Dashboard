@@ -44,10 +44,30 @@ function mapGithubError(error: any, fallback: string, status = 500) {
   );
 }
 
-const channelSchema = z.object({
-  type: z.literal("slack-webhook"),
-  url: z.string().url().startsWith("https://hooks.slack.com/"),
-});
+const channelSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("slack-webhook"),
+    url: z.string().url().startsWith("https://hooks.slack.com/"),
+  }),
+  z.object({
+    type: z.literal("telegram-bot"),
+    botToken: z.string().min(1),
+    chatId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("discord-webhook"),
+    url: z
+      .string()
+      .url()
+      .regex(/^https:\/\/(?:discord\.com|discordapp\.com)\/api\/webhooks\//),
+  }),
+  z.object({
+    type: z.literal("generic-webhook"),
+    url: z.string().url().startsWith("https://"),
+    jsonTemplate: z.string().max(4000).optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+  }),
+]);
 
 const patchRuleSchema = z.object({
   name: z.string().min(1).max(120).optional(),

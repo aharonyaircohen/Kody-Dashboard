@@ -94,10 +94,10 @@ export function useDeleteNotification(actorLogin?: string) {
 
 export function useTestNotification(actorLogin?: string) {
   return useMutation({
-    mutationFn: (input: { url: string; text: string }) =>
+    mutationFn: (input: { channel: NotificationChannel; text: string }) =>
       kodyApi.notifications.test({ ...input, actorLogin }),
     onSuccess: () => {
-      toast.success("Test message posted to Slack");
+      toast.success("Test message sent");
     },
     onError: (err: Error) => {
       toast.error(err.message || "Test failed");

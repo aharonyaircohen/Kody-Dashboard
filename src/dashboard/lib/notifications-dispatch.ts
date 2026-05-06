@@ -21,6 +21,7 @@ import {
   type NotificationEvent,
   type NotificationRule,
 } from "./notifications";
+import { sendNotification } from "./notifications/channels";
 import { readNotificationsManifestFresh } from "./notifications-server";
 import { logger } from "./logger";
 
@@ -71,20 +72,8 @@ function buildPrContext(
   };
 }
 
-async function postToSlack(url: string, text: string): Promise<void> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Slack ${res.status}: ${detail.slice(0, 200)}`);
-  }
-}
-
 /**
- * Read rules and fire any that match the given event. Each Slack POST is
+ * Read rules and fire any that match the given event. Each adapter call is
  * isolated so one failed rule doesn't suppress the others.
  */
 export async function fireNotifications(
@@ -131,24 +120,26 @@ export async function fireNotifications(
       const template = rule.template ?? defaultTemplateForEvent(rule.event);
       const text = renderTemplate(template, payloadCtx);
       try {
-        await postToSlack(rule.channel.url, text);
+        await sendNotification(rule.channel, { text, vars: payloadCtx });
         logger.info(
           {
             event: "notification_sent",
             ruleId: rule.id,
+            channelType: rule.channel.type,
             kodyEvent: event,
           },
-          `Slack notification sent (${rule.name})`,
+          `Notification sent (${rule.name} via ${rule.channel.type})`,
         );
       } catch (err) {
         logger.error(
           {
             event: "notification_send_failed",
             ruleId: rule.id,
+            channelType: rule.channel.type,
             kodyEvent: event,
             error: err instanceof Error ? err.message : String(err),
           },
-          `Slack notification failed (${rule.name})`,
+          `Notification failed (${rule.name} via ${rule.channel.type})`,
         );
       }
     }),
