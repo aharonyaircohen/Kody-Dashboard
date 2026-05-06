@@ -11,7 +11,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -524,19 +523,17 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
                         index === selectedMentionIndex && 'bg-accent',
                       )}
                     >
-                      {mention.avatar_url ? (
-                        <Image
-                          src={mention.avatar_url}
-                          alt={mention.login}
-                          width={24}
-                          height={24}
-                          className="rounded-full"
-                        />
-                      ) : (
-                        <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground">
-                          {mention.login[0]?.toUpperCase()}
-                        </span>
-                      )}
+                      <Avatar className="h-6 w-6">
+                        {mention.avatar_url ? (
+                          <AvatarImage
+                            src={mention.avatar_url}
+                            alt={mention.login}
+                          />
+                        ) : null}
+                        <AvatarFallback className="text-xs">
+                          {mention.login[0]?.toUpperCase() || '?'}
+                        </AvatarFallback>
+                      </Avatar>
                       <span className="text-sm">{mention.login}</span>
                     </button>
                   ))
