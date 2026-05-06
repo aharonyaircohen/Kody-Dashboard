@@ -75,7 +75,8 @@ interface ChatEventEntry {
 
 // ─── Module-level state ────────────────────────────────────────────────────────
 
-// Track last-read line index per sessionId to avoid re-reading old events
+// Track last-read line index per sessionId. Reset at the start of each
+// connection so a fresh SSE always replays from line 0 (see line ~210).
 const lastReadIndex = new Map<string, number>();
 
 // ETag cache so unchanged GitHub reads return 304 (does not count against rate limit)

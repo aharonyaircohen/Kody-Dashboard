@@ -90,6 +90,13 @@ interface PersistedLiveSession {
   sessionId: string
   state: 'booting' | 'ready'
   startedAt: number
+  // Captured at /start time. Lets the booting banner render the
+  // "Watching <owner>/<repo>" link after a refresh without waiting for
+  // chat.ready to re-fire on the new SSE connection.
+  target?: { owner: string; repo: string }
+  // Captured when chat.ready arrives (engine ≥ 0.3.79). Survives refresh
+  // so the deep link doesn't downgrade to the workflow-list page.
+  runUrl?: string
 }
 
 function loadLiveSession(): PersistedLiveSession | null {
@@ -430,6 +437,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     owner: string
     repo: string
   } | null>(null)
+  const interactiveTargetRef = useRef<{ owner: string; repo: string } | null>(null)
   // Direct URL to the specific GHA run, set when chat.ready arrives with
   // the engine's GITHUB_RUN_ID. Until then, we link to the workflow page.
   const [interactiveRunUrl, setInteractiveRunUrl] = useState<string | null>(null)
@@ -546,8 +554,17 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
               setInteractiveState('ready')
               setBootStartedAt(null)
               const id = interactiveSessionIdRef.current
-              if (id) saveLiveSession({ sessionId: id, state: 'ready', startedAt: Date.now() })
-              if (typeof parsed.runUrl === 'string') setInteractiveRunUrl(parsed.runUrl)
+              const runUrl = typeof parsed.runUrl === 'string' ? parsed.runUrl : undefined
+              if (runUrl) setInteractiveRunUrl(runUrl)
+              if (id) {
+                saveLiveSession({
+                  sessionId: id,
+                  state: 'ready',
+                  startedAt: Date.now(),
+                  target: interactiveTargetRef.current ?? undefined,
+                  runUrl,
+                })
+              }
               break
             }
             case 'chat.exit': {
@@ -1538,7 +1555,17 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       const startBody = (await startRes.json().catch(() => ({}))) as {
         target?: { owner: string; repo: string }
       }
-      if (startBody.target) setInteractiveTarget(startBody.target)
+      if (startBody.target) {
+        setInteractiveTarget(startBody.target)
+        interactiveTargetRef.current = startBody.target
+        // Re-save with target so a refresh during boot still shows the link.
+        saveLiveSession({
+          sessionId,
+          state: 'booting',
+          startedAt,
+          target: startBody.target,
+        })
+      }
       connectSSE(sessionId, { interactive: true })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -1564,6 +1591,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     setInteractiveState('idle')
     setBootStartedAt(null)
     setInteractiveTarget(null)
+    interactiveTargetRef.current = null
     setInteractiveRunUrl(null)
     clearLiveSession()
   }, [])
@@ -1582,6 +1610,11 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     setInteractiveState(saved.state)
     setSelectedAgentId('kody-live')
     if (saved.state === 'booting') setBootStartedAt(saved.startedAt)
+    if (saved.target) {
+      setInteractiveTarget(saved.target)
+      interactiveTargetRef.current = saved.target
+    }
+    if (saved.runUrl) setInteractiveRunUrl(saved.runUrl)
     connectSSE(saved.sessionId, { interactive: true })
   }, [connectSSE])
 
