@@ -405,11 +405,22 @@ export async function GET(rawReq: NextRequest) {
     } catch { /* closed */ }
   }
 
+  // Server-side heartbeat: write a comment line every 20s. Keeps Vercel's
+  // TCP layer from idle-killing the SSE connection during long warm-up
+  // windows (the runner can take 60–120 s before any real event lands).
+  // SSE comments start with `:` and are silently ignored by EventSource.
+  const heartbeat = setInterval(() => {
+    const ctrl = controllerRef;
+    if (!active || !ctrl) return;
+    try { ctrl.enqueue(encoder.encode(`: ping\n\n`)); } catch { /* closed */ }
+  }, 20_000);
+
   // Clean up on client disconnect. Keep lastReadIndex / etagCache /
   // lastPolledAt across reconnects so a flapping client cannot reset state.
   req.signal.addEventListener("abort", () => {
     active = false;
     clearInterval(poll);
+    clearInterval(heartbeat);
     unsubscribe?.();
   });
 
