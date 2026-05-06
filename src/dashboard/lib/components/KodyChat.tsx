@@ -61,6 +61,55 @@ function formatElapsed(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
+// ─── Kody Live persistence ───────────────────────────────────────────────────
+// Survives page refreshes by saving the live session to localStorage. Stale
+// records (older than the engine's 30min hard cap + 5min idle buffer) are
+// dropped on load.
+
+const LIVE_SESSION_STORAGE_KEY = 'kody-live-session'
+const LIVE_SESSION_MAX_AGE_MS = 35 * 60_000
+
+interface PersistedLiveSession {
+  sessionId: string
+  state: 'booting' | 'ready'
+  startedAt: number
+}
+
+function loadLiveSession(): PersistedLiveSession | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(LIVE_SESSION_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PersistedLiveSession
+    if (!parsed.sessionId || typeof parsed.startedAt !== 'number') return null
+    if (Date.now() - parsed.startedAt > LIVE_SESSION_MAX_AGE_MS) {
+      window.localStorage.removeItem(LIVE_SESSION_STORAGE_KEY)
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function saveLiveSession(record: PersistedLiveSession): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(LIVE_SESSION_STORAGE_KEY, JSON.stringify(record))
+  } catch {
+    /* quota / disabled — non-fatal */
+  }
+}
+
+function clearLiveSession(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(LIVE_SESSION_STORAGE_KEY)
+  } catch {
+    /* non-fatal */
+  }
+}
+
 /** Add per-user Brain config headers on Brain-path requests. */
 function brainHeaders(): Record<string, string> {
   const b = getStoredBrainConfig()
@@ -328,6 +377,12 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       setSelectedAgentId('kody')
     }
   }, [brainConfigured, selectedAgentId])
+
+  // Restore an in-progress Kody Live session after a page refresh. Reads
+  // localStorage on mount; if a non-stale session exists, switches to the
+  // live agent, restores state, and reconnects the SSE so chat.ready /
+  // chat.message / chat.exit continue to flow. Runs once.
+  const liveRestoreAttemptedRef = useRef(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [voiceMuted, setVoiceMuted] = useState(false)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
@@ -464,12 +519,15 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
               interactiveStateRef.current = 'ready'
               setInteractiveState('ready')
               setBootStartedAt(null)
+              const id = interactiveSessionIdRef.current
+              if (id) saveLiveSession({ sessionId: id, state: 'ready', startedAt: Date.now() })
               break
             }
             case 'chat.exit': {
               interactiveStateRef.current = 'ended'
               setInteractiveState('ended')
               setLoading(false)
+              clearLiveSession()
               es.close()
               break
             }
@@ -1421,10 +1479,12 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     if (interactiveStateRef.current === 'booting' || interactiveStateRef.current === 'ready') return
 
     const sessionId = `live-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const startedAt = Date.now()
     interactiveSessionIdRef.current = sessionId
     interactiveStateRef.current = 'booting'
     setInteractiveState('booting')
-    setBootStartedAt(Date.now())
+    setBootStartedAt(startedAt)
+    saveLiveSession({ sessionId, state: 'booting', startedAt })
 
     try {
       const startRes = await fetch('/api/kody/chat/interactive/start', {
@@ -1445,12 +1505,30 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       interactiveStateRef.current = 'ended'
       setInteractiveState('ended')
+      clearLiveSession()
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: `Failed to start live runner: ${errorMessage}`, isLoading: false },
       ])
     }
   }, [connectSSE, setMessages])
+
+  // Restore on page refresh. Runs once after connectSSE is stable. If the
+  // user had a live session in flight, switch to kody-live, rehydrate the
+  // refs from localStorage, and reconnect the SSE so the rest of the
+  // session's events flow normally.
+  useEffect(() => {
+    if (liveRestoreAttemptedRef.current) return
+    liveRestoreAttemptedRef.current = true
+    const saved = loadLiveSession()
+    if (!saved) return
+    interactiveSessionIdRef.current = saved.sessionId
+    interactiveStateRef.current = saved.state
+    setInteractiveState(saved.state)
+    setSelectedAgentId('kody-live')
+    if (saved.state === 'booting') setBootStartedAt(saved.startedAt)
+    connectSSE(saved.sessionId, { interactive: true })
+  }, [connectSSE])
 
   const sendMessage = async () => {
     if (!input.trim() && attachments.length === 0) return
