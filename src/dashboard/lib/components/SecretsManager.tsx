@@ -219,8 +219,7 @@ function SecretsManagerInner() {
               <ShieldCheck className="w-8 h-8 text-white/30 mx-auto" />
               <p className="text-sm text-white/70">No secrets stored yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                Secrets are encrypted with{" "}
-                <code className="text-white/55">KODY_VAULT_KEY</code> and stored at{" "}
+                Secrets are AES-256-GCM-encrypted and stored at{" "}
                 <code className="text-white/55">.kody/secrets.enc</code> in this repo. Use them in
                 place of Vercel env vars — the dashboard reads them at request time.
               </p>
@@ -275,9 +274,9 @@ function SecretsManagerInner() {
         </ul>
 
         <p className="text-[11px] text-white/30 pt-4">
-          Values are encrypted at rest with AES-256-GCM using{" "}
-          <code className="text-white/50">KODY_VAULT_KEY</code> from Vercel env. The vault file is
-          stored in this repo&apos;s git history; rotate the key to invalidate prior ciphertext.
+          Values are encrypted at rest with AES-256-GCM using a key derived (HKDF) from{" "}
+          <code className="text-white/50">KODY_SESSION_SECRET</code>. Rotating the session
+          secret invalidates the entire vault — back up secrets before rotating.
         </p>
       </main>
 

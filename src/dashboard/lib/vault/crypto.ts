@@ -3,33 +3,36 @@
  * @domain vault
  * @pattern crypto
  * @ai-summary Authenticated encryption for the dashboard vault. Uses AES-256-GCM
- *   with a 32-byte key from KODY_VAULT_KEY env (hex or base64). Output format:
- *   "v1:<iv_b64>:<ct_b64>:<tag_b64>". Same pattern as kody_session token
- *   encryption — separate key so vault and session rotate independently.
+ *   with a 32-byte key derived via HKDF-SHA256 from the existing
+ *   KODY_SESSION_SECRET — no extra env var to configure. Domain separation
+ *   (salt = "kody-vault-v1") keeps this key distinct from session signing /
+ *   token encryption, which use their own derivations from the same secret.
+ *   Output format: "v1:<iv_b64>:<ct_b64>:<tag_b64>".
+ *
+ *   Tradeoff: rotating KODY_SESSION_SECRET also invalidates every encrypted
+ *   secret in .kody/secrets.enc. Acceptable because session-secret rotation
+ *   is rare and stored values are third-party API keys (re-issuable).
  */
 
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto"
+import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "crypto"
 
 const VERSION = "v1"
+const HKDF_SALT = "kody-vault-v1"
+const HKDF_INFO = "aes-256-gcm"
 
 function getKey(): Buffer {
-  const raw = process.env.KODY_VAULT_KEY
-  if (!raw) {
-    throw new Error(
-      "KODY_VAULT_KEY is not configured. Run `pnpm vault:init` to generate one.",
-    )
+  const secret = process.env.KODY_SESSION_SECRET
+  if (!secret) {
+    throw new Error("KODY_SESSION_SECRET is required for the vault")
   }
-  // Accept hex (64 chars) or base64 (44 chars including padding).
-  if (/^[0-9a-fA-F]{64}$/.test(raw)) {
-    return Buffer.from(raw, "hex")
-  }
-  const buf = Buffer.from(raw, "base64")
-  if (buf.length !== 32) {
-    throw new Error(
-      "KODY_VAULT_KEY must decode to 32 bytes (64-char hex or base64-encoded 32 bytes).",
-    )
-  }
-  return buf
+  const derived = hkdfSync(
+    "sha256",
+    Buffer.from(secret, "utf8"),
+    Buffer.from(HKDF_SALT, "utf8"),
+    Buffer.from(HKDF_INFO, "utf8"),
+    32,
+  )
+  return Buffer.from(derived)
 }
 
 export function encrypt(plaintext: string): string {
