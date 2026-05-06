@@ -2426,9 +2426,26 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         ) : null}
         {isKodyLive && interactiveState === 'ready' ? (
           <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-green-500/40 bg-green-500/10 p-2 text-xs text-green-900 dark:text-green-100">
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-              <span>Live runner ready. Chat normally — replies arrive via the long-lived workflow.</span>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                <span>Live runner ready. Chat normally — replies arrive via the long-lived workflow.</span>
+              </div>
+              {interactiveRunUrl || interactiveTarget ? (
+                <a
+                  href={
+                    interactiveRunUrl ??
+                    (interactiveTarget
+                      ? `https://github.com/${interactiveTarget.owner}/${interactiveTarget.repo}/actions/workflows/kody.yml`
+                      : '#')
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-green-800 underline hover:text-green-950 dark:text-green-200 dark:hover:text-green-50"
+                >
+                  {interactiveRunUrl ? 'View run on GitHub ↗' : 'View workflow on GitHub ↗'}
+                </a>
+              ) : null}
             </div>
             <button
               type="button"
