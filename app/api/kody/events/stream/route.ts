@@ -46,12 +46,11 @@ function promoteAuthFromQuery(req: NextRequest): NextRequest {
   return new NextRequest(req.url, { headers, method: req.method });
 }
 
-export const runtime = "nodejs";
-// A chat reply commonly takes 60–120 s (runner boot + LLM). The default
-// Vercel function timeout (10 s hobby / 60 s pro) cuts the SSE stream
-// before the engine commits its reply, so the UI never receives it.
-// Bump to the max the Pro plan allows — on a hobby plan this still
-// applies but is silently clamped.
+// Edge runtime, NOT nodejs. Vercel's Node.js runtime buffers SSE responses
+// — long-lived clients never see events while the stream is open (a fresh
+// curl probe DOES get them because the connection closes and flushes the
+// buffer). Edge runtime streams chunks as written, which is what SSE needs.
+export const runtime = "edge";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
