@@ -417,7 +417,6 @@ export async function GET(rawReq: NextRequest) {
       }
     }
   };
-  const poll = setInterval(runPollOnce, POLL_INTERVAL_MS);
 
   // Send initial connected heartbeat
   if (controllerRef) {
@@ -428,28 +427,39 @@ export async function GET(rawReq: NextRequest) {
     } catch { /* closed */ }
   }
 
-  // Fire one poll RIGHT NOW (don't wait for the first setInterval tick at
-  // +15s). For sessions whose chat.ready is already on git, this delivers
-  // immediately. The MIN_POLL_GAP_MS guard inside runPollOnce still gates
-  // reconnect storms on subsequent ticks.
-  void runPollOnce();
-
-  // Server-side heartbeat: write a comment line every 20s. Keeps Vercel's
-  // TCP layer from idle-killing the SSE connection during long warm-up
-  // windows (the runner can take 60–120 s before any real event lands).
-  // SSE comments start with `:` and are silently ignored by EventSource.
-  const heartbeat = setInterval(() => {
-    const ctrl = controllerRef;
-    if (!active || !ctrl) return;
-    try { ctrl.enqueue(encoder.encode(`: ping\n\n`)); } catch { /* closed */ }
-  }, 20_000);
+  // ─── Async loop: keeps the function ACTIVELY awaiting in the stream
+  // context. Vercel's Node.js runtime does NOT keep setInterval timers
+  // alive once the response handler returns — it freezes the function
+  // until the next request. Using an awaited setTimeout chain ties the
+  // polling to a pending promise inside the stream, which Vercel keeps
+  // alive (visible bug before this fix: only the first tick logged, the
+  // browser EventSource sat there for 3 minutes without ever seeing
+  // chat.ready even though a fresh curl probe got it instantly).
+  const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  void (async () => {
+    // First poll runs immediately so chat.ready that's already on git
+    // delivers without a 15s wait.
+    await runPollOnce();
+    while (active) {
+      await sleep(POLL_INTERVAL_MS);
+      if (!active) break;
+      await runPollOnce();
+    }
+  })();
+  void (async () => {
+    // Heartbeat keeps the TCP idle from killing the long-lived SSE.
+    while (active) {
+      await sleep(20_000);
+      const ctrl = controllerRef;
+      if (!active || !ctrl) break;
+      try { ctrl.enqueue(encoder.encode(`: ping\n\n`)); } catch { break; }
+    }
+  })();
 
   // Clean up on client disconnect. Keep lastReadIndex / etagCache /
   // lastPolledAt across reconnects so a flapping client cannot reset state.
   req.signal.addEventListener("abort", () => {
     active = false;
-    clearInterval(poll);
-    clearInterval(heartbeat);
     unsubscribe?.();
   });
 
