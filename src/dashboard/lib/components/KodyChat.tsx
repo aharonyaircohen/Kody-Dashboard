@@ -518,6 +518,130 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     [isTaskMode, isMissionMode, missionSlug, isDraftMode, sessionHook],
   )
 
+  // ─── Long-polling for Kody Live ────────────────────────────────────────────
+  // Replaces SSE for interactive sessions. Vercel's Node.js runtime buffers
+  // long-lived SSE responses such that chat.ready never reaches the browser
+  // while the stream is open (a fresh curl probe DOES get it because the
+  // connection closes and flushes the buffer). A simple fetch-poll loop
+  // sidesteps the buffering entirely — each request is a fresh response.
+  //
+  // The watermark (lastLineSeen) is kept in a ref so polls don't re-deliver
+  // the same lines. It's reset to 0 in startInteractiveSession.
+  const pollWatermarkRef = useRef(0)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const stopInteractivePoll = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+  }, [])
+
+  const startInteractivePoll = useCallback(
+    (sessionId: string) => {
+      stopInteractivePoll()
+      pollWatermarkRef.current = 0
+
+      const handleLines = (lines: string[]) => {
+        for (const line of lines) {
+          let event: { event?: string; payload?: Record<string, unknown> } | null = null
+          try {
+            event = JSON.parse(line)
+          } catch {
+            continue
+          }
+          if (!event || !event.event) continue
+          const payload = event.payload ?? {}
+          switch (event.event) {
+            case 'chat.ready': {
+              interactiveStateRef.current = 'ready'
+              setInteractiveState('ready')
+              setBootStartedAt(null)
+              const runUrl = typeof payload.runUrl === 'string' ? payload.runUrl : undefined
+              if (runUrl) setInteractiveRunUrl(runUrl)
+              const id = interactiveSessionIdRef.current
+              if (id) {
+                saveLiveSession({
+                  sessionId: id,
+                  state: 'ready',
+                  startedAt: Date.now(),
+                  target: interactiveTargetRef.current ?? undefined,
+                  runUrl,
+                })
+              }
+              break
+            }
+            case 'chat.exit': {
+              interactiveStateRef.current = 'ended'
+              setInteractiveState('ended')
+              setLoading(false)
+              clearLiveSession()
+              stopInteractivePoll()
+              break
+            }
+            case 'chat.message': {
+              const role =
+                payload.role === 'user' || payload.role === 'assistant' ? payload.role : 'assistant'
+              const content = typeof payload.content === 'string' ? payload.content : ''
+              const timestamp =
+                typeof payload.timestamp === 'string' ? payload.timestamp : new Date().toISOString()
+              setMessages((prev) => [
+                ...prev.filter((m) => !(m.role === 'assistant' && m.isLoading)),
+                { role, content, timestamp, isLoading: false },
+              ])
+              break
+            }
+            case 'chat.done':
+              setLoading(false)
+              break
+            case 'chat.error': {
+              setLoading(false)
+              const error = typeof payload.error === 'string' ? payload.error : 'Unknown error'
+              setMessages((prev) => {
+                const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
+                return [...filtered, { role: 'assistant', content: `Error: ${error}`, isLoading: false }]
+              })
+              break
+            }
+          }
+        }
+      }
+
+      const tick = async () => {
+        const auth = getStoredAuth()
+        const params = new URLSearchParams({
+          taskId: sessionId,
+          since: String(pollWatermarkRef.current),
+        })
+        if (auth) {
+          params.set('owner', auth.owner)
+          params.set('repo', auth.repo)
+          params.set('token', auth.token)
+        }
+        try {
+          const res = await fetch(`/api/kody/events/poll?${params.toString()}`, {
+            headers: { ...authHeaders() },
+          })
+          if (!res.ok) return
+          const body = (await res.json()) as { lines?: string[]; totalLines?: number }
+          if (Array.isArray(body.lines) && body.lines.length > 0) {
+            handleLines(body.lines)
+            pollWatermarkRef.current = body.totalLines ?? pollWatermarkRef.current + body.lines.length
+          }
+        } catch {
+          // transient — retry on next tick
+        }
+      }
+
+      // First tick immediately so chat.ready already on git lands without
+      // a 5s wait. Subsequent ticks every 5s — same GitHub rate-limit story
+      // as SSE poll, just simpler delivery.
+      void tick()
+      pollIntervalRef.current = setInterval(tick, 5_000)
+    },
+    [setMessages, stopInteractivePoll],
+  )
+
   // ─── SSE for chat streaming ────────────────────────────────────────────────
 
   const connectSSE = useCallback(
@@ -1586,7 +1710,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
           target: startBody.target,
         })
       }
-      connectSSE(sessionId, { interactive: true })
+      startInteractivePoll(sessionId)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       interactiveStateRef.current = 'ended'
@@ -1604,6 +1728,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   // Does NOT actively cancel the GitHub Actions run — the runner idle-exits
   // on its own (default 5min) so leaving it alone is cheap.
   const endInteractiveSession = useCallback(() => {
+    stopInteractivePoll()
     eventSourceRef.current?.close()
     eventSourceRef.current = null
     interactiveSessionIdRef.current = null
@@ -1614,7 +1739,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     interactiveTargetRef.current = null
     setInteractiveRunUrl(null)
     clearLiveSession()
-  }, [])
+  }, [stopInteractivePoll])
 
   // Restore on page refresh. Runs once after connectSSE is stable. If the
   // user had a live session in flight, switch to kody-live, rehydrate the
@@ -1635,8 +1760,8 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       interactiveTargetRef.current = saved.target
     }
     if (saved.runUrl) setInteractiveRunUrl(saved.runUrl)
-    connectSSE(saved.sessionId, { interactive: true })
-  }, [connectSSE])
+    startInteractivePoll(saved.sessionId)
+  }, [startInteractivePoll])
 
   const sendMessage = async () => {
     if (!input.trim() && attachments.length === 0) return
