@@ -274,9 +274,9 @@ function SecretsManagerInner() {
         </ul>
 
         <p className="text-[11px] text-white/30 pt-4">
-          Values are encrypted at rest with AES-256-GCM using a key derived (HKDF) from{" "}
-          <code className="text-white/50">KODY_SESSION_SECRET</code>. Rotating the session
-          secret invalidates the entire vault — back up secrets before rotating.
+          Values are encrypted at rest with AES-256-GCM using{" "}
+          <code className="text-white/50">KODY_VAULT_KEY</code> from Vercel env. Rotating the key
+          invalidates the entire vault — back up secrets before rotating.
         </p>
       </main>
 

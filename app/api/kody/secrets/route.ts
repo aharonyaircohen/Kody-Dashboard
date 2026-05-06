@@ -39,7 +39,7 @@ function vaultUnconfiguredResponse() {
     {
       error: "vault_not_configured",
       message:
-        "Vault unavailable: KODY_SESSION_SECRET is not set on the server.",
+        "KODY_VAULT_KEY is not set on the server. Run `pnpm vault:init` and add the key to Vercel env.",
     },
     { status: 503 },
   )
