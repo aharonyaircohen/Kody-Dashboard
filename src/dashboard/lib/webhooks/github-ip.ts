@@ -23,8 +23,14 @@ interface CidrCache {
   cidrs: string[];
   expires: number;
 }
-let cache: CidrCache | null = null;
-let inflight: Promise<string[]> | null = null;
+// Two caches: webhook ranges (hooks[]) for the /api/webhooks/github route,
+// and Actions ranges (actions[]) for /api/kody/events/ingest. Different
+// endpoints serve different traffic shapes — keeping them separate avoids
+// false positives in either direction.
+let webhookCache: CidrCache | null = null;
+let actionsCache: CidrCache | null = null;
+let inflightHooks: Promise<string[]> | null = null;
+let inflightActions: Promise<string[]> | null = null;
 
 // ============ Public API ============
 
@@ -34,18 +40,33 @@ let inflight: Promise<string[]> | null = null;
  * the meta endpoint can't be reached and we have no cached list.
  */
 export async function isFromGitHub(ip: string | null | undefined): Promise<boolean> {
+  return matchAgainstField(ip, "hooks");
+}
+
+/**
+ * Returns true if the given IP belongs to a GitHub-hosted Actions runner.
+ * Used by /api/kody/events/ingest to authenticate engine event POSTs without
+ * a shared HMAC secret. Same trust model as isFromGitHub — TCP+TLS make
+ * spoofing infeasible from the public internet.
+ */
+export async function isFromGitHubActions(ip: string | null | undefined): Promise<boolean> {
+  return matchAgainstField(ip, "actions");
+}
+
+async function matchAgainstField(
+  ip: string | null | undefined,
+  field: "hooks" | "actions",
+): Promise<boolean> {
   if (!ip) return false;
   const cleaned = normalizeIp(ip);
   if (!cleaned) return false;
-
   let cidrs: string[];
   try {
-    cidrs = await getCidrs();
+    cidrs = await getCidrs(field);
   } catch (err) {
-    logger.warn({ event: "github_ip_meta_fetch_failed", err }, "Could not fetch GitHub meta");
+    logger.warn({ event: "github_ip_meta_fetch_failed", err, field }, "Could not fetch GitHub meta");
     return false;
   }
-
   return cidrs.some((cidr) => ipInCidr(cleaned, cidr));
 }
 
@@ -65,27 +86,35 @@ export function getClientIp(headers: Headers): string | null {
 
 // ============ CIDR cache ============
 
-async function getCidrs(): Promise<string[]> {
+async function getCidrs(field: "hooks" | "actions"): Promise<string[]> {
+  const cache = field === "hooks" ? webhookCache : actionsCache;
   if (cache && cache.expires > Date.now()) return cache.cidrs;
-  if (inflight) return inflight;
-  inflight = fetchCidrs()
+  const existing = field === "hooks" ? inflightHooks : inflightActions;
+  if (existing) return existing;
+  const promise = fetchCidrs(field)
     .then((cidrs) => {
-      cache = { cidrs, expires: Date.now() + TTL_MS };
+      const fresh = { cidrs, expires: Date.now() + TTL_MS };
+      if (field === "hooks") webhookCache = fresh;
+      else actionsCache = fresh;
       return cidrs;
     })
     .finally(() => {
-      inflight = null;
+      if (field === "hooks") inflightHooks = null;
+      else inflightActions = null;
     });
-  return inflight;
+  if (field === "hooks") inflightHooks = promise;
+  else inflightActions = promise;
+  return promise;
 }
 
-async function fetchCidrs(): Promise<string[]> {
+async function fetchCidrs(field: "hooks" | "actions"): Promise<string[]> {
   const res = await fetch(META_URL, {
     headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
   });
   if (!res.ok) throw new Error(`meta ${res.status}`);
-  const json = (await res.json()) as { hooks?: string[] };
-  return Array.isArray(json.hooks) ? json.hooks : [];
+  const json = (await res.json()) as { hooks?: string[]; actions?: string[] };
+  const value = json[field];
+  return Array.isArray(value) ? value : [];
 }
 
 // ============ IP matching ============

@@ -20,7 +20,6 @@
 
 import type { Octokit } from "@octokit/rest";
 import { Buffer } from "buffer";
-import { mintSessionToken } from "./chat-token";
 
 const SESSION_DIR = ".kody/sessions";
 const DEFAULT_BRANCH = "main";
@@ -134,11 +133,15 @@ export async function appendUserTurn(
   }
 }
 
-/** Build the dashboard ingest URL with the inline HMAC token. */
+/**
+ * Build the dashboard ingest URL with the sessionId as a query param.
+ * Auth on the ingest endpoint is GitHub Actions IP verification — no
+ * shared secret to mint. Engine appends `?sessionId=...` itself when
+ * delivering, but we keep the param here so the URL is debuggable as-is.
+ */
 export function buildDashboardUrl(baseUrl: string, sessionId: string): string {
-  const token = mintSessionToken(sessionId);
   const joiner = baseUrl.includes("?") ? "&" : "?";
-  return `${baseUrl}${joiner}token=${token}`;
+  return `${baseUrl}${joiner}sessionId=${encodeURIComponent(sessionId)}`;
 }
 
 // ─── internals ─────────────────────────────────────────────────────────────

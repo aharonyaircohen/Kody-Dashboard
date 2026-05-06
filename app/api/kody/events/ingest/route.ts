@@ -3,24 +3,28 @@
  * @domain kody
  * @pattern chat-event-ingest
  *
- * POST /api/kody/events/ingest?sessionId=xxx&token=yyy
+ * POST /api/kody/events/ingest?sessionId=xxx
  *
  * Public endpoint the kody engine posts chat events to during a session.
- * Auth is the HMAC session token (minted at dispatch, embedded inline in
- * the dashboardUrl passed to the workflow). No GitHub or Kody cookie auth —
- * this is called from Actions runners.
+ *
+ * Auth: GitHub Actions IP verification — the engine runs on a GitHub-
+ * hosted Actions runner whose source IP is in the `actions` CIDR list
+ * published at https://api.github.com/meta. Same trust model as the
+ * webhook receiver (no shared secret to provision). HMAC token auth was
+ * dropped because it required KODY_SESSION_SECRET, which not every
+ * deployment has — reusing GitHub's identity is friction-free.
  *
  * Body: { event: string, payload: unknown, runId?: string, emittedAt?: string }
  * Also accepts an array of events for batching.
  *
- * Events are fanned out to any SSE stream subscribers for this sessionId.
- * The engine also commits events to `.kody/events/{id}.jsonl` for durability;
- * this endpoint is the low-latency path.
+ * Events are fanned out to any SSE / long-poll subscribers for this
+ * sessionId. The engine also commits events to `.kody/events/{id}.jsonl`
+ * for durability; this endpoint is the low-latency path.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifySessionToken } from "@dashboard/lib/chat-token";
 import { publish } from "@dashboard/lib/chat-event-bus";
+import { isFromGitHubActions, getClientIp } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@dashboard/lib/logger";
 
 export const runtime = "nodejs";
@@ -33,21 +37,21 @@ interface IngestEvent {
   emittedAt?: string;
 }
 
-function extractToken(req: NextRequest): string | null {
-  const header = req.headers.get("authorization");
-  if (header?.startsWith("Bearer ")) return header.slice("Bearer ".length).trim();
-  return req.nextUrl.searchParams.get("token");
-}
-
 export async function POST(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("sessionId");
   if (!sessionId) {
     return NextResponse.json({ error: "sessionId required" }, { status: 400 });
   }
 
-  const token = extractToken(req);
-  if (!token || !verifySessionToken(sessionId, token)) {
-    return NextResponse.json({ error: "invalid token" }, { status: 401 });
+  // IP verification — only GitHub Actions runners can post events here.
+  // INGEST_ALLOW_ANY_IP=1 disables the gate (local dev, integration tests).
+  if (process.env.INGEST_ALLOW_ANY_IP !== "1") {
+    const ip = getClientIp(req.headers);
+    const ok = await isFromGitHubActions(ip);
+    if (!ok) {
+      logger.warn({ event: "ingest_ip_rejected", ip, sessionId }, "ingest: rejecting non-GHA IP");
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
   }
 
   let body: IngestEvent | IngestEvent[];

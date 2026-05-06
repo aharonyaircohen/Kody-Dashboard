@@ -528,13 +528,12 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   // The watermark (lastLineSeen) is kept in a ref so polls don't re-deliver
   // the same lines. It's reset to 0 in startInteractiveSession.
   const pollWatermarkRef = useRef(0)
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Marker for the back-to-back loop: each tick checks if its sessionId
+  // still matches before firing the next one. Set to null = stop.
+  const pollSessionIdRef = useRef<string | null>(null)
 
   const stopInteractivePoll = useCallback(() => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current)
-      pollIntervalRef.current = null
-    }
+    pollSessionIdRef.current = null
   }, [])
 
   const startInteractivePoll = useCallback(
@@ -607,41 +606,52 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         }
       }
 
-      const tick = async () => {
-        const auth = getStoredAuth()
-        const params = new URLSearchParams({
-          taskId: sessionId,
-          since: String(pollWatermarkRef.current),
-        })
-        if (auth) {
-          params.set('owner', auth.owner)
-          params.set('repo', auth.repo)
-          params.set('token', auth.token)
-        }
-        try {
-          const res = await fetch(`/api/kody/events/poll?${params.toString()}`, {
-            headers: { ...authHeaders() },
+      // Back-to-back long-poll loop. Each fetch hits the server's
+      // /events/poll endpoint, which subscribes to the in-memory bus and
+      // holds for ~25s waiting for a pushed event. On push: returns
+      // immediately (sub-second latency end-to-end). On timeout: returns
+      // empty, we re-fire. Net: idle = ~1 fetch / 25s; active = bursty
+      // delivery as events fire.
+      pollSessionIdRef.current = sessionId
+      const loop = async () => {
+        while (pollSessionIdRef.current === sessionId) {
+          const auth = getStoredAuth()
+          const params = new URLSearchParams({
+            taskId: sessionId,
+            since: String(pollWatermarkRef.current),
           })
-          if (!res.ok) return
-          const body = (await res.json()) as { lines?: string[]; totalLines?: number }
-          if (Array.isArray(body.lines) && body.lines.length > 0) {
-            handleLines(body.lines)
-            pollWatermarkRef.current = body.totalLines ?? pollWatermarkRef.current + body.lines.length
+          if (auth) {
+            params.set('owner', auth.owner)
+            params.set('repo', auth.repo)
+            params.set('token', auth.token)
           }
-        } catch {
-          // transient — retry on next tick
+          try {
+            const res = await fetch(`/api/kody/events/poll?${params.toString()}`, {
+              headers: { ...authHeaders() },
+            })
+            if (!res.ok) {
+              // Backoff briefly on server error, otherwise we'd hammer.
+              await new Promise((r) => setTimeout(r, 2_000))
+              continue
+            }
+            const body = (await res.json()) as { lines?: string[]; totalLines?: number }
+            if (Array.isArray(body.lines) && body.lines.length > 0) {
+              handleLines(body.lines)
+              pollWatermarkRef.current =
+                body.totalLines ?? pollWatermarkRef.current + body.lines.length
+            }
+            // No artificial gap between fetches — server already held
+            // the connection open for up to 25s, so we re-poll at the
+            // moment a real event flushed.
+          } catch {
+            // Network blip. Brief backoff, then retry.
+            await new Promise((r) => setTimeout(r, 2_000))
+          }
         }
       }
-
-      // First tick immediately so chat.ready already on git lands without
-      // a 5s wait. Subsequent ticks every 5s — same GitHub rate-limit story
-      // as SSE poll, just simpler delivery.
-      void tick()
-      // 3s — most polls hit GitHub's 304/If-None-Match path (free, doesn't
-      // count against rate limit). Real cost is ~1 op per actual new event.
-      pollIntervalRef.current = setInterval(tick, 3_000)
+      void loop()
     },
-    [setMessages, stopInteractivePoll],
+    [setMessages],
   )
 
   // ─── SSE for chat streaming ────────────────────────────────────────────────
@@ -1685,11 +1695,17 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     saveLiveSession({ sessionId, state: 'booting', startedAt })
 
     try {
+      // dashboardUrl re-enabled — engine pushes events to /ingest in
+      // real time so chat replies don't wait for the 3s file-poll. Auth
+      // on /ingest is GitHub Actions IP verification (no shared secret).
+      const dashboardUrl =
+        typeof window !== 'undefined' ? `${window.location.origin}/api/kody/events/ingest` : undefined
       const startRes = await fetch('/api/kody/chat/interactive/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           taskId: sessionId,
+          dashboardUrl,
           idleExitMs: 5 * 60_000,
           hardCapMs: 30 * 60_000,
         }),
