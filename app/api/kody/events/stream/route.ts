@@ -203,6 +203,16 @@ export async function GET(rawReq: NextRequest) {
   // is suppressed entirely — no GitHub call at all.
   let lastPushAt = 0;
 
+  // Reset the per-session read watermark + etag cache so this connection
+  // sees the full events file from the start. Without this, a previous
+  // connection (other tab, devtools probe, …) that already consumed all
+  // existing lines would have left lastReadIndex == lines.length, and
+  // this connection would see an empty newLines slice forever — visible
+  // bug: dashboard banner stuck at "Almost ready" while chat.ready is
+  // already on git. lastPolledAt is intentionally kept (rate-limit guard).
+  lastReadIndex.delete(sessionId);
+  etagCache.delete(sessionId);
+
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       controllerRef = controller;
