@@ -15,43 +15,49 @@
 
   :root,
   [data-theme='light'] {
-    /* Light background - light gray-blue for exercise view */
-    --background: 210 33% 97%; /* #f4f7fa */
-    --foreground: 220 9% 11%; /* #1a1c1e */
+    /* Background: warm off-white that sets cards apart cleanly */
+    --background: 220 20% 96%; /* #f1f3f7 */
+    --foreground: 222 25% 12%; /* #181c25 */
 
     /* Card: pure white for elevated surfaces */
     --card: 0 0% 100%;
-    --card-foreground: 220 9% 11%;
+    --card-foreground: 222 25% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 9% 11%;
+    --popover-foreground: 222 25% 12%;
 
     /* Primary: warm burgundy red (brand color) */
-    --primary: 353 73% 29%; /* #91262C */
-    --primary-soft: 0 45% 98%; /* #fdf2f2 - light wash for hover states */
+    --primary: 353 70% 38%; /* #b53038 - softened from 29% so hovers don't burn */
+    --primary-soft: 0 60% 96%; /* #fde8ea - light wash for hover states */
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary: muted sage green (accent) */
-    --secondary: 113 12% 41%; /* #5D725B */
-    --secondary-foreground: 0 0% 100%;
+    /* Secondary: neutral slate (replaces sage green which clashed) */
+    --secondary: 220 14% 92%; /* #e6e9ef */
+    --secondary-foreground: 222 25% 18%;
 
-    /* Muted: light backgrounds and secondary text */
-    --muted: 210 14% 95%; /* #f8f9fa */
-    --muted-foreground: 220 8% 45%; /* #6c7278 */
+    /* Muted: hover/zebra surfaces and secondary text */
+    --muted: 220 16% 93%; /* #e8ebf1 */
+    --muted-foreground: 220 9% 40%; /* #5d6371 */
 
-    /* Accent: vivid purple (keeping for backward compatibility) */
-    --accent: 271 91% 65%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent: subtle indigo for selected/active states (replaces vivid purple) */
+    --accent: 220 18% 90%; /* #dee2ea */
+    --accent-foreground: 222 25% 18%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 75% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Border: extremely subtle borders */
-    --border: 0 0% 0% / 0.05; /* rgba(0,0,0,0.05) */
-    --input: 210 14% 97%; /* #f8f9fa */
+    /* Border: visible enough to define structure without harshness */
+    --border: 220 13% 0% / 0.1; /* rgba(0,0,0,0.10) */
+    --input: 220 16% 96%; /* #f1f3f7 */
 
     /* Focus ring follows primary */
-    --ring: 353 73% 29%;
+    --ring: 353 70% 38%;
+
+    /* Shadow system - soft layered shadows for elevation */
+    --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+    --shadow-card-hover: 0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06);
+    --shadow-modal: 0 20px 40px -10px rgb(15 23 42 / 0.18);
+    --shadow-dropdown: 0 8px 12px -2px rgb(15 23 42 / 0.1), 0 4px 8px -2px rgb(15 23 42 / 0.06);
 
     /* Radius system */
     --radius: 0.75rem; /* 12px - default */
@@ -206,6 +212,169 @@
       BlinkMacSystemFont,
       'Segoe UI',
       sans-serif;
+  }
+}
+
+/* ===================================================================
+   Light-mode utility remaps
+
+   The dashboard has ~90 hardcoded `bg-white/x`, `border-white/x`, and
+   `bg-black/x` classes baked into components — they were tuned for dark
+   surfaces. In light mode `bg-white/[0.06]` is invisible and `bg-black/20`
+   reads as muddy gray. These overrides remap the common patterns to subtle
+   neutral grays that read correctly on a light background, without
+   touching any component file. Dark mode is unaffected because the
+   selector is scoped to [data-theme='light'].
+   =================================================================== */
+
+[data-theme='light'] {
+  /* white/x backgrounds → soft neutral fills that show on light bg */
+  .bg-white\/\[0\.01\],
+  .bg-white\/\[0\.02\],
+  .bg-white\/\[0\.03\] {
+    background-color: rgb(15 23 42 / 0.025);
+  }
+  .bg-white\/\[0\.04\],
+  .bg-white\/\[0\.06\],
+  .bg-white\/5 {
+    background-color: rgb(15 23 42 / 0.04);
+  }
+  .bg-white\/\[0\.08\],
+  .bg-white\/\[0\.1\],
+  .bg-white\/10,
+  .bg-white\/\[0\.12\] {
+    background-color: rgb(15 23 42 / 0.06);
+  }
+  .hover\:bg-white\/\[0\.04\]:hover,
+  .hover\:bg-white\/\[0\.06\]:hover,
+  .hover\:bg-white\/\[0\.08\]:hover,
+  .hover\:bg-white\/5:hover,
+  .hover\:bg-white\/10:hover {
+    background-color: rgb(15 23 42 / 0.06);
+  }
+
+  /* white/x borders → visible neutral borders */
+  .border-white\/\[0\.04\],
+  .border-white\/\[0\.06\],
+  .border-white\/\[0\.08\] {
+    border-color: rgb(15 23 42 / 0.08);
+  }
+  .border-white\/\[0\.1\],
+  .border-white\/10,
+  .border-white\/\[0\.12\],
+  .border-white\/\[0\.18\] {
+    border-color: rgb(15 23 42 / 0.12);
+  }
+  .hover\:border-white\/\[0\.18\]:hover,
+  .hover\:border-white\/10:hover {
+    border-color: rgb(15 23 42 / 0.18);
+  }
+
+  /* black/x backgrounds → light mode equivalents
+     Used for chat headers, modal backdrops. On a light bg these need to
+     either invert (overlay tints) or stay dark (true backdrops). */
+  .bg-black\/5 {
+    background-color: rgb(15 23 42 / 0.04);
+  }
+  .bg-black\/20,
+  .bg-black\/30 {
+    /* Used as section header tints — pick a soft surface, not gray haze */
+    background-color: hsl(220 16% 93%);
+  }
+  /* Modal/popover backdrops keep the dimming effect */
+  .bg-black\/80,
+  .bg-black\/95 {
+    background-color: rgb(15 23 42 / 0.6);
+  }
+
+  /* ----- Status text colors -----
+     `text-{color}-400` / `-300` are tuned for dark backgrounds. On light
+     bg they fade out — remap to `-600/-700` shades for proper contrast.
+     We don't touch the base `bg-{color}-500` solids because those are
+     always meant to be vibrant. */
+  .text-red-400,
+  .text-red-400\/80 {
+    color: rgb(185 28 28);
+  }
+  .text-red-300,
+  .text-red-500 {
+    color: rgb(220 38 38);
+  }
+  .text-blue-400,
+  .text-blue-300,
+  .text-blue-200 {
+    color: rgb(29 78 216);
+  }
+  .text-emerald-400,
+  .text-emerald-300,
+  .text-emerald-200 {
+    color: rgb(4 120 87);
+  }
+  .text-emerald-500 {
+    color: rgb(5 150 105);
+  }
+  .text-green-400,
+  .text-green-300 {
+    color: rgb(21 128 61);
+  }
+  .text-yellow-400 {
+    color: rgb(161 98 7);
+  }
+  .text-amber-400,
+  .text-amber-300 {
+    color: rgb(180 83 9);
+  }
+
+  /* ----- Status background tints -----
+     `bg-{color}-500/10..20` overlays on dark bg are very subtle. On light
+     bg they need to be slightly more saturated/visible to read as a tint. */
+  .bg-red-500\/10,
+  .bg-red-500\/15 {
+    background-color: rgb(239 68 68 / 0.1);
+  }
+  .bg-red-500\/20 {
+    background-color: rgb(239 68 68 / 0.14);
+  }
+  .border-red-500\/20,
+  .border-red-500\/30,
+  .border-red-500\/40 {
+    border-color: rgb(239 68 68 / 0.3);
+  }
+  .hover\:bg-red-500\/10:hover {
+    background-color: rgb(239 68 68 / 0.14);
+  }
+
+  .bg-blue-500\/10 {
+    background-color: rgb(59 130 246 / 0.1);
+  }
+  .bg-blue-500\/20 {
+    background-color: rgb(59 130 246 / 0.14);
+  }
+  .bg-emerald-500\/10,
+  .bg-emerald-500\/15 {
+    background-color: rgb(16 185 129 / 0.12);
+  }
+  .bg-emerald-500\/20 {
+    background-color: rgb(16 185 129 / 0.16);
+  }
+  .bg-amber-500\/10,
+  .bg-amber-500\/15 {
+    background-color: rgb(245 158 11 / 0.14);
+  }
+  .bg-orange-500\/10 {
+    background-color: rgb(249 115 22 / 0.1);
+  }
+  .bg-orange-500\/20 {
+    background-color: rgb(249 115 22 / 0.14);
+  }
+  .bg-purple-500\/10 {
+    background-color: rgb(168 85 247 / 0.1);
+  }
+  .bg-purple-500\/20 {
+    background-color: rgb(168 85 247 / 0.14);
+  }
+  .bg-yellow-500\/20 {
+    background-color: rgb(234 179 8 / 0.18);
   }
 }
 
