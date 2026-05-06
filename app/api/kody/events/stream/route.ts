@@ -416,10 +416,20 @@ export async function GET(rawReq: NextRequest) {
     }
   };
 
-  // Send initial connected heartbeat
+  // Send initial connected heartbeat + 4KB padding comment. Vercel's edge
+  // proxy buffers SSE responses by default; small heartbeats (`: ping\n\n`,
+  // 9 bytes) don't overflow the buffer fast enough, so events sit in the
+  // buffer until the connection closes — visible bug: long-lived browser
+  // EventSource never sees chat.ready while a fresh curl probe gets it
+  // instantly (the curl closes the connection, flushing the buffer).
+  // 4KB of comment padding is the standard SSE workaround — exceeds nginx
+  // and most CDN buffer thresholds, forcing per-event flush.
+  const padding = `:${" ".repeat(4096)}\n\n`;
   if (controllerRef) {
     try {
-      (controllerRef as ReadableStreamDefaultController<Uint8Array>).enqueue(encoder.encode(
+      const ctrlInit = controllerRef as ReadableStreamDefaultController<Uint8Array>;
+      ctrlInit.enqueue(encoder.encode(padding));
+      ctrlInit.enqueue(encoder.encode(
         `data: ${JSON.stringify({ type: "connected", sessionId })}\n\n`,
       ));
     } catch { /* closed */ }
