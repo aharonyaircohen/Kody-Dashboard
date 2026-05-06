@@ -35,9 +35,26 @@ import type { KodyTask } from '../types'
 /** Build fetch headers including client auth when available */
 function authHeaders(): Record<string, string> {
   const auth = getStoredAuth()
-  return auth
+  const headers: Record<string, string> = auth
     ? { 'x-kody-token': auth.token, 'x-kody-owner': auth.owner, 'x-kody-repo': auth.repo }
     : {}
+  // When Vercel Deployment Protection is enabled, every API request goes
+  // through Vercel's auth wall first. The protection bypass token (set in
+  // the project's "Protection Bypass for Automation" settings) lets us
+  // through. NEXT_PUBLIC_* is browser-readable; same security model as a
+  // bearer token — anyone with it can access the deployment.
+  const bypass = process.env.NEXT_PUBLIC_VERCEL_BYPASS_TOKEN
+  if (bypass) headers['x-vercel-protection-bypass'] = bypass
+  return headers
+}
+
+// EventSource cannot attach custom headers, so the Vercel bypass token has
+// to ride along as a query param. Returns either an empty string or the
+// `&x-vercel-protection-bypass=...` suffix to append onto an existing URL
+// already carrying other params.
+function vercelBypassQuery(): string {
+  const bypass = process.env.NEXT_PUBLIC_VERCEL_BYPASS_TOKEN
+  return bypass ? `&x-vercel-protection-bypass=${encodeURIComponent(bypass)}` : ''
 }
 
 /**
@@ -510,7 +527,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         params.set('repo', auth.repo)
         params.set('token', auth.token)
       }
-      const url = `/api/kody/events/stream?${params.toString()}`
+      const url = `/api/kody/events/stream?${params.toString()}${vercelBypassQuery()}`
       const es = new EventSource(url)
       eventSourceRef.current = es
 
