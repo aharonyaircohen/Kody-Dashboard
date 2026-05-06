@@ -90,8 +90,13 @@ export async function POST(req: NextRequest) {
       inputs: workflowInputs,
     });
 
-    logger.info({ taskId, workflowId: "kody.yml" }, "interactive: workflow dispatched");
-    return NextResponse.json({ ok: true, taskId, mode: "interactive" });
+    logger.info({ taskId, workflowId: "kody.yml", owner, repo }, "interactive: workflow dispatched");
+    return NextResponse.json({
+      ok: true,
+      taskId,
+      mode: "interactive",
+      target: { owner, repo, branch: "main", workflow: "kody.yml" },
+    });
   } catch (err) {
     logger.error({ err, taskId }, "interactive: start failed");
     return NextResponse.json(

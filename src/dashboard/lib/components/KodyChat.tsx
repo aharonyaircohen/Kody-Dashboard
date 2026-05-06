@@ -407,6 +407,12 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   const [interactiveState, setInteractiveState] = useState<
     'idle' | 'booting' | 'ready' | 'ended'
   >('idle')
+  // Where the runner was dispatched. Surfaced in the banner so users can
+  // verify the connected repo + jump to its Actions tab if booting hangs.
+  const [interactiveTarget, setInteractiveTarget] = useState<{
+    owner: string
+    repo: string
+  } | null>(null)
   // When booting started — drives the elapsed-time + phase indicator in the
   // banner. Reset to null on ready/ended so the next start re-anchors.
   const [bootStartedAt, setBootStartedAt] = useState<number | null>(null)
@@ -1500,6 +1506,10 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         const body = (await startRes.json().catch(() => ({}))) as { error?: string }
         throw new Error(body.error ?? `HTTP ${startRes.status}`)
       }
+      const startBody = (await startRes.json().catch(() => ({}))) as {
+        target?: { owner: string; repo: string }
+      }
+      if (startBody.target) setInteractiveTarget(startBody.target)
       connectSSE(sessionId, { interactive: true })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -1524,6 +1534,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     interactiveStateRef.current = 'idle'
     setInteractiveState('idle')
     setBootStartedAt(null)
+    setInteractiveTarget(null)
     clearLiveSession()
   }, [])
 
@@ -2113,12 +2124,24 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
           >
             <div className="flex items-center gap-2">
               {interactiveState === 'booting' ? (
-                <>
-                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-yellow-500" />
-                  <span>
-                    {bootPhaseLabel(bootElapsed)} · {formatElapsed(bootElapsed)} elapsed
-                  </span>
-                </>
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-yellow-500" />
+                    <span>
+                      {bootPhaseLabel(bootElapsed)} · {formatElapsed(bootElapsed)} elapsed
+                    </span>
+                  </div>
+                  {interactiveTarget ? (
+                    <a
+                      href={`https://github.com/${interactiveTarget.owner}/${interactiveTarget.repo}/actions/workflows/kody.yml`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-yellow-700 underline hover:text-yellow-900 dark:text-yellow-300 dark:hover:text-yellow-100"
+                    >
+                      Watching {interactiveTarget.owner}/{interactiveTarget.repo} → Actions ↗
+                    </a>
+                  ) : null}
+                </div>
               ) : interactiveState === 'ended' ? (
                 <span className="text-muted-foreground">Live runner ended. Start a new session to chat.</span>
               ) : (
