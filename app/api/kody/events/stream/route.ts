@@ -297,12 +297,13 @@ export async function GET(rawReq: NextRequest) {
     }
   });
 
+  let pollIteration = 0;
   const poll = setInterval(async () => {
-    // Capture narrowed type via local const — TypeScript doesn't track narrowing
-    // across async setInterval callbacks without this
+    pollIteration += 1;
     const ctrl: ReadableStreamDefaultController | null = controllerRef;
+    logger.info({ sessionId, pollIteration, active, hasCtrl: !!ctrl }, "stream:poll: tick");
     if (!active || !ctrl) {
-      logger.info({ sessionId, active, hasCtrl: !!ctrl }, "stream:poll: skipping — inactive");
+      logger.info({ sessionId, pollIteration }, "stream:poll: skipping — inactive");
       return;
     }
 
@@ -335,7 +336,10 @@ export async function GET(rawReq: NextRequest) {
 
     const startIndex = lastReadIndex.get(sessionId) ?? 0;
     const newLines = lines.slice(startIndex);
-    logger.info({ sessionId, startIndex, totalLines: lines.length, newLines: newLines.length }, "stream:poll: dispatching");
+    logger.info(
+      { sessionId, pollIteration, startIndex, totalLines: lines.length, newLines: newLines.length, firstLine: newLines[0]?.slice(0, 200) },
+      "stream:poll: dispatching",
+    );
 
     if (newLines.length > 0) {
       lastReadIndex.set(sessionId, lines.length);
