@@ -430,6 +430,9 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     owner: string
     repo: string
   } | null>(null)
+  // Direct URL to the specific GHA run, set when chat.ready arrives with
+  // the engine's GITHUB_RUN_ID. Until then, we link to the workflow page.
+  const [interactiveRunUrl, setInteractiveRunUrl] = useState<string | null>(null)
   // When booting started — drives the elapsed-time + phase indicator in the
   // banner. Reset to null on ready/ended so the next start re-anchors.
   const [bootStartedAt, setBootStartedAt] = useState<number | null>(null)
@@ -544,6 +547,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
               setBootStartedAt(null)
               const id = interactiveSessionIdRef.current
               if (id) saveLiveSession({ sessionId: id, state: 'ready', startedAt: Date.now() })
+              if (typeof parsed.runUrl === 'string') setInteractiveRunUrl(parsed.runUrl)
               break
             }
             case 'chat.exit': {
@@ -1514,6 +1518,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     interactiveStateRef.current = 'booting'
     setInteractiveState('booting')
     setBootStartedAt(startedAt)
+    setInteractiveRunUrl(null)
     saveLiveSession({ sessionId, state: 'booting', startedAt })
 
     try {
@@ -1559,6 +1564,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     setInteractiveState('idle')
     setBootStartedAt(null)
     setInteractiveTarget(null)
+    setInteractiveRunUrl(null)
     clearLiveSession()
   }, [])
 
@@ -2191,12 +2197,17 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
                   </div>
                   {interactiveTarget ? (
                     <a
-                      href={`https://github.com/${interactiveTarget.owner}/${interactiveTarget.repo}/actions/workflows/kody.yml`}
+                      href={
+                        interactiveRunUrl ??
+                        `https://github.com/${interactiveTarget.owner}/${interactiveTarget.repo}/actions/workflows/kody.yml`
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-yellow-700 underline hover:text-yellow-900 dark:text-yellow-300 dark:hover:text-yellow-100"
                     >
-                      Watching {interactiveTarget.owner}/{interactiveTarget.repo} → Actions ↗
+                      {interactiveRunUrl
+                        ? `Watching ${interactiveTarget.owner}/${interactiveTarget.repo} → run ↗`
+                        : `Watching ${interactiveTarget.owner}/${interactiveTarget.repo} → Actions ↗`}
                     </a>
                   ) : null}
                 </div>
