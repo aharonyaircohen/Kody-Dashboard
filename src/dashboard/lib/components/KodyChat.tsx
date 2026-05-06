@@ -596,8 +596,10 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       }
 
       es.onerror = () => {
+        // Don't close: EventSource auto-reconnects on transient errors
+        // (network blip, Vercel idle TCP timeout). Closing here permanently
+        // breaks long-lived interactive sessions.
         setLoading(false)
-        es.close()
       }
     },
     [setMessages],
