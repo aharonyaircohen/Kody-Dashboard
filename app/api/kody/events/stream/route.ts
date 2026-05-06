@@ -384,7 +384,6 @@ export async function GET(rawReq: NextRequest) {
         });
         try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
         active = false;
-        clearInterval(poll);
         try { ctrl.close(); } catch { /* already closed */ }
         return;
       }
@@ -397,7 +396,6 @@ export async function GET(rawReq: NextRequest) {
         // See push-channel branch above for the mode rationale.
         if (!interactiveMode) {
           active = false;
-          clearInterval(poll);
           try { ctrl.close(); } catch { /* already closed */ }
           return;
         }
@@ -450,7 +448,8 @@ export async function GET(rawReq: NextRequest) {
     // Heartbeat keeps the TCP idle from killing the long-lived SSE.
     while (active) {
       await sleep(20_000);
-      const ctrl = controllerRef;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ctrl = controllerRef as ReadableStreamDefaultController<any> | null;
       if (!active || !ctrl) break;
       try { ctrl.enqueue(encoder.encode(`: ping\n\n`)); } catch { break; }
     }
