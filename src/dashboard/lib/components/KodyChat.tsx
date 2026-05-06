@@ -622,6 +622,26 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         // breaks long-lived interactive sessions.
         setLoading(false)
       }
+
+      // Vercel's Node runtime buffers SSE responses for long-lived
+      // connections — events sit in the buffer until the connection
+      // closes. A fresh connection drains the buffer immediately and
+      // reads the events from GitHub, so we sidestep the bug by cycling
+      // the connection every 25s when in interactive mode. Each cycle
+      // re-pulls all events from the events file (the server clears its
+      // per-session lastReadIndex on every new connection, so it replays
+      // from line 0; client-side seenEventIds deduplicates).
+      if (opts.interactive) {
+        const cycleTimer = setTimeout(() => {
+          if (eventSourceRef.current === es) connectSSE(sessionId, opts)
+        }, 25_000)
+        // Cancel the cycle if a NEW connectSSE supersedes us before 25s.
+        const orig = es.close.bind(es)
+        es.close = () => {
+          clearTimeout(cycleTimer)
+          orig()
+        }
+      }
     },
     [setMessages],
   )

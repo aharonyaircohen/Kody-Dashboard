@@ -46,11 +46,7 @@ function promoteAuthFromQuery(req: NextRequest): NextRequest {
   return new NextRequest(req.url, { headers, method: req.method });
 }
 
-// Edge runtime, NOT nodejs. Vercel's Node.js runtime buffers SSE responses
-// — long-lived clients never see events while the stream is open (a fresh
-// curl probe DOES get them because the connection closes and flushes the
-// buffer). Edge runtime streams chunks as written, which is what SSE needs.
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
