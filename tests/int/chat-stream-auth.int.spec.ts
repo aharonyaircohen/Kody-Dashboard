@@ -11,7 +11,7 @@
  * never surfaced any committed events to the browser.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import nock from "nock"
 import { NextRequest } from "next/server"
 import { GET as streamGET } from "../../app/api/kody/events/stream/route"
@@ -28,10 +28,17 @@ afterAll(() => {
 
 afterEach(() => {
   nock.cleanAll()
+  vi.unstubAllEnvs()
 })
 
 describe("GET /api/kody/events/stream — auth via query params", () => {
   it("rejects with 401 when no auth is provided at all (?taskId=x only)", async () => {
+    // The e2e workflow sets KODY_BOT_TOKEN at the job level so other tests
+    // can authenticate. Clear it (plus its fallbacks) so this test really
+    // exercises the "no auth at all" path.
+    vi.stubEnv("KODY_BOT_TOKEN", "")
+    vi.stubEnv("GITHUB_TOKEN", "")
+    vi.stubEnv("GH_PAT", "")
     const req = new NextRequest("https://dash.test/api/kody/events/stream?taskId=s1")
     const res = await streamGET(req)
     expect([401, 503]).toContain(res.status)
