@@ -1897,12 +1897,33 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
               <>
                 <p className="font-medium">Chat about this task</p>
                 <p className="text-sm mt-1">Messages will be saved to the task</p>
-                <p className="text-sm mt-3 max-w-sm mx-auto">
-                  If the linked PR didn&apos;t fully fix this issue, ask{' '}
-                  <span className="font-mono">&quot;diagnose this PR&quot;</span> — I&apos;ll
-                  read the diff, find the gap, and draft a sharper{' '}
-                  <span className="font-mono">@kody fix</span> for your approval.
-                </p>
+                <p className="text-sm mt-3 font-medium text-foreground">I can help you:</p>
+                <ul className="mt-2 text-left text-sm space-y-2 max-w-sm mx-auto">
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary">•</span>
+                    <span>
+                      Diagnose the linked PR if it didn&apos;t fully fix the issue —
+                      try{' '}
+                      <span className="font-mono">
+                        &quot;diagnose {selectedTask?.associatedPR ? `PR #${selectedTask.associatedPR.number}` : 'this PR'}&quot;
+                      </span>
+                      . I&apos;ll read the diff, find the gap, and draft a sharper{' '}
+                      <span className="font-mono">@kody fix</span> for your approval.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary">•</span>
+                    <span>Explain the issue, the PR diff, or pipeline status</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary">•</span>
+                    <span>Browse and search the repository for related code</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary">•</span>
+                    <span>Draft a follow-up <span className="font-mono">@kody</span> instruction</span>
+                  </li>
+                </ul>
               </>
             ) : isMissionMode && selectedMission ? (
               <>
