@@ -1,6 +1,6 @@
 {
   "name": "kody-dashboard",
-  "version": "0.1.238",
+  "version": "0.1.239",
   "private": true,
   "license": "MIT",
   "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
@@ -15,6 +15,7 @@
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,yml,yaml}\"",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "vault:init": "node scripts/generate-vault-key.mjs",
     "prepare": "husky"
   },
   "dependencies": {
