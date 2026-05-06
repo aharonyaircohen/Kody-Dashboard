@@ -728,20 +728,25 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       console.error('Failed to save chat:', err)
       // Non-fatal — local mirror still covers refresh.
     }
-  }, [selectedTask, taskMessages])
+  }, [selectedTask?.id, taskMessages]) // eslint-disable-line react-hooks/exhaustive-deps -- intentional: only id needed, full object ref changes on every poll
 
   // Mirror task chat to localStorage immediately on every change. Covers
   // branchless tasks (where server save no-ops) and bridges the 2s debounce
   // window before server save fires.
+  //
+  // Dep is `selectedTask?.id` not `selectedTask` because the parent rebuilds
+  // the task object on every poll. Empty taskMessages is a no-op — otherwise
+  // a second KodyChat instance (e.g. PreviewModal's panel) that hasn't loaded
+  // yet would clobber the localStorage entry written by the active instance.
   useEffect(() => {
-    if (!isTaskMode || !selectedTask) return
+    if (!isTaskMode || !selectedTask || taskMessages.length === 0) return
     const messagesForLocal: ChatMessage[] = taskMessages.map((m) => ({
       role: m.role,
       text: m.content,
       timestamp: m.timestamp || new Date().toISOString(),
     }))
     saveTaskChatLocal(selectedTask.id, messagesForLocal)
-  }, [taskMessages, isTaskMode, selectedTask])
+  }, [taskMessages, isTaskMode, selectedTask?.id]) // eslint-disable-line react-hooks/exhaustive-deps -- intentional: only id needed, full object ref changes on every poll
 
   // Save after streaming completes — skip saves while loading to avoid race conditions
   useEffect(() => {
