@@ -40,6 +40,27 @@ function authHeaders(): Record<string, string> {
     : {}
 }
 
+/**
+ * Phase label for the Kody Live boot banner. Times are derived from the
+ * live test (run 25437723431): queue ~10s, runner setup + checkout ~25s,
+ * npx install + LiteLLM pip ~50s, model warm-up ~80s, ready by ~90s.
+ * Estimates only — no GitHub API call.
+ */
+function bootPhaseLabel(elapsed: number): string {
+  if (elapsed < 10) return 'Queueing workflow run'
+  if (elapsed < 25) return 'Setting up GitHub Actions runner'
+  if (elapsed < 50) return 'Installing Kody engine'
+  if (elapsed < 80) return 'Starting LiteLLM proxy'
+  if (elapsed < 110) return 'Warming up model'
+  return 'Almost ready...'
+}
+
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
 /** Add per-user Brain config headers on Brain-path requests. */
 function brainHeaders(): Record<string, string> {
   const b = getStoredBrainConfig()
@@ -331,6 +352,20 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   const [interactiveState, setInteractiveState] = useState<
     'idle' | 'booting' | 'ready' | 'ended'
   >('idle')
+  // When booting started — drives the elapsed-time + phase indicator in the
+  // banner. Reset to null on ready/ended so the next start re-anchors.
+  const [bootStartedAt, setBootStartedAt] = useState<number | null>(null)
+  const [bootElapsed, setBootElapsed] = useState(0)
+  useEffect(() => {
+    if (interactiveState !== 'booting' || !bootStartedAt) {
+      setBootElapsed(0)
+      return
+    }
+    const tick = () => setBootElapsed(Math.floor((Date.now() - bootStartedAt) / 1000))
+    tick()
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [interactiveState, bootStartedAt])
 
   // Remote dev status (only polls when actorLogin is provided)
   const { data: remoteStatus } = useRemoteStatus(actorLogin)
@@ -428,6 +463,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
             case 'chat.ready': {
               interactiveStateRef.current = 'ready'
               setInteractiveState('ready')
+              setBootStartedAt(null)
               break
             }
             case 'chat.exit': {
@@ -1388,6 +1424,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     interactiveSessionIdRef.current = sessionId
     interactiveStateRef.current = 'booting'
     setInteractiveState('booting')
+    setBootStartedAt(Date.now())
 
     try {
       const startRes = await fetch('/api/kody/chat/interactive/start', {
@@ -1986,7 +2023,9 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
               {interactiveState === 'booting' ? (
                 <>
                   <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-yellow-500" />
-                  <span>Booting live runner... (~90s on first dispatch)</span>
+                  <span>
+                    {bootPhaseLabel(bootElapsed)} · {formatElapsed(bootElapsed)} elapsed
+                  </span>
                 </>
               ) : interactiveState === 'ended' ? (
                 <span className="text-muted-foreground">Live runner ended. Start a new session to chat.</span>
