@@ -232,7 +232,7 @@ export const KODY_LABEL_PREFIX = "kody:";
  * All valid Kody label suffixes.
  */
 export const KODY_LABEL_SUFFIXES = [
-  "building",
+  "running",
   "done",
   "failed",
   "paused",
@@ -257,7 +257,7 @@ export function getKodyStateFromLabel(
   if (!isKodyLabel(label)) return null;
   const suffix = label.replace("kody:", "");
   const stateMap: Record<string, KodyPipelineStatus["state"]> = {
-    building: "running",
+    running: "running",
     done: "completed",
     failed: "failed",
     paused: "paused",
