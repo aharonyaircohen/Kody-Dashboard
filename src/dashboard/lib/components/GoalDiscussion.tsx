@@ -11,6 +11,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -40,6 +41,11 @@ import type {
   DiscussionDisabledReason,
   GoalDiscussionComment,
 } from '../api'
+
+interface Mention {
+  login: string
+  avatar_url: string
+}
 
 interface GoalDiscussionProps {
   goalId: string
@@ -244,6 +250,25 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { githubUser } = useGitHubIdentity()
 
+  // @mention autofill — same backing endpoint as the issue CommentEditor.
+  const [mentions, setMentions] = useState<Mention[]>([])
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [showMentions, setShowMentions] = useState(false)
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
+
+  useEffect(() => {
+    fetch('/api/kody/collaborators')
+      .then((res) => res.json())
+      .then((data) => setMentions(data.collaborators || []))
+      .catch(console.error)
+  }, [])
+
+  const filteredMentions = mentions
+    .filter((m) =>
+      m.login.toLowerCase().includes(mentionQuery.toLowerCase()),
+    )
+    .slice(0, 5)
+
   const {
     mutate: postComment,
     isPending,
@@ -258,6 +283,59 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
         setShowPreview(false)
       },
     })
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value
+    setBody(value)
+    const cursorPos = e.target.selectionStart
+    const textBeforeCursor = value.slice(0, cursorPos)
+    const m = textBeforeCursor.match(/@(\w*)$/)
+    if (m) {
+      setMentionQuery(m[1])
+      setShowMentions(true)
+      setSelectedMentionIndex(0)
+    } else {
+      setShowMentions(false)
+      setMentionQuery('')
+    }
+  }
+
+  const selectMention = (mention: Mention) => {
+    const ta = textareaRef.current
+    const cursorPos = ta?.selectionStart ?? body.length
+    const textBeforeCursor = body.slice(0, cursorPos)
+    const textAfterCursor = body.slice(cursorPos)
+    const newBefore = textBeforeCursor.replace(/@\w*$/, `@${mention.login} `)
+    setBody(newBefore + textAfterCursor)
+    setShowMentions(false)
+    setMentionQuery('')
+    ta?.focus()
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!showMentions) return
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setSelectedMentionIndex((i) =>
+          Math.min(i + 1, filteredMentions.length - 1),
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setSelectedMentionIndex((i) => Math.max(i - 1, 0))
+        break
+      case 'Enter':
+        if (filteredMentions[selectedMentionIndex]) {
+          e.preventDefault()
+          selectMention(filteredMentions[selectedMentionIndex])
+        }
+        break
+      case 'Escape':
+        setShowMentions(false)
+        break
+    }
   }
 
   const insertMarkdown = (before: string, after: string = '') => {
@@ -385,15 +463,43 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
             </ReactMarkdown>
           </div>
         ) : (
-          <Textarea
-            ref={textareaRef}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Write a comment..."
-            rows={3}
-            disabled={isPending}
-            className="resize-none text-sm"
-          />
+          <div className="relative">
+            <Textarea
+              ref={textareaRef}
+              value={body}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Write a comment... use @ to mention"
+              rows={3}
+              disabled={isPending}
+              className="resize-none text-sm"
+            />
+
+            {showMentions && filteredMentions.length > 0 ? (
+              <div className="absolute z-10 w-64 max-h-48 overflow-y-auto border border-border rounded-md shadow-lg bg-popover">
+                {filteredMentions.map((mention, index) => (
+                  <button
+                    key={mention.login}
+                    type="button"
+                    onClick={() => selectMention(mention)}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent',
+                      index === selectedMentionIndex && 'bg-accent',
+                    )}
+                  >
+                    <Image
+                      src={mention.avatar_url}
+                      alt={mention.login}
+                      width={24}
+                      height={24}
+                      className="rounded-full"
+                    />
+                    <span className="text-sm">{mention.login}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         )}
       </div>
 
