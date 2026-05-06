@@ -112,6 +112,7 @@ const channelSchema = z.discriminatedUnion("type", [
     type: z.literal("generic-webhook"),
     url: z.string().url().startsWith("https://"),
     jsonTemplate: z.string().max(4000).optional(),
+    bodyFormat: z.enum(["json", "form"]).optional(),
     headers: z.record(z.string(), z.string()).optional(),
   }),
 ]);

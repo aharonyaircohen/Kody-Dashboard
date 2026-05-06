@@ -60,11 +60,19 @@ export type NotificationChannel =
       type: "generic-webhook";
       url: string;
       /**
-       * Optional JSON template POSTed as the body. Variables substituted
-       * the same way as `template`. When omitted, the body is
-       * `{"text": "<rendered template>"}` — same as Slack.
+       * Optional template POSTed as the body. Variables substituted the
+       * same way as the rule's top-level `template`. Shape depends on
+       * `bodyFormat`:
+       *   - "json" (default): rendered string must be valid JSON; sent
+       *     with Content-Type: application/json. Omit to send
+       *     `{"text": "<rendered top-level template>"}`.
+       *   - "form": rendered string must be valid JSON of a FLAT object
+       *     `{ key: "value", ... }`; sent URL-form-encoded with
+       *     Content-Type: application/x-www-form-urlencoded. Required for
+       *     APIs like Twilio.
        */
       jsonTemplate?: string;
+      bodyFormat?: "json" | "form";
       headers?: Record<string, string>;
     };
 
@@ -160,11 +168,14 @@ function sanitizeChannel(v: unknown): NotificationChannel | null {
                 .map(([k, v]) => [k, String(v)]),
             )
           : undefined;
+      const bodyFormat: "json" | "form" =
+        c.bodyFormat === "form" ? "form" : "json";
       return {
         type: "generic-webhook",
         url: String(c.url),
         jsonTemplate:
           typeof c.jsonTemplate === "string" ? c.jsonTemplate : undefined,
+        bodyFormat: bodyFormat === "form" ? "form" : undefined,
         headers: headers && Object.keys(headers).length > 0 ? headers : undefined,
       };
     }

@@ -10,7 +10,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, Bell, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, Bell, BookOpen, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
@@ -126,14 +126,22 @@ function NotificationsManagerInner() {
           <Bell className="w-5 h-5 text-sky-400" />
           <h1 className="text-base md:text-lg font-semibold">Notifications</h1>
         </div>
-        <Button
-          size="sm"
-          onClick={() => setEditing({ ...blankForm })}
-          className="gap-1"
-        >
-          <Plus className="w-4 h-4" />
-          New rule
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="ghost" size="sm" className="gap-1">
+            <Link href="/notifications/docs" aria-label="Notifications docs">
+              <BookOpen className="w-4 h-4" />
+              Docs
+            </Link>
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setEditing({ ...blankForm })}
+            className="gap-1"
+          >
+            <Plus className="w-4 h-4" />
+            New rule
+          </Button>
+        </div>
       </header>
 
       <main className="px-4 md:px-6 py-6 max-w-4xl mx-auto space-y-3">
@@ -566,7 +574,8 @@ function ChannelFields({
           </p>
         </div>
       );
-    case "generic-webhook":
+    case "generic-webhook": {
+      const format = channel.bodyFormat ?? "json";
       return (
         <>
           <div className="space-y-1.5">
@@ -580,9 +589,41 @@ function ChannelFields({
             />
           </div>
           <div className="space-y-1.5">
+            <Label htmlFor="ch-gen-format">Body format</Label>
+            <Select
+              value={format}
+              onValueChange={(v) =>
+                onChange({
+                  ...channel,
+                  bodyFormat: v === "form" ? "form" : undefined,
+                })
+              }
+            >
+              <SelectTrigger id="ch-gen-format">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="json">
+                  JSON (application/json)
+                </SelectItem>
+                <SelectItem value="form">
+                  Form-encoded (application/x-www-form-urlencoded)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-white/40">
+              Use <span className="text-white/60">JSON</span> for most
+              modern APIs (Slack-shaped, Mattermost, GChat, etc.). Use{" "}
+              <span className="text-white/60">Form-encoded</span> for
+              Twilio, Mailgun, and most legacy REST APIs.
+            </p>
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="ch-gen-tmpl">
-              JSON body template{" "}
-              <span className="text-white/40 text-[11px]">(optional)</span>
+              {format === "form" ? "Body template" : "JSON body template"}{" "}
+              <span className="text-white/40 text-[11px]">
+                {format === "form" ? "(required)" : "(optional)"}
+              </span>
             </Label>
             <Textarea
               id="ch-gen-tmpl"
@@ -593,17 +634,38 @@ function ChannelFields({
                   jsonTemplate: e.target.value || undefined,
                 })
               }
-              rows={3}
-              placeholder='{"text":"{{repo}} {{version}} shipped"}'
+              rows={4}
+              placeholder={
+                format === "form"
+                  ? '{"From":"whatsapp:+...","To":"whatsapp:+...","Body":"{{repo}} {{version}} shipped"}'
+                  : '{"text":"{{repo}} {{version}} shipped"}'
+              }
               className="font-mono text-xs"
             />
             <p className="text-[11px] text-white/40">
-              Empty = sends <code>{`{"text":"<rendered template>"}`}</code>.
+              {format === "form"
+                ? "Write a flat JSON object — the dashboard URL-form-encodes each key=value pair before posting."
+                : "Empty = sends "}
+              {format === "json" && (
+                <code>{`{"text":"<rendered template>"}`}</code>
+              )}
+              {format === "json" && ". "}
               Use <code>{"{{var}}"}</code> tokens; the rendered string must
               parse as JSON.
             </p>
           </div>
+          <p className="text-[11px] text-white/30">
+            See{" "}
+            <Link
+              href="/notifications/docs"
+              className="underline hover:text-white/50"
+            >
+              docs
+            </Link>{" "}
+            for full setup recipes (Twilio WhatsApp, Mattermost, etc.).
+          </p>
         </>
       );
+    }
   }
 }
