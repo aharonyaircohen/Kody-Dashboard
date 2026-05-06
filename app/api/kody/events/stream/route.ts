@@ -238,6 +238,7 @@ export async function GET(rawReq: NextRequest) {
         idleExitMs: event.payload?.idleExitMs,
         hardCapMs: event.payload?.hardCapMs,
         startedAt: event.payload?.startedAt,
+        runUrl: (event.payload as Record<string, unknown> | undefined)?.runUrl,
       });
       try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
       return;
@@ -348,6 +349,7 @@ export async function GET(rawReq: NextRequest) {
           idleExitMs: (event.payload as Record<string, unknown>).idleExitMs,
           hardCapMs: (event.payload as Record<string, unknown>).hardCapMs,
           startedAt: (event.payload as Record<string, unknown>).startedAt,
+          runUrl: (event.payload as Record<string, unknown>).runUrl,
         });
         try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
         continue;
