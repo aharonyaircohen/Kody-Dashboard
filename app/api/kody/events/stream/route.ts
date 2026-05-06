@@ -289,23 +289,41 @@ export async function GET(rawReq: NextRequest) {
     // Capture narrowed type via local const — TypeScript doesn't track narrowing
     // across async setInterval callbacks without this
     const ctrl: ReadableStreamDefaultController | null = controllerRef;
-    if (!active || !ctrl) return;
+    if (!active || !ctrl) {
+      logger.info({ sessionId, active, hasCtrl: !!ctrl }, "stream:poll: skipping — inactive");
+      return;
+    }
 
     // Skip GitHub entirely while the in-memory push channel is live. The poll
     // is a fallback for cross-instance SSE; when push is delivering, it's pure
     // waste. 120s grace covers an entire engine reply burst.
-    if (Date.now() - lastPushAt < PUSH_GRACE_MS) return;
+    if (Date.now() - lastPushAt < PUSH_GRACE_MS) {
+      logger.info({ sessionId, lastPushAt }, "stream:poll: skipping — push grace");
+      return;
+    }
 
     // Reconnect-storm guard: if another SSE connection for this sessionId
     // polled GitHub recently, skip. Survives client reconnects via module map.
     const last = lastPolledAt.get(sessionId) ?? 0;
-    if (Date.now() - last < MIN_POLL_GAP_MS) return;
+    if (Date.now() - last < MIN_POLL_GAP_MS) {
+      logger.info({ sessionId, gapMs: Date.now() - last }, "stream:poll: skipping — gap guard");
+      return;
+    }
     lastPolledAt.set(sessionId, Date.now());
 
-    const { lines } = await readEventFile(octokit, owner, repo, branch, sessionId);
+    let lines: string[];
+    try {
+      const result = await readEventFile(octokit, owner, repo, branch, sessionId);
+      lines = result.lines;
+      logger.info({ sessionId, owner, repo, lineCount: lines.length, exists: result.exists }, "stream:poll: read events file");
+    } catch (err) {
+      logger.error({ err, sessionId, owner, repo }, "stream:poll: readEventFile threw");
+      return;
+    }
 
     const startIndex = lastReadIndex.get(sessionId) ?? 0;
     const newLines = lines.slice(startIndex);
+    logger.info({ sessionId, startIndex, totalLines: lines.length, newLines: newLines.length }, "stream:poll: dispatching");
 
     if (newLines.length > 0) {
       lastReadIndex.set(sessionId, lines.length);
