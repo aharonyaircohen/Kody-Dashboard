@@ -24,6 +24,11 @@ interface Ctx {
 const MAX_BODY_CHARS = 8_000
 const MAX_FILE_CHARS = 30_000
 const MAX_COMMENTS = 20
+// Per-file and total diff caps for github_get_pull_request — diffs are
+// the most useful signal for diagnosing what a previous Kody run shipped,
+// but full multi-file patches blow up context fast. Clip aggressively.
+const MAX_PATCH_CHARS_PER_FILE = 4_000
+const MAX_PATCH_CHARS_TOTAL = 30_000
 
 function clip(s: string | null | undefined, n: number): string {
   if (!s) return ''
@@ -78,18 +83,67 @@ export function createGitHubTools(ctx: Ctx) {
     github_get_pull_request: tool({
       description:
         `Fetch a pull request from ${owner}/${repo} with metadata, head/base, ` +
-        'mergeable status, and the list of changed files (paths + additions/deletions, no diff body).',
+        'mergeable status, and the list of changed files (paths + additions/deletions). ' +
+        'Set includeDiff=true to also return each file\'s patch (clipped per-file and ' +
+        'in total). Use the diff to audit what a previous Kody run actually shipped — ' +
+        'compare it against the issue\'s claims to find gaps.',
       inputSchema: z.object({
         number: z.number().int().positive().describe('The PR number'),
+        includeDiff: z
+          .boolean()
+          .optional()
+          .describe(
+            'When true, attach `patch` (the unified-diff text) to each changed file. ' +
+              'Default false to keep responses small.',
+          ),
       }),
-      execute: async ({ number }) => {
+      execute: async ({ number, includeDiff }) => {
         try {
           const [pr, files] = await Promise.all([
             octokit.rest.pulls.get({ owner, repo, pull_number: number }),
             octokit.rest.pulls
               .listFiles({ owner, repo, pull_number: number, per_page: 50 })
-              .catch(() => ({ data: [] as Array<{ filename: string; additions: number; deletions: number; status: string }> })),
+              .catch(
+                () =>
+                  ({
+                    data: [] as Array<{
+                      filename: string
+                      additions: number
+                      deletions: number
+                      status: string
+                      patch?: string
+                    }>,
+                  }) as { data: Array<{ filename: string; additions: number; deletions: number; status: string; patch?: string }> },
+              ),
           ])
+          let patchBudget = MAX_PATCH_CHARS_TOTAL
+          let patchTruncated = false
+          const changedFiles = files.data.map((f) => {
+            const base = {
+              path: f.filename,
+              status: f.status,
+              additions: f.additions,
+              deletions: f.deletions,
+            }
+            if (!includeDiff) return base
+            const raw = f.patch ?? ''
+            if (!raw) return { ...base, patch: '' }
+            const clippedPerFile =
+              raw.length > MAX_PATCH_CHARS_PER_FILE
+                ? `${raw.slice(0, MAX_PATCH_CHARS_PER_FILE)}\n[... per-file truncated ${raw.length - MAX_PATCH_CHARS_PER_FILE} chars ...]`
+                : raw
+            if (patchBudget <= 0) {
+              patchTruncated = true
+              return { ...base, patch: '[... omitted: total diff budget exhausted ...]' }
+            }
+            const taken =
+              clippedPerFile.length > patchBudget
+                ? `${clippedPerFile.slice(0, patchBudget)}\n[... total diff budget exhausted ...]`
+                : clippedPerFile
+            patchBudget -= taken.length
+            if (taken.length < clippedPerFile.length) patchTruncated = true
+            return { ...base, patch: taken }
+          })
           return {
             number: pr.data.number,
             title: pr.data.title,
@@ -101,12 +155,8 @@ export function createGitHubTools(ctx: Ctx) {
             head: { ref: pr.data.head.ref, sha: pr.data.head.sha },
             base: { ref: pr.data.base.ref },
             body: clip(pr.data.body, MAX_BODY_CHARS),
-            changedFiles: files.data.map((f) => ({
-              path: f.filename,
-              status: f.status,
-              additions: f.additions,
-              deletions: f.deletions,
-            })),
+            changedFiles,
+            ...(includeDiff ? { diffTruncated: patchTruncated } : {}),
             url: pr.data.html_url,
           }
         } catch (err) {

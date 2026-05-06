@@ -1892,6 +1892,12 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
               <>
                 <p className="font-medium">Chat about this task</p>
                 <p className="text-sm mt-1">Messages will be saved to the task</p>
+                <p className="text-sm mt-3 max-w-sm mx-auto">
+                  If the linked PR didn&apos;t fully fix this issue, ask{' '}
+                  <span className="font-mono">&quot;diagnose this PR&quot;</span> — I&apos;ll
+                  read the diff, find the gap, and draft a sharper{' '}
+                  <span className="font-mono">@kody fix</span> for your approval.
+                </p>
               </>
             ) : isMissionMode && selectedMission ? (
               <>
@@ -1932,6 +1938,13 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
                   <li className="flex items-start gap-2">
                     <span className="text-primary">•</span>
                     <span>Show pipeline status and progress</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary">•</span>
+                    <span>
+                      Diagnose a Kody PR that didn&apos;t fully solve its issue —
+                      try <span className="font-mono">&quot;diagnose PR #1404&quot;</span>
+                    </span>
                   </li>
                 </ul>
               </>

@@ -227,6 +227,7 @@ export const AGENT_KODY: AgentConfig = {
     'Summarize PRs, issues, and activity you paste in',
     'Fetch and summarize public URLs (HTML stripped to text — no SPA rendering)',
     'Read GitHub issues, PRs, files, and code search in the connected repo',
+    "Diagnose a Kody PR that didn't fully solve its issue — read the diff, find the gap, and re-trigger Kody with a sharper prompt",
     'Read Kody pipeline status, workflow runs, and open PRs',
     'Run shell, read, and write on your remote dev Mac (when configured)',
     'Reply in under a second to first token (no Actions cold start)',
@@ -382,6 +383,38 @@ On a PR:
 - @kody ui-review                    — UI/visual review
 - @kody sync                         — sync the PR branch
 - @kody                              — bare on a PR defaults to \`fix\`
+
+Diagnosing a Kody fix that didn't fully solve its issue:
+- Trigger phrases: "diagnose PR #N", "what did kody miss on #N", "the fix
+  on #N is incomplete", "audit the kody fix for #N", "why didn't kody
+  solve this", or any time the user is questioning whether a Kody PR
+  actually addresses the linked issue.
+- The point of this flow is to find the gap between what the issue asked
+  for and what the PR actually changed, then send Kody back with a
+  sharper instruction. You don't fix the code yourself; you sharpen
+  Kody's next attempt.
+- Procedure (do every step — do not skip to drafting):
+  1. \`github_get_issue(N_issue)\` (or the issue the PR closes). List
+     every concrete claim/symptom the user reports, verbatim. Include
+     specific field names, file paths, behaviors they expected.
+  2. \`github_get_pull_request({ number: N_pr, includeDiff: true })\`.
+     List every file/region the PR actually touched.
+  3. For each claim from (1) that names a field, function, or behavior,
+     run \`github_search_code\` for that exact name to see where else it
+     lives in the repo. \`github_get_file\` on the matches. Determine
+     whether the PR's diff in (2) actually touches the code paths
+     responsible for that claim.
+  4. Identify claims from (1) NOT covered by (2). That set IS the gap.
+     If there are no gaps, say so plainly — don't invent one.
+  5. Draft a corrective \`notes\` string for \`kody_fix_pr\`: state the
+     gap in one sentence, cite file:line evidence, and tell Kody
+     exactly what to change. Keep it short and concrete — Kody reads
+     this as the new instruction.
+  6. Show the user the draft notes. Do NOT call \`kody_fix_pr\` on the
+     first turn. Wait for explicit approval ("send it", "go", "yes,
+     dispatch"). Only then dispatch with \`kody_fix_pr({ prNumber,
+     notes })\`.
+- If you can't fetch the diff, say so — never guess what the PR shipped.
 
 Creating issues (PRD-style):
 - When the user asks to create an issue, do NOT call a create tool on
