@@ -36,6 +36,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@dashboard/lib/logger";
+import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -166,6 +167,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     },
     "GitHub webhook processed",
   );
+
+  // Fire-and-forget Slack notifications. Errors are swallowed inside; we
+  // never want a failed Slack POST to cause GitHub to retry the delivery.
+  if (typeof payload === "object" && payload !== null) {
+    dispatchNotifications(eventType, payload as Record<string, unknown>).catch(
+      (err: unknown) => {
+        logger.error(
+          {
+            event: "notifications_dispatch_crashed",
+            error: err instanceof Error ? err.message : String(err),
+          },
+          "dispatchNotifications threw — should have been caught internally",
+        );
+      },
+    );
+  }
 
   return NextResponse.json({ ok: true, handled: result.handled }, { status: 200 });
 }

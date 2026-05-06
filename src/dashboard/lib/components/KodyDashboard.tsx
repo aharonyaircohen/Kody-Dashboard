@@ -61,6 +61,7 @@ import {
   GitBranch,
   Github,
   Layers,
+  Bell,
   ChevronsDownUp,
   ChevronsUpDown,
   List,
@@ -1392,6 +1393,20 @@ export function KodyDashboard({
                       <Link href="/missions" aria-label="Missions">
                         <Layers className="w-4 h-4" />
                         Missions
+                      </Link>
+                    </Button>
+                  </SimpleTooltip>
+
+                  {/* Notifications */}
+                  <SimpleTooltip content="Notifications" side="bottom">
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                    >
+                      <Link href="/notifications" aria-label="Notifications">
+                        <Bell className="w-4 h-4" />
                       </Link>
                     </Button>
                   </SimpleTooltip>
