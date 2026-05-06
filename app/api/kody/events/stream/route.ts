@@ -298,7 +298,12 @@ export async function GET(rawReq: NextRequest) {
   });
 
   let pollIteration = 0;
-  const poll = setInterval(async () => {
+  // The setInterval poll body, but as a named function so we can also fire
+  // it once IMMEDIATELY when the SSE opens. Without this, the first poll
+  // is 15s after connect, which means a session whose chat.ready already
+  // landed on git stays invisible for that whole window — and on slow
+  // Vercel function instances setInterval can be even more delayed.
+  const runPollOnce = async () => {
     pollIteration += 1;
     const ctrl: ReadableStreamDefaultController | null = controllerRef;
     logger.info({ sessionId, pollIteration, active, hasCtrl: !!ctrl }, "stream:poll: tick");
@@ -411,7 +416,8 @@ export async function GET(rawReq: NextRequest) {
         try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
       }
     }
-  }, POLL_INTERVAL_MS);
+  };
+  const poll = setInterval(runPollOnce, POLL_INTERVAL_MS);
 
   // Send initial connected heartbeat
   if (controllerRef) {
@@ -421,6 +427,12 @@ export async function GET(rawReq: NextRequest) {
       ));
     } catch { /* closed */ }
   }
+
+  // Fire one poll RIGHT NOW (don't wait for the first setInterval tick at
+  // +15s). For sessions whose chat.ready is already on git, this delivers
+  // immediately. The MIN_POLL_GAP_MS guard inside runPollOnce still gates
+  // reconnect storms on subsequent ticks.
+  void runPollOnce();
 
   // Server-side heartbeat: write a comment line every 20s. Keeps Vercel's
   // TCP layer from idle-killing the SSE connection during long warm-up
