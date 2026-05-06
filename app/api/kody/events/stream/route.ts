@@ -158,6 +158,12 @@ export async function GET(rawReq: NextRequest) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
   }
 
+  // `mode=interactive` keeps the stream alive across multiple chat.done
+  // events (one per turn). The runner stays alive until idle/deadline and
+  // emits chat.exit when it ends — that's the close signal for interactive.
+  // Default (one-shot) closes on the first chat.done as before.
+  const interactiveMode = req.nextUrl.searchParams.get("mode") === "interactive";
+
   // Resolve owner/repo from request headers (client localStorage auth) or env
   const headerAuth = getRequestAuth(req);
   const owner = headerAuth?.owner ?? getDefaultOwner();
@@ -223,13 +229,46 @@ export async function GET(rawReq: NextRequest) {
     if (seenEventIds.has(eventKey)) return;
     seenEventIds.add(eventKey);
 
+    // Lifecycle events (interactive mode only — one-shot never emits these).
+    if (event.event === "chat.ready") {
+      const data = JSON.stringify({
+        type: "chat.ready",
+        sessionId,
+        runId: event.runId,
+        idleExitMs: event.payload?.idleExitMs,
+        hardCapMs: event.payload?.hardCapMs,
+        startedAt: event.payload?.startedAt,
+      });
+      try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+      return;
+    }
+    if (event.event === "chat.exit") {
+      const data = JSON.stringify({
+        type: "chat.exit",
+        sessionId,
+        runId: event.runId,
+        reason: event.payload?.reason,
+        turnsCompleted: event.payload?.turnsCompleted,
+      });
+      try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+      // chat.exit is the canonical close signal for interactive sessions.
+      active = false;
+      try { ctrl.close(); } catch { /* already closed */ }
+      return;
+    }
+
     if (event.event === "chat.done" || event.event === "chat.error") {
       const data = event.event === "chat.done"
         ? JSON.stringify({ type: "chat.done", sessionId, runId: event.runId })
         : JSON.stringify({ type: "chat.error", sessionId, error: event.payload?.error });
       try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
-      active = false;
-      try { ctrl.close(); } catch { /* already closed */ }
+      // In one-shot mode, chat.done = end of session. In interactive mode,
+      // chat.done = end of turn — keep the stream open for the next user
+      // message; the runner stays alive until chat.exit.
+      if (!interactiveMode) {
+        active = false;
+        try { ctrl.close(); } catch { /* already closed */ }
+      }
       return;
     }
 
@@ -282,15 +321,47 @@ export async function GET(rawReq: NextRequest) {
       if (seenEventIds.has(eventKey)) continue;
       seenEventIds.add(eventKey);
 
-      if (event.event === "chat.done" || event.event === "chat.error") {
-        const data = event.event === "chat.done"
-          ? JSON.stringify({ type: "chat.done", sessionId, runId: event.runId })
-          : JSON.stringify({ type: "chat.error", sessionId, error: event.payload.error });
+      // Lifecycle events (interactive mode only).
+      if (event.event === "chat.ready") {
+        const data = JSON.stringify({
+          type: "chat.ready",
+          sessionId,
+          runId: event.runId,
+          idleExitMs: (event.payload as Record<string, unknown>).idleExitMs,
+          hardCapMs: (event.payload as Record<string, unknown>).hardCapMs,
+          startedAt: (event.payload as Record<string, unknown>).startedAt,
+        });
+        try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+        continue;
+      }
+      if (event.event === "chat.exit") {
+        const data = JSON.stringify({
+          type: "chat.exit",
+          sessionId,
+          runId: event.runId,
+          reason: (event.payload as Record<string, unknown>).reason,
+          turnsCompleted: (event.payload as Record<string, unknown>).turnsCompleted,
+        });
         try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
         active = false;
         clearInterval(poll);
         try { ctrl.close(); } catch { /* already closed */ }
         return;
+      }
+
+      if (event.event === "chat.done" || event.event === "chat.error") {
+        const data = event.event === "chat.done"
+          ? JSON.stringify({ type: "chat.done", sessionId, runId: event.runId })
+          : JSON.stringify({ type: "chat.error", sessionId, error: event.payload.error });
+        try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+        // See push-channel branch above for the mode rationale.
+        if (!interactiveMode) {
+          active = false;
+          clearInterval(poll);
+          try { ctrl.close(); } catch { /* already closed */ }
+          return;
+        }
+        continue;
       }
 
       if (event.event === "chat.message") {
