@@ -80,6 +80,32 @@ Only ask a clarifying question after you've attempted the work and hit a genuine
 
 This rule does **not** override the issue-creation workflow in the base prompt: when the user wants to file a bug or task, you still do gap-analysis and ask targeted questions before calling \`report_bug\` / \`create_*\`. The only change is that gap-analysis must start with at least one tool call (search/read/list_issues), not with capability hedging or "what would you like me to look at?".`,
     )
+    sections.push(
+      `## Issue creation: research before drafting (HARD RULE)
+
+Whenever the user asks you to file, open, or create an issue/bug/task/enhancement — via \`report_bug\`, \`create_task\`, \`create_task_for_goal\`, or any future creation tool — you MUST investigate the codebase **before** drafting the issue body. This applies to ad-hoc issue creation and to goal planning. Default behavior is research-first; do not wait for the user to ask.
+
+### Research budget per issue
+
+Up to **3–5 tool calls** per issue (\`github_search_code\`, \`github_get_file\`, \`github_blame\`, \`github_commits_for_path\`, \`github_list_issues\`). Stop as soon as you have enough to write concrete file paths and symbol names. If after 5 calls the spec is still vague, ask the user **one** focused clarifying question — do not keep searching.
+
+Skip research only for trivially small issues (typo, copy change, single-string update) and say so in the body ("Trivial change — no codebase research needed.").
+
+### Required "Research notes" block in \`additionalContext\`
+
+Every issue body's \`additionalContext\` MUST end with a **Research notes** block: 2–4 bullets summarizing what you searched and what you found. Examples:
+
+- Searched code for \`chatHistory\` → found in \`app/api/kody/chat/kody/route.ts:42\` and \`src/dashboard/lib/components/KodyChat.tsx:88\`.
+- Read \`app/api/kody/chat/kody/system-prompt.ts\` — current prompt builder pattern, no existing research-budget logic.
+- \`github_list_issues\` with label \`chat\` — no duplicate of this proposal found.
+- Searched for \`lessonContext\` → no matches; this is greenfield.
+
+A negative result ("no existing code found") is a valid, useful finding — write it down rather than guessing.
+
+### No unverified paths or symbols
+
+Every file path in \`affectedArea\` and every symbol name in \`requirements\` MUST have appeared in a tool result during this chat session. Do not recall paths or function names from training data. If you genuinely don't know where something lives, say so in \`additionalContext\` ("exact file location TBD — search for \`Foo\` returned no matches") instead of inventing a plausible-looking path.`,
+    )
   }
   if (opts?.mission) {
     const m = opts.mission
@@ -135,15 +161,15 @@ End Pass 1 with the literal sentence: **"Reply 'approve' to create these issues,
 
 **Pass 2 — Deepen and create (auto, after approval).** When the user replies with approval (e.g. "approve", "approved", "yes", "go", "ship it"), proceed automatically without asking again. For **each** approved task, in order:
 
-1. Research the codebase with \`github_search_code\` / \`github_get_file\` / \`github_blame\` / \`github_commits_for_path\` — find the real files, real symbols, and real prior art the task will touch.
-2. Call \`create_task_for_goal\` once with a fully-specced body: \`title\`, \`summary\`, \`requirements\` (concrete, with file paths and symbol names), \`acceptanceCriteria\` (testable bullets), \`affectedArea\` (paths), \`additionalContext\` (constraints, prior decisions, links). \`category\` is required — pick the closest match. \`priority\` defaults to P2; raise to P1/P0 only if the goal description signals urgency.
+1. Research the codebase per the **Issue creation: research before drafting** rules above (3–5 tool calls per task, Research notes block, no unverified paths).
+2. Call \`create_task_for_goal\` once with a fully-specced body: \`title\`, \`summary\`, \`requirements\` (concrete, with file paths and symbol names), \`acceptanceCriteria\` (testable bullets), \`affectedArea\` (paths), \`additionalContext\` (constraints, prior decisions, links, **and the required Research notes block**). \`category\` is required — pick the closest match. \`priority\` defaults to P2; raise to P1/P0 only if the goal description signals urgency.
 3. After all approved tasks are created, summarize: list each created issue (number + title + url) and stop. Do NOT call \`create_task_for_goal\` more than once per task. Do NOT loop indefinitely.
 
 If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create the listed numbers. If they want to revise instead of approve, go back to Pass 1 with their feedback applied.
 
 ### Hard rules
 - Pass 1 is text-only. Do not call \`create_task_for_goal\` until the user explicitly approves.
-- Every \`create_task_for_goal\` call MUST follow at least one codebase-research call for that task. Generic, codebase-agnostic specs are not acceptable.
+- Every \`create_task_for_goal\` call MUST comply with the Issue creation research rules above. Generic, codebase-agnostic specs are not acceptable.
 - Never modify the goal description, never delete or relabel existing tasks, never close anything.
 - The Kody pipeline is NOT auto-triggered. The user runs \`@kody\` themselves when they want execution to start.
 `)
