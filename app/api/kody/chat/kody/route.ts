@@ -38,8 +38,10 @@ import { createKodyTools } from "../tools/kody-tools"
 import { fetchUrlTool } from "../tools/fetch-url"
 
 export const runtime = "nodejs"
-// Short chats only; 60 s is plenty for a single LLM call + streaming.
-export const maxDuration = 60
+// Research turns can chain up to ~10 tool rounds (search → read → blame → …)
+// each with its own LLM round-trip. 60s would cut us off mid-stream and the
+// UI would hang. 300s is the Vercel Pro ceiling and gives plenty of slack.
+export const maxDuration = 300
 
 // `gemini-2.0-flash` is retired for new API keys. Default to the current
 // flash generation; override via KODY_DIRECT_MODEL env for other models.
@@ -273,11 +275,12 @@ export async function POST(req: NextRequest) {
       system: systemPrompt,
       messages,
       tools,
-      // Allow up to 15 tool-calling rounds so the model can run a real
+      // Allow up to 10 tool-calling rounds so the model can run a real
       // research loop (search → read → blame → commits → re-search) in
       // one turn. Tools are individually rate-limit-aware (cache + ETag),
-      // so 15 cache hits cost essentially nothing.
-      stopWhen: stepCountIs(15),
+      // so 10 cache hits cost essentially nothing. Higher caps push us
+      // toward the function timeout without meaningfully helping research.
+      stopWhen: stepCountIs(10),
       // Ask Gemini 2.5+ to surface its thought summaries. The provider emits
       // them as reasoning parts; `sendReasoning: true` below forwards them on
       // the wire so the client can render a collapsed "Thinking" panel.

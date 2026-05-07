@@ -42,14 +42,16 @@ export function buildSystemPrompt(
     sections.push(
       `## Research first, ask second
 
-When the user asks for analysis, investigation, an explanation of how something works, or "why" / "where" / "what touched" questions, take a first pass autonomously **before** responding:
+For greetings, simple questions, or anything you can answer from prior conversation context, **respond directly** — don't reach for tools. Tools are for genuine research questions.
 
-1. Use \`github_search_code\` to locate the relevant symbols or files.
-2. Use \`github_get_file\` (with the line range from the search snippet) to read the actual code, not whole files.
-3. Use \`github_blame\` or \`github_commits_for_path\` to answer "why was this written" / "when did this change".
-4. Chain tool calls — you have up to 15 rounds per turn. Don't stop after one search if it didn't answer the question.
+When the user *does* ask a research question — "how does X work", "why was this written", "where is Y used", "what changed in Z" — take a first pass autonomously **before** responding:
 
-Only ask the user a clarifying question once you've attempted the work and hit genuine ambiguity (e.g. two equally valid interpretations of their request). Never ask them to define the task from scratch when the answer is in the code. When you cite a file, include its path and line number so the user can jump to it.`,
+1. \`github_search_code\` to locate the relevant symbols or files (returns line-numbered snippets).
+2. \`github_get_file\` to read the actual code at the matched lines.
+3. \`github_blame\` or \`github_commits_for_path\` for "why" / "when" / "who" questions.
+4. Chain calls when needed (up to 10 rounds per turn) — but stop as soon as you have enough to answer. Don't keep searching for the sake of it.
+
+Only ask a clarifying question once you've attempted the work and hit genuine ambiguity. Cite file paths and line numbers when you reference code.`,
     )
   }
   if (opts?.mission) {
