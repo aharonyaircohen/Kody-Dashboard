@@ -11,7 +11,11 @@ import type { KodyTask, SortField } from "../types";
 import { filterTasksByView, getViewModeCounts, sortTasks } from "../utils";
 import { TaskList } from "./TaskList";
 import { GoalGroupedView, useGoalCollapse } from "./GoalGroupedView";
-import { CreateGoalDialog, EditGoalDialog } from "./GoalControl";
+import {
+  CreateGoalDialog,
+  EditGoalDialog,
+  PlanGoalDialog,
+} from "./GoalControl";
 import { GoalDiscussionDialog } from "./GoalDiscussionDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useGoals, useDeleteGoal, goalQueryKeys } from "../hooks/useGoals";
@@ -134,6 +138,10 @@ export function KodyDashboard({
   const [pendingDeleteGoal, setPendingDeleteGoal] = useState<Goal | null>(null);
   // Goal whose discussion thread is currently open in a modal. Null = closed.
   const [discussingGoal, setDiscussingGoal] = useState<Goal | null>(null);
+  // Goal currently being planned (planner chat dialog). Null = closed. The
+  // sessionId is regenerated on every open so a fresh thread is shown.
+  const [planningGoal, setPlanningGoal] = useState<Goal | null>(null);
+  const [plannerSessionId, setPlannerSessionId] = useState<string | null>(null);
   // When set, the CreateTaskDialog pre-applies this goal's label. Null = no scope.
   const [presetGoalForCreate, setPresetGoalForCreate] = useState<Goal | null>(
     null,
@@ -1716,6 +1724,14 @@ export function KodyDashboard({
                     onEditGoal={setEditingGoal}
                     onDeleteGoal={setPendingDeleteGoal}
                     onOpenGoalDiscussion={setDiscussingGoal}
+                    onPlanGoal={(goal) => {
+                      setPlannerSessionId(
+                        typeof crypto !== "undefined" && "randomUUID" in crypto
+                          ? crypto.randomUUID()
+                          : `planner-${Date.now()}`,
+                      );
+                      setPlanningGoal(goal);
+                    }}
                     onCreateTaskInGoal={handleCreateInGoal}
                     onReportBugInGoal={handleReportBugInGoal}
                     onMoveTask={handleMoveTask}
@@ -1962,6 +1978,35 @@ export function KodyDashboard({
         <GoalDiscussionDialog
           goal={discussingGoal}
           onClose={() => setDiscussingGoal(null)}
+        />
+        <PlanGoalDialog
+          open={!!planningGoal && !!plannerSessionId}
+          goal={planningGoal ?? ({} as Goal)}
+          sessionId={plannerSessionId ?? ""}
+          existingTasks={
+            planningGoal
+              ? filteredTasks
+                  .filter((t) =>
+                    t.labels.includes(`goal:${planningGoal.id}`),
+                  )
+                  .map((t) => ({
+                    number: t.issueNumber,
+                    title: t.title,
+                    state: t.state,
+                  }))
+              : []
+          }
+          actorLogin={githubUser?.login ?? null}
+          onTasksCreated={() => {
+            // Refresh task list after every successful planner turn.
+            // Pass 2 typically opens several issues in one round; one
+            // invalidation per stream is enough.
+            refetch();
+          }}
+          onClose={() => {
+            setPlanningGoal(null);
+            setPlannerSessionId(null);
+          }}
         />
         <ConfirmDialog
           open={!!pendingDeleteGoal}

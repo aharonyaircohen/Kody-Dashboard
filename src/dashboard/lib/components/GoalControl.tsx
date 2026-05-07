@@ -569,7 +569,7 @@ function GoalDetail({
   )
 }
 
-function PlanGoalDialog({
+export function PlanGoalDialog({
   open,
   goal,
   sessionId,

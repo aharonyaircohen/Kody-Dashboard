@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Pencil,
   Plus,
+  Sparkles,
   Trash2,
 } from 'lucide-react'
 import {
@@ -78,6 +79,8 @@ interface GoalGroupedViewProps {
   onDeleteGoal?: (goal: Goal) => void
   /** Open the goal's discussion thread (modal). */
   onOpenGoalDiscussion?: (goal: Goal) => void
+  /** Open the planner chat scoped to this goal (Pass 1 → approve → Pass 2 creates issues). */
+  onPlanGoal?: (goal: Goal) => void
   /** Create a task scoped to this goal (or null for Ungrouped). */
   onCreateTaskInGoal?: (goal: Goal | null) => void
   /** Report a bug scoped to this goal (or null for Ungrouped). */
@@ -241,6 +244,7 @@ export function GoalGroupedView({
   onEditGoal,
   onDeleteGoal,
   onOpenGoalDiscussion,
+  onPlanGoal,
   onCreateTaskInGoal,
   onReportBugInGoal,
   onMoveTask,
@@ -457,9 +461,21 @@ export function GoalGroupedView({
                   </div>
                 </button>
 
-                {/* Goal management actions (edit / delete) — creation lives in the card footer */}
+                {/* Goal management actions (plan / discussion / edit / delete) — creation lives in the card footer */}
                 {group.goal ? (
                   <div className="flex items-center gap-1 shrink-0">
+                    {onPlanGoal ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-400"
+                        onClick={() => onPlanGoal(group.goal!)}
+                        aria-label={`Plan tasks for ${group.goal.name}`}
+                        title="Plan with chat — propose tasks from this goal's description, then create them on approval"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                      </Button>
+                    ) : null}
                     {onOpenGoalDiscussion ? (
                       <Button
                         variant="ghost"
