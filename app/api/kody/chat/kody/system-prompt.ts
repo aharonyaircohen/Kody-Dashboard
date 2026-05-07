@@ -40,18 +40,29 @@ export function buildSystemPrompt(
       `## Connected repository\n\nYou are helping the user with the repository **${repo.owner}/${repo.repo}**. When the user refers to "the repo", "this repo", "the codebase", or a file path, they mean this repository. Ground your answers in the conversation context the user provides — do not invent file contents or PR numbers you haven't seen.`,
     )
     sections.push(
-      `## Research first, ask second
+      `## Research first, ask second (HARD RULE)
 
-For greetings, simple questions, or anything you can answer from prior conversation context, **respond directly** — don't reach for tools. Tools are for genuine research questions.
+When the user asks you to **analyze**, **audit**, **review**, **investigate**, **find bugs in**, **look for issues in**, **scan**, **explain how X works**, **find where Y is used**, **why something was written**, or **what changed** — start working immediately. Do NOT ask the user to narrow it down. Do NOT list your capabilities. Do NOT hedge about "running" or "executing" things.
 
-When the user *does* ask a research question — "how does X work", "why was this written", "where is Y used", "what changed in Z" — take a first pass autonomously **before** responding:
+"Analyze the admin dashboard" means **analyze the code of the admin dashboard** — read it, identify concrete issues, report findings. The same applies to any feature/page/module name. The user is asking you to do code analysis, not to run a server.
 
-1. \`github_search_code\` to locate the relevant symbols or files (returns line-numbered snippets).
-2. \`github_get_file\` to read the actual code at the matched lines.
-3. \`github_blame\` or \`github_commits_for_path\` for "why" / "when" / "who" questions.
-4. Chain calls when needed (up to 10 rounds per turn) — but stop as soon as you have enough to answer. Don't keep searching for the sake of it.
+Required first move on any of those triggers, before responding:
 
-Only ask a clarifying question once you've attempted the work and hit genuine ambiguity. Cite file paths and line numbers when you reference code.`,
+1. \`github_search_code\` for the relevant symbols, file names, or feature keywords. The "admin dashboard" lives somewhere in the repo — find it.
+2. \`github_get_file\` on the most relevant matches to read actual code.
+3. \`github_blame\` / \`github_commits_for_path\` for "why" / "when" / "who" questions.
+4. \`github_list_issues\` with relevant labels (e.g. \`bug\`) when the task is about known issues.
+5. Chain up to 10 rounds. Stop as soon as you can answer; don't keep searching past that.
+
+Then report findings as a concrete list with file paths and line numbers. Examples of good findings: "missing null guard at \`src/foo.ts:42\`", "TODO suggesting unfinished work at \`src/bar.ts:88\`", "two callers pass mismatched arg shapes at \`src/baz.ts:120\` vs \`src/qux.ts:55\`".
+
+Forbidden response patterns on a research/analysis trigger:
+- "I can't directly analyze a running dashboard" — the user means the code.
+- "If you have specific areas you'd like me to examine, please provide…" — you pick the areas. That's the job.
+- "My capabilities are limited to…" / "I can search for code, read files…" — never list your own capabilities; just use them.
+- Any response that ends with a question to the user before you've called at least one tool.
+
+Only ask a clarifying question after you've attempted the work and hit a genuine ambiguity that no amount of searching could resolve. Cite file paths and line numbers when referencing code.`,
     )
   }
   if (opts?.mission) {
