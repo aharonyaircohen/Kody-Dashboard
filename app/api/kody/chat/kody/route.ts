@@ -99,6 +99,22 @@ function parseFileData(
   return { data, mediaType: fallbackMime }
 }
 
+// Cap on the number of prior turns we resend to Gemini. Long histories
+// inflate the first round-trip dramatically (especially with thinking
+// enabled and 20+ tool schemas), and older messages rarely change the
+// next answer. The user-visible chat keeps its full transcript — only
+// the request to the model is trimmed.
+const MAX_HISTORY_MESSAGES = 24
+
+function trimToRecent(messages: ModelMessage[]): ModelMessage[] {
+  if (messages.length <= MAX_HISTORY_MESSAGES) return messages
+  const trimmed = messages.slice(-MAX_HISTORY_MESSAGES)
+  // Gemini rejects histories that don't start with a user message. Skip
+  // any leading assistant/system messages in the trimmed slice.
+  const firstUserIdx = trimmed.findIndex((m) => m.role === "user")
+  return firstUserIdx <= 0 ? trimmed : trimmed.slice(firstUserIdx)
+}
+
 function normalizeMessages(raw: IncomingMessage[]): ModelMessage[] {
   const out: ModelMessage[] = []
   for (const m of raw) {
@@ -196,10 +212,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const messages = normalizeMessages(body.messages ?? [])
-  if (messages.length === 0) {
+  const allMessages = normalizeMessages(body.messages ?? [])
+  if (allMessages.length === 0) {
     return NextResponse.json({ error: "messages required (non-empty)" }, { status: 400 })
   }
+  const messages = trimToRecent(allMessages)
+  const trimmedCount = allMessages.length - messages.length
 
   const modelId = body.model ?? DEFAULT_MODEL
   const google = createGoogleGenerativeAI({ apiKey })
@@ -268,18 +286,43 @@ export async function POST(req: NextRequest) {
 
   let stepNum = 0
 
+  // Heartbeat warnings. If no step has finished by T+30s/T+60s, log a
+  // warning so we can spot first-step stalls (Gemini taking forever before
+  // any tokens / tool calls). Cleared at first step finish, completion, or
+  // any error path. Declared outside the try so the catch can clear them.
+  const heartbeats: NodeJS.Timeout[] = []
+  const armHeartbeat = (ms: number) => {
+    heartbeats.push(
+      setTimeout(() => {
+        if (stepNum === 0) {
+          logger.warn(
+            { traceId, elapsedMs: ms, messageCount: messages.length, modelId },
+            "kody-direct: no step finished yet (model may be stuck before first token)",
+          )
+        }
+      }, ms),
+    )
+  }
+  const clearHeartbeats = () => {
+    for (const h of heartbeats) clearTimeout(h)
+    heartbeats.length = 0
+  }
+
   try {
     logger.info(
       {
         traceId,
         modelId,
         messageCount: messages.length,
+        trimmedFromHistory: trimmedCount,
         repo: repo ? `${repo.owner}/${repo.repo}` : null,
         task: body.task?.issueNumber ?? null,
         toolCount: Object.keys(tools ?? {}).length,
       },
       "kody-direct: streaming",
     )
+    armHeartbeat(30_000)
+    armHeartbeat(60_000)
     const result = streamText({
       model: google(modelId),
       system: systemPrompt,
@@ -329,6 +372,7 @@ export async function POST(req: NextRequest) {
       },
       onStepFinish: (step) => {
         stepNum++
+        if (stepNum === 1) clearHeartbeats()
         logger.info(
           {
             traceId,
@@ -341,12 +385,14 @@ export async function POST(req: NextRequest) {
         )
       },
       onError: ({ error }) => {
+        clearHeartbeats()
         // Server-side log of stream errors. We *also* surface the message
         // to the UI via the `onError` arg to toUIMessageStreamResponse
         // below, so the user sees what happened instead of a silent hang.
         logger.error({ traceId, err: error, modelId }, "kody-direct: stream onError")
       },
       onFinish: (event) => {
+        clearHeartbeats()
         clearGitHubContext()
         logger.info(
           {
@@ -367,12 +413,14 @@ export async function POST(req: NextRequest) {
       // (rate limits, quota, bad tool args, etc.) — both for the user and
       // for support sessions where they paste the message back to us.
       onError: (error) => {
+        clearHeartbeats()
         const msg = error instanceof Error ? error.message : String(error)
         logger.error({ traceId, err: error }, "kody-direct: ui-stream onError")
         return `[trace ${traceId}] ${msg}`
       },
     })
   } catch (err) {
+    clearHeartbeats()
     clearGitHubContext()
     logger.error({ traceId, err }, "kody-direct: stream failed")
     return NextResponse.json(
