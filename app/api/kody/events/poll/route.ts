@@ -136,35 +136,58 @@ export async function GET(rawReq: NextRequest) {
     );
   }
 
-  // No catch-up events. Subscribe to in-memory bus and wait. Resolves on:
-  //  - any pushed event for this sessionId (almost always sub-second)
-  //  - LONG_POLL_WAIT_MS timeout (return empty so client re-polls)
-  //  - client abort (req.signal)
+  // No catch-up events yet. Wait for a fresh event via:
+  //  - in-memory bus (instant — works only if /ingest landed on the same
+  //    Vercel function instance as this poll handler);
+  //  - intra-loop git re-check every 3s (catches cross-instance pushes —
+  //    /ingest on instance A bumps git after engine commits, instance B's
+  //    long-poll picks it up here);
+  //  - client abort (req.signal);
+  //  - LONG_POLL_WAIT_MS timeout (return empty so client re-polls).
   let unsubscribe: (() => void) | null = null;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const pushed = await new Promise<boolean>((resolve) => {
+  let outerTimer: ReturnType<typeof setTimeout> | null = null;
+  let recheckTimer: ReturnType<typeof setInterval> | null = null;
+  let settledBy: "push" | "recheck" | "timeout" | "abort" = "timeout";
+  let final = initial;
+  await new Promise<void>((resolve) => {
     let settled = false;
-    const settle = (val: boolean) => {
+    const settle = (reason: typeof settledBy) => {
       if (settled) return;
       settled = true;
-      if (timer) clearTimeout(timer);
+      settledBy = reason;
+      if (outerTimer) clearTimeout(outerTimer);
+      if (recheckTimer) clearInterval(recheckTimer);
       unsubscribe?.();
-      resolve(val);
+      resolve();
     };
-    unsubscribe = subscribe(sessionId, () => settle(true));
-    timer = setTimeout(() => settle(false), LONG_POLL_WAIT_MS);
-    req.signal.addEventListener("abort", () => settle(false));
+    unsubscribe = subscribe(sessionId, () => settle("push"));
+    outerTimer = setTimeout(() => settle("timeout"), LONG_POLL_WAIT_MS);
+    req.signal.addEventListener("abort", () => settle("abort"));
+    // Cross-instance fallback: re-check git every 3s.
+    recheckTimer = setInterval(async () => {
+      if (settled) return;
+      try {
+        const fresh = await readEventsFromGit(octokit, owner, repo, branch, sessionId);
+        if (fresh.allLines.length > initial.allLines.length) {
+          final = fresh;
+          settle("recheck");
+        }
+      } catch {
+        /* transient — keep waiting */
+      }
+    }, 3_000);
   });
 
-  // Re-read after wakeup. We don't trust the event payload alone because
-  // the bus event might be just a notification; re-fetching from git is
-  // the source of truth and only costs one extra Octokit call.
-  let final: { allLines: string[]; exists: boolean };
-  try {
-    final = pushed ? await readEventsFromGit(octokit, owner, repo, branch, sessionId) : initial;
-  } catch (err) {
-    logger.warn({ err, sessionId }, "events/poll: post-push re-read failed");
-    final = initial;
+  // If we got woken by push, re-read from git (the bus carries notification
+  // but the source of truth is the events file). On recheck wakeup `final`
+  // is already set above; on timeout we just return the original.
+  if (settledBy === "push") {
+    try {
+      final = await readEventsFromGit(octokit, owner, repo, branch, sessionId);
+    } catch (err) {
+      logger.warn({ err, sessionId }, "events/poll: post-push re-read failed");
+      final = initial;
+    }
   }
 
   return NextResponse.json(
@@ -172,7 +195,8 @@ export async function GET(rawReq: NextRequest) {
       lines: final.allLines.slice(Math.max(0, since)),
       totalLines: final.allLines.length,
       exists: final.exists,
-      pushed,
+      pushed: settledBy === "push",
+      via: settledBy,
     },
     { headers: noStore },
   );
