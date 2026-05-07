@@ -352,6 +352,8 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     context?.kind === 'goal-planner' ? context.existingTasks : undefined
   const onPlannerTasksCreated =
     context?.kind === 'goal-planner' ? context.onTasksCreated : undefined
+  const onPlannerExit =
+    context?.kind === 'goal-planner' ? context.onExit : undefined
 
   // Task-scoped messages (loaded from / saved to API)
   const [taskMessages, setTaskMessages] = useState<Message[]>([])
@@ -2159,7 +2161,20 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
               <span className="px-1.5 py-0.5 bg-sky-500/15 text-sky-400 rounded font-medium inline-flex items-center gap-1">
                 Planning
               </span>
-              <span className="truncate text-muted-foreground">{plannerGoal.name}</span>
+              <span className="truncate text-muted-foreground flex-1 min-w-0">
+                {plannerGoal.name}
+              </span>
+              {onPlannerExit ? (
+                <button
+                  type="button"
+                  onClick={onPlannerExit}
+                  className="shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-accent"
+                  aria-label="Stop planning this goal"
+                  title="Stop planning"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className="text-sm text-muted-foreground flex items-center gap-1.5">
