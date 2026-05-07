@@ -26,7 +26,6 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { AGENT_KODY } from "@dashboard/lib/agents"
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
 import { createUserOctokit, setGitHubContext, clearGitHubContext } from "@dashboard/lib/github-client"
-import { logger } from "@dashboard/lib/logger"
 import { getSecret } from "@dashboard/lib/vault/get-secret"
 import { buildSystemPrompt, type MissionContext, type TaskContext } from "./system-prompt"
 import { createGitHubTools } from "../tools/github-tools"
@@ -104,7 +103,27 @@ function parseFileData(
 // enabled and 20+ tool schemas), and older messages rarely change the
 // next answer. The user-visible chat keeps its full transcript — only
 // the request to the model is trimmed.
-const MAX_HISTORY_MESSAGES = 24
+const MAX_HISTORY_MESSAGES = 16
+
+// Cap on Gemini 2.5's thinking budget. Default is dynamic/uncapped which
+// can stretch first-token latency well past the streaming-edge idle
+// window. 2048 covers normal reasoning without runaway. Set to 0 to
+// disable thinking entirely; -1 to restore the dynamic default.
+const THINKING_BUDGET = 2048
+
+// Stream tracing uses console.* (not the pino `logger`) on purpose: pino
+// buffers writes asynchronously, and Vercel functions can be killed or
+// suspended mid-stream — losing the trail. console.* is line-flushed on
+// Vercel's runtime so we always see the events that fired before death.
+function traceLog(data: object, msg: string): void {
+  console.log(JSON.stringify({ level: "info", msg, ...data }))
+}
+function traceWarn(data: object, msg: string): void {
+  console.warn(JSON.stringify({ level: "warn", msg, ...data }))
+}
+function traceError(data: object, msg: string): void {
+  console.error(JSON.stringify({ level: "error", msg, ...data }))
+}
 
 function trimToRecent(messages: ModelMessage[]): ModelMessage[] {
   if (messages.length <= MAX_HISTORY_MESSAGES) return messages
@@ -295,7 +314,7 @@ export async function POST(req: NextRequest) {
     heartbeats.push(
       setTimeout(() => {
         if (stepNum === 0) {
-          logger.warn(
+          traceWarn(
             { traceId, elapsedMs: ms, messageCount: messages.length, modelId },
             "kody-direct: no step finished yet (model may be stuck before first token)",
           )
@@ -309,7 +328,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    logger.info(
+    traceLog(
       {
         traceId,
         modelId,
@@ -334,12 +353,16 @@ export async function POST(req: NextRequest) {
       // so 10 cache hits cost essentially nothing. Higher caps push us
       // toward the function timeout without meaningfully helping research.
       stopWhen: stepCountIs(10),
-      // Ask Gemini 2.5+ to surface its thought summaries. The provider emits
-      // them as reasoning parts; `sendReasoning: true` below forwards them on
-      // the wire so the client can render a collapsed "Thinking" panel.
+      // Ask Gemini 2.5+ to surface its thought summaries (forwarded to the
+      // client by `sendReasoning: true` below). The thinking budget is
+      // capped — without it, dynamic thinking can stretch first-token
+      // latency past the streaming-edge idle window for chat-style turns.
       providerOptions: {
         google: {
-          thinkingConfig: { includeThoughts: true },
+          thinkingConfig: {
+            includeThoughts: true,
+            thinkingBudget: THINKING_BUDGET,
+          },
         },
       },
       // Per-tool tracing. `experimental_onToolCallStart` fires before the
@@ -348,7 +371,7 @@ export async function POST(req: NextRequest) {
       // Together with onStepFinish they give us a per-step, per-tool view
       // of where time goes.
       experimental_onToolCallStart: ({ toolCall }) => {
-        logger.info(
+        traceLog(
           {
             traceId,
             tool: toolCall.toolName,
@@ -365,15 +388,18 @@ export async function POST(req: NextRequest) {
           durationMs: event.durationMs,
         }
         if (event.success) {
-          logger.info(base, "kody-direct: tool ok")
+          traceLog(base, "kody-direct: tool ok")
         } else {
-          logger.warn({ ...base, err: event.error }, "kody-direct: tool error")
+          traceWarn(
+            { ...base, err: event.error instanceof Error ? event.error.message : String(event.error) },
+            "kody-direct: tool error",
+          )
         }
       },
       onStepFinish: (step) => {
         stepNum++
         if (stepNum === 1) clearHeartbeats()
-        logger.info(
+        traceLog(
           {
             traceId,
             step: stepNum,
@@ -389,12 +415,15 @@ export async function POST(req: NextRequest) {
         // Server-side log of stream errors. We *also* surface the message
         // to the UI via the `onError` arg to toUIMessageStreamResponse
         // below, so the user sees what happened instead of a silent hang.
-        logger.error({ traceId, err: error, modelId }, "kody-direct: stream onError")
+        traceError(
+          { traceId, modelId, err: error instanceof Error ? error.message : String(error) },
+          "kody-direct: stream onError",
+        )
       },
       onFinish: (event) => {
         clearHeartbeats()
         clearGitHubContext()
-        logger.info(
+        traceLog(
           {
             traceId,
             steps: stepNum,
@@ -415,14 +444,17 @@ export async function POST(req: NextRequest) {
       onError: (error) => {
         clearHeartbeats()
         const msg = error instanceof Error ? error.message : String(error)
-        logger.error({ traceId, err: error }, "kody-direct: ui-stream onError")
+        traceError({ traceId, err: msg }, "kody-direct: ui-stream onError")
         return `[trace ${traceId}] ${msg}`
       },
     })
   } catch (err) {
     clearHeartbeats()
     clearGitHubContext()
-    logger.error({ traceId, err }, "kody-direct: stream failed")
+    traceError(
+      { traceId, err: err instanceof Error ? err.message : String(err) },
+      "kody-direct: stream failed",
+    )
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Stream failed", traceId },
       { status: 500 },
