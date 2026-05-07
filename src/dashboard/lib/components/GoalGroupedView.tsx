@@ -690,12 +690,6 @@ function RunGoalButton({
         ? 'Resume'
         : 'Run'
   const Icon = isDone ? CheckCircle : isActive ? Pause : Play
-  const variant: 'default' | 'ghost' = isActive ? 'ghost' : 'default'
-  const className = cn(
-    'h-8 px-2.5 gap-1 text-xs',
-    isDone && 'opacity-60 cursor-default',
-    !isDone && !isActive && 'bg-emerald-500 hover:bg-emerald-600 text-white',
-  )
   const title = isDone
     ? 'All tasks completed'
     : isActive
@@ -704,18 +698,27 @@ function RunGoalButton({
         ? 'Resume the goal runner'
         : 'Start the goal runner — engine will drive each task to a merged PR'
 
+  // Match sibling buttons (Sparkles / MessageSquare / Pencil / Trash2):
+  // ghost variant, 32×32 icon-only, muted text with a colored hover. Running
+  // state gets a subtle emerald tint so it's still readable at a glance.
   return (
     <Button
-      variant={variant}
+      variant="ghost"
       size="sm"
       disabled={isDone || pending}
       onClick={onClick}
-      className={className}
+      className={cn(
+        'h-8 w-8 p-0 transition-colors',
+        isDone
+          ? 'text-emerald-400/60 cursor-default'
+          : isActive
+            ? 'text-emerald-400 hover:text-emerald-300'
+            : 'text-muted-foreground hover:text-emerald-400',
+      )}
       aria-label={`${label} ${goal.name}`}
       title={title}
     >
       <Icon className="w-3.5 h-3.5" />
-      <span className="hidden md:inline">{label}</span>
     </Button>
   )
 }
