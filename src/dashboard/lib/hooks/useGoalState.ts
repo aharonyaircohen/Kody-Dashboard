@@ -32,6 +32,13 @@ export function useGoalState(goalId: string | null | undefined) {
     },
     enabled: !!goalId && !!getStoredAuth(),
     staleTime: 60_000,
+    // While the goal is active, refresh once a minute so the "ticked Xm ago"
+    // indicator stays honest. Most polls hit GitHub's ETag cache (304 → free).
+    // Don't poll when state is null/done/paused — nothing changes there.
+    refetchInterval: (query) => {
+      const data = query.state.data
+      return data && data.state === 'active' ? 60_000 : false
+    },
     retry: (failureCount, error) => {
       if (error instanceof SessionExpiredError) return false
       if (error instanceof NoTokenError) return false

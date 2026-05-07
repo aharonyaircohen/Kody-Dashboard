@@ -43,3 +43,22 @@ export function makeInitialActiveState(now = new Date()): GoalRunState {
   const iso = now.toISOString()
   return { version: 1, state: 'active', startedAt: iso, updatedAt: iso }
 }
+
+/**
+ * Short relative-time formatter for the runner's `updatedAt`. Returns
+ * strings like "just now", "3m ago", "2h ago", "5d ago". Pure — no
+ * locale, no Intl.RelativeTimeFormat — because the strings are tiny and
+ * dependency-free is more valuable here than perfect i18n.
+ */
+export function formatTickAge(updatedAt: string, now: Date = new Date()): string {
+  const then = new Date(updatedAt).getTime()
+  if (Number.isNaN(then)) return ''
+  const ms = Math.max(0, now.getTime() - then)
+  const min = Math.floor(ms / 60_000)
+  if (min < 1) return 'just now'
+  if (min < 60) return `${min}m ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}h ago`
+  const d = Math.floor(hr / 24)
+  return `${d}d ago`
+}
