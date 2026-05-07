@@ -62,6 +62,17 @@ export interface ViewModeFilterOptions {
 // Queue labels
 export const QUEUE_LABELS = ['kody:queued', 'kody:queue-active', 'kody:queue-failed'] as const
 
+/**
+ * Closed/done tasks are terminal: they belong in neither the active "running"
+ * lane nor the "backlog" intake. Without this guard, a closed task whose
+ * column never got updated (e.g. column='building' from a stale label) would
+ * leak into Running, and a closed task with column='open' would stay in
+ * Backlog.
+ */
+function isTerminalTask(task: KodyTask): boolean {
+  return task.state === 'closed' || task.column === 'done'
+}
+
 export function filterTasksByView(tasks: KodyTask[], options: ViewModeFilterOptions): KodyTask[] {
   const { viewMode, statusFilter, labelFilter, priorityFilter } = options
   return tasks.filter((task) => {
@@ -69,8 +80,14 @@ export function filterTasksByView(tasks: KodyTask[], options: ViewModeFilterOpti
     if (viewMode === 'queue') {
       return task.labels.some((l) => QUEUE_LABELS.includes(l as (typeof QUEUE_LABELS)[number]))
     }
-    if (viewMode === 'backlog' && task.column !== 'open') return false
-    if (viewMode === 'running' && task.column === 'open') return false
+    if (viewMode === 'backlog') {
+      if (isTerminalTask(task)) return false
+      if (task.column !== 'open') return false
+    }
+    if (viewMode === 'running') {
+      if (isTerminalTask(task)) return false
+      if (task.column === 'open') return false
+    }
     // Status filter
     if (statusFilter !== 'all' && task.column !== statusFilter) return false
     // Label filter
@@ -84,20 +101,23 @@ export function filterTasksByView(tasks: KodyTask[], options: ViewModeFilterOpti
 
 /**
  * Compute view mode counts from task list.
- * Backlog = tasks in 'open' column. Running = everything else.
+ * Backlog = open-column non-terminal tasks. Running = everything else that's
+ * still active (terminal/closed tasks are excluded from both counts so they
+ * match what {@link filterTasksByView} actually shows).
  */
 export function getViewModeCounts(tasks: KodyTask[]): {
   runningCount: number
   backlogCount: number
   queueCount: number
 } {
-  const backlogCount = tasks.filter((t) => t.column === 'open').length
+  const active = tasks.filter((t) => !isTerminalTask(t))
+  const backlogCount = active.filter((t) => t.column === 'open').length
   const queueCount = tasks.filter((t) =>
     t.labels.some((l) => QUEUE_LABELS.includes(l as (typeof QUEUE_LABELS)[number])),
   ).length
   return {
     backlogCount,
-    runningCount: tasks.length - backlogCount,
+    runningCount: active.length - backlogCount,
     queueCount,
   }
 }

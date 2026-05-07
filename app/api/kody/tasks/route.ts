@@ -337,17 +337,24 @@ export async function GET(req: NextRequest) {
         // workflow run is in-flight (sync/fix-ci) but the cached pipeline
         // JSON still reflects the previous completed/failed run, prefer the
         // active workflow signal so the task moves back to "building".
+        //
+        // Closed-state short-circuit: a manually-closed issue is terminal
+        // regardless of stale `kody:planning`/`kody:building` labels or an
+        // open PR. Without this, closed tasks leak into the Running view
+        // (column='building'/'review') or stay in Backlog (column='open').
         const pipelineLooksStale =
           pipelineStatus &&
           (pipelineStatus.state === 'completed' ||
             pipelineStatus.state === 'failed' ||
             pipelineStatus.state === 'timeout') &&
           (workflowRun?.status === 'in_progress' || workflowRun?.status === 'queued')
-        const column: ColumnId = pipelineStatus && !pipelineLooksStale
-          ? deriveColumnFromPipeline(pipelineStatus)
-          : pipelineLooksStale
-            ? 'building'
-            : getColumnForIssue(issue, workflowRun ?? undefined, pr ?? null)
+        const column: ColumnId = issue.state === 'closed'
+          ? 'done'
+          : pipelineStatus && !pipelineLooksStale
+            ? deriveColumnFromPipeline(pipelineStatus)
+            : pipelineLooksStale
+              ? 'building'
+              : getColumnForIssue(issue, workflowRun ?? undefined, pr ?? null)
 
         // Derive gate type: prefer pipeline controlMode, fall back to issue labels
         const gateType = deriveGateType(pipelineStatus)
