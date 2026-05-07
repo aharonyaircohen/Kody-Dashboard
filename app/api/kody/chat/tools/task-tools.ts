@@ -41,9 +41,17 @@ const SCOPE_LABEL: Record<Scope, string> = {
 
 // Keep these in sync with CreateTaskDialog's CATEGORY_META label + the
 // header it picks per category in formatBody().
-type Category = 'feature' | 'enhancement' | 'refactor' | 'docs' | 'chore'
+export type Category = 'feature' | 'enhancement' | 'refactor' | 'docs' | 'chore'
 
-const CATEGORY_LABEL: Record<Category, string> = {
+export const CATEGORY_VALUES: readonly Category[] = [
+  'feature',
+  'enhancement',
+  'refactor',
+  'docs',
+  'chore',
+] as const
+
+export const CATEGORY_LABEL: Record<Category, string> = {
   feature: 'New Feature',
   enhancement: 'Enhancement',
   refactor: 'Refactor',
@@ -60,7 +68,7 @@ const REQUIREMENTS_HEADER: Record<Category, string> = {
   chore: 'What Needs to Change',
 }
 
-interface TaskInput {
+export interface TaskInput {
   title: string
   summary: string
   requirements: string
@@ -72,7 +80,7 @@ interface TaskInput {
   assignees?: string[]
 }
 
-function formatTaskBody(category: Category, input: TaskInput): string {
+export function formatTaskBody(category: Category, input: TaskInput): string {
   const {
     title,
     summary,
@@ -123,7 +131,7 @@ function formatTaskBody(category: Category, input: TaskInput): string {
 // Shared input schema. Field text per category is set in the tool description
 // (e.g. "what to refactor" vs "requirements") — schema stays uniform so the
 // model can call any of the five with the same fields.
-const taskInputSchema = z.object({
+export const taskInputSchema = z.object({
   title: z.string().min(1).describe('Short task title (becomes the GitHub issue title).'),
   summary: z
     .string()
