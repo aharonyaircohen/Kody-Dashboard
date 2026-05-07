@@ -19,6 +19,7 @@
  * protocol — client accumulates chunks into the assistant bubble).
  */
 
+import { randomBytes } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { streamText, stepCountIs, type ModelMessage } from "ai"
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
@@ -156,6 +157,12 @@ function normalizeMessages(raw: IncomingMessage[]): ModelMessage[] {
 }
 
 export async function POST(req: NextRequest) {
+  // Short trace ID lets us follow a single chat request through every log
+  // line (start, per-tool start/finish, per-step finish, errors, finish).
+  // Grep `vercel logs` for the ID to see one session's full trace.
+  const traceId = randomBytes(4).toString("hex")
+  const reqStartedAt = Date.now()
+
   const authError = await requireKodyAuth(req)
   if (authError) return authError
 
@@ -259,9 +266,12 @@ export async function POST(req: NextRequest) {
   }
   const tools = { ...baseTools, ...extraTools } as Parameters<typeof streamText>[0]["tools"]
 
+  let stepNum = 0
+
   try {
     logger.info(
       {
+        traceId,
         modelId,
         messageCount: messages.length,
         repo: repo ? `${repo.owner}/${repo.repo}` : null,
@@ -289,24 +299,84 @@ export async function POST(req: NextRequest) {
           thinkingConfig: { includeThoughts: true },
         },
       },
-      onError: ({ error }) => {
-        // streamText swallows per-chunk errors into the stream unless we
-        // surface them here — without this a bad API key / quota /
-        // 429 silently produces a zero-byte response.
-        logger.error({ err: error, modelId }, "kody-direct: stream onError")
+      // Per-tool tracing. `experimental_onToolCallStart` fires before the
+      // tool's `execute` is invoked; `experimental_onToolCallFinish`
+      // afterward with the SDK-measured `durationMs` and a success flag.
+      // Together with onStepFinish they give us a per-step, per-tool view
+      // of where time goes.
+      experimental_onToolCallStart: ({ toolCall }) => {
+        logger.info(
+          {
+            traceId,
+            tool: toolCall.toolName,
+            toolCallId: toolCall.toolCallId,
+          },
+          "kody-direct: tool start",
+        )
       },
-      onFinish: () => {
+      experimental_onToolCallFinish: (event) => {
+        const base = {
+          traceId,
+          tool: event.toolCall.toolName,
+          toolCallId: event.toolCall.toolCallId,
+          durationMs: event.durationMs,
+        }
+        if (event.success) {
+          logger.info(base, "kody-direct: tool ok")
+        } else {
+          logger.warn({ ...base, err: event.error }, "kody-direct: tool error")
+        }
+      },
+      onStepFinish: (step) => {
+        stepNum++
+        logger.info(
+          {
+            traceId,
+            step: stepNum,
+            finishReason: step.finishReason,
+            toolCalls: step.toolCalls?.map((c) => c.toolName) ?? [],
+            usage: step.usage,
+          },
+          "kody-direct: step finish",
+        )
+      },
+      onError: ({ error }) => {
+        // Server-side log of stream errors. We *also* surface the message
+        // to the UI via the `onError` arg to toUIMessageStreamResponse
+        // below, so the user sees what happened instead of a silent hang.
+        logger.error({ traceId, err: error, modelId }, "kody-direct: stream onError")
+      },
+      onFinish: (event) => {
         clearGitHubContext()
+        logger.info(
+          {
+            traceId,
+            steps: stepNum,
+            finishReason: event.finishReason,
+            totalDuration: Date.now() - reqStartedAt,
+            usage: event.usage,
+          },
+          "kody-direct: finish",
+        )
       },
     })
     return result.toUIMessageStreamResponse({
       sendReasoning: true,
+      // Without this the SDK ships a generic "An error occurred." string.
+      // Returning the real message turns silent hangs into visible failures
+      // (rate limits, quota, bad tool args, etc.) — both for the user and
+      // for support sessions where they paste the message back to us.
+      onError: (error) => {
+        const msg = error instanceof Error ? error.message : String(error)
+        logger.error({ traceId, err: error }, "kody-direct: ui-stream onError")
+        return `[trace ${traceId}] ${msg}`
+      },
     })
   } catch (err) {
     clearGitHubContext()
-    logger.error({ err }, "kody-direct: stream failed")
+    logger.error({ traceId, err }, "kody-direct: stream failed")
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Stream failed" },
+      { error: err instanceof Error ? err.message : "Stream failed", traceId },
       { status: 500 },
     )
   }
