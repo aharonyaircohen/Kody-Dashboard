@@ -273,9 +273,11 @@ export async function POST(req: NextRequest) {
       system: systemPrompt,
       messages,
       tools,
-      // Allow up to 5 tool-calling rounds so the model can chain
-      // (e.g. listIssues → getIssue → getFile in one turn).
-      stopWhen: stepCountIs(5),
+      // Allow up to 15 tool-calling rounds so the model can run a real
+      // research loop (search → read → blame → commits → re-search) in
+      // one turn. Tools are individually rate-limit-aware (cache + ETag),
+      // so 15 cache hits cost essentially nothing.
+      stopWhen: stepCountIs(15),
       // Ask Gemini 2.5+ to surface its thought summaries. The provider emits
       // them as reasoning parts; `sendReasoning: true` below forwards them on
       // the wire so the client can render a collapsed "Thinking" panel.
