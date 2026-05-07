@@ -212,7 +212,9 @@ export function createGitHubTools(ctx: Ctx) {
     github_search_code: tool({
       description:
         `Search for code in ${owner}/${repo} using GitHub code search. ` +
-        'Returns up to 20 matches with file paths and line snippets.',
+        'Returns up to 20 matches with file path, snippet fragments, and the ' +
+        'line numbers where each match starts. Prefer this over reading whole ' +
+        'files when looking for symbol definitions or usage sites.',
       inputSchema: z.object({
         query: z
           .string()
@@ -224,18 +226,191 @@ export function createGitHubTools(ctx: Ctx) {
       execute: async ({ query }) => {
         try {
           const scopedQuery = `${query} repo:${owner}/${repo}`
-          const res = await octokit.rest.search.code({ q: scopedQuery, per_page: 20 })
+          // text-match preview gives us `text_matches[]` with `fragment` (the
+          // snippet) and `matches[].indices` (offsets within fragment). We
+          // convert offsets to a 1-based line number relative to the fragment
+          // so the model can cite locations without re-reading the file.
+          const res = await octokit.rest.search.code({
+            q: scopedQuery,
+            per_page: 20,
+            mediaType: { format: 'text-match' },
+          })
+          type TextMatch = {
+            fragment?: string
+            matches?: Array<{ indices?: [number, number] }>
+          }
+          type Hit = {
+            path: string
+            url: string
+            snippet: string
+            lineInFragment: number | null
+          }
+          const matches: Hit[] = res.data.items.flatMap<Hit>((it) => {
+            const item = it as typeof it & { text_matches?: TextMatch[] }
+            const tms = item.text_matches ?? []
+            if (tms.length === 0) {
+              const empty: Hit = {
+                path: it.path,
+                url: it.html_url,
+                snippet: '',
+                lineInFragment: null,
+              }
+              return [empty]
+            }
+            return tms.map<Hit>((tm) => {
+              const fragment = tm.fragment ?? ''
+              const firstIdx = tm.matches?.[0]?.indices?.[0] ?? 0
+              const lineInFragment = (fragment.slice(0, firstIdx).match(/\n/g)?.length ?? 0) + 1
+              return {
+                path: it.path,
+                url: it.html_url,
+                snippet: clip(fragment, 600),
+                lineInFragment,
+              }
+            })
+          })
           return {
             total: res.data.total_count,
-            matches: res.data.items.map((it) => ({
-              path: it.path,
-              url: it.html_url,
-              repository: it.repository.full_name,
-            })),
+            matches,
           }
         } catch (err) {
           logger.warn({ err, owner, repo, query }, 'github_search_code failed')
           return { error: err instanceof Error ? err.message : 'Failed to search code' }
+        }
+      },
+    }),
+
+    github_blame: tool({
+      description:
+        `Show the last commit that modified each line of a file in ${owner}/${repo}. ` +
+        'Use this to answer "why was this written / when did this change / who owns this" ' +
+        'without reading 20 commits. Returns ranges of contiguous lines that share the ' +
+        'same authoring commit, each with sha, author, date, and message summary. ' +
+        'Optionally restrict to a line range to keep responses small.',
+      inputSchema: z.object({
+        path: z.string().min(1).describe('Path to the file in the repo'),
+        ref: z
+          .string()
+          .optional()
+          .describe('Branch / tag / commit SHA. Defaults to the repo default branch.'),
+        startLine: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe('First line to include (1-based). When set, only ranges overlapping [startLine, endLine] are returned.'),
+        endLine: z.number().int().positive().optional().describe('Last line to include (1-based, inclusive).'),
+      }),
+      execute: async ({ path, ref, startLine, endLine }) => {
+        try {
+          // GraphQL blame: ref → target → blame(path) → ranges[].commit.
+          // One round-trip, returns one entry per contiguous run of lines
+          // sharing the same commit, which is exactly what the model wants.
+          const query = `
+            query Blame($owner: String!, $repo: String!, $ref: String!, $path: String!) {
+              repository(owner: $owner, name: $repo) {
+                ref: object(expression: $ref) {
+                  ... on Commit {
+                    blame(path: $path) {
+                      ranges {
+                        startingLine
+                        endingLine
+                        commit {
+                          oid
+                          messageHeadline
+                          committedDate
+                          author { name email user { login } }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          `
+          type BlameRange = {
+            startingLine: number
+            endingLine: number
+            commit: {
+              oid: string
+              messageHeadline: string
+              committedDate: string
+              author: { name: string | null; email: string | null; user: { login: string } | null } | null
+            }
+          }
+          const result = (await octokit.graphql(query, {
+            owner,
+            repo,
+            ref: ref ?? 'HEAD',
+            path,
+          })) as {
+            repository: {
+              ref: { blame: { ranges: BlameRange[] } } | null
+            }
+          }
+          const ranges = result.repository.ref?.blame.ranges ?? []
+          const filtered =
+            startLine != null || endLine != null
+              ? ranges.filter((r) => {
+                  const s = startLine ?? 1
+                  const e = endLine ?? Number.MAX_SAFE_INTEGER
+                  return r.endingLine >= s && r.startingLine <= e
+                })
+              : ranges
+          return {
+            path,
+            ref: ref ?? 'default',
+            ranges: filtered.map((r) => ({
+              startLine: r.startingLine,
+              endLine: r.endingLine,
+              sha: r.commit.oid.slice(0, 8),
+              date: r.commit.committedDate,
+              author: r.commit.author?.user?.login ?? r.commit.author?.name ?? null,
+              message: r.commit.messageHeadline,
+            })),
+          }
+        } catch (err) {
+          logger.warn({ err, owner, repo, path, ref }, 'github_blame failed')
+          return { error: err instanceof Error ? err.message : 'Failed to blame file' }
+        }
+      },
+    }),
+
+    github_commits_for_path: tool({
+      description:
+        `List recent commits in ${owner}/${repo} that touched a given path. ` +
+        'Cheaper than blame when the user just wants "what changed in this file lately" — ' +
+        'returns up to 20 commits with sha, author, date, and message.',
+      inputSchema: z.object({
+        path: z.string().min(1).describe('File or directory path in the repo'),
+        ref: z
+          .string()
+          .optional()
+          .describe('Branch / tag / SHA to start from. Defaults to default branch.'),
+        perPage: z.number().int().min(1).max(50).optional().default(20),
+      }),
+      execute: async ({ path, ref, perPage }) => {
+        try {
+          const res = await octokit.rest.repos.listCommits({
+            owner,
+            repo,
+            path,
+            sha: ref,
+            per_page: perPage,
+          })
+          return {
+            count: res.data.length,
+            commits: res.data.map((c) => ({
+              sha: c.sha.slice(0, 8),
+              date: c.commit.author?.date ?? c.commit.committer?.date ?? null,
+              author: c.author?.login ?? c.commit.author?.name ?? null,
+              message: c.commit.message.split('\n')[0] ?? '',
+              url: c.html_url,
+            })),
+          }
+        } catch (err) {
+          logger.warn({ err, owner, repo, path }, 'github_commits_for_path failed')
+          return { error: err instanceof Error ? err.message : 'Failed to list commits' }
         }
       },
     }),
