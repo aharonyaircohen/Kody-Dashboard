@@ -1,10 +1,10 @@
 /**
  * @fileType component
  * @domain kody
- * @pattern mission-control-page
- * @ai-summary Mission Control — list, view, create, edit, and delete missions.
- *   A mission is a markdown file at `.kody/missions/<slug>.md` in the
- *   connected repo whose body describes the mission's intent, allowed
+ * @pattern job-control-page
+ * @ai-summary Job Control — list, view, create, edit, and delete jobs.
+ *   A job is a markdown file at `.kody/jobs/<slug>.md` in the
+ *   connected repo whose body describes the job's intent, allowed
  *   commands, and restrictions.
  */
 'use client'
@@ -38,15 +38,15 @@ import {
 import { AuthGuard } from '../auth-guard'
 import { cn } from '../utils'
 import {
-  useCreateMission,
-  useDeleteMission,
-  useMissions,
-  useRunMission,
-  useUpdateMission,
-} from '../hooks/useMissions'
+  useCreateJob,
+  useDeleteJob,
+  useJobs,
+  useRunJob,
+  useUpdateJob,
+} from '../hooks/useJobs'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
-import type { Mission } from '../api'
-import { MISSION_TEMPLATE } from '../mission-template'
+import type { Job } from '../api'
+import { JOB_TEMPLATE } from '../job-template'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
 import { KodyChat } from './KodyChat'
@@ -57,29 +57,29 @@ function newDraftId(): string {
     : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-export function MissionControl({ titleSlot }: { titleSlot?: React.ReactNode } = {}) {
+export function JobControl({ titleSlot }: { titleSlot?: React.ReactNode } = {}) {
   return (
     <AuthGuard>
-      <MissionControlInner titleSlot={titleSlot} />
+      <JobControlInner titleSlot={titleSlot} />
     </AuthGuard>
   )
 }
 
-export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) {
-  const { data: missions = [], isLoading, isFetching, refetch, error } = useMissions()
+export function JobControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) {
+  const { data: jobs = [], isLoading, isFetching, refetch, error } = useJobs()
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [editingMission, setEditingMission] = useState<Mission | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<Mission | null>(null)
-  const [pendingRun, setPendingRun] = useState<Mission | null>(null)
+  const [editingJob, setEditingJob] = useState<Job | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Job | null>(null)
+  const [pendingRun, setPendingRun] = useState<Job | null>(null)
 
   // Chat-panel state. The left rail switches between three modes:
-  //  • mission mode  — when a mission is selected and we're not drafting
-  //  • draft mode    — when "Draft new mission" is active (rotates draftId)
-  //  • disabled      — neither (e.g. no missions yet)
+  //  • job mode  — when a job is selected and we're not drafting
+  //  • draft mode    — when "Draft new job" is active (rotates draftId)
+  //  • disabled      — neither (e.g. no jobs yet)
   // `draftPrefill` carries an assistant reply the user picked via
-  // "Use as mission" into CreateMissionDialog.
+  // "Use as job" into CreateJobDialog.
   const [isDrafting, setIsDrafting] = useState(false)
   const [draftId, setDraftId] = useState<string>(() => newDraftId())
   const [draftPrefill, setDraftPrefill] = useState<string | null>(null)
@@ -89,20 +89,20 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
   }
   const cancelDraft = () => setIsDrafting(false)
 
-  const selectedMission = useMemo(
-    () => missions.find((m) => m.slug === selectedSlug) ?? null,
-    [missions, selectedSlug],
+  const selectedJob = useMemo(
+    () => jobs.find((m) => m.slug === selectedSlug) ?? null,
+    [jobs, selectedSlug],
   )
 
   useEffect(() => {
-    if (!selectedSlug && missions.length > 0) {
-      setSelectedSlug(missions[0].slug)
+    if (!selectedSlug && jobs.length > 0) {
+      setSelectedSlug(jobs[0].slug)
     }
-  }, [missions, selectedSlug])
+  }, [jobs, selectedSlug])
 
   const { githubUser } = useGitHubIdentity()
-  const deleteMutation = useDeleteMission(githubUser?.login)
-  const runMutation = useRunMission()
+  const deleteMutation = useDeleteJob(githubUser?.login)
+  const runMutation = useRunJob()
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
@@ -120,11 +120,11 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
           {titleSlot ?? (
             <h1 className="inline-flex items-center gap-2 text-lg md:text-xl font-semibold">
               <Target className="w-5 h-5 text-emerald-400" />
-              Mission Control
+              Job Control
             </h1>
           )}
           <span className="hidden md:inline text-xs text-muted-foreground">
-            {missions.length} {missions.length === 1 ? 'mission' : 'missions'}
+            {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}
           </span>
         </div>
 
@@ -134,7 +134,7 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
             size="sm"
             onClick={() => refetch()}
             disabled={isFetching}
-            aria-label="Refresh missions"
+            aria-label="Refresh jobs"
           >
             <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
           </Button>
@@ -144,10 +144,10 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
               size="sm"
               onClick={cancelDraft}
               className="gap-1"
-              title="Stop drafting; chat returns to the selected mission"
+              title="Stop drafting; chat returns to the selected job"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Back to mission</span>
+              <span className="hidden sm:inline">Back to job</span>
             </Button>
           ) : (
             <Button
@@ -155,7 +155,7 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
               size="sm"
               onClick={startNewDraft}
               className="gap-1"
-              title="Chat with Kody to scope a brand-new mission"
+              title="Chat with Kody to scope a brand-new job"
             >
               <Sparkles className="w-4 h-4" />
               <span className="hidden sm:inline">Draft new</span>
@@ -163,66 +163,66 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
           )}
           <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New mission</span>
+            <span className="hidden sm:inline">New job</span>
           </Button>
         </div>
       </header>
 
       {error ? (
         <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
-          Failed to load missions: {(error as Error).message}
+          Failed to load jobs: {(error as Error).message}
         </div>
       ) : null}
 
       <div className="flex-1 min-h-0 flex">
         {/* Desktop left rail: persistent chat, same pattern as
             KodyDashboard's task chat panel. The chat's context follows the
-            user's intent: drafting a new mission, or chatting about the
+            user's intent: drafting a new job, or chatting about the
             currently selected one. */}
         <div className="hidden md:block w-[400px] shrink-0 border-r border-border">
           <KodyChat
             context={
               isDrafting
                 ? {
-                    kind: 'mission-draft',
+                    kind: 'job-draft',
                     draftId,
                     onFinalize: (assistantContent) => {
                       setDraftPrefill(assistantContent)
                       setShowCreate(true)
                     },
                   }
-                : selectedMission
-                  ? { kind: 'mission', mission: selectedMission }
+                : selectedJob
+                  ? { kind: 'job', job: selectedJob }
                   : null
             }
             actorLogin={githubUser?.login}
           />
         </div>
 
-        {/* Middle: mission list */}
+        {/* Middle: job list */}
         <aside
           className={cn(
             'w-full md:w-80 md:border-r md:border-border overflow-y-auto',
-            selectedMission && 'hidden md:block',
+            selectedJob && 'hidden md:block',
           )}
         >
           {isLoading ? (
-            <EmptyState icon={<FileText />} title="Loading missions…" />
-          ) : missions.length === 0 ? (
+            <EmptyState icon={<FileText />} title="Loading jobs…" />
+          ) : jobs.length === 0 ? (
             <EmptyState
               icon={<Target />}
-              title="No missions yet"
-              hint="Create your first mission to describe the intent, system prompt, and restrictions."
+              title="No jobs yet"
+              hint="Create your first job to describe the intent, system prompt, and restrictions."
             />
           ) : (
             <ul className="divide-y divide-border">
-              {missions.map((mission) => {
-                const isActive = selectedSlug === mission.slug
+              {jobs.map((job) => {
+                const isActive = selectedSlug === job.slug
                 return (
-                  <li key={mission.slug}>
+                  <li key={job.slug}>
                     <button
                       type="button"
-                      onClick={() => setSelectedSlug(mission.slug)}
+                      onClick={() => setSelectedSlug(job.slug)}
                       className={cn(
                         'w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative',
                         isActive && 'bg-accent/70',
@@ -239,15 +239,15 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
                           )}
                         />
                         <span className="font-medium text-sm truncate flex-1">
-                          {mission.title}
+                          {job.title}
                         </span>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                        <span className="font-mono opacity-80">{mission.slug}</span>
+                        <span className="font-mono opacity-80">{job.slug}</span>
                         <span>·</span>
                         <span className="inline-flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
-                          {new Date(mission.updatedAt).toLocaleDateString()}
+                          {new Date(job.updatedAt).toLocaleDateString()}
                         </span>
                       </div>
                     </button>
@@ -258,71 +258,71 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
           )}
         </aside>
 
-        {/* Right: mission detail */}
+        {/* Right: job detail */}
         <section
           className={cn(
             'flex-1 min-w-0 overflow-y-auto',
-            !selectedMission && 'hidden md:block',
+            !selectedJob && 'hidden md:block',
           )}
         >
-          {selectedMission ? (
-            <MissionDetail
-              mission={selectedMission}
+          {selectedJob ? (
+            <JobDetail
+              job={selectedJob}
               onBack={() => setSelectedSlug(null)}
-              onEdit={() => setEditingMission(selectedMission)}
-              onDelete={() => setPendingDelete(selectedMission)}
-              onRun={() => setPendingRun(selectedMission)}
+              onEdit={() => setEditingJob(selectedJob)}
+              onDelete={() => setPendingDelete(selectedJob)}
+              onRun={() => setPendingRun(selectedJob)}
               isRunning={
-                runMutation.isPending && runMutation.variables?.slug === selectedMission.slug
+                runMutation.isPending && runMutation.variables?.slug === selectedJob.slug
               }
             />
           ) : (
             <EmptyState
               icon={<Target />}
-              title="Select a mission"
-              hint="Pick a mission from the list to see its intent and system prompt."
+              title="Select a job"
+              hint="Pick a job from the list to see its intent and system prompt."
             />
           )}
         </section>
       </div>
 
       {/* Create */}
-      <CreateMissionDialog
+      <CreateJobDialog
         open={showCreate}
         initialBody={draftPrefill}
         onClose={() => {
           setShowCreate(false)
           setDraftPrefill(null)
         }}
-        onCreated={(mission) => {
-          setSelectedSlug(mission.slug)
+        onCreated={(job) => {
+          setSelectedSlug(job.slug)
           setShowCreate(false)
           setDraftPrefill(null)
           // Drop out of draft mode so the chat is now scoped to the
-          // newly-created mission instead of the old draft session.
+          // newly-created job instead of the old draft session.
           setIsDrafting(false)
         }}
       />
 
       {/* Edit */}
-      {editingMission ? (
-        <EditMissionDialog
-          mission={editingMission}
-          onClose={() => setEditingMission(null)}
-          onSaved={() => setEditingMission(null)}
+      {editingJob ? (
+        <EditJobDialog
+          job={editingJob}
+          onClose={() => setEditingJob(null)}
+          onSaved={() => setEditingJob(null)}
         />
       ) : null}
 
       {/* Run confirm */}
       <ConfirmDialog
         open={!!pendingRun}
-        title="Run this mission?"
+        title="Run this job?"
         description={
           pendingRun
-            ? `Dispatches kody.yml with mission "${pendingRun.title}" (${pendingRun.slug}) as the prompt. GitHub Actions minutes will be consumed and kody may make real repo writes.`
+            ? `Dispatches kody.yml with job "${pendingRun.title}" (${pendingRun.slug}) as the prompt. GitHub Actions minutes will be consumed and kody may make real repo writes.`
             : ''
         }
-        confirmLabel="Run mission"
+        confirmLabel="Run job"
         onConfirm={() => {
           if (!pendingRun) return
           runMutation.mutate({
@@ -337,14 +337,14 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
       {/* Delete confirm */}
       <ConfirmDialog
         open={!!pendingDelete}
-        title="Delete this mission?"
+        title="Delete this job?"
         description={
           pendingDelete
-            ? `Mission "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/missions/ via a commit on the default branch.`
+            ? `Job "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/jobs/ via a commit on the default branch.`
             : ''
         }
         variant="destructive"
-        confirmLabel="Delete mission"
+        confirmLabel="Delete job"
         onConfirm={() => {
           if (!pendingDelete) return
           const target = pendingDelete
@@ -360,22 +360,22 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
   )
 }
 
-function MissionDetail({
-  mission,
+function JobDetail({
+  job,
   onBack,
   onEdit,
   onDelete,
   onRun,
   isRunning,
 }: {
-  mission: Mission
+  job: Job
   onBack: () => void
   onEdit: () => void
   onDelete: () => void
   onRun: () => void
   isRunning: boolean
 }) {
-  const hasBody = mission.body.trim().length > 0
+  const hasBody = job.body.trim().length > 0
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -388,27 +388,27 @@ function MissionDetail({
             className="md:hidden gap-1 -ml-2 text-muted-foreground"
           >
             <ArrowLeft className="w-4 h-4" />
-            All missions
+            All jobs
           </Button>
           <header className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
               <div className="inline-flex items-center gap-2 text-xs text-emerald-400 font-medium uppercase tracking-wider">
                 <Target className="w-3.5 h-3.5" />
-                Mission
+                Job
               </div>
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words">
-                {mission.title}
+                {job.title}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-                <span className="font-mono opacity-80">{mission.slug}</span>
+                <span className="font-mono opacity-80">{job.slug}</span>
                 <span>·</span>
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  updated {new Date(mission.updatedAt).toLocaleDateString()}
+                  updated {new Date(job.updatedAt).toLocaleDateString()}
                 </span>
                 <span>·</span>
                 <a
-                  href={mission.htmlUrl}
+                  href={job.htmlUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
@@ -451,7 +451,7 @@ function MissionDetail({
           {hasBody ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{mission.body}</ReactMarkdown>
+                <ReactMarkdown>{job.body}</ReactMarkdown>
               </div>
             </div>
           ) : null}
@@ -471,7 +471,7 @@ function MissionDetail({
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Use <span className="font-medium text-foreground">Edit</span> to
-                describe the mission&apos;s intent, system prompt, allowed
+                describe the job&apos;s intent, system prompt, allowed
                 commands, and restrictions.
               </p>
             </div>
@@ -482,7 +482,7 @@ function MissionDetail({
               className="gap-1.5 mt-1"
             >
               <Pencil className="w-3.5 h-3.5" />
-              Edit mission
+              Edit job
             </Button>
           </div>
         </div>
@@ -491,7 +491,7 @@ function MissionDetail({
   )
 }
 
-function CreateMissionDialog({
+function CreateJobDialog({
   open,
   initialBody,
   onClose,
@@ -500,22 +500,22 @@ function CreateMissionDialog({
   open: boolean
   /**
    * Optional pre-filled body (e.g. from a "Draft with Kody" chat). When
-   * provided, replaces the default MISSION_TEMPLATE starter.
+   * provided, replaces the default JOB_TEMPLATE starter.
    */
   initialBody?: string | null
   onClose: () => void
-  onCreated: (mission: Mission) => void
+  onCreated: (job: Job) => void
 }) {
   const { githubUser } = useGitHubIdentity()
-  const createMutation = useCreateMission(githubUser?.login)
+  const createMutation = useCreateJob(githubUser?.login)
 
   const [title, setTitle] = useState('')
-  const [body, setBody] = useState(MISSION_TEMPLATE)
+  const [body, setBody] = useState(JOB_TEMPLATE)
 
   useEffect(() => {
     if (open) {
       setTitle('')
-      setBody(initialBody && initialBody.trim() ? initialBody : MISSION_TEMPLATE)
+      setBody(initialBody && initialBody.trim() ? initialBody : JOB_TEMPLATE)
     }
   }, [open, initialBody])
 
@@ -524,7 +524,7 @@ function CreateMissionDialog({
     createMutation.mutate(
       { title: title.trim(), body },
       {
-        onSuccess: (mission) => onCreated(mission),
+        onSuccess: (job) => onCreated(job),
       },
     )
   }
@@ -533,17 +533,17 @@ function CreateMissionDialog({
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>New mission</DialogTitle>
+          <DialogTitle>New job</DialogTitle>
           <DialogDescription>
-            Describe the mission&apos;s intent, system prompt, allowed commands, and restrictions.
+            Describe the job&apos;s intent, system prompt, allowed commands, and restrictions.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="mission-title">Title</Label>
+            <Label htmlFor="job-title">Title</Label>
             <Input
-              id="mission-title"
+              id="job-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Release notes manager"
@@ -565,7 +565,7 @@ function CreateMissionDialog({
             onClick={handleSubmit}
             disabled={!title.trim() || createMutation.isPending}
           >
-            {createMutation.isPending ? 'Creating…' : 'Create mission'}
+            {createMutation.isPending ? 'Creating…' : 'Create job'}
           </Button>
         </div>
       </DialogContent>
@@ -573,31 +573,31 @@ function CreateMissionDialog({
   )
 }
 
-function EditMissionDialog({
-  mission,
+function EditJobDialog({
+  job,
   onClose,
   onSaved,
 }: {
-  mission: Mission
+  job: Job
   onClose: () => void
   onSaved: () => void
 }) {
   const { githubUser } = useGitHubIdentity()
-  const updateMutation = useUpdateMission(mission.slug, githubUser?.login)
+  const updateMutation = useUpdateJob(job.slug, githubUser?.login)
 
-  const [title, setTitle] = useState(mission.title)
-  const [body, setBody] = useState(mission.body || '')
+  const [title, setTitle] = useState(job.title)
+  const [body, setBody] = useState(job.body || '')
 
   useEffect(() => {
-    setTitle(mission.title)
-    setBody(mission.body || '')
-  }, [mission])
+    setTitle(job.title)
+    setBody(job.body || '')
+  }, [job])
 
   const handleSubmit = () => {
     if (!title.trim() || updateMutation.isPending) return
     const patch: { title?: string; body?: string } = {}
-    if (title !== mission.title) patch.title = title.trim()
-    if (body !== mission.body) patch.body = body
+    if (title !== job.title) patch.title = title.trim()
+    if (body !== job.body) patch.body = body
     if (Object.keys(patch).length === 0) {
       onSaved()
       return
@@ -609,17 +609,17 @@ function EditMissionDialog({
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit mission `{mission.slug}`</DialogTitle>
+          <DialogTitle>Edit job `{job.slug}`</DialogTitle>
           <DialogDescription>
-            Update the mission&apos;s title or body. Saving commits the file to the default branch.
+            Update the job&apos;s title or body. Saving commits the file to the default branch.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="edit-mission-title">Title</Label>
+            <Label htmlFor="edit-job-title">Title</Label>
             <Input
-              id="edit-mission-title"
+              id="edit-job-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               autoFocus

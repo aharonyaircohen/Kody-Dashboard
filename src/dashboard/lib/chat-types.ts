@@ -133,15 +133,15 @@ export type ChatContext =
   | { kind: 'task'; task: import('./types').KodyTask }
   | {
       /**
-       * Chat scoped to an existing mission — analogous to `task` mode.
-       * The agent is given the mission's title/body/labels so it can answer
-       * questions about that specific mission.
+       * Chat scoped to an existing job — analogous to `task` mode.
+       * The agent is given the job's title/body/labels so it can answer
+       * questions about that specific job.
        */
-      kind: 'mission'
-      mission: import('./api').Mission
+      kind: 'job'
+      job: import('./api').Job
     }
   | {
-      kind: 'mission-draft'
+      kind: 'job-draft'
       /**
        * Stable session id used to anchor SSE / engine sessions for this
        * draft. Generated client-side when the draft is opened; the chat
@@ -150,8 +150,8 @@ export type ChatContext =
       draftId: string
       /**
        * Fired when the user picks a specific assistant response as the
-       * basis for a new mission. The consumer should pop its own "create
-       * mission" UI (e.g. pre-filled dialog) with this body.
+       * basis for a new job. The consumer should pop its own "create
+       * job" UI (e.g. pre-filled dialog) with this body.
        */
       onFinalize?: (assistantContent: string) => void
     }

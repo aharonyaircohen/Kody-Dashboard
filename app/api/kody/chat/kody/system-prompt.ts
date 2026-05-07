@@ -20,7 +20,7 @@ export interface TaskContext {
   associatedPR?: { number?: number; state?: string; html_url?: string }
 }
 
-export interface MissionContext {
+export interface JobContext {
   number?: number
   title?: string
   body?: string
@@ -42,8 +42,8 @@ export function buildSystemPrompt(
   repo: { owner: string; repo: string } | null,
   task: TaskContext | undefined,
   opts?: {
-    missionDraft?: boolean
-    mission?: MissionContext
+    jobDraft?: boolean
+    job?: JobContext
     goalPlanner?: boolean
     goal?: GoalContext
   },
@@ -107,19 +107,19 @@ A negative result ("no existing code found") is a valid, useful finding — writ
 Every file path in \`affectedArea\` and every symbol name in \`requirements\` MUST have appeared in a tool result during this chat session. Do not recall paths or function names from training data. If you genuinely don't know where something lives, say so in \`additionalContext\` ("exact file location TBD — search for \`Foo\` returned no matches") instead of inventing a plausible-looking path.`,
     )
   }
-  if (opts?.mission) {
-    const m = opts.mission
-    const lines: string[] = ['## Current mission']
-    if (m.number != null) lines.push(`- Mission #${m.number}`)
+  if (opts?.job) {
+    const m = opts.job
+    const lines: string[] = ['## Current job']
+    if (m.number != null) lines.push(`- Job #${m.number}`)
     if (m.title) lines.push(`- Title: ${m.title}`)
     if (m.state) lines.push(`- State: ${m.state}`)
     if (m.labels?.length) lines.push(`- Labels: ${m.labels.join(', ')}`)
     if (m.body) {
       const bodyPreview = m.body.length > 2000 ? `${m.body.slice(0, 2000)}…` : m.body
-      lines.push(`\n### Mission body\n\n${bodyPreview}`)
+      lines.push(`\n### Job body\n\n${bodyPreview}`)
     }
     lines.push(
-      '\nThe user is chatting about **this specific mission**. A Kody mission is a GitHub issue (label `kody:mission`) whose body describes intent, system prompt, allowed commands, and restrictions. Answer their questions grounded in the mission body above — do NOT claim the mission does not exist. If they want to edit the mission, help them draft changes to the markdown body.',
+      '\nThe user is chatting about **this specific job**. A Kody job is a GitHub issue (label `kody:job`) whose body describes intent, system prompt, allowed commands, and restrictions. Answer their questions grounded in the job body above — do NOT claim the job does not exist. If they want to edit the job, help them draft changes to the markdown body.',
     )
     sections.push(lines.join('\n'))
   }
@@ -184,18 +184,18 @@ If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create th
 `)
     sections.push(lines.join('\n'))
   }
-  if (opts?.missionDraft) {
+  if (opts?.jobDraft) {
     sections.push(
-      `## Mission drafting mode
+      `## Job drafting mode
 
-The user is **drafting a new Kody mission** — they are not asking about an existing one. A Kody mission is a GitHub issue (labelled \`kody:mission\`) whose markdown body describes:
+The user is **drafting a new Kody job** — they are not asking about an existing one. A Kody job is a GitHub issue (labelled \`kody:job\`) whose markdown body describes:
 
-- **Intent** — what the mission should accomplish
-- **System prompt** — how Kody should behave when the mission runs
+- **Intent** — what the job should accomplish
+- **System prompt** — how Kody should behave when the job runs
 - **Allowed commands / tools** — what Kody is permitted to do
 - **Restrictions** — what Kody must not do
 
-Your job: **interview the user about every aspect of this mission until you reach a shared understanding** — do not draft until they signal they're ready. Ask short, concrete questions one turn at a time, drilling into goal, inputs, outputs, constraints, edge cases, success criteria, allowed tools, and restrictions. Prefer one focused question per turn over multi-part checklists. When the user explicitly says they're ready (or asks you to draft), produce a clean, copy-ready markdown draft with the four sections — Intent, System prompt, Allowed commands / tools, Restrictions — so they can hit **Use as mission** on your reply to turn it into a real mission. Never claim a mission already exists; there is no current mission to look up.`,
+Your job: **interview the user about every aspect of this job until you reach a shared understanding** — do not draft until they signal they're ready. Ask short, concrete questions one turn at a time, drilling into goal, inputs, outputs, constraints, edge cases, success criteria, allowed tools, and restrictions. Prefer one focused question per turn over multi-part checklists. When the user explicitly says they're ready (or asks you to draft), produce a clean, copy-ready markdown draft with the four sections — Intent, System prompt, Allowed commands / tools, Restrictions — so they can hit **Use as job** on your reply to turn it into a real job. Never claim a job already exists; there is no current job to look up.`,
     )
   }
   if (task) {

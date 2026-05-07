@@ -1,9 +1,9 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern missions-api
- * @ai-summary Mission detail API — GET reads a single mission file, PATCH
- *   updates the title/body, DELETE removes the file. Backed by `.kody/missions/<slug>.md`
+ * @pattern jobs-api
+ * @ai-summary Job detail API — GET reads a single job file, PATCH
+ *   updates the title/body, DELETE removes the file. Backed by `.kody/jobs/<slug>.md`
  *   via the GitHub contents API.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -17,11 +17,11 @@ import {
 } from '@dashboard/lib/auth'
 import { setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
 import {
-  readMissionFile,
-  writeMissionFile,
-  deleteMissionFile,
+  readJobFile,
+  writeJobFile,
+  deleteJobFile,
   isValidSlug,
-} from '@dashboard/lib/missions-files'
+} from '@dashboard/lib/jobs-files'
 
 export async function GET(
   req: NextRequest,
@@ -38,15 +38,15 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: 'invalid_slug' }, { status: 400 })
     }
-    const mission = await readMissionFile(slug)
-    if (!mission) {
+    const job = await readJobFile(slug)
+    if (!job) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 })
     }
-    return NextResponse.json({ mission })
+    return NextResponse.json({ job })
   } catch (error: any) {
-    console.error('[Missions] Error fetching mission:', error)
+    console.error('[Jobs] Error fetching job:', error)
     return NextResponse.json(
-      { error: 'fetch_failed', message: error?.message ?? 'Failed to fetch mission' },
+      { error: 'fetch_failed', message: error?.message ?? 'Failed to fetch job' },
       { status: 500 },
     )
   } finally {
@@ -54,7 +54,7 @@ export async function GET(
   }
 }
 
-const updateMissionSchema = z.object({
+const updateJobSchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
   actorLogin: z.string().optional(),
@@ -76,13 +76,13 @@ export async function PATCH(
       return NextResponse.json({ error: 'invalid_slug' }, { status: 400 })
     }
 
-    const existing = await readMissionFile(slug)
+    const existing = await readJobFile(slug)
     if (!existing) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 })
     }
 
     const payload = await req.json()
-    const { title, body, actorLogin } = updateMissionSchema.parse(payload)
+    const { title, body, actorLogin } = updateJobSchema.parse(payload)
 
     const actorResult = await verifyActorLogin(req, actorLogin)
     if (actorResult instanceof NextResponse) return actorResult
@@ -90,12 +90,12 @@ export async function PATCH(
     const userOctokit = await getUserOctokit(req)
     if (!userOctokit) {
       return NextResponse.json(
-        { error: 'no_user_token', message: 'A signed-in GitHub token is required to commit mission files.' },
+        { error: 'no_user_token', message: 'A signed-in GitHub token is required to commit job files.' },
         { status: 401 },
       )
     }
 
-    const mission = await writeMissionFile({
+    const job = await writeJobFile({
       octokit: userOctokit,
       slug,
       title: title ?? existing.title,
@@ -103,9 +103,9 @@ export async function PATCH(
       sha: existing.sha,
     })
 
-    return NextResponse.json({ mission })
+    return NextResponse.json({ job })
   } catch (error: any) {
-    console.error('[Missions] Error updating mission:', error)
+    console.error('[Jobs] Error updating job:', error)
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -117,7 +117,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'github_token_expired' }, { status: 401 })
     }
     return NextResponse.json(
-      { error: 'update_failed', message: error?.message ?? 'Failed to update mission' },
+      { error: 'update_failed', message: error?.message ?? 'Failed to update job' },
       { status: 500 },
     )
   } finally {
@@ -141,7 +141,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'invalid_slug' }, { status: 400 })
     }
 
-    const existing = await readMissionFile(slug)
+    const existing = await readJobFile(slug)
     if (!existing) {
       return NextResponse.json({ success: true, alreadyMissing: true })
     }
@@ -155,21 +155,21 @@ export async function DELETE(
     const userOctokit = await getUserOctokit(req)
     if (!userOctokit) {
       return NextResponse.json(
-        { error: 'no_user_token', message: 'A signed-in GitHub token is required to delete mission files.' },
+        { error: 'no_user_token', message: 'A signed-in GitHub token is required to delete job files.' },
         { status: 401 },
       )
     }
 
-    await deleteMissionFile(userOctokit, slug)
+    await deleteJobFile(userOctokit, slug)
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error('[Missions] Error deleting mission:', error)
+    console.error('[Jobs] Error deleting job:', error)
     if (error?.status === 401) {
       return NextResponse.json({ error: 'github_token_expired' }, { status: 401 })
     }
     return NextResponse.json(
-      { error: 'delete_failed', message: error?.message ?? 'Failed to delete mission' },
+      { error: 'delete_failed', message: error?.message ?? 'Failed to delete job' },
       { status: 500 },
     )
   } finally {

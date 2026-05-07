@@ -1,17 +1,17 @@
 /**
- * Mission file storage — read/write `.kody/missions/<slug>.md` via the
- * GitHub contents API. Replaces the issue-as-mission model.
+ * Job file storage — read/write `.kody/jobs/<slug>.md` via the
+ * GitHub contents API. Replaces the issue-as-job model.
  *
- * One file per mission. Path is the source of truth for identity (slug),
- * file body is the mission's markdown. Metadata (title, lastModified, sha)
+ * One file per job. Path is the source of truth for identity (slug),
+ * file body is the job's markdown. Metadata (title, lastModified, sha)
  * is derived from the file itself and the GitHub commit history is the audit
  * trail — no labels, no issue tracker.
  */
 
 import type { Octokit } from '@octokit/rest'
-import { getOctokit, getOwner, getRepo, invalidateMissionsCache } from './github-client'
+import { getOctokit, getOwner, getRepo, invalidateJobsCache } from './github-client'
 
-export interface MissionFile {
+export interface JobFile {
   /** Filename without `.md` — stable identity. */
   slug: string
   /** First H1 of the body, or humanized slug fallback. */
@@ -26,7 +26,7 @@ export interface MissionFile {
   htmlUrl: string
 }
 
-const MISSIONS_DIR = '.kody/missions'
+const JOBS_DIR = '.kody/jobs'
 
 function slugFromName(name: string): string | null {
   if (!name.endsWith('.md')) return null
@@ -63,7 +63,7 @@ function stripLeadingH1(body: string): string {
 
 function buildHtmlUrl(slug: string, branch: string | null): string {
   const ref = branch ?? 'HEAD'
-  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${MISSIONS_DIR}/${slug}.md`
+  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${JOBS_DIR}/${slug}.md`
 }
 
 async function getDefaultBranch(octokit: Octokit): Promise<string> {
@@ -89,10 +89,10 @@ async function fetchLastCommitDate(
 }
 
 /**
- * List every mission file under `.kody/missions/`. Returns `[]` if the
+ * List every job file under `.kody/jobs/`. Returns `[]` if the
  * directory does not exist (fresh repo).
  */
-export async function listMissionFiles(): Promise<MissionFile[]> {
+export async function listJobFiles(): Promise<JobFile[]> {
   const octokit = getOctokit()
   const branch = await getDefaultBranch(octokit).catch(() => null)
 
@@ -101,7 +101,7 @@ export async function listMissionFiles(): Promise<MissionFile[]> {
     const { data } = await octokit.repos.getContent({
       owner: getOwner(),
       repo: getRepo(),
-      path: MISSIONS_DIR,
+      path: JOBS_DIR,
     })
     if (!Array.isArray(data)) return []
     entries = data as Array<{ name: string; sha: string; type: string }>
@@ -116,12 +116,12 @@ export async function listMissionFiles(): Promise<MissionFile[]> {
     .filter((e): e is { slug: string; sha: string; name: string } => e.slug !== null)
 
   // Read each file's body in parallel. The directory listing only returns
-  // metadata; bodies require a per-file fetch. For ~tens of missions this is
+  // metadata; bodies require a per-file fetch. For ~tens of jobs this is
   // fine; if it grows, switch to a sparse listing.
   const files = await Promise.all(
     slugs.map(async ({ slug, sha, name }) => {
       try {
-        const filePath = `${MISSIONS_DIR}/${name}`
+        const filePath = `${JOBS_DIR}/${name}`
         const { data } = await octokit.repos.getContent({
           owner: getOwner(),
           repo: getRepo(),
@@ -139,25 +139,25 @@ export async function listMissionFiles(): Promise<MissionFile[]> {
           sha,
           updatedAt,
           htmlUrl: buildHtmlUrl(slug, branch),
-        } satisfies MissionFile
+        } satisfies JobFile
       } catch {
         return null
       }
     }),
   )
 
-  return files.filter((f): f is MissionFile => f !== null).sort((a, b) => a.slug.localeCompare(b.slug))
+  return files.filter((f): f is JobFile => f !== null).sort((a, b) => a.slug.localeCompare(b.slug))
 }
 
 /**
- * Read a single mission file by slug. Returns `null` if the file does not
+ * Read a single job file by slug. Returns `null` if the file does not
  * exist.
  */
-export async function readMissionFile(slug: string): Promise<MissionFile | null> {
+export async function readJobFile(slug: string): Promise<JobFile | null> {
   if (!isValidSlug(slug)) return null
   const octokit = getOctokit()
   const branch = await getDefaultBranch(octokit).catch(() => null)
-  const filePath = `${MISSIONS_DIR}/${slug}.md`
+  const filePath = `${JOBS_DIR}/${slug}.md`
 
   try {
     const { data } = await octokit.repos.getContent({
@@ -203,16 +203,16 @@ function buildFileContent(title: string, body: string): string {
 }
 
 /**
- * Create or update a mission file. Use `sha` for updates; omit for creates.
- * Returns the new file's MissionFile record.
+ * Create or update a job file. Use `sha` for updates; omit for creates.
+ * Returns the new file's JobFile record.
  */
-export async function writeMissionFile(opts: WriteOptions): Promise<MissionFile> {
+export async function writeJobFile(opts: WriteOptions): Promise<JobFile> {
   if (!isValidSlug(opts.slug)) {
-    throw new Error(`Invalid mission slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`)
+    throw new Error(`Invalid job slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`)
   }
-  const filePath = `${MISSIONS_DIR}/${opts.slug}.md`
+  const filePath = `${JOBS_DIR}/${opts.slug}.md`
   const content = buildFileContent(opts.title, opts.body)
-  const message = opts.message ?? `${opts.sha ? 'chore' : 'feat'}(missions): ${opts.sha ? 'update' : 'add'} ${opts.slug}`
+  const message = opts.message ?? `${opts.sha ? 'chore' : 'feat'}(jobs): ${opts.sha ? 'update' : 'add'} ${opts.slug}`
 
   await opts.octokit.repos.createOrUpdateFileContents({
     owner: getOwner(),
@@ -224,32 +224,32 @@ export async function writeMissionFile(opts: WriteOptions): Promise<MissionFile>
   })
 
   // Re-read so the response is canonical (sha, updatedAt, htmlUrl all fresh).
-  invalidateMissionsCache(opts.slug)
-  const refreshed = await readMissionFile(opts.slug)
+  invalidateJobsCache(opts.slug)
+  const refreshed = await readJobFile(opts.slug)
   if (!refreshed) {
-    throw new Error('writeMissionFile: file was written but could not be re-read')
+    throw new Error('writeJobFile: file was written but could not be re-read')
   }
   return refreshed
 }
 
 /**
- * Delete a mission file. Idempotent on already-missing files (no-op).
+ * Delete a job file. Idempotent on already-missing files (no-op).
  */
-export async function deleteMissionFile(octokit: Octokit, slug: string): Promise<void> {
+export async function deleteJobFile(octokit: Octokit, slug: string): Promise<void> {
   if (!isValidSlug(slug)) {
-    throw new Error(`Invalid mission slug: "${slug}".`)
+    throw new Error(`Invalid job slug: "${slug}".`)
   }
-  const existing = await readMissionFile(slug)
+  const existing = await readJobFile(slug)
   if (!existing) return
-  const filePath = `${MISSIONS_DIR}/${slug}.md`
+  const filePath = `${JOBS_DIR}/${slug}.md`
   await octokit.repos.deleteFile({
     owner: getOwner(),
     repo: getRepo(),
     path: filePath,
-    message: `chore(missions): remove ${slug}`,
+    message: `chore(jobs): remove ${slug}`,
     sha: existing.sha,
   })
-  invalidateMissionsCache(slug)
+  invalidateJobsCache(slug)
 }
 
 export { isValidSlug }

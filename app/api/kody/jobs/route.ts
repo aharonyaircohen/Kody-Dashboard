@@ -1,10 +1,10 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern missions-api
- * @ai-summary Mission Control API — GET lists missions, POST creates one.
- *   A mission is a markdown file at `.kody/missions/<slug>.md` in the
- *   connected repo. The kody engine's mission-scheduler enumerates the same
+ * @pattern jobs-api
+ * @ai-summary Job Control API — GET lists jobs, POST creates one.
+ *   A job is a markdown file at `.kody/jobs/<slug>.md` in the
+ *   connected repo. The kody engine's job-scheduler enumerates the same
  *   directory and ticks each file every cron wake.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -18,11 +18,11 @@ import {
 } from '@dashboard/lib/auth'
 import { setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
 import {
-  listMissionFiles,
-  readMissionFile,
-  writeMissionFile,
+  listJobFiles,
+  readJobFile,
+  writeJobFile,
   isValidSlug,
-} from '@dashboard/lib/missions-files'
+} from '@dashboard/lib/jobs-files'
 
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req)
@@ -32,10 +32,10 @@ export async function GET(req: NextRequest) {
   if (headerAuth) setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
 
   try {
-    const missions = await listMissionFiles()
-    return NextResponse.json({ missions })
+    const jobs = await listJobFiles()
+    return NextResponse.json({ jobs })
   } catch (error: any) {
-    console.error('[Missions] Error fetching missions:', error)
+    console.error('[Jobs] Error fetching jobs:', error)
 
     if (error?.status === 401) {
       return NextResponse.json({ error: 'github_token_expired' }, { status: 401 })
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { missions: [], error: error?.message || 'Failed to fetch missions' },
+      { jobs: [], error: error?.message || 'Failed to fetch jobs' },
       { status: 500 },
     )
   } finally {
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const createMissionSchema = z.object({
+const createJobSchema = z.object({
   slug: z.string().min(1).max(64).optional(),
   title: z.string().min(1),
   body: z.string().default(''),
@@ -82,20 +82,20 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json()
-    const { slug: requestedSlug, title, body, actorLogin } = createMissionSchema.parse(payload)
+    const { slug: requestedSlug, title, body, actorLogin } = createJobSchema.parse(payload)
 
     const slug = (requestedSlug ?? slugifyTitle(title))
     if (!slug || !isValidSlug(slug)) {
       return NextResponse.json(
-        { error: 'invalid_slug', message: 'Mission slug must be lowercase letters, digits, dashes, or underscores.' },
+        { error: 'invalid_slug', message: 'Job slug must be lowercase letters, digits, dashes, or underscores.' },
         { status: 400 },
       )
     }
 
-    const existing = await readMissionFile(slug)
+    const existing = await readJobFile(slug)
     if (existing) {
       return NextResponse.json(
-        { error: 'slug_taken', message: `Mission "${slug}" already exists.` },
+        { error: 'slug_taken', message: `Job "${slug}" already exists.` },
         { status: 409 },
       )
     }
@@ -106,21 +106,21 @@ export async function POST(req: NextRequest) {
     const userOctokit = await getUserOctokit(req)
     if (!userOctokit) {
       return NextResponse.json(
-        { error: 'no_user_token', message: 'A signed-in GitHub token is required to commit mission files.' },
+        { error: 'no_user_token', message: 'A signed-in GitHub token is required to commit job files.' },
         { status: 401 },
       )
     }
 
-    const mission = await writeMissionFile({
+    const job = await writeJobFile({
       octokit: userOctokit,
       slug,
       title,
       body,
     })
 
-    return NextResponse.json({ mission })
+    return NextResponse.json({ job })
   } catch (error: any) {
-    console.error('[Missions] Error creating mission:', error)
+    console.error('[Jobs] Error creating job:', error)
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'create_failed', message: error?.message ?? 'Failed to create mission' },
+      { error: 'create_failed', message: error?.message ?? 'Failed to create job' },
       { status: 500 },
     )
   } finally {

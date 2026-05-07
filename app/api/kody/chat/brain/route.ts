@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     data?: string
   }
 
-  interface MissionContextInput {
+  interface JobContextInput {
     number?: number
     title?: string
     body?: string
@@ -85,10 +85,10 @@ export async function POST(req: NextRequest) {
     message?: string
     taskContext?: TaskContextInput
     attachments?: AttachmentInput[]
-    /** When true, prepend a mission-drafting preamble to the user message. */
-    missionDraft?: boolean
-    /** Current mission — scopes the chat to this mission when set. */
-    missionContext?: MissionContextInput
+    /** When true, prepend a job-drafting preamble to the user message. */
+    jobDraft?: boolean
+    /** Current job — scopes the chat to this job when set. */
+    jobContext?: JobContextInput
   }
   try {
     body = await req.json()
@@ -134,31 +134,31 @@ export async function POST(req: NextRequest) {
     return parts.join('\n')
   }
 
-  function formatMissionContext(mc: MissionContextInput | undefined): string | null {
+  function formatJobContext(mc: JobContextInput | undefined): string | null {
     if (!mc || mc.number == null) return null
     const parts: string[] = []
-    parts.push(`[Current mission]`)
-    parts.push(`- Mission: #${mc.number}${mc.title ? ` — ${mc.title}` : ''}`)
+    parts.push(`[Current job]`)
+    parts.push(`- Job: #${mc.number}${mc.title ? ` — ${mc.title}` : ''}`)
     if (mc.state) parts.push(`- State: ${mc.state}`)
     if (mc.labels?.length) parts.push(`- Labels: ${mc.labels.join(', ')}`)
     if (mc.body) {
       const truncated = mc.body.length > 1500 ? `${mc.body.slice(0, 1500)}…` : mc.body
-      parts.push(`\n[Mission body]\n${truncated}`)
+      parts.push(`\n[Job body]\n${truncated}`)
     }
     parts.push(
-      '\nThe user is chatting about this specific mission. A Kody mission is a GitHub issue (label kody:mission) whose body describes intent, system prompt, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the mission does not exist.',
+      '\nThe user is chatting about this specific job. A Kody job is a GitHub issue (label kody:job) whose body describes intent, system prompt, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the job does not exist.',
     )
     return parts.join('\n')
   }
 
   const taskPreamble = formatTaskContext(body.taskContext)
-  const missionPreamble = formatMissionContext(body.missionContext)
-  const draftPreamble = body.missionDraft
-    ? `[Mission drafting mode]
-The user is drafting a new Kody mission — there is no existing mission to look up. A Kody mission is a GitHub issue (labelled kody:mission) whose markdown body describes intent, system prompt, allowed commands, and restrictions. Ask concrete scoping questions one turn at a time, then produce a copy-ready markdown draft with those four sections so the user can click "Use as mission" on your reply.`
+  const jobPreamble = formatJobContext(body.jobContext)
+  const draftPreamble = body.jobDraft
+    ? `[Job drafting mode]
+The user is drafting a new Kody job — there is no existing job to look up. A Kody job is a GitHub issue (labelled kody:job) whose markdown body describes intent, system prompt, allowed commands, and restrictions. Ask concrete scoping questions one turn at a time, then produce a copy-ready markdown draft with those four sections so the user can click "Use as job" on your reply.`
     : null
   const preamble =
-    [draftPreamble, missionPreamble, taskPreamble].filter(Boolean).join('\n\n') || null
+    [draftPreamble, jobPreamble, taskPreamble].filter(Boolean).join('\n\n') || null
   const decoratedMessage = preamble ? `${preamble}\n\n[User]\n${message}` : message
 
   // Forward attachments unchanged; Brain server converts them to multimodal

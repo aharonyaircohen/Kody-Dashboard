@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern markdown-editor
  * @ai-summary Controlled markdown editor with toolbar (bold/italic/code/link/list/heading/quote),
- *   emoji picker, and preview toggle. Extracted so Mission Control and future
+ *   emoji picker, and preview toggle. Extracted so Job Control and future
  *   issue-body edits share one implementation.
  */
 'use client'

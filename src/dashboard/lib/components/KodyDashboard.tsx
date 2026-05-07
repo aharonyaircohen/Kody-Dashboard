@@ -1421,17 +1421,17 @@ export function KodyDashboard({
                     </Button>
                   </SimpleTooltip>
 
-                  {/* Missions */}
-                  <SimpleTooltip content="Missions" side="bottom">
+                  {/* Jobs */}
+                  <SimpleTooltip content="Jobs" side="bottom">
                     <Button
                       asChild
                       variant="outline"
                       size="sm"
                       className="gap-1"
                     >
-                      <Link href="/missions" aria-label="Missions">
+                      <Link href="/jobs" aria-label="Jobs">
                         <Layers className="w-4 h-4" />
-                        Missions
+                        Jobs
                       </Link>
                     </Button>
                   </SimpleTooltip>
@@ -1833,16 +1833,16 @@ export function KodyDashboard({
                 Chat with Kody
               </Button>
 
-              {/* Missions */}
+              {/* Jobs */}
               <Button
                 asChild
                 variant="outline"
                 className="w-full justify-start gap-2"
                 onClick={() => setShowMobileMenu(false)}
               >
-                <Link href="/missions">
+                <Link href="/jobs">
                   <Layers className="w-4 h-4" />
-                  Missions
+                  Jobs
                 </Link>
               </Button>
 

@@ -30,7 +30,7 @@ import { getSecret } from "@dashboard/lib/vault/get-secret"
 import {
   buildSystemPrompt,
   type GoalContext,
-  type MissionContext,
+  type JobContext,
   type TaskContext,
 } from "./system-prompt"
 import { createGitHubTools } from "../tools/github-tools"
@@ -226,10 +226,10 @@ export async function POST(req: NextRequest) {
     task?: TaskContext
     /** GitHub login of the requester — gates remote_* tools. Optional. */
     actorLogin?: string
-    /** When true, append a mission-drafting block to the system prompt. */
-    missionDraft?: boolean
-    /** Current mission context — scopes the chat to a specific mission issue. */
-    mission?: MissionContext
+    /** When true, append a job-drafting block to the system prompt. */
+    jobDraft?: boolean
+    /** Current job context — scopes the chat to a specific job issue. */
+    job?: JobContext
     /**
      * When true, append the goal-planning block to the system prompt and
      * wire the planner tools (`create_task_for_goal`). `goal` must be set.
@@ -260,8 +260,8 @@ export async function POST(req: NextRequest) {
     repo ? { owner: repo.owner, repo: repo.repo } : null,
     body.task,
     {
-      missionDraft: body.missionDraft === true,
-      mission: body.mission,
+      jobDraft: body.jobDraft === true,
+      job: body.job,
       goalPlanner: goalPlannerActive,
       goal: goalPlannerActive ? body.goal : undefined,
     },

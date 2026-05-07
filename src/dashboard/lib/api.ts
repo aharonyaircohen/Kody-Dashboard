@@ -745,9 +745,9 @@ export const remoteApi = {
   },
 };
 
-// ============ Missions API ============
+// ============ Jobs API ============
 
-export interface Mission {
+export interface Job {
   /** Filename without `.md` — stable identity. */
   slug: string;
   title: string;
@@ -758,19 +758,19 @@ export interface Mission {
   htmlUrl: string;
 }
 
-export const missionsApi = {
-  list: async (): Promise<Mission[]> => {
-    const res = await fetch(`${API_BASE}/missions`, { headers: buildHeaders() });
-    const data = await handleResponse<{ missions: Mission[] }>(res);
-    return data.missions;
+export const jobsApi = {
+  list: async (): Promise<Job[]> => {
+    const res = await fetch(`${API_BASE}/jobs`, { headers: buildHeaders() });
+    const data = await handleResponse<{ jobs: Job[] }>(res);
+    return data.jobs;
   },
 
-  get: async (slug: string): Promise<Mission> => {
-    const res = await fetch(`${API_BASE}/missions/${encodeURIComponent(slug)}`, {
+  get: async (slug: string): Promise<Job> => {
+    const res = await fetch(`${API_BASE}/jobs/${encodeURIComponent(slug)}`, {
       headers: buildHeaders(),
     });
-    const data = await handleResponse<{ mission: Mission }>(res);
-    return data.mission;
+    const data = await handleResponse<{ job: Job }>(res);
+    return data.job;
   },
 
   create: async (data: {
@@ -778,34 +778,34 @@ export const missionsApi = {
     title: string;
     body: string;
     actorLogin?: string;
-  }): Promise<Mission> => {
-    const res = await fetch(`${API_BASE}/missions`, {
+  }): Promise<Job> => {
+    const res = await fetch(`${API_BASE}/jobs`, {
       method: "POST",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ mission: Mission }>(res);
-    return payload.mission;
+    const payload = await handleResponse<{ job: Job }>(res);
+    return payload.job;
   },
 
   update: async (
     slug: string,
     data: { title?: string; body?: string; actorLogin?: string },
-  ): Promise<Mission> => {
-    const res = await fetch(`${API_BASE}/missions/${encodeURIComponent(slug)}`, {
+  ): Promise<Job> => {
+    const res = await fetch(`${API_BASE}/jobs/${encodeURIComponent(slug)}`, {
       method: "PATCH",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ mission: Mission }>(res);
-    return payload.mission;
+    const payload = await handleResponse<{ job: Job }>(res);
+    return payload.job;
   },
 
   remove: async (slug: string, actorLogin?: string): Promise<void> => {
     const params = new URLSearchParams();
     if (actorLogin) params.set("actorLogin", actorLogin);
     const suffix = params.toString() ? `?${params}` : "";
-    const res = await fetch(`${API_BASE}/missions/${encodeURIComponent(slug)}${suffix}`, {
+    const res = await fetch(`${API_BASE}/jobs/${encodeURIComponent(slug)}${suffix}`, {
       method: "DELETE",
       headers: buildHeaders(),
     });
@@ -813,13 +813,13 @@ export const missionsApi = {
   },
 
   run: async (
-    mission: { slug: string; title: string; body: string },
+    job: { slug: string; title: string; body: string },
   ): Promise<{ sessionId: string; workflowId: string }> => {
     const sessionId =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
-        : `mission-${mission.slug}-${Date.now()}`;
-    const content = `Execute mission \`${mission.slug}\`: ${mission.title}\n\n${mission.body}`;
+        : `job-${job.slug}-${Date.now()}`;
+    const content = `Execute job \`${job.slug}\`: ${job.title}\n\n${job.body}`;
     const res = await fetch(`${API_BASE}/chat/trigger`, {
       method: "POST",
       headers: buildHeaders(),
@@ -1155,7 +1155,7 @@ export const kodyApi = {
   collaborators: collaboratorsApi,
   workflows: workflowsApi,
   remote: remoteApi,
-  missions: missionsApi,
+  jobs: jobsApi,
   goals: goalsApi,
   notifications: notificationsApi,
 };

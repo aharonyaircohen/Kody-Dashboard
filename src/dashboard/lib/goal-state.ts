@@ -7,7 +7,7 @@
  *   tracks whether a goal is being actively driven by the engine. One file
  *   per goal at `.kody/goals/<id>/state.json` keeps engine and dashboard
  *   writes from racing on the manifest, and matches the per-entity-file
- *   convention the engine uses for missions.
+ *   convention the engine uses for jobs.
  */
 
 export type GoalRunStateValue = 'active' | 'paused' | 'done'

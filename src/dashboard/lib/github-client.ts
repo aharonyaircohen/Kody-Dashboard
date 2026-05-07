@@ -148,15 +148,15 @@ export function invalidateIssueCache(issueNumber?: number): void {
 }
 
 /**
- * Invalidate cache entries for mission files. Pass a slug to scope to one
- * mission, or omit to clear the listing cache (e.g. on bulk changes).
+ * Invalidate cache entries for job files. Pass a slug to scope to one
+ * job, or omit to clear the listing cache (e.g. on bulk changes).
  */
-export function invalidateMissionsCache(slug?: string): void {
+export function invalidateJobsCache(slug?: string): void {
   if (typeof slug === 'string' && slug.length > 0) {
-    // Repo-scoped key shape: `mission:owner:repo:slug`. Wipe across repos.
-    invalidateCache('mission:')
+    // Repo-scoped key shape: `job:owner:repo:slug`. Wipe across repos.
+    invalidateCache('job:')
   }
-  invalidateCache('missions:')
+  invalidateCache('jobs:')
 }
 
 /**
@@ -680,7 +680,7 @@ export async function getStatusFromArtifact(
  *
  * Caching:
  * - Default TTL is `CACHE_TTL.tasks` (2min). Pass `ttl` to shorten it for
- *   endpoints that need fresher data (e.g. goals manifest, missions detail).
+ *   endpoints that need fresher data (e.g. goals manifest, jobs detail).
  * - When the TTL expires, the cached ETag is replayed via `If-None-Match`.
  *   GitHub returns 304 (free, doesn't count against the rate limit) when the
  *   issue is unchanged, and we just refresh the TTL on the existing payload.
@@ -762,7 +762,7 @@ export async function fetchIssue(
  *
  * Caching:
  * - Default TTL is `CACHE_TTL.tasks` (2min). Pass `ttl` to shorten it for
- *   endpoints that need fresher data (e.g. goals/missions list).
+ *   endpoints that need fresher data (e.g. goals/jobs list).
  * - Post-TTL revalidation replays the cached ETag via `If-None-Match`. GitHub
  *   returns 304 (free, doesn't count against the rate limit) when the listing
  *   is unchanged, and the TTL is refreshed on the existing payload.

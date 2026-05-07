@@ -107,35 +107,35 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toBe("base")
   })
 
-  it("appends a mission-drafting block when opts.missionDraft is set", async () => {
+  it("appends a job-drafting block when opts.jobDraft is set", async () => {
     const { buildSystemPrompt } = await import("../../app/api/kody/chat/kody/system-prompt")
-    const prompt = buildSystemPrompt("base", null, undefined, { missionDraft: true })
-    expect(prompt).toContain("Mission drafting mode")
-    expect(prompt).toContain("drafting a new Kody mission")
-    expect(prompt).toContain("Use as mission")
+    const prompt = buildSystemPrompt("base", null, undefined, { jobDraft: true })
+    expect(prompt).toContain("Job drafting mode")
+    expect(prompt).toContain("drafting a new Kody job")
+    expect(prompt).toContain("Use as job")
   })
 
-  it("omits the mission-drafting block by default", async () => {
+  it("omits the job-drafting block by default", async () => {
     const { buildSystemPrompt } = await import("../../app/api/kody/chat/kody/system-prompt")
     const prompt = buildSystemPrompt("base", null, undefined)
-    expect(prompt).not.toContain("Mission drafting mode")
+    expect(prompt).not.toContain("Job drafting mode")
   })
 
-  it("appends a current-mission block when opts.mission is set", async () => {
+  it("appends a current-job block when opts.job is set", async () => {
     const { buildSystemPrompt } = await import("../../app/api/kody/chat/kody/system-prompt")
     const prompt = buildSystemPrompt("base", null, undefined, {
-      mission: {
+      job: {
         number: 7,
         title: "Auto-triage stale issues",
         body: "## Intent\nClose stale issues",
         state: "open",
-        labels: ["kody:mission"],
+        labels: ["kody:job"],
       },
     })
-    expect(prompt).toContain("Current mission")
-    expect(prompt).toContain("Mission #7")
+    expect(prompt).toContain("Current job")
+    expect(prompt).toContain("Job #7")
     expect(prompt).toContain("Auto-triage stale issues")
     expect(prompt).toContain("Close stale issues")
-    expect(prompt).toContain("kody:mission")
+    expect(prompt).toContain("kody:job")
   })
 })
