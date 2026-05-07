@@ -54,6 +54,7 @@ import { goalPalette } from '../goal-palette'
 import { useReorderGoals } from '../hooks/useGoals'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { useGoalState, useSetGoalState } from '../hooks/useGoalState'
+import { formatTickAge } from '../goal-state'
 import { TaskList } from './TaskList'
 import { GoalProgressRing } from './GoalProgressRing'
 
@@ -701,25 +702,44 @@ function RunGoalButton({
   // Match sibling buttons (Sparkles / MessageSquare / Pencil / Trash2):
   // ghost variant, 32×32 icon-only, muted text with a colored hover. Running
   // state gets a subtle emerald tint so it's still readable at a glance.
+  //
+  // Companion "ticked Xm ago" indicator: only shown once the runner is real
+  // (active or paused). Hidden when never-started or done — those states
+  // already read clearly from the button alone.
+  const tickAge =
+    state && (current === 'active' || current === 'paused')
+      ? formatTickAge(state.updatedAt)
+      : null
+
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      disabled={isDone || pending}
-      onClick={onClick}
-      className={cn(
-        'h-8 w-8 p-0 transition-colors',
-        isDone
-          ? 'text-emerald-400/60 cursor-default'
-          : isActive
-            ? 'text-emerald-400 hover:text-emerald-300'
-            : 'text-muted-foreground hover:text-emerald-400',
-      )}
-      aria-label={`${label} ${goal.name}`}
-      title={title}
-    >
-      <Icon className="w-3.5 h-3.5" />
-    </Button>
+    <div className="flex items-center gap-1.5">
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={isDone || pending}
+        onClick={onClick}
+        className={cn(
+          'h-8 w-8 p-0 transition-colors',
+          isDone
+            ? 'text-emerald-400/60 cursor-default'
+            : isActive
+              ? 'text-emerald-400 hover:text-emerald-300'
+              : 'text-muted-foreground hover:text-emerald-400',
+        )}
+        aria-label={`${label} ${goal.name}`}
+        title={title}
+      >
+        <Icon className="w-3.5 h-3.5" />
+      </Button>
+      {tickAge ? (
+        <span
+          className="hidden lg:inline text-[11px] text-muted-foreground tabular-nums whitespace-nowrap"
+          title={`Last tick at ${state?.updatedAt ?? ''}`}
+        >
+          {tickAge}
+        </span>
+      ) : null}
+    </div>
   )
 }
 
