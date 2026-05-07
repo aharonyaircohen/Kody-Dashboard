@@ -23,11 +23,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
-import {
-  buildDashboardUrl,
-  buildMetaLine,
-  writeSessionMeta,
-} from "@dashboard/lib/interactive-session";
+import { buildMetaLine, writeSessionMeta } from "@dashboard/lib/interactive-session";
 
 export const runtime = "nodejs";
 
@@ -52,7 +48,6 @@ export async function POST(req: NextRequest) {
 
   let body: {
     taskId?: string;
-    dashboardUrl?: string;
     idleExitMs?: number;
     hardCapMs?: number;
   };
@@ -62,7 +57,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { taskId, dashboardUrl, idleExitMs, hardCapMs } = body;
+  const { taskId, idleExitMs, hardCapMs } = body;
   if (!taskId) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
   }
@@ -79,8 +74,11 @@ export async function POST(req: NextRequest) {
     const meta = buildMetaLine({ idleExitMs, hardCapMs });
     await writeSessionMeta(octokit, owner, repo, taskId, meta);
 
+    // No dashboardUrl: the engine HttpSink would push events to /ingest in
+    // real time, but Vercel's per-instance in-memory bus means the push
+    // often misses the client's poll handler. Falling back to plain client
+    // polling (every 3s with ETag caching) is simpler and reliable.
     const workflowInputs: Record<string, string> = { sessionId: taskId };
-    if (dashboardUrl) workflowInputs.dashboardUrl = buildDashboardUrl(dashboardUrl, taskId);
 
     await octokit.actions.createWorkflowDispatch({
       owner,

@@ -35,26 +35,9 @@ import type { KodyTask } from '../types'
 /** Build fetch headers including client auth when available */
 function authHeaders(): Record<string, string> {
   const auth = getStoredAuth()
-  const headers: Record<string, string> = auth
+  return auth
     ? { 'x-kody-token': auth.token, 'x-kody-owner': auth.owner, 'x-kody-repo': auth.repo }
     : {}
-  // When Vercel Deployment Protection is enabled, every API request goes
-  // through Vercel's auth wall first. The protection bypass token (set in
-  // the project's "Protection Bypass for Automation" settings) lets us
-  // through. NEXT_PUBLIC_* is browser-readable; same security model as a
-  // bearer token — anyone with it can access the deployment.
-  const bypass = process.env.NEXT_PUBLIC_VERCEL_BYPASS_TOKEN
-  if (bypass) headers['x-vercel-protection-bypass'] = bypass
-  return headers
-}
-
-// EventSource cannot attach custom headers, so the Vercel bypass token has
-// to ride along as a query param. Returns either an empty string or the
-// `&x-vercel-protection-bypass=...` suffix to append onto an existing URL
-// already carrying other params.
-function vercelBypassQuery(): string {
-  const bypass = process.env.NEXT_PUBLIC_VERCEL_BYPASS_TOKEN
-  return bypass ? `&x-vercel-protection-bypass=${encodeURIComponent(bypass)}` : ''
 }
 
 /**
@@ -518,22 +501,21 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     [isTaskMode, isMissionMode, missionSlug, isDraftMode, sessionHook],
   )
 
-  // ─── Long-polling for Kody Live ────────────────────────────────────────────
-  // Replaces SSE for interactive sessions. Vercel's Node.js runtime buffers
-  // long-lived SSE responses such that chat.ready never reaches the browser
-  // while the stream is open (a fresh curl probe DOES get it because the
-  // connection closes and flushes the buffer). A simple fetch-poll loop
-  // sidesteps the buffering entirely — each request is a fresh response.
-  //
-  // The watermark (lastLineSeen) is kept in a ref so polls don't re-deliver
-  // the same lines. It's reset to 0 in startInteractiveSession.
+  // ─── Polling for Kody Live ─────────────────────────────────────────────────
+  // Plain fixed-interval poll of /api/kody/events/poll. We tried real-time
+  // push (engine HttpSink → /ingest → in-memory bus) but Vercel's per-
+  // function-instance bus made it unreliable. Polling at 3s with ETag
+  // caching on the server is simple and well-understood: most polls hit
+  // GitHub's 304 cache (free), so the rate-limit cost is roughly ~1 read
+  // per actual new event.
   const pollWatermarkRef = useRef(0)
-  // Marker for the back-to-back loop: each tick checks if its sessionId
-  // still matches before firing the next one. Set to null = stop.
-  const pollSessionIdRef = useRef<string | null>(null)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const stopInteractivePoll = useCallback(() => {
-    pollSessionIdRef.current = null
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
   }, [])
 
   const startInteractivePoll = useCallback(
@@ -606,50 +588,38 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         }
       }
 
-      // Back-to-back long-poll loop. Each fetch hits the server's
-      // /events/poll endpoint, which subscribes to the in-memory bus and
-      // holds for ~25s waiting for a pushed event. On push: returns
-      // immediately (sub-second latency end-to-end). On timeout: returns
-      // empty, we re-fire. Net: idle = ~1 fetch / 25s; active = bursty
-      // delivery as events fire.
-      pollSessionIdRef.current = sessionId
-      const loop = async () => {
-        while (pollSessionIdRef.current === sessionId) {
-          const auth = getStoredAuth()
-          const params = new URLSearchParams({
-            taskId: sessionId,
-            since: String(pollWatermarkRef.current),
+      const tick = async () => {
+        const auth = getStoredAuth()
+        const params = new URLSearchParams({
+          taskId: sessionId,
+          since: String(pollWatermarkRef.current),
+        })
+        if (auth) {
+          params.set('owner', auth.owner)
+          params.set('repo', auth.repo)
+          params.set('token', auth.token)
+        }
+        try {
+          const res = await fetch(`/api/kody/events/poll?${params.toString()}`, {
+            headers: { ...authHeaders() },
           })
-          if (auth) {
-            params.set('owner', auth.owner)
-            params.set('repo', auth.repo)
-            params.set('token', auth.token)
+          if (!res.ok) return
+          const body = (await res.json()) as { lines?: string[]; totalLines?: number }
+          if (Array.isArray(body.lines) && body.lines.length > 0) {
+            handleLines(body.lines)
+            pollWatermarkRef.current =
+              body.totalLines ?? pollWatermarkRef.current + body.lines.length
           }
-          try {
-            const res = await fetch(`/api/kody/events/poll?${params.toString()}`, {
-              headers: { ...authHeaders() },
-            })
-            if (!res.ok) {
-              // Backoff briefly on server error, otherwise we'd hammer.
-              await new Promise((r) => setTimeout(r, 2_000))
-              continue
-            }
-            const body = (await res.json()) as { lines?: string[]; totalLines?: number }
-            if (Array.isArray(body.lines) && body.lines.length > 0) {
-              handleLines(body.lines)
-              pollWatermarkRef.current =
-                body.totalLines ?? pollWatermarkRef.current + body.lines.length
-            }
-            // No artificial gap between fetches — server already held
-            // the connection open for up to 25s, so we re-poll at the
-            // moment a real event flushed.
-          } catch {
-            // Network blip. Brief backoff, then retry.
-            await new Promise((r) => setTimeout(r, 2_000))
-          }
+        } catch {
+          // transient — next tick will retry
         }
       }
-      void loop()
+
+      // Fire once immediately so chat.ready already on git lands without
+      // a 3s wait. Subsequent ticks every 3s — most are free 304s thanks
+      // to ETag caching on the server side.
+      void tick()
+      pollIntervalRef.current = setInterval(tick, 3_000)
     },
     [setMessages],
   )
@@ -674,7 +644,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         params.set('repo', auth.repo)
         params.set('token', auth.token)
       }
-      const url = `/api/kody/events/stream?${params.toString()}${vercelBypassQuery()}`
+      const url = `/api/kody/events/stream?${params.toString()}`
       const es = new EventSource(url)
       eventSourceRef.current = es
 

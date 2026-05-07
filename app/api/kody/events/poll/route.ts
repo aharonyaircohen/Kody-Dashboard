@@ -1,57 +1,38 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern long-polling-events
+ * @pattern events-poll
  *
- * GET /api/kody/events/poll?taskId=xxx&since=N&wait=1
+ * GET /api/kody/events/poll?taskId=xxx&since=N
  *
- * Long-polling endpoint for Kody Live. Reads `.kody/events/{taskId}.jsonl`
- * via Octokit and returns lines starting at `since`.
+ * Returns events from `.kody/events/{taskId}.jsonl` starting at line N.
+ * One-shot JSON response — the client polls back at its own cadence.
  *
- * Two paths:
- *  - Catch-up read (`wait=0`): always read events file from GitHub, return
- *    every line at index >= since. Useful on first connect / page reload
- *    so we don't miss events that arrived before the long-poll opened.
- *  - Long poll (`wait=1`, default): catch-up read first; if it returns
- *    nothing new, subscribe to the in-memory bus and wait up to ~25s for
- *    a fresh event from /api/kody/events/ingest. Returns immediately on
- *    push, or empty on timeout — client re-issues the fetch back-to-back.
+ * Push (HttpSink → /ingest → in-memory bus) was attempted but doesn't
+ * work reliably on Vercel because the bus is module-scoped per function
+ * instance, and the engine's POST and the client's poll often land on
+ * different instances. Falling back to plain client polling is simpler,
+ * uses ETag caching for cheap unchanged reads, and has well-understood
+ * rate-limit cost.
  *
- * Auth: same x-kody-* headers OR query params as /stream.
- *
- * Response: { lines: string[], totalLines: number, exists: boolean, pushed?: boolean }
- *  - `lines`: events at indices >= `since` (each line = one ChatEvent JSON)
- *  - `totalLines`: total line count in the file (for the next watermark)
- *  - `exists`: whether the file currently exists on origin
- *  - `pushed`: true if the response was unblocked by an in-memory bus event
- *    rather than a catch-up read (useful for client telemetry)
+ * Response:
+ *   { lines: string[], totalLines: number, exists: boolean, fromCache: boolean }
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { Buffer } from "buffer";
 import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
-import { subscribe } from "@dashboard/lib/chat-event-bus";
+import { readEventsFile } from "@dashboard/lib/chat-events-reader";
 import { logger } from "@dashboard/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// 25s long-poll window — comfortably under Vercel's 60s default function
-// timeout, leaves room for the response to flush before any edge limit.
-export const maxDuration = 60;
-
-// Long-poll wait window. Client re-fires immediately on response, so a
-// 25s wait keeps idle GitHub API hits low (~140/hr/session) while still
-// delivering pushed events with sub-second latency.
-const LONG_POLL_WAIT_MS = 25_000;
 
 function getDefaultOwner(): string {
   return process.env.GITHUB_OWNER ?? "aharonyaircohen";
 }
-
 function getDefaultRepo(): string {
   return process.env.GITHUB_REPO ?? "Kody-Dashboard";
 }
-
 function getDefaultBranch(): string {
   return process.env.KODY_STORE_BRANCH ?? "main";
 }
@@ -68,39 +49,14 @@ function promoteAuthFromQuery(req: NextRequest): NextRequest {
   return new NextRequest(req.url, { headers, method: req.method });
 }
 
-async function readEventsFromGit(
-  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>,
-  owner: string,
-  repo: string,
-  branch: string,
-  sessionId: string,
-): Promise<{ allLines: string[]; exists: boolean }> {
-  const path = `.kody/events/${sessionId}.jsonl`;
-  try {
-    const res = await octokit.rest.repos.getContent({ owner, repo, path, ref: branch });
-    if (!("content" in res.data) || !res.data.content) return { allLines: [], exists: false };
-    const content = Buffer.from(res.data.content, "base64").toString("utf-8");
-    return { allLines: content.trim().split("\n").filter(Boolean), exists: true };
-  } catch (err: unknown) {
-    const e = err as { status?: number };
-    if (e.status === 404) return { allLines: [], exists: false };
-    throw err;
-  }
-}
-
 export async function GET(rawReq: NextRequest) {
   const req = promoteAuthFromQuery(rawReq);
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
   const sessionId = req.nextUrl.searchParams.get("taskId");
-  if (!sessionId) {
-    return NextResponse.json({ error: "taskId required" }, { status: 400 });
-  }
+  if (!sessionId) return NextResponse.json({ error: "taskId required" }, { status: 400 });
   const since = Number(req.nextUrl.searchParams.get("since") ?? "0");
-  // wait=0 turns off long-polling — return immediately even when no new
-  // events. Default is on (back-to-back long-poll mode).
-  const wait = req.nextUrl.searchParams.get("wait") !== "0";
 
   const headerAuth = getRequestAuth(req);
   const owner = headerAuth?.owner ?? getDefaultOwner();
@@ -112,96 +68,25 @@ export async function GET(rawReq: NextRequest) {
     return NextResponse.json({ error: "No GitHub token available" }, { status: 503 });
   }
 
-  // Catch-up read first — captures anything that landed before this poll
-  // opened, even if no push fires during the wait window.
-  let initial: { allLines: string[]; exists: boolean };
+  let result;
   try {
-    initial = await readEventsFromGit(octokit, owner, repo, branch, sessionId);
+    result = await readEventsFile(octokit, owner, repo, branch, sessionId);
   } catch (err) {
-    logger.error({ err, sessionId, owner, repo }, "events/poll: getContent failed");
+    logger.error({ err, sessionId, owner, repo }, "events/poll: read failed");
     return NextResponse.json({ error: "fetch failed" }, { status: 500 });
-  }
-
-  const noStore = { "Cache-Control": "no-store, no-cache, must-revalidate", Pragma: "no-cache" };
-
-  if (initial.allLines.length > since || !wait) {
-    return NextResponse.json(
-      {
-        lines: initial.allLines.slice(Math.max(0, since)),
-        totalLines: initial.allLines.length,
-        exists: initial.exists,
-        pushed: false,
-      },
-      { headers: noStore },
-    );
-  }
-
-  // No catch-up events yet. Wait for a fresh event via:
-  //  - in-memory bus (instant — works only if /ingest landed on the same
-  //    Vercel function instance as this poll handler);
-  //  - intra-loop git re-check every 3s (catches cross-instance pushes —
-  //    /ingest on instance A bumps git after engine commits, instance B's
-  //    long-poll picks it up here);
-  //  - client abort (req.signal);
-  //  - LONG_POLL_WAIT_MS timeout (return empty so client re-polls).
-  let unsubscribe: (() => void) | null = null;
-  let outerTimer: ReturnType<typeof setTimeout> | null = null;
-  let recheckTimer: ReturnType<typeof setInterval> | null = null;
-  type SettleReason = "push" | "recheck" | "timeout" | "abort";
-  // Explicit cast to widen — TypeScript's control-flow analyzer narrows the
-  // literal initializer despite the annotation when the variable is mutated
-  // inside callback closures.
-  let settledBy = "timeout" as SettleReason;
-  let final = initial;
-  await new Promise<void>((resolve) => {
-    let settled = false;
-    const settle = (reason: SettleReason) => {
-      if (settled) return;
-      settled = true;
-      settledBy = reason;
-      if (outerTimer) clearTimeout(outerTimer);
-      if (recheckTimer) clearInterval(recheckTimer);
-      unsubscribe?.();
-      resolve();
-    };
-    unsubscribe = subscribe(sessionId, () => settle("push"));
-    outerTimer = setTimeout(() => settle("timeout"), LONG_POLL_WAIT_MS);
-    req.signal.addEventListener("abort", () => settle("abort"));
-    // Cross-instance fallback: re-check git every 3s.
-    recheckTimer = setInterval(async () => {
-      if (settled) return;
-      try {
-        const fresh = await readEventsFromGit(octokit, owner, repo, branch, sessionId);
-        if (fresh.allLines.length > initial.allLines.length) {
-          final = fresh;
-          settle("recheck");
-        }
-      } catch {
-        /* transient — keep waiting */
-      }
-    }, 3_000);
-  });
-
-  // If we got woken by push, re-read from git (the bus carries notification
-  // but the source of truth is the events file). On recheck wakeup `final`
-  // is already set above; on timeout we just return the original.
-  if (settledBy === "push") {
-    try {
-      final = await readEventsFromGit(octokit, owner, repo, branch, sessionId);
-    } catch (err) {
-      logger.warn({ err, sessionId }, "events/poll: post-push re-read failed");
-      final = initial;
-    }
   }
 
   return NextResponse.json(
     {
-      lines: final.allLines.slice(Math.max(0, since)),
-      totalLines: final.allLines.length,
-      exists: final.exists,
-      pushed: settledBy === "push",
-      via: settledBy,
+      lines: result.lines.slice(Math.max(0, since)),
+      totalLines: result.lines.length,
+      exists: result.exists,
+      fromCache: result.fromCache,
     },
-    { headers: noStore },
+    {
+      // No cache layer in front of a per-request session-keyed payload.
+      // Within the function, etag caching is handled by chat-events-reader.
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate", Pragma: "no-cache" },
+    },
   );
 }
