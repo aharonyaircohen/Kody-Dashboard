@@ -133,17 +133,6 @@ export async function appendUserTurn(
   }
 }
 
-/**
- * Build the dashboard ingest URL with the sessionId as a query param.
- * Auth on the ingest endpoint is GitHub Actions IP verification — no
- * shared secret to mint. Engine appends `?sessionId=...` itself when
- * delivering, but we keep the param here so the URL is debuggable as-is.
- */
-export function buildDashboardUrl(baseUrl: string, sessionId: string): string {
-  const joiner = baseUrl.includes("?") ? "&" : "?";
-  return `${baseUrl}${joiner}sessionId=${encodeURIComponent(sessionId)}`;
-}
-
 // ─── internals ─────────────────────────────────────────────────────────────
 
 async function getFileSha(
