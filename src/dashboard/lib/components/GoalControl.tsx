@@ -24,6 +24,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Sparkles,
   Trash2,
 } from 'lucide-react'
 import {
@@ -75,6 +76,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
 import { TaskList } from './TaskList'
 import { GoalDiscussion } from './GoalDiscussion'
+import { KodyChat } from './KodyChat'
 
 interface GoalProgress {
   total: number
@@ -335,7 +337,13 @@ function GoalDetail({
   onDelete: () => void
 }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [showAttach, setShowAttach] = useState(false)
+  const [showPlanner, setShowPlanner] = useState(false)
+  // Stable session id per "Plan this goal" launch — KodyChat keys its
+  // ephemeral planner messages on this. New id each open = fresh thread.
+  const [plannerSessionId, setPlannerSessionId] = useState<string | null>(null)
+  const { githubUser } = useGitHubIdentity()
   const pct = progress.total > 0 ? (progress.done / progress.total) * 100 : 0
   const inProgressTasks = progress.tasks.filter(
     (t) => !(t.state === 'closed' || t.column === 'done'),
@@ -463,10 +471,29 @@ function GoalDetail({
           <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
             Tasks
           </h3>
-          <Button size="sm" onClick={() => setShowAttach(true)} className="gap-1.5">
-            <Plus className="w-3.5 h-3.5" />
-            Attach tasks
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setPlannerSessionId(
+                  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                    ? crypto.randomUUID()
+                    : `planner-${Date.now()}`,
+                )
+                setShowPlanner(true)
+              }}
+              className="gap-1.5"
+              title="Open the planner chat: it proposes tasks from this goal's description and creates them on approval."
+            >
+              <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+              Plan with chat
+            </Button>
+            <Button size="sm" onClick={() => setShowAttach(true)} className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" />
+              Attach tasks
+            </Button>
+          </div>
         </div>
 
         {progress.total === 0 ? (
@@ -518,7 +545,75 @@ function GoalDetail({
         )}
         onClose={() => setShowAttach(false)}
       />
+
+      <PlanGoalDialog
+        open={showPlanner && plannerSessionId != null}
+        goal={goal}
+        sessionId={plannerSessionId ?? ''}
+        existingTasks={progress.tasks.map((t) => ({
+          number: t.issueNumber,
+          title: t.title,
+          state: t.state,
+        }))}
+        actorLogin={githubUser?.login ?? null}
+        onTasksCreated={() => {
+          // Refresh task list + goals on every successful planner turn —
+          // Pass 2 typically issues several `create_task_for_goal` calls in
+          // one round, so a single invalidation per stream is enough.
+          queryClient.invalidateQueries({ queryKey: ['kody-tasks'] })
+          queryClient.invalidateQueries({ queryKey: ['goals'] })
+        }}
+        onClose={() => setShowPlanner(false)}
+      />
     </article>
+  )
+}
+
+function PlanGoalDialog({
+  open,
+  goal,
+  sessionId,
+  existingTasks,
+  actorLogin,
+  onTasksCreated,
+  onClose,
+}: {
+  open: boolean
+  goal: Goal
+  sessionId: string
+  existingTasks: Array<{ number: number; title: string; state?: string }>
+  actorLogin: string | null
+  onTasksCreated: () => void
+  onClose: () => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
+      <DialogContent className="max-w-3xl p-0 gap-0 h-[85vh] flex flex-col overflow-hidden">
+        <DialogHeader className="px-5 py-3 border-b border-border shrink-0">
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-sky-400" />
+            Plan tasks for &ldquo;{goal.name}&rdquo;
+          </DialogTitle>
+          <DialogDescription>
+            Pass 1: I propose a task list from the goal description.
+            Pass 2 (after you approve): I deepen each spec from the codebase
+            and open the issues attached to this goal.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 min-h-0">
+          <KodyChat
+            context={{
+              kind: 'goal-planner',
+              goal,
+              sessionId,
+              existingTasks,
+              onTasksCreated,
+            }}
+            actorLogin={actorLogin}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

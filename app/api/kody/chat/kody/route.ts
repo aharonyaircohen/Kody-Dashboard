@@ -27,12 +27,18 @@ import { AGENT_KODY } from "@dashboard/lib/agents"
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
 import { createUserOctokit, setGitHubContext, clearGitHubContext } from "@dashboard/lib/github-client"
 import { getSecret } from "@dashboard/lib/vault/get-secret"
-import { buildSystemPrompt, type MissionContext, type TaskContext } from "./system-prompt"
+import {
+  buildSystemPrompt,
+  type GoalContext,
+  type MissionContext,
+  type TaskContext,
+} from "./system-prompt"
 import { createGitHubTools } from "../tools/github-tools"
 import { createPipelineTools } from "../tools/pipeline-tools"
 import { createRemoteTools } from "../tools/remote-tools"
 import { createBugTools } from "../tools/bug-tools"
 import { createTaskTools } from "../tools/task-tools"
+import { createPlannerTools } from "../tools/planner-tools"
 import { createReleaseTools } from "../tools/release-tools"
 import { createKodyTools } from "../tools/kody-tools"
 import { fetchUrlTool } from "../tools/fetch-url"
@@ -224,6 +230,13 @@ export async function POST(req: NextRequest) {
     missionDraft?: boolean
     /** Current mission context — scopes the chat to a specific mission issue. */
     mission?: MissionContext
+    /**
+     * When true, append the goal-planning block to the system prompt and
+     * wire the planner tools (`create_task_for_goal`). `goal` must be set.
+     */
+    goalPlanner?: boolean
+    /** The goal this planner session is scoped to. */
+    goal?: GoalContext
   }
   try {
     body = (await req.json()) as typeof body
@@ -241,11 +254,17 @@ export async function POST(req: NextRequest) {
   const modelId = body.model ?? DEFAULT_MODEL
   const google = createGoogleGenerativeAI({ apiKey })
   const repo = getRequestAuth(req)
+  const goalPlannerActive = body.goalPlanner === true && !!body.goal
   const systemPrompt = buildSystemPrompt(
     AGENT_KODY.systemPrompt,
     repo ? { owner: repo.owner, repo: repo.repo } : null,
     body.task,
-    { missionDraft: body.missionDraft === true, mission: body.mission },
+    {
+      missionDraft: body.missionDraft === true,
+      mission: body.mission,
+      goalPlanner: goalPlannerActive,
+      goal: goalPlannerActive ? body.goal : undefined,
+    },
   )
 
   // Build the per-request tool set. GitHub + pipeline tools require a
@@ -286,6 +305,15 @@ export async function POST(req: NextRequest) {
         actorLogin: body.actorLogin ?? null,
       }),
       ...createKodyTools({ octokit, owner: repo.owner, repo: repo.repo }),
+      ...(goalPlannerActive && body.goal
+        ? createPlannerTools({
+            octokit,
+            owner: repo.owner,
+            repo: repo.repo,
+            actorLogin: body.actorLogin ?? null,
+            goalId: body.goal.id,
+          })
+        : {}),
     }
     // Pipeline tools currently use github-client's module-level context
     // (setGitHubContext below) — they do *not* take the per-request

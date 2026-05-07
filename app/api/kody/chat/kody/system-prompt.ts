@@ -28,11 +28,25 @@ export interface MissionContext {
   labels?: string[]
 }
 
+export interface GoalContext {
+  id: string
+  name: string
+  description?: string
+  dueDate?: string
+  /** Existing tasks already attached to the goal (so we don't propose duplicates). */
+  existingTasks?: Array<{ number: number; title: string; state?: string }>
+}
+
 export function buildSystemPrompt(
   base: string,
   repo: { owner: string; repo: string } | null,
   task: TaskContext | undefined,
-  opts?: { missionDraft?: boolean; mission?: MissionContext },
+  opts?: {
+    missionDraft?: boolean
+    mission?: MissionContext
+    goalPlanner?: boolean
+    goal?: GoalContext
+  },
 ): string {
   const sections: string[] = [base]
   if (repo) {
@@ -81,6 +95,58 @@ This rule does **not** override the issue-creation workflow in the base prompt: 
     lines.push(
       '\nThe user is chatting about **this specific mission**. A Kody mission is a GitHub issue (label `kody:mission`) whose body describes intent, system prompt, allowed commands, and restrictions. Answer their questions grounded in the mission body above — do NOT claim the mission does not exist. If they want to edit the mission, help them draft changes to the markdown body.',
     )
+    sections.push(lines.join('\n'))
+  }
+  if (opts?.goalPlanner && opts?.goal) {
+    const g = opts.goal
+    const lines: string[] = ['## Goal planning mode']
+    lines.push(
+      `You are planning the goal **${g.name}** (id: \`${g.id}\`). Your job is to turn ` +
+        'the goal description below into a set of concrete, well-specced GitHub issues ' +
+        `attached to this goal (label \`goal:${g.id}\`). Do not act on any other goal ` +
+        'or topic — if the user asks you something off-topic, redirect to this goal.',
+    )
+    if (g.dueDate) lines.push(`Due date: ${g.dueDate}.`)
+    if (g.description?.trim()) {
+      const desc = g.description.length > 4000 ? `${g.description.slice(0, 4000)}…` : g.description
+      lines.push(`\n### Goal description\n\n${desc}`)
+    } else {
+      lines.push(
+        '\n### Goal description\n\n_The goal has no description yet._ Ask the user one ' +
+          'concrete clarifying question about the outcome they want before proposing tasks.',
+      )
+    }
+    if (g.existingTasks && g.existingTasks.length > 0) {
+      lines.push('\n### Tasks already attached to this goal\n')
+      for (const t of g.existingTasks) {
+        lines.push(`- #${t.number} (${t.state ?? 'open'}) — ${t.title}`)
+      }
+      lines.push(
+        '\nDo not propose duplicates of these. Cover only the gaps between the goal ' +
+          'description and the tasks above.',
+      )
+    }
+    lines.push(`
+### Workflow — two passes, one chat session
+
+**Pass 1 — Decompose (no tool calls).** Output a markdown numbered list of proposed tasks. For each: a short title, a one-sentence summary, and the category in brackets — \`[feature]\`, \`[enhancement]\`, \`[refactor]\`, \`[docs]\`, or \`[chore]\`. Keep the list tight: only the next 3–8 tasks you have high confidence in. Do NOT propose 50 tasks for a giant goal — partial-but-correct beats complete-but-hallucinated.
+
+End Pass 1 with the literal sentence: **"Reply 'approve' to create these issues, or tell me what to change."** Then stop and wait for the user.
+
+**Pass 2 — Deepen and create (auto, after approval).** When the user replies with approval (e.g. "approve", "approved", "yes", "go", "ship it"), proceed automatically without asking again. For **each** approved task, in order:
+
+1. Research the codebase with \`github_search_code\` / \`github_get_file\` / \`github_blame\` / \`github_commits_for_path\` — find the real files, real symbols, and real prior art the task will touch.
+2. Call \`create_task_for_goal\` once with a fully-specced body: \`title\`, \`summary\`, \`requirements\` (concrete, with file paths and symbol names), \`acceptanceCriteria\` (testable bullets), \`affectedArea\` (paths), \`additionalContext\` (constraints, prior decisions, links). \`category\` is required — pick the closest match. \`priority\` defaults to P2; raise to P1/P0 only if the goal description signals urgency.
+3. After all approved tasks are created, summarize: list each created issue (number + title + url) and stop. Do NOT call \`create_task_for_goal\` more than once per task. Do NOT loop indefinitely.
+
+If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create the listed numbers. If they want to revise instead of approve, go back to Pass 1 with their feedback applied.
+
+### Hard rules
+- Pass 1 is text-only. Do not call \`create_task_for_goal\` until the user explicitly approves.
+- Every \`create_task_for_goal\` call MUST follow at least one codebase-research call for that task. Generic, codebase-agnostic specs are not acceptable.
+- Never modify the goal description, never delete or relabel existing tasks, never close anything.
+- The Kody pipeline is NOT auto-triggered. The user runs \`@kody\` themselves when they want execution to start.
+`)
     sections.push(lines.join('\n'))
   }
   if (opts?.missionDraft) {

@@ -155,3 +155,27 @@ export type ChatContext =
        */
       onFinalize?: (assistantContent: string) => void
     }
+  | {
+      /**
+       * Chat scoped to planning a single Goal. The agent decomposes the
+       * goal description into a task list (Pass 1, text-only) and, after
+       * user approval, creates GitHub issues attached to the goal via
+       * `create_task_for_goal` (Pass 2). See system-prompt's "Goal
+       * planning mode" block for the full workflow.
+       */
+      kind: 'goal-planner'
+      goal: import('./api').Goal
+      /** Stable id for this planner chat session (for keyed message stores). */
+      sessionId: string
+      /**
+       * Snapshot of tasks already attached to the goal — passed into the
+       * system prompt so the planner doesn't propose duplicates. Optional;
+       * caller may omit when no tasks exist yet.
+       */
+      existingTasks?: Array<{ number: number; title: string; state?: string }>
+      /**
+       * Fired after the planner creates one or more tasks so the host page
+       * can refresh its task list. Optional.
+       */
+      onTasksCreated?: () => void
+    }

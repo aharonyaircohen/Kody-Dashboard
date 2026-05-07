@@ -342,6 +342,16 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     context?.kind === 'mission-draft' ? context.draftId : null
   const onFinalizeDraft =
     context?.kind === 'mission-draft' ? context.onFinalize : undefined
+  // Goal-planner mode: chat scoped to a Goal, used for the "Plan this goal"
+  // workflow (Pass 1 list-in-chat → user approves → Pass 2 create issues).
+  const plannerGoal =
+    context?.kind === 'goal-planner' ? context.goal : null
+  const plannerSessionId =
+    context?.kind === 'goal-planner' ? context.sessionId : null
+  const plannerExistingTasks =
+    context?.kind === 'goal-planner' ? context.existingTasks : undefined
+  const onPlannerTasksCreated =
+    context?.kind === 'goal-planner' ? context.onTasksCreated : undefined
 
   // Task-scoped messages (loaded from / saved to API)
   const [taskMessages, setTaskMessages] = useState<Message[]>([])
@@ -354,6 +364,11 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   // thread so users can jump around without losing context. Persistence
   // across reloads would need a dedicated save/load API; deferred.
   const [missionMessagesBySlug, setMissionMessagesBySlug] = useState<
+    Record<string, Message[]>
+  >({})
+  // Goal-planner messages keyed by sessionId (one session per "Plan this
+  // goal" launch). Ephemeral — same lifetime as missionMessagesBySlug.
+  const [plannerMessagesBySession, setPlannerMessagesBySession] = useState<
     Record<string, Message[]>
   >({})
 
@@ -459,7 +474,9 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   const isTaskMode = !!selectedTask
   const isMissionMode = !!selectedMission
   const isDraftMode = !!draftId
-  const isGlobalMode = !isTaskMode && !isMissionMode && !isDraftMode
+  const isPlannerMode = !!plannerGoal && !!plannerSessionId
+  const isGlobalMode =
+    !isTaskMode && !isMissionMode && !isDraftMode && !isPlannerMode
 
   // Current messages — four stores, picked by mode.
   //  • task mode    → `taskMessages`        (loaded/saved via API)
@@ -469,6 +486,10 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   const missionSlug: string | null = selectedMission?.slug ?? null
   const currentMissionMessages: Message[] =
     missionSlug != null ? missionMessagesBySlug[missionSlug] ?? [] : []
+  const currentPlannerMessages: Message[] =
+    plannerSessionId != null
+      ? plannerMessagesBySession[plannerSessionId] ?? []
+      : []
 
   const messages: Message[] = isTaskMode
     ? taskMessages
@@ -476,7 +497,9 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       ? currentMissionMessages
       : isDraftMode
         ? draftMessages
-        : sessionHook.messages.map(chatToMessage)
+        : isPlannerMode
+          ? currentPlannerMessages
+          : sessionHook.messages.map(chatToMessage)
 
   const setMessages = useCallback(
     (updater: Message[] | ((prev: Message[]) => Message[])) => {
@@ -490,6 +513,12 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         })
       } else if (isDraftMode) {
         setDraftMessages((prev) => (typeof updater === 'function' ? updater(prev) : updater))
+      } else if (isPlannerMode && plannerSessionId != null) {
+        setPlannerMessagesBySession((prev) => {
+          const prevForSession = prev[plannerSessionId] ?? []
+          const next = typeof updater === 'function' ? updater(prevForSession) : updater
+          return { ...prev, [plannerSessionId]: next }
+        })
       } else {
         sessionHook.setMessages((prevChat: ChatMessage[]) => {
           const newMessages =
@@ -498,7 +527,15 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         })
       }
     },
-    [isTaskMode, isMissionMode, missionSlug, isDraftMode, sessionHook],
+    [
+      isTaskMode,
+      isMissionMode,
+      missionSlug,
+      isDraftMode,
+      isPlannerMode,
+      plannerSessionId,
+      sessionHook,
+    ],
   )
 
   // ─── Polling for Kody Live ─────────────────────────────────────────────────
@@ -1423,6 +1460,20 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
                     },
                   }
                 : {}),
+              ...(isPlannerMode && plannerGoal
+                ? {
+                    goalPlanner: true,
+                    goal: {
+                      id: plannerGoal.id,
+                      name: plannerGoal.name,
+                      description: plannerGoal.description,
+                      dueDate: plannerGoal.dueDate,
+                      ...(plannerExistingTasks
+                        ? { existingTasks: plannerExistingTasks }
+                        : {}),
+                    },
+                  }
+                : {}),
             }),
           })
 
@@ -1496,6 +1547,18 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
             return copy
           })
           setLoading(false)
+          // Planner mode: a Pass 2 turn typically creates one or more issues
+          // via `create_task_for_goal`. We can't observe per-tool results
+          // from this stream protocol cheaply, so fire the host callback on
+          // every successful planner completion. The host (GoalControl)
+          // invalidates `useKodyTasks`; the cache layer dedups the cost.
+          if (isPlannerMode && onPlannerTasksCreated) {
+            try {
+              onPlannerTasksCreated()
+            } catch {
+              // Host callback errors should never break the chat.
+            }
+          }
           return null
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error'
@@ -1640,6 +1703,10 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       missionSlug,
       draftId,
       isDraftMode,
+      isPlannerMode,
+      plannerGoal,
+      plannerExistingTasks,
+      onPlannerTasksCreated,
       setMessages,
       messages,
       selectedAgentId,
@@ -1988,7 +2055,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
             {/* New chat — visible in mission + draft modes (global has its own
                 Chats sidebar; task mode persists to the task). Clears the
                 active scope's ephemeral buffer so the user can start over. */}
-            {(isMissionMode || isDraftMode) && messages.length > 0 && (
+            {(isMissionMode || isDraftMode || isPlannerMode) && messages.length > 0 && (
               <button
                 onClick={() => {
                   setMessages([])
@@ -2056,6 +2123,13 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
             <div className="text-sm text-emerald-400 flex items-center gap-1.5">
               <Target className="w-3 h-3" />
               Drafting a new mission
+            </div>
+          ) : isPlannerMode && plannerGoal ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="px-1.5 py-0.5 bg-sky-500/15 text-sky-400 rounded font-medium inline-flex items-center gap-1">
+                Planning
+              </span>
+              <span className="truncate text-muted-foreground">{plannerGoal.name}</span>
             </div>
           ) : (
             <div className="text-sm text-muted-foreground flex items-center gap-1.5">
@@ -2134,6 +2208,18 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
                   allowed commands, and restrictions. When a draft looks good, pick
                   <span className="font-medium"> Use as mission</span> to turn it
                   into a real mission.
+                </p>
+              </>
+            ) : isPlannerMode && plannerGoal ? (
+              <>
+                <p className="font-medium text-foreground">
+                  Plan tasks for &ldquo;{plannerGoal.name}&rdquo;
+                </p>
+                <p className="text-sm mt-1 max-w-md mx-auto">
+                  Say <span className="font-mono">&quot;plan it&quot;</span> (or
+                  paste extra context first). I&apos;ll propose a task list, you
+                  approve, then I&apos;ll deepen each spec and create the issues
+                  attached to this goal.
                 </p>
               </>
             ) : (
