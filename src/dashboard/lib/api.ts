@@ -1015,6 +1015,43 @@ export const goalsApi = {
     const payload = await handleResponse<{ goals: Goal[] }>(res);
     return payload.goals;
   },
+
+  /** Fetch the goal's runtime state file. Returns null when not started. */
+  getState: async (
+    id: string,
+  ): Promise<import("./goal-state").GoalRunState | null> => {
+    const res = await fetch(
+      `${API_BASE}/goals/${encodeURIComponent(id)}/state`,
+      { headers: buildHeaders(), cache: "no-store" },
+    );
+    const payload = await handleResponse<{
+      state: import("./goal-state").GoalRunState | null;
+    }>(res);
+    return payload.state;
+  },
+
+  /** Set the goal's runtime state. Engine-only writes (state="done") are rejected by the API. */
+  setState: async (
+    id: string,
+    body: {
+      state: "active" | "paused";
+      pausedReason?: string;
+      actorLogin?: string;
+    },
+  ): Promise<import("./goal-state").GoalRunState> => {
+    const res = await fetch(
+      `${API_BASE}/goals/${encodeURIComponent(id)}/state`,
+      {
+        method: "PUT",
+        headers: buildHeaders(),
+        body: JSON.stringify(body),
+      },
+    );
+    const payload = await handleResponse<{
+      state: import("./goal-state").GoalRunState;
+    }>(res);
+    return payload.state;
+  },
 };
 
 // ============ Notifications API ============
