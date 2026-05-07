@@ -178,4 +178,11 @@ export type ChatContext =
        * can refresh its task list. Optional.
        */
       onTasksCreated?: () => void
+      /**
+       * Fired when the user wants to exit planner mode (e.g. clicks the X
+       * in the chat's "Planning" badge). The host should clear its
+       * `planningGoal` state so the chat falls back to its normal
+       * task/global context.
+       */
+      onExit?: () => void
     }

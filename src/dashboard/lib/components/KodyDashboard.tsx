@@ -11,11 +11,7 @@ import type { KodyTask, SortField } from "../types";
 import { filterTasksByView, getViewModeCounts, sortTasks } from "../utils";
 import { TaskList } from "./TaskList";
 import { GoalGroupedView, useGoalCollapse } from "./GoalGroupedView";
-import {
-  CreateGoalDialog,
-  EditGoalDialog,
-  PlanGoalDialog,
-} from "./GoalControl";
+import { CreateGoalDialog, EditGoalDialog } from "./GoalControl";
 import { GoalDiscussionDialog } from "./GoalDiscussionDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useGoals, useDeleteGoal, goalQueryKeys } from "../hooks/useGoals";
@@ -28,6 +24,7 @@ import { KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
 import { BranchCleanupDialog } from "./BranchCleanupDialog";
 import { PublishButton } from "./PublishButton";
 import { KodyChat } from "./KodyChat";
+import type { ChatContext } from "../chat-types";
 import { KodyStatusBanner } from "./KodyStatusBanner";
 import {
   FilterBar,
@@ -1061,6 +1058,42 @@ export function KodyDashboard({
     </>
   );
 
+  // Chat context for the always-mounted KodyChat panel. Priority:
+  //   planner (active "Plan with chat" session) > task (selected task) > null.
+  // Planner wins so a user opening another task while planning doesn't
+  // accidentally drop the planner thread; the X on the planner badge is
+  // the explicit exit. selectedTask is still set in state, so leaving
+  // planner mode falls back to the task chat without losing position.
+  const exitPlanner = useCallback(() => {
+    setPlanningGoal(null);
+    setPlannerSessionId(null);
+  }, []);
+  const plannerExistingTasksForChat = useMemo(() => {
+    if (!planningGoal) return undefined;
+    return filteredTasks
+      .filter((t) => t.labels.includes(`goal:${planningGoal.id}`))
+      .map((t) => ({
+        number: t.issueNumber,
+        title: t.title,
+        state: t.state,
+      }));
+  }, [planningGoal, filteredTasks]);
+  const chatContext: ChatContext | null =
+    planningGoal && plannerSessionId
+      ? {
+          kind: "goal-planner",
+          goal: planningGoal,
+          sessionId: plannerSessionId,
+          existingTasks: plannerExistingTasksForChat,
+          onTasksCreated: () => {
+            refetch();
+          },
+          onExit: exitPlanner,
+        }
+      : selectedTask
+        ? { kind: "task", task: selectedTask }
+        : null;
+
   // Mobile-only button that opens the chat Sheet — used in error takeovers so
   // mobile users can still reach Kody when the dashboard is otherwise blocked.
   const mobileChatEscapeHatch = (
@@ -1254,10 +1287,7 @@ export function KodyDashboard({
           className="relative hidden md:block border-r border-border shrink-0"
           style={{ width: `${chatPanelWidth}px` }}
         >
-          <KodyChat
-            context={selectedTask ? { kind: 'task', task: selectedTask } : null}
-            actorLogin={githubUser?.login}
-          />
+          <KodyChat context={chatContext} actorLogin={githubUser?.login} />
           <div
             role="separator"
             aria-orientation="vertical"
@@ -1725,12 +1755,20 @@ export function KodyDashboard({
                     onDeleteGoal={setPendingDeleteGoal}
                     onOpenGoalDiscussion={setDiscussingGoal}
                     onPlanGoal={(goal) => {
+                      // Generate a fresh planner session id (so messages
+                      // start clean) and switch the chat panel into
+                      // goal-planner mode. The X on the chat header
+                      // exits planner mode and returns to task/global.
                       setPlannerSessionId(
                         typeof crypto !== "undefined" && "randomUUID" in crypto
                           ? crypto.randomUUID()
                           : `planner-${Date.now()}`,
                       );
                       setPlanningGoal(goal);
+                      // On mobile, surface the chat sheet so the user
+                      // sees the planner kick off — on desktop the panel
+                      // is always visible.
+                      if (!isDesktop) handleOpenChat();
                     }}
                     onCreateTaskInGoal={handleCreateInGoal}
                     onReportBugInGoal={handleReportBugInGoal}
@@ -1900,7 +1938,7 @@ export function KodyDashboard({
                 </Button>
               </div>
               <KodyChat
-                context={selectedTask ? { kind: 'task', task: selectedTask } : null}
+                context={chatContext}
                 actorLogin={githubUser?.login}
               />
             </SheetContent>
@@ -1978,35 +2016,6 @@ export function KodyDashboard({
         <GoalDiscussionDialog
           goal={discussingGoal}
           onClose={() => setDiscussingGoal(null)}
-        />
-        <PlanGoalDialog
-          open={!!planningGoal && !!plannerSessionId}
-          goal={planningGoal ?? ({} as Goal)}
-          sessionId={plannerSessionId ?? ""}
-          existingTasks={
-            planningGoal
-              ? filteredTasks
-                  .filter((t) =>
-                    t.labels.includes(`goal:${planningGoal.id}`),
-                  )
-                  .map((t) => ({
-                    number: t.issueNumber,
-                    title: t.title,
-                    state: t.state,
-                  }))
-              : []
-          }
-          actorLogin={githubUser?.login ?? null}
-          onTasksCreated={() => {
-            // Refresh task list after every successful planner turn.
-            // Pass 2 typically opens several issues in one round; one
-            // invalidation per stream is enough.
-            refetch();
-          }}
-          onClose={() => {
-            setPlanningGoal(null);
-            setPlannerSessionId(null);
-          }}
         />
         <ConfirmDialog
           open={!!pendingDeleteGoal}
