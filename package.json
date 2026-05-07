@@ -1,6 +1,6 @@
 {
   "name": "kody-dashboard",
-  "version": "0.1.273",
+  "version": "0.1.274",
   "private": true,
   "license": "MIT",
   "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
@@ -16,7 +16,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "vault:init": "node scripts/generate-vault-key.mjs",
-    "jobs:migrate-labels": "node scripts/relabel-missions-to-jobs.mjs",
+    "jobs:migrate-files": "node scripts/migrate-missions-to-jobs.mjs",
     "prepare": "husky"
   },
   "dependencies": {
