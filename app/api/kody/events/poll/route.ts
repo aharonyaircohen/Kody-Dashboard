@@ -147,11 +147,15 @@ export async function GET(rawReq: NextRequest) {
   let unsubscribe: (() => void) | null = null;
   let outerTimer: ReturnType<typeof setTimeout> | null = null;
   let recheckTimer: ReturnType<typeof setInterval> | null = null;
-  let settledBy: "push" | "recheck" | "timeout" | "abort" = "timeout";
+  type SettleReason = "push" | "recheck" | "timeout" | "abort";
+  // Explicit cast to widen — TypeScript's control-flow analyzer narrows the
+  // literal initializer despite the annotation when the variable is mutated
+  // inside callback closures.
+  let settledBy = "timeout" as SettleReason;
   let final = initial;
   await new Promise<void>((resolve) => {
     let settled = false;
-    const settle = (reason: typeof settledBy) => {
+    const settle = (reason: SettleReason) => {
       if (settled) return;
       settled = true;
       settledBy = reason;
