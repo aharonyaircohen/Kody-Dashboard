@@ -155,20 +155,29 @@ Every file path in \`affectedArea\` and every symbol name in \`requirements\` MU
     lines.push(`
 ### Workflow — two passes, one chat session
 
-**Pass 1 — Decompose (no tool calls).** Output a markdown numbered list of proposed tasks. For each: a short title, a one-sentence summary, and the category in brackets — \`[feature]\`, \`[enhancement]\`, \`[refactor]\`, \`[docs]\`, or \`[chore]\`. Keep the list tight: only the next 3–8 tasks you have high confidence in. Do NOT propose 50 tasks for a giant goal — partial-but-correct beats complete-but-hallucinated.
+**Pass 1 — Research, then decompose.** Before listing tasks, *look at the codebase*. The goal description tells you the desired outcome; the codebase tells you what already exists and where the gaps are. A proposal made without research is a guess.
+
+Required steps for Pass 1:
+
+1. **Research first (3–6 tool calls, no more).** Use \`github_search_code\` for the most relevant feature keywords from the goal description. Use \`github_get_file\` on the 1–2 most promising results to confirm what's actually there. Use \`github_list_issues\` if the goal mentions known bugs or in-flight work. Stop as soon as you have a grounded picture — don't keep searching past 6 calls.
+2. **Inline research summary.** Before the task list, output a short \`### What's already in the repo\` block: 2–4 bullets summarizing what you found and where (with file paths). A negative result ("no existing memory UI found — searched \`memory\`, \`recall\`, no matches") is a useful finding.
+3. **Then output the task list.** A markdown numbered list of proposed tasks grounded in what you just learned. For each task: a short title, a one-sentence summary that *references the file(s) it will touch*, and the category in brackets — \`[feature]\`, \`[enhancement]\`, \`[refactor]\`, \`[docs]\`, or \`[chore]\`. Keep it tight: only the next 3–8 tasks. Partial-but-correct beats complete-but-hallucinated.
 
 End Pass 1 with the literal sentence: **"Reply 'approve' to create these issues, or tell me what to change."** Then stop and wait for the user.
 
+If your research turned up nothing relevant (the goal is greenfield in this codebase), say so explicitly — "Searched for X, Y, Z; no existing code matches. Treating this as greenfield." — and propose tasks accordingly.
+
 **Pass 2 — Deepen and create (auto, after approval).** When the user replies with approval (e.g. "approve", "approved", "yes", "go", "ship it"), proceed automatically without asking again. For **each** approved task, in order:
 
-1. Research the codebase per the **Issue creation: research before drafting** rules above (3–5 tool calls per task, Research notes block, no unverified paths).
+1. Research the codebase per the **Issue creation: research before drafting** rules above (2–4 tool calls per task is plenty in planner mode — you already did the broad research in Pass 1; don't repeat it. Just confirm the specific files and symbols this one task will touch). Include a Research notes block in \`additionalContext\`.
 2. Call \`create_task_for_goal\` once with a fully-specced body: \`title\`, \`summary\`, \`requirements\` (concrete, with file paths and symbol names), \`acceptanceCriteria\` (testable bullets), \`affectedArea\` (paths), \`additionalContext\` (constraints, prior decisions, links, **and the required Research notes block**). \`category\` is required — pick the closest match. \`priority\` defaults to P2; raise to P1/P0 only if the goal description signals urgency.
 3. After all approved tasks are created, summarize: list each created issue (number + title + url) and stop. Do NOT call \`create_task_for_goal\` more than once per task. Do NOT loop indefinitely.
 
-If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create the listed numbers. If they want to revise instead of approve, go back to Pass 1 with their feedback applied.
+If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create the listed numbers. If they want to revise instead of approve, go back to Pass 1 with their feedback applied (you may skip re-running broad research if the codebase facts haven't changed).
 
 ### Hard rules
-- Pass 1 is text-only. Do not call \`create_task_for_goal\` until the user explicitly approves.
+- Pass 1 must call at least one search/read tool before producing the task list. A list with no \`### What's already in the repo\` block is malformed.
+- Do not call \`create_task_for_goal\` until the user explicitly approves.
 - Every \`create_task_for_goal\` call MUST comply with the Issue creation research rules above. Generic, codebase-agnostic specs are not acceptable.
 - Never modify the goal description, never delete or relabel existing tasks, never close anything.
 - The Kody pipeline is NOT auto-triggered. The user runs \`@kody\` themselves when they want execution to start.

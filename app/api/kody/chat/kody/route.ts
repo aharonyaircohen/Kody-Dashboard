@@ -380,7 +380,12 @@ export async function POST(req: NextRequest) {
       // one turn. Tools are individually rate-limit-aware (cache + ETag),
       // so 10 cache hits cost essentially nothing. Higher caps push us
       // toward the function timeout without meaningfully helping research.
-      stopWhen: stepCountIs(10),
+      //
+      // Goal planner is the exception: Pass 1 (broad research + listing)
+      // and Pass 2 (per-task research + create) each chain ~2–4 calls per
+      // task, so 10 silently truncates a 5-task plan after the first
+      // create. Raise to 30 in planner mode so the full sweep can land.
+      stopWhen: stepCountIs(goalPlannerActive ? 30 : 10),
       // Ask Gemini 2.5+ to surface its thought summaries (forwarded to the
       // client by `sendReasoning: true` below). The thinking budget is
       // capped — without it, dynamic thinking can stretch first-token
