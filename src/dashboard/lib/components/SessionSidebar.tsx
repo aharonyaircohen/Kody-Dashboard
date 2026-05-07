@@ -19,6 +19,7 @@ interface SessionSidebarProps {
   onDeleteSession: (sessionId: string) => void
   onRenameSession: (sessionId: string, title: string) => void
   onPinSession: (sessionId: string) => void
+  onClose?: () => void
   className?: string
 }
 
@@ -50,6 +51,7 @@ export function SessionSidebar({
   onDeleteSession,
   onRenameSession,
   onPinSession,
+  onClose,
   className,
 }: SessionSidebarProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -96,8 +98,35 @@ export function SessionSidebar({
       {/* Header */}
       <div className="p-3 border-b">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold text-sm">Conversations</h3>
-          <span className="text-xs text-muted-foreground">{sessions.length}</span>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-sm">Conversations</h3>
+            <span className="text-xs text-muted-foreground">{sessions.length}</span>
+          </div>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="md:hidden -mr-1 p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
+              aria-label="Close conversations"
+              title="Close"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          )}
         </div>
         <button
           onClick={onCreateSession}
@@ -127,11 +156,6 @@ export function SessionSidebar({
                 onClick={() => session.id !== activeSessionId && onSwitchSession(session.id)}
               >
                 <div className="p-3">
-                  {/* Pin indicator */}
-                  {session.pinned && (
-                    <span className="absolute top-2 right-8 text-amber-500 text-xs">📌</span>
-                  )}
-
                   {/* Title */}
                   {editingId === session.id ? (
                     <input
@@ -147,10 +171,11 @@ export function SessionSidebar({
                   ) : (
                     <p
                       className={cn(
-                        'text-sm font-medium truncate pr-16',
+                        'text-sm font-medium truncate pr-32 md:pr-16',
                         session.id === activeSessionId && 'text-primary',
                       )}
                     >
+                      {session.pinned && <span className="mr-1 text-amber-500">📌</span>}
                       {session.title}
                     </p>
                   )}
@@ -163,16 +188,17 @@ export function SessionSidebar({
                   </div>
                 </div>
 
-                {/* Actions (visible on hover) */}
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Actions (always visible on mobile, hover-only on ≥md) */}
+                <div className="absolute top-1.5 right-1.5 flex gap-0.5 transition-opacity opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
                   {/* Pin button */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       onPinSession(session.id)
                     }}
-                    className="p-1 rounded hover:bg-muted"
+                    className="p-2 rounded hover:bg-muted text-base leading-none"
                     title={session.pinned ? 'Unpin' : 'Pin'}
+                    aria-label={session.pinned ? 'Unpin conversation' : 'Pin conversation'}
                   >
                     {session.pinned ? '📌' : '📍'}
                   </button>
@@ -183,8 +209,9 @@ export function SessionSidebar({
                       e.stopPropagation()
                       handleStartEdit(session)
                     }}
-                    className="p-1 rounded hover:bg-muted"
+                    className="p-2 rounded hover:bg-muted text-base leading-none"
                     title="Rename"
+                    aria-label="Rename conversation"
                   >
                     ✏️
                   </button>
@@ -195,8 +222,9 @@ export function SessionSidebar({
                       e.stopPropagation()
                       setDeleteConfirmId(session.id)
                     }}
-                    className="p-1 rounded hover:bg-muted text-destructive"
+                    className="p-2 rounded hover:bg-muted text-destructive text-base leading-none"
                     title="Delete"
+                    aria-label="Delete conversation"
                   >
                     🗑️
                   </button>

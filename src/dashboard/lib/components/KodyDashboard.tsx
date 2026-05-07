@@ -1133,7 +1133,7 @@ export function KodyDashboard({
       </div>
       {!isDesktop && (
         <Sheet open={showMobileChat} onOpenChange={handleCloseChat}>
-          <SheetContent side="right" className="w-full sm:w-[400px] p-0">
+          <SheetContent side="right" className="w-full sm:w-[400px] p-0" hideClose>
             <SheetHeader className="sr-only">
               <SheetTitle>Chat with Kody</SheetTitle>
               <SheetDescription>AI assistant chat</SheetDescription>
@@ -1919,7 +1919,7 @@ export function KodyDashboard({
         {/* Mobile Chat Sheet — only rendered on mobile */}
         {!isDesktop && (
           <Sheet open={showMobileChat} onOpenChange={handleCloseChat}>
-            <SheetContent side="right" className="w-full sm:w-[400px] p-0">
+            <SheetContent side="right" className="w-full sm:w-[400px] p-0" hideClose>
               <SheetHeader className="sr-only">
                 <SheetTitle>Chat with Kody</SheetTitle>
                 <SheetDescription>AI assistant chat</SheetDescription>
