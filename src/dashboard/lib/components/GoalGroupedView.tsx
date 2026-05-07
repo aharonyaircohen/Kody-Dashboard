@@ -13,13 +13,16 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import {
   Bug,
   Calendar,
+  CheckCircle,
   ChevronDown,
   ChevronRight,
   Flag,
   GripVertical,
   Inbox,
   MessageSquare,
+  Pause,
   Pencil,
+  Play,
   Plus,
   Sparkles,
   Trash2,
@@ -50,6 +53,7 @@ import { GOAL_LABEL_PREFIX } from '../goals'
 import { goalPalette } from '../goal-palette'
 import { useReorderGoals } from '../hooks/useGoals'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
+import { useGoalState, useSetGoalState } from '../hooks/useGoalState'
 import { TaskList } from './TaskList'
 import { GoalProgressRing } from './GoalProgressRing'
 
@@ -461,9 +465,10 @@ export function GoalGroupedView({
                   </div>
                 </button>
 
-                {/* Goal management actions (plan / discussion / edit / delete) — creation lives in the card footer */}
+                {/* Goal management actions (run / plan / discussion / edit / delete) — creation lives in the card footer */}
                 {group.goal ? (
                   <div className="flex items-center gap-1 shrink-0">
+                    <RunGoalButton goal={group.goal} taskCount={total} />
                     {onPlanGoal ? (
                       <Button
                         variant="ghost"
@@ -635,6 +640,83 @@ export function GoalGroupedView({
         </div>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * Self-contained run/pause/done button per goal. Owns its own state fetch
+ * and mutation, so the parent doesn't need to know about runtime state.
+ *
+ * UX shape:
+ *   • taskCount === 0  → hidden (planner button is the only sensible action).
+ *   • state == null     → "Run" (filled).
+ *   • state == "active" → "Pause" (ghost).
+ *   • state == "paused" → "Resume" (filled).
+ *   • state == "done"   → "Done" (disabled).
+ */
+function RunGoalButton({
+  goal,
+  taskCount,
+}: {
+  goal: Goal
+  taskCount: number
+}) {
+  const { githubUser } = useGitHubIdentity()
+  const { data: state, isLoading } = useGoalState(goal.id)
+  const setState = useSetGoalState(goal.id, githubUser?.login ?? null)
+
+  if (taskCount === 0) return null
+
+  const current = state?.state ?? null
+  const isActive = current === 'active'
+  const isPaused = current === 'paused'
+  const isDone = current === 'done'
+  const pending = setState.isPending || isLoading
+
+  const onClick = () => {
+    if (isDone || pending) return
+    if (isActive) {
+      setState.mutate({ state: 'paused' })
+    } else {
+      setState.mutate({ state: 'active' })
+    }
+  }
+
+  const label = isDone
+    ? 'Done'
+    : isActive
+      ? 'Pause'
+      : isPaused
+        ? 'Resume'
+        : 'Run'
+  const Icon = isDone ? CheckCircle : isActive ? Pause : Play
+  const variant: 'default' | 'ghost' = isActive ? 'ghost' : 'default'
+  const className = cn(
+    'h-8 px-2.5 gap-1 text-xs',
+    isDone && 'opacity-60 cursor-default',
+    !isDone && !isActive && 'bg-emerald-500 hover:bg-emerald-600 text-white',
+  )
+  const title = isDone
+    ? 'All tasks completed'
+    : isActive
+      ? 'Pause the goal runner'
+      : isPaused
+        ? 'Resume the goal runner'
+        : 'Start the goal runner — engine will drive each task to a merged PR'
+
+  return (
+    <Button
+      variant={variant}
+      size="sm"
+      disabled={isDone || pending}
+      onClick={onClick}
+      className={className}
+      aria-label={`${label} ${goal.name}`}
+      title={title}
+    >
+      <Icon className="w-3.5 h-3.5" />
+      <span className="hidden md:inline">{label}</span>
+    </Button>
   )
 }
 
