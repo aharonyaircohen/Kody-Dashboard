@@ -18,9 +18,11 @@ import { kodyApi } from "../api";
 interface PublishButtonProps {
   actorLogin?: string;
   onPublished?: (issueNumber: number) => void;
+  /** Optional override for the trigger Button's className (used by the mobile menu). */
+  triggerClassName?: string;
 }
 
-export function PublishButton({ actorLogin, onPublished }: PublishButtonProps) {
+export function PublishButton({ actorLogin, onPublished, triggerClassName }: PublishButtonProps) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [pending, setPending] = useState(false);
   const createTask = useCreateTask();
@@ -82,11 +84,11 @@ export function PublishButton({ actorLogin, onPublished }: PublishButtonProps) {
       <SimpleTooltip content="Publish a release" side="bottom">
         <Button
           variant="outline"
-          size="sm"
+          size={triggerClassName ? undefined : "sm"}
           onClick={() => setShowConfirm(true)}
           disabled={pending}
           aria-label="Publish a release"
-          className="gap-1"
+          className={triggerClassName ?? "gap-1"}
         >
           <Rocket className={`w-4 h-4 ${pending ? "animate-pulse" : ""}`} />
           {pending ? "Publishing…" : "Publish"}

@@ -218,6 +218,8 @@ interface KodyChatProps {
   context?: ChatContext | null
   /** GitHub login of the current user — used for remote dev status */
   actorLogin?: string | null
+  /** Optional close handler — when set, renders a close `×` in the header (mobile sheet). */
+  onClose?: () => void
 }
 
 function getFileIcon(mimeType: string) {
@@ -332,7 +334,7 @@ function TypingIndicator({ label }: { label: string }) {
   )
 }
 
-export function KodyChat({ context, actorLogin }: KodyChatProps) {
+export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
   // Context-kind derivations.
   const selectedTask: KodyTask | null =
     context?.kind === 'task' ? context.task : null
@@ -2133,6 +2135,19 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
                 <span className="hidden sm:inline">History</span>
               </button>
             )}
+
+            {/* Close (mobile sheet) — only when an onClose handler is provided */}
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close chat"
+                title="Close"
+                className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -2321,7 +2336,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
             className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} relative`}
           >
             <div
-              className={`max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-base ${
+              className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-base ${
                 msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
               }`}
             >
@@ -2425,7 +2440,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
             only pushed once the first SSE event arrives. */}
         {loading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
           <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-lg px-3 py-2 bg-muted">
+            <div className="max-w-[92%] sm:max-w-[85%] rounded-lg px-3 py-2 bg-muted">
               <TypingIndicator label={currentAgent.name} />
             </div>
           </div>
