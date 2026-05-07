@@ -2185,6 +2185,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         {messages.map((msg, i) => (
           <div
             key={i}
+            data-role={msg.role}
             className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} relative`}
           >
             <div
