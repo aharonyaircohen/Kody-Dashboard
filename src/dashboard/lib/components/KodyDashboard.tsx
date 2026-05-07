@@ -1133,7 +1133,7 @@ export function KodyDashboard({
       </div>
       {!isDesktop && (
         <Sheet open={showMobileChat} onOpenChange={handleCloseChat}>
-          <SheetContent side="right" className="w-full sm:w-[400px] p-0" hideClose>
+          <SheetContent side="right" className="w-full sm:w-[400px] !p-0 !gap-0" hideClose>
             <SheetHeader className="sr-only">
               <SheetTitle>Chat with Kody</SheetTitle>
               <SheetDescription>AI assistant chat</SheetDescription>
@@ -1774,7 +1774,7 @@ export function KodyDashboard({
 
         {/* Mobile Menu Sheet */}
         <Sheet open={showMobileMenu} onOpenChange={setShowMobileMenu}>
-          <SheetContent side="right" className="w-[88vw] sm:w-[360px] p-0 overflow-y-auto">
+          <SheetContent side="right" className="w-[88vw] sm:w-[360px] !p-0 !gap-0 overflow-y-auto">
             <SheetHeader className="px-4 pt-4 pb-2">
               <SheetTitle>Menu</SheetTitle>
               <SheetDescription className="sr-only">
@@ -1955,7 +1955,7 @@ export function KodyDashboard({
           >
             <SheetContent
               side="right"
-              className="w-full sm:w-[400px] p-0"
+              className="w-full sm:w-[400px] !p-0 !gap-0"
               hideClose
             >
               <SheetHeader className="sr-only">
@@ -1978,7 +1978,7 @@ export function KodyDashboard({
         {/* Mobile Chat Sheet — only rendered on mobile */}
         {!isDesktop && (
           <Sheet open={showMobileChat} onOpenChange={handleCloseChat}>
-            <SheetContent side="right" className="w-full sm:w-[400px] p-0" hideClose>
+            <SheetContent side="right" className="w-full sm:w-[400px] !p-0 !gap-0" hideClose>
               <SheetHeader className="sr-only">
                 <SheetTitle>Chat with Kody</SheetTitle>
                 <SheetDescription>AI assistant chat</SheetDescription>

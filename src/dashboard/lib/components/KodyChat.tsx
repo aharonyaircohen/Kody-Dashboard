@@ -2000,7 +2000,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
         />
       )}
       {/* Header with context */}
-      <div className="px-2 py-2 sm:px-4 sm:py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
+      <div className="px-2 py-1.5 sm:px-4 sm:py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
         <div className="flex items-center justify-between">
           {/* Left: agent picker */}
           <div className="relative flex items-center gap-2">
@@ -2152,7 +2152,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
         </div>
 
         {/* Context bar: task, job, job draft, or global */}
-        <div className="mt-2">
+        <div className="mt-1 sm:mt-2">
           {isTaskMode && selectedTask ? (
             <div className="flex items-center gap-2 text-sm">
               <span className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded font-medium">
@@ -2216,7 +2216,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
       )}
 
       {/* Messages area */}
-      <div className="flex-1 overflow-auto p-2 sm:p-4 space-y-4">
+      <div className="flex-1 overflow-auto px-1.5 py-2 sm:p-4 space-y-4">
         {messages.length === 0 && !loading && !isLoadingTaskChat && (
           <div className="text-center text-muted-foreground text-base py-8">
             {isTaskMode ? (
@@ -2489,7 +2489,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
       )}
 
       {/* Input area */}
-      <div className="p-2 sm:p-3 border-t">
+      <div className="px-1.5 py-2 sm:p-3 border-t">
         {/* Kody Live warm-up banner — only visible when the live agent is
             selected and the runner isn't currently ready to accept messages. */}
         {isKodyLive && interactiveState !== 'ready' ? (
