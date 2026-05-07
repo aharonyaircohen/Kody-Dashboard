@@ -1716,6 +1716,36 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     ],
   )
 
+  // Planner auto-kickoff. The "Plan with chat" button is the user's consent
+  // to start; landing them on a blank prompt and asking them to type "go" is
+  // a wasted click. We fire Pass 1 automatically on first render of a fresh
+  // planner session. Guarded by a ref keyed on sessionId so re-renders,
+  // mode toggles, and cleared chats can't re-trigger.
+  const plannerAutoKickedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!isPlannerMode || !plannerSessionId || !plannerGoal) return
+    if (plannerAutoKickedRef.current === plannerSessionId) return
+    if (currentPlannerMessages.length > 0) {
+      plannerAutoKickedRef.current = plannerSessionId
+      return
+    }
+    plannerAutoKickedRef.current = plannerSessionId
+    // Defer one microtask so the chat's setMessages plumbing has committed
+    // for this session before sendText reads/writes it.
+    void Promise.resolve().then(() => {
+      sendText(
+        `Plan tasks for the goal "${plannerGoal.name}". Run Pass 1 now: ` +
+          'output the proposed task list (3–8 tasks), then wait for my approval.',
+      )
+    })
+  }, [
+    isPlannerMode,
+    plannerSessionId,
+    plannerGoal,
+    currentPlannerMessages.length,
+    sendText,
+  ])
+
   // Kody Live: warm-up the long-lived runner. Wires the dispatch + SSE
   // for an interactive session. Chat input stays disabled until the runner
   // emits chat.ready (handled in connectSSE).
