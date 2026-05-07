@@ -18,6 +18,21 @@ type Listener = (event: unknown) => void;
 
 const listeners = new Map<string, Set<Listener>>();
 
+// Diagnostic — count of publish() calls per sessionId + lastSeen timestamp.
+// Read by /api/kody/events/_debug to confirm whether the engine's HttpSink
+// is actually reaching /ingest from inside a GitHub Actions runner. (Vercel's
+// runtime log CLI is too lossy to trust for low-volume routes.)
+const ingestStats = new Map<string, { count: number; lastSeen: number; lastEvent: string }>();
+
+export function recordIngest(sessionId: string, event: string): void {
+  const cur = ingestStats.get(sessionId) ?? { count: 0, lastSeen: 0, lastEvent: "" };
+  ingestStats.set(sessionId, { count: cur.count + 1, lastSeen: Date.now(), lastEvent: event });
+}
+
+export function getIngestStats(sessionId: string): { count: number; lastSeen: number; lastEvent: string } | null {
+  return ingestStats.get(sessionId) ?? null;
+}
+
 export function subscribe(sessionId: string, listener: Listener): () => void {
   let set = listeners.get(sessionId);
   if (!set) {

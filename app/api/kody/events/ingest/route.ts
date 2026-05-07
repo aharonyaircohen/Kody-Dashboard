@@ -23,7 +23,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { publish } from "@dashboard/lib/chat-event-bus";
+import { publish, recordIngest } from "@dashboard/lib/chat-event-bus";
 import { isFromGitHubActions, getClientIp } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@dashboard/lib/logger";
 
@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
       runId: event.runId ?? "",
       emittedAt: event.emittedAt ?? new Date().toISOString(),
     });
+    recordIngest(sessionId, event.event);
   }
 
   logger.debug({ sessionId, count: events.length }, "chat: ingested events");
