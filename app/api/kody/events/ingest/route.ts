@@ -44,8 +44,11 @@ export async function POST(req: NextRequest) {
   }
 
   // IP verification — only GitHub Actions runners can post events here.
-  // INGEST_ALLOW_ANY_IP=1 disables the gate (local dev, integration tests).
-  if (process.env.INGEST_ALLOW_ANY_IP !== "1") {
+  // INGEST_ALLOW_ANY_IP={1,true,yes} disables the gate (dev, tests).
+  const allowAnyIp = ["1", "true", "yes"].includes(
+    String(process.env.INGEST_ALLOW_ANY_IP ?? "").trim().toLowerCase(),
+  );
+  if (!allowAnyIp) {
     const ip = getClientIp(req.headers);
     const ok = await isFromGitHubActions(ip);
     if (!ok) {
