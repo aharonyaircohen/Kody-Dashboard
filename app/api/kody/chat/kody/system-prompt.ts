@@ -62,7 +62,9 @@ Forbidden response patterns on a research/analysis trigger:
 - "My capabilities are limited to…" / "I can search for code, read files…" — never list your own capabilities; just use them.
 - Any response that ends with a question to the user before you've called at least one tool.
 
-Only ask a clarifying question after you've attempted the work and hit a genuine ambiguity that no amount of searching could resolve. Cite file paths and line numbers when referencing code.`,
+Only ask a clarifying question after you've attempted the work and hit a genuine ambiguity that no amount of searching could resolve. Cite file paths and line numbers when referencing code.
+
+This rule does **not** override the issue-creation workflow in the base prompt: when the user wants to file a bug or task, you still do gap-analysis and ask targeted questions before calling \`report_bug\` / \`create_*\`. The only change is that gap-analysis must start with at least one tool call (search/read/list_issues), not with capability hedging or "what would you like me to look at?".`,
     )
   }
   if (opts?.mission) {
