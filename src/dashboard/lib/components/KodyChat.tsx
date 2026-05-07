@@ -1961,7 +1961,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   const canSend = (input.trim() || attachments.length > 0) && !liveLocked
 
   return (
-    <div className="relative flex flex-col h-full border-l bg-background">
+    <div className="relative flex flex-col h-full md:border-l bg-background">
       {/* Session Sidebar */}
       {showSessionSidebar && isGlobalMode && (
         <SessionSidebar
@@ -1972,7 +1972,8 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
           onDeleteSession={sessionHook.deleteSession}
           onRenameSession={sessionHook.renameSession}
           onPinSession={sessionHook.pinSession}
-          className="absolute left-0 top-0 bottom-0 w-72 z-50"
+          onClose={() => setShowSessionSidebar(false)}
+          className="absolute left-0 top-0 bottom-0 w-full sm:w-72 z-50 shadow-lg"
         />
       )}
       {/* Voice Chat Overlay */}
@@ -1997,7 +1998,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
         />
       )}
       {/* Header with context */}
-      <div className="pl-4 pr-4 py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
+      <div className="px-2 py-2 sm:px-4 sm:py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
         <div className="flex items-center justify-between">
           {/* Left: agent picker */}
           <div className="relative flex items-center gap-2">
@@ -2200,7 +2201,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       )}
 
       {/* Messages area */}
-      <div className="flex-1 overflow-auto p-4 space-y-4">
+      <div className="flex-1 overflow-auto p-2 sm:p-4 space-y-4">
         {messages.length === 0 && !loading && !isLoadingTaskChat && (
           <div className="text-center text-muted-foreground text-base py-8">
             {isTaskMode ? (
@@ -2451,7 +2452,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
 
       {/* Attachments preview */}
       {attachments.length > 0 && (
-        <div className="px-3 pb-2 flex flex-wrap gap-2">
+        <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
           {attachments.map((attachment) => (
             <div
               key={attachment.id}
@@ -2473,7 +2474,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       )}
 
       {/* Input area */}
-      <div className="p-3 border-t">
+      <div className="p-2 sm:p-3 border-t">
         {/* Kody Live warm-up banner — only visible when the live agent is
             selected and the runner isn't currently ready to accept messages. */}
         {isKodyLive && interactiveState !== 'ready' ? (
