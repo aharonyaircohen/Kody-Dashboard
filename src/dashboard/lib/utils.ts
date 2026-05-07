@@ -63,14 +63,19 @@ export interface ViewModeFilterOptions {
 export const QUEUE_LABELS = ['kody:queued', 'kody:queue-active', 'kody:queue-failed'] as const
 
 /**
- * Closed/done tasks are terminal: they belong in neither the active "running"
- * lane nor the "backlog" intake. Without this guard, a closed task whose
- * column never got updated (e.g. column='building' from a stale label) would
- * leak into Running, and a closed task with column='open' would stay in
- * Backlog.
+ * Closed tasks are terminal — they don't belong in Running or Backlog.
+ *
+ * Why state-only (no `column === 'done'` check): an issue can carry a
+ * `kody:done` label (so column derives to 'done') while still being open
+ * on GitHub — e.g. release tracking issues that the engine marks done
+ * but never closes. Those should stay visible until the issue is actually
+ * closed. Past regression (commit 0d02d82) added the column check to keep
+ * closed-but-stale-column tasks out of Running, but the route already
+ * short-circuits closed issues to column='done', so the state-only guard
+ * is sufficient and avoids over-hiding open-but-marked-done issues.
  */
 function isTerminalTask(task: KodyTask): boolean {
-  return task.state === 'closed' || task.column === 'done'
+  return task.state === 'closed'
 }
 
 export function filterTasksByView(tasks: KodyTask[], options: ViewModeFilterOptions): KodyTask[] {
