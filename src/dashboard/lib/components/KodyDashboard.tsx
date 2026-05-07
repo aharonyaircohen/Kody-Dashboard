@@ -1138,19 +1138,11 @@ export function KodyDashboard({
               <SheetTitle>Chat with Kody</SheetTitle>
               <SheetDescription>AI assistant chat</SheetDescription>
             </SheetHeader>
-            <div className="flex justify-end p-2 border-b border-border">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleCloseChat(false)}
-                className="text-muted-foreground hover:text-foreground"
-                aria-label="Close chat"
-              >
-                <XIcon className="w-5 h-5 mr-1" />
-                Close
-              </Button>
-            </div>
-            <KodyChat context={null} actorLogin={githubUser?.login} />
+            <KodyChat
+              context={null}
+              actorLogin={githubUser?.login}
+              onClose={() => handleCloseChat(false)}
+            />
           </SheetContent>
         </Sheet>
       )}
@@ -1782,14 +1774,14 @@ export function KodyDashboard({
 
         {/* Mobile Menu Sheet */}
         <Sheet open={showMobileMenu} onOpenChange={setShowMobileMenu}>
-          <SheetContent side="right" className="w-[280px] p-0">
+          <SheetContent side="right" className="w-[88vw] sm:w-[360px] p-0 overflow-y-auto">
             <SheetHeader className="px-4 pt-4 pb-2">
               <SheetTitle>Menu</SheetTitle>
               <SheetDescription className="sr-only">
                 Dashboard controls and filters
               </SheetDescription>
             </SheetHeader>
-            <div className="flex flex-col gap-3 px-4 pb-4">
+            <div className="flex flex-col gap-3 px-4 pb-6">
               {/* GitHub identity */}
               {githubUser && (
                 <button
@@ -1798,9 +1790,9 @@ export function KodyDashboard({
                     clearGitHubUser();
                     setShowMobileMenu(false);
                   }}
-                  className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-accent transition-colors border border-border"
+                  className="flex items-center gap-2 px-2 py-3 rounded-md hover:bg-accent transition-colors border border-border"
                 >
-                  <Avatar className="h-6 w-6">
+                  <Avatar className="h-7 w-7">
                     <AvatarImage
                       src={githubUser.avatar_url}
                       alt={githubUser.login}
@@ -1820,34 +1812,59 @@ export function KodyDashboard({
                 </button>
               )}
 
-              {/* Chat */}
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-2"
-                onClick={() => {
-                  setShowMobileMenu(false);
-                  handleOpenChat();
-                }}
-              >
-                <MessageSquare className="w-4 h-4" />
-                Chat with Kody
-              </Button>
+              {/* Primary */}
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    handleOpenChat();
+                  }}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Chat with Kody
+                </Button>
 
-              {/* Jobs */}
-              <Button
-                asChild
-                variant="outline"
-                className="w-full justify-start gap-2"
-                onClick={() => setShowMobileMenu(false)}
-              >
-                <Link href="/jobs">
-                  <Layers className="w-4 h-4" />
-                  Jobs
-                </Link>
-              </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => setShowMobileMenu(false)}
+                >
+                  <Link href="/jobs">
+                    <Layers className="w-4 h-4" />
+                    Jobs
+                  </Link>
+                </Button>
+
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => setShowMobileMenu(false)}
+                >
+                  <Link href="/notifications">
+                    <Bell className="w-4 h-4" />
+                    Notifications
+                  </Link>
+                </Button>
+
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => setShowMobileMenu(false)}
+                >
+                  <Link href="/secrets">
+                    <KeyRound className="w-4 h-4" />
+                    Secrets
+                  </Link>
+                </Button>
+              </div>
 
               {/* Filters */}
-              <div className="space-y-2">
+              <div className="space-y-2 pt-2 border-t border-border">
                 <span className="text-xs font-medium text-muted-foreground uppercase">
                   Filters
                 </span>
@@ -1859,9 +1876,51 @@ export function KodyDashboard({
                 <span className="text-xs font-medium text-muted-foreground uppercase">
                   Actions
                 </span>
+                <div onClick={() => setShowMobileMenu(false)}>
+                  <PublishButton
+                    actorLogin={githubUser?.login}
+                    onPublished={(n) => setSelectedIssueNumber(n)}
+                    triggerClassName="w-full justify-start gap-2 h-11"
+                  />
+                </div>
                 <Button
                   variant="outline"
-                  className="w-full justify-start gap-2"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    setShowBranchCleanup(true);
+                  }}
+                >
+                  <GitBranch className="w-4 h-4" />
+                  Cleanup branches
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => {
+                    refetch();
+                    queryClient.invalidateQueries({ queryKey: goalQueryKeys.list });
+                  }}
+                  disabled={isFetching}
+                >
+                  <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                >
+                  {theme === "dark" ? (
+                    <Sun className="w-4 h-4" />
+                  ) : (
+                    <Moon className="w-4 h-4" />
+                  )}
+                  {theme === "dark" ? "Light mode" : "Dark mode"}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
                   onClick={() => {
                     setShowMobileMenu(false);
                     handleOpenBug();
@@ -1871,7 +1930,7 @@ export function KodyDashboard({
                   Report Bug
                 </Button>
                 <Button
-                  className="w-full"
+                  className="w-full h-11"
                   onClick={() => {
                     setShowMobileMenu(false);
                     handleOpenCreate();
@@ -1924,22 +1983,10 @@ export function KodyDashboard({
                 <SheetTitle>Chat with Kody</SheetTitle>
                 <SheetDescription>AI assistant chat</SheetDescription>
               </SheetHeader>
-              {/* Mobile close button — larger touch target for easier closing */}
-              <div className="flex justify-end p-2 border-b border-border">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleCloseChat(false)}
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label="Close chat"
-                >
-                  <XIcon className="w-5 h-5 mr-1" />
-                  Close
-                </Button>
-              </div>
               <KodyChat
                 context={chatContext}
                 actorLogin={githubUser?.login}
+                onClose={() => handleCloseChat(false)}
               />
             </SheetContent>
           </Sheet>
