@@ -457,6 +457,45 @@ export function createGitHubTools(ctx: Ctx) {
       },
     }),
 
+    github_comment_on_issue: tool({
+      description:
+        `Post a comment on an issue or pull request in ${owner}/${repo}. ` +
+        'Use this when the user asks to leave a note, reply, status update, or ' +
+        'progress report on an issue/PR. Returns the new comment id and url. ' +
+        'Does NOT change issue state — use github_close_issue for that.',
+      inputSchema: z.object({
+        number: z.number().int().positive().describe('The issue or PR number'),
+        body: z
+          .string()
+          .min(1)
+          .max(8_000)
+          .describe('Markdown body of the comment'),
+      }),
+      execute: async ({ number, body }) => {
+        try {
+          const res = await octokit.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: number,
+            body,
+          })
+          invalidateIssueCache(number)
+          return {
+            ok: true,
+            id: res.data.id,
+            number,
+            url: res.data.html_url,
+            createdAt: res.data.created_at,
+          }
+        } catch (err) {
+          logger.warn({ err, owner, repo, number }, 'github_comment_on_issue failed')
+          return {
+            error: err instanceof Error ? err.message : 'Failed to post comment',
+          }
+        }
+      },
+    }),
+
     github_close_issue: tool({
       description:
         `Close an issue in ${owner}/${repo}. Use only when the user explicitly asks ` +
