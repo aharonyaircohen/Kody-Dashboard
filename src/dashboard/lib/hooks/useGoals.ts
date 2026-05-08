@@ -31,6 +31,14 @@ export function useGoals() {
     queryFn: () => kodyApi.goals.list(),
     enabled: !!getStoredAuth(),
     staleTime: 30_000,
+    // Poll every 30s so goals created externally (kody engine creating
+    // qa-engineer goals from a developer machine, manifest edits via the
+    // GitHub UI, etc.) become visible without a hard refresh. We can't
+    // rely on refetchOnWindowFocus — it's globally disabled in
+    // KodyProviders to avoid refresh loops on session expiry — and
+    // staleTime alone never triggers a refetch on its own.
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     retry: (failureCount, error) => {
       if (error instanceof SessionExpiredError) return false
       if (error instanceof NoTokenError) return false
