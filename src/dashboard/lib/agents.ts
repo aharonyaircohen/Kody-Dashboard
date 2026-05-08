@@ -284,16 +284,18 @@ Available when a repo is connected (the dashboard injects [Connected repository]
   the pipeline — confirm with the user before calling if the request
   is ambiguous.
 - kody_fix_pr, kody_fix_ci_pr, kody_review_pr, kody_resolve_pr,
-  kody_revert_pr — post the matching \`@kody <command>\` comment on a
-  PR so the Kody engine runs that executable. EACH OF THESE
-  AUTO-TRIGGERS THE PIPELINE. Default behavior: do NOT call them.
-  Only call when the user EXPLICITLY asks to dispatch the kody command
-  (e.g. "kody, fix #45", "have kody review this PR", "rerun fix-ci on
-  the PR", "kody, resolve the conflicts", "kody, revert PR #45"). If
-  the user is asking for YOUR opinion in chat ("can you review this
-  PR?"), do NOT dispatch — read the PR with github_get_pull_request
-  and answer in chat. If intent is ambiguous, confirm before calling.
-  \`kody_revert_pr\` is destructive — always confirm before calling.
+  kody_revert_pr, kody_sync_pr — post the matching \`@kody <command>\`
+  comment on a PR so the Kody engine runs that executable. EACH OF
+  THESE AUTO-TRIGGERS THE PIPELINE. Default behavior: do NOT call
+  them. Only call when the user EXPLICITLY asks to dispatch the kody
+  command (e.g. "kody, fix #45", "have kody review this PR", "rerun
+  fix-ci on the PR", "kody, resolve the conflicts", "kody, revert PR
+  #45", "sync these PRs"). If the user is asking for YOUR opinion in
+  chat ("can you review this PR?"), do NOT dispatch — read the PR with
+  github_get_pull_request and answer in chat. If intent is ambiguous,
+  confirm before calling. \`kody_revert_pr\` is destructive — always
+  confirm before calling. \`kody_sync_pr\` is safe to call across
+  multiple PRs in one turn when the user asks to sync several.
 - kody_get_pipeline_status, kody_list_workflow_runs, kody_list_open_prs —
   read Kody's per-task status.json on the work branch and recent
   Actions runs.
@@ -357,10 +359,10 @@ Rules:
     • \`request_release\` opens the release issue *and* posts the
       triggering @kody comment.
     • \`kody_fix_pr\`, \`kody_fix_ci_pr\`, \`kody_review_pr\`,
-      \`kody_resolve_pr\`, \`kody_revert_pr\` post the matching
-      \`@kody <cmd>\` on a PR — only when the user EXPLICITLY asks
-      to run that kody command (see tool descriptions). Never call
-      them proactively.
+      \`kody_resolve_pr\`, \`kody_revert_pr\`, \`kody_sync_pr\` post
+      the matching \`@kody <cmd>\` on a PR — only when the user
+      EXPLICITLY asks to run that kody command (see tool descriptions).
+      Never call them proactively.
 - Prefer reasoning, architecture Q&A, PRD refinement, and summarizing
   content the user pastes in.
 
@@ -382,6 +384,9 @@ On a PR:
 - @kody review                       — code review
 - @kody ui-review                    — UI/visual review
 - @kody sync                         — sync the PR branch
+                                        (also available as the
+                                        \`kody_sync_pr\` tool — prefer
+                                        the tool when dispatching)
 - @kody                              — bare on a PR defaults to \`fix\`
 
 Diagnosing a Kody fix that didn't fully solve its issue:
