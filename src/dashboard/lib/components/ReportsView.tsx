@@ -16,7 +16,9 @@ import {
   Calendar,
   ExternalLink,
   FileText,
+  GitPullRequest,
   RefreshCw,
+  Target,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -25,6 +27,8 @@ import { AuthGuard } from '../auth-guard'
 import { cn } from '../utils'
 import { useReports } from '../hooks/useReports'
 import type { Report } from '../api'
+import { CreateTaskDialog } from './CreateTaskDialog'
+import { CreateGoalDialog } from './GoalControl'
 
 export function ReportsView({
   titleSlot,
@@ -41,6 +45,9 @@ export function ReportsViewInner({ titleSlot }: { titleSlot?: React.ReactNode })
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  // Resource generators — pop dialogs prefilled from the active report.
+  const [issueFromReport, setIssueFromReport] = useState<Report | null>(null)
+  const [goalFromReport, setGoalFromReport] = useState<Report | null>(null)
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -173,7 +180,12 @@ export function ReportsViewInner({ titleSlot }: { titleSlot?: React.ReactNode })
           )}
         >
           {selected ? (
-            <ReportDetail report={selected} onBack={() => setSelectedSlug(null)} />
+            <ReportDetail
+              report={selected}
+              onBack={() => setSelectedSlug(null)}
+              onCreateIssue={() => setIssueFromReport(selected)}
+              onPlanGoal={() => setGoalFromReport(selected)}
+            />
           ) : (
             <EmptyState
               icon={<FileText />}
@@ -183,6 +195,44 @@ export function ReportsViewInner({ titleSlot }: { titleSlot?: React.ReactNode })
           )}
         </section>
       </div>
+
+      {/* Generate issue from the active report. Title and body are
+          prefilled; a `from-report:<slug>` label keeps the lineage
+          discoverable in the issue tracker. */}
+      <CreateTaskDialog
+        open={!!issueFromReport}
+        onClose={() => setIssueFromReport(null)}
+        initialData={
+          issueFromReport
+            ? {
+                title: `Address: ${issueFromReport.title}`,
+                body:
+                  `Source report: [\`.kody/reports/${issueFromReport.slug}.md\`](${issueFromReport.htmlUrl})\n\n` +
+                  `---\n\n${issueFromReport.body}`,
+                labels: [`from-report:${issueFromReport.slug}`],
+              }
+            : undefined
+        }
+        onCreated={() => setIssueFromReport(null)}
+      />
+
+      {/* Generate a goal from the report. Description seeds the goal
+          body so the planner / chat has full context for decomposition. */}
+      <CreateGoalDialog
+        open={!!goalFromReport}
+        onClose={() => setGoalFromReport(null)}
+        initial={
+          goalFromReport
+            ? {
+                name: goalFromReport.title,
+                description:
+                  `Source report: [\`.kody/reports/${goalFromReport.slug}.md\`](${goalFromReport.htmlUrl})\n\n` +
+                  `---\n\n${goalFromReport.body}`,
+              }
+            : undefined
+        }
+        onCreated={() => setGoalFromReport(null)}
+      />
     </div>
   )
 }
@@ -229,7 +279,17 @@ function ReportRow({
   )
 }
 
-function ReportDetail({ report, onBack }: { report: Report; onBack: () => void }) {
+function ReportDetail({
+  report,
+  onBack,
+  onCreateIssue,
+  onPlanGoal,
+}: {
+  report: Report
+  onBack: () => void
+  onCreateIssue: () => void
+  onPlanGoal: () => void
+}) {
   const hasBody = report.body.trim().length > 0
   return (
     <article className="h-full flex flex-col">
@@ -266,6 +326,28 @@ function ReportDetail({ report, onBack }: { report: Report; onBack: () => void }
               GitHub
             </a>
           </div>
+        </div>
+        {/* Resource generators — turn the report into actionable work. */}
+        <div className="shrink-0 flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onPlanGoal}
+            className="gap-1.5"
+            title="Create a new goal pre-filled from this report"
+          >
+            <Target className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Plan goal</span>
+          </Button>
+          <Button
+            size="sm"
+            onClick={onCreateIssue}
+            className="gap-1.5 bg-sky-600 hover:bg-sky-700 text-white"
+            title="Create a GitHub issue pre-filled from this report"
+          >
+            <GitPullRequest className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Create issue</span>
+          </Button>
         </div>
       </div>
 

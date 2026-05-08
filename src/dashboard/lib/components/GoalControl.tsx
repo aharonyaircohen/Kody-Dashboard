@@ -847,10 +847,13 @@ export function CreateGoalDialog({
   open,
   onClose,
   onCreated,
+  initial,
 }: {
   open: boolean
   onClose: () => void
   onCreated: (goal: Goal) => void
+  /** Optional pre-fill for callers that seed the dialog from another resource (e.g. a report). */
+  initial?: { name?: string; description?: string; dueDate?: string }
 }) {
   const { githubUser } = useGitHubIdentity()
   const createMutation = useCreateGoal(githubUser?.login)
@@ -861,11 +864,11 @@ export function CreateGoalDialog({
 
   useEffect(() => {
     if (open) {
-      setName('')
-      setDescription('')
-      setDueDate('')
+      setName(initial?.name ?? '')
+      setDescription(initial?.description ?? '')
+      setDueDate(initial?.dueDate ?? '')
     }
-  }, [open])
+  }, [open, initial?.name, initial?.description, initial?.dueDate])
 
   const handleSubmit = () => {
     if (!name.trim() || createMutation.isPending) return
