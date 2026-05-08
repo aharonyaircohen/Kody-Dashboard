@@ -32,7 +32,26 @@ import type {
   KodyPipelineStatus,
 } from '@dashboard/lib/types'
 import { matchWorkflowRunToTask } from '@dashboard/lib/workflow-matching'
-import { parseKodyPhase, parseKodyFlow } from '@dashboard/lib/constants'
+import { parseKodyPhase, parseKodyFlow, TASK_ID_REGEX } from '@dashboard/lib/constants'
+
+/**
+ * Extract a real kody task ID from an issue title's leading `[…]`.
+ *
+ * Issue titles can carry brackets that look like task IDs but aren't —
+ * priority labels (`[P0]`/`[P1]`/`[P2]`/`[P3]`), severity tags, etc. If
+ * we treat those as task IDs, `matchWorkflowRunToTask`'s
+ * `title.includes(taskId)` substring check leaks across every
+ * priority-prefixed issue: e.g. an in-progress `[P2] Add client-side …`
+ * run will "match" four other unrelated `[P2] …` issues, marking them
+ * Building/running. Only accept brackets whose content matches the
+ * canonical kody task-id shape (YYMMDD-…).
+ */
+function extractTaskId(title: string): string {
+  const m = title.match(/^\[([^\]]+)\]/)
+  if (!m) return ''
+  const candidate = m[1]
+  return TASK_ID_REGEX.test(candidate) ? candidate : ''
+}
 
 /**
  * Derive column from live pipeline status.
@@ -243,8 +262,7 @@ export async function GET(req: NextRequest) {
     // change and re-fetching it on every poll burns rate-limit budget.
     const activeIssueNumbers: number[] = []
     for (const issue of issues) {
-      const taskIdMatch = issue.title.match(/\[[^\]]+\]/)
-      const taskId = taskIdMatch ? taskIdMatch[0].replace(/[\[\]]/g, '') : ''
+      const taskId = extractTaskId(issue.title)
       const workflowRun = matchWorkflowRunToTask(workflowRuns, issue.title, issue.number, taskId)
       const labelNames = issue.labels.map((l) => l.name.toLowerCase())
       // Active workflow run overrides terminal labels — `@kody sync` /
@@ -270,9 +288,9 @@ export async function GET(req: NextRequest) {
     // Parse issues into tasks with additional metadata
     const tasks: KodyTask[] = await Promise.all(
       issues.map(async (issue) => {
-        // Extract task ID from title (e.g., "[HIGH-507]" or "[260224-auto-38]")
-        const taskIdMatch = issue.title.match(/\[[^\]]+\]/)
-        const taskId = taskIdMatch ? taskIdMatch[0].replace(/[\[\]]/g, '') : ''
+        // Extract a real kody task ID (e.g. "260224-auto-38"). Priority
+        // brackets like "[P2]" don't qualify — see extractTaskId comment.
+        const taskId = extractTaskId(issue.title)
 
         // Match workflow run — prefers active (in_progress) runs over stale completed ones
         const workflowRun = matchWorkflowRunToTask(workflowRuns, issue.title, issue.number, taskId)
