@@ -1111,6 +1111,164 @@ export async function fetchWorkflowRuns(options?: {
   return runs
 }
 
+// ============ Default-branch CI roll-up ============
+//
+// Used by the dashboard banner to surface whether `main` is currently green
+// or red. Autonomous agents start work from the default branch, so a red
+// main is a blocker — operators want to see this before drilling into tasks.
+//
+// Cached with ETag/304 + 30s TTL per the rate-limit rules in CLAUDE.md.
+// Webhook receiver invalidates via invalidateWorkflowCache() on workflow_run /
+// check_run / push events.
+
+export interface DefaultBranchCI {
+  /** Aggregate state across the latest run of each distinct workflow on main. */
+  state: 'success' | 'failure' | 'pending' | 'unknown'
+  /** Default branch name (usually 'main'). */
+  branch: string
+  /** Latest commit SHA on the default branch (when known). */
+  sha?: string
+  /** Latest workflow run on main, regardless of conclusion. */
+  latestRun?: {
+    id: number
+    name: string
+    status: 'queued' | 'in_progress' | 'completed'
+    conclusion: string | null
+    html_url: string
+    updated_at: string
+  }
+  /** All currently-failing latest-runs on main. Empty when state !== 'failure'. */
+  failingRuns: Array<{
+    id: number
+    name: string
+    conclusion: string
+    html_url: string
+    updated_at: string
+  }>
+  /** When data was sampled (ISO). */
+  fetchedAt: string
+}
+
+const DEFAULT_BRANCH_CI_TTL = 30_000
+
+async function getDefaultBranch(): Promise<string> {
+  const cacheKey = `branch:default:${getOwner()}:${getRepo()}`
+  const cached = getCached<string>(cacheKey)
+  if (cached) return cached
+
+  const { data } = await getOctokit().repos.get({ owner: getOwner(), repo: getRepo() })
+  const branch = data.default_branch
+  setCache(cacheKey, BRANCH_CACHE_TTL, branch)
+  return branch
+}
+
+/**
+ * Roll-up of CI status on the default branch. Takes the latest workflow run
+ * for each distinct workflow on main, then aggregates:
+ *   - any failure → 'failure'
+ *   - else any in_progress/queued → 'pending'
+ *   - else all success/skipped → 'success'
+ *   - empty → 'unknown'
+ */
+export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
+  const branch = await getDefaultBranch()
+  const cacheKey = `workflows:main-ci:${getOwner()}:${getRepo()}:${branch}`
+  const cached = getCached<DefaultBranchCI>(cacheKey)
+  if (cached) return cached
+
+  const stale = getStale<DefaultBranchCI>(cacheKey)
+  const octokit = getOctokit()
+
+  let response
+  try {
+    response = await octokit.actions.listWorkflowRunsForRepo({
+      owner: getOwner(),
+      repo: getRepo(),
+      branch,
+      per_page: 30,
+      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
+    })
+  } catch (err: any) {
+    if (err.status === 304 && stale) {
+      // Refresh TTL — data is still authoritative.
+      setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, stale.data, { etag: stale.etag })
+      return stale.data
+    }
+    // On any other error, fall back to stale data with refreshed TTL so
+    // GraphQL/Actions throttling doesn't compound (per CLAUDE.md rule 3).
+    if (stale) {
+      setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, stale.data, { etag: stale.etag })
+      return stale.data
+    }
+    throw err
+  }
+
+  const newEtag = (response.headers as Record<string, string | undefined>)?.etag
+  const allRuns = response.data.workflow_runs
+
+  // Latest run per (workflow_id, head_sha) — but really we want per workflow.
+  // GitHub returns runs sorted desc by created_at, so first occurrence wins.
+  const latestByWorkflow = new Map<number, (typeof allRuns)[number]>()
+  for (const run of allRuns) {
+    const wid = (run as any).workflow_id as number
+    if (!latestByWorkflow.has(wid)) latestByWorkflow.set(wid, run)
+  }
+  const latestRuns = Array.from(latestByWorkflow.values())
+
+  const failingRuns: DefaultBranchCI['failingRuns'] = []
+  let anyPending = false
+  let anySuccess = false
+  for (const run of latestRuns) {
+    if (run.status !== 'completed') {
+      anyPending = true
+      continue
+    }
+    const c = run.conclusion
+    if (c === 'failure' || c === 'timed_out' || c === 'startup_failure') {
+      failingRuns.push({
+        id: run.id,
+        name: (run as any).name ?? (run as any).display_title ?? 'workflow',
+        conclusion: c,
+        html_url: run.html_url,
+        updated_at: run.updated_at,
+      })
+    } else if (c === 'success') {
+      anySuccess = true
+    }
+    // 'cancelled' / 'skipped' / 'neutral' are ignored — they don't gate landing.
+  }
+
+  let state: DefaultBranchCI['state']
+  if (failingRuns.length > 0) state = 'failure'
+  else if (anyPending) state = 'pending'
+  else if (anySuccess) state = 'success'
+  else state = 'unknown'
+
+  const top = allRuns[0]
+  const latest: DefaultBranchCI['latestRun'] = top
+    ? {
+        id: top.id,
+        name: (top as any).name ?? (top as any).display_title ?? 'workflow',
+        status: top.status as 'queued' | 'in_progress' | 'completed',
+        conclusion: top.conclusion,
+        html_url: top.html_url,
+        updated_at: top.updated_at,
+      }
+    : undefined
+
+  const result: DefaultBranchCI = {
+    state,
+    branch,
+    sha: top?.head_sha ?? undefined,
+    latestRun: latest,
+    failingRuns,
+    fetchedAt: new Date().toISOString(),
+  }
+
+  setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, result, { etag: newEtag })
+  return result
+}
+
 /**
  * Get workflow run for a specific task
  */

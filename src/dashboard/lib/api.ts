@@ -687,6 +687,37 @@ export const workflowsApi = {
   },
 };
 
+// ============ Default-branch CI API ============
+
+export interface DefaultBranchCI {
+  state: "success" | "failure" | "pending" | "unknown";
+  branch: string;
+  sha?: string;
+  latestRun?: {
+    id: number;
+    name: string;
+    status: "queued" | "in_progress" | "completed";
+    conclusion: string | null;
+    html_url: string;
+    updated_at: string;
+  };
+  failingRuns: Array<{
+    id: number;
+    name: string;
+    conclusion: string;
+    html_url: string;
+    updated_at: string;
+  }>;
+  fetchedAt: string;
+}
+
+export const ciApi = {
+  main: async (): Promise<DefaultBranchCI> => {
+    const res = await fetch(`${API_BASE}/ci/main`, { headers: buildHeaders() });
+    return handleResponse<DefaultBranchCI>(res);
+  },
+};
+
 // ============ Remote Dev API ============
 
 export interface RemoteExecPayload {
@@ -1154,6 +1185,7 @@ export const kodyApi = {
   boards: boardsApi,
   collaborators: collaboratorsApi,
   workflows: workflowsApi,
+  ci: ciApi,
   remote: remoteApi,
   jobs: jobsApi,
   goals: goalsApi,

@@ -70,7 +70,7 @@ import {
   Plus,
 } from "lucide-react";
 import Link from "next/link";
-import { useKodyTasks, queryKeys } from "../hooks";
+import { useKodyTasks, queryKeys, useDefaultBranchCI } from "../hooks";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { useBrowserNotifications } from "../hooks/useBrowserNotifications";
 import { useNotificationStore } from "../notifications/useNotificationStore";
@@ -259,6 +259,10 @@ export function KodyDashboard({
         ? false
         : "auto",
   });
+
+  // Default-branch CI roll-up — banner uses this as its primary signal so
+  // operators can see whether main is green/red before drilling into tasks.
+  const { data: mainCi, isFetching: mainCiFetching } = useDefaultBranchCI();
 
   // Initialize filters from URL params after hydration (prevents server/client mismatch)
   useEffect(() => {
@@ -1564,6 +1568,8 @@ export function KodyDashboard({
               {/* Kody Status Banner */}
               <KodyStatusBanner
                 tasks={tasks}
+                mainCi={mainCi}
+                mainCiLoading={mainCiFetching}
                 isFetching={isFetching}
                 dataUpdatedAt={dataUpdatedAt}
                 trailing={

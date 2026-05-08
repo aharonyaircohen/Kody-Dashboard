@@ -17,6 +17,7 @@ import { matchWorkflowRunsForTask } from '../workflow-matching'
 // Re-export new hooks
 export { useDashboardFilters } from './useDashboardFilters'
 export { useDashboardRouter } from './useDashboardRouter'
+export { useDefaultBranchCI } from './useDefaultBranchCI'
 
 // Query keys
 export const queryKeys = {
