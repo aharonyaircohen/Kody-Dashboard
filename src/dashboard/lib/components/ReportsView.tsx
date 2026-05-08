@@ -67,7 +67,7 @@ export function ReportsViewInner({ titleSlot }: { titleSlot?: React.ReactNode })
   }, [filtered, selectedSlug])
 
   return (
-    <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
+    <div className="h-full bg-background text-foreground flex flex-col overflow-hidden">
       <header className="shrink-0 flex items-center justify-between gap-2 px-3 md:px-6 py-2 md:py-4 border-b border-white/[0.06] bg-black/20">
         <div className="flex items-center gap-2 md:gap-3 min-w-0">
           <Link
