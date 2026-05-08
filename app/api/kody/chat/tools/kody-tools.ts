@@ -20,6 +20,7 @@
  *   review      — code review
  *   resolve     — resolve merge conflicts
  *   revert      — revert the PR's merge commit
+ *   sync        — merge the PR's base branch into it and push
  */
 import { tool } from 'ai'
 import { z } from 'zod'
@@ -36,7 +37,7 @@ interface Ctx {
   repo: string
 }
 
-type KodyPrCommand = 'fix' | 'fix-ci' | 'review' | 'resolve' | 'revert'
+type KodyPrCommand = 'fix' | 'fix-ci' | 'review' | 'resolve' | 'revert' | 'sync'
 
 interface DispatchResult {
   number: number
@@ -204,6 +205,22 @@ export function createKodyTools(ctx: Ctx) {
       }),
       execute: ({ prNumber, notes }) =>
         dispatchOnPr(ctx, prNumber, 'revert', notes),
+    }),
+
+    kody_sync_pr: tool({
+      description:
+        `Post \`@kody sync\` on a PR in ${owner}/${repo} to merge the PR's base ` +
+        'branch into it and push. Use when the PR is behind base and the user ' +
+        'asks to "sync this PR", "update from main/base", or fix "branch is out ' +
+        'of date" warnings. DOES auto-trigger the Kody pipeline (no agent — ' +
+        'just a merge + push). Safe to call on multiple PRs in a batch when ' +
+        'the user asks.',
+      inputSchema: z.object({
+        prNumber: PR_NUMBER_SCHEMA,
+        notes: NOTES_SCHEMA,
+      }),
+      execute: ({ prNumber, notes }) =>
+        dispatchOnPr(ctx, prNumber, 'sync', notes),
     }),
   }
 }
