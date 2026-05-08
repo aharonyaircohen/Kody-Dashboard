@@ -1163,39 +1163,64 @@ async function getDefaultBranch(): Promise<string> {
 }
 
 /**
- * Roll-up of CI status on the default branch. Takes the latest workflow run
- * for each distinct workflow on main, then aggregates:
- *   - any failure → 'failure'
+ * Roll-up of CI status at HEAD of the default branch. Uses the Checks API
+ * (the same data source as GitHub's commit-status checkmark) so the banner
+ * tracks current HEAD, not "latest run per workflow ever." That distinction
+ * matters: a workflow that ran and failed on an old commit but was disabled
+ * or removed before HEAD would otherwise stay red on the banner forever.
+ *
+ * Aggregation rules:
+ *   - any failure check → 'failure'
  *   - else any in_progress/queued → 'pending'
- *   - else all success/skipped → 'success'
- *   - empty → 'unknown'
+ *   - else any success → 'success'
+ *   - else (no checks at all) → 'unknown'
  */
 export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
   const branch = await getDefaultBranch()
-  const cacheKey = `workflows:main-ci:${getOwner()}:${getRepo()}:${branch}`
+  const octokit = getOctokit()
+
+  // Resolve HEAD SHA of the default branch. Cached briefly — pushes invalidate
+  // via invalidateBranchCache (`branch:` prefix).
+  const headCacheKey = `branch:head-sha:${getOwner()}:${getRepo()}:${branch}`
+  let headSha = getCached<string>(headCacheKey)
+  if (!headSha) {
+    try {
+      const { data: branchData } = await octokit.repos.getBranch({
+        owner: getOwner(),
+        repo: getRepo(),
+        branch,
+      })
+      headSha = branchData.commit.sha
+      setCache(headCacheKey, DEFAULT_BRANCH_CI_TTL, headSha)
+    } catch (err) {
+      // If HEAD lookup fails, return unknown — better to show "unknown" than
+      // a misleading state.
+      const stale = getStale<DefaultBranchCI>(`workflows:main-ci:${getOwner()}:${getRepo()}:${branch}`)
+      if (stale) return stale.data
+      throw err
+    }
+  }
+
+  const cacheKey = `workflows:main-ci:${getOwner()}:${getRepo()}:${branch}:${headSha}`
   const cached = getCached<DefaultBranchCI>(cacheKey)
   if (cached) return cached
 
   const stale = getStale<DefaultBranchCI>(cacheKey)
-  const octokit = getOctokit()
 
   let response
   try {
-    response = await octokit.actions.listWorkflowRunsForRepo({
+    response = await octokit.checks.listForRef({
       owner: getOwner(),
       repo: getRepo(),
-      branch,
-      per_page: 30,
+      ref: headSha,
+      per_page: 100,
       headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
     })
   } catch (err: any) {
     if (err.status === 304 && stale) {
-      // Refresh TTL — data is still authoritative.
       setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, stale.data, { etag: stale.etag })
       return stale.data
     }
-    // On any other error, fall back to stale data with refreshed TTL so
-    // GraphQL/Actions throttling doesn't compound (per CLAUDE.md rule 3).
     if (stale) {
       setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, stale.data, { etag: stale.etag })
       return stale.data
@@ -1204,38 +1229,33 @@ export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
   }
 
   const newEtag = (response.headers as Record<string, string | undefined>)?.etag
-  const allRuns = response.data.workflow_runs
-
-  // Latest run per (workflow_id, head_sha) — but really we want per workflow.
-  // GitHub returns runs sorted desc by created_at, so first occurrence wins.
-  const latestByWorkflow = new Map<number, (typeof allRuns)[number]>()
-  for (const run of allRuns) {
-    const wid = (run as any).workflow_id as number
-    if (!latestByWorkflow.has(wid)) latestByWorkflow.set(wid, run)
-  }
-  const latestRuns = Array.from(latestByWorkflow.values())
+  const checks = response.data.check_runs
 
   const failingRuns: DefaultBranchCI['failingRuns'] = []
   let anyPending = false
   let anySuccess = false
-  for (const run of latestRuns) {
-    if (run.status !== 'completed') {
+  let mostRecent: (typeof checks)[number] | undefined
+  for (const check of checks) {
+    if (!mostRecent || check.completed_at && (!mostRecent.completed_at || check.completed_at > mostRecent.completed_at)) {
+      mostRecent = check
+    }
+    if (check.status !== 'completed') {
       anyPending = true
       continue
     }
-    const c = run.conclusion
-    if (c === 'failure' || c === 'timed_out' || c === 'startup_failure') {
+    const c = check.conclusion
+    if (c === 'failure' || c === 'timed_out' || c === 'action_required') {
       failingRuns.push({
-        id: run.id,
-        name: (run as any).name ?? (run as any).display_title ?? 'workflow',
+        id: check.id,
+        name: check.name,
         conclusion: c,
-        html_url: run.html_url,
-        updated_at: run.updated_at,
+        html_url: check.html_url ?? '',
+        updated_at: check.completed_at ?? new Date().toISOString(),
       })
     } else if (c === 'success') {
       anySuccess = true
     }
-    // 'cancelled' / 'skipped' / 'neutral' are ignored — they don't gate landing.
+    // 'cancelled' / 'skipped' / 'neutral' / 'stale' are ignored — they don't gate landing.
   }
 
   let state: DefaultBranchCI['state']
@@ -1244,22 +1264,21 @@ export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
   else if (anySuccess) state = 'success'
   else state = 'unknown'
 
-  const top = allRuns[0]
-  const latest: DefaultBranchCI['latestRun'] = top
+  const latest: DefaultBranchCI['latestRun'] = mostRecent
     ? {
-        id: top.id,
-        name: (top as any).name ?? (top as any).display_title ?? 'workflow',
-        status: top.status as 'queued' | 'in_progress' | 'completed',
-        conclusion: top.conclusion,
-        html_url: top.html_url,
-        updated_at: top.updated_at,
+        id: mostRecent.id,
+        name: mostRecent.name,
+        status: mostRecent.status as 'queued' | 'in_progress' | 'completed',
+        conclusion: mostRecent.conclusion,
+        html_url: mostRecent.html_url ?? '',
+        updated_at: mostRecent.completed_at ?? mostRecent.started_at ?? new Date().toISOString(),
       }
     : undefined
 
   const result: DefaultBranchCI = {
     state,
     branch,
-    sha: top?.head_sha ?? undefined,
+    sha: headSha,
     latestRun: latest,
     failingRuns,
     fetchedAt: new Date().toISOString(),
