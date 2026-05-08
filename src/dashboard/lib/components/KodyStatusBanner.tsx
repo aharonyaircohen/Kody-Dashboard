@@ -100,32 +100,32 @@ function bannerTone(state: DefaultBranchCI['state'] | 'loading'): BannerTone {
     case 'failure':
       return {
         container:
-          'flex items-center gap-3 px-6 py-3 border-b border-white/[0.06] bg-red-500/[0.06]',
+          'flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-6 py-3 border-b border-white/[0.06] bg-red-500/[0.06]',
         dot: 'bg-red-500',
       }
     case 'pending':
       return {
         container:
-          'flex items-center gap-3 px-6 py-3 border-b border-white/[0.06] bg-blue-500/[0.06]',
+          'flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-6 py-3 border-b border-white/[0.06] bg-blue-500/[0.06]',
         dot: 'bg-blue-500',
         ping: 'bg-blue-400',
       }
     case 'success':
       return {
         container:
-          'flex items-center gap-3 px-6 py-3 border-b border-white/[0.06] bg-white/[0.02]',
+          'flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-6 py-3 border-b border-white/[0.06] bg-white/[0.02]',
         dot: 'bg-emerald-500',
       }
     case 'loading':
       return {
         container:
-          'flex items-center gap-3 px-6 py-3 border-b border-white/[0.06] bg-white/[0.02]',
+          'flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-6 py-3 border-b border-white/[0.06] bg-white/[0.02]',
         dot: 'bg-muted-foreground/40',
       }
     default:
       return {
         container:
-          'flex items-center gap-3 px-6 py-3 border-b border-white/[0.06] bg-white/[0.02]',
+          'flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-6 py-3 border-b border-white/[0.06] bg-white/[0.02]',
         dot: 'bg-muted-foreground/40',
       }
   }
@@ -281,7 +281,7 @@ export function KodyStatusBanner({
       </span>
       {primary}
       {prPills.length > 0 ? (
-        <div className="flex items-center gap-1.5 ml-2">{prPills}</div>
+        <div className="flex flex-wrap items-center gap-1.5">{prPills}</div>
       ) : null}
       <RefreshIndicator isFetching={isFetching} dataUpdatedAt={dataUpdatedAt} />
       {trailing}
