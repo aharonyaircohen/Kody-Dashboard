@@ -1162,129 +1162,241 @@ async function getDefaultBranch(): Promise<string> {
   return branch
 }
 
+interface DefaultBranchCIGraphQL {
+  repository: {
+    defaultBranchRef: {
+      name: string
+      target: {
+        oid: string
+        statusCheckRollup: {
+          state: 'EXPECTED' | 'ERROR' | 'FAILURE' | 'PENDING' | 'SUCCESS'
+          contexts: {
+            nodes: Array<
+              | {
+                  __typename: 'CheckRun'
+                  name: string
+                  status: 'QUEUED' | 'IN_PROGRESS' | 'COMPLETED' | 'WAITING' | 'PENDING' | 'REQUESTED'
+                  conclusion:
+                    | 'ACTION_REQUIRED'
+                    | 'TIMED_OUT'
+                    | 'CANCELLED'
+                    | 'FAILURE'
+                    | 'SUCCESS'
+                    | 'NEUTRAL'
+                    | 'SKIPPED'
+                    | 'STARTUP_FAILURE'
+                    | 'STALE'
+                    | null
+                  permalink: string
+                  startedAt: string | null
+                  completedAt: string | null
+                }
+              | {
+                  __typename: 'StatusContext'
+                  context: string
+                  state: 'EXPECTED' | 'ERROR' | 'FAILURE' | 'PENDING' | 'SUCCESS'
+                  targetUrl: string | null
+                  createdAt: string
+                }
+            >
+          }
+        } | null
+      } | null
+    } | null
+  }
+}
+
 /**
- * Roll-up of CI status at HEAD of the default branch. Uses the Checks API
- * (the same data source as GitHub's commit-status checkmark) so the banner
- * tracks current HEAD, not "latest run per workflow ever." That distinction
- * matters: a workflow that ran and failed on an old commit but was disabled
- * or removed before HEAD would otherwise stay red on the banner forever.
+ * Roll-up of CI status at HEAD of the default branch.
  *
- * Aggregation rules:
- *   - any failure check → 'failure'
- *   - else any in_progress/queued → 'pending'
- *   - else any success → 'success'
- *   - else (no checks at all) → 'unknown'
+ * Uses GraphQL `statusCheckRollup` — the exact field GitHub uses to render the
+ * green/red checkmark on a commit. This folds together check runs, statuses,
+ * and required-checks rules, so the banner mirrors what you see on the commit
+ * page in GitHub.
+ *
+ * Earlier iterations queried `actions.listWorkflowRunsForRepo` (returned stale
+ * runs from disabled workflows) and `checks.listForRef` (returned check runs
+ * that GitHub's UI sometimes intentionally ignores in the rollup). Neither
+ * matched the visible status, so the banner reported failure when the commit
+ * was actually green.
  */
 export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
   const branch = await getDefaultBranch()
-  const octokit = getOctokit()
-
-  // Resolve HEAD SHA of the default branch. Cached briefly — pushes invalidate
-  // via invalidateBranchCache (`branch:` prefix).
-  const headCacheKey = `branch:head-sha:${getOwner()}:${getRepo()}:${branch}`
-  let headSha = getCached<string>(headCacheKey)
-  if (!headSha) {
-    try {
-      const { data: branchData } = await octokit.repos.getBranch({
-        owner: getOwner(),
-        repo: getRepo(),
-        branch,
-      })
-      headSha = branchData.commit.sha
-      setCache(headCacheKey, DEFAULT_BRANCH_CI_TTL, headSha)
-    } catch (err) {
-      // If HEAD lookup fails, return unknown — better to show "unknown" than
-      // a misleading state.
-      const stale = getStale<DefaultBranchCI>(`workflows:main-ci:${getOwner()}:${getRepo()}:${branch}`)
-      if (stale) return stale.data
-      throw err
-    }
-  }
-
-  const cacheKey = `workflows:main-ci:${getOwner()}:${getRepo()}:${branch}:${headSha}`
+  const cacheKey = `workflows:main-ci:${getOwner()}:${getRepo()}:${branch}`
   const cached = getCached<DefaultBranchCI>(cacheKey)
   if (cached) return cached
 
   const stale = getStale<DefaultBranchCI>(cacheKey)
+  const octokit = getOctokit()
 
-  let response
+  const query = `
+    query DefaultBranchCI($owner: String!, $repo: String!) {
+      repository(owner: $owner, name: $repo) {
+        defaultBranchRef {
+          name
+          target {
+            ... on Commit {
+              oid
+              statusCheckRollup {
+                state
+                contexts(first: 100) {
+                  nodes {
+                    __typename
+                    ... on CheckRun {
+                      name
+                      status
+                      conclusion
+                      permalink
+                      startedAt
+                      completedAt
+                    }
+                    ... on StatusContext {
+                      context
+                      state
+                      targetUrl
+                      createdAt
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `
+
+  let data: DefaultBranchCIGraphQL
   try {
-    response = await octokit.checks.listForRef({
+    data = await octokit.graphql<DefaultBranchCIGraphQL>(query, {
       owner: getOwner(),
       repo: getRepo(),
-      ref: headSha,
-      per_page: 100,
-      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
     })
-  } catch (err: any) {
-    if (err.status === 304 && stale) {
-      setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, stale.data, { etag: stale.etag })
-      return stale.data
-    }
+  } catch {
+    // Refresh TTL on the stale entry so GraphQL throttling doesn't compound
+    // (CLAUDE.md rule 3 — GraphQL has its own bucket and no 304 escape hatch).
     if (stale) {
-      setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, stale.data, { etag: stale.etag })
+      setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, stale.data)
       return stale.data
     }
-    throw err
+    throw new Error('Failed to fetch default-branch CI rollup')
   }
 
-  const newEtag = (response.headers as Record<string, string | undefined>)?.etag
-  const checks = response.data.check_runs
+  const ref = data.repository.defaultBranchRef
+  const target = ref?.target
+  const rollup = target?.statusCheckRollup
 
-  const failingRuns: DefaultBranchCI['failingRuns'] = []
-  let anyPending = false
-  let anySuccess = false
-  let mostRecent: (typeof checks)[number] | undefined
-  for (const check of checks) {
-    if (!mostRecent || check.completed_at && (!mostRecent.completed_at || check.completed_at > mostRecent.completed_at)) {
-      mostRecent = check
+  if (!ref || !target || !rollup) {
+    // No commit on default branch yet, or the commit has no checks/statuses.
+    // Treat as 'unknown' so the banner reads cleanly.
+    const result: DefaultBranchCI = {
+      state: 'unknown',
+      branch: ref?.name ?? branch,
+      sha: target?.oid,
+      failingRuns: [],
+      fetchedAt: new Date().toISOString(),
     }
-    if (check.status !== 'completed') {
-      anyPending = true
-      continue
-    }
-    const c = check.conclusion
-    if (c === 'failure' || c === 'timed_out' || c === 'action_required') {
-      failingRuns.push({
-        id: check.id,
-        name: check.name,
-        conclusion: c,
-        html_url: check.html_url ?? '',
-        updated_at: check.completed_at ?? new Date().toISOString(),
-      })
-    } else if (c === 'success') {
-      anySuccess = true
-    }
-    // 'cancelled' / 'skipped' / 'neutral' / 'stale' are ignored — they don't gate landing.
+    setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, result)
+    return result
   }
 
   let state: DefaultBranchCI['state']
-  if (failingRuns.length > 0) state = 'failure'
-  else if (anyPending) state = 'pending'
-  else if (anySuccess) state = 'success'
-  else state = 'unknown'
+  switch (rollup.state) {
+    case 'SUCCESS':
+      state = 'success'
+      break
+    case 'FAILURE':
+    case 'ERROR':
+      state = 'failure'
+      break
+    case 'PENDING':
+    case 'EXPECTED':
+      state = 'pending'
+      break
+    default:
+      state = 'unknown'
+  }
 
-  const latest: DefaultBranchCI['latestRun'] = mostRecent
-    ? {
-        id: mostRecent.id,
-        name: mostRecent.name,
-        status: mostRecent.status as 'queued' | 'in_progress' | 'completed',
-        conclusion: mostRecent.conclusion,
-        html_url: mostRecent.html_url ?? '',
-        updated_at: mostRecent.completed_at ?? mostRecent.started_at ?? new Date().toISOString(),
+  const failingRuns: DefaultBranchCI['failingRuns'] = []
+  let mostRecent:
+    | { id: number; name: string; status: 'queued' | 'in_progress' | 'completed'; conclusion: string | null; html_url: string; updated_at: string }
+    | undefined
+
+  for (const node of rollup.contexts.nodes) {
+    if (node.__typename === 'CheckRun') {
+      const ts = node.completedAt ?? node.startedAt ?? new Date().toISOString()
+      const checkStatus =
+        node.status === 'COMPLETED'
+          ? 'completed'
+          : node.status === 'IN_PROGRESS'
+            ? 'in_progress'
+            : 'queued'
+      const isFailure =
+        node.conclusion === 'FAILURE' ||
+        node.conclusion === 'TIMED_OUT' ||
+        node.conclusion === 'ACTION_REQUIRED' ||
+        node.conclusion === 'STARTUP_FAILURE'
+      if (isFailure && node.conclusion) {
+        failingRuns.push({
+          id: 0,
+          name: node.name,
+          conclusion: node.conclusion.toLowerCase(),
+          html_url: node.permalink,
+          updated_at: ts,
+        })
       }
-    : undefined
+      if (!mostRecent || ts > mostRecent.updated_at) {
+        mostRecent = {
+          id: 0,
+          name: node.name,
+          status: checkStatus,
+          conclusion: node.conclusion ? node.conclusion.toLowerCase() : null,
+          html_url: node.permalink,
+          updated_at: ts,
+        }
+      }
+    } else {
+      // StatusContext — legacy commit-status API (e.g. external CI integrations).
+      const isFailure = node.state === 'FAILURE' || node.state === 'ERROR'
+      const checkStatus = node.state === 'PENDING' ? 'in_progress' : 'completed'
+      if (isFailure) {
+        failingRuns.push({
+          id: 0,
+          name: node.context,
+          conclusion: node.state.toLowerCase(),
+          html_url: node.targetUrl ?? '',
+          updated_at: node.createdAt,
+        })
+      }
+      if (!mostRecent || node.createdAt > mostRecent.updated_at) {
+        mostRecent = {
+          id: 0,
+          name: node.context,
+          status: checkStatus,
+          conclusion: node.state.toLowerCase(),
+          html_url: node.targetUrl ?? '',
+          updated_at: node.createdAt,
+        }
+      }
+    }
+  }
+
+  // Sanity: if the rollup says SUCCESS, drop any stragglers we collected as
+  // 'failing'. statusCheckRollup is authoritative — individual contexts may be
+  // marked failure but ignored by GitHub's rollup (e.g. soft-failure required
+  // checks, contexts superseded by a later run).
+  const reconciledFailingRuns = state === 'success' ? [] : failingRuns
 
   const result: DefaultBranchCI = {
     state,
-    branch,
-    sha: headSha,
-    latestRun: latest,
-    failingRuns,
+    branch: ref.name,
+    sha: target.oid,
+    latestRun: mostRecent,
+    failingRuns: reconciledFailingRuns,
     fetchedAt: new Date().toISOString(),
   }
 
-  setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, result, { etag: newEtag })
+  setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, result)
   return result
 }
 
