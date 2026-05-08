@@ -26,7 +26,24 @@ interface KodyStatusBannerProps {
 
 type KodyState =
   | { status: 'idle'; taskCount: number }
-  | { status: 'working'; workingCount: number }
+  | {
+      status: 'working'
+      workingCount: number
+      /** PRs with `ciStatus === 'failure'`. Active retry, not yet column=failed. */
+      ciFailing: number
+      /** PRs with `ciStatus === 'running' | 'pending'`. */
+      ciRunning: number
+      /** PRs with `ciStatus === 'success'` (and not merged). Ready to land. */
+      ciReady: number
+      /** Tasks in flight without a PR yet (taskify/architect/build before PR opens). */
+      noPrYet: number
+      /**
+       * First task whose CI is failing — linked from the banner as a one-click
+       * jump. When multiple PRs are red, only the first is linked; the count
+       * conveys the rest.
+       */
+      firstFailingTask?: KodyTask
+    }
   | { status: 'failed'; task: KodyTask; failedAgo: string }
   | { status: 'gate-waiting'; task: KodyTask }
 
@@ -44,11 +61,43 @@ function RelativeTime({ date }: { date: string }) {
 function deriveKodyState(tasks: KodyTask[]): KodyState {
   // Priority: working > gate-waiting > failed > idle
 
-  const workingCount = tasks.filter(
+  const working = tasks.filter(
     (t) => t.column === 'building' || t.column === 'retrying',
-  ).length
-  if (workingCount > 0) {
-    return { status: 'working', workingCount }
+  )
+  if (working.length > 0) {
+    // Roll up CI status across in-flight PRs. We surface this on the banner
+    // because the bare "working on N tasks" count is already visible in the
+    // kanban column header — operators want to know whether a stuck task is
+    // *actually* stuck (CI red, retry exhausted) vs. just running.
+    let ciFailing = 0
+    let ciRunning = 0
+    let ciReady = 0
+    let noPrYet = 0
+    let firstFailingTask: KodyTask | undefined
+    for (const t of working) {
+      const ci = t.associatedPR?.ciStatus
+      if (!t.associatedPR) {
+        noPrYet++
+        continue
+      }
+      if (ci === 'failure') {
+        ciFailing++
+        if (!firstFailingTask) firstFailingTask = t
+      } else if (ci === 'running' || ci === 'pending') {
+        ciRunning++
+      } else if (ci === 'success') {
+        ciReady++
+      }
+    }
+    return {
+      status: 'working',
+      workingCount: working.length,
+      ciFailing,
+      ciRunning,
+      ciReady,
+      noPrYet,
+      firstFailingTask,
+    }
   }
 
   const gateWaiting = tasks.find((t) => t.column === 'gate-waiting')
@@ -117,19 +166,99 @@ export function KodyStatusBanner({
   }
 
   if (state.status === 'working') {
-    const label =
-      state.workingCount === 1
-        ? 'working on 1 task'
-        : `working on ${state.workingCount} tasks`
+    // Color the banner red when any in-flight PR has failing CI — that's the
+    // signal the operator can act on. Stays blue when everything is healthy.
+    const hasFail = state.ciFailing > 0
+    const containerClass = hasFail
+      ? 'flex items-center gap-3 px-6 py-3 border-b border-white/[0.06] bg-red-500/[0.06]'
+      : 'flex items-center gap-3 px-6 py-3 border-b border-white/[0.06] bg-blue-500/[0.06]'
+    const dotClass = hasFail ? 'bg-red-500' : 'bg-blue-500'
+    const pingClass = hasFail ? 'bg-red-400' : 'bg-blue-400'
+    const ciPills: ReactNode[] = []
+    if (state.ciReady > 0) {
+      ciPills.push(
+        <Badge
+          key="ready"
+          variant="outline"
+          className="text-emerald-400 border-emerald-500/30"
+          title={`${state.ciReady} PR(s) with green CI, ready to merge`}
+        >
+          {state.ciReady} ready
+        </Badge>,
+      )
+    }
+    if (state.ciRunning > 0) {
+      ciPills.push(
+        <Badge
+          key="running"
+          variant="outline"
+          className="text-blue-400 border-blue-500/30"
+          title={`${state.ciRunning} PR(s) with CI in progress`}
+        >
+          {state.ciRunning} CI running
+        </Badge>,
+      )
+    }
+    if (state.ciFailing > 0) {
+      const failNode =
+        state.firstFailingTask && state.ciFailing === 1 ? (
+          <a
+            key="failing"
+            href={
+              state.firstFailingTask.associatedPR?.html_url ??
+              getGitHubIssueUrl(state.firstFailingTask.issueNumber)
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title={`CI failing on PR for #${state.firstFailingTask.issueNumber} — ${state.firstFailingTask.title}`}
+            className="no-underline"
+          >
+            <Badge
+              variant="outline"
+              className="text-red-400 border-red-500/40 hover:border-red-500/70"
+            >
+              1 CI failing
+            </Badge>
+          </a>
+        ) : (
+          <Badge
+            key="failing"
+            variant="outline"
+            className="text-red-400 border-red-500/40"
+            title={`${state.ciFailing} PR(s) with failing CI`}
+          >
+            {state.ciFailing} CI failing
+          </Badge>
+        )
+      ciPills.push(failNode)
+    }
+    if (state.noPrYet > 0) {
+      ciPills.push(
+        <Badge
+          key="no-pr"
+          variant="outline"
+          className="text-muted-foreground border-muted-foreground/30"
+          title={`${state.noPrYet} task(s) in flight before a PR has opened (taskify / architect / pre-PR build)`}
+        >
+          {state.noPrYet} pre-PR
+        </Badge>,
+      )
+    }
+    const summary =
+      state.workingCount === 1 ? '1 task in flight' : `${state.workingCount} tasks in flight`
     return (
-      <div className="flex items-center gap-3 px-6 py-3 border-b border-white/[0.06] bg-blue-500/[0.06]">
+      <div className={containerClass}>
         <span className="relative flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500" />
+          <span
+            className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${pingClass}`}
+          />
+          <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${dotClass}`} />
         </span>
         <span className="text-sm text-muted-foreground">
-          Kody is <span className="text-foreground font-medium">{label}</span>
+          Kody · <span className="text-foreground font-medium">{summary}</span>
         </span>
+        {ciPills.length > 0 ? <div className="flex items-center gap-1.5">{ciPills}</div> : null}
         <RefreshIndicator isFetching={isFetching} dataUpdatedAt={dataUpdatedAt} />
         {trailing}
       </div>
