@@ -62,6 +62,7 @@ import {
   GitBranch,
   Github,
   Layers,
+  FileText,
   Bell,
   KeyRound,
   ChevronsDownUp,
@@ -1432,6 +1433,21 @@ export function KodyDashboard({
                     </Button>
                   </SimpleTooltip>
 
+                  {/* Reports */}
+                  <SimpleTooltip content="Reports" side="bottom">
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                    >
+                      <Link href="/reports" aria-label="Reports">
+                        <FileText className="w-4 h-4" />
+                        Reports
+                      </Link>
+                    </Button>
+                  </SimpleTooltip>
+
                   {/* Notifications */}
                   <SimpleTooltip content="Notifications" side="bottom">
                     <Button
@@ -1841,6 +1857,18 @@ export function KodyDashboard({
                   <Link href="/jobs">
                     <Layers className="w-4 h-4" />
                     Jobs
+                  </Link>
+                </Button>
+
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => setShowMobileMenu(false)}
+                >
+                  <Link href="/reports">
+                    <FileText className="w-4 h-4" />
+                    Reports
                   </Link>
                 </Button>
 

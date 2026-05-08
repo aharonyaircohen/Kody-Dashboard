@@ -871,6 +871,37 @@ export const jobsApi = {
   },
 };
 
+// ============ Reports API ============
+
+export interface Report {
+  /** Filename without `.md` — stable identity. */
+  slug: string;
+  title: string;
+  body: string;
+  /** Last commit timestamp affecting this file (ISO8601). */
+  updatedAt: string;
+  /** Convenience link to the file on github.com. */
+  htmlUrl: string;
+  /** Size in bytes. */
+  size: number;
+}
+
+export const reportsApi = {
+  list: async (): Promise<Report[]> => {
+    const res = await fetch(`${API_BASE}/reports`, { headers: buildHeaders() });
+    const data = await handleResponse<{ reports: Report[] }>(res);
+    return data.reports;
+  },
+
+  get: async (slug: string): Promise<Report> => {
+    const res = await fetch(`${API_BASE}/reports/${encodeURIComponent(slug)}`, {
+      headers: buildHeaders(),
+    });
+    const data = await handleResponse<{ report: Report }>(res);
+    return data.report;
+  },
+};
+
 // ============ Goals API ============
 
 export interface Goal {
@@ -1188,6 +1219,7 @@ export const kodyApi = {
   ci: ciApi,
   remote: remoteApi,
   jobs: jobsApi,
+  reports: reportsApi,
   goals: goalsApi,
   notifications: notificationsApi,
 };
