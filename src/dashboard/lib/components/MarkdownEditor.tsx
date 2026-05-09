@@ -139,7 +139,7 @@ export function MarkdownEditor({
 
       {/* Editor / preview */}
       {showPreview ? (
-        <div className="min-h-[120px] p-3 border border-border rounded-md bg-background prose prose-sm dark:prose-invert max-w-none">
+        <div className="min-h-[120px] max-h-[50vh] overflow-y-auto p-3 border border-border rounded-md bg-background prose prose-sm dark:prose-invert max-w-none">
           <ReactMarkdown>{value || emptyPreview}</ReactMarkdown>
         </div>
       ) : (
