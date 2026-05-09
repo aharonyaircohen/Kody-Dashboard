@@ -55,11 +55,7 @@ import {
 } from '../hooks/useJobs'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { useNow } from '../hooks/useNow'
-import {
-  formatRelativeFuture,
-  formatRelativePast,
-  nextTickAt,
-} from '../jobs-schedule'
+import { formatDuration, formatRelativePast } from '../jobs-schedule'
 import {
   ALL_SCHEDULE_EVERY_OPTIONS,
   scheduleEveryLabel,
@@ -146,7 +142,6 @@ export function JobControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) 
           <span className="hidden md:inline text-xs text-muted-foreground">
             {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}
           </span>
-          {jobs.length > 0 ? <NextTickBadge /> : null}
         </div>
 
         <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
@@ -272,6 +267,7 @@ export function JobControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) 
                         </span>
                         <ScheduleInline schedule={job.schedule} />
                         <LastTickInline lastTickAt={job.lastTickAt} />
+                        <NextRunInline nextEligibleAt={job.nextEligibleAt} />
                       </div>
                     </button>
                   </li>
@@ -431,8 +427,7 @@ function JobDetail({
                 </span>
                 <ScheduleInline schedule={job.schedule} />
                 <LastTickDetail lastTickAt={job.lastTickAt} />
-                <span>·</span>
-                <NextTickBadge />
+                <NextRunDetail nextEligibleAt={job.nextEligibleAt} />
                 <span>·</span>
                 <a
                   href={job.htmlUrl}
@@ -683,31 +678,10 @@ function EditJobDialog({
 }
 
 /**
- * Page-level "Next scheduler wake" badge. The engine cron is global
- * (every 15 min) and only signals when the job-scheduler will *consider*
- * each job — whether a job actually acts on a given wake depends on its
- * own cadence guard (e.g. "last ran ≥ 20h ago"). Rendered once near the
- * page header, again in the job detail. Re-renders every 30s via `useNow`.
- */
-function NextTickBadge() {
-  const now = useNow(30_000)
-  const next = useMemo(() => nextTickAt(now), [now])
-  const label = formatRelativeFuture(next, now)
-  const absolute = next.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  return (
-    <span
-      className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-      title={`Next scheduler wake at ${absolute} (every 15 min). Whether this job acts on the wake depends on its own cadence guard.`}
-    >
-      <Timer className="w-3 h-3" />
-      next wake {label}
-    </span>
-  )
-}
-
-/**
- * Inline "ticked Xm ago" pill for use in the job-list rows. Hidden when
- * the job has never ticked — keeps the row dense. Refreshes every 30s.
+ * Inline "last run" pill for use in the job-list rows. Hidden when
+ * the job has never run — keeps the row dense. Refreshes every 30s.
+ * Source is the commit timestamp of the sibling `<slug>.state.json`,
+ * which the engine writes only when a tick actually acts.
  */
 function LastTickInline({ lastTickAt }: { lastTickAt: string | null }) {
   const now = useNow(30_000)
@@ -718,17 +692,86 @@ function LastTickInline({ lastTickAt }: { lastTickAt: string | null }) {
       <span>·</span>
       <span
         className="inline-flex items-center gap-1"
-        title={`Last tick: ${date.toLocaleString()}`}
+        title={`Last run: ${date.toLocaleString()}`}
       >
         <Clock className="w-3 h-3" />
-        ticked {formatRelativePast(date, now)}
+        last run {formatRelativePast(date, now)}
       </span>
     </>
   )
 }
 
 /**
- * Detail-header counterpart that shows "never ticked" explicitly
+ * Inline "next run in X" pill — the actual next-eligible time the job
+ * will act, sourced from `data.nextEligibleISO` in the job's state JSON.
+ * Hidden when the value is missing (job hasn't run yet, or its body
+ * doesn't emit the field). When the time is in the past, render as
+ * "due now" — the cron wake will pick it up on the next ≤15-min tick.
+ */
+function NextRunInline({ nextEligibleAt }: { nextEligibleAt: string | null }) {
+  const now = useNow(30_000)
+  if (!nextEligibleAt) return null
+  const date = new Date(nextEligibleAt)
+  const diffMs = date.getTime() - now.getTime()
+  const isFuture = diffMs > 0
+  const label = isFuture
+    ? `next run in ${formatDuration(diffMs)}`
+    : 'next run due now'
+  return (
+    <>
+      <span>·</span>
+      <span
+        className="inline-flex items-center gap-1"
+        title={`Next eligible run: ${date.toLocaleString()}`}
+      >
+        <Timer className="w-3 h-3" />
+        {label}
+      </span>
+    </>
+  )
+}
+
+/**
+ * Detail-header counterpart for `NextRunInline`. Renders the same value
+ * but always shows something (even if the field is missing) so the detail
+ * pane explicitly surfaces "next run unknown" instead of going silent.
+ */
+function NextRunDetail({ nextEligibleAt }: { nextEligibleAt: string | null }) {
+  const now = useNow(30_000)
+  if (!nextEligibleAt) {
+    return (
+      <>
+        <span>·</span>
+        <span
+          className="inline-flex items-center gap-1"
+          title="The job hasn't recorded a next-eligible time yet. It populates after the next tick that emits data.nextEligibleISO."
+        >
+          <Timer className="w-3 h-3" />
+          next run unknown
+        </span>
+      </>
+    )
+  }
+  const date = new Date(nextEligibleAt)
+  const diffMs = date.getTime() - now.getTime()
+  const label =
+    diffMs > 0 ? `next run in ${formatDuration(diffMs)}` : 'next run due now'
+  return (
+    <>
+      <span>·</span>
+      <span
+        className="inline-flex items-center gap-1"
+        title={`Next eligible run: ${date.toLocaleString()}`}
+      >
+        <Timer className="w-3 h-3" />
+        {label}
+      </span>
+    </>
+  )
+}
+
+/**
+ * Detail-header counterpart that shows "never run" explicitly
  * instead of hiding (the detail is the place to surface this state).
  */
 function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
@@ -737,9 +780,9 @@ function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
     return (
       <>
         <span>·</span>
-        <span className="inline-flex items-center gap-1" title="Job has never ticked">
+        <span className="inline-flex items-center gap-1" title="Job has never run">
           <Clock className="w-3 h-3" />
-          never ticked
+          never run
         </span>
       </>
     )
@@ -750,10 +793,10 @@ function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
       <span>·</span>
       <span
         className="inline-flex items-center gap-1"
-        title={`Last tick: ${date.toLocaleString()}`}
+        title={`Last run: ${date.toLocaleString()}`}
       >
         <Clock className="w-3 h-3" />
-        ticked {formatRelativePast(date, now)}
+        last run {formatRelativePast(date, now)}
       </span>
     </>
   )
@@ -785,7 +828,7 @@ function ScheduleSelect({
           <SelectValue placeholder="Select cadence" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={SENTINEL}>Every cron tick (15 min)</SelectItem>
+          <SelectItem value={SENTINEL}>Every cron wake (15 min)</SelectItem>
           {ALL_SCHEDULE_EVERY_OPTIONS.map((opt: ScheduleEvery) => (
             <SelectItem key={opt} value={opt}>
               {scheduleEveryLabel(opt)}
