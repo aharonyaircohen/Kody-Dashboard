@@ -103,8 +103,8 @@ export function useRunJob() {
     mutationFn: ({ slug, force }) => kodyApi.jobs.run({ slug }, { force }),
     onSuccess: (data) => {
       toast.success(
-        data.force ? 'Job dispatched (force)' : 'Job dispatched',
-        { description: 'Posted @kody comment on the control issue' },
+        data.force ? 'Job triggered (force)' : 'Job triggered',
+        { description: 'Engine will pick it up on the next workflow run.' },
       )
     },
     onError: (error) => {
