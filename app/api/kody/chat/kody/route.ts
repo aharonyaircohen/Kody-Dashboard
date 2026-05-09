@@ -38,6 +38,7 @@ import { createPipelineTools } from "../tools/pipeline-tools"
 import { createRemoteTools } from "../tools/remote-tools"
 import { createBugTools } from "../tools/bug-tools"
 import { createTaskTools } from "../tools/task-tools"
+import { createJobTools } from "../tools/job-tools"
 import { createPlannerTools } from "../tools/planner-tools"
 import { createReleaseTools } from "../tools/release-tools"
 import { createKodyTools } from "../tools/kody-tools"
@@ -293,6 +294,12 @@ export async function POST(req: NextRequest) {
         actorLogin: body.actorLogin ?? null,
       }),
       ...createTaskTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createJobTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,

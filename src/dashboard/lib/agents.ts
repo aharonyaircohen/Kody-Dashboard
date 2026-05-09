@@ -274,6 +274,13 @@ Available when a repo is connected (the dashboard injects [Connected repository]
   additionalContext / assignees) and apply labels
   [<category>, "priority:<level>"]. None of them trigger the Kody
   pipeline — the user runs \`@kody\` themselves when ready.
+- create_kody_job — create a new Kody Job by committing
+  \`.kody/jobs/<slug>.md\` in the connected repo. Default template is
+  a REPORT-PRODUCER: each tick gathers inputs, composes a YAML
+  findings report, and commits it to \`.kody/reports/<slug>.md\` via
+  \`gh api PUT\`. The engine's job-scheduler ticks the new file on the
+  next 5-min cron. DOES NOT trigger the engine on creation. NEVER
+  call on the first turn — see "Creating Kody jobs" below.
 - request_release — open a release-tracking issue and trigger the Kody
   release pipeline by commenting \`@kody <mode>\` on it. Use when the
   user asks to "ship a release", "cut a release", "publish version X",
@@ -444,7 +451,54 @@ Creating issues (PRD-style):
     • deps / config / tooling / cleanup → \`create_chore\`
 - Show the user the proposed title + body once for approval, then call
   the matching tool yourself. Do NOT ask the user to paste the issue
-  manually — you have the tools, use them.`,
+  manually — you have the tools, use them.
+
+Creating Kody jobs:
+- A Kody Job is a markdown file at \`.kody/jobs/<slug>.md\` that the
+  engine's job-scheduler ticks every 5 minutes. Each job's own
+  \`Cadence guard\` decides whether to take action on a given tick.
+  Format: H1 title, then \`## Job\`, \`## Allowed Commands\`,
+  \`## Restrictions\`, \`## State\` — must match the existing jobs in
+  \`.kody/jobs/\`.
+- Default template = report-producer: each active tick gathers inputs,
+  composes a YAML \`findings:\` report, and commits it to
+  \`.kody/reports/<slug>.md\` via \`gh api PUT\`. The engine's
+  job-tick executable only has Bash + Read tools, so reports are
+  committed via the contents API, NOT the working tree.
+- Do NOT call \`create_kody_job\` on the first turn. Run a gap-analysis
+  loop first.
+- Required understanding before calling — every field needs a concrete
+  answer, no inventions:
+    1. **title** + slug (slug auto-derived from title; override only
+       when the title makes a poor filename).
+    2. **purpose** — one to three sentences: what does the job
+       observe / scan, and what report does it produce?
+    3. **cadenceHours** — minimum hours between active ticks (daily =
+       24, weekly = 168, hourly = 1).
+    4. **inputs** — concrete \`gh\` commands or data sources the job
+       reads each active tick. Each item is one bullet — e.g.
+       "\`gh pr list --state open --json number,title,createdAt\`".
+       If the user is vague ("look at PRs"), ask which PRs, what
+       fields, what filter.
+    5. **reportSchema** — the YAML fragment for the \`findings:\`
+       array. Each finding's id, severity scale, title, and \`data:\`
+       fields must be specified. If the user is vague ("findings about
+       X"), ask what each finding represents and what fields the
+       downstream consumer needs.
+    6. **extraAllowedCommands** / **extraRestrictions** — only if the
+       job needs commands beyond \`gh api\` or restrictions beyond the
+       template defaults.
+- Surface gaps as targeted questions, fewest possible, in small batches
+  (1–3 at a time). Loop: ask → user answers → update gap analysis →
+  ask the next batch. Stop only when every required field has a
+  concrete answer the model could fill in without guessing.
+- Sufficiency bar: a Kody worker reading the resulting markdown should
+  be able to execute the per-tick steps without further clarification.
+  If you can't write the inputs and reportSchema as concrete YAML and
+  shell commands, you don't have enough.
+- Show the user the full proposed markdown body once for approval, then
+  call \`create_kody_job\` yourself. Do NOT ask the user to commit the
+  file manually.`,
 }
 
 // ===========================================
