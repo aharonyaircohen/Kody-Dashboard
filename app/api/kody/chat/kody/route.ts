@@ -238,6 +238,8 @@ export async function POST(req: NextRequest) {
     goalPlanner?: boolean
     /** The goal this planner session is scoped to. */
     goal?: GoalContext
+    /** Currently-viewed report on /reports — scopes the chat to advise on it. */
+    report?: { slug: string; title: string; body: string }
   }
   try {
     body = (await req.json()) as typeof body
@@ -265,6 +267,7 @@ export async function POST(req: NextRequest) {
       job: body.job,
       goalPlanner: goalPlannerActive,
       goal: goalPlannerActive ? body.goal : undefined,
+      report: body.report,
     },
   )
 

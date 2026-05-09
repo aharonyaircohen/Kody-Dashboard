@@ -356,6 +356,10 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
     context?.kind === 'goal-planner' ? context.onTasksCreated : undefined
   const onPlannerExit =
     context?.kind === 'goal-planner' ? context.onExit : undefined
+  // Report mode: chat scoped to a markdown report on /reports. The agent
+  // is framed to advise: create issue, attach to a goal, or no action.
+  const selectedReport =
+    context?.kind === 'report' ? context.report : null
 
   // Task-scoped messages (loaded from / saved to API)
   const [taskMessages, setTaskMessages] = useState<Message[]>([])
@@ -1461,6 +1465,15 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
                       slug: selectedJob.slug,
                       title: selectedJob.title,
                       body: selectedJob.body,
+                    },
+                  }
+                : {}),
+              ...(selectedReport
+                ? {
+                    report: {
+                      slug: selectedReport.slug,
+                      title: selectedReport.title,
+                      body: selectedReport.body,
                     },
                   }
                 : {}),

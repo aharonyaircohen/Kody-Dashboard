@@ -19,7 +19,14 @@
  */
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 import { MessageSquare, X as XIcon } from 'lucide-react'
 import { Button } from '@dashboard/ui/button'
 import {
@@ -32,6 +39,29 @@ import { KodyChat } from './KodyChat'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import type { ChatContext } from '../chat-types'
 import { cn } from '../utils'
+
+/**
+ * Imperative bridge so children rendered inside `PageWithChat` can push
+ * a scoped `ChatContext` into the rail without prop-drilling. Children
+ * call `useChatScope().setScope({ kind: 'report', report: ... })` in an
+ * effect when their selection changes; the rail re-renders. `null` clears
+ * the scope, falling back to the parent-supplied `chatContext` prop (which
+ * is itself usually `null` = global chat).
+ */
+interface ChatScopeApi {
+  scope: ChatContext | null
+  setScope: (next: ChatContext | null) => void
+}
+
+const ChatScopeContext = createContext<ChatScopeApi | null>(null)
+
+export function useChatScope(): ChatScopeApi {
+  const ctx = useContext(ChatScopeContext)
+  if (!ctx) {
+    throw new Error('useChatScope must be called inside a <PageWithChat>')
+  }
+  return ctx
+}
 
 interface PageWithChatProps {
   children: ReactNode
@@ -47,10 +77,27 @@ export function PageWithChat({
   railWidthClass = 'w-[400px]',
 }: PageWithChatProps) {
   const [mobileChatOpen, setMobileChatOpen] = useState(false)
+  const [scopeFromChild, setScopeFromChild] = useState<ChatContext | null>(null)
   const { githubUser } = useGitHubIdentity()
 
+  // Child-supplied scope wins over the static prop. The prop is the
+  // page-level baseline; children may override it dynamically as the user
+  // navigates within the page (selecting a report, for example).
+  const effectiveContext = scopeFromChild ?? chatContext
+
+  const scopeApi = useMemo<ChatScopeApi>(
+    () => ({ scope: scopeFromChild, setScope: setScopeFromChild }),
+    [scopeFromChild],
+  )
+
+  // Reset child scope when the parent prop changes — keeps things clean
+  // when parents start using the prop dynamically later.
+  useEffect(() => {
+    setScopeFromChild(null)
+  }, [chatContext])
+
   return (
-    <>
+    <ChatScopeContext.Provider value={scopeApi}>
       <div className="h-screen flex overflow-hidden bg-background text-foreground">
         {/* Desktop left rail — hidden below md. */}
         <aside
@@ -60,7 +107,7 @@ export function PageWithChat({
           )}
           aria-label="Kody chat"
         >
-          <KodyChat context={chatContext} actorLogin={githubUser?.login} />
+          <KodyChat context={effectiveContext} actorLogin={githubUser?.login} />
         </aside>
 
         {/* Page content fills the remaining width. Children are expected
@@ -103,7 +150,7 @@ export function PageWithChat({
           <div className="flex-1 min-h-0">
             {mobileChatOpen ? (
               <KodyChat
-                context={chatContext}
+                context={effectiveContext}
                 actorLogin={githubUser?.login}
                 onClose={() => setMobileChatOpen(false)}
               />
@@ -111,6 +158,6 @@ export function PageWithChat({
           </div>
         </SheetContent>
       </Sheet>
-    </>
+    </ChatScopeContext.Provider>
   )
 }

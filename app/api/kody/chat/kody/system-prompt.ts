@@ -37,6 +37,12 @@ export interface GoalContext {
   existingTasks?: Array<{ number: number; title: string; state?: string }>
 }
 
+export interface ReportContext {
+  slug: string
+  title: string
+  body: string
+}
+
 export function buildSystemPrompt(
   base: string,
   repo: { owner: string; repo: string } | null,
@@ -46,6 +52,7 @@ export function buildSystemPrompt(
     job?: JobContext
     goalPlanner?: boolean
     goal?: GoalContext
+    report?: ReportContext
   },
 ): string {
   const sections: string[] = [base]
@@ -197,6 +204,23 @@ The user is **drafting a new Kody job** — they are not asking about an existin
 
 Your job: **interview the user about every aspect of this job until you reach a shared understanding** — do not draft until they signal they're ready. Ask short, concrete questions one turn at a time, drilling into goal, inputs, outputs, constraints, edge cases, success criteria, allowed tools, and restrictions. Prefer one focused question per turn over multi-part checklists. When the user explicitly says they're ready (or asks you to draft), produce a clean, copy-ready markdown draft with the four sections — Intent, System prompt, Allowed commands / tools, Restrictions — so they can hit **Use as job** on your reply to turn it into a real job. Never claim a job already exists; there is no current job to look up.`,
     )
+  }
+  if (opts?.report) {
+    const r = opts.report
+    const lines: string[] = ['## Current report']
+    lines.push(`The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files at \`.kody/reports/<slug>.md\` produced by Kody jobs and other engine pipelines — diagnostic output, never the source of truth for code.`)
+    const bodyPreview = r.body.length > 4000 ? `${r.body.slice(0, 4000)}…` : r.body
+    lines.push(`\n### Report body\n\n${bodyPreview}`)
+    lines.push(`\n### Your job: advise on follow-up
+
+When the user asks what to do with this report, recommend one of three paths and say which fits:
+
+1. **Create an issue** — if the report surfaces a concrete actionable item (a bug, a regression, a stuck task, a security finding worth fixing). Use \`report_bug\` or \`create_task\` per the issue-creation rules above. Reference specific line items from the report body.
+2. **Attach to a goal** — if the report's findings fit an existing or proposed strategic initiative. Use \`create_task_for_goal\` with the goal id when the user has identified the parent goal.
+3. **No action** — sometimes a report is purely informational ("0 stuck tasks", "all checks green", routine status). Say so plainly and do not invent work to justify a follow-up.
+
+Pick honestly. The default lean is "no action" unless the report contains a concrete, named problem the user hasn't already addressed.`)
+    sections.push(lines.join('\n'))
   }
   if (task) {
     const lines: string[] = ["## Current task"]

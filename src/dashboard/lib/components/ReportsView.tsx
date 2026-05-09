@@ -29,6 +29,7 @@ import { useReports } from '../hooks/useReports'
 import type { Report } from '../api'
 import { CreateTaskDialog } from './CreateTaskDialog'
 import { CreateGoalDialog } from './GoalControl'
+import { useChatScope } from './PageWithChat'
 
 export function ReportsView({
   titleSlot,
@@ -72,6 +73,22 @@ export function ReportsViewInner({ titleSlot }: { titleSlot?: React.ReactNode })
       setSelectedSlug(filtered[0]!.slug)
     }
   }, [filtered, selectedSlug])
+
+  // Push the active report into the chat scope so KodyChat in the rail
+  // knows which report the user is viewing and can advise on follow-up
+  // (create issue, attach to a goal, or no action).
+  const { setScope } = useChatScope()
+  useEffect(() => {
+    if (selected) {
+      setScope({
+        kind: 'report',
+        report: { slug: selected.slug, title: selected.title, body: selected.body },
+      })
+    } else {
+      setScope(null)
+    }
+    return () => setScope(null)
+  }, [selected, setScope])
 
   return (
     <div className="h-full bg-background text-foreground flex flex-col overflow-hidden">
