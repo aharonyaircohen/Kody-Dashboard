@@ -31,6 +31,15 @@ export interface Goal {
   discussionId?: string
   /** Numeric discussion number (for the github.com URL). */
   discussionNumber?: number
+  /**
+   * Engine-owned bookkeeping hydrated from `.kody/goals/<id>/state.json` at
+   * GET time. NOT persisted into the manifest body — these mirror engine
+   * writes so the dashboard can link the goal to its umbrella issue and
+   * goal PR without guessing branch names.
+   */
+  goalIssueNumber?: number
+  /** URL of the open goal PR (`goal-<id>` → default branch), if any. */
+  goalPrUrl?: string
 }
 
 export interface GoalsManifest {

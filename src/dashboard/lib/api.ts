@@ -945,6 +945,13 @@ export interface Goal {
   updatedAt?: string;
   discussionId?: string;
   discussionNumber?: number;
+  /**
+   * Umbrella issue number, hydrated from `.kody/goals/<id>/state.json` by
+   * the goals API. Present once the engine has ticked at least once.
+   */
+  goalIssueNumber?: number;
+  /** URL of the open goal PR (`goal-<id>` → default branch), if any. */
+  goalPrUrl?: string;
 }
 
 export interface GoalDiscussionAuthor {

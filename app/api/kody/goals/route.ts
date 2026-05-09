@@ -25,6 +25,7 @@ import {
   fetchRepoDiscussionMeta,
   createGoalDiscussion,
   enableRepoDiscussions,
+  fetchGoalStateFromRepo,
 } from '@dashboard/lib/github-client'
 import {
   EMPTY_MANIFEST,
@@ -109,9 +110,33 @@ export async function GET(req: NextRequest) {
     } catch (capErr) {
       console.warn('[Goals] discussion capability lookup failed:', capErr)
     }
+
+    // Hydrate engine-owned bookkeeping (umbrella issue + goal PR URL) from
+    // each goal's `.kody/goals/<id>/state.json`. Reads are cached + ETag-
+    // revalidated inside `fetchGoalStateFromRepo`, so polling cost stays
+    // bounded (one `getContent` per goal per cache-miss; 304 on revalidation
+    // is free against the rate limit). Best-effort — a failure for one goal
+    // just leaves its umbrella fields undefined and the UI falls back to the
+    // pre-hydration view.
+    const hydratedGoals = await Promise.all(
+      manifest.goals.map(async (goal) => {
+        const engineFields = await fetchGoalStateFromRepo(goal.id)
+        if (!engineFields) return goal
+        return {
+          ...goal,
+          ...(engineFields.goalIssueNumber !== undefined
+            ? { goalIssueNumber: engineFields.goalIssueNumber }
+            : {}),
+          ...(engineFields.goalPrUrl !== undefined
+            ? { goalPrUrl: engineFields.goalPrUrl }
+            : {}),
+        }
+      }),
+    )
+
     return NextResponse.json(
       {
-        goals: manifest.goals,
+        goals: hydratedGoals,
         manifest: { issueNumber: issue?.number ?? null },
         capabilities: { discussionsEnabled },
       },
