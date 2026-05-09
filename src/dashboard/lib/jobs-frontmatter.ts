@@ -1,0 +1,144 @@
+/**
+ * @fileType util
+ * @domain kody
+ * @pattern jobs-frontmatter
+ * @ai-summary Tiny YAML-frontmatter parser/serializer scoped to job
+ *   files. Job markdown is allowed to start with a `---\n…\n---\n`
+ *   block carrying flat scalar key/value pairs (no nesting). Today the
+ *   only recognized field is `every: 15m|1h|6h|1d` for per-job
+ *   scheduling, but the parser preserves any other keys so engine-side
+ *   features can read them without dashboard awareness.
+ *
+ *   No `gray-matter` dep on purpose — the format is intentionally
+ *   restricted (flat, scalar values only) and a 30-line parser keeps
+ *   the bundle small.
+ */
+
+/** Allowed cadence tokens. Engine cron fires every 15 min; finer values round up. */
+export type ScheduleEvery = '15m' | '30m' | '1h' | '6h' | '1d'
+
+const SCHEDULE_EVERY_VALUES: readonly ScheduleEvery[] = [
+  '15m',
+  '30m',
+  '1h',
+  '6h',
+  '1d',
+] as const
+
+export interface JobFrontmatter {
+  /** Cadence between ticks. Absent = "every cron wake" (legacy default). */
+  every?: ScheduleEvery
+}
+
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/
+
+/**
+ * Parse the leading frontmatter block (if any) from raw markdown. Returns
+ * the recognized fields and the body that follows the block.
+ */
+export function splitFrontmatter(raw: string): {
+  frontmatter: JobFrontmatter
+  body: string
+} {
+  const match = FRONTMATTER_RE.exec(raw)
+  if (!match) return { frontmatter: {}, body: raw }
+  const inner = match[1] ?? ''
+  const body = raw.slice(match[0].length)
+  return { frontmatter: parseFlatYaml(inner), body }
+}
+
+/**
+ * Re-attach a frontmatter block to a body. If `frontmatter` has no
+ * recognized fields, the body is returned unchanged so we don't litter
+ * empty `---` blocks across job files.
+ */
+export function joinFrontmatter(
+  frontmatter: JobFrontmatter,
+  body: string,
+): string {
+  const lines = serializeFlatYaml(frontmatter)
+  if (lines.length === 0) return body
+  return `---\n${lines.join('\n')}\n---\n\n${body.replace(/^\s+/, '')}`
+}
+
+/** True if the value matches one of the supported cadence tokens. */
+export function isScheduleEvery(value: unknown): value is ScheduleEvery {
+  return typeof value === 'string' && (SCHEDULE_EVERY_VALUES as readonly string[]).includes(value)
+}
+
+export const ALL_SCHEDULE_EVERY_OPTIONS = SCHEDULE_EVERY_VALUES
+
+/**
+ * Convert a cadence token to milliseconds. Used by the dashboard to
+ * compute "next due" estimates and by the engine to gate ticks.
+ */
+export function scheduleEveryToMs(every: ScheduleEvery): number {
+  switch (every) {
+    case '15m':
+      return 15 * 60 * 1000
+    case '30m':
+      return 30 * 60 * 1000
+    case '1h':
+      return 60 * 60 * 1000
+    case '6h':
+      return 6 * 60 * 60 * 1000
+    case '1d':
+      return 24 * 60 * 60 * 1000
+  }
+}
+
+/** Human-readable label for a cadence token. */
+export function scheduleEveryLabel(every: ScheduleEvery): string {
+  switch (every) {
+    case '15m':
+      return 'every 15 min'
+    case '30m':
+      return 'every 30 min'
+    case '1h':
+      return 'every hour'
+    case '6h':
+      return 'every 6 hours'
+    case '1d':
+      return 'every day'
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Internals — flat YAML only (key: scalar). No nesting, no flow style.
+// ────────────────────────────────────────────────────────────────────
+
+function parseFlatYaml(text: string): JobFrontmatter {
+  const out: JobFrontmatter = {}
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith('#')) continue
+    const colon = line.indexOf(':')
+    if (colon < 0) continue
+    const key = line.slice(0, colon).trim()
+    const value = stripQuotes(line.slice(colon + 1).trim())
+    if (key === 'every' && isScheduleEvery(value)) {
+      out.every = value
+    }
+    // Unknown keys silently dropped on read — they round-trip via the
+    // raw body if callers preserve it. We don't surface them on the
+    // dashboard until a feature explicitly needs them.
+  }
+  return out
+}
+
+function serializeFlatYaml(frontmatter: JobFrontmatter): string[] {
+  const lines: string[] = []
+  if (frontmatter.every) lines.push(`every: ${frontmatter.every}`)
+  return lines
+}
+
+function stripQuotes(value: string): string {
+  if (value.length >= 2) {
+    const first = value[0]
+    const last = value[value.length - 1]
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return value.slice(1, -1)
+    }
+  }
+  return value
+}

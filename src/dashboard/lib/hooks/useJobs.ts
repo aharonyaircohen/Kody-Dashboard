@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import {
   kodyApi,
   type Job,
+  type JobSchedule,
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
@@ -49,7 +50,11 @@ export function useJob(slug: string | null) {
 export function useCreateJob(actorLogin?: string) {
   const queryClient = useQueryClient()
 
-  return useMutation<Job, Error, { slug?: string; title: string; body: string }>({
+  return useMutation<
+    Job,
+    Error,
+    { slug?: string; title: string; body: string; schedule?: JobSchedule | null }
+  >({
     mutationFn: (data) =>
       kodyApi.jobs.create({
         ...data,
@@ -68,7 +73,11 @@ export function useCreateJob(actorLogin?: string) {
 export function useUpdateJob(slug: string, actorLogin?: string) {
   const queryClient = useQueryClient()
 
-  return useMutation<Job, Error, { title?: string; body?: string }>({
+  return useMutation<
+    Job,
+    Error,
+    { title?: string; body?: string; schedule?: JobSchedule | null }
+  >({
     mutationFn: (data) =>
       kodyApi.jobs.update(slug, {
         ...data,

@@ -60,6 +60,7 @@ const createJobSchema = z.object({
   slug: z.string().min(1).max(64).optional(),
   title: z.string().min(1),
   body: z.string().default(''),
+  schedule: z.enum(['15m', '30m', '1h', '6h', '1d']).nullable().optional(),
   actorLogin: z.string().optional(),
 })
 
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json()
-    const { slug: requestedSlug, title, body, actorLogin } = createJobSchema.parse(payload)
+    const { slug: requestedSlug, title, body, schedule, actorLogin } = createJobSchema.parse(payload)
 
     const slug = (requestedSlug ?? slugifyTitle(title))
     if (!slug || !isValidSlug(slug)) {
@@ -116,6 +117,7 @@ export async function POST(req: NextRequest) {
       slug,
       title,
       body,
+      schedule: schedule ?? null,
     })
 
     return NextResponse.json({ job })

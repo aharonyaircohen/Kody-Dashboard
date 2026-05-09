@@ -778,6 +778,9 @@ export const remoteApi = {
 
 // ============ Jobs API ============
 
+/** Per-job cadence tokens; mirrors `ScheduleEvery` in jobs-frontmatter.ts. */
+export type JobSchedule = "15m" | "30m" | "1h" | "6h" | "1d";
+
 export interface Job {
   /** Filename without `.md` — stable identity. */
   slug: string;
@@ -791,6 +794,11 @@ export interface Job {
    * `<slug>.state.json` on every tick.
    */
   lastTickAt: string | null;
+  /**
+   * Per-job cadence parsed from frontmatter. `null` = global cron tick
+   * (every 15 min). Engine-side gating ships separately.
+   */
+  schedule: JobSchedule | null;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -814,6 +822,7 @@ export const jobsApi = {
     slug?: string;
     title: string;
     body: string;
+    schedule?: JobSchedule | null;
     actorLogin?: string;
   }): Promise<Job> => {
     const res = await fetch(`${API_BASE}/jobs`, {
@@ -827,7 +836,12 @@ export const jobsApi = {
 
   update: async (
     slug: string,
-    data: { title?: string; body?: string; actorLogin?: string },
+    data: {
+      title?: string;
+      body?: string;
+      schedule?: JobSchedule | null;
+      actorLogin?: string;
+    },
   ): Promise<Job> => {
     const res = await fetch(`${API_BASE}/jobs/${encodeURIComponent(slug)}`, {
       method: "PATCH",
