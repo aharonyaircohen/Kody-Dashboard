@@ -57,7 +57,10 @@ export async function GET(
 const updateJobSchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
-  schedule: z.enum(['15m', '30m', '1h', '6h', '1d']).nullable().optional(),
+  schedule: z
+    .enum(['15m', '30m', '1h', '2h', '6h', '12h', '1d', '3d', '7d'])
+    .nullable()
+    .optional(),
   actorLogin: z.string().optional(),
 })
 
