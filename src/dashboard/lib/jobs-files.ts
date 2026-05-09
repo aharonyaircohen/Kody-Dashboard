@@ -10,6 +10,12 @@
 
 import type { Octokit } from '@octokit/rest'
 import { getOctokit, getOwner, getRepo, invalidateJobsCache } from './github-client'
+import {
+  joinFrontmatter,
+  splitFrontmatter,
+  type JobFrontmatter,
+  type ScheduleEvery,
+} from './jobs-frontmatter'
 
 export interface JobFile {
   /** Filename without `.md` — stable identity. */
@@ -29,6 +35,13 @@ export interface JobFile {
    * `dispatchJobFileTicks` in kody2.
    */
   lastTickAt: string | null
+  /**
+   * Per-job cadence, parsed from the frontmatter `every:` field.
+   * `null` means "every cron wake" (the engine's 15-minute cron).
+   * Engine-side gating ships separately — the dashboard always shows
+   * whatever the file declares.
+   */
+  schedule: ScheduleEvery | null
   /** Convenience link to the file on github.com. */
   htmlUrl: string
 }
@@ -64,6 +77,22 @@ function stripLeadingH1(body: string): string {
     return lines.slice(1).join('\n').replace(/^\n+/, '')
   }
   return trimmed
+}
+
+/**
+ * Parse a raw job markdown file: split frontmatter, then derive title
+ * and body from what remains. Title is the first H1 of the body or a
+ * humanized slug; body is everything after the H1 (or the whole post-
+ * frontmatter remainder).
+ */
+function parseJobMarkdown(
+  raw: string,
+  slug: string,
+): { title: string; body: string; frontmatter: JobFrontmatter } {
+  const { frontmatter, body: afterFm } = splitFrontmatter(raw)
+  const body = stripLeadingH1(afterFm)
+  const title = deriveTitle(afterFm, slug)
+  return { title, body, frontmatter }
 }
 
 function buildHtmlUrl(slug: string, branch: string | null): string {
@@ -165,8 +194,7 @@ export async function listJobFiles(): Promise<JobFile[]> {
         })
         if (Array.isArray(data) || !('content' in data) || !data.content) return null
         const raw = Buffer.from(data.content, 'base64').toString('utf-8')
-        const body = stripLeadingH1(raw)
-        const title = deriveTitle(raw, slug)
+        const { title, body, frontmatter } = parseJobMarkdown(raw, slug)
         const [updatedAt, lastTickAt] = await Promise.all([
           fetchLastCommitDate(octokit, filePath),
           stateSlugs.has(slug)
@@ -180,6 +208,7 @@ export async function listJobFiles(): Promise<JobFile[]> {
           sha,
           updatedAt,
           lastTickAt,
+          schedule: frontmatter.every ?? null,
           htmlUrl: buildHtmlUrl(slug, branch),
         } satisfies JobFile
       } catch {
@@ -209,8 +238,7 @@ export async function readJobFile(slug: string): Promise<JobFile | null> {
     })
     if (Array.isArray(data) || !('content' in data) || !data.content) return null
     const raw = Buffer.from(data.content, 'base64').toString('utf-8')
-    const body = stripLeadingH1(raw)
-    const title = deriveTitle(raw, slug)
+    const { title, body, frontmatter } = parseJobMarkdown(raw, slug)
     const [updatedAt, lastTickAt] = await Promise.all([
       fetchLastCommitDate(octokit, filePath),
       fetchLastCommitDateOrNull(octokit, `${JOBS_DIR}/${slug}.state.json`),
@@ -222,6 +250,7 @@ export async function readJobFile(slug: string): Promise<JobFile | null> {
       sha: data.sha,
       updatedAt,
       lastTickAt,
+      schedule: frontmatter.every ?? null,
       htmlUrl: buildHtmlUrl(slug, branch),
     }
   } catch (error: any) {
@@ -235,15 +264,25 @@ interface WriteOptions {
   slug: string
   title: string
   body: string
+  /**
+   * Per-job cadence to emit in frontmatter. `null` (or absent) writes
+   * no `every:` line, leaving the job on the global cron tick.
+   */
+  schedule?: ScheduleEvery | null
   /** SHA of the existing blob; omit on create. */
   sha?: string
   /** Commit message override. */
   message?: string
 }
 
-function buildFileContent(title: string, body: string): string {
+function buildFileContent(
+  title: string,
+  body: string,
+  schedule: ScheduleEvery | null,
+): string {
   const trimmedBody = body.replace(/^\s+/, '')
-  return `# ${title.trim()}\n\n${trimmedBody}${trimmedBody.endsWith('\n') ? '' : '\n'}`
+  const titled = `# ${title.trim()}\n\n${trimmedBody}${trimmedBody.endsWith('\n') ? '' : '\n'}`
+  return joinFrontmatter(schedule ? { every: schedule } : {}, titled)
 }
 
 /**
@@ -255,7 +294,7 @@ export async function writeJobFile(opts: WriteOptions): Promise<JobFile> {
     throw new Error(`Invalid job slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`)
   }
   const filePath = `${JOBS_DIR}/${opts.slug}.md`
-  const content = buildFileContent(opts.title, opts.body)
+  const content = buildFileContent(opts.title, opts.body, opts.schedule ?? null)
   const message = opts.message ?? `${opts.sha ? 'chore' : 'feat'}(jobs): ${opts.sha ? 'update' : 'add'} ${opts.slug}`
 
   await opts.octokit.repos.createOrUpdateFileContents({

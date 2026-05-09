@@ -37,6 +37,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@dashboard/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@dashboard/ui/select'
 import { AuthGuard } from '../auth-guard'
 import { cn } from '../utils'
 import {
@@ -53,7 +60,12 @@ import {
   formatRelativePast,
   nextTickAt,
 } from '../jobs-schedule'
-import type { Job } from '../api'
+import {
+  ALL_SCHEDULE_EVERY_OPTIONS,
+  scheduleEveryLabel,
+  type ScheduleEvery,
+} from '../jobs-frontmatter'
+import type { Job, JobSchedule } from '../api'
 import { JOB_TEMPLATE } from '../job-template'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
@@ -258,6 +270,7 @@ export function JobControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) 
                           <Calendar className="w-3 h-3" />
                           {new Date(job.updatedAt).toLocaleDateString()}
                         </span>
+                        <ScheduleInline schedule={job.schedule} />
                         <LastTickInline lastTickAt={job.lastTickAt} />
                       </div>
                     </button>
@@ -416,6 +429,7 @@ function JobDetail({
                   <Calendar className="w-3 h-3" />
                   updated {new Date(job.updatedAt).toLocaleDateString()}
                 </span>
+                <ScheduleInline schedule={job.schedule} />
                 <LastTickDetail lastTickAt={job.lastTickAt} />
                 <span>·</span>
                 <NextTickBadge />
@@ -524,18 +538,20 @@ function CreateJobDialog({
 
   const [title, setTitle] = useState('')
   const [body, setBody] = useState(JOB_TEMPLATE)
+  const [schedule, setSchedule] = useState<JobSchedule | null>(null)
 
   useEffect(() => {
     if (open) {
       setTitle('')
       setBody(initialBody && initialBody.trim() ? initialBody : JOB_TEMPLATE)
+      setSchedule(null)
     }
   }, [open, initialBody])
 
   const handleSubmit = () => {
     if (!title.trim() || createMutation.isPending) return
     createMutation.mutate(
-      { title: title.trim(), body },
+      { title: title.trim(), body, schedule },
       {
         onSuccess: (job) => onCreated(job),
       },
@@ -563,6 +579,7 @@ function CreateJobDialog({
               autoFocus
             />
           </div>
+          <ScheduleSelect value={schedule} onChange={setSchedule} />
           <div className="space-y-1.5">
             <Label>Body</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={14} />
@@ -600,17 +617,20 @@ function EditJobDialog({
 
   const [title, setTitle] = useState(job.title)
   const [body, setBody] = useState(job.body || '')
+  const [schedule, setSchedule] = useState<JobSchedule | null>(job.schedule)
 
   useEffect(() => {
     setTitle(job.title)
     setBody(job.body || '')
+    setSchedule(job.schedule)
   }, [job])
 
   const handleSubmit = () => {
     if (!title.trim() || updateMutation.isPending) return
-    const patch: { title?: string; body?: string } = {}
+    const patch: { title?: string; body?: string; schedule?: JobSchedule | null } = {}
     if (title !== job.title) patch.title = title.trim()
     if (body !== job.body) patch.body = body
+    if (schedule !== job.schedule) patch.schedule = schedule
     if (Object.keys(patch).length === 0) {
       onSaved()
       return
@@ -638,6 +658,7 @@ function EditJobDialog({
               autoFocus
             />
           </div>
+          <ScheduleSelect value={schedule} onChange={setSchedule} />
           <div className="space-y-1.5">
             <Label>Body</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={14} />
@@ -732,6 +753,65 @@ function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
       >
         <Clock className="w-3 h-3" />
         ticked {formatRelativePast(date, now)}
+      </span>
+    </>
+  )
+}
+
+/**
+ * Cadence dropdown shared by Create + Edit. `null` means "every cron
+ * tick" (the engine's 15-minute cron) — this is the legacy default and stays
+ * the no-frontmatter case so old jobs round-trip unchanged.
+ */
+function ScheduleSelect({
+  value,
+  onChange,
+}: {
+  value: JobSchedule | null
+  onChange: (next: JobSchedule | null) => void
+}) {
+  // Sentinel because Radix Select.Item disallows empty-string values; we
+  // can't bind `null` directly to it.
+  const SENTINEL = '__every_tick__'
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="job-schedule">Schedule</Label>
+      <Select
+        value={value ?? SENTINEL}
+        onValueChange={(v) => onChange(v === SENTINEL ? null : (v as JobSchedule))}
+      >
+        <SelectTrigger id="job-schedule" className="w-full">
+          <SelectValue placeholder="Select cadence" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={SENTINEL}>Every cron tick (15 min)</SelectItem>
+          {ALL_SCHEDULE_EVERY_OPTIONS.map((opt: ScheduleEvery) => (
+            <SelectItem key={opt} value={opt}>
+              {scheduleEveryLabel(opt)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        How often the engine ticks this job. Engine-side gating ships
+        with a kody-engine release; until then this is descriptive only.
+      </p>
+    </div>
+  )
+}
+
+/** Inline schedule pill for list rows + detail header. */
+function ScheduleInline({ schedule }: { schedule: JobSchedule | null }) {
+  if (!schedule) return null
+  return (
+    <>
+      <span>·</span>
+      <span
+        className="inline-flex items-center gap-1"
+        title={`Cadence: ${scheduleEveryLabel(schedule)}`}
+      >
+        <Timer className="w-3 h-3" />
+        {scheduleEveryLabel(schedule)}
       </span>
     </>
   )

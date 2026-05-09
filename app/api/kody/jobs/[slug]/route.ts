@@ -57,6 +57,7 @@ export async function GET(
 const updateJobSchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
+  schedule: z.enum(['15m', '30m', '1h', '6h', '1d']).nullable().optional(),
   actorLogin: z.string().optional(),
 })
 
@@ -82,7 +83,7 @@ export async function PATCH(
     }
 
     const payload = await req.json()
-    const { title, body, actorLogin } = updateJobSchema.parse(payload)
+    const { title, body, schedule, actorLogin } = updateJobSchema.parse(payload)
 
     const actorResult = await verifyActorLogin(req, actorLogin)
     if (actorResult instanceof NextResponse) return actorResult
@@ -100,6 +101,7 @@ export async function PATCH(
       slug,
       title: title ?? existing.title,
       body: body ?? existing.body,
+      schedule: schedule === undefined ? existing.schedule : schedule,
       sha: existing.sha,
     })
 
