@@ -56,11 +56,7 @@ import {
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { useNow } from '../hooks/useNow'
 import { formatDuration, formatRelativePast } from '../jobs-schedule'
-import {
-  ALL_SCHEDULE_EVERY_OPTIONS,
-  scheduleEveryLabel,
-  type ScheduleEvery,
-} from '../jobs-frontmatter'
+import { scheduleEveryLabel } from '../jobs-frontmatter'
 import type { Job, JobSchedule } from '../api'
 import { JOB_TEMPLATE } from '../job-template'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -815,9 +811,18 @@ function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
 }
 
 /**
- * Cadence dropdown shared by Create + Edit. `null` means "every cron
- * tick" (the engine's 15-minute cron) — this is the legacy default and stays
- * the no-frontmatter case so old jobs round-trip unchanged.
+ * Schedule dropdown — two options only:
+ *
+ * - **Auto** (sentinel `null`, no frontmatter): the engine ticks the job
+ *   on every cron wake; the body's cadence guard decides whether to act.
+ *   This is the default for every job in this repo's convention.
+ * - **Manual only** (`every: manual`): the engine skips auto-ticks; the
+ *   job runs only when the Run button is clicked.
+ *
+ * Granular cadences (`every: 1d`, `every: 7d`, …) are still parsed and
+ * honored by the engine if a job's frontmatter declares them, but the
+ * UI doesn't expose them — the body-cadence convention makes them
+ * redundant in this codebase.
  */
 function ScheduleSelect({
   value,
@@ -828,30 +833,26 @@ function ScheduleSelect({
 }) {
   // Sentinel because Radix Select.Item disallows empty-string values; we
   // can't bind `null` directly to it.
-  const SENTINEL = '__every_tick__'
+  const AUTO = '__auto__'
   return (
     <div className="space-y-1.5">
       <Label htmlFor="job-schedule">Schedule</Label>
       <Select
-        value={value ?? SENTINEL}
-        onValueChange={(v) => onChange(v === SENTINEL ? null : (v as JobSchedule))}
+        value={value === 'manual' ? 'manual' : AUTO}
+        onValueChange={(v) => onChange(v === AUTO ? null : 'manual')}
       >
         <SelectTrigger id="job-schedule" className="w-full">
-          <SelectValue placeholder="Select cadence" />
+          <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={SENTINEL}>Body-governed (no frontmatter)</SelectItem>
-          {ALL_SCHEDULE_EVERY_OPTIONS.map((opt: ScheduleEvery) => (
-            <SelectItem key={opt} value={opt}>
-              {scheduleEveryLabel(opt)}
-            </SelectItem>
-          ))}
+          <SelectItem value={AUTO}>Auto</SelectItem>
+          <SelectItem value="manual">Manual only</SelectItem>
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        How often the engine ticks this job. <strong>Manual only</strong>{' '}
-        means the scheduler never auto-fires it — only the Run button
-        dispatches.
+        <strong>Auto</strong> — the body's cadence guard decides when to
+        run. <strong>Manual only</strong> — never auto-runs; click Run to
+        trigger.
       </p>
     </div>
   )
