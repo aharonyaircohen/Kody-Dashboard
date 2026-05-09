@@ -654,6 +654,10 @@ function EditJobDialog({
             />
           </div>
           <ScheduleSelect value={schedule} onChange={setSchedule} />
+          <JobTimingReadout
+            lastTickAt={job.lastTickAt}
+            nextEligibleAt={job.nextEligibleAt}
+          />
           <div className="space-y-1.5">
             <Label>Body</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={14} />
@@ -732,26 +736,14 @@ function NextRunInline({ nextEligibleAt }: { nextEligibleAt: string | null }) {
 }
 
 /**
- * Detail-header counterpart for `NextRunInline`. Renders the same value
- * but always shows something (even if the field is missing) so the detail
- * pane explicitly surfaces "next run unknown" instead of going silent.
+ * Detail-header counterpart for `NextRunInline`. Hides when the value
+ * is missing — the field requires a `contents-api` job-state backend,
+ * and repos using the `local-file` backend will never populate it.
+ * Surfacing "next run unknown" misleads more than it informs.
  */
 function NextRunDetail({ nextEligibleAt }: { nextEligibleAt: string | null }) {
   const now = useNow(30_000)
-  if (!nextEligibleAt) {
-    return (
-      <>
-        <span>·</span>
-        <span
-          className="inline-flex items-center gap-1"
-          title="The job hasn't recorded a next-eligible time yet. It populates after the next tick that emits data.nextEligibleISO."
-        >
-          <Timer className="w-3 h-3" />
-          next run unknown
-        </span>
-      </>
-    )
-  }
+  if (!nextEligibleAt) return null
   const date = new Date(nextEligibleAt)
   const diffMs = date.getTime() - now.getTime()
   const label =
@@ -828,7 +820,7 @@ function ScheduleSelect({
           <SelectValue placeholder="Select cadence" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={SENTINEL}>Every cron wake (15 min)</SelectItem>
+          <SelectItem value={SENTINEL}>Body-governed (no frontmatter)</SelectItem>
           {ALL_SCHEDULE_EVERY_OPTIONS.map((opt: ScheduleEvery) => (
             <SelectItem key={opt} value={opt}>
               {scheduleEveryLabel(opt)}
@@ -840,6 +832,52 @@ function ScheduleSelect({
         How often the engine ticks this job. Engine-side gating ships
         with a kody-engine release; until then this is descriptive only.
       </p>
+    </div>
+  )
+}
+
+/**
+ * Read-only timing readout shown inside the Edit dialog: last actual run
+ * + next eligible run, both sourced from the job's state file. Helpful
+ * for jobs whose cadence lives in the body prose (not frontmatter), so
+ * the dropdown above can't honestly express it. Refreshes every 30s.
+ */
+function JobTimingReadout({
+  lastTickAt,
+  nextEligibleAt,
+}: {
+  lastTickAt: string | null
+  nextEligibleAt: string | null
+}) {
+  const now = useNow(30_000)
+  const last = lastTickAt ? new Date(lastTickAt) : null
+  const next = nextEligibleAt ? new Date(nextEligibleAt) : null
+  const lastLabel = last ? `last run ${formatRelativePast(last, now)}` : 'never run'
+  let nextLabel: string
+  if (next) {
+    const diff = next.getTime() - now.getTime()
+    nextLabel = diff > 0 ? `next run in ${formatDuration(diff)}` : 'next run due now'
+  } else {
+    nextLabel = 'next run unknown'
+  }
+  return (
+    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+      <span className="inline-flex items-center gap-1" title={last ? last.toLocaleString() : 'Job has never run'}>
+        <Clock className="w-3 h-3" />
+        {lastLabel}
+      </span>
+      <span>·</span>
+      <span
+        className="inline-flex items-center gap-1"
+        title={
+          next
+            ? next.toLocaleString()
+            : "The job hasn't recorded data.nextEligibleISO yet. It populates after the next tick that emits it."
+        }
+      >
+        <Timer className="w-3 h-3" />
+        {nextLabel}
+      </span>
     </div>
   )
 }
