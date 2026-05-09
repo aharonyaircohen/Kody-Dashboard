@@ -267,7 +267,10 @@ export function JobControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) 
                         </span>
                         <ScheduleInline schedule={job.schedule} />
                         <LastTickInline lastTickAt={job.lastTickAt} />
-                        <NextRunInline nextEligibleAt={job.nextEligibleAt} />
+                        <NextRunInline
+                          nextEligibleAt={job.nextEligibleAt}
+                          schedule={job.schedule}
+                        />
                       </div>
                     </button>
                   </li>
@@ -427,7 +430,10 @@ function JobDetail({
                 </span>
                 <ScheduleInline schedule={job.schedule} />
                 <LastTickDetail lastTickAt={job.lastTickAt} />
-                <NextRunDetail nextEligibleAt={job.nextEligibleAt} />
+                <NextRunDetail
+                  nextEligibleAt={job.nextEligibleAt}
+                  schedule={job.schedule}
+                />
                 <span>·</span>
                 <a
                   href={job.htmlUrl}
@@ -709,11 +715,19 @@ function LastTickInline({ lastTickAt }: { lastTickAt: string | null }) {
  * Inline "next run in X" pill — the actual next-eligible time the job
  * will act, sourced from `data.nextEligibleISO` in the job's state JSON.
  * Hidden when the value is missing (job hasn't run yet, or its body
- * doesn't emit the field). When the time is in the past, render as
- * "due now" — the cron wake will pick it up on the next ≤15-min tick.
+ * doesn't emit the field) or when the schedule is `manual` — in that
+ * case the `ScheduleInline` pill already says "manual only", which is
+ * the whole story.
  */
-function NextRunInline({ nextEligibleAt }: { nextEligibleAt: string | null }) {
+function NextRunInline({
+  nextEligibleAt,
+  schedule,
+}: {
+  nextEligibleAt: string | null
+  schedule: JobSchedule | null
+}) {
   const now = useNow(30_000)
+  if (schedule === 'manual') return null
   if (!nextEligibleAt) return null
   const date = new Date(nextEligibleAt)
   const diffMs = date.getTime() - now.getTime()
@@ -737,12 +751,18 @@ function NextRunInline({ nextEligibleAt }: { nextEligibleAt: string | null }) {
 
 /**
  * Detail-header counterpart for `NextRunInline`. Hides when the value
- * is missing — the field requires a `contents-api` job-state backend,
- * and repos using the `local-file` backend will never populate it.
- * Surfacing "next run unknown" misleads more than it informs.
+ * is missing or the schedule is `manual` — same reasoning as the inline
+ * pill.
  */
-function NextRunDetail({ nextEligibleAt }: { nextEligibleAt: string | null }) {
+function NextRunDetail({
+  nextEligibleAt,
+  schedule,
+}: {
+  nextEligibleAt: string | null
+  schedule: JobSchedule | null
+}) {
   const now = useNow(30_000)
+  if (schedule === 'manual') return null
   if (!nextEligibleAt) return null
   const date = new Date(nextEligibleAt)
   const diffMs = date.getTime() - now.getTime()
@@ -829,8 +849,9 @@ function ScheduleSelect({
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        How often the engine ticks this job. Engine-side gating ships
-        with a kody-engine release; until then this is descriptive only.
+        How often the engine ticks this job. <strong>Manual only</strong>{' '}
+        means the scheduler never auto-fires it — only the Run button
+        dispatches.
       </p>
     </div>
   )
