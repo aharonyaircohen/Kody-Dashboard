@@ -310,5 +310,80 @@ export function createMemoryTools(ctx: Ctx) {
         }
       },
     }),
+
+    recall_search: tool({
+      description:
+        `Search every memory file in ${repoRef} (under \`.kody/memory/\`) by free-text ` +
+        'query, using GitHub code search. Returns up to 20 matches with file path, ' +
+        'snippet, and the memory id (filename without `.md`). Use this when:\n' +
+        '- The injected `## Remembered context` index is truncated.\n' +
+        '- The keyword you care about lives in a memory body, not its one-line hook.\n' +
+        '- The user asks "do you remember anything about X" and X does not appear ' +
+        'in the visible index.\n\n' +
+        'After finding a match you may call `recall(id)` to read the full body. ' +
+        'Note: GitHub code search lags ~30–60 seconds behind a write — a memory you ' +
+        'just created may not appear here until indexing catches up.',
+      inputSchema: z.object({
+        query: z
+          .string()
+          .min(1)
+          .describe(
+            'Free-text query. Examples: "deploy workflow", "merge freeze", ' +
+              '"prefers terse responses". GitHub code-search syntax (path:, repo:, ' +
+              'language:) is supported but already scoped to .kody/memory/ in this repo.',
+          ),
+      }),
+      execute: async ({ query }) => {
+        try {
+          const scopedQuery = `${query} repo:${owner}/${repo} path:.kody/memory`
+          const res = await octokit.rest.search.code({
+            q: scopedQuery,
+            per_page: 20,
+            mediaType: { format: 'text-match' },
+          })
+          type TextMatch = {
+            fragment?: string
+            matches?: Array<{ indices?: [number, number] }>
+          }
+          interface Hit {
+            id: string | null
+            path: string
+            url: string
+            snippet: string
+            lineInFragment: number | null
+          }
+          const matches: Hit[] = res.data.items.flatMap<Hit>((it) => {
+            const item = it as typeof it & { text_matches?: TextMatch[] }
+            const filename = it.path.split('/').pop() ?? ''
+            const id = filename.endsWith('.md') ? filename.slice(0, -'.md'.length) : null
+            // Don't surface INDEX.md hits — its content duplicates the
+            // per-file descriptions and noise-blooms the result list.
+            if (id === 'INDEX') return []
+            const tms = item.text_matches ?? []
+            if (tms.length === 0) {
+              return [{ id, path: it.path, url: it.html_url, snippet: '', lineInFragment: null }]
+            }
+            return tms.map<Hit>((tm) => {
+              const fragment = tm.fragment ?? ''
+              const firstIdx = tm.matches?.[0]?.indices?.[0] ?? 0
+              const lineInFragment =
+                (fragment.slice(0, firstIdx).match(/\n/g)?.length ?? 0) + 1
+              const snippet = fragment.length > 600 ? `${fragment.slice(0, 600)}…` : fragment
+              return { id, path: it.path, url: it.html_url, snippet, lineInFragment }
+            })
+          })
+          return {
+            total: res.data.total_count,
+            matches,
+          }
+        } catch (err) {
+          logger.warn({ err, owner, repo, query }, 'recall_search failed')
+          return {
+            error: 'search_failed',
+            message: err instanceof Error ? err.message : 'Failed to search memories',
+          }
+        }
+      },
+    }),
   }
 }

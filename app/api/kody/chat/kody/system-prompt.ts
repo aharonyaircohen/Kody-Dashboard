@@ -45,11 +45,12 @@ export interface ReportContext {
 
 /**
  * Cap on how many lines of the memory INDEX we inject into the system prompt.
- * Each line is ~150 chars (one bullet per memory), so 80 lines ≈ 12KB of
- * prompt overhead. Above this the agent should rely on `list_memories` /
- * `recall` tools instead of having every entry in the prompt.
+ * Each line is ~150 chars (one bullet per memory), so 300 lines ≈ 45KB of
+ * prompt overhead — still a small fraction of the model's context window.
+ * Above this the agent falls back to `recall_search` (GitHub code search
+ * scoped to `.kody/memory/`) and `list_memories` / `recall` tools.
  */
-const MEMORY_INDEX_MAX_LINES = 80
+const MEMORY_INDEX_MAX_LINES = 300
 
 function truncateMemoryIndex(raw: string): string {
   const lines = raw.split(/\r?\n/)
@@ -156,7 +157,9 @@ Rules:
   feedback memory says "no console.log in this repo," don't add console.log
   even if the current turn doesn't mention it).
 - Use \`recall(id)\` when the one-line hook isn't enough and you need the
-  full body before acting.
+  full body before acting. When the index is truncated (or the hook you
+  need isn't there), use \`recall_search(query)\` to search every memory
+  file's body via GitHub code search.
 - Memory can be stale. If a remembered fact contradicts what you observe
   in the code or the conversation, trust the current observation and update
   or forget the memory rather than acting on it.

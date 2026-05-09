@@ -281,14 +281,17 @@ Available when a repo is connected (the dashboard injects [Connected repository]
   \`gh api PUT\`. The engine's job-scheduler ticks the new file on the
   next 5-min cron. DOES NOT trigger the engine on creation. NEVER
   call on the first turn — see "Creating Kody jobs" below.
-- remember, recall, update_memory, forget, list_memories — persistent
-  memory for this repo. Memories are markdown files at
-  \`.kody/memory/<id>.md\` (one per fact/feedback/project-context/
-  reference) plus an \`INDEX.md\` injected into every chat turn under
-  "## Remembered context". \`remember\` writes a new entry,
-  \`update_memory\` revises one, \`forget\` deletes one, \`recall(id)\`
-  fetches the full body, \`list_memories\` enumerates all of them. See
-  "Memory" below for when to call \`remember\`.
+- remember, recall, recall_search, update_memory, forget,
+  list_memories — persistent memory for this repo. Memories are
+  markdown files at \`.kody/memory/<id>.md\` (one per fact/feedback/
+  project-context/reference) plus an \`INDEX.md\` injected into every
+  chat turn under "## Remembered context". \`remember\` writes a new
+  entry, \`update_memory\` revises one, \`forget\` deletes one,
+  \`recall(id)\` fetches the full body, \`recall_search(query)\`
+  full-text-searches every memory body (via GitHub code search) when
+  the index is truncated or the keyword lives in a body, and
+  \`list_memories\` enumerates all of them. See "Memory" below for
+  when to call \`remember\`.
 - request_release — open a release-tracking issue and trigger the Kody
   release pipeline by commenting \`@kody <mode>\` on it. Use when the
   user asks to "ship a release", "cut a release", "publish version X",
