@@ -779,22 +779,16 @@ function NextRunDetail({
 }
 
 /**
- * Detail-header counterpart that shows "never run" explicitly
- * instead of hiding (the detail is the place to surface this state).
+ * Detail-header counterpart for `LastTickInline`. Hides when the value
+ * is missing — `lastTickAt` is the commit timestamp of `<slug>.state.json`
+ * on GitHub, which only exists for repos using the `contents-api` job-state
+ * backend. Repos on `local-file` keep state on the runner only, so a null
+ * value means "the dashboard can't see it", not "never run". Saying "never
+ * run" misleads more than it informs.
  */
 function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
   const now = useNow(30_000)
-  if (!lastTickAt) {
-    return (
-      <>
-        <span>·</span>
-        <span className="inline-flex items-center gap-1" title="Job has never run">
-          <Clock className="w-3 h-3" />
-          never run
-        </span>
-      </>
-    )
-  }
+  if (!lastTickAt) return null
   const date = new Date(lastTickAt)
   return (
     <>
@@ -874,30 +868,34 @@ function JobTimingReadout({
   const now = useNow(30_000)
   const last = lastTickAt ? new Date(lastTickAt) : null
   const next = nextEligibleAt ? new Date(nextEligibleAt) : null
-  const lastLabel = last ? `last run ${formatRelativePast(last, now)}` : 'never run'
   const nextLabel = next
     ? (() => {
         const diff = next.getTime() - now.getTime()
         return diff > 0 ? `next run in ${formatDuration(diff)}` : 'next run due now'
       })()
     : null
+  // Both signals come from `<slug>.state.json` on GitHub, which only exists
+  // for repos on the `contents-api` job-state backend. Hide the readout
+  // entirely when neither is reachable — saying "never run / next run
+  // unknown" on every job misleads more than it informs.
+  if (!last && !next) return null
   return (
     <div className="flex items-center gap-3 text-xs text-muted-foreground">
-      <span className="inline-flex items-center gap-1" title={last ? last.toLocaleString() : 'Job has never run'}>
-        <Clock className="w-3 h-3" />
-        {lastLabel}
-      </span>
+      {last ? (
+        <span className="inline-flex items-center gap-1" title={last.toLocaleString()}>
+          <Clock className="w-3 h-3" />
+          last run {formatRelativePast(last, now)}
+        </span>
+      ) : null}
+      {last && nextLabel && next ? <span>·</span> : null}
       {nextLabel && next ? (
-        <>
-          <span>·</span>
-          <span
-            className="inline-flex items-center gap-1"
-            title={next.toLocaleString()}
-          >
-            <Timer className="w-3 h-3" />
-            {nextLabel}
-          </span>
-        </>
+        <span
+          className="inline-flex items-center gap-1"
+          title={next.toLocaleString()}
+        >
+          <Timer className="w-3 h-3" />
+          {nextLabel}
+        </span>
       ) : null}
     </div>
   )
