@@ -779,7 +779,16 @@ export const remoteApi = {
 // ============ Jobs API ============
 
 /** Per-job cadence tokens; mirrors `ScheduleEvery` in jobs-frontmatter.ts. */
-export type JobSchedule = "15m" | "30m" | "1h" | "6h" | "1d";
+export type JobSchedule =
+  | "15m"
+  | "30m"
+  | "1h"
+  | "2h"
+  | "6h"
+  | "12h"
+  | "1d"
+  | "3d"
+  | "7d";
 
 export interface Job {
   /** Filename without `.md` — stable identity. */

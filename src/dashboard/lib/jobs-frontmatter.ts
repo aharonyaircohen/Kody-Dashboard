@@ -15,14 +15,27 @@
  */
 
 /** Allowed cadence tokens. Engine cron fires every 15 min; finer values round up. */
-export type ScheduleEvery = '15m' | '30m' | '1h' | '6h' | '1d'
+export type ScheduleEvery =
+  | '15m'
+  | '30m'
+  | '1h'
+  | '2h'
+  | '6h'
+  | '12h'
+  | '1d'
+  | '3d'
+  | '7d'
 
 const SCHEDULE_EVERY_VALUES: readonly ScheduleEvery[] = [
   '15m',
   '30m',
   '1h',
+  '2h',
   '6h',
+  '12h',
   '1d',
+  '3d',
+  '7d',
 ] as const
 
 export interface JobFrontmatter {
@@ -73,17 +86,28 @@ export const ALL_SCHEDULE_EVERY_OPTIONS = SCHEDULE_EVERY_VALUES
  * compute "next due" estimates and by the engine to gate ticks.
  */
 export function scheduleEveryToMs(every: ScheduleEvery): number {
+  const MIN = 60 * 1000
+  const HOUR = 60 * MIN
+  const DAY = 24 * HOUR
   switch (every) {
     case '15m':
-      return 15 * 60 * 1000
+      return 15 * MIN
     case '30m':
-      return 30 * 60 * 1000
+      return 30 * MIN
     case '1h':
-      return 60 * 60 * 1000
+      return HOUR
+    case '2h':
+      return 2 * HOUR
     case '6h':
-      return 6 * 60 * 60 * 1000
+      return 6 * HOUR
+    case '12h':
+      return 12 * HOUR
     case '1d':
-      return 24 * 60 * 60 * 1000
+      return DAY
+    case '3d':
+      return 3 * DAY
+    case '7d':
+      return 7 * DAY
   }
 }
 
@@ -96,10 +120,18 @@ export function scheduleEveryLabel(every: ScheduleEvery): string {
       return 'every 30 min'
     case '1h':
       return 'every hour'
+    case '2h':
+      return 'every 2 hours'
     case '6h':
       return 'every 6 hours'
+    case '12h':
+      return 'every 12 hours'
     case '1d':
       return 'every day'
+    case '3d':
+      return 'every 3 days'
+    case '7d':
+      return 'every week'
   }
 }
 
