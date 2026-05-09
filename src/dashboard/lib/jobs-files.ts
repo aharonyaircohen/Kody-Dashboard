@@ -30,11 +30,18 @@ export interface JobFile {
   updatedAt: string
   /**
    * Last commit timestamp of the sibling `<slug>.state.json` (ISO8601),
-   * or `null` if the state file does not exist yet (job has never ticked).
-   * The engine writes `<slug>.state.json` every tick — see
+   * or `null` if the state file does not exist yet (job has never run).
+   * The engine writes `<slug>.state.json` every tick that acts — see
    * `dispatchJobFileTicks` in kody2.
    */
   lastTickAt: string | null
+  /**
+   * UTC ISO timestamp at which this job will next be eligible to act,
+   * read from `data.nextEligibleISO` in the state JSON. Each job's body
+   * instructs the agent to emit this on every tick. `null` when the
+   * job has never run, or its body doesn't yet emit the field.
+   */
+  nextEligibleAt: string | null
   /**
    * Per-job cadence, parsed from the frontmatter `every:` field.
    * `null` means "every cron wake" (the engine's 15-minute cron).
@@ -147,6 +154,36 @@ async function fetchLastCommitDateOrNull(
 }
 
 /**
+ * Fetch and parse `<slug>.state.json` to extract `data.nextEligibleISO` —
+ * the ISO timestamp at which the job will next be eligible to act per its
+ * cadence guard. The agent emits this field at the end of every tick;
+ * see each job's `## State` section. Missing file or missing field → null.
+ */
+async function fetchNextEligibleAt(
+  octokit: Octokit,
+  slug: string,
+): Promise<string | null> {
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner: getOwner(),
+      repo: getRepo(),
+      path: `${JOBS_DIR}/${slug}.state.json`,
+    })
+    if (Array.isArray(data) || !('content' in data) || !data.content) return null
+    const raw = Buffer.from(data.content, 'base64').toString('utf-8')
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    const inner = (parsed as { data?: unknown }).data
+    if (!inner || typeof inner !== 'object') return null
+    const value = (inner as { nextEligibleISO?: unknown }).nextEligibleISO
+    return typeof value === 'string' && value.length > 0 ? value : null
+  } catch (error: unknown) {
+    if ((error as { status?: number })?.status === 404) return null
+    return null
+  }
+}
+
+/**
  * List every job file under `.kody/jobs/`. Returns `[]` if the
  * directory does not exist (fresh repo).
  */
@@ -195,11 +232,13 @@ export async function listJobFiles(): Promise<JobFile[]> {
         if (Array.isArray(data) || !('content' in data) || !data.content) return null
         const raw = Buffer.from(data.content, 'base64').toString('utf-8')
         const { title, body, frontmatter } = parseJobMarkdown(raw, slug)
-        const [updatedAt, lastTickAt] = await Promise.all([
+        const hasState = stateSlugs.has(slug)
+        const [updatedAt, lastTickAt, nextEligibleAt] = await Promise.all([
           fetchLastCommitDate(octokit, filePath),
-          stateSlugs.has(slug)
+          hasState
             ? fetchLastCommitDateOrNull(octokit, `${JOBS_DIR}/${slug}.state.json`)
             : Promise.resolve(null),
+          hasState ? fetchNextEligibleAt(octokit, slug) : Promise.resolve(null),
         ])
         return {
           slug,
@@ -208,6 +247,7 @@ export async function listJobFiles(): Promise<JobFile[]> {
           sha,
           updatedAt,
           lastTickAt,
+          nextEligibleAt,
           schedule: frontmatter.every ?? null,
           htmlUrl: buildHtmlUrl(slug, branch),
         } satisfies JobFile
@@ -239,9 +279,10 @@ export async function readJobFile(slug: string): Promise<JobFile | null> {
     if (Array.isArray(data) || !('content' in data) || !data.content) return null
     const raw = Buffer.from(data.content, 'base64').toString('utf-8')
     const { title, body, frontmatter } = parseJobMarkdown(raw, slug)
-    const [updatedAt, lastTickAt] = await Promise.all([
+    const [updatedAt, lastTickAt, nextEligibleAt] = await Promise.all([
       fetchLastCommitDate(octokit, filePath),
       fetchLastCommitDateOrNull(octokit, `${JOBS_DIR}/${slug}.state.json`),
+      fetchNextEligibleAt(octokit, slug),
     ])
     return {
       slug,
@@ -250,6 +291,7 @@ export async function readJobFile(slug: string): Promise<JobFile | null> {
       sha: data.sha,
       updatedAt,
       lastTickAt,
+      nextEligibleAt,
       schedule: frontmatter.every ?? null,
       htmlUrl: buildHtmlUrl(slug, branch),
     }

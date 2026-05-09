@@ -799,12 +799,18 @@ export interface Job {
   updatedAt: string;
   /**
    * Last commit timestamp of the sibling `<slug>.state.json` (ISO8601),
-   * or `null` if the job has never ticked. The engine writes
-   * `<slug>.state.json` on every tick.
+   * or `null` if the job has never run. The engine writes
+   * `<slug>.state.json` on every tick that acts.
    */
   lastTickAt: string | null;
   /**
-   * Per-job cadence parsed from frontmatter. `null` = global cron tick
+   * UTC ISO timestamp at which this job will next be eligible to act —
+   * read from `data.nextEligibleISO` in the state JSON. `null` if the
+   * job has never run, or its body doesn't yet emit the field.
+   */
+  nextEligibleAt: string | null;
+  /**
+   * Per-job cadence parsed from frontmatter. `null` = global cron wake
    * (every 15 min). Engine-side gating ships separately.
    */
   schedule: JobSchedule | null;
