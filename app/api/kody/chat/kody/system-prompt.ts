@@ -43,6 +43,24 @@ export interface ReportContext {
   body: string
 }
 
+/**
+ * Cap on how many lines of the memory INDEX we inject into the system prompt.
+ * Each line is ~150 chars (one bullet per memory), so 80 lines ≈ 12KB of
+ * prompt overhead. Above this the agent should rely on `list_memories` /
+ * `recall` tools instead of having every entry in the prompt.
+ */
+const MEMORY_INDEX_MAX_LINES = 80
+
+function truncateMemoryIndex(raw: string): string {
+  const lines = raw.split(/\r?\n/)
+  if (lines.length <= MEMORY_INDEX_MAX_LINES) return raw
+  const head = lines.slice(0, MEMORY_INDEX_MAX_LINES).join('\n')
+  return (
+    `${head}\n\n_Index truncated at ${MEMORY_INDEX_MAX_LINES} lines (${lines.length} total). ` +
+    'Use `list_memories` to enumerate the rest._'
+  )
+}
+
 export function buildSystemPrompt(
   base: string,
   repo: { owner: string; repo: string } | null,
@@ -53,6 +71,14 @@ export function buildSystemPrompt(
     goalPlanner?: boolean
     goal?: GoalContext
     report?: ReportContext
+    /**
+     * Raw body of `.kody/memory/INDEX.md` (or `null` when the file doesn't
+     * exist). Injected under a `## Remembered context` heading so the agent
+     * can decide whether a new memory would be a duplicate / update of an
+     * existing one. The full body of any entry is fetched on demand via
+     * the `recall` tool — only the index ships in every prompt.
+     */
+    memoryIndex?: string | null
   },
 ): string {
   const sections: string[] = [base]
@@ -113,6 +139,31 @@ A negative result ("no existing code found") is a valid, useful finding — writ
 
 Every file path in \`affectedArea\` and every symbol name in \`requirements\` MUST have appeared in a tool result during this chat session. Do not recall paths or function names from training data. If you genuinely don't know where something lives, say so in \`additionalContext\` ("exact file location TBD — search for \`Foo\` returned no matches") instead of inventing a plausible-looking path.`,
     )
+    if (opts?.memoryIndex && opts.memoryIndex.trim().length > 0) {
+      sections.push(
+        `## Remembered context
+
+The block below is the live index of \`.kody/memory/*.md\` for this repo.
+Each bullet is one stored memory: title, file id, one-line hook, and type.
+Treat it as the agent's persistent notes — facts/feedback/project context the
+user has chosen to keep across sessions.
+
+Rules:
+- Read this index before writing a new memory. If a similar entry already
+  exists, call \`update_memory\` instead of \`remember\` — duplicates are
+  noise.
+- Apply remembered \`feedback\` and \`user\` entries automatically (e.g. if a
+  feedback memory says "no console.log in this repo," don't add console.log
+  even if the current turn doesn't mention it).
+- Use \`recall(id)\` when the one-line hook isn't enough and you need the
+  full body before acting.
+- Memory can be stale. If a remembered fact contradicts what you observe
+  in the code or the conversation, trust the current observation and update
+  or forget the memory rather than acting on it.
+
+${truncateMemoryIndex(opts.memoryIndex.trim())}`,
+      )
+    }
   }
   if (opts?.job) {
     const m = opts.job
