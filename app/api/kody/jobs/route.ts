@@ -61,7 +61,7 @@ const createJobSchema = z.object({
   title: z.string().min(1),
   body: z.string().default(''),
   schedule: z
-    .enum(['15m', '30m', '1h', '2h', '6h', '12h', '1d', '3d', '7d'])
+    .enum(['15m', '30m', '1h', '2h', '6h', '12h', '1d', '3d', '7d', 'manual'])
     .nullable()
     .optional(),
   actorLogin: z.string().optional(),

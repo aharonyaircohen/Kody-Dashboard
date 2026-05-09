@@ -788,7 +788,9 @@ export type JobSchedule =
   | "12h"
   | "1d"
   | "3d"
-  | "7d";
+  | "7d"
+  /** Sentinel: scheduler never auto-fires; only the dashboard "Run now" button executes it. */
+  | "manual";
 
 export interface Job {
   /** Filename without `.md` — stable identity. */
