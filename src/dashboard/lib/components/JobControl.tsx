@@ -683,10 +683,11 @@ function EditJobDialog({
 }
 
 /**
- * Page-level "Next scheduled tick" badge. The engine cron is global
- * (every 15 min), so this value is shared across all jobs — render it
- * once near the page header, and again in the job detail. Re-renders
- * every 30s via `useNow`.
+ * Page-level "Next scheduler wake" badge. The engine cron is global
+ * (every 15 min) and only signals when the job-scheduler will *consider*
+ * each job — whether a job actually acts on a given wake depends on its
+ * own cadence guard (e.g. "last ran ≥ 20h ago"). Rendered once near the
+ * page header, again in the job detail. Re-renders every 30s via `useNow`.
  */
 function NextTickBadge() {
   const now = useNow(30_000)
@@ -696,10 +697,10 @@ function NextTickBadge() {
   return (
     <span
       className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-      title={`Next cron tick at ${absolute} (every 15 min)`}
+      title={`Next scheduler wake at ${absolute} (every 15 min). Whether this job acts on the wake depends on its own cadence guard.`}
     >
       <Timer className="w-3 h-3" />
-      next tick {label}
+      next wake {label}
     </span>
   )
 }
