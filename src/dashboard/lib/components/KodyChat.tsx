@@ -141,6 +141,7 @@ import { TaskSessionHistory } from './TaskSessionHistory'
 import { ToolCallList, ThinkingPanel, ReasoningPanel, parseReasoning } from './ToolCallCard'
 import { MessageActions } from './MessageActions'
 import { loadTaskChatLocal, saveTaskChatLocal, clearTaskChatLocal } from '../task-chat-local'
+import { loadJobChatLocal, saveJobChatLocal, clearJobChatLocal } from '../job-chat-local'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -966,6 +967,41 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
       return () => clearTimeout(timer)
     }
   }, [taskMessages, isTaskMode, loading, saveTaskChat])
+
+  // Hydrate job chat from localStorage on slug change. We only hydrate
+  // when the in-memory entry for this slug is `undefined` (never seen
+  // this session) — once the user starts adding messages, the in-memory
+  // store is the source of truth and we don't reread from disk.
+  useEffect(() => {
+    if (!isJobMode || !jobSlug) return
+    if (jobMessagesBySlug[jobSlug] !== undefined) return
+    const local = loadJobChatLocal(jobSlug)
+    if (local.length === 0) return
+    setJobMessagesBySlug((prev) => {
+      if (prev[jobSlug] !== undefined) return prev
+      return { ...prev, [jobSlug]: local.map(chatToMessage) }
+    })
+  }, [isJobMode, jobSlug, jobMessagesBySlug])
+
+  // Persist job chat on every change. localStorage write is sync and cheap;
+  // no need to debounce. An empty array clears the entry so a deleted /
+  // reset thread doesn't haunt future visits.
+  useEffect(() => {
+    if (!isJobMode || !jobSlug) return
+    const msgs = currentJobMessages
+    if (msgs.length === 0) {
+      clearJobChatLocal(jobSlug)
+      return
+    }
+    saveJobChatLocal(
+      jobSlug,
+      msgs.map((m) => ({
+        role: m.role,
+        text: m.content,
+        timestamp: m.timestamp || new Date().toISOString(),
+      })),
+    )
+  }, [isJobMode, jobSlug, currentJobMessages])
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
