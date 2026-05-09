@@ -874,31 +874,30 @@ function JobTimingReadout({
   const last = lastTickAt ? new Date(lastTickAt) : null
   const next = nextEligibleAt ? new Date(nextEligibleAt) : null
   const lastLabel = last ? `last run ${formatRelativePast(last, now)}` : 'never run'
-  let nextLabel: string
-  if (next) {
-    const diff = next.getTime() - now.getTime()
-    nextLabel = diff > 0 ? `next run in ${formatDuration(diff)}` : 'next run due now'
-  } else {
-    nextLabel = 'next run unknown'
-  }
+  const nextLabel = next
+    ? (() => {
+        const diff = next.getTime() - now.getTime()
+        return diff > 0 ? `next run in ${formatDuration(diff)}` : 'next run due now'
+      })()
+    : null
   return (
     <div className="flex items-center gap-3 text-xs text-muted-foreground">
       <span className="inline-flex items-center gap-1" title={last ? last.toLocaleString() : 'Job has never run'}>
         <Clock className="w-3 h-3" />
         {lastLabel}
       </span>
-      <span>·</span>
-      <span
-        className="inline-flex items-center gap-1"
-        title={
-          next
-            ? next.toLocaleString()
-            : "The job hasn't recorded data.nextEligibleISO yet. It populates after the next tick that emits it."
-        }
-      >
-        <Timer className="w-3 h-3" />
-        {nextLabel}
-      </span>
+      {nextLabel && next ? (
+        <>
+          <span>·</span>
+          <span
+            className="inline-flex items-center gap-1"
+            title={next.toLocaleString()}
+          >
+            <Timer className="w-3 h-3" />
+            {nextLabel}
+          </span>
+        </>
+      ) : null}
     </div>
   )
 }
