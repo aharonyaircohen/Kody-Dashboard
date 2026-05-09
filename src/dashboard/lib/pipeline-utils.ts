@@ -304,6 +304,52 @@ export function getWeightedActiveProgress(task: KodyTask): number {
 }
 
 /**
+ * Gradual progress (65-96) for the review column — replaces the old
+ * "any open PR ⇒ 100%" heuristic so the bar can distinguish:
+ *   - kody bailed mid-flow (PR opened but a kody:* label still on the PR)
+ *   - CI failing on the PR
+ *   - merge conflicts / not mergeable
+ *   - checks running
+ *   - all green and ready for human merge
+ *
+ * Only `done` (merged) hits 100%. Returns 85 when no PR is associated
+ * (rare — review column is reached only when the task has an open PR,
+ * but defensive default keeps the bar visible).
+ */
+export function getReviewPercent(task: KodyTask): number {
+  const pr = task.associatedPR
+  if (!pr) return 85
+
+  const prLabels = pr.labels ?? []
+  // Mid-flow kody label still on the PR ⇒ kody hasn't actually finished.
+  // Same group as the issue's lifecycle (prefix `kody:`), but on the PR
+  // these stick around when sync/fix runs and isn't followed up.
+  const kodyMidFlow = prLabels.some(
+    (l) =>
+      l === 'kody:syncing' ||
+      l === 'kody:fixing' ||
+      l === 'kody:failed' ||
+      l === 'kody:resolving' ||
+      l === 'kody:reviewing',
+  )
+  if (kodyMidFlow) return 70
+
+  if (pr.hasConflicts || pr.mergeable === false) return 75
+
+  switch (pr.ciStatus) {
+    case 'failure':
+      return 65
+    case 'pending':
+    case 'running':
+      return 82
+    case 'success':
+      return 96
+    default:
+      return 88
+  }
+}
+
+/**
  * Format elapsed time since a date, updating live
  */
 export function formatElapsed(since: Date): string {
