@@ -198,7 +198,13 @@ export async function PUT(
       )
     }
 
+    // Spread `previous` first so engine-owned fields (e.g. `goalIssueNumber`,
+    // `lastDispatchedIssue`, `goalPrUrl`) round-trip through dashboard pause/
+    // resume. Without this, every pause/resume wipes those fields and the
+    // engine has to re-derive them — which on `goalIssueNumber` means
+    // creating a duplicate umbrella issue on the next goal-tick.
     const next: GoalRunState = {
+      ...(previous ?? {}),
       version: 1,
       state: parsed.data.state,
       startedAt: previous?.startedAt ?? now,
@@ -206,7 +212,10 @@ export async function PUT(
       ...(parsed.data.state === "paused" && parsed.data.pausedReason
         ? { pausedReason: parsed.data.pausedReason }
         : {}),
-      ...(previous?.completedAt ? { completedAt: previous.completedAt } : {}),
+    }
+    // Drop pausedReason when leaving paused — stale reasons confuse the UI.
+    if (parsed.data.state !== "paused") {
+      delete next.pausedReason
     }
 
     const content = Buffer.from(JSON.stringify(next, null, 2), "utf8").toString(
