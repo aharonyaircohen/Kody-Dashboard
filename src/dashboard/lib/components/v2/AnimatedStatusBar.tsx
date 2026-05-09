@@ -13,6 +13,7 @@ import { ALL_STAGES } from '../../constants'
 import {
   derivePipelineDisplayState,
   formatElapsed,
+  getReviewPercent,
   getStageBoundaries,
   getWeightedActiveProgress,
   stageLabels,
@@ -151,12 +152,19 @@ export function AnimatedStatusBar({ task, className }: AnimatedStatusBarProps) {
     )
   }
 
-  // ── Review: full purple bar ──
+  // ── Review: gradual purple bar based on PR signals ──
+  // 65 (CI failed) → 70 (kody mid-flow stale) → 75 (conflicts) →
+  // 82 (CI running) → 88 (unknown) → 96 (CI green, awaiting merge).
+  // Only `done` reaches 100%, so the eye can distinguish "ready" vs "merged".
   if (task.column === 'review') {
+    const reviewPercent = getReviewPercent(task)
     return (
       <div className={cn('relative', className)}>
         <div className={cn('h-1.5 rounded-full overflow-hidden', style.barTrack)}>
-          <div className={cn('h-full rounded-full', style.barFill)} style={{ width: '100%' }} />
+          <div
+            className={cn('h-full rounded-full transition-all duration-700 ease-out', style.barFill)}
+            style={{ width: `${reviewPercent}%` }}
+          />
         </div>
         <BarLabel task={task} style={style} />
       </div>
