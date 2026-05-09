@@ -29,6 +29,15 @@ export interface GoalRunState {
    * dashboard never writes this.
    */
   completedAt?: string
+  /**
+   * Engine-owned bookkeeping fields. The dashboard does not interpret
+   * these but MUST round-trip them on writes — wiping them causes the
+   * engine to misbehave (e.g. dropping `goalIssueNumber` makes
+   * goal-tick recreate a duplicate umbrella issue on the next tick).
+   * Use a passthrough type rather than enumerating each so future engine
+   * fields don't require a dashboard release.
+   */
+  [extraField: string]: unknown
 }
 
 /** Repo path for a goal's state file. */
