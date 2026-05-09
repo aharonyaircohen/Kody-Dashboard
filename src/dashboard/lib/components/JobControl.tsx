@@ -337,7 +337,7 @@ export function JobControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) 
         title="Run this job now?"
         description={
           pendingRun
-            ? `Posts an @kody comment that triggers job-tick --job ${pendingRun.slug} --force. The engine routes via the existing issue_comment workflow; the cadence guard is bypassed because you're invoking it manually. GitHub Actions minutes will be used.`
+            ? `Triggers "${pendingRun.title}" (${pendingRun.slug}) immediately, bypassing its cadence guard. GitHub Actions minutes will be used. The job's output goes to its own report or the artifacts the body declares.`
             : ''
         }
         confirmLabel="Run now"
