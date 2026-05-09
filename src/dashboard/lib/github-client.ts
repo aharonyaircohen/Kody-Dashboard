@@ -160,6 +160,19 @@ export function invalidateJobsCache(slug?: string): void {
 }
 
 /**
+ * Invalidate cache entries for memory files. Pass an id to scope to one
+ * memory, or omit to clear the listing/index cache (e.g. on bulk changes).
+ */
+export function invalidateMemoryCache(id?: string): void {
+  if (typeof id === 'string' && id.length > 0) {
+    // Repo-scoped key shape: `memory:owner:repo:id`. Wipe across repos.
+    invalidateCache('memory:')
+  }
+  invalidateCache('memory-index:')
+  invalidateCache('memories:')
+}
+
+/**
  * Invalidate cache entries for workflow runs and check runs.
  * Use after a webhook arrives signaling a run/job state change.
  */

@@ -39,10 +39,12 @@ import { createRemoteTools } from "../tools/remote-tools"
 import { createBugTools } from "../tools/bug-tools"
 import { createTaskTools } from "../tools/task-tools"
 import { createJobTools } from "../tools/job-tools"
+import { createMemoryTools } from "../tools/memory-tools"
 import { createPlannerTools } from "../tools/planner-tools"
 import { createReleaseTools } from "../tools/release-tools"
 import { createKodyTools } from "../tools/kody-tools"
 import { fetchUrlTool } from "../tools/fetch-url"
+import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files"
 
 export const runtime = "nodejs"
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -258,6 +260,26 @@ export async function POST(req: NextRequest) {
   const google = createGoogleGenerativeAI({ apiKey })
   const repo = getRequestAuth(req)
   const goalPlannerActive = body.goalPlanner === true && !!body.goal
+
+  // Memory index injection requires the github-client module-level context
+  // (the cached loader uses `getOctokit()` / `getOwner()` / `getRepo()`).
+  // Set the context here, before buildSystemPrompt, and rely on the
+  // existing onFinish / catch paths to clear it. Per-request octokits
+  // for GitHub tools are still created separately below to avoid races.
+  let memoryIndex: string | null = null
+  if (repo) {
+    setGitHubContext(repo.owner, repo.repo, repo.token)
+    try {
+      memoryIndex = await loadMemoryIndexForPrompt()
+    } catch (err) {
+      // Memory is best-effort; never block the chat. Log and continue.
+      traceWarn(
+        { traceId, err: err instanceof Error ? err.message : String(err) },
+        "kody-direct: memory index load failed (continuing without it)",
+      )
+    }
+  }
+
   const systemPrompt = buildSystemPrompt(
     AGENT_KODY.systemPrompt,
     repo ? { owner: repo.owner, repo: repo.repo } : null,
@@ -268,6 +290,7 @@ export async function POST(req: NextRequest) {
       goalPlanner: goalPlannerActive,
       goal: goalPlannerActive ? body.goal : undefined,
       report: body.report,
+      memoryIndex,
     },
   )
 
@@ -308,6 +331,12 @@ export async function POST(req: NextRequest) {
         repo: repo.repo,
         actorLogin: body.actorLogin ?? null,
       }),
+      ...createMemoryTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
       ...createReleaseTools({
         octokit,
         owner: repo.owner,
@@ -326,14 +355,13 @@ export async function POST(req: NextRequest) {
         : {}),
     }
     // Pipeline tools currently use github-client's module-level context
-    // (setGitHubContext below) — they do *not* take the per-request
-    // octokit. Concurrent requests can race that state; we accept the
-    // existing risk to reuse cached helpers.
+    // (already set above for the memory index loader) — they do *not* take
+    // the per-request octokit. Concurrent requests can race that state;
+    // we accept the existing risk to reuse cached helpers.
     extraTools = {
       ...extraTools,
       ...createPipelineTools({ owner: repo.owner, repo: repo.repo }),
     }
-    setGitHubContext(repo.owner, repo.repo, repo.token)
   }
   extraTools = {
     ...extraTools,
