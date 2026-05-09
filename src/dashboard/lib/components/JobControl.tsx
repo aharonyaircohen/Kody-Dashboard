@@ -334,20 +334,16 @@ export function JobControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) 
       {/* Run confirm */}
       <ConfirmDialog
         open={!!pendingRun}
-        title="Run this job?"
+        title="Run this job now?"
         description={
           pendingRun
-            ? `Dispatches kody.yml with job "${pendingRun.title}" (${pendingRun.slug}) as the prompt. GitHub Actions minutes will be consumed and kody may make real repo writes.`
+            ? `Posts an @kody comment that triggers job-tick --job ${pendingRun.slug} --force. The engine routes via the existing issue_comment workflow; the cadence guard is bypassed because you're invoking it manually. GitHub Actions minutes will be used.`
             : ''
         }
-        confirmLabel="Run job"
+        confirmLabel="Run now"
         onConfirm={() => {
           if (!pendingRun) return
-          runMutation.mutate({
-            slug: pendingRun.slug,
-            title: pendingRun.title,
-            body: pendingRun.body,
-          })
+          runMutation.mutate({ slug: pendingRun.slug, force: true })
         }}
         onClose={() => setPendingRun(null)}
       />
