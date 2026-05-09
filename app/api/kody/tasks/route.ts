@@ -114,6 +114,7 @@ function getColumnForIssue(
 
   // 2. Any other kody:* active phase collapses to the "building" lane
   if (
+    labelNames.includes('kody:building') ||
     labelNames.includes('kody:classifying') ||
     labelNames.includes('kody:researching') ||
     labelNames.includes('kody:planning') ||
