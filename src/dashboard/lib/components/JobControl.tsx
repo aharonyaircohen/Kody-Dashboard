@@ -14,6 +14,7 @@ import Link from 'next/link'
 import {
   ArrowLeft,
   Calendar,
+  Clock,
   ExternalLink,
   FileText,
   Pencil,
@@ -22,6 +23,7 @@ import {
   RefreshCw,
   Sparkles,
   Target,
+  Timer,
   Trash2,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -45,6 +47,12 @@ import {
   useUpdateJob,
 } from '../hooks/useJobs'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
+import { useNow } from '../hooks/useNow'
+import {
+  formatRelativeFuture,
+  formatRelativePast,
+  nextTickAt,
+} from '../jobs-schedule'
 import type { Job } from '../api'
 import { JOB_TEMPLATE } from '../job-template'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -126,6 +134,7 @@ export function JobControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) 
           <span className="hidden md:inline text-xs text-muted-foreground">
             {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}
           </span>
+          {jobs.length > 0 ? <NextTickBadge /> : null}
         </div>
 
         <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
@@ -242,13 +251,14 @@ export function JobControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) 
                           {job.title}
                         </span>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                         <span className="font-mono opacity-80">{job.slug}</span>
                         <span>·</span>
                         <span className="inline-flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           {new Date(job.updatedAt).toLocaleDateString()}
                         </span>
+                        <LastTickInline lastTickAt={job.lastTickAt} />
                       </div>
                     </button>
                   </li>
@@ -406,6 +416,9 @@ function JobDetail({
                   <Calendar className="w-3 h-3" />
                   updated {new Date(job.updatedAt).toLocaleDateString()}
                 </span>
+                <LastTickDetail lastTickAt={job.lastTickAt} />
+                <span>·</span>
+                <NextTickBadge />
                 <span>·</span>
                 <a
                   href={job.htmlUrl}
@@ -645,6 +658,82 @@ function EditJobDialog({
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * Page-level "Next scheduled tick" badge. The engine cron is global
+ * (every 15 min), so this value is shared across all jobs — render it
+ * once near the page header, and again in the job detail. Re-renders
+ * every 30s via `useNow`.
+ */
+function NextTickBadge() {
+  const now = useNow(30_000)
+  const next = useMemo(() => nextTickAt(now), [now])
+  const label = formatRelativeFuture(next, now)
+  const absolute = next.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+      title={`Next cron tick at ${absolute} (every 15 min)`}
+    >
+      <Timer className="w-3 h-3" />
+      next tick {label}
+    </span>
+  )
+}
+
+/**
+ * Inline "ticked Xm ago" pill for use in the job-list rows. Hidden when
+ * the job has never ticked — keeps the row dense. Refreshes every 30s.
+ */
+function LastTickInline({ lastTickAt }: { lastTickAt: string | null }) {
+  const now = useNow(30_000)
+  if (!lastTickAt) return null
+  const date = new Date(lastTickAt)
+  return (
+    <>
+      <span>·</span>
+      <span
+        className="inline-flex items-center gap-1"
+        title={`Last tick: ${date.toLocaleString()}`}
+      >
+        <Clock className="w-3 h-3" />
+        ticked {formatRelativePast(date, now)}
+      </span>
+    </>
+  )
+}
+
+/**
+ * Detail-header counterpart that shows "never ticked" explicitly
+ * instead of hiding (the detail is the place to surface this state).
+ */
+function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
+  const now = useNow(30_000)
+  if (!lastTickAt) {
+    return (
+      <>
+        <span>·</span>
+        <span className="inline-flex items-center gap-1" title="Job has never ticked">
+          <Clock className="w-3 h-3" />
+          never ticked
+        </span>
+      </>
+    )
+  }
+  const date = new Date(lastTickAt)
+  return (
+    <>
+      <span>·</span>
+      <span
+        className="inline-flex items-center gap-1"
+        title={`Last tick: ${date.toLocaleString()}`}
+      >
+        <Clock className="w-3 h-3" />
+        ticked {formatRelativePast(date, now)}
+      </span>
+    </>
   )
 }
 

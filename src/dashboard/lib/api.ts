@@ -785,6 +785,12 @@ export interface Job {
   body: string;
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
+  /**
+   * Last commit timestamp of the sibling `<slug>.state.json` (ISO8601),
+   * or `null` if the job has never ticked. The engine writes
+   * `<slug>.state.json` on every tick.
+   */
+  lastTickAt: string | null;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }

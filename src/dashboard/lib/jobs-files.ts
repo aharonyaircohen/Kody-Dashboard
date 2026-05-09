@@ -22,6 +22,13 @@ export interface JobFile {
   sha: string
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string
+  /**
+   * Last commit timestamp of the sibling `<slug>.state.json` (ISO8601),
+   * or `null` if the state file does not exist yet (job has never ticked).
+   * The engine writes `<slug>.state.json` every tick — see
+   * `dispatchJobFileTicks` in kody2.
+   */
+  lastTickAt: string | null
   /** Convenience link to the file on github.com. */
   htmlUrl: string
 }
@@ -87,6 +94,30 @@ async function fetchLastCommitDate(
 }
 
 /**
+ * Like `fetchLastCommitDate` but returns `null` when the file has no
+ * commits (i.e. it doesn't exist yet). Used for `<slug>.state.json`
+ * which is created by the engine on first tick — absence means
+ * "never ticked," not an error.
+ */
+async function fetchLastCommitDateOrNull(
+  octokit: Octokit,
+  filePath: string,
+): Promise<string | null> {
+  try {
+    const { data } = await octokit.repos.listCommits({
+      owner: getOwner(),
+      repo: getRepo(),
+      path: filePath,
+      per_page: 1,
+    })
+    if (data.length === 0) return null
+    return data[0]?.commit.committer?.date ?? data[0]?.commit.author?.date ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * List every job file under `.kody/jobs/`. Returns `[]` if the
  * directory does not exist (fresh repo).
  */
@@ -113,6 +144,16 @@ export async function listJobFiles(): Promise<JobFile[]> {
     .map((e) => ({ slug: slugFromName(e.name), sha: e.sha, name: e.name }))
     .filter((e): e is { slug: string; sha: string; name: string } => e.slug !== null)
 
+  // Build a set of slugs that have a sibling `.state.json` so we only
+  // pay for a commit-history fetch when the engine has actually ticked
+  // the job at least once.
+  const stateSlugs = new Set(
+    entries
+      .filter((e) => e.type === 'file' && e.name.endsWith('.state.json'))
+      .map((e) => e.name.slice(0, -'.state.json'.length))
+      .filter((s) => s.length > 0),
+  )
+
   const files = await Promise.all(
     slugs.map(async ({ slug, sha, name }) => {
       try {
@@ -126,13 +167,19 @@ export async function listJobFiles(): Promise<JobFile[]> {
         const raw = Buffer.from(data.content, 'base64').toString('utf-8')
         const body = stripLeadingH1(raw)
         const title = deriveTitle(raw, slug)
-        const updatedAt = await fetchLastCommitDate(octokit, filePath)
+        const [updatedAt, lastTickAt] = await Promise.all([
+          fetchLastCommitDate(octokit, filePath),
+          stateSlugs.has(slug)
+            ? fetchLastCommitDateOrNull(octokit, `${JOBS_DIR}/${slug}.state.json`)
+            : Promise.resolve(null),
+        ])
         return {
           slug,
           title,
           body,
           sha,
           updatedAt,
+          lastTickAt,
           htmlUrl: buildHtmlUrl(slug, branch),
         } satisfies JobFile
       } catch {
@@ -164,13 +211,17 @@ export async function readJobFile(slug: string): Promise<JobFile | null> {
     const raw = Buffer.from(data.content, 'base64').toString('utf-8')
     const body = stripLeadingH1(raw)
     const title = deriveTitle(raw, slug)
-    const updatedAt = await fetchLastCommitDate(octokit, filePath)
+    const [updatedAt, lastTickAt] = await Promise.all([
+      fetchLastCommitDate(octokit, filePath),
+      fetchLastCommitDateOrNull(octokit, `${JOBS_DIR}/${slug}.state.json`),
+    ])
     return {
       slug,
       title,
       body,
       sha: data.sha,
       updatedAt,
+      lastTickAt,
       htmlUrl: buildHtmlUrl(slug, branch),
     }
   } catch (error: any) {
