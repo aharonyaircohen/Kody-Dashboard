@@ -880,31 +880,26 @@ export const jobsApi = {
     await handleResponse<{ success: boolean }>(res);
   },
 
+  /**
+   * Manually trigger a single job by posting an `@kody job-tick` comment
+   * on the repo's "Kody control" issue. The engine's existing
+   * `issue_comment` trigger routes to job-tick. Defaults to `force: true`
+   * because the operator clicked "Run now" — they want it to run regardless
+   * of the body's cadence guard. Pass `force: false` to respect the guard.
+   *
+   * Replaces the legacy chat-trigger fake — no `KODY_SESSION_SECRET`
+   * required, no fake chat session, no overloaded sessionId.
+   */
   run: async (
-    job: { slug: string; title: string; body: string },
-  ): Promise<{ sessionId: string; workflowId: string }> => {
-    const sessionId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `job-${job.slug}-${Date.now()}`;
-    const content = `Execute job \`${job.slug}\`: ${job.title}\n\n${job.body}`;
-    const res = await fetch(`${API_BASE}/chat/trigger`, {
+    job: { slug: string },
+    opts?: { force?: boolean },
+  ): Promise<{ issueNumber: number; commentId: number; commentUrl: string; force: boolean }> => {
+    const res = await fetch(`${API_BASE}/jobs/${encodeURIComponent(job.slug)}/run`, {
       method: "POST",
       headers: buildHeaders(),
-      body: JSON.stringify({
-        taskId: sessionId,
-        messages: [
-          {
-            role: "user",
-            content,
-            timestamp: new Date().toISOString(),
-          },
-        ],
-        dashboardUrl: typeof window !== "undefined" ? window.location.origin : undefined,
-      }),
+      body: JSON.stringify({ force: opts?.force ?? true }),
     });
-    const data = await handleResponse<{ ok: boolean; taskId: string; workflowId: string }>(res);
-    return { sessionId: data.taskId, workflowId: data.workflowId };
+    return handleResponse(res);
   },
 };
 

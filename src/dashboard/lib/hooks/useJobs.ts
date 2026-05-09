@@ -96,13 +96,16 @@ export function useUpdateJob(slug: string, actorLogin?: string) {
 
 export function useRunJob() {
   return useMutation<
-    { sessionId: string; workflowId: string },
+    { issueNumber: number; commentId: number; commentUrl: string; force: boolean },
     Error,
-    { slug: string; title: string; body: string }
+    { slug: string; force?: boolean }
   >({
-    mutationFn: (job) => kodyApi.jobs.run(job),
-    onSuccess: () => {
-      toast.success('Job dispatched to kody engine')
+    mutationFn: ({ slug, force }) => kodyApi.jobs.run({ slug }, { force }),
+    onSuccess: (data) => {
+      toast.success(
+        data.force ? 'Job dispatched (force)' : 'Job dispatched',
+        { description: 'Posted @kody comment on the control issue' },
+      )
     },
     onError: (error) => {
       toast.error('Failed to dispatch job', { description: error.message })
