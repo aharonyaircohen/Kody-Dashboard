@@ -16,7 +16,10 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronRight,
+  CircleDot,
   Flag,
+  GitBranch,
+  GitPullRequest,
   GripVertical,
   Inbox,
   MessageSquare,
@@ -192,6 +195,75 @@ function describeDueDate(iso: string | undefined): DueChip | null {
 }
 
 /**
+ * Engine bookkeeping chips for a goal row: umbrella issue, goal branch, and
+ * goal PR. Sourced from `.kody/goals/<id>/state.json` (hydrated server-side
+ * onto the Goal in `app/api/kody/goals/route.ts`). The branch chip renders
+ * as soon as the umbrella exists — the engine creates `goal-<id>` on the
+ * first task PR merge, but the umbrella issue appears on the first tick, so
+ * we render the branch link optimistically (404s surface as a normal "no
+ * such branch" page on github.com, no worse than today's behaviour).
+ */
+function GoalEngineChips({
+  goal,
+  connectedRepo,
+}: {
+  goal: Goal
+  connectedRepo: string | null
+}) {
+  if (!goal.goalIssueNumber && !goal.goalPrUrl) return null
+  const repoBase = connectedRepo ? `https://github.com/${connectedRepo}` : null
+  const branch = `goal-${goal.id}`
+  const branchUrl = repoBase ? `${repoBase}/tree/${encodeURIComponent(branch)}` : null
+  const umbrellaUrl =
+    repoBase && goal.goalIssueNumber
+      ? `${repoBase}/issues/${goal.goalIssueNumber}`
+      : null
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+      {umbrellaUrl ? (
+        <a
+          href={umbrellaUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/20"
+          title={`Umbrella issue #${goal.goalIssueNumber}`}
+        >
+          <CircleDot className="w-3 h-3" />
+          {`#${goal.goalIssueNumber}`}
+        </a>
+      ) : null}
+      {branchUrl ? (
+        <a
+          href={branchUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/30 hover:bg-sky-500/20 max-w-[18rem] truncate"
+          title={`Goal branch ${branch}`}
+        >
+          <GitBranch className="w-3 h-3 shrink-0" />
+          <span className="truncate">{branch}</span>
+        </a>
+      ) : null}
+      {goal.goalPrUrl ? (
+        <a
+          href={goal.goalPrUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-500/10 text-violet-300 ring-1 ring-violet-500/30 hover:bg-violet-500/20"
+          title="Goal PR"
+        >
+          <GitPullRequest className="w-3 h-3" />
+          Goal PR
+        </a>
+      ) : null}
+    </div>
+  )
+}
+
+/**
  * Controller hook for goal collapse state. Extracted so the toggle button can
  * live outside the list (e.g. in the Kody status banner) while rows read/write
  * the same state.
@@ -262,7 +334,7 @@ export function GoalGroupedView({
   const groups = useMemo(() => buildGroups(goals, tasks), [goals, tasks])
   const toggle = onToggleCollapsed
 
-  const { githubUser } = useGitHubIdentity()
+  const { githubUser, connectedRepo } = useGitHubIdentity()
   const reorderMutation = useReorderGoals(githubUser?.login)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -462,6 +534,16 @@ export function GoalGroupedView({
                       >
                         {group.goal.description.split('\n')[0]}
                       </p>
+                    ) : null}
+                    {/* Engine-owned bookkeeping: surface the umbrella issue,
+                        the goal branch, and the goal PR (when present) so
+                        the goal's branch location is visible without the
+                        operator having to dig into state.json. */}
+                    {group.goal ? (
+                      <GoalEngineChips
+                        goal={group.goal}
+                        connectedRepo={connectedRepo}
+                      />
                     ) : null}
                   </div>
                 </button>
