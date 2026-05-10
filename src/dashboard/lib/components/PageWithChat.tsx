@@ -36,6 +36,7 @@ import {
   SheetTitle,
 } from '@dashboard/ui/sheet'
 import { KodyChat } from './KodyChat'
+import { Sidebar } from './Sidebar'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import type { ChatContext } from '../chat-types'
 import { cn } from '../utils'
@@ -109,6 +110,10 @@ export function PageWithChat({
         >
           <KodyChat context={effectiveContext} actorLogin={githubUser?.login} />
         </aside>
+
+        {/* Primary navigation — sits between chat and content so it acts
+            as a divider, not a competing left panel. */}
+        <Sidebar />
 
         {/* Page content fills the remaining width. Children are expected
             to use h-full / min-h-0 / overflow-y-auto as needed. */}
