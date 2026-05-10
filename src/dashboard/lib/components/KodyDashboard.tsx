@@ -1476,6 +1476,20 @@ export function KodyDashboard({
                     </Button>
                   </SimpleTooltip>
 
+                  {/* Repositories */}
+                  <SimpleTooltip content="Repositories" side="bottom">
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                    >
+                      <Link href="/repos" aria-label="Repositories">
+                        <Github className="w-4 h-4" />
+                      </Link>
+                    </Button>
+                  </SimpleTooltip>
+
                   {/* Publish a release */}
                   <PublishButton
                     actorLogin={githubUser?.login}
@@ -1893,6 +1907,18 @@ export function KodyDashboard({
                   <Link href="/secrets">
                     <KeyRound className="w-4 h-4" />
                     Secrets
+                  </Link>
+                </Button>
+
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => setShowMobileMenu(false)}
+                >
+                  <Link href="/repos">
+                    <Github className="w-4 h-4" />
+                    Repositories
                   </Link>
                 </Button>
               </div>
