@@ -24,6 +24,7 @@ import { KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
 import { BranchCleanupDialog } from "./BranchCleanupDialog";
 import { PublishButton } from "./PublishButton";
 import { KodyChat } from "./KodyChat";
+import { Sidebar } from "./Sidebar";
 import type { ChatContext } from "../chat-types";
 import { KodyStatusBanner } from "./KodyStatusBanner";
 import {
@@ -1295,6 +1296,9 @@ export function KodyDashboard({
             title="Drag to resize • Double-click to reset"
           />
         </div>
+
+        {/* Primary navigation — between chat and content. */}
+        <Sidebar />
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden">

@@ -62,6 +62,7 @@ import { JOB_TEMPLATE } from '../job-template'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
 import { KodyChat } from './KodyChat'
+import { Sidebar } from './Sidebar'
 
 function newDraftId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -210,6 +211,9 @@ export function JobControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) 
             actorLogin={githubUser?.login}
           />
         </div>
+
+        {/* Primary navigation — between chat and content. */}
+        <Sidebar />
 
         {/* Middle: job list */}
         <aside

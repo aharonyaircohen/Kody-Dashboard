@@ -12,7 +12,6 @@ import { GeistSans } from 'geist/font/sans'
 import { Assistant } from 'next/font/google'
 
 import { KodyProviders } from './KodyProviders'
-import { Sidebar } from '@dashboard/lib/components/Sidebar'
 import { Toaster } from '@dashboard/ui/toaster'
 import { defaultTheme, themeLocalStorageKey } from '@dashboard/providers/Theme/shared'
 import '@dashboard/globals.css'
@@ -70,9 +69,8 @@ export default function KodyLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <KodyProviders>
-          <div className="min-h-screen flex bg-background text-foreground overflow-x-hidden">
-            <Sidebar />
-            <div className="flex-1 min-w-0 flex flex-col">{children}</div>
+          <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+            {children}
           </div>
           <Toaster />
         </KodyProviders>
