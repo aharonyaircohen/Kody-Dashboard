@@ -241,6 +241,21 @@ export async function GET(req: NextRequest) {
       const flatMatch = pr.head.ref.match(/^(\d{3,})-/)
       if (flatMatch) {
         prsByIssueNumber.set(parseInt(flatMatch[1], 10), pr)
+        continue
+      }
+      // Branch ref is purely the issue number (e.g. kody task PRs use
+      // `1453` as the branch). No dash suffix, so the patterns above miss.
+      const digitsOnly = pr.head.ref.match(/^(\d{3,})$/)
+      if (digitsOnly) {
+        prsByIssueNumber.set(parseInt(digitsOnly[1], 10), pr)
+        continue
+      }
+      // PR title prefixed with `#<num>:` (kody task PR convention).
+      // Catches cases where the body lacks a Closes link and the branch
+      // isn't a digits-only ref.
+      const titleHash = pr.title.match(/^#(\d+):/)
+      if (titleHash) {
+        prsByIssueNumber.set(parseInt(titleHash[1], 10), pr)
       }
     }
 
