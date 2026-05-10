@@ -1146,6 +1146,29 @@ export async function fetchComments(issueNumber: number): Promise<GitHubComment[
   return comments
 }
 
+/**
+ * Fetch the canonical kody TaskState for an issue. Returns null when the
+ * engine has not written its state comment (legacy issues, non-kody issues,
+ * or fetch errors — caller falls back to label/workflow-run derivation).
+ *
+ * Reuses fetchComments' ETag/304 cache, so polling cost is bounded: the first
+ * call per issue costs one REST request; subsequent calls return 304 (free)
+ * until the comment is edited.
+ */
+export async function fetchKodyState(
+  issueNumber: number,
+): Promise<import('./kody-state').KodyTaskState | null> {
+  try {
+    const { findKodyStateInComments } = await import('./kody-state')
+    const comments = await fetchComments(issueNumber)
+    return findKodyStateInComments(comments)
+  } catch (err) {
+    // Best effort — falling back to label/run derivation is acceptable.
+    console.warn(`[fetchKodyState] failed for #${issueNumber}:`, err)
+    return null
+  }
+}
+
 // ============ Workflow Runs ============
 
 /**

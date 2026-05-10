@@ -240,6 +240,15 @@ export interface KodyTask {
   workflowRun?: WorkflowRun
   associatedPR?: GitHubPR | null
   taskDefinition?: TaskDefinition
+  /**
+   * Canonical engine state, when the kody-engine has written its state comment
+   * on this issue. Source of truth for phase/status — labels and workflow runs
+   * are projections that can drift (e.g. concurrency-cancelled run mistaken
+   * for a build failure). Absent on legacy / non-kody issues.
+   *
+   * Schema mirrors kody-engine's TaskState (see src/dashboard/lib/kody-state.ts).
+   */
+  kodyState?: import('./kody-state').KodyTaskState
   // Additional fields for UI
   assignees?: Array<{ login: string; avatar_url: string }>
   isKodyAssigned?: boolean
