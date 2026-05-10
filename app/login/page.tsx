@@ -47,15 +47,32 @@ export default function LoginPage() {
       const trimmedBrainUrl = brainUrl.trim()
       const trimmedBrainKey = brainKey.trim()
       const trimmedBypass = vercelBypassSecret.trim()
+      const owner = data.owner ?? ''
+      const repo = data.repo ?? ''
+      const trimmedRepoUrl = repoUrl.trim()
+      const trimmedToken = token.trim()
+      const now = Date.now()
+      const loginEntry = {
+        repoUrl: trimmedRepoUrl,
+        owner,
+        repo,
+        token: trimmedToken,
+        addedAt: now,
+        isLogin: true,
+      }
       localStorage.setItem(
         "kody_auth",
         JSON.stringify({
-          repoUrl: repoUrl.trim(),
-          owner: data.owner,
-          repo: data.repo,
-          token: token.trim(),
+          // Flat fields mirror the current repo (always == repos[currentRepoIndex])
+          repoUrl: trimmedRepoUrl,
+          owner,
+          repo,
+          token: trimmedToken,
           user: data.user,
-          loggedInAt: Date.now(),
+          loggedInAt: now,
+          // Multi-repo state — login seeds the first entry.
+          repos: [loginEntry],
+          currentRepoIndex: 0,
           // Optional — only stored when both URL and key are present.
           brain:
             trimmedBrainUrl && trimmedBrainKey
