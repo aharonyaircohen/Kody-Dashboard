@@ -23,7 +23,9 @@ import {
   setGitHubContext,
   clearGitHubContext,
   fetchGoalStateFromRepo,
+  fetchKodyState,
 } from '@dashboard/lib/github-client'
+import type { KodyTaskState } from '@dashboard/lib/kody-state'
 import { GOALS_MANIFEST_LABEL, parseManifestBody } from '@dashboard/lib/goals'
 import type {
   KodyTask,
@@ -90,13 +92,37 @@ function deriveGateType(
 
 // Map GitHub issue state to column using agent labels, workflow runs, and PR status.
 // Used as fallback when no live pipeline data is available.
-// Priority: kody:failed/done > gate labels > kody:planning/building > active runs > completed runs > PR > other labels
+// Priority: kodyState (canonical engine truth) > kody:failed/done > gate labels > kody:planning/building > active runs > completed runs > PR > other labels
 function getColumnForIssue(
   issue: GitHubIssue,
   workflowRun?: WorkflowRun,
   associatedPR?: GitHubPR | null,
+  kodyState?: KodyTaskState | null,
 ): ColumnId {
   const labelNames = issue.labels.map((l) => l.name.toLowerCase())
+
+  // -2. Canonical engine state, when present, is the source of truth.
+  //     Labels and workflow run conclusions can drift (e.g. a concurrency-
+  //     cancelled duplicate run looks like a build failure to step 6 even
+  //     though the engine actually succeeded). The state comment is what
+  //     the engine itself recorded; trust it before the projections.
+  if (kodyState) {
+    const { phase, status } = kodyState.core
+    if (phase === 'shipped') return 'done'
+    if (status === 'failed' || phase === 'failed') return 'failed'
+    if (status === 'running') {
+      if (phase === 'reviewing' && (associatedPR || kodyState.core.prUrl)) return 'review'
+      return 'building'
+    }
+    if (status === 'succeeded') {
+      if (associatedPR && !associatedPR.merged_at) return 'review'
+      if (associatedPR?.merged_at) return 'done'
+      // Engine reports succeeded but no PR yet — keep visible as building so
+      // the user sees the in-flight task instead of it dropping to backlog.
+      return 'building'
+    }
+    // status === 'pending' falls through to the legacy heuristics below.
+  }
 
   // -1. Fresh activity overrides terminal state. When the user runs `@kody sync`
   //     or `@kody fix-ci` on a done/failed task, a new workflow dispatches but
@@ -356,6 +382,20 @@ export async function GET(req: NextRequest) {
     // Batch fetch branches for all active issues (5 GitHub API calls max, not 5*N)
     const branchByIssueNumber = await findBranchesByIssueNumbers(activeIssueNumbers)
 
+    // Batch fetch canonical kody state for all active issues. Bounded by the
+    // active-task count (typically <30) and reuses fetchComments' ETag cache,
+    // so post-warmup polling cost is effectively zero (304 hits). Map is keyed
+    // by issue number; absent entries mean the engine hasn't written a state
+    // comment for that issue (legacy / non-kody — column derivation falls
+    // back to label/run heuristics).
+    const kodyStateByIssueNumber = new Map<number, KodyTaskState>()
+    await Promise.all(
+      activeIssueNumbers.map(async (n) => {
+        const state = await fetchKodyState(n)
+        if (state) kodyStateByIssueNumber.set(n, state)
+      }),
+    )
+
     // Parse issues into tasks with additional metadata
     const tasks: KodyTask[] = await Promise.all(
       issues.map(async (issue) => {
@@ -449,13 +489,14 @@ export async function GET(req: NextRequest) {
             pipelineStatus.state === 'failed' ||
             pipelineStatus.state === 'timeout') &&
           (workflowRun?.status === 'in_progress' || workflowRun?.status === 'queued')
+        const kodyState = kodyStateByIssueNumber.get(issue.number) ?? null
         const column: ColumnId = issue.state === 'closed'
           ? 'done'
           : pipelineStatus && !pipelineLooksStale
             ? deriveColumnFromPipeline(pipelineStatus)
             : pipelineLooksStale
               ? 'building'
-              : getColumnForIssue(issue, workflowRun ?? undefined, pr ?? null)
+              : getColumnForIssue(issue, workflowRun ?? undefined, pr ?? null, kodyState)
 
         // Derive gate type: prefer pipeline controlMode, fall back to issue labels
         const gateType = deriveGateType(pipelineStatus)
@@ -506,6 +547,7 @@ export async function GET(req: NextRequest) {
           // Substatus from labels and workflow run data
           isTimeout: workflowRun?.conclusion === 'timed_out',
           gateType,
+          kodyState: kodyState ?? undefined,
         }
       }),
     )
