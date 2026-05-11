@@ -2467,7 +2467,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
             className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} relative`}
           >
             <div
-              className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-base ${
+              className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
                 msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
               }`}
             >
