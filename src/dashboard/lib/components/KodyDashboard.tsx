@@ -66,6 +66,7 @@ import {
   FileText,
   Bell,
   KeyRound,
+  Settings as SettingsIcon,
   ChevronsDownUp,
   ChevronsUpDown,
   List,
@@ -1851,6 +1852,18 @@ export function KodyDashboard({
                   <Link href="/repos">
                     <Github className="w-4 h-4" />
                     Repositories
+                  </Link>
+                </Button>
+
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => setShowMobileMenu(false)}
+                >
+                  <Link href="/settings">
+                    <SettingsIcon className="w-4 h-4" />
+                    Settings
                   </Link>
                 </Button>
               </div>

@@ -63,6 +63,14 @@ interface AuthContextValue {
   removeRepo: (index: number) => void;
   /** Switch the active repo. Triggers a full page reload to clear React Query cache. */
   setCurrentRepo: (index: number) => void;
+  /**
+   * Update the per-browser integration fields (brain, vercelBypassSecret).
+   * Pass `null` to clear a field, omit it to leave it unchanged.
+   */
+  updateIntegrations: (patch: {
+    brain?: { url: string; apiKey: string } | null;
+    vercelBypassSecret?: string | null;
+  }) => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -72,6 +80,7 @@ const AuthContext = createContext<AuthContextValue>({
   addRepo: () => {},
   removeRepo: () => {},
   setCurrentRepo: () => {},
+  updateIntegrations: () => {},
 });
 
 /**
@@ -260,8 +269,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const updateIntegrations = useCallback(
+    (patch: {
+      brain?: { url: string; apiKey: string } | null;
+      vercelBypassSecret?: string | null;
+    }) => {
+      setAuth((prev) => {
+        if (!prev) return prev;
+        const next: KodyAuth = { ...prev };
+        if (patch.brain !== undefined) {
+          next.brain = patch.brain === null ? undefined : patch.brain;
+        }
+        if (patch.vercelBypassSecret !== undefined) {
+          next.vercelBypassSecret =
+            patch.vercelBypassSecret === null ? undefined : patch.vercelBypassSecret;
+        }
+        persist(next);
+        return next;
+      });
+    },
+    [],
+  );
+
   return (
-    <AuthContext.Provider value={{ auth, loading, logout, addRepo, removeRepo, setCurrentRepo }}>
+    <AuthContext.Provider
+      value={{
+        auth,
+        loading,
+        logout,
+        addRepo,
+        removeRepo,
+        setCurrentRepo,
+        updateIntegrations,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
