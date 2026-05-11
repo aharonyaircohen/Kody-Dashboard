@@ -19,6 +19,10 @@ import { AGENT, AGENTS, type AgentId, type AgentConfig } from '../agents'
 function buildAgentList(brainConfigured: boolean): Omit<AgentConfig, 'systemPrompt'>[] {
   return Object.values(AGENTS)
     .filter((a) => a.id !== 'kody-assistant')
+    // `kody-speech` is a modality, not a user-selectable agent. The mic
+    // button activates it under the hood; it must not appear in the
+    // dropdown.
+    .filter((a) => a.id !== 'kody-speech')
     .filter((a) => a.id !== 'brain' || brainConfigured)
     .map(({ id, name, description, icon, backend, capabilities }) => ({
       id,
@@ -157,6 +161,15 @@ interface Message {
   }>
   /** Attachment refs (blobs live in IndexedDB). */
   attachments?: AttachmentRef[]
+  /**
+   * Marks a synthetic "Error: …" message produced by the chat client when
+   * a request fails. These are visible in the UI but MUST be filtered out
+   * of the transcript sent back to the model — otherwise the next turn
+   * sees a fake assistant reply describing an old failure and tries to
+   * "respond" to it (e.g. apologizing for a stale KODY_SESSION_SECRET
+   * error). Always paired with role: 'assistant'.
+   */
+  isError?: boolean
 }
 
 /**
@@ -626,7 +639,10 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
               const error = typeof payload.error === 'string' ? payload.error : 'Unknown error'
               setMessages((prev) => {
                 const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
-                return [...filtered, { role: 'assistant', content: `Error: ${error}`, isLoading: false }]
+                return [
+                  ...filtered,
+                  { role: 'assistant', content: `Error: ${error}`, isLoading: false, isError: true },
+                ]
               })
               break
             }
@@ -756,6 +772,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
                     role: 'assistant',
                     content: `Error: ${parsed.error ?? 'Unknown error'}`,
                     isLoading: false,
+                    isError: true,
                   },
                 ]
               })
@@ -1142,8 +1159,15 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
     async (
       messageContent: string,
       currentAttachments: Attachment[] = [],
+      options: { voiceMode?: boolean } = {},
     ): Promise<string | null> => {
       if (!messageContent.trim() && currentAttachments.length === 0) return null
+
+      // Voice mode forces the in-process Gemini path and the speech-tuned
+      // system prompt regardless of which agent is selected in the
+      // dropdown. The dropdown is a text-modality picker only.
+      const voiceMode = options.voiceMode === true
+      const effectiveAgentId: AgentId = voiceMode ? 'kody-speech' : selectedAgentId
 
       const timestamp = new Date().toISOString()
 
@@ -1205,7 +1229,9 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
       ])
 
       // ─── Brain backend: sync SSE stream directly from /api/kody/chat/brain ───
-      if (selectedAgentId === 'brain') {
+      // Voice mode bypasses Brain (different prompt + backend) — fall through
+      // to the kody-direct branch below.
+      if (!voiceMode && selectedAgentId === 'brain') {
         brainAbortRef.current?.abort()
         const abort = new AbortController()
         brainAbortRef.current = abort
@@ -1379,6 +1405,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
                     role: 'assistant',
                     content: `Error: ${parsed.error ?? 'Unknown error'}`,
                     isLoading: false,
+                    isError: true,
                   },
                 ]
               })
@@ -1418,7 +1445,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
             const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
             return [
               ...filtered,
-              { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false },
+              { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false, isError: true },
             ]
           })
           return null
@@ -1426,10 +1453,10 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
       }
 
       // ─── Kody direct backend: in-process LLM stream, no Actions/Brain ───
-      // Any agent with backend === 'kody-direct' routes here (kody, kody-speech, …)
-      // so we don't accidentally fall through to the engine path, which would
-      // require KODY_SESSION_SECRET and dispatch a workflow.
-      if (currentAgent.backend === 'kody-direct') {
+      // Any agent with backend === 'kody-direct' routes here, and voice
+      // mode is forced here as well so the mic always uses Gemini + the
+      // speech prompt regardless of the dropdown selection.
+      if (voiceMode || currentAgent.backend === 'kody-direct') {
         // Forward task context when the user is chatting about a specific
         // task — same shape Brain receives, so the server can anchor the
         // reply in the right issue/PR.
@@ -1496,7 +1523,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
             body: JSON.stringify({
               messages: kodyMessages,
               task: kodyTaskContext,
-              agentId: selectedAgentId,
+              agentId: effectiveAgentId,
               ...(actorLogin ? { actorLogin } : {}),
               ...(isDraftMode ? { jobDraft: true } : {}),
               ...(selectedJob
@@ -1627,7 +1654,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
             const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
             return [
               ...filtered,
-              { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false },
+              { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false, isError: true },
             ]
           })
           return null
@@ -1687,7 +1714,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
             const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
             return [
               ...filtered,
-              { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false },
+              { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false, isError: true },
             ]
           })
           return null
@@ -1751,7 +1778,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
           const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
           return [
             ...filtered,
-            { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false },
+            { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false, isError: true },
           ]
         })
         return null
@@ -1953,7 +1980,10 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
 
   const handleVoiceSend = useCallback(
     async (transcript: string) => {
-      const response = await sendText(transcript)
+      // Voice mode forces the kody-direct backend + `kody-speech` system
+      // prompt regardless of the dropdown selection. The user picks an
+      // agent for text; the mic always speaks via Gemini.
+      const response = await sendText(transcript, [], { voiceMode: true })
       if (response) voiceChatRef.current?.onResponseComplete(response)
     },
     [sendText],
