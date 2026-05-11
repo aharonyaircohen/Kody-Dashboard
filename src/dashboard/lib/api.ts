@@ -946,11 +946,11 @@ export interface Goal {
   discussionId?: string;
   discussionNumber?: number;
   /**
-   * Umbrella issue number, hydrated from `.kody/goals/<id>/state.json` by
-   * the goals API. Present once the engine has ticked at least once.
+   * @deprecated Umbrella-era field (engine ≤ 0.4.38). Stacked-PR engines
+   * don't write this; the goals API stopped hydrating it in 0.4.39.
    */
   goalIssueNumber?: number;
-  /** URL of the open goal PR (`goal-<id>` → default branch), if any. */
+  /** @deprecated Umbrella-era field (engine ≤ 0.4.38). See goalIssueNumber. */
   goalPrUrl?: string;
 }
 

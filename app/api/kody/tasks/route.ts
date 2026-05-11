@@ -22,11 +22,9 @@ import {
   postComment,
   setGitHubContext,
   clearGitHubContext,
-  fetchGoalStateFromRepo,
   fetchKodyState,
 } from '@dashboard/lib/github-client'
 import type { KodyTaskState } from '@dashboard/lib/kody-state'
-import { GOALS_MANIFEST_LABEL, parseManifestBody } from '@dashboard/lib/goals'
 import type {
   KodyTask,
   ColumnId,
@@ -285,56 +283,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Build a head-ref → PR map so umbrella issues can be paired with their
-    // goal PR by branch name (`goal-<id>` → default branch). The engine's
-    // umbrella issue carries `Closes #N` indirectly via the goal PR body, but
-    // the closingIssueNumbers wiring may not be ready when the goal PR is
-    // first opened — head-ref pairing is deterministic and works as soon as
-    // the PR exists.
-    const prByHeadRef = new Map<string, (typeof openPRs)[number]>()
-    for (const pr of openPRs) prByHeadRef.set(pr.head.ref, pr)
-
-    // Resolve which open issues are umbrella issues — the engine writes
-    // `goalIssueNumber` into `.kody/goals/<id>/state.json` when it opens or
-    // adopts the umbrella. We use this map to:
-    //   - skip the generic title/issue-number PR matching for umbrellas
-    //     (their goal PR is paired by branch name, not closing keyword);
-    //   - pair the umbrella row with its `goal-<id>` branch (and PR);
-    //   - skip pipeline-status fetch for umbrellas (they're not pipeline
-    //     tasks — there's no `.tasks/<id>/status.json` keyed off the umbrella
-    //     issue number; the goal branch contains pipeline statuses from the
-    //     merged child task PRs, which would mis-attach to the umbrella).
-    // Reads are cached + ETag-revalidated inside `fetchGoalStateFromRepo`,
-    // so polling cost stays bounded.
-    const umbrellaByIssueNumber = new Map<number, { goalId: string }>()
-    try {
-      const manifestIssues = await fetchIssues({
-        state: 'open',
-        labels: GOALS_MANIFEST_LABEL,
-        perPage: 5,
-        ttl: 15_000,
-      })
-      const manifest = manifestIssues[0]
-        ? parseManifestBody(manifestIssues[0].body ?? '')
-        : null
-      if (manifest && manifest.goals.length > 0) {
-        const states = await Promise.all(
-          manifest.goals.map(async (goal) => ({
-            goalId: goal.id,
-            state: await fetchGoalStateFromRepo(goal.id),
-          })),
-        )
-        for (const { goalId, state } of states) {
-          if (state?.goalIssueNumber) {
-            umbrellaByIssueNumber.set(state.goalIssueNumber, { goalId })
-          }
-        }
-      }
-    } catch (err) {
-      // Best-effort — a failure here just means umbrella issues render
-      // without their goal PR / branch link, same as the pre-fix behaviour.
-      console.warn('[Tasks] failed to resolve umbrella issues:', err)
-    }
+    // Stacked-PR model (engine ≥ 0.4.39): no umbrella issue, no goal branch,
+    // no goal PR. Every goal-labelled issue IS a task — paired with its
+    // stacked PR via the existing Closes#N / digits-only-branch / "#N:" title
+    // heuristics built above. The old umbrella resolution block (which read
+    // `state.goalIssueNumber` to skip umbrella rows from pipeline-status
+    // fetch and pair them with `goal-<id>` branches) is gone.
 
     // Fetch Vercel preview URLs for PRs that have them (1 bulk + N status calls, cached)
     const prShas = openPRs.map((pr) => pr.head.sha)
@@ -372,9 +326,7 @@ export async function GET(req: NextRequest) {
         !isTerminal &&
         (hasActiveRun || labelNames.some((n) => n.startsWith('kody:')))
 
-      if (isLikelyActive && issue.number && !umbrellaByIssueNumber.has(issue.number)) {
-        // Skip umbrellas — their branch is `goal-<id>`, paired separately via
-        // prByHeadRef, and they don't have a pipeline status to fetch.
+      if (isLikelyActive && issue.number) {
         activeIssueNumbers.push(issue.number)
       }
     }
@@ -411,24 +363,15 @@ export async function GET(req: NextRequest) {
         // link survives @kody fix overwriting the PR body). Falls back to
         // closing/tracking refs and branch heuristics from the bulk PR list.
         let pr: (typeof openPRs)[number] | null = null
-        const umbrella = umbrellaByIssueNumber.get(issue.number)
-        if (umbrella) {
-          // Umbrella issue — pair directly with the goal PR by head ref.
-          // Skip generic title/issue-number matching: the umbrella's title
-          // (`goal: <id>`) would never match a child task PR, but defensive
-          // matchers elsewhere could accidentally pair it with a stale PR.
-          pr = prByHeadRef.get(`goal-${umbrella.goalId}`) ?? null
-        } else {
-          const releaseMarker = issue.body
-            ? issue.body.match(/<!--\s*kody-release-pr:\s*#?(\d+)\s*-->/i)
-            : null
-          if (releaseMarker) {
-            const markedPr = prByNumber.get(parseInt(releaseMarker[1]!, 10))
-            if (markedPr) pr = markedPr
-          }
-          if (!pr) {
-            pr = prsByIssueTitle.get(issue.title) ?? prsByIssueNumber.get(issue.number) ?? null
-          }
+        const releaseMarker = issue.body
+          ? issue.body.match(/<!--\s*kody-release-pr:\s*#?(\d+)\s*-->/i)
+          : null
+        if (releaseMarker) {
+          const markedPr = prByNumber.get(parseInt(releaseMarker[1]!, 10))
+          if (markedPr) pr = markedPr
+        }
+        if (!pr) {
+          pr = prsByIssueTitle.get(issue.title) ?? prsByIssueNumber.get(issue.number) ?? null
         }
 
         // Fetch pipeline status for tasks with active workflows or pipeline labels.
@@ -452,10 +395,7 @@ export async function GET(req: NextRequest) {
             labelNames.includes('hard-stop') ||
             labelNames.includes('risk-gated'))
 
-        if (isLikelyActive && issue.number && !umbrella) {
-          // Umbrellas are not pipeline tasks — there's no `.tasks/<id>/status.json`
-          // keyed off the umbrella issue number, and the goal branch carries
-          // statuses from the merged child task PRs which would mis-attach.
+        if (isLikelyActive && issue.number) {
           const branch = branchByIssueNumber.get(issue.number)
           if (branch) {
             // First try with known taskId from title brackets (fast, exact path)

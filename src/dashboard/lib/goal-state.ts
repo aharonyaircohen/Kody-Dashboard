@@ -30,12 +30,14 @@ export interface GoalRunState {
    */
   completedAt?: string
   /**
-   * Engine-owned bookkeeping fields. The dashboard does not interpret
-   * these but MUST round-trip them on writes — wiping them causes the
-   * engine to misbehave (e.g. dropping `goalIssueNumber` makes
-   * goal-tick recreate a duplicate umbrella issue on the next tick).
-   * Use a passthrough type rather than enumerating each so future engine
-   * fields don't require a dashboard release.
+   * Engine-owned bookkeeping fields (stacked-PR model writes `state`,
+   * `lastDispatchedIssue`, `updatedAt`; older repos may still have legacy
+   * fields like `goalIssueNumber`/`goalPrUrl`/`completedAt`). The
+   * dashboard does not interpret these but MUST round-trip them on
+   * writes — the engine preserves unknown fields through its `extra`
+   * passthrough, so a write that drops them silently is the dashboard's
+   * fault. Passthrough rather than enumerated keeps future engine fields
+   * working without a dashboard release.
    */
   [extraField: string]: unknown
 }
