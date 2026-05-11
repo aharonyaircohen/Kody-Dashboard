@@ -23,7 +23,7 @@ import { randomBytes } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { streamText, stepCountIs, type ModelMessage } from "ai"
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
-import { AGENT_KODY } from "@dashboard/lib/agents"
+import { AGENT_KODY, getAgent, isValidAgentId, type AgentId } from "@dashboard/lib/agents"
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
 import { createUserOctokit, setGitHubContext, clearGitHubContext } from "@dashboard/lib/github-client"
 import { getSecret } from "@dashboard/lib/vault/get-secret"
@@ -242,6 +242,12 @@ export async function POST(req: NextRequest) {
     goal?: GoalContext
     /** Currently-viewed report on /reports — scopes the chat to advise on it. */
     report?: { slug: string; title: string; body: string }
+    /**
+     * Which agent persona to use for the system prompt. Defaults to `kody`.
+     * Currently supported on this endpoint: `kody` (text) and `kody-speech`
+     * (voice-tuned). All other agent ids fall back to `kody`.
+     */
+    agentId?: AgentId
   }
   try {
     body = (await req.json()) as typeof body
@@ -280,8 +286,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Pick the agent persona. Only `kody` and `kody-speech` route through
+  // this endpoint today; anything else falls back to AGENT_KODY so older
+  // clients keep working.
+  const requestedAgentId =
+    body.agentId && isValidAgentId(body.agentId) ? body.agentId : "kody"
+  const agent =
+    requestedAgentId === "kody-speech" ? getAgent("kody-speech") : AGENT_KODY
+
   const systemPrompt = buildSystemPrompt(
-    AGENT_KODY.systemPrompt,
+    agent.systemPrompt,
     repo ? { owner: repo.owner, repo: repo.repo } : null,
     body.task,
     {
