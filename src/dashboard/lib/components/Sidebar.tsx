@@ -22,6 +22,7 @@ import {
   Home,
   KeyRound,
   Layers,
+  Settings as SettingsIcon,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -43,6 +44,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/secrets', label: 'Secrets', icon: KeyRound },
   { href: '/repos', label: 'Repositories', icon: Github },
+  { href: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
 const STORAGE_KEY = 'kody.sidebar.collapsed'
