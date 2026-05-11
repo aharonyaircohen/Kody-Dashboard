@@ -10,7 +10,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import {
   ArrowLeft,
   Calendar,
@@ -30,18 +29,17 @@ import type { Report } from '../api'
 import { CreateTaskDialog } from './CreateTaskDialog'
 import { CreateGoalDialog } from './GoalControl'
 import { useChatScope } from './PageWithChat'
+import { PageHeader } from './PageShell'
 
-export function ReportsView({
-  titleSlot,
-}: { titleSlot?: React.ReactNode } = {}) {
+export function ReportsView() {
   return (
     <AuthGuard>
-      <ReportsViewInner titleSlot={titleSlot} />
+      <ReportsViewInner />
     </AuthGuard>
   )
 }
 
-export function ReportsViewInner({ titleSlot }: { titleSlot?: React.ReactNode }) {
+export function ReportsViewInner() {
   const { data: reports = [], isLoading, isFetching, refetch, error } = useReports()
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
@@ -91,30 +89,13 @@ export function ReportsViewInner({ titleSlot }: { titleSlot?: React.ReactNode })
   }, [selected, setScope])
 
   return (
-    <div className="h-full bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="shrink-0 flex items-center justify-between gap-2 px-3 md:px-6 py-2 md:py-4 border-b border-white/[0.06] bg-black/20">
-        <div className="flex items-center gap-2 md:gap-3 min-w-0">
-          <Link
-            href="/"
-            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm shrink-0"
-            aria-label="Back to dashboard"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Dashboard</span>
-          </Link>
-          <span className="hidden sm:block h-4 w-px bg-border" />
-          {titleSlot ?? (
-            <h1 className="inline-flex items-center gap-2 text-lg md:text-xl font-semibold">
-              <FileText className="w-5 h-5 text-sky-400" />
-              Reports
-            </h1>
-          )}
-          <span className="hidden md:inline text-xs text-muted-foreground">
-            {reports.length} {reports.length === 1 ? 'report' : 'reports'}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+    <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
+      <PageHeader
+        title="Reports"
+        icon={FileText}
+        iconClassName="text-sky-400"
+        subtitle={`${reports.length} ${reports.length === 1 ? 'report' : 'reports'}`}
+        actions={
           <Button
             variant="outline"
             size="sm"
@@ -124,8 +105,8 @@ export function ReportsViewInner({ titleSlot }: { titleSlot?: React.ReactNode })
           >
             <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
           </Button>
-        </div>
-      </header>
+        }
+      />
 
       {error ? (
         <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">

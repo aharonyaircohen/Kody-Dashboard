@@ -13,7 +13,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
   CheckCircle2,
   ExternalLink,
   Github,
@@ -23,6 +22,7 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
+import { PageShell } from "./PageShell";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
@@ -163,27 +163,9 @@ export function RepoManager() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="border-b bg-card">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Button asChild variant="ghost" size="sm" className="gap-1.5 -ml-2">
-              <Link href="/" aria-label="Back to dashboard">
-                <ArrowLeft className="w-4 h-4" />
-                Dashboard
-              </Link>
-            </Button>
-            <div className="h-5 w-px bg-border" />
-            <div className="flex items-center gap-2">
-              <Github className="w-5 h-5" />
-              <h1 className="text-lg font-semibold">Repositories</h1>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <p className="text-sm text-muted-foreground">
+    <PageShell title="Repositories" icon={Github} iconClassName="text-white/80" width="wide">
+      <div className="space-y-6">
+        <p className="text-sm text-white/60">
           Connect additional GitHub repositories to this dashboard. Each repo uses its own
           personal access token, stored in this browser only. Switching the current repo
           reloads the dashboard so all data is fresh.
@@ -348,6 +330,6 @@ export function RepoManager() {
           }}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

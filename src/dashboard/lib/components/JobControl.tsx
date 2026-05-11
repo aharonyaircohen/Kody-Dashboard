@@ -10,7 +10,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import {
   ArrowLeft,
   Calendar,
@@ -61,6 +60,7 @@ import type { Job, JobSchedule } from '../api'
 import { JOB_TEMPLATE } from '../job-template'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
+import { PageHeader } from './PageShell'
 import { KodyChat } from './KodyChat'
 import { Sidebar } from './Sidebar'
 
@@ -70,15 +70,15 @@ function newDraftId(): string {
     : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-export function JobControl({ titleSlot }: { titleSlot?: React.ReactNode } = {}) {
+export function JobControl() {
   return (
     <AuthGuard>
-      <JobControlInner titleSlot={titleSlot} />
+      <JobControlInner />
     </AuthGuard>
   )
 }
 
-export function JobControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) {
+export function JobControlInner() {
   const { data: jobs = [], isLoading, isFetching, refetch, error } = useJobs()
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
@@ -118,68 +118,53 @@ export function JobControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) 
   const runMutation = useRunJob()
 
   return (
-    <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="shrink-0 flex items-center justify-between gap-2 px-3 md:px-6 py-2 md:py-4 border-b border-white/[0.06] bg-black/20">
-        <div className="flex items-center gap-2 md:gap-3 min-w-0">
-          <Link
-            href="/"
-            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm shrink-0"
-            aria-label="Back to dashboard"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Dashboard</span>
-          </Link>
-          <span className="hidden sm:block h-4 w-px bg-border" />
-          {titleSlot ?? (
-            <h1 className="inline-flex items-center gap-2 text-lg md:text-xl font-semibold">
-              <Target className="w-5 h-5 text-emerald-400" />
-              Job Control
-            </h1>
-          )}
-          <span className="hidden md:inline text-xs text-muted-foreground">
-            {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            aria-label="Refresh jobs"
-          >
-            <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
-          </Button>
-          {isDrafting ? (
+    <div className="h-screen bg-black/95 text-white/90 flex flex-col overflow-hidden">
+      <PageHeader
+        title="Job Control"
+        icon={Target}
+        iconClassName="text-emerald-400"
+        subtitle={`${jobs.length} ${jobs.length === 1 ? 'job' : 'jobs'}`}
+        actions={
+          <>
             <Button
               variant="outline"
               size="sm"
-              onClick={cancelDraft}
-              className="gap-1"
-              title="Stop drafting; chat returns to the selected job"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              aria-label="Refresh jobs"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Back to job</span>
+              <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
             </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={startNewDraft}
-              className="gap-1"
-              title="Chat with Kody to scope a brand-new job"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span className="hidden sm:inline">Draft new</span>
+            {isDrafting ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={cancelDraft}
+                className="gap-1"
+                title="Stop drafting; chat returns to the selected job"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Back to job</span>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={startNewDraft}
+                className="gap-1"
+                title="Chat with Kody to scope a brand-new job"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span className="hidden sm:inline">Draft new</span>
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">New job</span>
             </Button>
-          )}
-          <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New job</span>
-          </Button>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {error ? (
         <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">

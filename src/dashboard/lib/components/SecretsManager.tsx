@@ -14,7 +14,6 @@ import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
-  ArrowLeft,
   BookOpen,
   KeyRound,
   Loader2,
@@ -23,6 +22,7 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react"
+import { PageShell } from "./PageShell"
 import { Button } from "@dashboard/ui/button"
 import { Card, CardContent } from "@dashboard/ui/card"
 import { Input } from "@dashboard/ui/input"
@@ -165,23 +165,13 @@ function SecretsManagerInner() {
   const [deleting, setDeleting] = useState<string | null>(null)
 
   return (
-    <div className="min-h-screen bg-black/95 text-white/90">
-      <header className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/30">
-        <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/" aria-label="Back to dashboard">
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-          </Button>
-          <KeyRound className="w-5 h-5 text-amber-400" />
-          <h1 className="text-base md:text-lg font-semibold">Secrets</h1>
-          {auth && (
-            <span className="text-[11px] text-white/40">
-              {auth.owner}/{auth.repo}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
+    <PageShell
+      title="Secrets"
+      icon={KeyRound}
+      iconClassName="text-amber-400"
+      subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
+      actions={
+        <>
           <Button asChild variant="ghost" size="sm" className="gap-1">
             <Link href="/secrets/docs" aria-label="Vault docs">
               <BookOpen className="w-4 h-4" />
@@ -196,10 +186,10 @@ function SecretsManagerInner() {
             <Plus className="w-4 h-4" />
             New secret
           </Button>
-        </div>
-      </header>
-
-      <main className="px-4 md:px-6 py-6 max-w-3xl mx-auto space-y-3">
+        </>
+      }
+    >
+      <div className="space-y-3">
         {isLoading && (
           <p className="text-sm text-white/50 flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading secrets…
@@ -285,7 +275,7 @@ function SecretsManagerInner() {
           <code className="text-white/50">KODY_VAULT_KEY</code> from Vercel env. Rotating the key
           invalidates the entire vault — back up secrets before rotating.
         </p>
-      </main>
+      </div>
 
       {editing && (
         <SecretEditor
@@ -310,7 +300,7 @@ function SecretsManagerInner() {
         }}
         onClose={() => setDeleting(null)}
       />
-    </div>
+    </PageShell>
   )
 }
 
