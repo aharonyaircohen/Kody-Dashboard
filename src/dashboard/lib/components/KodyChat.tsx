@@ -1189,11 +1189,18 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
       // gets the cleaned-up text only; older attachments are referenced by
       // ref count only (not re-uploaded) — Kody's stateless route only
       // needs the current turn's images.
-      const priorMessages = messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        timestamp: m.timestamp ?? timestamp,
-      }))
+      // Filter out synthetic error bubbles (isError: true). They are
+      // shown to the user but were never produced by the model — leaving
+      // them in the transcript makes the next turn "respond" to a fake
+      // assistant message (e.g. apologizing for an old configuration
+      // error that was already resolved).
+      const priorMessages = messages
+        .filter((m) => !(m.role === 'assistant' && m.isError))
+        .map((m) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp ?? timestamp,
+        }))
 
       setMessages((prev) => [
         ...prev,
