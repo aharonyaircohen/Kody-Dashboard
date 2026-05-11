@@ -396,6 +396,8 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
 
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
+  const dragCounterRef = useRef(0)
   const [loading, setLoading] = useState(false)
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState<AgentId>('kody')
@@ -1082,15 +1084,16 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
     }
   }
 
-  // Handle file selection
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
+  // Process incoming files (from picker or drag-and-drop). Reads each file,
+  // persists the blob to IndexedDB, and appends a chip to the composer.
+  const addFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files)
+    if (list.length === 0) return
 
     const MAX_SIZE = 5 * 1024 * 1024 // 5MB
     const newAttachments: Attachment[] = []
 
-    for (const file of Array.from(files)) {
+    for (const file of list) {
       if (file.size > MAX_SIZE) {
         alert(`File "${file.name}" is too large. Maximum size is 5MB.`)
         continue
@@ -1138,11 +1141,52 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
       }
     }
 
-    setAttachments((prev) => [...prev, ...newAttachments])
+    if (newAttachments.length > 0) {
+      setAttachments((prev) => [...prev, ...newAttachments])
+    }
+  }
 
+  // Handle file selection from the hidden <input type="file">
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    await addFiles(files)
     // Reset input so same file can be selected again
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
+    }
+  }
+
+  // Drag-and-drop handlers on the chat container. We use a counter to
+  // survive child-element dragenter/leave bubbling (otherwise the overlay
+  // flickers as the cursor moves over inner nodes).
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types.includes('Files')) return
+    e.preventDefault()
+    dragCounterRef.current += 1
+    setIsDraggingFile(true)
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types.includes('Files')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types.includes('Files')) return
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
+    if (dragCounterRef.current === 0) setIsDraggingFile(false)
+  }
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer?.types.includes('Files')) return
+    e.preventDefault()
+    dragCounterRef.current = 0
+    setIsDraggingFile(false)
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      await addFiles(files)
     }
   }
 
@@ -2094,7 +2138,21 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
   const canSend = (input.trim() || attachments.length > 0) && !liveLocked
 
   return (
-    <div className="relative flex flex-col h-full md:border-l bg-background">
+    <div
+      className="relative flex flex-col h-full md:border-l bg-background"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drag overlay — visible while a file is being dragged over the chat */}
+      {isDraggingFile && (
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-md backdrop-blur-sm">
+          <div className="px-4 py-3 bg-background/90 rounded-lg shadow-lg text-base font-medium text-primary">
+            Drop to attach
+          </div>
+        </div>
+      )}
       {/* Session Sidebar */}
       {showSessionSidebar && isGlobalMode && (
         <SessionSidebar
