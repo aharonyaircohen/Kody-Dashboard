@@ -13,19 +13,13 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import {
-  ArrowLeft,
-  Brain,
-  Github,
-  KeyRound,
-  LogOut,
-  ShieldCheck,
-} from "lucide-react"
+import { Brain, Github, KeyRound, LogOut, ShieldCheck } from "lucide-react"
 import { Button } from "@dashboard/ui/button"
 import { Card, CardContent } from "@dashboard/ui/card"
 import { Input } from "@dashboard/ui/input"
 import { Label } from "@dashboard/ui/label"
 import { ConfirmDialog } from "./ConfirmDialog"
+import { PageShell } from "./PageShell"
 import { useAuth } from "../auth-context"
 
 export function SettingsManager() {
@@ -91,23 +85,13 @@ export function SettingsManager() {
   }
 
   return (
-    <div className="min-h-screen bg-black/95 text-white/90">
-      <header className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/30">
-        <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/" aria-label="Back to dashboard">
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-          </Button>
-          <KeyRound className="w-5 h-5 text-amber-400" />
-          <h1 className="text-base md:text-lg font-semibold">Settings</h1>
-          {auth?.user?.login && (
-            <span className="text-[11px] text-white/40">@{auth.user.login}</span>
-          )}
-        </div>
-      </header>
-
-      <main className="px-4 md:px-6 py-6 max-w-3xl mx-auto space-y-4">
+    <PageShell
+      title="Settings"
+      icon={KeyRound}
+      iconClassName="text-amber-400"
+      subtitle={auth?.user?.login ? `@${auth.user.login}` : undefined}
+    >
+      <div className="space-y-4">
         {/* ─── Brain config ───────────────────────────────────────────── */}
         <Card className="border-white/[0.08] bg-white/[0.03]">
           <CardContent className="p-4 space-y-4">
@@ -255,7 +239,7 @@ export function SettingsManager() {
             </Button>
           </CardContent>
         </Card>
-      </main>
+      </div>
 
       <ConfirmDialog
         open={confirmLogout}
@@ -284,6 +268,6 @@ export function SettingsManager() {
         variant="destructive"
         onConfirm={clearVercel}
       />
-    </div>
+    </PageShell>
   )
 }

@@ -10,7 +10,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, Bell, BookOpen, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { Bell, BookOpen, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { PageShell } from "./PageShell";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
@@ -115,18 +116,13 @@ function NotificationsManagerInner() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   return (
-    <div className="min-h-screen bg-black/95 text-white/90">
-      <header className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/30">
-        <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/" aria-label="Back to dashboard">
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-          </Button>
-          <Bell className="w-5 h-5 text-sky-400" />
-          <h1 className="text-base md:text-lg font-semibold">Notifications</h1>
-        </div>
-        <div className="flex items-center gap-2">
+    <PageShell
+      title="Notifications"
+      icon={Bell}
+      iconClassName="text-sky-400"
+      width="wide"
+      actions={
+        <>
           <Button asChild variant="ghost" size="sm" className="gap-1">
             <Link href="/notifications/docs" aria-label="Notifications docs">
               <BookOpen className="w-4 h-4" />
@@ -141,10 +137,10 @@ function NotificationsManagerInner() {
             <Plus className="w-4 h-4" />
             New rule
           </Button>
-        </div>
-      </header>
-
-      <main className="px-4 md:px-6 py-6 max-w-4xl mx-auto space-y-3">
+        </>
+      }
+    >
+      <div className="space-y-3">
         {isLoading && <p className="text-sm text-white/50">Loading rules…</p>}
         {error && (
           <Card className="border-rose-500/30 bg-rose-950/20">
@@ -216,7 +212,7 @@ function NotificationsManagerInner() {
           Channel secrets (Slack URLs, Telegram bot tokens, etc.) sit in that
           issue body — keep this repo private.
         </p>
-      </main>
+      </div>
 
       {editing && (
         <RuleEditor
@@ -243,7 +239,7 @@ function NotificationsManagerInner() {
         }}
         onClose={() => setDeletingId(null)}
       />
-    </div>
+    </PageShell>
   );
 }
 
