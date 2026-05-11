@@ -45,6 +45,7 @@ import { createReleaseTools } from "../tools/release-tools"
 import { createKodyTools } from "../tools/kody-tools"
 import { fetchUrlTool } from "../tools/fetch-url"
 import { featureTools } from "../tools/feature-tools"
+import { uiTools } from "../tools/ui-tools"
 import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files"
 
 export const runtime = "nodejs"
@@ -320,6 +321,7 @@ export async function POST(req: NextRequest) {
   const baseTools: Record<string, unknown> = {
     fetch_url: fetchUrlTool,
     ...featureTools,
+    ...uiTools,
   }
   let extraTools: Record<string, unknown> = {}
   if (repo) {

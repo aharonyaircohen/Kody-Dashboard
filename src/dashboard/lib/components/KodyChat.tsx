@@ -146,6 +146,7 @@ import { ToolCallList, ThinkingPanel, ReasoningPanel, parseReasoning } from './T
 import { MessageActions } from './MessageActions'
 import { loadTaskChatLocal, saveTaskChatLocal, clearTaskChatLocal } from '../task-chat-local'
 import { loadJobChatLocal, saveJobChatLocal, clearJobChatLocal } from '../job-chat-local'
+import { isSwitchAgentDirective } from '@dashboard/lib/chat-ui-actions'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -1648,6 +1649,14 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
           let sseBuf = ''
           let reasoningBuf = ''
           let textBuf = ''
+          // Map of toolCallId → toolName, populated from `tool-input-available`
+          // chunks so we can identify the source tool when its
+          // `tool-output-available` arrives (the output chunk omits the name).
+          const toolNameById = new Map<string, string>()
+          // Pending UI directives surfaced by tools. Applied AFTER the stream
+          // closes so the assistant bubble settles before the agent flips —
+          // otherwise the in-flight message would be re-routed mid-render.
+          let pendingSwitchAgent: ReturnType<typeof JSON.parse> | null = null
 
           const composeContent = () =>
             (reasoningBuf ? `<think>${reasoningBuf}</think>\n\n` : '') + textBuf
@@ -1671,6 +1680,8 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
                   | { type: 'text-delta'; delta: string }
                   | { type: 'reasoning-delta'; delta: string }
                   | { type: 'error'; errorText: string }
+                  | { type: 'tool-input-available'; toolCallId: string; toolName: string }
+                  | { type: 'tool-output-available'; toolCallId: string; output: unknown }
                   | { type: string }
                 if (chunk.type === 'text-delta' && 'delta' in chunk) {
                   textBuf += chunk.delta
@@ -1684,6 +1695,22 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
                   if (!voiceMode) reasoningBuf += chunk.delta
                 } else if (chunk.type === 'error' && 'errorText' in chunk) {
                   textBuf += `\n\n[Error] ${chunk.errorText}`
+                } else if (
+                  chunk.type === 'tool-input-available' &&
+                  'toolCallId' in chunk &&
+                  'toolName' in chunk
+                ) {
+                  toolNameById.set(chunk.toolCallId, chunk.toolName)
+                } else if (
+                  chunk.type === 'tool-output-available' &&
+                  'toolCallId' in chunk &&
+                  'output' in chunk
+                ) {
+                  const name = toolNameById.get(chunk.toolCallId)
+                  if (name === 'switch_agent' && isSwitchAgentDirective(chunk.output)) {
+                    // Defer the dispatch — see comment on pendingSwitchAgent.
+                    pendingSwitchAgent = chunk.output
+                  }
                 }
               } catch {
                 // Ignore malformed chunks rather than aborting the stream.
@@ -1709,6 +1736,23 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
             return copy
           })
           setLoading(false)
+          // Apply any UI-control directives the model emitted. Done after
+          // the assistant bubble settles so the agent flip doesn't race
+          // the in-flight render or interrupt voice TTS that is still
+          // speaking the confirmation sentence.
+          if (pendingSwitchAgent && isSwitchAgentDirective(pendingSwitchAgent)) {
+            const target = pendingSwitchAgent
+            setSelectedAgentId(target.agentId)
+            // If voice is active and the new agent isn't a voice-tunable
+            // kody-direct backend, close the overlay. Voice mode forces
+            // every message to kody-speech regardless of the dropdown
+            // (see sendText), so leaving voice open after switching to
+            // e.g. kody-live would silently keep routing to Gemini.
+            const targetBackend = AGENTS[target.agentId]?.backend
+            if (voiceMode && targetBackend !== 'kody-direct') {
+              setVoiceOverlayOpen(false)
+            }
+          }
           // Planner mode: a Pass 2 turn typically creates one or more issues
           // via `create_task_for_goal`. We can't observe per-tool results
           // from this stream protocol cheaply, so fire the host callback on
