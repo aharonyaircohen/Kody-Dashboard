@@ -249,6 +249,14 @@ export interface KodyTask {
    * Schema mirrors kody-engine's TaskState (see src/dashboard/lib/kody-state.ts).
    */
   kodyState?: import('./kody-state').KodyTaskState
+  /**
+   * One-line failure reason extracted from kodyState.core.lastOutcome.payload.reason
+   * when the task is in column='failed'. Surfaced inline on the task card so the
+   * user doesn't have to click in to see *why* a task failed (was previously
+   * "1545 — failed at build" with no further detail; now "1545 — failed:
+   * agent omitted PLAN_DEVIATIONS"). Truncated to 200 chars for layout.
+   */
+  failureReason?: string
   // Additional fields for UI
   assignees?: Array<{ login: string; avatar_url: string }>
   isKodyAssigned?: boolean

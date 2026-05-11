@@ -13,7 +13,6 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import {
   Bug,
   Calendar,
-  CheckCircle,
   ChevronDown,
   ChevronRight,
   Flag,
@@ -653,7 +652,8 @@ export function GoalGroupedView({
  *   • state == null     → "Run" (filled).
  *   • state == "active" → "Pause" (ghost).
  *   • state == "paused" → "Resume" (filled).
- *   • state == "done"   → "Done" (disabled).
+ *   • state == "done"   → "Re-run" (clickable). Flips state back to "active";
+ *                         engine picks up any newly added tasks on next tick.
  */
 function RunGoalButton({
   goal,
@@ -675,7 +675,7 @@ function RunGoalButton({
   const pending = setState.isPending || isLoading
 
   const onClick = () => {
-    if (isDone || pending) return
+    if (pending) return
     if (isActive) {
       setState.mutate({ state: 'paused' })
     } else {
@@ -683,20 +683,20 @@ function RunGoalButton({
     }
   }
 
-  const label = isDone
-    ? 'Done'
-    : isActive
-      ? 'Pause'
-      : isPaused
-        ? 'Resume'
+  const label = isActive
+    ? 'Pause'
+    : isPaused
+      ? 'Resume'
+      : isDone
+        ? 'Re-run'
         : 'Run'
-  const Icon = isDone ? CheckCircle : isActive ? Pause : Play
-  const title = isDone
-    ? 'All tasks completed'
-    : isActive
-      ? 'Pause the goal runner'
-      : isPaused
-        ? 'Resume the goal runner'
+  const Icon = isActive ? Pause : Play
+  const title = isActive
+    ? 'Pause the goal runner'
+    : isPaused
+      ? 'Resume the goal runner'
+      : isDone
+        ? 'Re-run the goal — flips state back to active so the engine picks up any newly added tasks'
         : 'Start the goal runner — engine will drive each task to a merged PR'
 
   // Match sibling buttons (Sparkles / MessageSquare / Pencil / Trash2):
@@ -716,15 +716,13 @@ function RunGoalButton({
       <Button
         variant="ghost"
         size="sm"
-        disabled={isDone || pending}
+        disabled={pending}
         onClick={onClick}
         className={cn(
           'h-8 w-8 p-0 transition-colors',
-          isDone
-            ? 'text-emerald-400/60 cursor-default'
-            : isActive
-              ? 'text-emerald-400 hover:text-emerald-300'
-              : 'text-muted-foreground hover:text-emerald-400',
+          isActive
+            ? 'text-emerald-400 hover:text-emerald-300'
+            : 'text-muted-foreground hover:text-emerald-400',
         )}
         aria-label={`${label} ${goal.name}`}
         title={title}

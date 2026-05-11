@@ -56,6 +56,18 @@ function extractTaskId(title: string): string {
 }
 
 /**
+ * Truncate a kody failure-reason string for inline display on the task card.
+ * Engine reasons can be long (full agent tail, full verify output); keep the
+ * first ~200 chars so the card stays scannable. The full reason is still
+ * available in the engine's state comment for click-through.
+ */
+function truncateReason(s: string): string {
+  const collapsed = s.replace(/\s+/g, ' ').trim()
+  if (collapsed.length <= 200) return collapsed
+  return `${collapsed.slice(0, 200)}…`
+}
+
+/**
  * Derive column from live pipeline status.
  * Pipeline state is more accurate than GitHub labels (no propagation delay).
  * Called first when pipeline data is available; label-based fallback used otherwise.
@@ -488,6 +500,13 @@ export async function GET(req: NextRequest) {
           isTimeout: workflowRun?.conclusion === 'timed_out',
           gateType,
           kodyState: kodyState ?? undefined,
+          // Surface the failure reason inline on failed tasks. The engine
+          // records it in lastOutcome.payload.reason; truncate so the task
+          // card doesn't blow up the layout.
+          failureReason:
+            column === 'failed' && kodyState?.core.lastOutcome?.payload?.reason
+              ? truncateReason(String(kodyState.core.lastOutcome.payload.reason))
+              : undefined,
         }
       }),
     )

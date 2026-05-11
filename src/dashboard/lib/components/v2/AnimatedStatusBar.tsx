@@ -261,6 +261,13 @@ function BarLabel({ task, style: _style }: { task: KodyTask; style: StatusBarSty
     }
 
     if (task.column === 'failed') {
+      // Prefer the engine's recorded failure reason when available — the
+      // user can see *why* a task failed without clicking in. Falls back
+      // to the legacy "failed at <stage>" label when no reason is recorded
+      // (legacy issues, non-kody failures, etc).
+      if (task.failureReason) {
+        return `failed: ${task.failureReason}`
+      }
       const failedStage = task.pipeline?.currentStage
       const label = failedStage ? stageLabels[failedStage] || failedStage : 'build'
       return `failed at ${label}`
