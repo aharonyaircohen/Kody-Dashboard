@@ -44,6 +44,7 @@ import { createPlannerTools } from "../tools/planner-tools"
 import { createReleaseTools } from "../tools/release-tools"
 import { createKodyTools } from "../tools/kody-tools"
 import { fetchUrlTool } from "../tools/fetch-url"
+import { featureTools } from "../tools/feature-tools"
 import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files"
 
 export const runtime = "nodejs"
@@ -318,6 +319,7 @@ export async function POST(req: NextRequest) {
   // disable everything else. `fetch_url` is the swap-in replacement.
   const baseTools: Record<string, unknown> = {
     fetch_url: fetchUrlTool,
+    ...featureTools,
   }
   let extraTools: Record<string, unknown> = {}
   if (repo) {
