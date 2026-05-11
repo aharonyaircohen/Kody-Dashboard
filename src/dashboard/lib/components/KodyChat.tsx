@@ -1616,7 +1616,10 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
               // Host callback errors should never break the chat.
             }
           }
-          return null
+          // Voice mode needs the spoken text only — no reasoning, no
+          // empty string. `textBuf` is the answer the model would render
+          // in a normal text bubble.
+          return textBuf.trim() || null
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error'
           setLoading(false)

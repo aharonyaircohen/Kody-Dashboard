@@ -442,11 +442,16 @@ export async function POST(req: NextRequest) {
       // client by `sendReasoning: true` below). The thinking budget is
       // capped — without it, dynamic thinking can stretch first-token
       // latency past the streaming-edge idle window for chat-style turns.
+      //
+      // Voice agent (`kody-speech`) disables thinking entirely: TTS would
+      // read the thought summary aloud, and voice turns reward latency
+      // over deliberation.
       providerOptions: {
         google: {
           thinkingConfig: {
-            includeThoughts: true,
-            thinkingBudget: THINKING_BUDGET,
+            includeThoughts: requestedAgentId !== "kody-speech",
+            thinkingBudget:
+              requestedAgentId === "kody-speech" ? 0 : THINKING_BUDGET,
           },
         },
       },

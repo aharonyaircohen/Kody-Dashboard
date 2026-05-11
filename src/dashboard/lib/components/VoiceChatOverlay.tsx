@@ -29,6 +29,16 @@ function formatElapsed(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
+/**
+ * The kody-direct stream wraps Gemini thought summaries in
+ * `<think>…</think>` so the text-chat reasoning panel can render them.
+ * The voice overlay has no such panel — strip the block (including any
+ * unclosed mid-stream tail) so the bubble shows only the spoken answer.
+ */
+function stripReasoning(content: string): string {
+  return content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim()
+}
+
 export function VoiceChatOverlay({
   state,
   currentTranscript,
@@ -138,7 +148,9 @@ export function VoiceChatOverlay({
             <span className="font-medium text-[10px] opacity-70 block mb-0.5">
               {msg.role === 'user' ? 'You' : 'Kody'}
             </span>
-            <span className="line-clamp-2">{msg.content}</span>
+            <span className="line-clamp-2">
+              {msg.role === 'assistant' ? stripReasoning(msg.content) : msg.content}
+            </span>
           </div>
         ))}
       </div>
