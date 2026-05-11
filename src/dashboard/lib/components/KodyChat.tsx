@@ -1189,26 +1189,34 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
       // gets the cleaned-up text only; older attachments are referenced by
       // ref count only (not re-uploaded) — Kody's stateless route only
       // needs the current turn's images.
-      // Filter out synthetic error bubbles and empty trailing assistants.
+      // Build the transcript we send back to the model. Three rules:
       //
-      // - isError: true marks new error bubbles. We tag them at the
-      //   creation site, but persisted history saved before the flag
-      //   existed won't have it — so we also match the legacy convention
-      //   of an assistant message whose content starts with "Error: ".
-      // - An empty assistant bubble (no content) means an earlier turn
-      //   was aborted before producing text. Sending it back to the
-      //   model as a real assistant reply makes Gemini "continue" from
-      //   nothing and often regress into apologies.
-      //
-      // Either case poisons the next turn — strip both before posting.
+      // 1. Strip <think>…</think> blocks from any assistant content. The
+      //    chat client wraps Gemini thought summaries in those tags so
+      //    the collapsed reasoning panel can render them, but the model
+      //    should never see its own private thoughts replayed as prior
+      //    "assistant" turns — it triggers a narration loop where the
+      //    next reply continues thinking-style ("I must acknowledge…").
+      // 2. Drop synthetic error bubbles. isError: true catches the
+      //    tagged ones; the "Error: " content prefix catches legacy
+      //    persisted bubbles saved before the flag existed.
+      // 3. Drop empty assistant bubbles (no real text after stripping).
+      //    They come from aborted turns or turns where the model only
+      //    produced reasoning. Sending them back makes Gemini "continue
+      //    from nothing" and often regress into apologies.
+      const stripThinkingTags = (content: string): string =>
+        content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim()
+
       const priorMessages = messages
-        .filter((m) => {
-          if (m.role !== 'assistant') return true
-          if (m.isError) return false
-          if (m.content.startsWith('Error: ')) return false
-          if (!m.content.trim()) return false
-          return true
+        .map((m) => {
+          if (m.role !== 'assistant') return m
+          if (m.isError) return null
+          if (m.content.startsWith('Error: ')) return null
+          const cleaned = stripThinkingTags(m.content)
+          if (!cleaned) return null
+          return { ...m, content: cleaned }
         })
+        .filter((m): m is Message => m !== null)
         .map((m) => ({
           role: m.role,
           content: m.content,
@@ -1623,7 +1631,13 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
                 if (chunk.type === 'text-delta' && 'delta' in chunk) {
                   textBuf += chunk.delta
                 } else if (chunk.type === 'reasoning-delta' && 'delta' in chunk) {
-                  reasoningBuf += chunk.delta
+                  // Voice mode never shows or speaks reasoning. Drop the
+                  // chunks at the source so the bubble equals textBuf
+                  // and TTS gets exactly what the user reads. Server-side
+                  // we also disable thinking for kody-speech, but the SDK
+                  // can occasionally leak a stray reasoning event — this
+                  // is the belt-and-suspenders guard.
+                  if (!voiceMode) reasoningBuf += chunk.delta
                 } else if (chunk.type === 'error' && 'errorText' in chunk) {
                   textBuf += `\n\n[Error] ${chunk.errorText}`
                 }
@@ -2023,6 +2037,17 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
       return next
     })
   }, [voiceChat])
+
+  // Belt-and-suspenders cleanup: every code path that closes the voice
+  // overlay should already call stopConversation, but if any future
+  // close path forgets (or a streamed reply lands AFTER the user
+  // closes), we still want speech + recognition to shut down. Driving
+  // it off voiceOverlayOpen guarantees no orphan TTS keeps narrating
+  // once the window is gone.
+  useEffect(() => {
+    if (voiceOverlayOpen) return
+    voiceChatRef.current?.stopConversation()
+  }, [voiceOverlayOpen])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
