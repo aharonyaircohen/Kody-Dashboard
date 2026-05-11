@@ -1189,13 +1189,26 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
       // gets the cleaned-up text only; older attachments are referenced by
       // ref count only (not re-uploaded) — Kody's stateless route only
       // needs the current turn's images.
-      // Filter out synthetic error bubbles (isError: true). They are
-      // shown to the user but were never produced by the model — leaving
-      // them in the transcript makes the next turn "respond" to a fake
-      // assistant message (e.g. apologizing for an old configuration
-      // error that was already resolved).
+      // Filter out synthetic error bubbles and empty trailing assistants.
+      //
+      // - isError: true marks new error bubbles. We tag them at the
+      //   creation site, but persisted history saved before the flag
+      //   existed won't have it — so we also match the legacy convention
+      //   of an assistant message whose content starts with "Error: ".
+      // - An empty assistant bubble (no content) means an earlier turn
+      //   was aborted before producing text. Sending it back to the
+      //   model as a real assistant reply makes Gemini "continue" from
+      //   nothing and often regress into apologies.
+      //
+      // Either case poisons the next turn — strip both before posting.
       const priorMessages = messages
-        .filter((m) => !(m.role === 'assistant' && m.isError))
+        .filter((m) => {
+          if (m.role !== 'assistant') return true
+          if (m.isError) return false
+          if (m.content.startsWith('Error: ')) return false
+          if (!m.content.trim()) return false
+          return true
+        })
         .map((m) => ({
           role: m.role,
           content: m.content,
