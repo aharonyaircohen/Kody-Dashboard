@@ -1426,7 +1426,10 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
       }
 
       // ─── Kody direct backend: in-process LLM stream, no Actions/Brain ───
-      if (selectedAgentId === 'kody') {
+      // Any agent with backend === 'kody-direct' routes here (kody, kody-speech, …)
+      // so we don't accidentally fall through to the engine path, which would
+      // require KODY_SESSION_SECRET and dispatch a workflow.
+      if (currentAgent.backend === 'kody-direct') {
         // Forward task context when the user is chatting about a specific
         // task — same shape Brain receives, so the server can anchor the
         // reply in the right issue/PR.
@@ -1493,6 +1496,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
             body: JSON.stringify({
               messages: kodyMessages,
               task: kodyTaskContext,
+              agentId: selectedAgentId,
               ...(actorLogin ? { actorLogin } : {}),
               ...(isDraftMode ? { jobDraft: true } : {}),
               ...(selectedJob
