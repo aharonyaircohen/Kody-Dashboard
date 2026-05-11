@@ -346,15 +346,21 @@ export async function GET(req: NextRequest) {
     // Batch fetch branches for all active issues (5 GitHub API calls max, not 5*N)
     const branchByIssueNumber = await findBranchesByIssueNumbers(activeIssueNumbers)
 
-    // Batch fetch canonical kody state for all active issues. Bounded by the
-    // active-task count (typically <30) and reuses fetchComments' ETag cache,
-    // so post-warmup polling cost is effectively zero (304 hits). Map is keyed
-    // by issue number; absent entries mean the engine hasn't written a state
-    // comment for that issue (legacy / non-kody — column derivation falls
-    // back to label/run heuristics).
+    // Batch fetch canonical kody state for any kody-touched issue, including
+    // terminal (kody:done/failed) ones — terminal tasks are exactly where
+    // the user wants to see the recorded state (failure reason on failed
+    // tasks, last action on done). Reuses fetchComments' ETag cache, so
+    // polling cost is effectively zero (304 hits). Map is keyed by issue
+    // number; absent entries mean the engine never wrote a state comment
+    // for that issue (legacy / non-kody — column derivation falls back to
+    // label/run heuristics).
+    const kodyTouchedIssueNumbers = issues
+      .filter((i) => i.labels.some((l) => l.name.toLowerCase().startsWith('kody:')))
+      .map((i) => i.number)
+      .filter((n): n is number => typeof n === 'number' && n > 0)
     const kodyStateByIssueNumber = new Map<number, KodyTaskState>()
     await Promise.all(
-      activeIssueNumbers.map(async (n) => {
+      kodyTouchedIssueNumbers.map(async (n) => {
         const state = await fetchKodyState(n)
         if (state) kodyStateByIssueNumber.set(n, state)
       }),
