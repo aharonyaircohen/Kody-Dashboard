@@ -139,16 +139,16 @@ export function VoiceChatOverlay({
           <div
             key={i}
             className={cn(
-              'mb-2 px-2.5 py-1.5 rounded-lg text-xs max-w-[90%]',
+              'mb-2 px-3 py-2 rounded-lg text-[15px] leading-relaxed max-w-[90%]',
               msg.role === 'user'
                 ? 'ml-auto bg-primary text-primary-foreground'
                 : 'mr-auto bg-muted',
             )}
           >
-            <span className="font-medium text-[10px] opacity-70 block mb-0.5">
+            <span className="font-medium text-xs opacity-70 block mb-0.5">
               {msg.role === 'user' ? 'You' : 'Kody'}
             </span>
-            <span className="line-clamp-2">
+            <span className="line-clamp-3">
               {msg.role === 'assistant' ? stripReasoning(msg.content) : msg.content}
             </span>
           </div>
