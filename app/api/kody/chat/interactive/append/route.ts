@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import { appendUserTurn } from "@dashboard/lib/interactive-session";
+import { applyVibePrimerToContent, type VibeTaskContext } from "@dashboard/lib/vibe/primer";
 
 export const runtime = "nodejs";
 
@@ -42,14 +43,20 @@ export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  let body: { taskId?: string; content?: string; timestamp?: string };
+  let body: {
+    taskId?: string;
+    content?: string;
+    timestamp?: string;
+    vibeMode?: boolean;
+    taskContext?: VibeTaskContext;
+  };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { taskId, content, timestamp } = body;
+  const { taskId, content, timestamp, vibeMode, taskContext } = body;
   if (!taskId) return NextResponse.json({ error: "taskId required" }, { status: 400 });
   if (!content || typeof content !== "string") {
     return NextResponse.json({ error: "content required" }, { status: 400 });
@@ -61,11 +68,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No GitHub token available" }, { status: 503 });
   }
 
+  // Vibe primer is server-only — the dashboard never shows it. The
+  // long-lived runner reads each user turn from the session JSONL on
+  // its next pull, so the primer must travel with the turn content.
+  const effectiveContent = vibeMode
+    ? applyVibePrimerToContent(content, taskContext)
+    : content;
+
   try {
     const turnTimestamp = timestamp ?? new Date().toISOString();
     const result = await appendUserTurn(octokit, owner, repo, taskId, {
       role: "user",
-      content,
+      content: effectiveContent,
       timestamp: turnTimestamp,
     });
 

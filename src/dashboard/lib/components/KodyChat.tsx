@@ -1948,6 +1948,20 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
               taskId: liveSessionId,
               content: liveUserContent,
               timestamp,
+              ...(vibeMode ? { vibeMode: true } : {}),
+              ...(vibeMode && context?.kind === 'task'
+                ? {
+                    taskContext: {
+                      issueNumber: context.task.issueNumber,
+                      ...(context.task.associatedPR
+                        ? {
+                            prNumber: context.task.associatedPR.number,
+                            branch: context.task.associatedPR.head.ref,
+                          }
+                        : {}),
+                    },
+                  }
+                : {}),
             }),
           })
           if (!appendRes.ok) {
