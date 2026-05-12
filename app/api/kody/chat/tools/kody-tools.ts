@@ -309,18 +309,18 @@ export function createKodyTools(ctx: Ctx) {
 
     kody_run_issue: tool({
       description:
-        `Hand the plan to the Kody engine for EXECUTION on issue #N in ` +
-        `${owner}/${repo}. Posts \`@kody <executable>\` (default: \`run\`) ` +
-        'on the issue; the engine in GitHub Actions clones the repo, edits ' +
-        'files, commits, and opens a PR. THIS IS THE EXECUTOR HANDOFF — ' +
-        'you (the chat model) do research and planning; this tool delegates ' +
-        'the actual code work to Kody Live. ' +
-        'Only call AFTER the user has confirmed they want to execute the ' +
-        'plan ("go", "ship it", "yes, execute", "run kody", "have kody build ' +
-        'it"). NEVER call as the first step of a turn — first research, ' +
-        'draft the plan, post it in chat, get confirmation, THEN dispatch. ' +
-        'Use `notes` to pass the plan/context inline as part of the @kody ' +
-        'comment so the engine has it. DOES auto-trigger the pipeline.',
+        `EXECUTE a plan on an issue in ${owner}/${repo}. Posts ` +
+        '`@kody <executable>` (default: `run`) as a comment on the issue. ' +
+        'The Kody engine in GitHub Actions then clones the repo, edits ' +
+        'files, commits, and opens a PR for that issue. THIS IS THE ONLY ' +
+        'way to actually execute code work from this chat — you do not ' +
+        'edit code yourself. ' +
+        'CALL when the user asks to "execute", "run", "ship", "build", ' +
+        '"do it", "kody, do this", "go", "yes", or otherwise confirms ' +
+        'execution after a plan was discussed. ' +
+        'DO NOT narrate this call without making it — if you tell the ' +
+        'user "I posted @kody run" you MUST have actually called this ' +
+        'tool in the same turn. Use `notes` to pass the plan inline.',
       inputSchema: z.object({
         issueNumber: ISSUE_NUMBER_SCHEMA,
         executable: EXECUTABLE_SCHEMA,
