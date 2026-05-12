@@ -13,7 +13,9 @@ import { useMemo, useState } from 'react'
 import type { KodyTask } from '../types'
 import { cn, formatRelativeTime } from '../utils'
 import { CIStatusBadge } from './CIStatusBadge'
-import { GitPullRequest, Inbox, Loader2, Search, X } from 'lucide-react'
+import { GitPullRequest, Inbox, Loader2, Search, Target, X } from 'lucide-react'
+import { useGoals } from '../hooks/useGoals'
+import { GOAL_LABEL_PREFIX } from '../goals'
 
 interface VibeIssueListProps {
   tasks: KodyTask[] | undefined
@@ -29,6 +31,14 @@ export function VibeIssueList({
   isLoading,
 }: VibeIssueListProps) {
   const [query, setQuery] = useState('')
+  const { data: goals = [] } = useGoals()
+
+  // id → name lookup so we can render goal chips without a per-row find.
+  const goalNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const g of goals) map.set(g.id, g.name)
+    return map
+  }, [goals])
 
   // Only open issues — once merged/closed the row vanishes by design.
   // Sort by updatedAt desc so the freshest work surfaces.
@@ -137,6 +147,17 @@ export function VibeIssueList({
         {filteredTasks.map((task) => {
         const isSelected = task.issueNumber === selectedIssueNumber
         const hasPR = !!task.associatedPR
+        // First resolvable goal label → chip. Multiple goals are rare; keep
+        // the row a single line by showing just the first known one.
+        const goalName = (() => {
+          for (const label of task.labels) {
+            if (!label.startsWith(GOAL_LABEL_PREFIX)) continue
+            const id = label.slice(GOAL_LABEL_PREFIX.length)
+            const name = goalNameById.get(id)
+            if (name) return name
+          }
+          return null
+        })()
         return (
           <li key={task.id} className="border-b border-white/[0.04]">
             <button
@@ -171,11 +192,25 @@ export function VibeIssueList({
                   <GitPullRequest className="w-3 h-3 text-purple-400 shrink-0" />
                 )}
               </div>
-              <div className="flex items-center gap-2 mt-1 pl-7">
+              <div className="flex items-center gap-2 mt-1 pl-7 min-w-0">
                 {task.associatedPR && (
                   <CIStatusBadge prNumber={task.associatedPR.number} />
                 )}
-                <span className="text-[10px] text-zinc-600">
+                {goalName && (
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1 max-w-[140px] px-1.5 py-0.5 rounded text-[10px] font-medium border truncate',
+                      isSelected
+                        ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20'
+                        : 'bg-zinc-800/60 text-zinc-400 border-zinc-700/60',
+                    )}
+                    title={`Goal: ${goalName}`}
+                  >
+                    <Target className="w-2.5 h-2.5 shrink-0" />
+                    <span className="truncate">{goalName}</span>
+                  </span>
+                )}
+                <span className="text-[10px] text-zinc-600 ml-auto shrink-0">
                   {formatRelativeTime(task.updatedAt)}
                 </span>
               </div>
