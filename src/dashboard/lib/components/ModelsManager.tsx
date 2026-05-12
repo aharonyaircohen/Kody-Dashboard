@@ -2,23 +2,26 @@
  * @fileType component
  * @domain variables
  * @pattern models-manager
- * @ai-summary CRUD UI for the chat model list (LLM_MODELS variable). Each
- *   row binds one model to its own API key, base URL, and wire protocol
- *   (Anthropic Messages or OpenAI Chat Completions). A provider preset
- *   dropdown pre-fills baseURL + protocol + key hint so common providers
- *   are one-click. The list drives the chat dropdown across the dashboard
- *   and /vibe; both surfaces fall back to Kody Live when the list is empty.
+ * @ai-summary CRUD UI for the chat model list (LLM_MODELS variable).
+ *   Scannable list view; the editor opens in a dialog with just the
+ *   essentials surfaced — provider preset auto-fills baseURL/protocol,
+ *   "Advanced" reveals internal id + URL + protocol for the `custom`
+ *   provider case. The list drives the chat dropdown across the
+ *   dashboard and /vibe; both fall back to Kody Live when empty.
  */
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
   Bot,
+  ChevronDown,
+  ChevronRight,
   Loader2,
   Mic,
+  Pencil,
   Plus,
   Save,
   Trash2,
@@ -29,6 +32,14 @@ import { Card, CardContent } from "@dashboard/ui/card"
 import { Input } from "@dashboard/ui/input"
 import { Label } from "@dashboard/ui/label"
 import { Checkbox } from "@dashboard/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@dashboard/ui/dialog"
+import { ConfirmDialog } from "./ConfirmDialog"
 import { AuthGuard } from "../auth-guard"
 import { useAuth, buildAuthHeaders } from "../auth-context"
 import {
@@ -75,17 +86,25 @@ async function saveModels(
 }
 
 function blankModel(): ChatModel {
+  const p = PROVIDER_PRESETS.anthropic
   return {
     id: "",
     label: "",
     provider: "anthropic",
-    protocol: PROVIDER_PRESETS.anthropic.protocol,
-    baseURL: PROVIDER_PRESETS.anthropic.baseURL,
+    protocol: p.protocol,
+    baseURL: p.baseURL,
     modelName: "",
-    apiKeySecret: PROVIDER_PRESETS.anthropic.keyHint,
+    apiKeySecret: p.keyHint,
     enabled: true,
     speech: false,
   }
+}
+
+/** Derive an internal id when the user didn't override it. */
+function deriveId(m: ChatModel): string {
+  if (m.id.trim()) return m.id.trim()
+  if (!m.modelName.trim()) return ""
+  return `${m.provider}/${m.modelName.trim()}`
 }
 
 export function ModelsManager() {
@@ -111,81 +130,49 @@ function ModelsManagerInner() {
     enabled: !!auth,
     staleTime: 30_000,
   })
-
-  // Draft buffer — lets the user edit several rows before committing.
-  const [draft, setDraft] = useState<ChatModel[] | null>(null)
-  useEffect(() => {
-    if (data && draft === null) setDraft(data)
-  }, [data, draft])
-
-  const models = draft ?? data ?? []
-  const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(data ?? [])
+  const models = data ?? []
 
   const save = useMutation({
     mutationFn: (list: ChatModel[]) => saveModels(headers, list, actorLogin),
-    onSuccess: (_, list) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: modelsQueryKey })
-      setDraft(list)
-      toast.success("Models saved")
     },
     onError: (err: Error) => toast.error(err.message || "Failed to save models"),
   })
 
-  // Validation: per-row errors + global constraints.
-  const speechCount = models.filter((m) => m.speech).length
-  const idCounts = new Map<string, number>()
-  for (const m of models) idCounts.set(m.id, (idCounts.get(m.id) ?? 0) + 1)
-  const duplicateIds = new Set(
-    Array.from(idCounts.entries())
-      .filter(([id, n]) => id && n > 1)
-      .map(([id]) => id),
-  )
+  const [editing, setEditing] = useState<
+    | { mode: "create" }
+    | { mode: "edit"; idx: number }
+    | null
+  >(null)
+  const [deleting, setDeleting] = useState<number | null>(null)
 
-  function rowErrors(m: ChatModel) {
-    const errs: Partial<Record<keyof ChatModel, string>> = {}
-    if (!m.id.trim()) errs.id = "Required"
-    else if (duplicateIds.has(m.id)) errs.id = "Duplicate id"
-    if (!m.label.trim()) errs.label = "Required"
-    if (!m.modelName.trim()) errs.modelName = "Required"
-    if (!m.apiKeySecret.trim()) errs.apiKeySecret = "Required"
-    else if (!SECRET_NAME_RE.test(m.apiKeySecret))
-      errs.apiKeySecret = "Uppercase letters, digits, _ — start with a letter"
-    if (m.protocol === "openai" && !m.baseURL.trim())
-      errs.baseURL = "Required for OpenAI-compatible models"
-    return errs
-  }
-  const allErrors = models.map(rowErrors)
-  const hasErrors =
-    speechCount > 1 || allErrors.some((e) => Object.keys(e).length > 0)
-
-  const updateRow = (idx: number, patch: Partial<ChatModel>) => {
-    setDraft((cur) => {
-      const base = cur ?? data ?? []
-      const next = base.map((m, i) => (i === idx ? { ...m, ...patch } : m))
-      // Enforce single speech flag: setting one clears all others.
-      if (patch.speech === true) {
-        return next.map((m, i) => (i === idx ? m : { ...m, speech: false }))
-      }
-      return next
+  const upsert = (next: ChatModel) => {
+    const list = [...models]
+    if (editing?.mode === "edit") {
+      list[editing.idx] = next
+    } else {
+      list.push(next)
+    }
+    return save.mutateAsync(list).then(() => {
+      toast.success("Model saved")
+      setEditing(null)
     })
   }
 
-  const applyPreset = (idx: number, preset: ProviderPreset) => {
-    const p = PROVIDER_PRESETS[preset]
-    updateRow(idx, {
-      provider: preset,
-      protocol: p.protocol,
-      baseURL: p.baseURL,
-      apiKeySecret: p.keyHint,
+  const toggleEnabled = (idx: number) => {
+    const list = models.map((m, i) =>
+      i === idx ? { ...m, enabled: m.enabled === false } : m,
+    )
+    save.mutate(list)
+  }
+
+  const remove = (idx: number) => {
+    const list = models.filter((_, i) => i !== idx)
+    save.mutateAsync(list).then(() => {
+      toast.success("Model deleted")
+      setDeleting(null)
     })
-  }
-
-  const addRow = () => {
-    setDraft((cur) => [...(cur ?? data ?? []), blankModel()])
-  }
-
-  const removeRow = (idx: number) => {
-    setDraft((cur) => (cur ?? data ?? []).filter((_, i) => i !== idx))
   }
 
   return (
@@ -195,25 +182,10 @@ function ModelsManagerInner() {
       iconClassName="text-violet-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
       actions={
-        <>
-          <Button size="sm" variant="ghost" className="gap-1" onClick={addRow}>
-            <Plus className="w-4 h-4" />
-            Add model
-          </Button>
-          <Button
-            size="sm"
-            disabled={!dirty || hasErrors || save.isPending}
-            onClick={() => save.mutate(models)}
-            className="gap-1"
-          >
-            {save.isPending ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Save className="w-3.5 h-3.5" />
-            )}
-            Save
-          </Button>
-        </>
+        <Button size="sm" onClick={() => setEditing({ mode: "create" })} className="gap-1">
+          <Plus className="w-4 h-4" />
+          New model
+        </Button>
       }
     >
       <div className="space-y-3">
@@ -226,18 +198,11 @@ function ModelsManagerInner() {
         {error && (
           <Card className="border-rose-500/30 bg-rose-950/20">
             <CardContent className="p-4 text-sm">
-              <p className="text-rose-300 font-medium">
-                Couldn&apos;t load models
-              </p>
+              <p className="text-rose-300 font-medium">Couldn&apos;t load models</p>
               <p className="text-rose-200/70 mt-1">
                 {error instanceof Error ? error.message : "Unknown error"}
               </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-3"
-                onClick={() => refetch()}
-              >
+              <Button size="sm" variant="outline" className="mt-3" onClick={() => refetch()}>
                 Retry
               </Button>
             </CardContent>
@@ -250,17 +215,16 @@ function ModelsManagerInner() {
               <Bot className="w-8 h-8 text-white/30 mx-auto" />
               <p className="text-sm text-white/70">No chat models yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                Add at least one model to enable the in-process chat. With
-                no models, the chat dropdown shows only{" "}
-                <strong className="text-white/60">Kody Live</strong> (the
-                GitHub Actions engine). Each model uses its own API key
-                stored under{" "}
+                Until you add one, the chat dropdown shows only{" "}
+                <strong className="text-white/60">Kody Live</strong> (GitHub
+                Actions engine). Each model uses its own API key stored
+                under{" "}
                 <Link href="/secrets" className="text-white/60 hover:text-white/80 underline">
                   /secrets
-                </Link>{" "}
-                — no shared gateway, no per-token middleman.
+                </Link>
+                .
               </p>
-              <Button size="sm" onClick={addRow} className="gap-1">
+              <Button size="sm" onClick={() => setEditing({ mode: "create" })} className="gap-1">
                 <Plus className="w-4 h-4" />
                 Add your first model
               </Button>
@@ -268,209 +232,361 @@ function ModelsManagerInner() {
           </Card>
         )}
 
-        <ul className="space-y-3">
-          {models.map((m, idx) => {
-            const e = allErrors[idx]
-            return (
-              <li key={idx}>
-                <Card className="border-white/[0.08] bg-white/[0.03]">
-                  <CardContent className="p-3 space-y-3">
-                    {/* Row header: provider preset + label + remove */}
-                    <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr_auto] gap-2 items-end">
-                      <div>
-                        <Label className="text-[11px] text-white/50">
-                          Provider
-                        </Label>
-                        <select
-                          value={m.provider}
-                          onChange={(ev) =>
-                            applyPreset(idx, ev.target.value as ProviderPreset)
-                          }
-                          className="w-full h-9 rounded-md border border-white/[0.08] bg-background px-2 text-xs"
-                        >
-                          {PROVIDER_PRESET_IDS.map((p) => (
-                            <option key={p} value={p}>
-                              {PROVIDER_PRESETS[p].label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <Label className="text-[11px] text-white/50">
-                          Display label
-                        </Label>
-                        <Input
-                          value={m.label}
-                          onChange={(ev) =>
-                            updateRow(idx, { label: ev.target.value })
-                          }
-                          placeholder="Claude Sonnet 4.6"
-                          className="text-xs"
-                        />
-                        {e.label && (
-                          <p className="text-[11px] text-rose-300 mt-1">
-                            {e.label}
-                          </p>
+        <ul className="space-y-2">
+          {models.map((m, idx) => (
+            <li key={idx}>
+              <Card className="border-white/[0.08] bg-white/[0.03]">
+                <CardContent className="p-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1 flex items-center gap-3">
+                    <Checkbox
+                      checked={m.enabled !== false}
+                      onCheckedChange={() => toggleEnabled(idx)}
+                      aria-label={m.enabled === false ? "Enable" : "Disable"}
+                    />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-white/90 truncate">
+                          {m.label || m.modelName || m.id}
+                        </span>
+                        {m.speech && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300"
+                            title="Used for voice (kody-speech)"
+                          >
+                            <Mic className="w-3 h-3" />
+                            Voice
+                          </span>
                         )}
                       </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-1 text-rose-300 hover:text-rose-200 mb-px"
-                        onClick={() => removeRow(idx)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Remove
-                      </Button>
+                      <p className="text-[11px] text-white/45 mt-0.5 font-mono truncate">
+                        {PROVIDER_PRESETS[m.provider]?.label ?? m.provider} · {m.modelName}
+                      </p>
                     </div>
-
-                    {/* Identity + model + protocol */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div>
-                        <Label className="text-[11px] text-white/50">
-                          Internal id
-                        </Label>
-                        <Input
-                          value={m.id}
-                          onChange={(ev) =>
-                            updateRow(idx, { id: ev.target.value.trim() })
-                          }
-                          placeholder="anthropic/claude-sonnet-4-6"
-                          className="font-mono text-xs"
-                        />
-                        {e.id && (
-                          <p className="text-[11px] text-rose-300 mt-1">
-                            {e.id}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <Label className="text-[11px] text-white/50">
-                          Model name (sent on the wire)
-                        </Label>
-                        <Input
-                          value={m.modelName}
-                          onChange={(ev) =>
-                            updateRow(idx, { modelName: ev.target.value.trim() })
-                          }
-                          placeholder="claude-sonnet-4-6"
-                          className="font-mono text-xs"
-                        />
-                        {e.modelName && (
-                          <p className="text-[11px] text-rose-300 mt-1">
-                            {e.modelName}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <Label className="text-[11px] text-white/50">
-                          Protocol
-                        </Label>
-                        <select
-                          value={m.protocol}
-                          onChange={(ev) =>
-                            updateRow(idx, {
-                              protocol: ev.target.value as ChatProtocol,
-                            })
-                          }
-                          className="w-full h-9 rounded-md border border-white/[0.08] bg-background px-2 text-xs font-mono"
-                        >
-                          <option value="anthropic">anthropic</option>
-                          <option value="openai">openai</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Endpoint + key */}
-                    <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-2">
-                      <div>
-                        <Label className="text-[11px] text-white/50">
-                          Base URL
-                        </Label>
-                        <Input
-                          value={m.baseURL}
-                          onChange={(ev) =>
-                            updateRow(idx, { baseURL: ev.target.value.trim() })
-                          }
-                          placeholder="https://api.anthropic.com/v1"
-                          className="font-mono text-xs"
-                        />
-                        {e.baseURL && (
-                          <p className="text-[11px] text-rose-300 mt-1">
-                            {e.baseURL}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <Label className="text-[11px] text-white/50">
-                          API key secret name
-                        </Label>
-                        <Input
-                          value={m.apiKeySecret}
-                          onChange={(ev) =>
-                            updateRow(idx, {
-                              apiKeySecret: ev.target.value.toUpperCase(),
-                            })
-                          }
-                          placeholder="ANTHROPIC_API_KEY"
-                          className="font-mono text-xs"
-                        />
-                        {e.apiKeySecret && (
-                          <p className="text-[11px] text-rose-300 mt-1">
-                            {e.apiKeySecret}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Flags */}
-                    <div className="flex items-center gap-4 pt-1">
-                      <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
-                        <Checkbox
-                          checked={m.enabled !== false}
-                          onCheckedChange={(checked) =>
-                            updateRow(idx, { enabled: checked === true })
-                          }
-                        />
-                        Enabled (visible in dropdown)
-                      </label>
-                      <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
-                        <Checkbox
-                          checked={m.speech === true}
-                          onCheckedChange={(checked) =>
-                            updateRow(idx, { speech: checked === true })
-                          }
-                        />
-                        <Mic className="w-3.5 h-3.5 text-white/40" />
-                        Use for voice (kody-speech)
-                      </label>
-                    </div>
-                  </CardContent>
-                </Card>
-              </li>
-            )
-          })}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-1"
+                      onClick={() => setEditing({ mode: "edit", idx })}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-1 text-rose-300 hover:text-rose-200"
+                      onClick={() => setDeleting(idx)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </li>
+          ))}
         </ul>
 
-        {speechCount > 1 && (
-          <p className="text-xs text-rose-300">
-            Only one model can be marked as the voice model.
-          </p>
-        )}
-
         <p className="text-[11px] text-white/30 pt-4">
-          Each model uses its own API key stored under{" "}
+          Each model uses its own API key under{" "}
           <Link href="/secrets" className="text-white/60 hover:text-white/80 underline">
             /secrets
           </Link>
-          . Anthropic-protocol models talk to Claude&apos;s native Messages
-          API (prompt caching + thinking control). OpenAI-protocol models
-          cover everything else — Gemini, GPT, Groq, OpenRouter, Mistral,
-          xAI, self-hosted LiteLLM, etc. With no models or a missing key
-          the chat falls back to{" "}
+          . With no models or a missing key the chat falls back to{" "}
           <strong className="text-white/60">Kody Live</strong>.
         </p>
       </div>
+
+      {editing && (
+        <ModelEditor
+          initial={editing.mode === "edit" ? models[editing.idx] : blankModel()}
+          existing={models}
+          editingIdx={editing.mode === "edit" ? editing.idx : null}
+          saving={save.isPending}
+          onClose={() => setEditing(null)}
+          onSave={upsert}
+        />
+      )}
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Delete this model?"
+        description="The model is removed from LLM_MODELS. The chat dropdown updates immediately; the underlying API key under /secrets is not touched."
+        confirmLabel={save.isPending ? "Deleting…" : "Delete"}
+        variant="destructive"
+        onConfirm={() => {
+          if (deleting !== null) remove(deleting)
+        }}
+        onClose={() => setDeleting(null)}
+      />
     </PageShell>
+  )
+}
+
+interface ModelEditorProps {
+  initial: ChatModel
+  existing: ChatModel[]
+  editingIdx: number | null
+  saving: boolean
+  onClose: () => void
+  onSave: (m: ChatModel) => Promise<void>
+}
+
+function ModelEditor({
+  initial,
+  existing,
+  editingIdx,
+  saving,
+  onClose,
+  onSave,
+}: ModelEditorProps) {
+  const [draft, setDraft] = useState<ChatModel>(initial)
+  const [advancedOpen, setAdvancedOpen] = useState<boolean>(
+    initial.provider === "custom",
+  )
+
+  // When the user picks a different preset, refresh the auto-managed
+  // fields. The user's modelName + label survive — only baseURL/protocol/
+  // key-hint update so they can quickly try different providers.
+  const applyPreset = (preset: ProviderPreset) => {
+    const p = PROVIDER_PRESETS[preset]
+    setDraft((cur) => ({
+      ...cur,
+      provider: preset,
+      protocol: p.protocol,
+      baseURL: p.baseURL,
+      // Only overwrite the key hint when the user hasn't typed a custom
+      // value yet (i.e. it matches the previous preset's hint). Avoids
+      // clobbering a deliberate override.
+      apiKeySecret:
+        cur.apiKeySecret === PROVIDER_PRESETS[cur.provider].keyHint
+          ? p.keyHint
+          : cur.apiKeySecret,
+    }))
+    if (preset === "custom") setAdvancedOpen(true)
+  }
+
+  // Derived id — what we'll actually save when the user hasn't set one.
+  const derivedId = deriveId(draft)
+  const idClash =
+    derivedId !== "" &&
+    existing.some(
+      (m, i) => i !== editingIdx && deriveId(m) === derivedId,
+    )
+
+  const errors = {
+    label: draft.label.trim() ? null : "Required",
+    modelName: draft.modelName.trim() ? null : "Required",
+    apiKeySecret: !draft.apiKeySecret.trim()
+      ? "Required"
+      : !SECRET_NAME_RE.test(draft.apiKeySecret)
+        ? "Uppercase letters, digits, _ — start with a letter"
+        : null,
+    baseURL:
+      draft.protocol === "openai" && !draft.baseURL.trim()
+        ? "Required for OpenAI-compatible models"
+        : null,
+    id: idClash ? "Another model already uses this id" : null,
+  }
+  const canSave =
+    !saving && !errors.label && !errors.modelName && !errors.apiKeySecret &&
+    !errors.baseURL && !errors.id
+
+  const handleSave = () => {
+    if (!canSave) return
+    const finalModel: ChatModel = {
+      ...draft,
+      id: derivedId,
+    }
+    onSave(finalModel)
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{editingIdx !== null ? "Edit model" : "Add model"}</DialogTitle>
+          <DialogDescription>
+            Pick a provider and fill in the model + key. Defaults cover the
+            common cases — open Advanced to override URL or protocol.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 mt-2">
+          <div>
+            <Label className="text-xs">Provider</Label>
+            <select
+              value={draft.provider}
+              onChange={(ev) => applyPreset(ev.target.value as ProviderPreset)}
+              className="w-full h-9 rounded-md border border-white/[0.08] bg-background px-2 text-sm"
+            >
+              {PROVIDER_PRESET_IDS.map((p) => (
+                <option key={p} value={p}>
+                  {PROVIDER_PRESETS[p].label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <Label className="text-xs">Model name</Label>
+            <Input
+              value={draft.modelName}
+              onChange={(ev) =>
+                setDraft((cur) => ({ ...cur, modelName: ev.target.value.trim() }))
+              }
+              placeholder={
+                draft.provider === "anthropic"
+                  ? "claude-sonnet-4-6"
+                  : draft.provider === "google"
+                    ? "gemini-2.5-flash"
+                    : draft.provider === "openai"
+                      ? "gpt-4o"
+                      : "model-id"
+              }
+              className="font-mono text-xs"
+            />
+            {errors.modelName && (
+              <p className="text-[11px] text-rose-300 mt-1">{errors.modelName}</p>
+            )}
+          </div>
+
+          <div>
+            <Label className="text-xs">Display label</Label>
+            <Input
+              value={draft.label}
+              onChange={(ev) =>
+                setDraft((cur) => ({ ...cur, label: ev.target.value }))
+              }
+              placeholder="Claude Sonnet 4.6"
+              className="text-xs"
+              autoFocus={editingIdx === null}
+            />
+            {errors.label && (
+              <p className="text-[11px] text-rose-300 mt-1">{errors.label}</p>
+            )}
+          </div>
+
+          <div>
+            <Label className="text-xs">API key secret</Label>
+            <Input
+              value={draft.apiKeySecret}
+              onChange={(ev) =>
+                setDraft((cur) => ({
+                  ...cur,
+                  apiKeySecret: ev.target.value.toUpperCase(),
+                }))
+              }
+              placeholder="ANTHROPIC_API_KEY"
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-white/40 mt-1">
+              Set this value under{" "}
+              <Link href="/secrets" className="text-white/60 hover:text-white/80 underline">
+                /secrets
+              </Link>
+              .
+            </p>
+            {errors.apiKeySecret && (
+              <p className="text-[11px] text-rose-300 mt-1">{errors.apiKeySecret}</p>
+            )}
+          </div>
+
+          <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer pt-1">
+            <Checkbox
+              checked={draft.speech === true}
+              onCheckedChange={(checked) =>
+                setDraft((cur) => ({ ...cur, speech: checked === true }))
+              }
+            />
+            <Mic className="w-3.5 h-3.5 text-white/40" />
+            Use for voice (kody-speech)
+          </label>
+
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            className="text-xs text-white/55 hover:text-white/80 flex items-center gap-1 pt-2"
+          >
+            {advancedOpen ? (
+              <ChevronDown className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5" />
+            )}
+            Advanced
+          </button>
+
+          {advancedOpen && (
+            <div className="space-y-3 pt-1 border-t border-white/[0.06]">
+              <div>
+                <Label className="text-xs">Base URL</Label>
+                <Input
+                  value={draft.baseURL}
+                  onChange={(ev) =>
+                    setDraft((cur) => ({ ...cur, baseURL: ev.target.value.trim() }))
+                  }
+                  placeholder="https://api.example.com/v1"
+                  className="font-mono text-xs"
+                />
+                {errors.baseURL && (
+                  <p className="text-[11px] text-rose-300 mt-1">{errors.baseURL}</p>
+                )}
+              </div>
+              <div>
+                <Label className="text-xs">Protocol</Label>
+                <select
+                  value={draft.protocol}
+                  onChange={(ev) =>
+                    setDraft((cur) => ({
+                      ...cur,
+                      protocol: ev.target.value as ChatProtocol,
+                    }))
+                  }
+                  className="w-full h-9 rounded-md border border-white/[0.08] bg-background px-2 text-xs font-mono"
+                >
+                  <option value="anthropic">anthropic</option>
+                  <option value="openai">openai</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">Internal id (auto)</Label>
+                <Input
+                  value={draft.id || derivedId}
+                  onChange={(ev) =>
+                    setDraft((cur) => ({ ...cur, id: ev.target.value.trim() }))
+                  }
+                  placeholder={derivedId || "<provider>/<modelName>"}
+                  className="font-mono text-xs"
+                />
+                {errors.id && (
+                  <p className="text-[11px] text-rose-300 mt-1">{errors.id}</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button size="sm" disabled={!canSave} onClick={handleSave} className="gap-1">
+            {saving ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Saving…
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5" />
+                {editingIdx !== null ? "Save" : "Add"}
+              </>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
