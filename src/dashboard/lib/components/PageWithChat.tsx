@@ -38,6 +38,7 @@ import {
 import { KodyChat } from './KodyChat'
 import { Sidebar } from './Sidebar'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
+import { useResizableChatWidth } from '../hooks/useResizableChatWidth'
 import type { ChatContext } from '../chat-types'
 import { cn } from '../utils'
 
@@ -68,18 +69,16 @@ interface PageWithChatProps {
   children: ReactNode
   /** Optional scoped context for the chat. Defaults to global chat. */
   chatContext?: ChatContext | null
-  /** Override left-rail width on desktop. Default 400px. */
-  railWidthClass?: string
 }
 
 export function PageWithChat({
   children,
   chatContext = null,
-  railWidthClass = 'w-[400px]',
 }: PageWithChatProps) {
   const [mobileChatOpen, setMobileChatOpen] = useState(false)
   const [scopeFromChild, setScopeFromChild] = useState<ChatContext | null>(null)
   const { githubUser } = useGitHubIdentity()
+  const { width: chatWidth, startResize, resetToDefault } = useResizableChatWidth()
 
   // Child-supplied scope wins over the static prop. The prop is the
   // page-level baseline; children may override it dynamically as the user
@@ -100,15 +99,24 @@ export function PageWithChat({
   return (
     <ChatScopeContext.Provider value={scopeApi}>
       <div className="h-screen flex overflow-hidden bg-background text-foreground">
-        {/* Desktop left rail — hidden below md. */}
+        {/* Desktop left rail — hidden below md. Width is user-resizable via
+            the separator on its right edge; the chosen width is shared
+            across every page through localStorage (kody.chatPanelWidth). */}
         <aside
-          className={cn(
-            'hidden md:flex flex-col shrink-0 border-r border-border bg-black/20',
-            railWidthClass,
-          )}
+          className="hidden md:flex flex-col shrink-0 border-r border-border bg-black/20 relative"
+          style={{ width: `${chatWidth}px` }}
           aria-label="Kody chat"
         >
           <KodyChat context={effectiveContext} actorLogin={githubUser?.login} />
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize chat panel"
+            onMouseDown={startResize}
+            onDoubleClick={resetToDefault}
+            className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
+            title="Drag to resize • Double-click to reset"
+          />
         </aside>
 
         {/* Primary navigation — sits between chat and content so it acts

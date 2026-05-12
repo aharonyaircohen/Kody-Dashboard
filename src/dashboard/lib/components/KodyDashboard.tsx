@@ -91,6 +91,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useResizableChatWidth } from "../hooks/useResizableChatWidth";
 import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { SimpleTooltip } from "./SimpleTooltip";
@@ -152,7 +153,6 @@ export function KodyDashboard({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const CHAT_WIDTH_KEY = "kody.chatPanelWidth";
   const VIEW_MODE_KEY = "kody.taskListViewMode";
   type TaskListLayout = "grouped" | "flat";
   const [taskListLayout, setTaskListLayout] = useState<TaskListLayout>(() => {
@@ -165,60 +165,15 @@ export function KodyDashboard({
       window.localStorage.setItem(VIEW_MODE_KEY, taskListLayout);
     }
   }, [taskListLayout]);
-  const CHAT_WIDTH_MIN = 320;
-  const CHAT_WIDTH_MAX = 1600;
-  const CHAT_WIDTH_SSR_FALLBACK = 600;
-  const getDefaultChatWidth = useCallback(() => {
-    if (typeof window === "undefined") return CHAT_WIDTH_SSR_FALLBACK;
-    const half = Math.floor(window.innerWidth / 2);
-    return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, half));
-  }, []);
-  const [chatPanelWidth, setChatPanelWidth] = useState<number>(() => {
-    if (typeof window === "undefined") return CHAT_WIDTH_SSR_FALLBACK;
-    const stored = Number(window.localStorage.getItem(CHAT_WIDTH_KEY));
-    if (!Number.isFinite(stored) || stored <= 0) {
-      const half = Math.floor(window.innerWidth / 2);
-      return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, half));
-    }
-    return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, stored));
-  });
-  const isResizingChatRef = useRef(false);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(CHAT_WIDTH_KEY, String(chatPanelWidth));
-    }
-  }, [chatPanelWidth]);
-
-  const startChatResize = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isResizingChatRef.current = true;
-    const prevUserSelect = document.body.style.userSelect;
-    const prevCursor = document.body.style.cursor;
-    document.body.style.userSelect = "none";
-    document.body.style.cursor = "col-resize";
-
-    const onMove = (ev: MouseEvent) => {
-      if (!isResizingChatRef.current) return;
-      const nextWidth = ev.clientX;
-      const clamped = Math.min(
-        CHAT_WIDTH_MAX,
-        Math.max(CHAT_WIDTH_MIN, nextWidth),
-      );
-      setChatPanelWidth(clamped);
-    };
-
-    const onUp = () => {
-      isResizingChatRef.current = false;
-      document.body.style.userSelect = prevUserSelect;
-      document.body.style.cursor = prevCursor;
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  }, []);
+  // Resizable chat panel — shared with PageWithChat and JobControl via the
+  // useResizableChatWidth hook (localStorage key kody.chatPanelWidth), so
+  // the user's chosen width persists across every page.
+  const {
+    width: chatPanelWidth,
+    startResize: startChatResize,
+    resetToDefault: resetChatWidth,
+  } = useResizableChatWidth();
   const filterBarRef = useRef<{ focusSearch: () => void } | null>(null);
 
   const handleSearchChange = useCallback((value: string) => {
@@ -1131,7 +1086,7 @@ export function KodyDashboard({
             aria-orientation="vertical"
             aria-label="Resize chat panel"
             onMouseDown={startChatResize}
-            onDoubleClick={() => setChatPanelWidth(getDefaultChatWidth())}
+            onDoubleClick={resetChatWidth}
             className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
             title="Drag to resize • Double-click to reset"
           />
@@ -1292,7 +1247,7 @@ export function KodyDashboard({
             aria-orientation="vertical"
             aria-label="Resize chat panel"
             onMouseDown={startChatResize}
-            onDoubleClick={() => setChatPanelWidth(getDefaultChatWidth())}
+            onDoubleClick={resetChatWidth}
             className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
             title="Drag to resize • Double-click to reset"
           />

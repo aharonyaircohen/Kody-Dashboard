@@ -63,6 +63,7 @@ import { MarkdownEditor } from './MarkdownEditor'
 import { PageHeader } from './PageShell'
 import { KodyChat } from './KodyChat'
 import { Sidebar } from './Sidebar'
+import { useResizableChatWidth } from '../hooks/useResizableChatWidth'
 
 function newDraftId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -116,15 +117,23 @@ export function JobControlInner() {
   const { githubUser } = useGitHubIdentity()
   const deleteMutation = useDeleteJob(githubUser?.login)
   const runMutation = useRunJob()
+  const {
+    width: chatWidth,
+    startResize: startChatResize,
+    resetToDefault: resetChatWidth,
+  } = useResizableChatWidth()
 
   return (
     <div className="h-screen bg-black/95 text-white/90 flex overflow-hidden">
       {/* Desktop left rail: persistent chat, same pattern as
           KodyDashboard's task chat panel. The chat's context follows the
           user's intent: drafting a new job, or chatting about the
-          currently selected one. Sits at full page height so its top
-          aligns with the Sidebar's logo — matches PageWithChat's layout. */}
-      <div className="hidden md:block w-[400px] shrink-0 border-r border-border">
+          currently selected one. Width is user-resizable and shared with
+          every other page via the kody.chatPanelWidth localStorage key. */}
+      <div
+        className="hidden md:block shrink-0 border-r border-border relative"
+        style={{ width: `${chatWidth}px` }}
+      >
         <KodyChat
           context={
             isDrafting
@@ -141,6 +150,15 @@ export function JobControlInner() {
                 : null
           }
           actorLogin={githubUser?.login}
+        />
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize chat panel"
+          onMouseDown={startChatResize}
+          onDoubleClick={resetChatWidth}
+          className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
+          title="Drag to resize • Double-click to reset"
         />
       </div>
 
