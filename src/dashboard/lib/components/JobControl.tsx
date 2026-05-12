@@ -118,87 +118,91 @@ export function JobControlInner() {
   const runMutation = useRunJob()
 
   return (
-    <div className="h-screen bg-black/95 text-white/90 flex flex-col overflow-hidden">
-      <PageHeader
-        title="Job Control"
-        icon={Target}
-        iconClassName="text-emerald-400"
-        subtitle={`${jobs.length} ${jobs.length === 1 ? 'job' : 'jobs'}`}
-        actions={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              aria-label="Refresh jobs"
-            >
-              <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
-            </Button>
-            {isDrafting ? (
+    <div className="h-screen bg-black/95 text-white/90 flex overflow-hidden">
+      {/* Desktop left rail: persistent chat, same pattern as
+          KodyDashboard's task chat panel. The chat's context follows the
+          user's intent: drafting a new job, or chatting about the
+          currently selected one. Sits at full page height so its top
+          aligns with the Sidebar's logo — matches PageWithChat's layout. */}
+      <div className="hidden md:block w-[400px] shrink-0 border-r border-border">
+        <KodyChat
+          context={
+            isDrafting
+              ? {
+                  kind: 'job-draft',
+                  draftId,
+                  onFinalize: (assistantContent) => {
+                    setDraftPrefill(assistantContent)
+                    setShowCreate(true)
+                  },
+                }
+              : selectedJob
+                ? { kind: 'job', job: selectedJob }
+                : null
+          }
+          actorLogin={githubUser?.login}
+        />
+      </div>
+
+      {/* Primary navigation — between chat and content. */}
+      <Sidebar />
+
+      {/* Content column: page header + body */}
+      <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
+        <PageHeader
+          title="Job Control"
+          icon={Target}
+          iconClassName="text-emerald-400"
+          subtitle={`${jobs.length} ${jobs.length === 1 ? 'job' : 'jobs'}`}
+          actions={
+            <>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={cancelDraft}
-                className="gap-1"
-                title="Stop drafting; chat returns to the selected job"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                aria-label="Refresh jobs"
               >
-                <ArrowLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">Back to job</span>
+                <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
               </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={startNewDraft}
-                className="gap-1"
-                title="Chat with Kody to scope a brand-new job"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span className="hidden sm:inline">Draft new</span>
+              {isDrafting ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={cancelDraft}
+                  className="gap-1"
+                  title="Stop drafting; chat returns to the selected job"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">Back to job</span>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={startNewDraft}
+                  className="gap-1"
+                  title="Chat with Kody to scope a brand-new job"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span className="hidden sm:inline">Draft new</span>
+                </Button>
+              )}
+              <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">New job</span>
               </Button>
-            )}
-            <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New job</span>
-            </Button>
-          </>
-        }
-      />
+            </>
+          }
+        />
 
-      {error ? (
-        <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
-          Failed to load jobs: {(error as Error).message}
-        </div>
-      ) : null}
+        {error ? (
+          <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
+            Failed to load jobs: {(error as Error).message}
+          </div>
+        ) : null}
 
-      <div className="flex-1 min-h-0 flex">
-        {/* Desktop left rail: persistent chat, same pattern as
-            KodyDashboard's task chat panel. The chat's context follows the
-            user's intent: drafting a new job, or chatting about the
-            currently selected one. */}
-        <div className="hidden md:block w-[400px] shrink-0 border-r border-border">
-          <KodyChat
-            context={
-              isDrafting
-                ? {
-                    kind: 'job-draft',
-                    draftId,
-                    onFinalize: (assistantContent) => {
-                      setDraftPrefill(assistantContent)
-                      setShowCreate(true)
-                    },
-                  }
-                : selectedJob
-                  ? { kind: 'job', job: selectedJob }
-                  : null
-            }
-            actorLogin={githubUser?.login}
-          />
-        </div>
-
-        {/* Primary navigation — between chat and content. */}
-        <Sidebar />
+        <div className="flex-1 min-h-0 flex">
 
         {/* Middle: job list */}
         <aside
@@ -359,6 +363,7 @@ export function JobControlInner() {
         }}
         onClose={() => setPendingDelete(null)}
       />
+      </div>
     </div>
   )
 }
