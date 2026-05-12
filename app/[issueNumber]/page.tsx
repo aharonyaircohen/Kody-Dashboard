@@ -5,7 +5,7 @@
  * @ai-summary Kody dashboard with a specific task pre-selected via URL.
  *   Force static with generateStaticParams for OG tags - social media crawlers need metadata without auth.
  */
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { KodyDashboard } from "@dashboard/lib/components/KodyDashboard";
 import { buildTaskMetadata } from "../metadata";
@@ -41,10 +41,14 @@ export default async function KodyTaskPage({
   params: Promise<{ issueNumber: string }>;
 }) {
   const { issueNumber } = await params;
+  // Only numeric segments are real issues. For any non-numeric segment
+  // (e.g. "vibe", "jobs", "settings") we must 404, not redirect — a
+  // cached `force-static` redirect here shadows sibling static routes
+  // at the edge and silently sends users to /. notFound() lets Next.js
+  // prefer the matching sibling page (e.g. app/vibe/page.tsx).
   const parsed = parseInt(issueNumber, 10);
-
-  if (isNaN(parsed)) {
-    redirect("/");
+  if (isNaN(parsed) || !/^\d+$/.test(issueNumber)) {
+    notFound();
   }
 
   return <KodyDashboard initialIssueNumber={parsed} />;
