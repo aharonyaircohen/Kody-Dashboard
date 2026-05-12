@@ -23,6 +23,7 @@ import {
   Eye,
   Camera,
   AlertTriangle,
+  Stethoscope,
 } from 'lucide-react'
 import { tasksApi, prsApi } from '../api'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
@@ -186,6 +187,21 @@ export function PreviewActions({
     }
   }
 
+  /**
+   * QA the completed task: post `@kody qa-engineer` on the *issue* (not the
+   * PR). The dispatcher auto-binds the issue number to qa-engineer's `issue`
+   * input, qa-engineer browses the configured QA URL, and the postflight
+   * comments the PASS/CONCERNS/FAIL report back on the same issue.
+   */
+  const handleRunQA = async () => {
+    try {
+      await tasksApi.comment(task.issueNumber, '@kody qa-engineer', actorLogin)
+      toast.success('QA requested — report will appear as a comment')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to request QA')
+    }
+  }
+
   return (
     <>
       <div
@@ -311,6 +327,18 @@ export function PreviewActions({
               aria-label="UI Review"
             >
               <Camera className="w-4 h-4" />
+            </Button>
+          </SimpleTooltip>
+
+          <SimpleTooltip content="QA the completed task">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleRunQA}
+              className="h-8 w-8 cursor-pointer text-zinc-300 hover:bg-zinc-800/60 hover:text-zinc-100 active:scale-[0.97]"
+              aria-label="QA"
+            >
+              <Stethoscope className="w-4 h-4" />
             </Button>
           </SimpleTooltip>
 
