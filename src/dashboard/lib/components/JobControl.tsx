@@ -61,9 +61,7 @@ import { JOB_TEMPLATE } from '../job-template'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
 import { PageHeader } from './PageShell'
-import { KodyChat } from './KodyChat'
-import { Sidebar } from './Sidebar'
-import { useResizableChatWidth } from '../hooks/useResizableChatWidth'
+import { useChatScope } from './ChatRailShell'
 
 function newDraftId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -117,55 +115,32 @@ export function JobControlInner() {
   const { githubUser } = useGitHubIdentity()
   const deleteMutation = useDeleteJob(githubUser?.login)
   const runMutation = useRunJob()
-  const {
-    width: chatWidth,
-    startResize: startChatResize,
-    resetToDefault: resetChatWidth,
-  } = useResizableChatWidth()
+
+  // Push chat context up to the persistent rail in the root layout.
+  // The chat's context follows the user's intent: drafting a new job,
+  // or chatting about the currently selected one. Clear on unmount.
+  const { setScope } = useChatScope()
+  useEffect(() => {
+    setScope(
+      isDrafting
+        ? {
+            kind: 'job-draft',
+            draftId,
+            onFinalize: (assistantContent) => {
+              setDraftPrefill(assistantContent)
+              setShowCreate(true)
+            },
+          }
+        : selectedJob
+          ? { kind: 'job', job: selectedJob }
+          : null,
+    )
+    return () => setScope(null)
+  }, [isDrafting, draftId, selectedJob, setScope])
 
   return (
-    <div className="h-screen bg-black/95 text-white/90 flex overflow-hidden">
-      {/* Desktop left rail: persistent chat, same pattern as
-          KodyDashboard's task chat panel. The chat's context follows the
-          user's intent: drafting a new job, or chatting about the
-          currently selected one. Width is user-resizable and shared with
-          every other page via the kody.chatPanelWidth localStorage key. */}
-      <div
-        className="hidden md:block shrink-0 border-r border-border relative"
-        style={{ width: `${chatWidth}px` }}
-      >
-        <KodyChat
-          context={
-            isDrafting
-              ? {
-                  kind: 'job-draft',
-                  draftId,
-                  onFinalize: (assistantContent) => {
-                    setDraftPrefill(assistantContent)
-                    setShowCreate(true)
-                  },
-                }
-              : selectedJob
-                ? { kind: 'job', job: selectedJob }
-                : null
-          }
-          actorLogin={githubUser?.login}
-        />
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize chat panel"
-          onMouseDown={startChatResize}
-          onDoubleClick={resetChatWidth}
-          className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
-          title="Drag to resize • Double-click to reset"
-        />
-      </div>
-
-      {/* Primary navigation — between chat and content. */}
-      <Sidebar />
-
-      {/* Content column: page header + body */}
+    <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
+      {/* Chat rail + sidebar come from the root layout (ChatRailShell). */}
       <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
         <PageHeader
           title="Job Control"

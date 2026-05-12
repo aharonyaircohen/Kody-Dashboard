@@ -28,7 +28,7 @@ import { useReports } from '../hooks/useReports'
 import type { Report } from '../api'
 import { CreateTaskDialog } from './CreateTaskDialog'
 import { CreateGoalDialog } from './GoalControl'
-import { useChatScope } from './PageWithChat'
+import { useChatScope } from './ChatRailShell'
 import { PageHeader } from './PageShell'
 
 export function ReportsView() {

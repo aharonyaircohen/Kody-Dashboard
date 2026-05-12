@@ -23,8 +23,7 @@ import { BugReportDialog } from "./BugReportDialog";
 import { KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
 import { BranchCleanupDialog } from "./BranchCleanupDialog";
 import { PublishButton } from "./PublishButton";
-import { KodyChat } from "./KodyChat";
-import { Sidebar } from "./Sidebar";
+import { useChatScope } from "./ChatRailShell";
 import type { ChatContext } from "../chat-types";
 import { KodyStatusBanner } from "./KodyStatusBanner";
 import {
@@ -91,7 +90,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import { useResizableChatWidth } from "../hooks/useResizableChatWidth";
 import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { SimpleTooltip } from "./SimpleTooltip";
@@ -128,7 +126,6 @@ export function KodyDashboard({
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showMobileDetail, setShowMobileDetail] = useState(false);
-  const [showMobileChat, setShowMobileChat] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [errorDismissed, setErrorDismissed] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -166,15 +163,11 @@ export function KodyDashboard({
     }
   }, [taskListLayout]);
 
-  // Resizable chat panel — shared with PageWithChat and JobControl via the
-  // useResizableChatWidth hook (localStorage key kody.chatPanelWidth), so
-  // the user's chosen width persists across every page.
-  const {
-    width: chatPanelWidth,
-    startResize: startChatResize,
-    resetToDefault: resetChatWidth,
-  } = useResizableChatWidth();
   const filterBarRef = useRef<{ focusSearch: () => void } | null>(null);
+
+  // Persistent chat lives in the root layout (ChatRailShell). We just
+  // push our context up and read mobile-open from the shared rail API.
+  const { setScope, openMobileChat } = useChatScope();
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -613,8 +606,7 @@ export function KodyDashboard({
       showPreview ||
       showShortcutsHelp ||
       showMobileMenu ||
-      showMobileDetail ||
-      showMobileChat,
+      showMobileDetail,
     onNavigateDown: () =>
       setFocusedIndex((i) => Math.min(i + 1, sortedTasks.length - 1)),
     onNavigateUp: () => setFocusedIndex((i) => Math.max(i - 1, 0)),
@@ -830,14 +822,9 @@ export function KodyDashboard({
   }, []);
 
   const handleOpenChat = useCallback(() => {
-    setShowMobileChat(true);
+    openMobileChat();
     window.history.pushState(null, "", "/chat");
-  }, []);
-
-  const handleCloseChat = useCallback((open: boolean) => {
-    setShowMobileChat(open);
-    if (!open) pushKodyBase();
-  }, []);
+  }, [openMobileChat]);
 
   // Handle task duplication
   const handleDuplicateTask = useCallback(
@@ -877,7 +864,7 @@ export function KodyDashboard({
       if (modal) {
         if (modal === "new") setShowCreateDialog(true);
         else if (modal === "bug") setShowBugDialog(true);
-        else if (modal === "chat") setShowMobileChat(true);
+        else if (modal === "chat") openMobileChat();
         return;
       }
     }
@@ -913,7 +900,6 @@ export function KodyDashboard({
       // Close all modals first
       setShowCreateDialog(false);
       setShowBugDialog(false);
-      setShowMobileChat(false);
       setShowPreview(false);
 
       // Check for modal routes
@@ -921,7 +907,7 @@ export function KodyDashboard({
       if (modal) {
         if (modal === "new") setShowCreateDialog(true);
         else if (modal === "bug") setShowBugDialog(true);
-        else if (modal === "chat") setShowMobileChat(true);
+        else if (modal === "chat") openMobileChat();
         return;
       }
 
@@ -949,7 +935,7 @@ export function KodyDashboard({
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [tasks, isDesktop]);
+  }, [tasks, isDesktop, openMobileChat]);
 
   // Mobile filter controls — rendered inside the mobile menu Sheet
   const mobileFilterControls = (
@@ -1056,6 +1042,13 @@ export function KodyDashboard({
         ? { kind: "task", task: selectedTask }
         : null;
 
+  // Push our context into the persistent chat rail (in the root layout).
+  // Clear on unmount so the next page starts with a global-scope chat.
+  useEffect(() => {
+    setScope(chatContext);
+    return () => setScope(null);
+  }, [chatContext, setScope]);
+
   // Mobile-only button that opens the chat Sheet — used in error takeovers so
   // mobile users can still reach Kody when the dashboard is otherwise blocked.
   const mobileChatEscapeHatch = (
@@ -1069,46 +1062,11 @@ export function KodyDashboard({
     </Button>
   );
 
-  // Wrap error takeovers in a layout that keeps the chat sidebar mounted
-  // so users can still talk to Kody (e.g. ask it to unblock a GitHub rate limit)
-  // even when task fetching is broken. On mobile, chat opens via the button
-  // in the error content and renders into the Sheet mounted below.
+  // Error takeover content. Chat rail + sidebar come from the root
+  // layout (ChatRailShell); on mobile the FAB and the assistant escape
+  // hatch button below both open the same Sheet.
   const renderErrorTakeover = (content: React.ReactNode) => (
-    <>
-      <div className="flex h-screen bg-background overflow-hidden">
-        <div
-          className="relative hidden md:block border-r border-border shrink-0"
-          style={{ width: `${chatPanelWidth}px` }}
-        >
-          <KodyChat context={null} actorLogin={githubUser?.login} />
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize chat panel"
-            onMouseDown={startChatResize}
-            onDoubleClick={resetChatWidth}
-            className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
-            title="Drag to resize • Double-click to reset"
-          />
-        </div>
-        <div className="flex-1 flex items-center justify-center">{content}</div>
-      </div>
-      {!isDesktop && (
-        <Sheet open={showMobileChat} onOpenChange={handleCloseChat}>
-          <SheetContent side="right" className="w-full sm:w-[400px] !p-0 !gap-0" hideClose>
-            <SheetHeader className="sr-only">
-              <SheetTitle>Chat with Kody</SheetTitle>
-              <SheetDescription>AI assistant chat</SheetDescription>
-            </SheetHeader>
-            <KodyChat
-              context={null}
-              actorLogin={githubUser?.login}
-              onClose={() => handleCloseChat(false)}
-            />
-          </SheetContent>
-        </Sheet>
-      )}
-    </>
+    <div className="flex-1 flex items-center justify-center">{content}</div>
   );
 
   // Session expired — only possible when using OAuth sessions (token-only mode shouldn't reach here)
@@ -1226,7 +1184,7 @@ export function KodyDashboard({
 
   return (
     <ErrorBoundary>
-      <div className="flex h-screen bg-background overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden">
         {/* Preview Modal — full-screen overlay */}
         {showPreview && selectedTask && (
           <PreviewModal
@@ -1236,28 +1194,11 @@ export function KodyDashboard({
             isMerging={!!(mergingTaskId === selectedTask.id)}
           />
         )}
-        {/* Desktop: Chat Panel (left side, always visible) */}
-        <div
-          className="relative hidden md:block border-r border-border shrink-0"
-          style={{ width: `${chatPanelWidth}px` }}
-        >
-          <KodyChat context={chatContext} actorLogin={githubUser?.login} />
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize chat panel"
-            onMouseDown={startChatResize}
-            onDoubleClick={resetChatWidth}
-            className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
-            title="Drag to resize • Double-click to reset"
-          />
-        </div>
-
-        {/* Primary navigation — between chat and content. */}
-        <Sidebar />
+        {/* Chat rail + primary nav are owned by the root layout
+            (ChatRailShell). We render only the page content. */}
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {/* When a task is selected, TaskDetail takes over the entire left column */}
           {selectedTask ? (
             <TaskDetail
@@ -1935,22 +1876,7 @@ export function KodyDashboard({
           </Sheet>
         )}
 
-        {/* Mobile Chat Sheet — only rendered on mobile */}
-        {!isDesktop && (
-          <Sheet open={showMobileChat} onOpenChange={handleCloseChat}>
-            <SheetContent side="right" className="w-full sm:w-[400px] !p-0 !gap-0" hideClose>
-              <SheetHeader className="sr-only">
-                <SheetTitle>Chat with Kody</SheetTitle>
-                <SheetDescription>AI assistant chat</SheetDescription>
-              </SheetHeader>
-              <KodyChat
-                context={chatContext}
-                actorLogin={githubUser?.login}
-                onClose={() => handleCloseChat(false)}
-              />
-            </SheetContent>
-          </Sheet>
-        )}
+        {/* Mobile chat sheet is owned by ChatRailShell in the root layout. */}
 
         {/* Create Dialog */}
         <CreateTaskDialog

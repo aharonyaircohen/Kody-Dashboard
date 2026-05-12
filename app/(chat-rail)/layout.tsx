@@ -1,27 +1,17 @@
 /**
  * @fileType layout
  * @domain layout
- * @pattern chat-rail-layout
- * @ai-summary Shared Next.js layout for routes that should always render
- *   alongside the persistent KodyChat rail (settings, secrets,
- *   notifications, reports, repositories, scenarios). Because this
- *   layout sits above every page in the group, Next.js keeps the chat
- *   instance mounted as the user navigates between these routes — chat
- *   scroll position, streaming state, and session history are preserved
- *   instead of resetting on every page change.
- *
- *   Pages that own a different chat experience (the dashboard root and
- *   /jobs each embed their own KodyChat) live outside this group on
- *   purpose.
+ * @pattern auth-route-group
+ * @ai-summary Route-group layer that enforces AuthGuard for every page
+ *   in this group. The persistent KodyChat used to live here, but it
+ *   now lives in the root layout (ChatRailShell) so every authenticated
+ *   page shares one chat instance — including the dashboard root and
+ *   /jobs, which sit outside this group. Kept as an auth boundary so
+ *   pages don't each re-wrap themselves.
  */
 import type { ReactNode } from "react"
 import { AuthGuard } from "@dashboard/lib/auth-guard"
-import { PageWithChat } from "@dashboard/lib/components/PageWithChat"
 
-export default function ChatRailLayout({ children }: { children: ReactNode }) {
-  return (
-    <AuthGuard>
-      <PageWithChat>{children}</PageWithChat>
-    </AuthGuard>
-  )
+export default function ChatRailGroupLayout({ children }: { children: ReactNode }) {
+  return <AuthGuard>{children}</AuthGuard>
 }

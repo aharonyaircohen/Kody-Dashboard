@@ -12,6 +12,7 @@ import { GeistSans } from 'geist/font/sans'
 import { Assistant } from 'next/font/google'
 
 import { KodyProviders } from './KodyProviders'
+import { ChatRailShell } from '@dashboard/lib/components/ChatRailShell'
 import { Toaster } from '@dashboard/ui/toaster'
 import { defaultTheme, themeLocalStorageKey } from '@dashboard/providers/Theme/shared'
 import '@dashboard/globals.css'
@@ -69,9 +70,7 @@ export default function KodyLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <KodyProviders>
-          <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
-            {children}
-          </div>
+          <ChatRailShell>{children}</ChatRailShell>
           <Toaster />
         </KodyProviders>
       </body>
