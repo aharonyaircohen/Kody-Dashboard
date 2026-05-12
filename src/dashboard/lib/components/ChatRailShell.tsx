@@ -110,10 +110,12 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     )
   }
 
-  // Vibe page locks the chat to Kody Live — the agent picker is hidden
-  // and the rail can't drift onto Gemini/Brain (which can't edit code).
+  // Vibe and the dashboard share one chat surface. The dropdown shows
+  // the same list of models in both places — Kody Live remains the
+  // default (it's the only backend that can actually edit code), but
+  // the user can pick any configured LLM model for chat-only turns.
   const isVibeRoute = pathname?.startsWith('/vibe') ?? false
-  const lockedAgentId = isVibeRoute ? 'kody-live' : undefined
+  const lockedAgentId = undefined
 
   return (
     <ChatRailContext.Provider value={api}>
