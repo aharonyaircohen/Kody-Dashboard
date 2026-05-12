@@ -14,9 +14,22 @@ import { useMemo, useState } from 'react'
 import type { KodyTask } from '../types'
 import { cn, formatRelativeTime } from '../utils'
 import { CIStatusBadge } from './CIStatusBadge'
+import { MiniPipelineProgress } from './MiniPipelineProgress'
 import { GitPullRequest, Inbox, Loader2, Search, X } from 'lucide-react'
 import { useGoals } from '../hooks/useGoals'
 import { GOAL_LABEL_PREFIX } from '../goals'
+import { COLUMN_DEFS, type ColumnId } from '../constants'
+
+// Per-column chip styling. "open" intentionally omitted — it's the idle
+// default and would clutter every row with a redundant "Open" pill. "done"
+// can't appear here because the list filters to state==='open'.
+const COLUMN_CHIP: Partial<Record<ColumnId, string>> = {
+  building: 'bg-blue-500/10 text-blue-300 ring-blue-500/20',
+  review: 'bg-purple-500/10 text-purple-300 ring-purple-500/20',
+  failed: 'bg-red-500/10 text-red-300 ring-red-500/20',
+  'gate-waiting': 'bg-yellow-500/10 text-yellow-300 ring-yellow-500/20',
+  retrying: 'bg-orange-500/10 text-orange-300 ring-orange-500/20',
+}
 
 interface VibeIssueListProps {
   tasks: KodyTask[] | undefined
@@ -247,6 +260,17 @@ export function VibeIssueList({
                           <span className="truncate">{goalName}</span>
                         </span>
                       )}
+                      {COLUMN_CHIP[task.column] && (
+                        <span
+                          className={cn(
+                            'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ring-1 ring-inset',
+                            COLUMN_CHIP[task.column],
+                          )}
+                          title={`Status: ${COLUMN_DEFS[task.column].label}`}
+                        >
+                          {COLUMN_DEFS[task.column].label}
+                        </span>
+                      )}
                       {hasPR && (
                         <span
                           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-purple-300 bg-purple-500/10 ring-1 ring-inset ring-purple-500/20"
@@ -259,6 +283,8 @@ export function VibeIssueList({
                       {task.associatedPR && (
                         <CIStatusBadge prNumber={task.associatedPR.number} />
                       )}
+                      {/* Self-gates: renders only for building/retrying/gate-waiting */}
+                      <MiniPipelineProgress task={task} variant="inline" />
                       <span className="text-[10px] text-zinc-500 ml-auto shrink-0">
                         {formatRelativeTime(task.updatedAt)}
                       </span>
