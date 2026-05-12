@@ -224,7 +224,11 @@ export function VibePage() {
     runKodyMutation.mutate(selectedTask.issueNumber)
   }, [selectedTask, runKodyMutation])
 
-  const canRunKody = !!selectedTask && !selectedTask.associatedPR
+  // Always show "Run Kody" when an issue is selected — users may want to
+  // re-trigger the engine even after a PR exists (e.g., the previous run
+  // failed mid-way, or they want to refresh the work). The button calls
+  // the same `@kody` execute action regardless of PR state.
+  const canRunKody = !!selectedTask
   const isRunningKody = runKodyMutation.isPending
 
   // ── Preview URL resolution ──────────────────────────────────────────────
