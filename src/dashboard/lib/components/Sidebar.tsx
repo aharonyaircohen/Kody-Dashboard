@@ -23,6 +23,7 @@ import {
   KeyRound,
   Layers,
   Settings as SettingsIcon,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -39,6 +40,7 @@ interface NavItem {
 
 const NAV_ITEMS: readonly NavItem[] = [
   { href: '/', label: 'Dashboard', icon: Home, exact: true },
+  { href: '/vibe', label: 'Vibe', icon: Sparkles },
   { href: '/jobs', label: 'Jobs', icon: Layers },
   { href: '/reports', label: 'Reports', icon: FileText },
   { href: '/notifications', label: 'Notifications', icon: Bell },
