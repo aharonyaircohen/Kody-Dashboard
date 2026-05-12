@@ -70,8 +70,26 @@ function formatElapsed(seconds: number): string {
 // records (older than the engine's 30min hard cap + 5min idle buffer) are
 // dropped on load.
 
-const LIVE_SESSION_STORAGE_KEY = 'kody-live-session'
+// Live sessions persist as a Map keyed by scope so each task (e.g. each
+// open Vibe issue) gets its own runner, its own GHA workflow run, and its
+// own state. Old single-record storage is migrated on read so existing
+// in-flight sessions don't get dropped on deploy.
+const LIVE_SESSION_STORAGE_KEY = 'kody-live-sessions'
+const LIVE_SESSION_LEGACY_KEY = 'kody-live-session'
 const LIVE_SESSION_MAX_AGE_MS = 35 * 60_000
+
+/** Stable identifier for a chat "scope" — task vs global. */
+export type LiveScopeKey = string
+
+export function getLiveScopeKey(
+  context: import('../chat-types').ChatContext | null | undefined,
+  vibeMode: boolean | undefined,
+): LiveScopeKey {
+  if (vibeMode && context?.kind === 'task') {
+    return `vibe-${context.task.issueNumber}`
+  }
+  return 'global'
+}
 
 interface PersistedLiveSession {
   sessionId: string
@@ -86,36 +104,79 @@ interface PersistedLiveSession {
   runUrl?: string
 }
 
-function loadLiveSession(): PersistedLiveSession | null {
-  if (typeof window === 'undefined') return null
+type LiveSessionMap = Record<LiveScopeKey, PersistedLiveSession>
+
+function readAllLiveSessions(): LiveSessionMap {
+  if (typeof window === 'undefined') return {}
   try {
     const raw = window.localStorage.getItem(LIVE_SESSION_STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as PersistedLiveSession
-    if (!parsed.sessionId || typeof parsed.startedAt !== 'number') return null
-    if (Date.now() - parsed.startedAt > LIVE_SESSION_MAX_AGE_MS) {
-      window.localStorage.removeItem(LIVE_SESSION_STORAGE_KEY)
-      return null
+    let parsed: LiveSessionMap = raw ? (JSON.parse(raw) as LiveSessionMap) : {}
+    // One-time migration from the legacy single-record format.
+    const legacy = window.localStorage.getItem(LIVE_SESSION_LEGACY_KEY)
+    if (legacy && Object.keys(parsed).length === 0) {
+      try {
+        const legacyRecord = JSON.parse(legacy) as PersistedLiveSession
+        if (legacyRecord?.sessionId && typeof legacyRecord.startedAt === 'number') {
+          parsed = { global: legacyRecord }
+          window.localStorage.setItem(
+            LIVE_SESSION_STORAGE_KEY,
+            JSON.stringify(parsed),
+          )
+        }
+      } catch {
+        /* ignore malformed legacy record */
+      }
+      window.localStorage.removeItem(LIVE_SESSION_LEGACY_KEY)
+    }
+    // Drop stale entries so callers never see expired records.
+    const now = Date.now()
+    let changed = false
+    for (const [key, rec] of Object.entries(parsed)) {
+      if (!rec?.sessionId || typeof rec.startedAt !== 'number') {
+        delete parsed[key]
+        changed = true
+        continue
+      }
+      if (now - rec.startedAt > LIVE_SESSION_MAX_AGE_MS) {
+        delete parsed[key]
+        changed = true
+      }
+    }
+    if (changed) {
+      window.localStorage.setItem(LIVE_SESSION_STORAGE_KEY, JSON.stringify(parsed))
     }
     return parsed
   } catch {
-    return null
+    return {}
   }
 }
 
-function saveLiveSession(record: PersistedLiveSession): void {
+function loadLiveSession(scopeKey: LiveScopeKey): PersistedLiveSession | null {
+  const all = readAllLiveSessions()
+  return all[scopeKey] ?? null
+}
+
+function saveLiveSession(
+  scopeKey: LiveScopeKey,
+  record: PersistedLiveSession,
+): void {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(LIVE_SESSION_STORAGE_KEY, JSON.stringify(record))
+    const all = readAllLiveSessions()
+    all[scopeKey] = record
+    window.localStorage.setItem(LIVE_SESSION_STORAGE_KEY, JSON.stringify(all))
   } catch {
     /* quota / disabled — non-fatal */
   }
 }
 
-function clearLiveSession(): void {
+function clearLiveSession(scopeKey: LiveScopeKey): void {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.removeItem(LIVE_SESSION_STORAGE_KEY)
+    const all = readAllLiveSessions()
+    if (!(scopeKey in all)) return
+    delete all[scopeKey]
+    window.localStorage.setItem(LIVE_SESSION_STORAGE_KEY, JSON.stringify(all))
   } catch {
     /* non-fatal */
   }
@@ -481,6 +542,10 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
   // state alone would be stale by the time chat.ready arrives.
   const interactiveSessionIdRef = useRef<string | null>(null)
   const interactiveStateRef = useRef<'idle' | 'booting' | 'ready' | 'ended'>('idle')
+  // Scope of the currently-mounted live session. Each scope (e.g. each
+  // Vibe issue) has its own runner, so callbacks that persist live state
+  // must save under the right key.
+  const currentScopeKeyRef = useRef<LiveScopeKey>('global')
   // Display state mirrors the ref so React re-renders the input lock + banner.
   const [interactiveState, setInteractiveState] = useState<
     'idle' | 'booting' | 'ready' | 'ended'
@@ -635,7 +700,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
               if (runUrl) setInteractiveRunUrl(runUrl)
               const id = interactiveSessionIdRef.current
               if (id) {
-                saveLiveSession({
+                saveLiveSession(currentScopeKeyRef.current, {
                   sessionId: id,
                   state: 'ready',
                   startedAt: Date.now(),
@@ -649,7 +714,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
               interactiveStateRef.current = 'ended'
               setInteractiveState('ended')
               setLoading(false)
-              clearLiveSession()
+              clearLiveSession(currentScopeKeyRef.current)
               stopInteractivePoll()
               break
             }
@@ -759,7 +824,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
               const runUrl = typeof parsed.runUrl === 'string' ? parsed.runUrl : undefined
               if (runUrl) setInteractiveRunUrl(runUrl)
               if (id) {
-                saveLiveSession({
+                saveLiveSession(currentScopeKeyRef.current, {
                   sessionId: id,
                   state: 'ready',
                   startedAt: Date.now(),
@@ -773,7 +838,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
               interactiveStateRef.current = 'ended'
               setInteractiveState('ended')
               setLoading(false)
-              clearLiveSession()
+              clearLiveSession(currentScopeKeyRef.current)
               es.close()
               break
             }
@@ -1910,14 +1975,27 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
       }
 
       // ─── Kody Live: long-lived interactive runner ───
-      // The session must be warmed up (Start button → chat.ready) before the
-      // user can send. The input is disabled until interactiveState='ready',
-      // so by the time we get here in kody-live mode, the runner is alive
-      // and we just /append.
+      // Non-vibe mode: the user has already pressed "Start Live Runner"
+      // and the input is disabled until chat.ready arrives — we just /append.
+      // Vibe mode: idle → auto-start the per-issue runner and queue the
+      // message via /append. appendUserTurn writes to the session JSONL,
+      // which the runner reads on its first git pull, so we don't need
+      // to wait for chat.ready before queueing.
       if (selectedAgentId === 'kody-live') {
+        if (
+          vibeMode &&
+          (interactiveStateRef.current === 'idle' ||
+            interactiveStateRef.current === 'ended') &&
+          !interactiveSessionIdRef.current
+        ) {
+          await startInteractiveSession()
+        }
         const liveSessionId = interactiveSessionIdRef.current
-        if (interactiveStateRef.current !== 'ready' || !liveSessionId) {
-          // Defensive: input should already be disabled. Surface as a hint.
+        const liveState = interactiveStateRef.current
+        if (
+          !liveSessionId ||
+          (liveState !== 'ready' && liveState !== 'booting')
+        ) {
           setMessages((prev) => [
             ...prev,
             {
@@ -2115,14 +2193,18 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
   const startInteractiveSession = useCallback(async () => {
     if (interactiveStateRef.current === 'booting' || interactiveStateRef.current === 'ready') return
 
-    const sessionId = `live-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    // Embed the scope key in the sessionId so kody.yml's concurrency
+    // group (`kody-${sessionId}`) puts each issue in its own bucket.
+    // Two vibe issues now boot independent runners.
+    const scopeKey = currentScopeKeyRef.current
+    const sessionId = `${scopeKey}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const startedAt = Date.now()
     interactiveSessionIdRef.current = sessionId
     interactiveStateRef.current = 'booting'
     setInteractiveState('booting')
     setBootStartedAt(startedAt)
     setInteractiveRunUrl(null)
-    saveLiveSession({ sessionId, state: 'booting', startedAt })
+    saveLiveSession(scopeKey, { sessionId, state: 'booting', startedAt })
 
     try {
       // dashboardUrl re-enabled — engine pushes events to /ingest in
@@ -2151,7 +2233,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
         setInteractiveTarget(startBody.target)
         interactiveTargetRef.current = startBody.target
         // Re-save with target so a refresh during boot still shows the link.
-        saveLiveSession({
+        saveLiveSession(scopeKey, {
           sessionId,
           state: 'booting',
           startedAt,
@@ -2163,7 +2245,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       interactiveStateRef.current = 'ended'
       setInteractiveState('ended')
-      clearLiveSession()
+      clearLiveSession(scopeKey)
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: `Failed to start live runner: ${errorMessage}`, isLoading: false },
@@ -2172,9 +2254,9 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
   }, [connectSSE, setMessages])
 
   // Cancel a Kody Live session locally. Closes the SSE, clears the saved
-  // record, and flips state to 'idle' so the user can start a fresh one.
-  // Does NOT actively cancel the GitHub Actions run — the runner idle-exits
-  // on its own (default 5min) so leaving it alone is cheap.
+  // record for the CURRENT scope, and flips state to 'idle' so the user
+  // can start a fresh one. Does NOT cancel the GitHub Actions run — the
+  // runner idle-exits on its own (default 5min) so leaving it alone is cheap.
   const endInteractiveSession = useCallback(() => {
     stopInteractivePoll()
     eventSourceRef.current?.close()
@@ -2186,30 +2268,60 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
     setInteractiveTarget(null)
     interactiveTargetRef.current = null
     setInteractiveRunUrl(null)
-    clearLiveSession()
+    clearLiveSession(currentScopeKeyRef.current)
   }, [stopInteractivePoll])
 
-  // Restore on page refresh. Runs once after connectSSE is stable. If the
-  // user had a live session in flight, switch to kody-live, rehydrate the
-  // refs from localStorage, and reconnect the SSE so the rest of the
-  // session's events flow normally.
+  // ── Scope tracking ───────────────────────────────────────────────────
+  // Each chat scope (Vibe issue vs global) has its own live session. When
+  // the user switches issues, swap the in-view session: close the old
+  // SSE, then either rehydrate the new scope's saved record or reset to
+  // idle. Runners for off-screen scopes keep running in GHA and will
+  // self-exit on idle.
+  const rehydrateForScope = useCallback(
+    (scopeKey: LiveScopeKey) => {
+      const saved = loadLiveSession(scopeKey)
+      // Close any prior SSE before swapping refs so old events don't
+      // race the new state.
+      eventSourceRef.current?.close()
+      eventSourceRef.current = null
+      stopInteractivePoll()
+      if (!saved) {
+        interactiveSessionIdRef.current = null
+        interactiveStateRef.current = 'idle'
+        setInteractiveState('idle')
+        setBootStartedAt(null)
+        setInteractiveTarget(null)
+        interactiveTargetRef.current = null
+        setInteractiveRunUrl(null)
+        return
+      }
+      interactiveSessionIdRef.current = saved.sessionId
+      interactiveStateRef.current = saved.state
+      setInteractiveState(saved.state)
+      setSelectedAgentId('kody-live')
+      setBootStartedAt(saved.state === 'booting' ? saved.startedAt : null)
+      if (saved.target) {
+        setInteractiveTarget(saved.target)
+        interactiveTargetRef.current = saved.target
+      } else {
+        setInteractiveTarget(null)
+        interactiveTargetRef.current = null
+      }
+      setInteractiveRunUrl(saved.runUrl ?? null)
+      startInteractivePoll(saved.sessionId)
+    },
+    [startInteractivePoll, stopInteractivePoll],
+  )
+
   useEffect(() => {
-    if (liveRestoreAttemptedRef.current) return
-    liveRestoreAttemptedRef.current = true
-    const saved = loadLiveSession()
-    if (!saved) return
-    interactiveSessionIdRef.current = saved.sessionId
-    interactiveStateRef.current = saved.state
-    setInteractiveState(saved.state)
-    setSelectedAgentId('kody-live')
-    if (saved.state === 'booting') setBootStartedAt(saved.startedAt)
-    if (saved.target) {
-      setInteractiveTarget(saved.target)
-      interactiveTargetRef.current = saved.target
+    const nextScope = getLiveScopeKey(context, vibeMode)
+    if (nextScope === currentScopeKeyRef.current && liveRestoreAttemptedRef.current) {
+      return
     }
-    if (saved.runUrl) setInteractiveRunUrl(saved.runUrl)
-    startInteractivePoll(saved.sessionId)
-  }, [startInteractivePoll])
+    currentScopeKeyRef.current = nextScope
+    liveRestoreAttemptedRef.current = true
+    rehydrateForScope(nextScope)
+  }, [context, vibeMode, rehydrateForScope])
 
   const sendMessage = async () => {
     if (!input.trim() && attachments.length === 0) return
@@ -2314,7 +2426,14 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
   // Kody Live blocks the input until the runner is ready. Other agents
   // are unaffected — only the explicit warm-up flow uses this gate.
   const isKodyLive = selectedAgentId === 'kody-live'
-  const liveLocked = isKodyLive && interactiveState !== 'ready'
+  // Vibe mode auto-starts the runner on first send, so the input doesn't
+  // need to be disabled while idle — the user can type freely and the
+  // message is queued through /append. Outside vibe, keep the original
+  // gate so the manual "Start Live Runner" button stays the entry point.
+  const liveLocked =
+    isKodyLive &&
+    interactiveState !== 'ready' &&
+    !(vibeMode && (interactiveState === 'idle' || interactiveState === 'booting'))
 
   // Generate placeholder based on mode
   const placeholder = isKodyLive
