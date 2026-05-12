@@ -739,6 +739,85 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
               })
               break
             }
+            // Mid-turn progress from Kody Live (engine ≥ 0.4.69). The
+            // polling path is the ACTIVE one in production (the SSE path
+            // has the same handlers but isn't currently exercised by
+            // KodyChat) — both must stay in sync.
+            case 'chat.thinking': {
+              const chunk = typeof payload.text === 'string' ? payload.text : ''
+              if (!chunk) break
+              const block = `<think>${chunk}</think>`
+              setMessages((prev) => {
+                const copy = [...prev]
+                const idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
+                if (idx < 0) {
+                  copy.push({
+                    role: 'assistant',
+                    content: block,
+                    timestamp: new Date().toISOString(),
+                    isLoading: true,
+                  })
+                } else {
+                  copy[idx] = { ...copy[idx], content: copy[idx].content + block }
+                }
+                return copy
+              })
+              break
+            }
+            case 'chat.tool': {
+              const phase = payload.phase
+              if (phase === 'result') {
+                const toolUseId = typeof payload.toolUseId === 'string' ? payload.toolUseId : undefined
+                const isError = payload.isError === true
+                setMessages((prev) => {
+                  const copy = [...prev]
+                  const idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
+                  if (idx < 0) return copy
+                  const existing = copy[idx].toolCalls ?? []
+                  let target = -1
+                  if (toolUseId) target = existing.findIndex((tc) => tc.id === toolUseId)
+                  if (target < 0) {
+                    for (let i = existing.length - 1; i >= 0; i--) {
+                      if (existing[i].status === 'running') { target = i; break }
+                    }
+                  }
+                  if (target < 0) return copy
+                  const next = existing.slice()
+                  next[target] = { ...next[target], status: isError ? 'error' : 'success' }
+                  copy[idx] = { ...copy[idx], toolCalls: next }
+                  return copy
+                })
+              } else {
+                // phase === "use" (or absent — older payloads default to use)
+                const toolName = typeof payload.name === 'string' ? payload.name : 'tool'
+                const toolInput = (payload.input ?? {}) as Record<string, unknown>
+                const toolId = typeof payload.id === 'string' ? payload.id : undefined
+                setMessages((prev) => {
+                  const copy = [...prev]
+                  let idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
+                  if (idx < 0) {
+                    copy.push({
+                      role: 'assistant',
+                      content: '',
+                      timestamp: new Date().toISOString(),
+                      isLoading: true,
+                      toolCalls: [],
+                    })
+                    idx = copy.length - 1
+                  }
+                  const existing = copy[idx].toolCalls ?? []
+                  copy[idx] = {
+                    ...copy[idx],
+                    toolCalls: [
+                      ...existing,
+                      { id: toolId, name: toolName, arguments: toolInput, status: 'running' },
+                    ],
+                  }
+                  return copy
+                })
+              }
+              break
+            }
           }
         }
       }
