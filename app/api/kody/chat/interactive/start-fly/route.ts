@@ -26,7 +26,6 @@ import {
   buildMetaLine,
   writeSessionMeta,
 } from '@dashboard/lib/interactive-session'
-import { mintSessionToken } from '@dashboard/lib/chat-token'
 import { spawnRunner } from '@dashboard/lib/runners/fly'
 
 export const runtime = 'nodejs'
@@ -44,12 +43,6 @@ function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
     owner: (GITHUB_OWNER ?? 'aharonyaircohen').trim(),
     repo: (GITHUB_REPO ?? 'Kody-Dashboard').trim(),
   }
-}
-
-function appendIngestToken(baseUrl: string, sessionId: string): string {
-  const token = mintSessionToken(sessionId)
-  const joiner = baseUrl.includes('?') ? '&' : '?'
-  return `${baseUrl}${joiner}token=${token}`
 }
 
 /**
@@ -82,6 +75,9 @@ export async function POST(req: NextRequest) {
     taskId?: string
     idleExitMs?: number
     hardCapMs?: number
+    // Accepted for forward compatibility — currently ignored, matching
+    // /interactive/start. See that route's comment about Vercel's
+    // per-instance in-memory bus and why polling is more reliable.
     dashboardUrl?: string
   }
   try {
@@ -90,7 +86,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { taskId, idleExitMs, hardCapMs, dashboardUrl } = body
+  const { taskId, idleExitMs, hardCapMs } = body
   if (!taskId) {
     return NextResponse.json({ error: 'taskId required' }, { status: 400 })
   }
@@ -122,15 +118,13 @@ export async function POST(req: NextRequest) {
     const meta = buildMetaLine({ idleExitMs, hardCapMs })
     await writeSessionMeta(octokit, owner, repo, taskId, meta)
 
-    const ingestUrl = dashboardUrl
-      ? appendIngestToken(dashboardUrl, taskId)
-      : undefined
-
+    // dashboardUrl intentionally omitted — same reason as
+    // /interactive/start. The runner polls the session JSONL instead;
+    // events arrive via the file-stream poller.
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
       githubToken,
       sessionId: taskId,
-      dashboardUrl: ingestUrl,
       idleExitMs,
       hardCapMs,
       allSecrets: buildAllSecrets(),
