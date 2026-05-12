@@ -260,44 +260,42 @@ export function VibePage() {
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Top bar */}
-      <header className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-white/[0.06] bg-black/30">
+      <header className="shrink-0 flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2.5 md:py-3 border-b border-white/[0.06] bg-black/30">
         <Sparkles className="w-5 h-5 text-fuchsia-400 shrink-0" />
         <h1 className="text-base md:text-lg font-semibold truncate">Vibe</h1>
-        <VibeToggle className="hidden sm:inline-flex" />
-        <span className="text-[11px] text-white/40 truncate hidden md:inline">
+        <VibeToggle />
+        <span className="text-[11px] text-white/40 truncate hidden lg:inline">
           Chat • preview • ship
         </span>
-        {/* Mobile-only issue picker — desktop renders the aside instead. */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="md:hidden ml-auto gap-1.5"
-          onClick={() => setMobileIssuesOpen(true)}
-          aria-label="Open issues"
-        >
-          <ListChecks className="w-4 h-4" />
-          <span className="text-xs">Issues</span>
-        </Button>
-        {selectedTask?.associatedPR && (
-          <div className="ml-auto flex items-center gap-2 min-w-0">
-            <span className="text-xs text-zinc-500 truncate hidden md:inline">
-              #{selectedTask.issueNumber} {selectedTask.title}
-            </span>
-            <CIStatusBadge prNumber={selectedTask.associatedPR.number} />
-          </div>
-        )}
-        <div
-          className={cn(
-            'hidden md:flex items-center gap-2 shrink-0',
-            !selectedTask?.associatedPR && 'ml-auto',
+
+        {/* Right cluster — pushed via ml-auto. */}
+        <div className="ml-auto flex items-center gap-1.5 md:gap-2 shrink-0">
+          {selectedTask?.associatedPR && (
+            <div className="hidden md:flex items-center gap-2 min-w-0 mr-1">
+              <span className="text-xs text-zinc-500 truncate hidden md:inline">
+                #{selectedTask.issueNumber} {selectedTask.title}
+              </span>
+              <CIStatusBadge prNumber={selectedTask.associatedPR.number} />
+            </div>
           )}
-        >
+          {/* Mobile-only issue picker — desktop renders the aside instead. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="md:hidden gap-1.5"
+            onClick={() => setMobileIssuesOpen(true)}
+            aria-label="Open issues"
+          >
+            <ListChecks className="w-4 h-4" />
+            <span className="text-xs">Issues</span>
+          </Button>
+          {/* Jobs — desktop only (compact for mobile). */}
           <SimpleTooltip content="Jobs" side="bottom">
             <Button
               asChild
               variant="outline"
               size="sm"
-              className="gap-1"
+              className="gap-1 hidden md:inline-flex"
               aria-label="Jobs"
             >
               <Link href="/jobs">
@@ -306,6 +304,8 @@ export function VibePage() {
               </Link>
             </Button>
           </SimpleTooltip>
+          {/* Settings drawer — visible on all sizes so mobile users can
+              navigate out of Vibe (e.g. into settings) without a hamburger. */}
           <SettingsDrawerTrigger />
         </div>
       </header>

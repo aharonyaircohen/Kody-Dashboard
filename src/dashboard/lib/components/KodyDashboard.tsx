@@ -64,6 +64,8 @@ import {
   Github,
   Layers,
   FileText,
+  LogOut,
+  ChevronDown,
   Sparkles,
   Bell,
   Bot,
@@ -130,6 +132,7 @@ export function KodyDashboard({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("running");
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showMobileDetail, setShowMobileDetail] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -1685,193 +1688,189 @@ export function KodyDashboard({
 
         {/* Mobile Menu Sheet */}
         <Sheet open={showMobileMenu} onOpenChange={setShowMobileMenu}>
-          <SheetContent side="right" className="w-[88vw] sm:w-[360px] !p-0 !gap-0 overflow-y-auto">
-            <SheetHeader className="px-4 pt-4 pb-2">
+          <SheetContent
+            side="right"
+            className="w-[88vw] sm:w-[360px] !p-0 !gap-0 overflow-y-auto bg-black/95 border-white/[0.08]"
+          >
+            <SheetHeader className="sr-only">
               <SheetTitle>Menu</SheetTitle>
-              <SheetDescription className="sr-only">
-                Dashboard controls and filters
+              <SheetDescription>
+                Dashboard navigation, filters, and actions.
               </SheetDescription>
             </SheetHeader>
-            <div className="flex flex-col gap-3 px-4 pb-6">
-              {/* GitHub identity */}
-              {githubUser && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    clearGitHubUser();
-                    setShowMobileMenu(false);
-                  }}
-                  className="flex items-center gap-2 px-2 py-3 rounded-md hover:bg-accent transition-colors border border-border"
-                >
-                  <Avatar className="h-7 w-7">
-                    <AvatarImage
-                      src={githubUser.avatar_url}
-                      alt={githubUser.login}
-                    />
-                    <AvatarFallback>
-                      {githubUser.login[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col items-start">
-                    <span className="text-sm font-medium">
-                      @{githubUser.login}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      Tap to sign out
-                    </span>
+
+            {/* User card — avatar + handle + repo, with a discrete sign-out icon. */}
+            {(githubUser || connectedRepo) && (
+              <div className="px-4 pt-4">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                  {githubUser ? (
+                    <Avatar className="h-9 w-9 shrink-0">
+                      <AvatarImage src={githubUser.avatar_url} alt={githubUser.login} />
+                      <AvatarFallback>
+                        {githubUser.login[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  ) : (
+                    <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <Github className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">
+                      {githubUser ? `@${githubUser.login}` : 'Connected'}
+                    </div>
+                    {connectedRepo && (
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        {connectedRepo}
+                      </div>
+                    )}
                   </div>
-                </button>
-              )}
+                  {githubUser && (
+                    <SimpleTooltip content="Sign out">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearGitHubUser();
+                          setShowMobileMenu(false);
+                        }}
+                        className="shrink-0 h-8 w-8 rounded-md inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06]"
+                        aria-label="Sign out"
+                      >
+                        <LogOut className="w-4 h-4" />
+                      </button>
+                    </SimpleTooltip>
+                  )}
+                </div>
+              </div>
+            )}
 
-              {/* Vibe — single on/off toggle (parity with desktop VibeToggle). */}
-              <Button
-                asChild
-                variant="outline"
-                className={cn(
-                  'w-full justify-start gap-2 h-11',
-                  'bg-fuchsia-500/15 border-fuchsia-400/40 text-fuchsia-200',
-                )}
+            {/* Vibe toggle — full-width pill, state-aware. */}
+            <div className="px-4 pt-3">
+              <Link
+                href="/vibe"
+                role="switch"
+                aria-checked={false}
                 onClick={() => setShowMobileMenu(false)}
+                className={cn(
+                  'flex items-center gap-3 h-12 px-4 rounded-xl border transition-colors',
+                  'border-fuchsia-400/30 bg-gradient-to-r from-fuchsia-500/10 to-pink-500/5',
+                  'text-fuchsia-100 hover:from-fuchsia-500/15 hover:to-pink-500/10',
+                )}
               >
-                <Link href="/vibe" role="switch" aria-checked={false}>
-                  <Sparkles className="w-4 h-4" />
-                  Turn on Vibe
-                </Link>
-              </Button>
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-fuchsia-500/20">
+                  <Sparkles className="w-4 h-4 text-fuchsia-300" />
+                </span>
+                <span className="text-sm font-medium flex-1">Turn on Vibe</span>
+                <span className="text-[11px] text-fuchsia-300/70">Preview · Chat · Ship</span>
+              </Link>
+            </div>
 
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-2 h-11"
+            {/* Workspace — Chat + Jobs/Reports tile grid. */}
+            <div className="px-4 pt-4">
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-2 px-1">
+                Workspace
+              </div>
+              <button
+                type="button"
                 onClick={() => {
                   setShowMobileMenu(false);
                   handleOpenChat();
                 }}
+                className="flex items-center gap-3 h-12 w-full px-3 rounded-lg hover:bg-white/[0.04] transition-colors"
               >
-                <MessageSquare className="w-4 h-4" />
-                Chat with Kody
-              </Button>
-
-              {/* Jobs section — Jobs page hosts both Jobs and Reports as tabs. */}
-              <div className="space-y-2 pt-2 border-t border-border">
-                <span className="text-xs font-medium text-muted-foreground uppercase">
-                  Jobs
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/10">
+                  <MessageSquare className="w-4 h-4 text-emerald-300" />
                 </span>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="w-full justify-start gap-2 h-11"
-                  onClick={() => setShowMobileMenu(false)}
-                >
-                  <Link href="/jobs">
-                    <Layers className="w-4 h-4" />
-                    Jobs
-                  </Link>
-                </Button>
+                <span className="text-sm font-medium">Chat with Kody</span>
+              </button>
 
-                <Button
-                  asChild
-                  variant="outline"
-                  className="w-full justify-start gap-2 h-11"
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <Link
+                  href="/jobs"
                   onClick={() => setShowMobileMenu(false)}
+                  className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
                 >
-                  <Link href="/jobs?tab=reports">
-                    <FileText className="w-4 h-4" />
-                    Job Reports
-                  </Link>
-                </Button>
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/10">
+                    <Layers className="w-4 h-4 text-amber-300" />
+                  </span>
+                  <span className="text-sm font-medium">Jobs</span>
+                  <span className="text-[11px] text-muted-foreground">Run and edit</span>
+                </Link>
+                <Link
+                  href="/jobs?tab=reports"
+                  onClick={() => setShowMobileMenu(false)}
+                  className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
+                >
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-sky-500/10">
+                    <FileText className="w-4 h-4 text-sky-300" />
+                  </span>
+                  <span className="text-sm font-medium">Reports</span>
+                  <span className="text-[11px] text-muted-foreground">Job outputs</span>
+                </Link>
               </div>
+            </div>
 
-              {/* Settings section — collapses everything else under one heading. */}
-              <div className="space-y-2 pt-2 border-t border-border">
-                <span className="text-xs font-medium text-muted-foreground uppercase">
-                  Settings
-                </span>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="w-full justify-start gap-2 h-11"
-                  onClick={() => setShowMobileMenu(false)}
-                >
-                  <Link href="/notifications">
-                    <Bell className="w-4 h-4" />
-                    Notifications
-                  </Link>
-                </Button>
+            {/* Settings — collapsible group. */}
+            <div className="px-4 pt-4">
+              <button
+                type="button"
+                onClick={() => setMobileSettingsOpen((v) => !v)}
+                aria-expanded={mobileSettingsOpen}
+                className="w-full flex items-center gap-2 px-1 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/70 hover:text-foreground transition-colors"
+              >
+                <span className="flex-1 text-left">Settings</span>
+                <ChevronDown
+                  className={cn(
+                    'w-3.5 h-3.5 transition-transform',
+                    !mobileSettingsOpen && '-rotate-90',
+                  )}
+                />
+              </button>
+              {mobileSettingsOpen && (
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.04] mt-1">
+                  {[
+                    { href: '/notifications', label: 'Notifications', icon: Bell, tint: 'text-amber-300 bg-amber-500/10' },
+                    { href: '/secrets', label: 'Secrets', icon: KeyRound, tint: 'text-rose-300 bg-rose-500/10' },
+                    { href: '/variables', label: 'Variables', icon: Settings2, tint: 'text-indigo-300 bg-indigo-500/10' },
+                    { href: '/models', label: 'Chat Models', icon: Bot, tint: 'text-emerald-300 bg-emerald-500/10' },
+                    { href: '/repos', label: 'Repositories', icon: Github, tint: 'text-zinc-300 bg-white/[0.08]' },
+                    { href: '/settings', label: 'Settings', icon: SettingsIcon, tint: 'text-sky-300 bg-sky-500/10' },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setShowMobileMenu(false)}
+                        className="flex items-center gap-3 h-12 px-3 hover:bg-white/[0.04] transition-colors"
+                      >
+                        <span className={cn('inline-flex h-7 w-7 items-center justify-center rounded-md', item.tint)}>
+                          <Icon className="w-4 h-4" />
+                        </span>
+                        <span className="text-sm font-medium flex-1">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
-                <Button
-                  asChild
-                  variant="outline"
-                  className="w-full justify-start gap-2 h-11"
-                  onClick={() => setShowMobileMenu(false)}
-                >
-                  <Link href="/secrets">
-                    <KeyRound className="w-4 h-4" />
-                    Secrets
-                  </Link>
-                </Button>
-
-                <Button
-                  asChild
-                  variant="outline"
-                  className="w-full justify-start gap-2 h-11"
-                  onClick={() => setShowMobileMenu(false)}
-                >
-                  <Link href="/variables">
-                    <Settings2 className="w-4 h-4" />
-                    Variables
-                  </Link>
-                </Button>
-
-                <Button
-                  asChild
-                  variant="outline"
-                  className="w-full justify-start gap-2 h-11"
-                  onClick={() => setShowMobileMenu(false)}
-                >
-                  <Link href="/models">
-                    <Bot className="w-4 h-4" />
-                    Chat Models
-                  </Link>
-                </Button>
-
-                <Button
-                  asChild
-                  variant="outline"
-                  className="w-full justify-start gap-2 h-11"
-                  onClick={() => setShowMobileMenu(false)}
-                >
-                  <Link href="/repos">
-                    <Github className="w-4 h-4" />
-                    Repositories
-                  </Link>
-                </Button>
-
-                <Button
-                  asChild
-                  variant="outline"
-                  className="w-full justify-start gap-2 h-11"
-                  onClick={() => setShowMobileMenu(false)}
-                >
-                  <Link href="/settings">
-                    <SettingsIcon className="w-4 h-4" />
-                    Settings
-                  </Link>
-                </Button>
+            {/* Filters — dashboard-specific. */}
+            <div className="px-4 pt-4">
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-2 px-1">
+                Filters
               </div>
-
-              {/* Filters */}
-              <div className="space-y-2 pt-2 border-t border-border">
-                <span className="text-xs font-medium text-muted-foreground uppercase">
-                  Filters
-                </span>
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
                 {mobileFilterControls}
               </div>
+            </div>
 
-              {/* Actions */}
-              <div className="space-y-2 pt-2 border-t border-border">
-                <span className="text-xs font-medium text-muted-foreground uppercase">
-                  Actions
-                </span>
+            {/* Actions */}
+            <div className="px-4 pt-4 pb-4">
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-2 px-1">
+                Actions
+              </div>
+              <div className="space-y-1.5">
                 <div onClick={() => setShowMobileMenu(false)}>
                   <PublishButton
                     actorLogin={githubUser?.login}
@@ -1880,18 +1879,18 @@ export function KodyDashboard({
                   />
                 </div>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   className="w-full justify-start gap-2 h-11"
                   onClick={() => {
                     setShowMobileMenu(false);
                     setShowBranchCleanup(true);
                   }}
                 >
-                  <GitBranch className="w-4 h-4" />
+                  <GitBranch className="w-4 h-4 text-muted-foreground" />
                   Cleanup branches
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   className="w-full justify-start gap-2 h-11"
                   onClick={() => {
                     refetch();
@@ -1899,42 +1898,52 @@ export function KodyDashboard({
                   }}
                   disabled={isFetching}
                 >
-                  <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
+                  <RefreshCw
+                    className={cn(
+                      'w-4 h-4 text-muted-foreground',
+                      isFetching && 'animate-spin',
+                    )}
+                  />
                   Refresh
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   className="w-full justify-start gap-2 h-11"
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                 >
-                  {theme === "dark" ? (
-                    <Sun className="w-4 h-4" />
+                  {theme === 'dark' ? (
+                    <Sun className="w-4 h-4 text-muted-foreground" />
                   ) : (
-                    <Moon className="w-4 h-4" />
+                    <Moon className="w-4 h-4 text-muted-foreground" />
                   )}
-                  {theme === "dark" ? "Light mode" : "Dark mode"}
+                  {theme === 'dark' ? 'Light mode' : 'Dark mode'}
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   className="w-full justify-start gap-2 h-11"
                   onClick={() => {
                     setShowMobileMenu(false);
                     handleOpenBug();
                   }}
                 >
-                  <Bug className="w-4 h-4" />
+                  <Bug className="w-4 h-4 text-muted-foreground" />
                   Report Bug
                 </Button>
-                <Button
-                  className="w-full h-11"
-                  onClick={() => {
-                    setShowMobileMenu(false);
-                    handleOpenCreate();
-                  }}
-                >
-                  + New Task
-                </Button>
               </div>
+            </div>
+
+            {/* Sticky primary CTA at the bottom — quickest path to a new task. */}
+            <div className="sticky bottom-0 px-4 py-3 border-t border-white/[0.08] bg-black/95 backdrop-blur">
+              <Button
+                className="w-full h-11 gap-2"
+                onClick={() => {
+                  setShowMobileMenu(false);
+                  handleOpenCreate();
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                New Task
+              </Button>
             </div>
           </SheetContent>
         </Sheet>
