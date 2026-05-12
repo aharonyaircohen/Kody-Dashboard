@@ -154,12 +154,20 @@ interface Message {
   isLoading?: boolean
   timestamp?: string
   toolCalls?: Array<{
+    /** Optional SDK tool_use id — used to pair results back to calls. */
+    id?: string
     name: string
     arguments: Record<string, unknown>
     result?: unknown
     status: 'running' | 'success' | 'error'
     durationMs?: number
   }>
+  /**
+   * Mid-turn reasoning text streamed from Kody Live (chat.thinking events).
+   * Rendered in the same collapsed panel as Gemini-mode reasoning so the
+   * two backends share one UI affordance.
+   */
+  reasoning?: string
   /** Attachment refs (blobs live in IndexedDB). */
   attachments?: AttachmentRef[]
   /**
@@ -803,6 +811,101 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                 ]
               })
               if (!opts.interactive) es.close()
+              break
+            }
+            // Mid-turn progress from Kody Live (engine ≥ 0.4.69). The engine
+            // emits these as the agent works so the user sees thinking +
+            // tool calls live instead of a blank chat for 60-120s.
+            case 'chat.thinking': {
+              // Append the reasoning chunk to the in-flight assistant
+              // bubble's reasoning field; create the bubble if it doesn't
+              // exist yet so very-early thinking has somewhere to land.
+              const chunk = typeof parsed.text === 'string' ? parsed.text : ''
+              if (!chunk) break
+              setMessages((prev) => {
+                const copy = [...prev]
+                let idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
+                if (idx < 0) {
+                  copy.push({
+                    role: 'assistant',
+                    content: '',
+                    timestamp: parsed.timestamp ?? new Date().toISOString(),
+                    isLoading: true,
+                    reasoning: chunk,
+                  })
+                } else {
+                  const existing = copy[idx].reasoning ?? ''
+                  copy[idx] = {
+                    ...copy[idx],
+                    reasoning: existing ? `${existing}\n${chunk}` : chunk,
+                  }
+                }
+                return copy
+              })
+              break
+            }
+            case 'chat.tool_use': {
+              const toolName = typeof parsed.name === 'string' ? parsed.name : 'tool'
+              const toolInput = (parsed.input ?? {}) as Record<string, unknown>
+              const toolId = typeof parsed.id === 'string' ? parsed.id : undefined
+              setMessages((prev) => {
+                const copy = [...prev]
+                let idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
+                if (idx < 0) {
+                  copy.push({
+                    role: 'assistant',
+                    content: '',
+                    timestamp: parsed.timestamp ?? new Date().toISOString(),
+                    isLoading: true,
+                    toolCalls: [],
+                  })
+                  idx = copy.length - 1
+                }
+                const existing = copy[idx].toolCalls ?? []
+                copy[idx] = {
+                  ...copy[idx],
+                  toolCalls: [
+                    ...existing,
+                    {
+                      id: toolId,
+                      name: toolName,
+                      arguments: toolInput,
+                      status: 'running',
+                    },
+                  ],
+                }
+                return copy
+              })
+              break
+            }
+            case 'chat.tool_result': {
+              const toolUseId = typeof parsed.toolUseId === 'string' ? parsed.toolUseId : undefined
+              const isError = parsed.isError === true
+              setMessages((prev) => {
+                const copy = [...prev]
+                const idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
+                if (idx < 0) return copy
+                const existing = copy[idx].toolCalls ?? []
+                // Match by tool_use id when the engine provided one;
+                // otherwise mark the most recent pending call as done.
+                let target = -1
+                if (toolUseId) {
+                  target = existing.findIndex((tc) => tc.id === toolUseId)
+                }
+                if (target < 0) {
+                  for (let i = existing.length - 1; i >= 0; i--) {
+                    if (existing[i].status === 'running') { target = i; break }
+                  }
+                }
+                if (target < 0) return copy
+                const next = existing.slice()
+                next[target] = {
+                  ...next[target],
+                  status: isError ? 'error' : 'success',
+                }
+                copy[idx] = { ...copy[idx], toolCalls: next }
+                return copy
+              })
               break
             }
           }

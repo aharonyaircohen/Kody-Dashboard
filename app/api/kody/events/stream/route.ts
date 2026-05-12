@@ -289,6 +289,49 @@ export async function GET(rawReq: NextRequest) {
         timestamp: event.payload?.timestamp,
       });
       try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+      return;
+    }
+
+    // Live progress: thinking + tool calls. Engine ≥ 0.4.69 emits these
+    // as the agent works so the dashboard can render mid-turn activity
+    // instead of staring at a blank chat for 60-120s. Re-shaped to match
+    // the kody-direct SSE schema the chat client already understands
+    // (chat.thinking → thinking panel; chat.tool_use / chat.tool_result
+    // → tool-call cards attached to the in-flight assistant message).
+    if (event.event === "chat.thinking") {
+      const data = JSON.stringify({
+        type: "chat.thinking",
+        sessionId,
+        runId: event.runId,
+        text: event.payload?.text,
+        timestamp: event.emittedAt,
+      });
+      try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+      return;
+    }
+    if (event.event === "chat.tool") {
+      const phase = event.payload?.phase;
+      const data = phase === "result"
+        ? JSON.stringify({
+            type: "chat.tool_result",
+            sessionId,
+            runId: event.runId,
+            toolUseId: event.payload?.toolUseId,
+            content: event.payload?.content,
+            isError: event.payload?.isError === true,
+            timestamp: event.emittedAt,
+          })
+        : JSON.stringify({
+            type: "chat.tool_use",
+            sessionId,
+            runId: event.runId,
+            id: event.payload?.id,
+            name: event.payload?.name,
+            input: event.payload?.input,
+            timestamp: event.emittedAt,
+          });
+      try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+      return;
     }
   });
 
