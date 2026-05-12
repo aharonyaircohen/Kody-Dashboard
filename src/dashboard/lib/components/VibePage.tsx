@@ -233,22 +233,22 @@ export function VibePage() {
             <ArrowLeft className="w-4 h-4" />
           </Link>
         </Button>
-        {/* Mobile-only issue picker — desktop renders the aside instead. */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="md:hidden gap-1.5"
-          onClick={() => setMobileIssuesOpen(true)}
-          aria-label="Open issues"
-        >
-          <ListChecks className="w-4 h-4" />
-          <span className="text-xs">Tasks</span>
-        </Button>
         <Sparkles className="w-5 h-5 text-fuchsia-400 shrink-0" />
         <h1 className="text-base md:text-lg font-semibold truncate">Vibe</h1>
         <span className="text-[11px] text-white/40 truncate hidden sm:inline">
           Chat • preview • ship
         </span>
+        {/* Mobile-only issue picker — desktop renders the aside instead. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="md:hidden ml-auto gap-1.5"
+          onClick={() => setMobileIssuesOpen(true)}
+          aria-label="Open issues"
+        >
+          <ListChecks className="w-4 h-4" />
+          <span className="text-xs">Issues</span>
+        </Button>
         {selectedTask?.associatedPR && (
           <div className="ml-auto flex items-center gap-2 min-w-0">
             <span className="text-xs text-zinc-500 truncate hidden md:inline">

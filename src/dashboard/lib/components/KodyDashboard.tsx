@@ -63,6 +63,7 @@ import {
   Github,
   Layers,
   FileText,
+  Sparkles,
   Bell,
   KeyRound,
   Settings as SettingsIcon,
@@ -1707,6 +1708,18 @@ export function KodyDashboard({
                 >
                   <MessageSquare className="w-4 h-4" />
                   Chat with Kody
+                </Button>
+
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => setShowMobileMenu(false)}
+                >
+                  <Link href="/vibe">
+                    <Sparkles className="w-4 h-4" />
+                    Vibe
+                  </Link>
                 </Button>
 
                 <Button
