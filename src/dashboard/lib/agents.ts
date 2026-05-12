@@ -74,7 +74,7 @@ The repository is "${GITHUB_OWNER}/${GITHUB_REPO}".
 - **Database**: MongoDB via Mongoose adapter
 - **Auth**: Payload built-in auth with role-based access (admin, editor, user)
 - **Frontend**: React 19, Tailwind CSS, shadcn/ui components
-- **AI**: Gemini via @ai-sdk/google, AI SDK v6 (streamText, tool calls)
+- **AI**: Vercel AI Gateway via @ai-sdk/gateway, AI SDK v6 (streamText, tool calls)
 - **Storage**: Vercel Blob (NOT local filesystem)
 - **i18n**: next-intl (en, he)
 - **Validation**: Zod schemas throughout

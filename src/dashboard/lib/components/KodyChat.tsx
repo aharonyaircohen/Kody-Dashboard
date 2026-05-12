@@ -16,22 +16,71 @@ import {
 } from 'lucide-react'
 import { AGENT, AGENTS, type AgentId, type AgentConfig } from '../agents'
 
-function buildAgentList(brainConfigured: boolean): Omit<AgentConfig, 'systemPrompt'>[] {
-  return Object.values(AGENTS)
-    .filter((a) => a.id !== 'kody-assistant')
-    // `kody-speech` is a modality, not a user-selectable agent. The mic
-    // button activates it under the hood; it must not appear in the
-    // dropdown.
-    .filter((a) => a.id !== 'kody-speech')
-    .filter((a) => a.id !== 'brain' || brainConfigured)
-    .map(({ id, name, description, icon, backend, capabilities }) => ({
-      id,
-      name,
-      description,
-      icon,
-      backend,
-      capabilities,
-    }))
+/**
+ * Dropdown entry shape. `key` is a stable React key and a selection token
+ * combining agent id + optional gateway model id. Static agents (kody-live,
+ * brain) have `modelId: null`; user-managed gateway models share the
+ * agentId `kody` and supply their own `modelId`.
+ */
+export interface ChatDropdownEntry {
+  key: string
+  agentId: AgentId
+  modelId: string | null
+  name: string
+  description: string
+  icon: AgentConfig['icon']
+}
+
+export interface ChatModelEntry {
+  id: string
+  label: string
+  enabled?: boolean
+  speech?: boolean
+}
+
+function buildAgentList(
+  brainConfigured: boolean,
+  models: ChatModelEntry[],
+): ChatDropdownEntry[] {
+  const entries: ChatDropdownEntry[] = []
+  // Kody Live is always the universal fallback — surfaced first so it's
+  // the default landing when no user-managed models are configured.
+  const live = AGENTS['kody-live']
+  entries.push({
+    key: 'kody-live',
+    agentId: 'kody-live',
+    modelId: null,
+    name: live.name,
+    description: live.description,
+    icon: live.icon,
+  })
+  if (brainConfigured) {
+    const brain = AGENTS.brain
+    entries.push({
+      key: 'brain',
+      agentId: 'brain',
+      modelId: null,
+      name: brain.name,
+      description: brain.description,
+      icon: brain.icon,
+    })
+  }
+  // One dropdown row per enabled user-managed model. All route through
+  // the in-process gateway path (`/api/kody/chat/kody`) with the model id
+  // forwarded in the request body.
+  const kody = AGENTS.kody
+  for (const m of models) {
+    if (m.enabled === false) continue
+    entries.push({
+      key: `kody:${m.id}`,
+      agentId: 'kody',
+      modelId: m.id,
+      name: m.label,
+      description: m.id,
+      icon: kody.icon,
+    })
+  }
+  return entries
 }
 import { getStoredAuth, getStoredBrainConfig } from '../api'
 import type { KodyTask } from '../types'
@@ -478,31 +527,84 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
   const dragCounterRef = useRef(0)
   const [loading, setLoading] = useState(false)
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([])
-  const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(lockedAgentId ?? 'kody')
+  const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(lockedAgentId ?? 'kody-live')
+  // When the user picks a gateway-routed model (any LLM_MODELS entry), the
+  // dropdown sets `selectedAgentId='kody'` and stashes the gateway id here.
+  // The chat request forwards it as `body.model`. Null = no override.
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [brainConfigured, setBrainConfigured] = useState(false)
+  // User-managed chat models from /api/kody/models (LLM_MODELS variable).
+  // Empty until first load completes; renders only Kody Live (+ Brain) in
+  // the dropdown while empty.
+  const [chatModels, setChatModels] = useState<ChatModelEntry[]>([])
   const brainAbortRef = useRef<AbortController | null>(null)
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT
-  const agentList = buildAgentList(brainConfigured)
+  const agentList = buildAgentList(brainConfigured, chatModels)
+  // What to show in the header — when a gateway model is active, prefer
+  // its label over the static `kody` agent name.
+  const currentEntry =
+    agentList.find(
+      (e) =>
+        e.agentId === selectedAgentId &&
+        (e.modelId ?? null) === selectedModelId,
+    ) ?? null
 
   // Read Brain config once on mount. When Brain credentials were provided at
-  // login, Brain becomes the default selection; otherwise Kody is the default.
-  // Skip the auto-switch when the parent locks a specific agent (Vibe page).
+  // login, Brain becomes the default selection; otherwise Kody Live is the
+  // default. Skip the auto-switch when the parent locks a specific agent
+  // (Vibe page).
   useEffect(() => {
     const configured = getStoredBrainConfig() !== null
     setBrainConfigured(configured)
     if (configured && !lockedAgentId) {
       setSelectedAgentId('brain')
+      setSelectedModelId(null)
     }
   }, [lockedAgentId])
 
-  // If the user had Brain selected but then removed the config, fall back to Kody.
+  // Load the user-managed model list once on mount. The dropdown stays in
+  // Kody Live-only mode until this resolves; failures are silent — chat
+  // still works through the engine path.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/kody/models', { headers: authHeaders() })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((json: { models?: ChatModelEntry[] }) => {
+        if (cancelled) return
+        setChatModels(Array.isArray(json.models) ? json.models : [])
+      })
+      .catch(() => {
+        if (!cancelled) setChatModels([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // If the user had Brain selected but then removed the config, fall back to
+  // Kody Live.
   useEffect(() => {
     if (lockedAgentId) return
     if (selectedAgentId === 'brain' && !brainConfigured) {
-      setSelectedAgentId('kody')
+      setSelectedAgentId('kody-live')
+      setSelectedModelId(null)
     }
   }, [brainConfigured, selectedAgentId, lockedAgentId])
+
+  // If the user had a gateway model selected but it was removed from the
+  // list (or disabled), fall back to Kody Live so the chat keeps working.
+  useEffect(() => {
+    if (lockedAgentId) return
+    if (selectedAgentId !== 'kody' || selectedModelId === null) return
+    const stillThere = chatModels.some(
+      (m) => m.id === selectedModelId && m.enabled !== false,
+    )
+    if (!stillThere) {
+      setSelectedAgentId('kody-live')
+      setSelectedModelId(null)
+    }
+  }, [chatModels, selectedAgentId, selectedModelId, lockedAgentId])
 
   // When a parent toggles `lockedAgentId` on/off (route change), keep state in sync.
   useEffect(() => {
@@ -1858,9 +1960,9 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
           : undefined
 
         // Build the user-turn content. If we have attachments, send them as
-        // structured parts (text + image) so Gemini sees real images, not
-        // base64 strings stuffed into the text. Without attachments, send
-        // a plain string to keep the request shape identical to before.
+        // structured parts (text + image) so the model sees real images,
+        // not base64 strings stuffed into the text. Without attachments,
+        // send a plain string to keep the request shape identical to before.
         const userTurnContent: unknown =
           currentAttachments.length > 0
             ? [
@@ -1897,6 +1999,10 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
               messages: kodyMessages,
               task: kodyTaskContext,
               agentId: effectiveAgentId,
+              // Forward the user-managed gateway model id when one is
+              // active. The server validates against the LLM_MODELS list,
+              // so a stale value falls back to the configured default.
+              ...(selectedModelId ? { model: selectedModelId } : {}),
               ...(actorLogin ? { actorLogin } : {}),
               ...(isDraftMode ? { jobDraft: true } : {}),
               ...(selectedJob
@@ -2619,32 +2725,40 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
         <div className="flex items-center justify-between">
           {/* Left: agent picker (locked label when parent forces an agent) */}
           <div className="relative flex items-center gap-2">
-            {lockedAgentId ? (
-              <div
-                className="flex items-center gap-2 px-2 py-1"
-                title={`${currentAgent.name} (locked for this view)`}
-                aria-label={`${currentAgent.name} (locked)`}
-              >
-                {(() => {
-                  const Icon = currentAgent.icon
-                  return <Icon className="w-5 h-5" aria-label={currentAgent.name} />
-                })()}
-                <span className="font-semibold text-base">{currentAgent.name}</span>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setAgentMenuOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
-                aria-haspopup="listbox"
-                aria-expanded={agentMenuOpen}
-                title={`Switch assistant (current: ${currentAgent.name})`}
-              >
-                {(() => {
-                  const Icon = currentAgent.icon
-                  return <Icon className="w-5 h-5" aria-label={currentAgent.name} />
-                })()}
-                <span className="font-semibold text-base">{currentAgent.name}</span>
+            {(() => {
+              // Header label/icon prefers the matched dropdown entry — that
+              // way a user-managed model surfaces its own label (e.g.
+              // "Claude Sonnet 4.6") rather than the generic "Kody" agent
+              // name. Falls back to the static agent for locked views or
+              // when the selection points at a model that was just removed.
+              const headerIcon = currentEntry?.icon ?? currentAgent.icon
+              const headerName = currentEntry?.name ?? currentAgent.name
+              return lockedAgentId ? (
+                <div
+                  className="flex items-center gap-2 px-2 py-1"
+                  title={`${headerName} (locked for this view)`}
+                  aria-label={`${headerName} (locked)`}
+                >
+                  {(() => {
+                    const Icon = headerIcon
+                    return <Icon className="w-5 h-5" aria-label={headerName} />
+                  })()}
+                  <span className="font-semibold text-base">{headerName}</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAgentMenuOpen((v) => !v)}
+                  className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+                  aria-haspopup="listbox"
+                  aria-expanded={agentMenuOpen}
+                  title={`Switch assistant (current: ${headerName})`}
+                >
+                  {(() => {
+                    const Icon = headerIcon
+                    return <Icon className="w-5 h-5" aria-label={headerName} />
+                  })()}
+                  <span className="font-semibold text-base">{headerName}</span>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="14"
@@ -2660,7 +2774,8 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                   <path d="m6 9 6 6 6-6" />
                 </svg>
               </button>
-            )}
+            )
+            })()}
             {messages.length > 0 && (
               <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
                 {messages.length}
@@ -2671,31 +2786,37 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                 role="listbox"
                 className="absolute top-full left-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
               >
-                {agentList.map((a) => (
-                  <li key={a.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedAgentId(a.id)
-                        setAgentMenuOpen(false)
-                      }}
-                      className={`w-full text-left px-3 py-2 hover:bg-accent text-sm flex items-start gap-2 ${
-                        a.id === selectedAgentId ? 'bg-accent/50' : ''
-                      }`}
-                      role="option"
-                      aria-selected={a.id === selectedAgentId}
-                    >
-                      {(() => {
-                        const Icon = a.icon
-                        return <Icon className="w-4 h-4 mt-0.5" aria-hidden="true" />
-                      })()}
-                      <span className="flex flex-col">
-                        <span className="font-medium">{a.name}</span>
-                        <span className="text-xs text-muted-foreground">{a.description}</span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
+                {agentList.map((a) => {
+                  const isSelected =
+                    a.agentId === selectedAgentId &&
+                    (a.modelId ?? null) === selectedModelId
+                  return (
+                    <li key={a.key}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedAgentId(a.agentId)
+                          setSelectedModelId(a.modelId)
+                          setAgentMenuOpen(false)
+                        }}
+                        className={`w-full text-left px-3 py-2 hover:bg-accent text-sm flex items-start gap-2 ${
+                          isSelected ? 'bg-accent/50' : ''
+                        }`}
+                        role="option"
+                        aria-selected={isSelected}
+                      >
+                        {(() => {
+                          const Icon = a.icon
+                          return <Icon className="w-4 h-4 mt-0.5" aria-hidden="true" />
+                        })()}
+                        <span className="flex flex-col">
+                          <span className="font-medium">{a.name}</span>
+                          <span className="text-xs text-muted-foreground">{a.description}</span>
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>
