@@ -6,10 +6,8 @@
  *   GitHub repos (each with its own PAT) and switch the current repo viewed
  *   in the dashboard. Renders inside the shared PageWithChat shell.
  */
-import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { PageWithChat } from "@dashboard/lib/components/PageWithChat";
 import { RepoManager } from "@dashboard/lib/components/RepoManager";
-import { buildKodyMetadata } from "../metadata";
+import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";
 export const revalidate = false;
@@ -23,11 +21,5 @@ export const metadata = buildKodyMetadata({
 });
 
 export default function ReposPage() {
-  return (
-    <AuthGuard>
-      <PageWithChat>
-        <RepoManager />
-      </PageWithChat>
-    </AuthGuard>
-  );
+  return <RepoManager />;
 }

@@ -5,10 +5,8 @@
  * @ai-summary Secrets management entry point. Renders inside the shared
  *   PageWithChat shell so the assistant is always available.
  */
-import { AuthGuard } from "@dashboard/lib/auth-guard"
-import { PageWithChat } from "@dashboard/lib/components/PageWithChat"
 import { SecretsManager } from "@dashboard/lib/components/SecretsManager"
-import { buildKodyMetadata } from "../metadata"
+import { buildKodyMetadata } from "../../metadata"
 
 export const dynamic = "force-static"
 export const revalidate = false
@@ -22,11 +20,5 @@ export const metadata = buildKodyMetadata({
 })
 
 export default function SecretsPage() {
-  return (
-    <AuthGuard>
-      <PageWithChat>
-        <SecretsManager />
-      </PageWithChat>
-    </AuthGuard>
-  )
+  return <SecretsManager />
 }

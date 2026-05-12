@@ -11,7 +11,7 @@ import path from "node:path";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { MarkdownViewer } from "@dashboard/lib/components/MarkdownViewer";
-import { buildKodyMetadata } from "../../metadata";
+import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";
 export const revalidate = false;
