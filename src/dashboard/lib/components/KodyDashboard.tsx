@@ -101,6 +101,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { VibeToggle } from "./VibeToggle";
 import { SettingsDrawerTrigger } from "./SettingsDrawer";
+import { KodyHeader } from "./KodyHeader";
 import { PRIORITY_LEVELS, PRIORITY_META } from "../constants";
 
 interface KodyDashboardProps {
@@ -133,7 +134,6 @@ export function KodyDashboard({
   const [viewMode, setViewMode] = useState<ViewMode>("running");
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showMobileDetail, setShowMobileDetail] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [errorDismissed, setErrorDismissed] = useState(false);
@@ -1240,184 +1240,20 @@ export function KodyDashboard({
             />
           ) : (
             <>
-              {/* Header — action buttons only, no filters */}
-              <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/20">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex items-baseline gap-2 min-w-0">
-                    <h1 className="text-lg md:text-xl font-semibold text-foreground truncate">
-                      {connectedRepo?.split('/').pop() || 'Kody Operations'}
-                    </h1>
-                    {process.env.NEXT_PUBLIC_APP_VERSION ? (
-                      <span className="text-xs text-muted-foreground font-mono">
-                        v{process.env.NEXT_PUBLIC_APP_VERSION}
-                      </span>
-                    ) : null}
-                  </div>
-                  <VibeToggle className="hidden sm:inline-flex" />
-                </div>
-
-                {/* Desktop controls */}
-                <div className="hidden md:flex items-center gap-3">
-                  {/* GitHub identity badge with dropdown */}
-                  {(githubUser || connectedRepo) && (
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setShowUserDropdown((prev) => !prev)}
-                        className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-accent transition-colors max-w-[180px]"
-                      >
-                        {githubUser ? (
-                          <Avatar className="h-5 w-5 shrink-0">
-                            <AvatarImage
-                              src={githubUser.avatar_url}
-                              alt={githubUser.login}
-                            />
-                            <AvatarFallback>
-                              {githubUser.login[0]?.toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        ) : (
-                          <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center shrink-0">
-                            <Github className="h-3 w-3 text-muted-foreground" />
-                          </div>
-                        )}
-                        <span className="text-xs text-muted-foreground truncate">
-                          {githubUser ? `@${githubUser.login}` : 'Connected'}
-                          {connectedRepo && (
-                            <span className="text-muted-foreground/60"> · {connectedRepo}</span>
-                          )}
-                        </span>
-                      </button>
-                      {showUserDropdown && (
-                        <div className="absolute top-full right-0 mt-1 w-56 py-1 bg-popover border rounded-md shadow-lg z-50">
-                          {connectedRepo && (
-                            <div className="px-3 py-1.5 text-xs text-muted-foreground border-b mb-1">
-                              <span className="font-medium text-foreground">Repo:</span>{' '}
-                              {connectedRepo}
-                            </div>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              clearGitHubUser();
-                              setShowUserDropdown(false);
-                            }}
-                            className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
-                          >
-                            Sign out
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Notification center */}
-                  <NotificationCenter
-                    store={notificationStore}
-                    browserPermission={notificationPermission}
-                    isSupported={notificationsSupported}
-                    onRequestPermission={requestPermission}
-                  />
-
-                  {/* Theme toggle */}
-                  <SimpleTooltip
-                    content={
-                      theme === "dark"
-                        ? "Switch to light mode"
-                        : "Switch to dark mode"
-                    }
-                    side="bottom"
-                  >
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setTheme(theme === "dark" ? "light" : "dark")
-                      }
-                      aria-label={
-                        theme === "dark"
-                          ? "Switch to light mode"
-                          : "Switch to dark mode"
-                      }
-                      className="text-muted-foreground"
-                    >
-                      {theme === "dark" ? (
-                        <Sun className="w-4 h-4" />
-                      ) : (
-                        <Moon className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </SimpleTooltip>
-
-                  {/* Publish a release */}
-                  <PublishButton
-                    actorLogin={githubUser?.login}
-                    onPublished={(n) => setSelectedIssueNumber(n)}
-                  />
-
-                  {/* Jobs — navigate to the Jobs page */}
-                  <SimpleTooltip content="Jobs" side="bottom">
-                    <Button
-                      asChild
-                      variant="outline"
-                      size="sm"
-                      className="gap-1"
-                      aria-label="Jobs"
-                    >
-                      <Link href="/jobs">
-                        <Layers className="w-4 h-4" />
-                        <span className="hidden lg:inline">Jobs</span>
-                      </Link>
-                    </Button>
-                  </SimpleTooltip>
-
-                  {/* Settings drawer */}
-                  <SettingsDrawerTrigger />
-
-                  {/* Branch cleanup */}
-                  <SimpleTooltip content="Clean up branches" side="bottom">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowBranchCleanup(true)}
-                      aria-label="Clean up branches"
-                      className="gap-1"
-                    >
-                      <GitBranch className="w-4 h-4" />
-                      Cleanup
-                    </Button>
-                  </SimpleTooltip>
-                  <SimpleTooltip content="Refresh" side="bottom">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        refetch();
-                        queryClient.invalidateQueries({ queryKey: goalQueryKeys.list });
-                      }}
-                      disabled={isFetching}
-                      aria-label="Refresh"
-                      className="gap-1"
-                    >
-                      <RefreshCw
-                        className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`}
-                      />
-                    </Button>
-                  </SimpleTooltip>
-
-                </div>
-
-                {/* Mobile hamburger */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Open menu"
-                  className="md:hidden"
-                  onClick={() => setShowMobileMenu(true)}
-                >
-                  <Menu className="w-5 h-5" />
-                </Button>
-              </div>
+              <KodyHeader
+                notificationStore={notificationStore}
+                notificationPermission={notificationPermission}
+                notificationsSupported={notificationsSupported}
+                onRequestNotificationPermission={requestPermission}
+                onPublished={(n) => setSelectedIssueNumber(n)}
+                onOpenBranchCleanup={() => setShowBranchCleanup(true)}
+                onOpenMobileMenu={() => setShowMobileMenu(true)}
+                onRefresh={() => {
+                  refetch();
+                  queryClient.invalidateQueries({ queryKey: goalQueryKeys.list });
+                }}
+                isFetching={isFetching}
+              />
 
               {/* Filter Sub-header — desktop only, separate component */}
               <div className="hidden md:block">
