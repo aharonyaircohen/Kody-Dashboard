@@ -21,7 +21,23 @@ export const AGENT_ID = 'kody-assistant' as const
  */
 export type ChatBackend = 'kody-engine' | 'brain' | 'kody-direct' | 'kody-live'
 
-export type AgentId = 'kody-assistant' | 'brain' | 'kody' | 'kody-live' | 'kody-speech'
+export type AgentId =
+  | 'kody-assistant'
+  | 'brain'
+  | 'kody'
+  | 'kody-live'
+  | 'kody-live-fly'
+  | 'kody-speech'
+
+/**
+ * True for agents that use the long-lived "interactive runner" flow
+ * (poll-based session JSONL, /interactive/start + /interactive/append).
+ * Both `kody-live` (GH Actions) and `kody-live-fly` (Fly Machines) share
+ * the engine code and event-stream model — only the runtime differs.
+ */
+export function isLiveAgent(id: AgentId | string): boolean {
+  return id === 'kody-live' || id === 'kody-live-fly'
+}
 
 export interface AgentConfig {
   id: AgentId
@@ -666,6 +682,36 @@ export const AGENT_KODY_LIVE: AgentConfig = {
 }
 
 // ===========================================
+// KODY LIVE FLY AGENT (same as Kody Live, but running on Fly Machines)
+// ===========================================
+
+/**
+ * Same engine code, same chat shape, same session JSONL — but the runner
+ * boots on a Fly Machine spawned via Fly Machines API instead of dispatching
+ * a GitHub Actions workflow. Sub-second warm boot vs. ~90s cold start.
+ *
+ * POC: parallel option for A/B testing against `kody-live`. Routed via
+ * `/api/kody/chat/interactive/start-fly`. Append + event-stream paths are
+ * shared with the Actions path.
+ */
+export const AGENT_KODY_LIVE_FLY: AgentConfig = {
+  id: 'kody-live-fly',
+  name: 'Kody Live (Fly)',
+  description:
+    'Same engine as Kody Live, but on Fly Machines — boots in ~1s, not ~90s',
+  icon: Zap,
+  backend: 'kody-live',
+  capabilities: [
+    'Same engine + same tools as Kody Live (Read, Edit, Write, Bash, Grep)',
+    'Sub-second warm start on Fly Machines (vs ~90s GitHub Actions cold start)',
+    'Identical session model and event stream as the Actions runner',
+    'Up to 6 hours per session (or 5 minutes of idle, whichever comes first)',
+  ],
+  systemPrompt:
+    'Inherits the engine chat prompt — see kody2/src/chat/loop.ts CHAT_SYSTEM_PROMPT.',
+}
+
+// ===========================================
 // KODY SPEECH AGENT (voice-tuned, same Gemini path)
 // ===========================================
 
@@ -737,10 +783,18 @@ export const AGENTS: Record<AgentId, AgentConfig> = {
   brain: AGENT_BRAIN,
   kody: AGENT_KODY,
   'kody-live': AGENT_KODY_LIVE,
+  'kody-live-fly': AGENT_KODY_LIVE_FLY,
   'kody-speech': AGENT_KODY_SPEECH,
 }
 
-export const AGENT_IDS = [AGENT_ID, 'brain', 'kody', 'kody-live', 'kody-speech'] as const
+export const AGENT_IDS = [
+  AGENT_ID,
+  'brain',
+  'kody',
+  'kody-live',
+  'kody-live-fly',
+  'kody-speech',
+] as const
 
 export function getAgent(id: unknown): AgentConfig {
   if (typeof id === 'string' && id in AGENTS) {

@@ -2199,7 +2199,10 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
       // message via /append. appendUserTurn writes to the session JSONL,
       // which the runner reads on its first git pull, so we don't need
       // to wait for chat.ready before queueing.
-      if (selectedAgentId === 'kody-live') {
+      if (
+        selectedAgentId === 'kody-live' ||
+        selectedAgentId === 'kody-live-fly'
+      ) {
         if (
           vibeMode &&
           (interactiveStateRef.current === 'idle' ||
@@ -2430,7 +2433,13 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
       // on /ingest is GitHub Actions IP verification (no shared secret).
       const dashboardUrl =
         typeof window !== 'undefined' ? `${window.location.origin}/api/kody/events/ingest` : undefined
-      const startRes = await fetch('/api/kody/chat/interactive/start', {
+      // Route to Fly Machines spawner when the user picked the kody-live-fly
+      // agent — same engine + same session JSONL, different runtime.
+      const startEndpoint =
+        selectedAgentId === 'kody-live-fly'
+          ? '/api/kody/chat/interactive/start-fly'
+          : '/api/kody/chat/interactive/start'
+      const startRes = await fetch(startEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
@@ -2469,7 +2478,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
         { role: 'assistant', content: `Failed to start live runner: ${errorMessage}`, isLoading: false },
       ])
     }
-  }, [connectSSE, setMessages])
+  }, [connectSSE, setMessages, selectedAgentId])
 
   // Cancel a Kody Live session locally. Closes the SSE, clears the saved
   // record for the CURRENT scope, and flips state to 'idle' so the user
@@ -2665,7 +2674,10 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
 
   // Kody Live blocks the input until the runner is ready. Other agents
   // are unaffected — only the explicit warm-up flow uses this gate.
-  const isKodyLive = selectedAgentId === 'kody-live'
+  // Both `kody-live` (GH Actions) and `kody-live-fly` (Fly Machines) use
+  // the same interactive session model, so they share this UI state.
+  const isKodyLive =
+    selectedAgentId === 'kody-live' || selectedAgentId === 'kody-live-fly'
   // Vibe mode auto-starts the runner on first send, so the input doesn't
   // need to be disabled while idle — the user can type freely and the
   // message is queued through /append. Outside vibe, keep the original
