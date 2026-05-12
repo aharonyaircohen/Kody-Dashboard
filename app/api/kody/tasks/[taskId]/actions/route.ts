@@ -486,6 +486,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
         const fixMessage = `@kody fix\n\n${comment}`
         const fixBody = userOctokit ? fixMessage : withActor(fixMessage, actor)
         await postComment(associatedPR.number, fixBody, userOctokit ?? undefined)
+        // Clear terminal lifecycle labels so the task immediately leaves the
+        // "done"/"failed" column instead of waiting ~10-60s for the engine to
+        // dispatch and swap labels. The engine will re-add kody:fixing on its
+        // own once the workflow starts.
+        for (const lbl of ['kody:done', 'kody:failed']) {
+          try {
+            await removeLabel(issueNumber, lbl, userOctokit ?? undefined)
+          } catch {
+            // 404 = label wasn't applied; ignore
+          }
+        }
         invalidateTaskCache()
         invalidatePRCache()
         return NextResponse.json({ success: true, message: 'Fix requested on PR' })
@@ -520,6 +531,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
           console.warn('[Kody] ensureLabel kody:needs-fix failed (continuing):', labelErr)
         }
         await addLabels(issueNumber, ['kody:needs-fix'], userOctokit ?? undefined)
+        // Clear terminal lifecycle labels so the task immediately leaves the
+        // "done"/"failed" column. QA reporting an issue means the work isn't
+        // actually done — column should reflect that without waiting for the
+        // engine to react to the QA comment.
+        for (const lbl of ['kody:done', 'kody:failed']) {
+          try {
+            await removeLabel(issueNumber, lbl, userOctokit ?? undefined)
+          } catch {
+            // 404 = label wasn't applied; ignore
+          }
+        }
         const qaBody = `🛑 QA: ${comment}`
         await postWithFallback(issueNumber, qaBody, actor, userOctokit)
         invalidateTaskCache()
