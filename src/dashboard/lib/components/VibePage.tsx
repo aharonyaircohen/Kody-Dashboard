@@ -17,12 +17,20 @@ import { toast } from 'sonner'
 import {
   ArrowLeft,
   ExternalLink,
+  ListChecks,
   Loader2,
   RefreshCw,
   Sparkles,
 } from 'lucide-react'
 
 import { Button } from '@dashboard/ui/button'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@dashboard/ui/sheet'
 import { cn, getPreviewBypassUrl } from '../utils'
 import { useChatScope } from './ChatRailShell'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
@@ -97,6 +105,9 @@ export function VibePage() {
   const [iframeKey, setIframeKey] = useState(0)
   // Same Web/Admin split as PreviewModal so vibe iterations can target /admin.
   const [previewView, setPreviewView] = useState<'web' | 'admin'>('web')
+  // Mobile-only: the issue list lives in a Sheet so the preview can own
+  // the screen. On desktop the Sheet stays closed; the aside renders.
+  const [mobileIssuesOpen, setMobileIssuesOpen] = useState(false)
 
   const tasksQuery = useKodyTasks({ refetchInterval: 'auto' })
   const tasks = tasksQuery.data
@@ -222,6 +233,17 @@ export function VibePage() {
             <ArrowLeft className="w-4 h-4" />
           </Link>
         </Button>
+        {/* Mobile-only issue picker — desktop renders the aside instead. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="md:hidden gap-1.5"
+          onClick={() => setMobileIssuesOpen(true)}
+          aria-label="Open issues"
+        >
+          <ListChecks className="w-4 h-4" />
+          <span className="text-xs">Tasks</span>
+        </Button>
         <Sparkles className="w-5 h-5 text-fuchsia-400 shrink-0" />
         <h1 className="text-base md:text-lg font-semibold truncate">Vibe</h1>
         <span className="text-[11px] text-white/40 truncate hidden sm:inline">
@@ -239,7 +261,7 @@ export function VibePage() {
 
       {/* Body */}
       <div className="flex-1 min-h-0 flex">
-        {/* Issue list */}
+        {/* Issue list — desktop aside */}
         <aside
           className="hidden md:flex flex-col shrink-0 w-[260px] border-r border-white/[0.06] bg-black/20 overflow-y-auto"
           aria-label="Open issues"
@@ -253,6 +275,29 @@ export function VibePage() {
             isLoading={tasksQuery.isLoading}
           />
         </aside>
+
+        {/* Issue list — mobile Sheet */}
+        <Sheet open={mobileIssuesOpen} onOpenChange={setMobileIssuesOpen}>
+          <SheetContent side="left" className="w-[300px] p-0 flex flex-col">
+            <SheetHeader className="px-4 py-3 border-b border-white/[0.06] space-y-0">
+              <SheetTitle className="text-sm font-semibold">Open issues</SheetTitle>
+              <SheetDescription className="sr-only">
+                Select an issue to load its preview and chat
+              </SheetDescription>
+            </SheetHeader>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <VibeIssueList
+                tasks={tasks}
+                selectedIssueNumber={selectedIssueNumber}
+                onSelect={(task) => {
+                  setSelectedIssueNumber(task ? task.issueNumber : null)
+                  setMobileIssuesOpen(false)
+                }}
+                isLoading={tasksQuery.isLoading}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
 
         {/* Preview pane */}
         <section className="flex-1 min-w-0 flex flex-col">
