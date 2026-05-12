@@ -11,6 +11,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -102,8 +103,36 @@ export function VibePage() {
   const { githubUser } = useGitHubIdentity()
   const { setScope } = useChatScope()
 
-  const [selectedIssueNumber, setSelectedIssueNumber] = useState<number | null>(
-    null,
+  // Selection is URL-driven (`/vibe?issue=N`) so refreshes and shared
+  // links restore the same view. Local state mirrors the URL for fast
+  // reads inside this render; router.replace keeps both in sync.
+  const router = useRouter()
+  const pathname = usePathname() ?? '/vibe'
+  const searchParams = useSearchParams()
+  const issueParam = searchParams?.get('issue') ?? null
+  const parsedIssue = issueParam ? Number.parseInt(issueParam, 10) : NaN
+  const urlIssueNumber: number | null =
+    Number.isFinite(parsedIssue) && parsedIssue > 0 ? parsedIssue : null
+
+  const [selectedIssueNumber, setSelectedIssueNumberState] = useState<
+    number | null
+  >(urlIssueNumber)
+
+  // Keep state aligned with URL changes (browser back/forward, deep links).
+  useEffect(() => {
+    setSelectedIssueNumberState(urlIssueNumber)
+  }, [urlIssueNumber])
+
+  const setSelectedIssueNumber = useCallback(
+    (next: number | null) => {
+      setSelectedIssueNumberState(next)
+      const params = new URLSearchParams(searchParams?.toString() ?? '')
+      if (next === null) params.delete('issue')
+      else params.set('issue', String(next))
+      const qs = params.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    },
+    [router, pathname, searchParams],
   )
   // Bump to force iframe remount on Refresh — same trick as PreviewModal.
   const [iframeKey, setIframeKey] = useState(0)
