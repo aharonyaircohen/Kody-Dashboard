@@ -95,6 +95,8 @@ export function VibePage() {
   )
   // Bump to force iframe remount on Refresh — same trick as PreviewModal.
   const [iframeKey, setIframeKey] = useState(0)
+  // Same Web/Admin split as PreviewModal so vibe iterations can target /admin.
+  const [previewView, setPreviewView] = useState<'web' | 'admin'>('web')
 
   const tasksQuery = useKodyTasks({ refetchInterval: 'auto' })
   const tasks = tasksQuery.data
@@ -190,7 +192,18 @@ export function VibePage() {
   // ── Preview URL resolution ──────────────────────────────────────────────
   const activePreviewUrl = selectedTask?.previewUrl ?? null
   const fallbackPreviewUrl = !selectedTask ? defaultPreviewUrl : null
-  const previewUrl = activePreviewUrl ?? fallbackPreviewUrl
+  const baseUrl = activePreviewUrl ?? fallbackPreviewUrl
+  // Append /admin when the user picks the Admin view — same logic as
+  // PreviewModal.getPreviewUrl. Strip any trailing slash so we don't
+  // end up with `//admin`.
+  const previewUrl = useMemo(() => {
+    if (!baseUrl) return null
+    if (previewView === 'admin') {
+      const normalized = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl
+      return `${normalized}/admin`
+    }
+    return baseUrl
+  }, [baseUrl, previewView])
   const bypassedUrl = useMemo(
     () => getPreviewBypassUrl(previewUrl),
     [previewUrl],
@@ -245,16 +258,54 @@ export function VibePage() {
         <section className="flex-1 min-w-0 flex flex-col">
           {/* Preview toolbar */}
           <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/[0.06] bg-black/20">
-            <div className="text-xs text-zinc-400 truncate min-w-0">
-              {selectedTask ? (
-                <>
-                  Preview •{' '}
-                  <span className="text-zinc-300">
-                    #{selectedTask.issueNumber}
-                  </span>
-                </>
-              ) : (
-                <>Default preview</>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="text-xs text-zinc-400 truncate">
+                {selectedTask ? (
+                  <>
+                    Preview •{' '}
+                    <span className="text-zinc-300">
+                      #{selectedTask.issueNumber}
+                    </span>
+                  </>
+                ) : (
+                  <>Default preview</>
+                )}
+              </div>
+              {baseUrl && (
+                <div
+                  className="flex items-center gap-1"
+                  role="tablist"
+                  aria-label="Preview view"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setPreviewView('web')}
+                    role="tab"
+                    aria-selected={previewView === 'web'}
+                    className={cn(
+                      'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
+                      previewView === 'web'
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800 border border-transparent',
+                    )}
+                  >
+                    Web
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewView('admin')}
+                    role="tab"
+                    aria-selected={previewView === 'admin'}
+                    className={cn(
+                      'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
+                      previewView === 'admin'
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800 border border-transparent',
+                    )}
+                  >
+                    Admin
+                  </button>
+                </div>
               )}
             </div>
             <div className="flex items-center gap-2">
