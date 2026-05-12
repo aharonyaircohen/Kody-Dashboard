@@ -7,8 +7,9 @@
  *   Backing storage is the LLM_MODELS entry in .kody/variables.json.
  *
  *   Why a dedicated route instead of /api/kody/variables: validation. The
- *   chat UI dropdown depends on the shape, so we parse with the Zod schema
- *   here and reject anything malformed before it lands on disk.
+ *   chat UI dropdown and the chat route both depend on the shape, so we
+ *   parse with the Zod schema here and reject anything malformed before
+ *   it lands on disk.
  */
 
 import { NextRequest, NextResponse } from "next/server"

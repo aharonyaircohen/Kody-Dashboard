@@ -21,8 +21,9 @@
 
 import { randomBytes } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
-import { streamText, stepCountIs, type ModelMessage } from "ai"
-import { createGateway } from "@ai-sdk/gateway"
+import { streamText, stepCountIs, type ModelMessage, type LanguageModel } from "ai"
+import { createAnthropic } from "@ai-sdk/anthropic"
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import { AGENT_KODY, getAgent, isValidAgentId, type AgentId } from "@dashboard/lib/agents"
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
 import { createUserOctokit, setGitHubContext, clearGitHubContext } from "@dashboard/lib/github-client"
@@ -60,13 +61,18 @@ export const runtime = "nodejs"
 // UI would hang. 300s is the Vercel Pro ceiling and gives plenty of slack.
 export const maxDuration = 300
 
-// Provider/model are managed entirely from the dashboard: the
-// `LLM_MODELS` variable lists the user-curated models, and each is
-// passed straight to Vercel AI Gateway as a `<provider>/<model>` id.
-// No SDK-specific defaults remain here — if no model is configured
-// or no `AI_GATEWAY_API_KEY` is set, the request returns 409 with
-// `fallback: "kody-live"` and the client routes the same turn
-// through the GitHub Actions engine instead.
+// Provider/model are managed entirely from the dashboard. The
+// `LLM_MODELS` variable lists user-curated models; each entry binds a
+// model to its own `apiKeySecret`, `baseURL`, and wire `protocol`.
+// At request time we read the matching secret from the vault and pick
+// the SDK based on protocol — `anthropic` for Claude's native Messages
+// API (prompt caching + thinking control), `openai` for OpenAI-compat
+// endpoints (covers Gemini, GPT, Groq, OpenRouter, Mistral, DeepSeek,
+// xAI, self-hosted LiteLLM, etc).
+//
+// If no model resolves or the key is missing, the route returns 409
+// with `fallback: "kody-live"` so the client routes the same turn
+// through the GitHub Actions engine.
 
 interface IncomingTextPart {
   type: "text"
@@ -216,22 +222,10 @@ export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
 
-  // Vault first (per-repo .kody/secrets.enc), then env fallback. When
-  // the gateway key isn't configured we return 409 with a hint so the
-  // client falls back to the Kody Live engine path for this turn —
-  // no hardcoded provider, no silent 5xx.
-  const apiKey = await getSecret("AI_GATEWAY_API_KEY", { req })
-  if (!apiKey) {
-    return NextResponse.json(
-      {
-        error: "ai_gateway_not_configured",
-        fallback: "kody-live",
-        message:
-          "AI_GATEWAY_API_KEY is not set. Add it under /secrets, or fall back to Kody Live.",
-      },
-      { status: 409 },
-    )
-  }
+  // Key resolution is per-model: each LLM_MODELS entry names which secret
+  // to read at request time. We defer the actual lookup until after we
+  // resolve the model below, so a missing key on model X never blocks
+  // model Y.
 
   let body: {
     messages?: IncomingMessage[]
@@ -276,7 +270,7 @@ export async function POST(req: NextRequest) {
   // The client can override per-request via `body.model`, but it must
   // match an enabled entry — we never trust arbitrary ids from the wire.
   const availableModels = await loadChatModels(req)
-  let resolvedModel =
+  const resolvedModel =
     pickModelById(availableModels, body.model) ??
     (body.agentId === "kody-speech"
       ? pickSpeechModel(availableModels) ?? pickDefaultModel(availableModels)
@@ -293,7 +287,50 @@ export async function POST(req: NextRequest) {
     )
   }
   const modelId = resolvedModel.id
-  const gateway = createGateway({ apiKey })
+
+  // Pull the per-model API key from the vault (or env fallback). When
+  // the secret is missing we fall back to Kody Live so the user isn't
+  // dropped into a 5xx loop because they forgot to fill one entry.
+  const apiKey = await getSecret(resolvedModel.apiKeySecret, { req })
+  if (!apiKey) {
+    return NextResponse.json(
+      {
+        error: "model_api_key_missing",
+        fallback: "kody-live",
+        message: `${resolvedModel.apiKeySecret} is not set. Add it under /secrets, or fall back to Kody Live.`,
+      },
+      { status: 409 },
+    )
+  }
+
+  // Pick the SDK by wire protocol. `anthropic` keeps Claude's native
+  // features (prompt caching, full thinking control). `openai` covers
+  // every OpenAI-compatible endpoint (Gemini compat, GPT, Groq, etc).
+  let model: LanguageModel
+  if (resolvedModel.protocol === "anthropic") {
+    const anthropic = createAnthropic({
+      apiKey,
+      ...(resolvedModel.baseURL ? { baseURL: resolvedModel.baseURL } : {}),
+    })
+    model = anthropic(resolvedModel.modelName)
+  } else {
+    if (!resolvedModel.baseURL) {
+      return NextResponse.json(
+        {
+          error: "model_base_url_missing",
+          fallback: "kody-live",
+          message: `Model ${modelId} has no baseURL. Edit it under /models.`,
+        },
+        { status: 409 },
+      )
+    }
+    const openai = createOpenAICompatible({
+      name: resolvedModel.provider,
+      apiKey,
+      baseURL: resolvedModel.baseURL,
+    })
+    model = openai(resolvedModel.modelName)
+  }
   const repo = getRequestAuth(req)
   const goalPlannerActive = body.goalPlanner === true && !!body.goal
 
@@ -455,7 +492,7 @@ export async function POST(req: NextRequest) {
     armHeartbeat(30_000)
     armHeartbeat(60_000)
     const result = streamText({
-      model: gateway(modelId),
+      model,
       system: systemPrompt,
       messages,
       tools,
@@ -470,10 +507,10 @@ export async function POST(req: NextRequest) {
       // task, so 10 silently truncates a 5-task plan after the first
       // create. Raise to 30 in planner mode so the full sweep can land.
       stopWhen: stepCountIs(goalPlannerActive ? 30 : 10),
-      // No provider-specific options — the gateway forwards what each
-      // model accepts. Thinking/reasoning behavior is the model's
-      // default. If a particular model needs tuning, add per-model
-      // `options` JSON to the LLM_MODELS schema and merge here.
+      // No provider-specific options today — each protocol's SDK uses
+      // its model defaults. If a particular model needs tuning,
+      // extend the LLM_MODELS schema with optional `providerOptions`
+      // JSON and merge it here.
       // Per-tool tracing. `experimental_onToolCallStart` fires before the
       // tool's `execute` is invoked; `experimental_onToolCallFinish`
       // afterward with the SDK-measured `durationMs` and a success flag.
