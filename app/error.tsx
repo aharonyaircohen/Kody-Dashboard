@@ -21,6 +21,8 @@ export default function KodyError({
     console.error('[KodyDashboard] Unhandled error:', error)
   }, [error])
 
+  const isDev = process.env.NODE_ENV !== 'production'
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center max-w-md p-6">
@@ -29,9 +31,15 @@ export default function KodyError({
         <p className="text-muted-foreground mb-4">
           The Kody dashboard encountered an error. This is usually temporary.
         </p>
+        {error.digest && (
+          <p className="text-xs text-muted-foreground/70 font-mono mb-3">
+            ref: {error.digest}
+          </p>
+        )}
         {error.message && (
-          <pre className="text-xs text-left bg-muted p-3 rounded-md mb-4 overflow-auto max-h-32">
+          <pre className="text-xs text-left bg-muted p-3 rounded-md mb-4 overflow-auto max-h-40">
             {error.message}
+            {isDev && error.stack ? `\n\n${error.stack}` : ''}
           </pre>
         )}
         <div className="flex gap-3 justify-center">
