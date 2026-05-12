@@ -5,7 +5,8 @@
  * @ai-summary Compact selectable list of open tasks for the Vibe page.
  *   Lighter than TaskList — no actions, no DnD, no inline editing. Tasks are
  *   sorted by updatedAt desc; selecting a row bubbles the issueNumber up so
- *   the parent can swap chat scope + preview iframe.
+ *   the parent can swap chat scope + preview iframe. Each row shows a
+ *   per-goal colored dot + chip when the task has a `goal:<id>` label.
  */
 'use client'
 
@@ -13,7 +14,7 @@ import { useMemo, useState } from 'react'
 import type { KodyTask } from '../types'
 import { cn, formatRelativeTime } from '../utils'
 import { CIStatusBadge } from './CIStatusBadge'
-import { GitPullRequest, Inbox, Loader2, Search, Target, X } from 'lucide-react'
+import { GitPullRequest, Inbox, Loader2, Search, X } from 'lucide-react'
 import { useGoals } from '../hooks/useGoals'
 import { GOAL_LABEL_PREFIX } from '../goals'
 
@@ -22,6 +23,33 @@ interface VibeIssueListProps {
   selectedIssueNumber: number | null
   onSelect: (task: KodyTask | null) => void
   isLoading: boolean
+}
+
+// Deterministic palette — hash(goalId) % length picks a stable color per
+// goal. Each entry pairs a saturated dot with a softer translucent chip so
+// the chip reads as "tinted" rather than "solid color block". Classes are
+// listed as literals so Tailwind's JIT picks them up.
+const GOAL_PALETTE = [
+  { dot: 'bg-emerald-400', chip: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' },
+  { dot: 'bg-sky-400',     chip: 'bg-sky-500/10 text-sky-300 ring-sky-500/20' },
+  { dot: 'bg-violet-400',  chip: 'bg-violet-500/10 text-violet-300 ring-violet-500/20' },
+  { dot: 'bg-amber-400',   chip: 'bg-amber-500/10 text-amber-300 ring-amber-500/20' },
+  { dot: 'bg-rose-400',    chip: 'bg-rose-500/10 text-rose-300 ring-rose-500/20' },
+  { dot: 'bg-cyan-400',    chip: 'bg-cyan-500/10 text-cyan-300 ring-cyan-500/20' },
+  { dot: 'bg-lime-400',    chip: 'bg-lime-500/10 text-lime-300 ring-lime-500/20' },
+  { dot: 'bg-fuchsia-400', chip: 'bg-fuchsia-500/10 text-fuchsia-300 ring-fuchsia-500/20' },
+  { dot: 'bg-orange-400',  chip: 'bg-orange-500/10 text-orange-300 ring-orange-500/20' },
+  { dot: 'bg-indigo-400',  chip: 'bg-indigo-500/10 text-indigo-300 ring-indigo-500/20' },
+] as const
+
+function hashGoalId(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+function goalColor(id: string) {
+  return GOAL_PALETTE[hashGoalId(id) % GOAL_PALETTE.length]
 }
 
 export function VibeIssueList({
@@ -33,7 +61,6 @@ export function VibeIssueList({
   const [query, setQuery] = useState('')
   const { data: goals = [] } = useGoals()
 
-  // id → name lookup so we can render goal chips without a per-row find.
   const goalNameById = useMemo(() => {
     const map = new Map<string, string>()
     for (const g of goals) map.set(g.id, g.name)
@@ -68,23 +95,23 @@ export function VibeIssueList({
   const searchActive = query.trim().length > 0
 
   const renderSearchBar = (
-    <div className="px-3 py-2 border-b border-white/[0.06] bg-black/20 sticky top-0 z-10">
+    <div className="px-3 py-2.5 border-b border-white/[0.06] bg-black/30 sticky top-0 z-10 backdrop-blur-sm">
       <div className="relative">
-        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search title or #number"
           aria-label="Search open issues"
-          className="w-full bg-zinc-900/60 border border-zinc-800 rounded-md pl-7 pr-7 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-700"
+          className="w-full bg-white/[0.04] border border-white/[0.06] rounded-md pl-8 pr-7 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-white/20 focus:bg-white/[0.06] transition-colors"
         />
         {searchActive && (
           <button
             type="button"
             onClick={() => setQuery('')}
             aria-label="Clear search"
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/10 transition-colors"
           >
             <X className="w-3 h-3" />
           </button>
@@ -119,23 +146,25 @@ export function VibeIssueList({
   return (
     <div className="flex flex-col">
       {renderSearchBar}
-      <ul className="flex flex-col">
-        {!searchActive && (
-          <li className="px-3 py-2 border-b border-white/[0.06]">
-            <button
-              type="button"
-              onClick={() => onSelect(null)}
-              className={cn(
-                'w-full text-left text-xs font-medium px-2 py-1.5 rounded transition-colors',
-                selectedIssueNumber === null
-                  ? 'bg-emerald-500/15 text-emerald-300'
-                  : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200',
-              )}
-            >
-              Default preview
-            </button>
-          </li>
-        )}
+
+      {!searchActive && (
+        <div className="px-3 pt-2 pb-1">
+          <button
+            type="button"
+            onClick={() => onSelect(null)}
+            className={cn(
+              'w-full text-left text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors',
+              selectedIssueNumber === null
+                ? 'bg-white/[0.08] text-zinc-100'
+                : 'text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300',
+            )}
+          >
+            Default preview
+          </button>
+        </div>
+      )}
+
+      <ul className="flex flex-col divide-y divide-white/[0.04]">
         {searchActive && filteredTasks.length === 0 && (
           <li className="px-4 py-6 text-center">
             <p className="text-xs text-zinc-500">
@@ -145,79 +174,101 @@ export function VibeIssueList({
           </li>
         )}
         {filteredTasks.map((task) => {
-        const isSelected = task.issueNumber === selectedIssueNumber
-        const hasPR = !!task.associatedPR
-        // First resolvable goal label → chip. Multiple goals are rare; keep
-        // the row a single line by showing just the first known one.
-        const goalName = (() => {
+          const isSelected = task.issueNumber === selectedIssueNumber
+          const hasPR = !!task.associatedPR
+
+          // First resolvable goal label → chip. Multiple goals are rare;
+          // keep the row tight by showing just the first known one.
+          let goalId: string | null = null
+          let goalName: string | null = null
           for (const label of task.labels) {
             if (!label.startsWith(GOAL_LABEL_PREFIX)) continue
             const id = label.slice(GOAL_LABEL_PREFIX.length)
             const name = goalNameById.get(id)
-            if (name) return name
+            if (name) {
+              goalId = id
+              goalName = name
+              break
+            }
           }
-          return null
-        })()
-        return (
-          <li key={task.id} className="border-b border-white/[0.04]">
-            <button
-              type="button"
-              onClick={() => onSelect(task)}
-              className={cn(
-                'w-full text-left px-3 py-2.5 transition-colors',
-                isSelected
-                  ? 'bg-emerald-500/10 border-l-2 border-l-emerald-500'
-                  : 'border-l-2 border-l-transparent hover:bg-zinc-800/40',
-              )}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span
-                  className={cn(
-                    'text-xs tabular-nums shrink-0',
-                    isSelected ? 'text-emerald-300' : 'text-zinc-500',
-                  )}
-                >
-                  #{task.issueNumber}
-                </span>
-                <span
-                  className={cn(
-                    'text-sm truncate flex-1',
-                    isSelected ? 'text-white' : 'text-zinc-300',
-                  )}
-                  title={task.title}
-                >
-                  {task.title}
-                </span>
-                {hasPR && (
-                  <GitPullRequest className="w-3 h-3 text-purple-400 shrink-0" />
+          const color = goalId ? goalColor(goalId) : null
+
+          return (
+            <li key={task.id}>
+              <button
+                type="button"
+                onClick={() => onSelect(task)}
+                className={cn(
+                  'group w-full text-left px-3 py-2.5 transition-colors',
+                  isSelected
+                    ? 'bg-white/[0.06]'
+                    : 'hover:bg-white/[0.03]',
                 )}
-              </div>
-              <div className="flex items-center gap-2 mt-1 pl-7 min-w-0">
-                {task.associatedPR && (
-                  <CIStatusBadge prNumber={task.associatedPR.number} />
-                )}
-                {goalName && (
+              >
+                <div className="flex items-start gap-2.5 min-w-0">
+                  {/* Goal dot (reserves space even when missing so titles align) */}
                   <span
                     className={cn(
-                      'inline-flex items-center gap-1 max-w-[140px] px-1.5 py-0.5 rounded text-[10px] font-medium border truncate',
-                      isSelected
-                        ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/20'
-                        : 'bg-zinc-800/60 text-zinc-400 border-zinc-700/60',
+                      'mt-[7px] w-1.5 h-1.5 rounded-full shrink-0',
+                      color ? color.dot : 'bg-white/10',
                     )}
-                    title={`Goal: ${goalName}`}
-                  >
-                    <Target className="w-2.5 h-2.5 shrink-0" />
-                    <span className="truncate">{goalName}</span>
-                  </span>
-                )}
-                <span className="text-[10px] text-zinc-600 ml-auto shrink-0">
-                  {formatRelativeTime(task.updatedAt)}
-                </span>
-              </div>
-            </button>
-          </li>
-        )
-      })}
+                    aria-hidden
+                  />
+
+                  <div className="flex-1 min-w-0">
+                    {/* Title line */}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={cn(
+                          'text-sm truncate flex-1 leading-snug',
+                          isSelected
+                            ? 'text-white font-medium'
+                            : 'text-zinc-200 group-hover:text-white',
+                        )}
+                        title={task.title}
+                      >
+                        {task.title}
+                      </span>
+                      <span className="text-[10px] tabular-nums text-zinc-500 shrink-0">
+                        #{task.issueNumber}
+                      </span>
+                    </div>
+
+                    {/* Meta line */}
+                    <div className="flex items-center gap-1.5 mt-1.5 min-w-0">
+                      {goalName && color && (
+                        <span
+                          className={cn(
+                            'inline-flex items-center max-w-[140px] px-1.5 py-0.5 rounded text-[10px] font-medium ring-1 ring-inset truncate',
+                            color.chip,
+                          )}
+                          title={`Goal: ${goalName}`}
+                        >
+                          <span className="truncate">{goalName}</span>
+                        </span>
+                      )}
+                      {hasPR && (
+                        <span
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-purple-300 bg-purple-500/10 ring-1 ring-inset ring-purple-500/20"
+                          title="Has open PR"
+                        >
+                          <GitPullRequest className="w-2.5 h-2.5" />
+                          PR
+                        </span>
+                      )}
+                      {task.associatedPR && (
+                        <CIStatusBadge prNumber={task.associatedPR.number} />
+                      )}
+                      <span className="text-[10px] text-zinc-500 ml-auto shrink-0">
+                        {formatRelativeTime(task.updatedAt)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
