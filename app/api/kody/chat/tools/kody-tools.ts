@@ -21,6 +21,12 @@
  *   resolve     — resolve merge conflicts
  *   revert      — revert the PR's merge commit
  *   sync        — merge the PR's base branch into it and push
+ *
+ * Issue-targeted dispatch (kody_run_issue): posts `@kody <executable>` on
+ * an issue so the engine picks it up and executes the work — clone, edit,
+ * commit, PR. This is the "execute the plan" handoff: the chat model does
+ * research + planning, then on user confirmation calls this tool to hand
+ * the plan to the engine for execution.
  */
 import { tool } from 'ai'
 import { z } from 'zod'
@@ -112,11 +118,89 @@ async function dispatchOnPr(
   }
 }
 
+async function dispatchOnIssue(
+  ctx: Ctx,
+  issueNumber: number,
+  executable: string,
+  notes: string | undefined,
+): Promise<DispatchResult | DispatchError> {
+  const { octokit, owner, repo } = ctx
+  const exe = executable.trim()
+  const header = exe ? `@kody ${exe}` : '@kody'
+  const commentBody = notes?.trim() ? `${header}\n\n${notes.trim()}` : header
+
+  try {
+    const existing = await octokit.rest.issues.get({
+      owner,
+      repo,
+      issue_number: issueNumber,
+    })
+    if (existing.data.pull_request) {
+      return {
+        error:
+          `Refusing to dispatch: #${issueNumber} is a pull request, not an issue. ` +
+          `Use the PR-targeted tools (kody_fix_pr, kody_review_pr, etc.) instead.`,
+      }
+    }
+
+    await octokit.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      body: commentBody,
+    })
+
+    invalidateIssueCache(issueNumber)
+
+    logger.info(
+      { owner, repo, number: issueNumber, executable: exe || '(default)' },
+      'kody-dispatch: posted issue trigger',
+    )
+
+    return {
+      number: issueNumber,
+      url: existing.data.html_url,
+      command: header,
+      triggered: true,
+      note: `Posted \`${header}\` on issue #${issueNumber}. The engine will pick it up shortly and start executing — clone, edit, commit, open PR.`,
+    }
+  } catch (err) {
+    logger.warn(
+      { err, owner, repo, number: issueNumber, executable: exe },
+      'kody-dispatch (issue) failed',
+    )
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : `Failed to dispatch ${header} on issue #${issueNumber}`,
+    }
+  }
+}
+
 const PR_NUMBER_SCHEMA = z
   .number()
   .int()
   .positive()
   .describe('The pull request number to dispatch on.')
+
+const ISSUE_NUMBER_SCHEMA = z
+  .number()
+  .int()
+  .positive()
+  .describe('The GitHub issue number to dispatch on.')
+
+const EXECUTABLE_SCHEMA = z
+  .string()
+  .max(64)
+  .optional()
+  .describe(
+    'Which Kody executable to run. Defaults to `run` (the repo\'s ' +
+      'configured default executable — plan-build-review or similar). ' +
+      'Other useful values: `plan` (planning only, no code edits), ' +
+      '`orchestrate` (multi-stage orchestrator). Pass through any custom ' +
+      'executable name the repo defines.',
+  )
 
 const NOTES_SCHEMA = z
   .string()
@@ -221,6 +305,29 @@ export function createKodyTools(ctx: Ctx) {
       }),
       execute: ({ prNumber, notes }) =>
         dispatchOnPr(ctx, prNumber, 'sync', notes),
+    }),
+
+    kody_run_issue: tool({
+      description:
+        `Hand the plan to the Kody engine for EXECUTION on issue #N in ` +
+        `${owner}/${repo}. Posts \`@kody <executable>\` (default: \`run\`) ` +
+        'on the issue; the engine in GitHub Actions clones the repo, edits ' +
+        'files, commits, and opens a PR. THIS IS THE EXECUTOR HANDOFF — ' +
+        'you (the chat model) do research and planning; this tool delegates ' +
+        'the actual code work to Kody Live. ' +
+        'Only call AFTER the user has confirmed they want to execute the ' +
+        'plan ("go", "ship it", "yes, execute", "run kody", "have kody build ' +
+        'it"). NEVER call as the first step of a turn — first research, ' +
+        'draft the plan, post it in chat, get confirmation, THEN dispatch. ' +
+        'Use `notes` to pass the plan/context inline as part of the @kody ' +
+        'comment so the engine has it. DOES auto-trigger the pipeline.',
+      inputSchema: z.object({
+        issueNumber: ISSUE_NUMBER_SCHEMA,
+        executable: EXECUTABLE_SCHEMA,
+        notes: NOTES_SCHEMA,
+      }),
+      execute: ({ issueNumber, executable, notes }) =>
+        dispatchOnIssue(ctx, issueNumber, executable ?? 'run', notes),
     }),
   }
 }
