@@ -37,6 +37,8 @@ import {
 import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@dashboard/lib/logger";
 import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
+import { maybeDispatchUiReview } from "@dashboard/lib/ui-verify/dispatch";
+import { applyVerdictFromComment } from "@dashboard/lib/ui-verify/apply-label";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,10 +66,47 @@ interface IssuesPayload {
   issue?: { number?: number };
 }
 interface IssueCommentPayload {
-  issue?: { number?: number };
+  action?: string;
+  issue?: { number?: number; pull_request?: unknown };
+  comment?: { body?: string; user?: { login?: string } };
 }
 interface PullRequestPayload {
   pull_request?: { number?: number };
+}
+interface CheckRunPayload {
+  action?: string;
+  check_run?: {
+    name?: string;
+    conclusion?: string;
+    pull_requests?: Array<{ number?: number }>;
+  };
+}
+
+/**
+ * Vercel's GitHub integration creates check runs whose name starts with
+ * "Vercel" (e.g. "Vercel", "Vercel – my-project"). Matched case-insensitively
+ * to be resilient to integration variations.
+ */
+function isVercelCheck(name: string | undefined): boolean {
+  if (!name) return false;
+  return name.trim().toLowerCase().startsWith("vercel");
+}
+
+/**
+ * Best-effort side effect: never block the webhook response on it, and never
+ * let a rejection crash the receiver. Errors are logged inside each handler.
+ */
+function fireAndForget(promise: Promise<unknown>, label: string): void {
+  promise.catch((err: unknown) => {
+    logger.error(
+      {
+        event: "ui_verify_handler_crashed",
+        label,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      `${label} handler threw — should have been caught internally`,
+    );
+  });
 }
 
 function dispatch(event: string, payload: unknown): { handled: boolean; detail: string } {
@@ -75,11 +114,37 @@ function dispatch(event: string, payload: unknown): { handled: boolean; detail: 
     case "ping":
       return { handled: true, detail: "ping" };
 
-    case "issues":
-    case "issue_comment": {
-      const p = payload as IssuesPayload | IssueCommentPayload;
+    case "issues": {
+      const p = payload as IssuesPayload;
       const num = p?.issue?.number;
       invalidateIssueCache(typeof num === "number" ? num : undefined);
+      return { handled: true, detail: `issue#${num ?? "?"}` };
+    }
+
+    case "issue_comment": {
+      const p = payload as IssueCommentPayload;
+      const num = p?.issue?.number;
+      invalidateIssueCache(typeof num === "number" ? num : undefined);
+
+      // ui-verify side-effect: if this is a new comment on a PR (issues
+      // with a `pull_request` field) and the body carries a ui-review
+      // verdict marker, apply the verdict label. Idempotent — addLabels
+      // is a no-op when the label is already present.
+      const isPrComment = !!p?.issue?.pull_request;
+      const isCreated = p?.action === "created";
+      const body = p?.comment?.body ?? "";
+      if (
+        isPrComment &&
+        isCreated &&
+        typeof num === "number" &&
+        body.includes("Verdict")
+      ) {
+        fireAndForget(
+          applyVerdictFromComment(num, body),
+          `applyVerdictFromComment#${num}`,
+        );
+      }
+
       return { handled: true, detail: `issue#${num ?? "?"}` };
     }
 
@@ -94,9 +159,37 @@ function dispatch(event: string, payload: unknown): { handled: boolean; detail: 
       return { handled: true, detail: `pr#${p?.pull_request?.number ?? "?"}` };
     }
 
+    case "check_run": {
+      invalidateWorkflowCache();
+
+      // ui-verify side-effect: when Vercel's preview-deployment check
+      // completes successfully on a PR, auto-dispatch `@kody ui-review`.
+      // `maybeDispatchUiReview` is idempotent — it short-circuits if the
+      // PR already has a UI-verify guard label.
+      const p = payload as CheckRunPayload;
+      const cr = p?.check_run;
+      if (
+        p?.action === "completed" &&
+        cr?.conclusion === "success" &&
+        isVercelCheck(cr.name) &&
+        Array.isArray(cr.pull_requests) &&
+        cr.pull_requests.length > 0
+      ) {
+        for (const pr of cr.pull_requests) {
+          if (typeof pr.number === "number") {
+            fireAndForget(
+              maybeDispatchUiReview(pr.number),
+              `maybeDispatchUiReview#${pr.number}`,
+            );
+          }
+        }
+      }
+
+      return { handled: true, detail: event };
+    }
+
     case "workflow_run":
     case "workflow_job":
-    case "check_run":
     case "check_suite":
       invalidateWorkflowCache();
       return { handled: true, detail: event };

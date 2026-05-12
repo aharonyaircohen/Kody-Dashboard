@@ -15,6 +15,7 @@ import { SimpleTooltip } from './SimpleTooltip'
 import { StatusTooltipContent, SubStatusTooltipContent } from './tooltip-content'
 import { KodyPhaseChip, KodyFlowChip } from './KodyLabelChips'
 import { CIStatusBadge } from './CIStatusBadge'
+import { UIVerifyBadge } from './UIVerifyBadge'
 import type { KodyTask, ColumnId } from '../types'
 import { Button } from '@dashboard/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
@@ -636,6 +637,7 @@ const TaskRow = memo(function TaskRow({
                       </a>
                     </SimpleTooltip>
                     <CIStatusBadge prNumber={task.associatedPR!.number} />
+                    <UIVerifyBadge prLabels={task.associatedPR!.labels} />
                   </>
                 )}
 
