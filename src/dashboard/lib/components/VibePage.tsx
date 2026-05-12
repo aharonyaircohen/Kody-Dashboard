@@ -19,7 +19,6 @@ import {
   ExternalLink,
   ListChecks,
   Loader2,
-  Play,
   RefreshCw,
   Sparkles,
 } from 'lucide-react'
@@ -201,36 +200,6 @@ export function VibePage() {
     await mergeMutation.mutateAsync(selectedTask)
   }, [selectedTask, mergeMutation])
 
-  // ── Run Kody — explicit executor handoff. Chat models (especially Gemini)
-  //    sometimes narrate the dispatch without actually posting the comment;
-  //    this button bypasses the model and posts `@kody` directly via the
-  //    same actions endpoint the main dashboard uses. Shows only when an
-  //    issue is selected without an active PR — once a PR exists, the
-  //    PreviewActions bar (merge / approve) is the next step instead.
-  const runKodyMutation = useMutation({
-    mutationFn: (issueNumber: number) =>
-      tasksApi.execute(issueNumber, githubUser?.login),
-    onSuccess: () => {
-      toast.success('Kody dispatched — engine is starting in GitHub Actions')
-      queryClient.invalidateQueries({ queryKey: ['kody-tasks'] })
-    },
-    onError: (err) => {
-      toast.error(err instanceof Error ? err.message : 'Failed to run Kody')
-    },
-  })
-
-  const handleRunKody = useCallback(() => {
-    if (!selectedTask) return
-    runKodyMutation.mutate(selectedTask.issueNumber)
-  }, [selectedTask, runKodyMutation])
-
-  // Always show "Run Kody" when an issue is selected — users may want to
-  // re-trigger the engine even after a PR exists (e.g., the previous run
-  // failed mid-way, or they want to refresh the work). The button calls
-  // the same `@kody` execute action regardless of PR state.
-  const canRunKody = !!selectedTask
-  const isRunningKody = runKodyMutation.isPending
-
   // ── Preview URL resolution ──────────────────────────────────────────────
   const activePreviewUrl = selectedTask?.previewUrl ?? null
   const fallbackPreviewUrl = !selectedTask ? defaultPreviewUrl : null
@@ -385,23 +354,6 @@ export function VibePage() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              {canRunKody && (
-                <button
-                  type="button"
-                  onClick={handleRunKody}
-                  disabled={isRunningKody}
-                  title={`Dispatch @kody run on issue #${selectedTask?.issueNumber}`}
-                  aria-label="Run Kody on this issue"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md bg-fuchsia-500/15 text-fuchsia-300 hover:bg-fuchsia-500/25 border border-fuchsia-500/30 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isRunningKody ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Play className="w-3 h-3" />
-                  )}
-                  {isRunningKody ? 'Dispatching…' : 'Run Kody'}
-                </button>
-              )}
               {previewUrl && (
                 <>
                   <button

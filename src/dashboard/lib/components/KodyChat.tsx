@@ -13,6 +13,8 @@ import {
   History,
   Target,
   CheckCircle2,
+  Loader2,
+  Play,
 } from 'lucide-react'
 import { AGENT, AGENTS, type AgentId, type AgentConfig } from '../agents'
 
@@ -82,7 +84,8 @@ function buildAgentList(
   }
   return entries
 }
-import { getStoredAuth, getStoredBrainConfig } from '../api'
+import { getStoredAuth, getStoredBrainConfig, tasksApi } from '../api'
+import { toast } from 'sonner'
 import type { KodyTask } from '../types'
 
 /** Build fetch headers including client auth when available */
@@ -2638,6 +2641,28 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
     })
   }
 
+  // ── Run Kody — explicit executor handoff for vibe mode. Gemini-class
+  //    chat models often narrate dispatching @kody without actually
+  //    emitting the tool call, so this button-shaped path bypasses the
+  //    model entirely and posts `@kody` on the scoped issue via the
+  //    existing actions endpoint. Lives inside the chat composer so it
+  //    feels like a chat affordance, not a separate UI.
+  const [runningKody, setRunningKody] = useState(false)
+  const scopedIssueNumber =
+    vibeMode && context?.kind === 'task' ? context.task.issueNumber : null
+  const handleRunKody = useCallback(async () => {
+    if (!scopedIssueNumber) return
+    setRunningKody(true)
+    try {
+      await tasksApi.execute(scopedIssueNumber, actorLogin ?? undefined)
+      toast.success(`Kody dispatched on #${scopedIssueNumber}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to run Kody')
+    } finally {
+      setRunningKody(false)
+    }
+  }, [scopedIssueNumber, actorLogin])
+
   // Kody Live blocks the input until the runner is ready. Other agents
   // are unaffected — only the explicit warm-up flow uses this gate.
   const isKodyLive = selectedAgentId === 'kody-live'
@@ -3240,6 +3265,32 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
 
       {/* Input area */}
       <div className="px-1.5 py-2 sm:p-3 border-t">
+        {/* Vibe mode: explicit "Run Kody on #N" action. Sits with the
+            composer so the executor handoff feels like a chat affordance
+            rather than a UI button parked elsewhere. Reliable whether or
+            not the LLM emits the kody_run_issue tool call. */}
+        {scopedIssueNumber !== null && !isKodyLive ? (
+          <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-fuchsia-500/30 bg-fuchsia-500/10 px-2 py-1.5">
+            <span className="text-xs text-fuchsia-200/90 truncate">
+              Ready to ship? Hand the plan to the engine.
+            </span>
+            <button
+              type="button"
+              onClick={handleRunKody}
+              disabled={runningKody}
+              title={`Dispatch @kody on issue #${scopedIssueNumber}`}
+              aria-label="Run Kody on this issue"
+              className="inline-flex items-center gap-1.5 shrink-0 text-xs font-semibold px-2.5 py-1 rounded-md bg-fuchsia-500/25 text-fuchsia-100 hover:bg-fuchsia-500/40 border border-fuchsia-500/40 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {runningKody ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Play className="w-3 h-3" />
+              )}
+              {runningKody ? 'Dispatching…' : `Run Kody on #${scopedIssueNumber}`}
+            </button>
+          </div>
+        ) : null}
         {/* Kody Live warm-up banner — only visible when the live agent is
             selected and the runner isn't currently ready to accept messages. */}
         {isKodyLive && interactiveState !== 'ready' ? (
