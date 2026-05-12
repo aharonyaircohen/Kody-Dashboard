@@ -561,13 +561,21 @@ export function KodyDashboard({
   // View mode counts — backlog = open column, running = everything else
   const { runningCount, backlogCount, queueCount } = getViewModeCounts(tasks);
 
-  // Filter tasks by view mode, then by status and label (combined with AND logic)
-  const baseFilteredTasks = filterTasksByView(tasks, {
-    viewMode,
-    statusFilter,
-    labelFilter,
-    priorityFilter,
-  });
+  // Filter tasks by view mode, then by status and label (combined with AND logic).
+  // useMemo is load-bearing: without it the function returns a fresh array every
+  // render, cascading instability through sortedTasks → filteredTasks →
+  // plannerExistingTasksForChat → the chat-rail setScope effect, which then
+  // fires every render once a goal is being planned and trips React error #185.
+  const baseFilteredTasks = useMemo(
+    () =>
+      filterTasksByView(tasks, {
+        viewMode,
+        statusFilter,
+        labelFilter,
+        priorityFilter,
+      }),
+    [tasks, viewMode, statusFilter, labelFilter, priorityFilter],
+  );
   const searchedTasks = useMemo(() => {
     if (!debouncedSearch.trim()) return baseFilteredTasks;
     const q = debouncedSearch.toLowerCase();
