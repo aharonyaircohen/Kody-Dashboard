@@ -12,6 +12,7 @@ import { Button } from '@dashboard/ui/button'
 import { MergeButton } from './MergeButton'
 import { FixRequestDialog } from './FixRequestDialog'
 import { ReportIssueDialog } from './ReportIssueDialog'
+import { QARequestDialog } from './QARequestDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SimpleTooltip } from './SimpleTooltip'
 import {
@@ -86,6 +87,7 @@ export function PreviewActions({
 }: PreviewActionsProps) {
   const [showFixDialog, setShowFixDialog] = useState(false)
   const [showReportDialog, setShowReportDialog] = useState(false)
+  const [showQADialog, setShowQADialog] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isApprovingUI, setIsApprovingUI] = useState(false)
@@ -192,13 +194,22 @@ export function PreviewActions({
    * PR). The dispatcher auto-binds the issue number to qa-engineer's `issue`
    * input, qa-engineer browses the configured QA URL, and the postflight
    * comments the PASS/CONCERNS/FAIL report back on the same issue.
+   *
+   * `scope` is optional — empty string runs a broad smoke pass; a non-empty
+   * value gets passed as `--scope "<text>"` to narrow the focus.
    */
-  const handleRunQA = async () => {
+  const handleRunQA = async (scope: string) => {
+    // Escape any double quotes the user typed so the shell-style flag stays valid.
+    const safeScope = scope.replace(/"/g, '\\"')
+    const command = safeScope
+      ? `@kody qa-engineer --scope "${safeScope}"`
+      : '@kody qa-engineer'
     try {
-      await tasksApi.comment(task.issueNumber, '@kody qa-engineer', actorLogin)
+      await tasksApi.comment(task.issueNumber, command, actorLogin)
       toast.success('QA requested — report will appear as a comment')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to request QA')
+      throw err // re-throw so dialog keeps open on failure
     }
   }
 
@@ -334,7 +345,7 @@ export function PreviewActions({
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleRunQA}
+              onClick={() => setShowQADialog(true)}
               className="h-8 w-8 cursor-pointer text-zinc-300 hover:bg-zinc-800/60 hover:text-zinc-100 active:scale-[0.97]"
               aria-label="QA"
             >
@@ -387,6 +398,13 @@ export function PreviewActions({
         isOpen={showReportDialog}
         onClose={() => setShowReportDialog(false)}
         onSubmit={handleReportIssue}
+        issueNumber={task.issueNumber}
+      />
+
+      <QARequestDialog
+        isOpen={showQADialog}
+        onClose={() => setShowQADialog(false)}
+        onSubmit={handleRunQA}
         issueNumber={task.issueNumber}
       />
 
