@@ -41,11 +41,16 @@ import {
 } from '../api'
 import type { KodyTask } from '../types'
 
+import Link from 'next/link'
+import { Layers } from 'lucide-react'
+
 import { VibeIssueList } from './VibeIssueList'
 import { VibeDefaultPreviewField } from './VibeDefaultPreviewField'
 import { PreviewActions } from './PreviewActions'
 import { CIStatusBadge } from './CIStatusBadge'
-import { ViewSwitch } from './ViewSwitch'
+import { VibeToggle } from './VibeToggle'
+import { SettingsDrawerTrigger } from './SettingsDrawer'
+import { SimpleTooltip } from './SimpleTooltip'
 
 interface DashboardConfigResponse {
   config: { version: 1; defaultPreviewUrl?: string }
@@ -229,7 +234,7 @@ export function VibePage() {
       <header className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-white/[0.06] bg-black/30">
         <Sparkles className="w-5 h-5 text-fuchsia-400 shrink-0" />
         <h1 className="text-base md:text-lg font-semibold truncate">Vibe</h1>
-        <ViewSwitch className="hidden sm:inline-flex" />
+        <VibeToggle className="hidden sm:inline-flex" />
         <span className="text-[11px] text-white/40 truncate hidden md:inline">
           Chat • preview • ship
         </span>
@@ -252,6 +257,28 @@ export function VibePage() {
             <CIStatusBadge prNumber={selectedTask.associatedPR.number} />
           </div>
         )}
+        <div
+          className={cn(
+            'hidden md:flex items-center gap-2 shrink-0',
+            !selectedTask?.associatedPR && 'ml-auto',
+          )}
+        >
+          <SimpleTooltip content="Jobs" side="bottom">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              aria-label="Jobs"
+            >
+              <Link href="/jobs">
+                <Layers className="w-4 h-4" />
+                <span className="hidden lg:inline">Jobs</span>
+              </Link>
+            </Button>
+          </SimpleTooltip>
+          <SettingsDrawerTrigger />
+        </div>
       </header>
 
       {/* Body */}

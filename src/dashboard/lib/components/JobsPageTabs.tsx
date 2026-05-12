@@ -14,6 +14,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@dashboard/lib/utils/ui'
 import { JobControl } from './JobControl'
 import { ReportsView } from './ReportsView'
+import { VibeToggle } from './VibeToggle'
+import { SettingsDrawerTrigger } from './SettingsDrawer'
 
 type Tab = 'jobs' | 'reports'
 
@@ -53,33 +55,35 @@ export function JobsPageTabs() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div
-        role="tablist"
-        aria-label="Jobs view"
-        className="shrink-0 flex items-center gap-1 px-4 md:px-6 pt-3 border-b border-white/[0.06] bg-black/30"
-      >
-        {TABS.map((tab) => {
-          const isActive = active === tab.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              aria-controls={`jobs-tab-panel-${tab.id}`}
-              onClick={() => onSelect(tab.id)}
-              className={cn(
-                'relative px-3 py-2 text-sm font-medium transition-colors',
-                'border-b-2 -mb-px',
-                isActive
-                  ? 'text-foreground border-emerald-500'
-                  : 'text-muted-foreground border-transparent hover:text-foreground',
-              )}
-            >
-              {tab.label}
-            </button>
-          )
-        })}
+      <div className="shrink-0 flex items-center justify-between gap-3 px-4 md:px-6 pt-3 border-b border-white/[0.06] bg-black/30">
+        <div role="tablist" aria-label="Jobs view" className="flex items-center gap-1">
+          {TABS.map((tab) => {
+            const isActive = active === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`jobs-tab-panel-${tab.id}`}
+                onClick={() => onSelect(tab.id)}
+                className={cn(
+                  'relative px-3 py-2 text-sm font-medium transition-colors',
+                  'border-b-2 -mb-px',
+                  isActive
+                    ? 'text-foreground border-emerald-500'
+                    : 'text-muted-foreground border-transparent hover:text-foreground',
+                )}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex items-center gap-2 pb-2">
+          <VibeToggle className="hidden sm:inline-flex" />
+          <SettingsDrawerTrigger />
+        </div>
       </div>
 
       <div
@@ -87,7 +91,7 @@ export function JobsPageTabs() {
         role="tabpanel"
         className="flex-1 min-h-0 overflow-hidden"
       >
-        {active === 'jobs' ? <JobControl /> : <ReportsView />}
+        {active === 'jobs' ? <JobControl embedded /> : <ReportsView embedded />}
       </div>
     </div>
   )

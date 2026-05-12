@@ -69,15 +69,20 @@ function newDraftId(): string {
     : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-export function JobControl() {
+interface JobControlProps {
+  /** Render without the built-in PageHeader (e.g. when hosted in JobsPageTabs). */
+  embedded?: boolean
+}
+
+export function JobControl({ embedded = false }: JobControlProps = {}) {
   return (
     <AuthGuard>
-      <JobControlInner />
+      <JobControlInner embedded={embedded} />
     </AuthGuard>
   )
 }
 
-export function JobControlInner() {
+export function JobControlInner({ embedded = false }: JobControlProps = {}) {
   const { data: jobs = [], isLoading, isFetching, refetch, error } = useJobs()
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
@@ -142,6 +147,49 @@ export function JobControlInner() {
     <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
       {/* Chat rail + sidebar come from the root layout (ChatRailShell). */}
       <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
+        {embedded ? (
+          <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-black/20">
+            <span className="text-xs text-muted-foreground mr-auto">
+              {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              aria-label="Refresh jobs"
+            >
+              <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
+            </Button>
+            {isDrafting ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={cancelDraft}
+                className="gap-1"
+                title="Stop drafting; chat returns to the selected job"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Back to job</span>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={startNewDraft}
+                className="gap-1"
+                title="Chat with Kody to scope a brand-new job"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span className="hidden sm:inline">Draft new</span>
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">New job</span>
+            </Button>
+          </div>
+        ) : (
         <PageHeader
           title="Job Control"
           icon={Target}
@@ -188,6 +236,7 @@ export function JobControlInner() {
             </>
           }
         />
+        )}
 
         {error ? (
           <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">

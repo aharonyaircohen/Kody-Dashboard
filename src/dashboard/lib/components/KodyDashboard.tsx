@@ -96,7 +96,8 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { SimpleTooltip } from "./SimpleTooltip";
-import { ViewSwitch } from "./ViewSwitch";
+import { VibeToggle } from "./VibeToggle";
+import { SettingsDrawerTrigger } from "./SettingsDrawer";
 import { PRIORITY_LEVELS, PRIORITY_META } from "../constants";
 
 interface KodyDashboardProps {
@@ -1248,7 +1249,7 @@ export function KodyDashboard({
                       </span>
                     ) : null}
                   </div>
-                  <ViewSwitch className="hidden sm:inline-flex" />
+                  <VibeToggle className="hidden sm:inline-flex" />
                 </div>
 
                 {/* Desktop controls */}
@@ -1349,6 +1350,25 @@ export function KodyDashboard({
                     actorLogin={githubUser?.login}
                     onPublished={(n) => setSelectedIssueNumber(n)}
                   />
+
+                  {/* Jobs — navigate to the Jobs page */}
+                  <SimpleTooltip content="Jobs" side="bottom">
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      aria-label="Jobs"
+                    >
+                      <Link href="/jobs">
+                        <Layers className="w-4 h-4" />
+                        <span className="hidden lg:inline">Jobs</span>
+                      </Link>
+                    </Button>
+                  </SimpleTooltip>
+
+                  {/* Settings drawer */}
+                  <SettingsDrawerTrigger />
 
                   {/* Branch cleanup */}
                   <SimpleTooltip content="Clean up branches" side="bottom">

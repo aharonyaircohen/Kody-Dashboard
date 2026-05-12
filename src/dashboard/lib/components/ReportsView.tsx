@@ -31,15 +31,20 @@ import { CreateGoalDialog } from './GoalControl'
 import { useChatScope } from './ChatRailShell'
 import { PageHeader } from './PageShell'
 
-export function ReportsView() {
+interface ReportsViewProps {
+  /** Render without the built-in PageHeader (e.g. when hosted in JobsPageTabs). */
+  embedded?: boolean
+}
+
+export function ReportsView({ embedded = false }: ReportsViewProps = {}) {
   return (
     <AuthGuard>
-      <ReportsViewInner />
+      <ReportsViewInner embedded={embedded} />
     </AuthGuard>
   )
 }
 
-export function ReportsViewInner() {
+export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
   const { data: reports = [], isLoading, isFetching, refetch, error } = useReports()
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
@@ -90,12 +95,11 @@ export function ReportsViewInner() {
 
   return (
     <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
-      <PageHeader
-        title="Reports"
-        icon={FileText}
-        iconClassName="text-sky-400"
-        subtitle={`${reports.length} ${reports.length === 1 ? 'report' : 'reports'}`}
-        actions={
+      {embedded ? (
+        <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-black/20">
+          <span className="text-xs text-muted-foreground mr-auto">
+            {reports.length} {reports.length === 1 ? 'report' : 'reports'}
+          </span>
           <Button
             variant="outline"
             size="sm"
@@ -105,8 +109,26 @@ export function ReportsViewInner() {
           >
             <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
           </Button>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          title="Reports"
+          icon={FileText}
+          iconClassName="text-sky-400"
+          subtitle={`${reports.length} ${reports.length === 1 ? 'report' : 'reports'}`}
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              aria-label="Refresh reports"
+            >
+              <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
+            </Button>
+          }
+        />
+      )}
 
       {error ? (
         <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">

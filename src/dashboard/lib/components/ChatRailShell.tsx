@@ -35,7 +35,7 @@ import {
   SheetTitle,
 } from "@dashboard/ui/sheet"
 import { KodyChat } from "./KodyChat"
-import { Sidebar } from "./Sidebar"
+import { SettingsDrawerProvider } from "./SettingsDrawer"
 import { useAuth } from "../auth-context"
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity"
 import type { ChatContext } from "../chat-types"
@@ -105,7 +105,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   if (!showRail) {
     return (
       <ChatRailContext.Provider value={api}>
-        {children}
+        <SettingsDrawerProvider>{children}</SettingsDrawerProvider>
       </ChatRailContext.Provider>
     )
   }
@@ -119,6 +119,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
 
   return (
     <ChatRailContext.Provider value={api}>
+      <SettingsDrawerProvider>
       <div className="h-screen flex overflow-hidden bg-background text-foreground">
         {/* Desktop chat rail — hidden below md. */}
         <aside
@@ -133,8 +134,9 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
           />
         </aside>
 
-        {/* Primary navigation. */}
-        <Sidebar />
+        {/* Primary navigation lives in page headers (Vibe toggle, Jobs
+            button, Settings gear). The settings drawer is mounted globally
+            via SettingsDrawerProvider so any header trigger opens it. */}
 
         {/* Page content. Pages own their own internal scroll. */}
         <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
@@ -188,6 +190,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
           </div>
         </SheetContent>
       </Sheet>
+      </SettingsDrawerProvider>
     </ChatRailContext.Provider>
   )
 }
