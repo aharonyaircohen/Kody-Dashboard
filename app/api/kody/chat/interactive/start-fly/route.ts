@@ -67,6 +67,28 @@ function buildAllSecrets(): Record<string, string> {
   return out
 }
 
+/**
+ * Decide which model to ask LiteLLM to start with. The engine's built-in
+ * default is `minimax/MiniMax-M2.7-highspeed` — if that key isn't in the
+ * dashboard env, LiteLLM will hang for ~60s trying to authenticate and
+ * then fail. So pick a model whose key we actually have.
+ *
+ * Order of preference matches the engine's own ranking (cheapest/fastest
+ * proven model first) — Gemini Flash is the cheapest viable option for
+ * chat-style usage.
+ */
+function pickFallbackModel(): string | undefined {
+  if (process.env.MINIMAX_API_KEY) return undefined // engine default works
+  if (process.env.ANTHROPIC_API_KEY) {
+    return 'anthropic/claude-haiku-4-5-20251001'
+  }
+  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
+    return 'gemini/gemini-2.5-flash'
+  }
+  if (process.env.OPENAI_API_KEY) return 'openai/gpt-4o-mini'
+  return undefined
+}
+
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
@@ -121,12 +143,14 @@ export async function POST(req: NextRequest) {
     // dashboardUrl intentionally omitted — same reason as
     // /interactive/start. The runner polls the session JSONL instead;
     // events arrive via the file-stream poller.
+    const model = pickFallbackModel()
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
       githubToken,
       sessionId: taskId,
       idleExitMs,
       hardCapMs,
+      model,
       allSecrets: buildAllSecrets(),
     })
 

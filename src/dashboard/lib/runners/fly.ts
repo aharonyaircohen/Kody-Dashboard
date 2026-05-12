@@ -97,13 +97,17 @@ export async function spawnRunner(
   const region = DEFAULT_REGION
   const image = DEFAULT_IMAGE
 
+  // Performance-2x: 2 dedicated CPUs + 4GB RAM. The bottleneck on cold
+  // boot is the repo checkout (writes thousands of small files); more
+  // CPU + dedicated (not shared) significantly reduces that wall time.
+  // Memory headroom also helps Node 22 + Python (LiteLLM) coexist.
   const body = {
     config: {
       image,
       env: buildMachineEnv(input),
       auto_destroy: true,
       restart: { policy: 'no' },
-      guest: { cpu_kind: 'shared', cpus: 1, memory_mb: 1024 },
+      guest: { cpu_kind: 'performance', cpus: 2, memory_mb: 4096 },
     },
     region,
   }
