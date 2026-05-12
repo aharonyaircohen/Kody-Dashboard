@@ -235,6 +235,12 @@ interface KodyChatProps {
   actorLogin?: string | null
   /** Optional close handler — when set, renders a close `×` in the header (mobile sheet). */
   onClose?: () => void
+  /**
+   * Force a specific agent and hide the picker. Used by the Vibe page,
+   * which is always Kody Live. When set, the chevron + dropdown are
+   * suppressed and the brain auto-default logic is skipped.
+   */
+  lockedAgentId?: AgentId
 }
 
 function getFileIcon(mimeType: string) {
@@ -349,7 +355,7 @@ function TypingIndicator({ label }: { label: string }) {
   )
 }
 
-export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
+export function KodyChat({ context, actorLogin, onClose, lockedAgentId }: KodyChatProps) {
   // Context-kind derivations.
   const selectedTask: KodyTask | null =
     context?.kind === 'task' ? context.task : null
@@ -401,7 +407,7 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
   const dragCounterRef = useRef(0)
   const [loading, setLoading] = useState(false)
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([])
-  const [selectedAgentId, setSelectedAgentId] = useState<AgentId>('kody')
+  const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(lockedAgentId ?? 'kody')
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [brainConfigured, setBrainConfigured] = useState(false)
   const brainAbortRef = useRef<AbortController | null>(null)
@@ -410,20 +416,29 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
 
   // Read Brain config once on mount. When Brain credentials were provided at
   // login, Brain becomes the default selection; otherwise Kody is the default.
+  // Skip the auto-switch when the parent locks a specific agent (Vibe page).
   useEffect(() => {
     const configured = getStoredBrainConfig() !== null
     setBrainConfigured(configured)
-    if (configured) {
+    if (configured && !lockedAgentId) {
       setSelectedAgentId('brain')
     }
-  }, [])
+  }, [lockedAgentId])
 
   // If the user had Brain selected but then removed the config, fall back to Kody.
   useEffect(() => {
+    if (lockedAgentId) return
     if (selectedAgentId === 'brain' && !brainConfigured) {
       setSelectedAgentId('kody')
     }
-  }, [brainConfigured, selectedAgentId])
+  }, [brainConfigured, selectedAgentId, lockedAgentId])
+
+  // When a parent toggles `lockedAgentId` on/off (route change), keep state in sync.
+  useEffect(() => {
+    if (lockedAgentId && selectedAgentId !== lockedAgentId) {
+      setSelectedAgentId(lockedAgentId)
+    }
+  }, [lockedAgentId, selectedAgentId])
 
   // Restore an in-progress Kody Live session after a page refresh. Reads
   // localStorage on mount; if a non-stale session exists, switches to the
@@ -2235,42 +2250,56 @@ export function KodyChat({ context, actorLogin, onClose }: KodyChatProps) {
       {/* Header with context */}
       <div className="px-2 py-1.5 sm:px-4 sm:py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
         <div className="flex items-center justify-between">
-          {/* Left: agent picker */}
+          {/* Left: agent picker (locked label when parent forces an agent) */}
           <div className="relative flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setAgentMenuOpen((v) => !v)}
-              className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
-              aria-haspopup="listbox"
-              aria-expanded={agentMenuOpen}
-              title={`Switch assistant (current: ${currentAgent.name})`}
-            >
-              {(() => {
-                const Icon = currentAgent.icon
-                return <Icon className="w-5 h-5" aria-label={currentAgent.name} />
-              })()}
-              <span className="font-semibold text-base">{currentAgent.name}</span>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+            {lockedAgentId ? (
+              <div
+                className="flex items-center gap-2 px-2 py-1"
+                title={`${currentAgent.name} (locked for this view)`}
+                aria-label={`${currentAgent.name} (locked)`}
               >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
+                {(() => {
+                  const Icon = currentAgent.icon
+                  return <Icon className="w-5 h-5" aria-label={currentAgent.name} />
+                })()}
+                <span className="font-semibold text-base">{currentAgent.name}</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAgentMenuOpen((v) => !v)}
+                className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+                aria-haspopup="listbox"
+                aria-expanded={agentMenuOpen}
+                title={`Switch assistant (current: ${currentAgent.name})`}
+              >
+                {(() => {
+                  const Icon = currentAgent.icon
+                  return <Icon className="w-5 h-5" aria-label={currentAgent.name} />
+                })()}
+                <span className="font-semibold text-base">{currentAgent.name}</span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+            )}
             {messages.length > 0 && (
               <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
                 {messages.length}
               </span>
             )}
-            {agentMenuOpen && (
+            {!lockedAgentId && agentMenuOpen && (
               <ul
                 role="listbox"
                 className="absolute top-full left-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
