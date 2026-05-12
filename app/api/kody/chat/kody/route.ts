@@ -146,6 +146,68 @@ function traceError(data: object, msg: string): void {
   console.error(JSON.stringify({ level: "error", msg, ...data }))
 }
 
+/**
+ * Pull the provider's response body out of an AI SDK error. The SDK wraps
+ * HTTP errors as `APICallError` with a `responseBody` (raw text) and a
+ * `data` field (parsed JSON when available). Without this, a Gemini 400
+ * surfaces as a useless "Bad Request" — with it, the user sees the
+ * specific validation message ("tools[7].function.parameters: ...").
+ */
+interface ProviderErrorLike {
+  message?: string
+  name?: string
+  statusCode?: number
+  responseBody?: string
+  url?: string
+  data?: unknown
+  cause?: unknown
+}
+
+function asProviderErrorLike(e: unknown): ProviderErrorLike | null {
+  if (!e || typeof e !== "object") return null
+  return e as ProviderErrorLike
+}
+
+function formatProviderError(error: unknown): string {
+  const e = asProviderErrorLike(error)
+  if (!e) return String(error)
+  // Prefer a parsed Google/OpenAI-style { error: { message } } payload.
+  const data = e.data as { error?: { message?: string } } | undefined
+  if (data && typeof data === "object") {
+    const inner = data.error?.message
+    if (typeof inner === "string" && inner.length > 0) {
+      return e.statusCode ? `[${e.statusCode}] ${inner}` : inner
+    }
+  }
+  // Fall back to the raw response body — clipped so a giant HTML page
+  // doesn't poison the UI bubble.
+  if (typeof e.responseBody === "string" && e.responseBody.length > 0) {
+    const clipped =
+      e.responseBody.length > 600
+        ? `${e.responseBody.slice(0, 600)}…`
+        : e.responseBody
+    return e.statusCode ? `[${e.statusCode}] ${clipped}` : clipped
+  }
+  if (typeof e.message === "string" && e.message.length > 0) return e.message
+  return String(error)
+}
+
+function extractProviderErrorMeta(error: unknown): Record<string, unknown> {
+  const e = asProviderErrorLike(error)
+  if (!e) return {}
+  const meta: Record<string, unknown> = {}
+  if (typeof e.name === "string") meta.errName = e.name
+  if (typeof e.statusCode === "number") meta.statusCode = e.statusCode
+  if (typeof e.url === "string") meta.url = e.url
+  if (typeof e.responseBody === "string") {
+    meta.responseBody =
+      e.responseBody.length > 1200
+        ? `${e.responseBody.slice(0, 1200)}…`
+        : e.responseBody
+  }
+  return meta
+}
+
 function trimToRecent(messages: ModelMessage[]): ModelMessage[] {
   if (messages.length <= MAX_HISTORY_MESSAGES) return messages
   const trimmed = messages.slice(-MAX_HISTORY_MESSAGES)
@@ -562,7 +624,12 @@ export async function POST(req: NextRequest) {
         // to the UI via the `onError` arg to toUIMessageStreamResponse
         // below, so the user sees what happened instead of a silent hang.
         traceError(
-          { traceId, modelId, err: error instanceof Error ? error.message : String(error) },
+          {
+            traceId,
+            modelId,
+            err: formatProviderError(error),
+            ...extractProviderErrorMeta(error),
+          },
           "kody-direct: stream onError",
         )
       },
@@ -589,21 +656,22 @@ export async function POST(req: NextRequest) {
       // for support sessions where they paste the message back to us.
       onError: (error) => {
         clearHeartbeats()
-        const msg = error instanceof Error ? error.message : String(error)
-        traceError({ traceId, err: msg }, "kody-direct: ui-stream onError")
+        const msg = formatProviderError(error)
+        traceError(
+          { traceId, err: msg, ...extractProviderErrorMeta(error) },
+          "kody-direct: ui-stream onError",
+        )
         return `[trace ${traceId}] ${msg}`
       },
     })
   } catch (err) {
     clearHeartbeats()
     clearGitHubContext()
+    const msg = formatProviderError(err)
     traceError(
-      { traceId, err: err instanceof Error ? err.message : String(err) },
+      { traceId, err: msg, ...extractProviderErrorMeta(err) },
       "kody-direct: stream failed",
     )
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Stream failed", traceId },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: msg, traceId }, { status: 500 })
   }
 }
