@@ -317,14 +317,20 @@ export async function GET(req: NextRequest) {
       // for older deployments that fall outside the bulk fetch window.
     }
 
-    // First pass: identify all issue numbers that need branch lookup
+    // First pass: match workflow runs once per issue (reused later in the
+    // mapping loop) and identify issue numbers that need branch lookup
     // (those with active workflows or pipeline labels). Terminal states
-    // (`kody:done`, `kody:failed`) are excluded — their pipeline JSON won't
-    // change and re-fetching it on every poll burns rate-limit budget.
+    // (`kody:done`, `kody:failed`) are excluded from branch lookup — their
+    // pipeline JSON won't change and re-fetching it on every poll burns
+    // rate-limit budget.
+    const workflowRunByIssueNumber = new Map<number, WorkflowRun>()
     const activeIssueNumbers: number[] = []
     for (const issue of issues) {
       const taskId = extractTaskId(issue.title)
       const workflowRun = matchWorkflowRunToTask(workflowRuns, issue.title, issue.number, taskId)
+      if (workflowRun && issue.number) {
+        workflowRunByIssueNumber.set(issue.number, workflowRun)
+      }
       const labelNames = issue.labels.map((l) => l.name.toLowerCase())
       // Active workflow run overrides terminal labels — `@kody sync` /
       // `@kody fix-ci` re-trigger work on done/failed tasks without removing
@@ -346,16 +352,25 @@ export async function GET(req: NextRequest) {
     // Batch fetch branches for all active issues (5 GitHub API calls max, not 5*N)
     const branchByIssueNumber = await findBranchesByIssueNumbers(activeIssueNumbers)
 
-    // Batch fetch canonical kody state for any kody-touched issue, including
-    // terminal (kody:done/failed) ones — terminal tasks are exactly where
-    // the user wants to see the recorded state (failure reason on failed
-    // tasks, last action on done). Reuses fetchComments' ETag cache, so
-    // polling cost is effectively zero (304 hits). Map is keyed by issue
-    // number; absent entries mean the engine never wrote a state comment
-    // for that issue (legacy / non-kody — column derivation falls back to
-    // label/run heuristics).
+    // Batch fetch canonical kody state for any engine-touched issue.
+    // Two signals indicate the engine wrote a state comment:
+    //   1. A `kody:*` label — engine reached the label-application stage.
+    //   2. A matched kody workflow run — engine *started* on this issue,
+    //      even if the run was cancelled before labels landed (e.g. a
+    //      concurrency-loser). Without this, an issue whose chain died
+    //      from a concurrency cancel never gets its state read; column
+    //      derivation falls to step 6 and treats the cancelled run as a
+    //      build failure even though the engine recorded `status: running`.
+    // Terminal (kody:done/failed) issues are included on purpose — that's
+    // exactly where the user wants to see the recorded state (failure
+    // reason on failed, last action on done). Reuses fetchComments' ETag
+    // cache, so polling cost is effectively zero (304 hits).
     const kodyTouchedIssueNumbers = issues
-      .filter((i) => i.labels.some((l) => l.name.toLowerCase().startsWith('kody:')))
+      .filter(
+        (i) =>
+          i.labels.some((l) => l.name.toLowerCase().startsWith('kody:')) ||
+          (typeof i.number === 'number' && workflowRunByIssueNumber.has(i.number)),
+      )
       .map((i) => i.number)
       .filter((n): n is number => typeof n === 'number' && n > 0)
     const kodyStateByIssueNumber = new Map<number, KodyTaskState>()
@@ -373,8 +388,12 @@ export async function GET(req: NextRequest) {
         // brackets like "[P2]" don't qualify — see extractTaskId comment.
         const taskId = extractTaskId(issue.title)
 
-        // Match workflow run — prefers active (in_progress) runs over stale completed ones
-        const workflowRun = matchWorkflowRunToTask(workflowRuns, issue.title, issue.number, taskId)
+        // Match workflow run — computed once in the first pass and reused
+        // here. `matchWorkflowRunToTask` prefers active (in_progress) runs
+        // over stale completed ones.
+        const workflowRun = issue.number
+          ? workflowRunByIssueNumber.get(issue.number) ?? null
+          : null
 
         // Match PR. Highest priority: engine-written `<!-- kody-release-pr: #N -->`
         // marker in the issue body (release-prepare/deploy persist this so the
