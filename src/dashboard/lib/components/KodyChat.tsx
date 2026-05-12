@@ -56,6 +56,18 @@ function buildAgentList(
     description: live.description,
     icon: live.icon,
   })
+  // POC: parallel runtime on Fly Machines (sub-second warm boot vs ~90s
+  // GH Actions cold start). Same engine + same session model — only the
+  // host moves. See app/api/kody/chat/interactive/start-fly/route.ts.
+  const liveFly = AGENTS['kody-live-fly']
+  entries.push({
+    key: 'kody-live-fly',
+    agentId: 'kody-live-fly',
+    modelId: null,
+    name: liveFly.name,
+    description: liveFly.description,
+    icon: liveFly.icon,
+  })
   if (brainConfigured) {
     const brain = AGENTS.brain
     entries.push({
