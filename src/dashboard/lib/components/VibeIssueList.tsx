@@ -31,6 +31,19 @@ const COLUMN_CHIP: Partial<Record<ColumnId, string>> = {
   retrying: 'bg-orange-500/10 text-orange-300 ring-orange-500/20',
 }
 
+// Per-column row-background tint. Subtle by default (~4% alpha) so titles
+// stay readable; deepens on hover and selection to keep affordances visible.
+// "open" uses neutral white so idle tasks don't get a status color.
+const COLUMN_ROW_BG: Record<ColumnId, { idle: string; hover: string; selected: string }> = {
+  open:           { idle: '',                    hover: 'hover:bg-white/[0.03]',     selected: 'bg-white/[0.06]' },
+  building:       { idle: 'bg-blue-500/[0.05]',  hover: 'hover:bg-blue-500/[0.09]',  selected: 'bg-blue-500/[0.14]' },
+  review:         { idle: 'bg-purple-500/[0.05]',hover: 'hover:bg-purple-500/[0.09]',selected: 'bg-purple-500/[0.14]' },
+  failed:         { idle: 'bg-red-500/[0.05]',   hover: 'hover:bg-red-500/[0.10]',   selected: 'bg-red-500/[0.16]' },
+  'gate-waiting': { idle: 'bg-yellow-500/[0.05]',hover: 'hover:bg-yellow-500/[0.10]',selected: 'bg-yellow-500/[0.14]' },
+  retrying:       { idle: 'bg-orange-500/[0.05]',hover: 'hover:bg-orange-500/[0.10]',selected: 'bg-orange-500/[0.14]' },
+  done:           { idle: 'bg-green-500/[0.04]', hover: 'hover:bg-green-500/[0.08]', selected: 'bg-green-500/[0.12]' },
+}
+
 interface VibeIssueListProps {
   tasks: KodyTask[] | undefined
   selectedIssueNumber: number | null
@@ -214,8 +227,8 @@ export function VibeIssueList({
                 className={cn(
                   'group w-full text-left px-3 py-2.5 transition-colors',
                   isSelected
-                    ? 'bg-white/[0.06]'
-                    : 'hover:bg-white/[0.03]',
+                    ? COLUMN_ROW_BG[task.column].selected
+                    : cn(COLUMN_ROW_BG[task.column].idle, COLUMN_ROW_BG[task.column].hover),
                 )}
               >
                 <div className="flex items-start gap-2.5 min-w-0">
