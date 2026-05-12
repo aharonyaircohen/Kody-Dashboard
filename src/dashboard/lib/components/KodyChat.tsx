@@ -1899,6 +1899,19 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
             messages: engineMessages,
             dashboardUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
             ...(vibeMode ? { vibeMode: true } : {}),
+            ...(vibeMode && context?.kind === 'task'
+              ? {
+                  taskContext: {
+                    issueNumber: context.task.issueNumber,
+                    ...(context.task.associatedPR
+                      ? {
+                          prNumber: context.task.associatedPR.number,
+                          branch: context.task.associatedPR.head.ref,
+                        }
+                      : {}),
+                  },
+                }
+              : {}),
           }),
         })
 

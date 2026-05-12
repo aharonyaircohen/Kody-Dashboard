@@ -75,10 +75,16 @@ interface ChatMessage {
  * without republishing @kody-ade/kody-engine. The chat client never
  * shows this text; it lives only in the session file + workflow input.
  */
-const VIBE_PRIMER = [
+interface VibeTaskContext {
+  issueNumber: number;
+  prNumber?: number;
+  branch?: string;
+}
+
+const VIBE_PRIMER_FRESH = [
   "[Vibe mode — operating instructions, do not echo this block]",
   "",
-  "Workflow for every task I describe:",
+  "No issue is selected for this conversation yet. Workflow:",
   "1. Research the codebase with the tools you have (Glob/Grep/Read/Bash) until you can write a concrete implementation plan grounded in this repo.",
   "2. Create a new GitHub issue with the plan as the body using `gh issue create --title \"…\" --body \"…\"`. Title is a short imperative. Body is the plan: goal, files to touch, approach, risks, test plan.",
   "3. Reply to me with: a one-line summary of the plan, the new issue link, and an explicit question asking me to confirm before you implement.",
@@ -91,10 +97,36 @@ const VIBE_PRIMER = [
   "",
 ].join("\n");
 
-function applyVibePrimer(messages: ChatMessage[]): ChatMessage[] {
+function buildVibePrimerFollowUp(ctx: VibeTaskContext): string {
+  const branchHint = ctx.branch
+    ? `on the existing branch \`${ctx.branch}\``
+    : "on the branch already associated with the PR (find it via `gh pr view`)";
+  const prHint = ctx.prNumber
+    ? ` and PR #${ctx.prNumber}`
+    : "";
+  return [
+    "[Vibe mode — follow-up on an existing issue, do not echo this block]",
+    "",
+    `I'm iterating on issue #${ctx.issueNumber}${prHint}. Read the existing issue body, the current diff, and the latest preview state before answering.`,
+    "",
+    "Workflow:",
+    `1. Research what's already shipped: run \`gh issue view ${ctx.issueNumber}\`, \`gh pr view${ctx.prNumber ? ` ${ctx.prNumber}` : ""} --json files,headRefName,body\`, and read the files the PR touches. Understand what was already done.`,
+    "2. Reply with a short plan for the requested change (what files, what edits, why). Ask me to confirm before editing.",
+    `3. Do NOT create a new issue or a new branch — push the follow-up commits ${branchHint} so the existing PR updates and Vercel redeploys the same preview.`,
+    "4. On my confirmation, make the edits, commit with a clear message, push, and reply with the commit SHA + a short summary of what changed.",
+    "5. If the user's request seems unrelated to the current issue (a new feature, not a fix to this one), say so and ask whether to fork a new vibe session instead.",
+    "",
+    "My actual request follows below.",
+    "---",
+    "",
+  ].join("\n");
+}
+
+function applyVibePrimer(
+  messages: ChatMessage[],
+  taskContext: VibeTaskContext | undefined,
+): ChatMessage[] {
   if (messages.length === 0) return messages;
-  // Find the last user message — that's the one the engine reads as
-  // `message` workflow input. Prepend the primer immutably.
   const lastUserIdx = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role === "user") return i;
@@ -102,8 +134,11 @@ function applyVibePrimer(messages: ChatMessage[]): ChatMessage[] {
     return -1;
   })();
   if (lastUserIdx === -1) return messages;
+  const primer = taskContext
+    ? buildVibePrimerFollowUp(taskContext)
+    : VIBE_PRIMER_FRESH;
   return messages.map((m, i) =>
-    i === lastUserIdx ? { ...m, content: `${VIBE_PRIMER}${m.content}` } : m,
+    i === lastUserIdx ? { ...m, content: `${primer}${m.content}` } : m,
   );
 }
 
@@ -116,6 +151,7 @@ export async function POST(req: NextRequest) {
     messages?: ChatMessage[];
     dashboardUrl?: string;
     vibeMode?: boolean;
+    taskContext?: VibeTaskContext;
   };
   try {
     body = await req.json();
@@ -123,8 +159,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { taskId, messages: rawMessages = [], dashboardUrl, vibeMode } = body;
-  const messages = vibeMode ? applyVibePrimer(rawMessages) : rawMessages;
+  const {
+    taskId,
+    messages: rawMessages = [],
+    dashboardUrl,
+    vibeMode,
+    taskContext,
+  } = body;
+  const messages = vibeMode
+    ? applyVibePrimer(rawMessages, taskContext)
+    : rawMessages;
 
   if (!taskId) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
