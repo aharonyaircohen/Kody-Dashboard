@@ -5,10 +5,8 @@
  * @ai-summary Reports entry point. Renders inside the shared PageWithChat
  *   shell so the assistant is always available alongside the report list.
  */
-import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { PageWithChat } from "@dashboard/lib/components/PageWithChat";
 import { ReportsView } from "@dashboard/lib/components/ReportsView";
-import { buildKodyMetadata } from "../metadata";
+import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";
 export const revalidate = false;
@@ -22,11 +20,5 @@ export const metadata = buildKodyMetadata({
 });
 
 export default function ReportsPage() {
-  return (
-    <AuthGuard>
-      <PageWithChat>
-        <ReportsView />
-      </PageWithChat>
-    </AuthGuard>
-  );
+  return <ReportsView />;
 }
