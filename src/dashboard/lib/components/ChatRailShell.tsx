@@ -19,6 +19,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -81,6 +82,14 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const [scope, setScope] = useState<ChatContext | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
 
+  // Hydration guard: SSR has no localStorage so `auth` is always null on
+  // the server. Without this flag the first client render would diverge
+  // from the server HTML and React would bail out with hydration error
+  // #418. We force the first client paint to match the server (no rail),
+  // then flip on a layout effect so the rail appears immediately.
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => setHydrated(true), [])
+
   const openMobileChat = useCallback(() => setMobileOpen(true), [])
 
   const api = useMemo<ChatRailApi>(
@@ -88,9 +97,10 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     [scope, openMobileChat],
   )
 
-  // No rail on /login or while auth is still loading. AuthGuard inside
-  // protected pages handles the redirect for unauthenticated users.
-  const showRail = !loading && !!auth && !isPublicRoute(pathname)
+  // No rail on /login, before hydration, or while auth is still loading.
+  // AuthGuard inside protected pages handles the redirect for unauth'd users.
+  const showRail =
+    hydrated && !loading && !!auth && !isPublicRoute(pathname)
 
   if (!showRail) {
     return (

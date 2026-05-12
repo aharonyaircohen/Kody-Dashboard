@@ -1026,28 +1026,38 @@ export function KodyDashboard({
         state: t.state,
       }));
   }, [planningGoal, filteredTasks]);
-  const chatContext: ChatContext | null =
-    planningGoal && plannerSessionId
-      ? {
-          kind: "goal-planner",
-          goal: planningGoal,
-          sessionId: plannerSessionId,
-          existingTasks: plannerExistingTasksForChat,
-          onTasksCreated: () => {
-            refetch();
-          },
-          onExit: exitPlanner,
-        }
-      : selectedTask
-        ? { kind: "task", task: selectedTask }
-        : null;
-
   // Push our context into the persistent chat rail (in the root layout).
-  // Clear on unmount so the next page starts with a global-scope chat.
+  // We build the context object INSIDE the effect rather than at render
+  // time so the value identity doesn't churn every render (which would
+  // ping-pong with the rail's state and trigger an infinite update loop).
+  // Effect deps are the real inputs — primitives plus stable-ref hooks.
   useEffect(() => {
-    setScope(chatContext);
+    if (planningGoal && plannerSessionId) {
+      setScope({
+        kind: "goal-planner",
+        goal: planningGoal,
+        sessionId: plannerSessionId,
+        existingTasks: plannerExistingTasksForChat,
+        onTasksCreated: () => {
+          refetch();
+        },
+        onExit: exitPlanner,
+      });
+    } else if (selectedTask) {
+      setScope({ kind: "task", task: selectedTask });
+    } else {
+      setScope(null);
+    }
     return () => setScope(null);
-  }, [chatContext, setScope]);
+  }, [
+    planningGoal,
+    plannerSessionId,
+    selectedTask,
+    plannerExistingTasksForChat,
+    exitPlanner,
+    refetch,
+    setScope,
+  ]);
 
   // Mobile-only button that opens the chat Sheet — used in error takeovers so
   // mobile users can still reach Kody when the dashboard is otherwise blocked.
