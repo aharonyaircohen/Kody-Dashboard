@@ -121,6 +121,11 @@ export function PreviewActions({
   const handleFixSubmit = async (description: string) => {
     try {
       await tasksApi.fixRequest(task.issueNumber, description, actorLogin)
+      // Mirror the backend, which also clears terminal lifecycle labels so the
+      // task immediately leaves the "completed" column while we wait for the
+      // engine to dispatch the fix workflow.
+      removeOptimisticLabel(queryClient, task.issueNumber, 'kody:done')
+      removeOptimisticLabel(queryClient, task.issueNumber, 'kody:failed')
       toast.success('Fix requested — Kody will work on it')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to request fix')
@@ -148,6 +153,10 @@ export function PreviewActions({
     try {
       await tasksApi.reportIssue(task.issueNumber, notes, actorLogin)
       applyOptimisticLabel(queryClient, task.issueNumber, 'kody:needs-fix')
+      // Mirror the backend, which also clears terminal lifecycle labels so the
+      // task immediately leaves the "completed" column.
+      removeOptimisticLabel(queryClient, task.issueNumber, 'kody:done')
+      removeOptimisticLabel(queryClient, task.issueNumber, 'kody:failed')
       toast.success('Issue reported')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to report issue')
