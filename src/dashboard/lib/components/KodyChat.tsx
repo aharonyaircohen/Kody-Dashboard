@@ -718,10 +718,31 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
               const content = typeof payload.content === 'string' ? payload.content : ''
               const timestamp =
                 typeof payload.timestamp === 'string' ? payload.timestamp : new Date().toISOString()
-              setMessages((prev) => [
-                ...prev.filter((m) => !(m.role === 'assistant' && m.isLoading)),
-                { role, content, timestamp, isLoading: false },
-              ])
+              setMessages((prev) => {
+                // Inherit mid-turn progress from the in-flight bubble: any
+                // <think> blocks already accumulated from chat.thinking, and
+                // all tool-call cards from chat.tool. Without this, when all
+                // events arrive together (engine commits at end of turn),
+                // chat.message would replace the in-flight with a clean
+                // final, erasing the reasoning + tool history.
+                const inflight = prev.find(
+                  (m) => m.role === 'assistant' && m.isLoading,
+                )
+                const carriedReasoning = inflight?.content ?? ''
+                const carriedToolCalls = inflight?.toolCalls
+                return [
+                  ...prev.filter((m) => !(m.role === 'assistant' && m.isLoading)),
+                  {
+                    role,
+                    content: carriedReasoning + content,
+                    timestamp,
+                    isLoading: false,
+                    ...(carriedToolCalls && carriedToolCalls.length > 0
+                      ? { toolCalls: carriedToolCalls }
+                      : {}),
+                  },
+                ]
+              })
               break
             }
             case 'chat.done':
@@ -917,15 +938,28 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
             }
             case 'chat.message': {
               const { role, content, timestamp } = parsed
-              setMessages((prev) => [
-                ...prev.filter((m) => !(m.role === 'assistant' && m.isLoading)),
-                {
-                  role: role === 'user' ? 'user' : 'assistant',
-                  content: content ?? '',
-                  timestamp: timestamp ?? new Date().toISOString(),
-                  isLoading: false,
-                },
-              ])
+              // Inherit mid-turn progress (reasoning + tool calls) from the
+              // in-flight bubble before replacing it with the final reply —
+              // see the matching comment in the polling path's handler.
+              setMessages((prev) => {
+                const inflight = prev.find(
+                  (m) => m.role === 'assistant' && m.isLoading,
+                )
+                const carriedReasoning = inflight?.content ?? ''
+                const carriedToolCalls = inflight?.toolCalls
+                return [
+                  ...prev.filter((m) => !(m.role === 'assistant' && m.isLoading)),
+                  {
+                    role: role === 'user' ? 'user' : 'assistant',
+                    content: carriedReasoning + (content ?? ''),
+                    timestamp: timestamp ?? new Date().toISOString(),
+                    isLoading: false,
+                    ...(carriedToolCalls && carriedToolCalls.length > 0
+                      ? { toolCalls: carriedToolCalls }
+                      : {}),
+                  },
+                ]
+              })
               break
             }
             case 'chat.done':
