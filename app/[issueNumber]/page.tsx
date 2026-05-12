@@ -3,21 +3,24 @@
  * @domain kody
  * @pattern dashboard-page
  * @ai-summary Kody dashboard with a specific task pre-selected via URL.
- *   Force static with generateStaticParams for OG tags - social media crawlers need metadata without auth.
+ *   The listed numeric params get prerendered at build time for OG tags;
+ *   any other numeric issue renders on demand. We deliberately do NOT
+ *   use `force-static` here — it caused Next.js to bake `/vibe` (and
+ *   any other non-numeric sibling-route path) into a cached 307 redirect
+ *   at the edge, silently shadowing the real static routes for ~5min
+ *   stale-time windows. The runtime `notFound()` for non-numeric segments
+ *   makes the catch-all decline gracefully so sibling routes (vibe, jobs,
+ *   settings, …) win at routing.
  */
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { KodyDashboard } from "@dashboard/lib/components/KodyDashboard";
 import { buildTaskMetadata } from "../metadata";
 
-// Force static generation so OG tags are available without authentication
-export const dynamic = "force-static";
-export const revalidate = false;
-export const fetchCache = "force-cache";
-
-// Pre-render common issue numbers at build time for OG tags
+// Pre-render common issue numbers at build time for OG tags. Any
+// numeric param NOT in this list renders on demand (default behavior).
+// Non-numeric segments are rejected by the runtime guard below.
 export async function generateStaticParams() {
-  // Common/recent task numbers - can be expanded or fetched from GitHub API
   const issueNumbers = Array.from({ length: 50 }, (_, i) => ({
     issueNumber: String(i + 800),
   }));
