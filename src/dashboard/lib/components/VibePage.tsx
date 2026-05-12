@@ -14,25 +14,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import Link from 'next/link'
 import {
-  Bell,
-  Bot,
   ExternalLink,
-  FileText,
-  Github,
-  KeyRound,
-  Layers,
   ListChecks,
   Loader2,
-  LogOut,
   RefreshCw,
-  Settings as SettingsIcon,
-  Settings2,
   Sparkles,
 } from 'lucide-react'
 
-import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
 import { Button } from '@dashboard/ui/button'
 import {
   Sheet,
@@ -45,8 +34,6 @@ import { cn, getPreviewBypassUrl } from '../utils'
 import { useChatScope } from './ChatRailShell'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { useKodyTasks } from '../hooks'
-import { useBrowserNotifications } from '../hooks/useBrowserNotifications'
-import { useNotificationStore } from '../notifications/useNotificationStore'
 import { tasksApi, getStoredAuth, redirectToLogin } from '../api'
 import {
   RateLimitError,
@@ -61,6 +48,7 @@ import { PreviewActions } from './PreviewActions'
 import { CIStatusBadge } from './CIStatusBadge'
 import { KodyHeader } from './KodyHeader'
 import { BranchCleanupDialog } from './BranchCleanupDialog'
+import { MobileMenu } from './MobileMenu'
 import { SimpleTooltip } from './SimpleTooltip'
 
 interface DashboardConfigResponse {
@@ -110,16 +98,8 @@ async function saveDashboardConfig(
 
 export function VibePage() {
   const queryClient = useQueryClient()
-  const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity()
+  const { githubUser } = useGitHubIdentity()
   const { setScope } = useChatScope()
-
-  // Notification store + permission, owned here so KodyHeader stays stateless.
-  const notificationStore = useNotificationStore()
-  const {
-    permission: notificationPermission,
-    isSupported: notificationsSupported,
-    requestPermission,
-  } = useBrowserNotifications({ store: notificationStore })
 
   const [showBranchCleanup, setShowBranchCleanup] = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
@@ -283,10 +263,6 @@ export function VibePage() {
       {/* Header — mirrors the Dashboard so navigation feels like a view
           toggle. The VibeToggle in the header reflects "on" via pathname. */}
       <KodyHeader
-        notificationStore={notificationStore}
-        notificationPermission={notificationPermission}
-        notificationsSupported={notificationsSupported}
-        onRequestNotificationPermission={requestPermission}
         onPublished={(n) => setSelectedIssueNumber(n)}
         onOpenBranchCleanup={() => setShowBranchCleanup(true)}
         onOpenMobileMenu={() => setShowMobileMenu(true)}
@@ -497,206 +473,27 @@ export function VibePage() {
         onClose={() => setShowBranchCleanup(false)}
       />
 
-      {/* Mobile menu — minimal, vibe-flavored nav (no dashboard filters). */}
-      <Sheet open={showMobileMenu} onOpenChange={setShowMobileMenu}>
-        <SheetContent
-          side="right"
-          className="w-[88vw] sm:w-[360px] !p-0 !gap-0 overflow-y-auto bg-black/95 border-white/[0.08]"
-        >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Menu</SheetTitle>
-            <SheetDescription>
-              Vibe navigation, identity, and quick actions.
-            </SheetDescription>
-          </SheetHeader>
-
-          {(githubUser || connectedRepo) && (
-            <div className="px-4 pt-4">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                {githubUser ? (
-                  <Avatar className="h-9 w-9 shrink-0">
-                    <AvatarImage
-                      src={githubUser.avatar_url}
-                      alt={githubUser.login}
-                    />
-                    <AvatarFallback>
-                      {githubUser.login[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                ) : (
-                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">
-                    <Github className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">
-                    {githubUser ? `@${githubUser.login}` : 'Connected'}
-                  </div>
-                  {connectedRepo && (
-                    <div className="text-[11px] text-muted-foreground truncate">
-                      {connectedRepo}
-                    </div>
-                  )}
-                </div>
-                {githubUser && (
-                  <SimpleTooltip content="Sign out">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        clearGitHubUser()
-                        setShowMobileMenu(false)
-                      }}
-                      className="shrink-0 h-8 w-8 rounded-md inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06]"
-                      aria-label="Sign out"
-                    >
-                      <LogOut className="w-4 h-4" />
-                    </button>
-                  </SimpleTooltip>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Vibe toggle — currently ON, single click goes back to dashboard. */}
-          <div className="px-4 pt-3">
-            <Link
-              href="/"
-              role="switch"
-              aria-checked={true}
-              onClick={() => setShowMobileMenu(false)}
-              className={cn(
-                'flex items-center gap-3 h-12 px-4 rounded-xl border transition-colors',
-                'border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-100',
-                'hover:bg-fuchsia-500/20',
-              )}
-            >
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-fuchsia-500/30">
-                <Sparkles className="w-4 h-4 text-fuchsia-200" />
-              </span>
-              <span className="text-sm font-medium flex-1">Turn off Vibe</span>
-              <span className="text-[11px] text-fuchsia-200/70">Back to list</span>
-            </Link>
-          </div>
-
-          {/* Workspace — Issues picker + Jobs/Reports tiles. */}
-          <div className="px-4 pt-4">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-2 px-1">
-              Workspace
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setShowMobileMenu(false)
-                setMobileIssuesOpen(true)
-              }}
-              className="flex items-center gap-3 h-12 w-full px-3 rounded-lg hover:bg-white/[0.04] transition-colors"
-            >
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/10">
-                <ListChecks className="w-4 h-4 text-emerald-300" />
-              </span>
-              <span className="text-sm font-medium">Open issues</span>
-            </button>
-
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <Link
-                href="/jobs"
-                onClick={() => setShowMobileMenu(false)}
-                className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
-              >
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/10">
-                  <Layers className="w-4 h-4 text-amber-300" />
-                </span>
-                <span className="text-sm font-medium">Jobs</span>
-                <span className="text-[11px] text-muted-foreground">
-                  Run and edit
-                </span>
-              </Link>
-              <Link
-                href="/jobs?tab=reports"
-                onClick={() => setShowMobileMenu(false)}
-                className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
-              >
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-sky-500/10">
-                  <FileText className="w-4 h-4 text-sky-300" />
-                </span>
-                <span className="text-sm font-medium">Reports</span>
-                <span className="text-[11px] text-muted-foreground">
-                  Job outputs
-                </span>
-              </Link>
-            </div>
-          </div>
-
-          {/* Settings — same set as the dashboard mobile menu. */}
-          <div className="px-4 pt-4 pb-4">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-2 px-1">
-              Settings
-            </div>
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.04]">
-              {[
-                {
-                  href: '/notifications',
-                  label: 'Notifications',
-                  icon: Bell,
-                  tint: 'text-amber-300 bg-amber-500/10',
-                },
-                {
-                  href: '/secrets',
-                  label: 'Secrets',
-                  icon: KeyRound,
-                  tint: 'text-rose-300 bg-rose-500/10',
-                },
-                {
-                  href: '/variables',
-                  label: 'Variables',
-                  icon: Settings2,
-                  tint: 'text-indigo-300 bg-indigo-500/10',
-                },
-                {
-                  href: '/models',
-                  label: 'Chat Models',
-                  icon: Bot,
-                  tint: 'text-emerald-300 bg-emerald-500/10',
-                },
-                {
-                  href: '/repos',
-                  label: 'Repositories',
-                  icon: Github,
-                  tint: 'text-zinc-300 bg-white/[0.08]',
-                },
-                {
-                  href: '/settings',
-                  label: 'Settings',
-                  icon: SettingsIcon,
-                  tint: 'text-sky-300 bg-sky-500/10',
-                },
-              ].map((item) => {
-                const Icon = item.icon
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setShowMobileMenu(false)}
-                    className="flex items-center gap-3 h-12 px-3 hover:bg-white/[0.04] transition-colors"
-                  >
-                    <span
-                      className={cn(
-                        'inline-flex h-7 w-7 items-center justify-center rounded-md',
-                        item.tint,
-                      )}
-                    >
-                      <Icon className="w-4 h-4" />
-                    </span>
-                    <span className="text-sm font-medium flex-1">
-                      {item.label}
-                    </span>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
+      {/* Mobile menu — shared component; we just slot in the vibe-only
+          "Open issues" entry as the workspace primary action. */}
+      <MobileMenu
+        open={showMobileMenu}
+        onOpenChange={setShowMobileMenu}
+        workspacePrimary={
+          <button
+            type="button"
+            onClick={() => {
+              setShowMobileMenu(false)
+              setMobileIssuesOpen(true)
+            }}
+            className="flex items-center gap-3 h-12 w-full px-3 rounded-lg hover:bg-white/[0.04] transition-colors"
+          >
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/10">
+              <ListChecks className="w-4 h-4 text-emerald-300" />
+            </span>
+            <span className="text-sm font-medium">Open issues</span>
+          </button>
+        }
+      />
     </div>
   )
 }

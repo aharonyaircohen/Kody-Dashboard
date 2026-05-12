@@ -36,6 +36,7 @@ import {
 } from "@dashboard/ui/sheet"
 import { KodyChat } from "./KodyChat"
 import { SettingsDrawerProvider } from "./SettingsDrawer"
+import { NotificationsProvider } from "../notifications/NotificationsProvider"
 import { useAuth } from "../auth-context"
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity"
 import type { ChatContext } from "../chat-types"
@@ -105,7 +106,9 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   if (!showRail) {
     return (
       <ChatRailContext.Provider value={api}>
-        <SettingsDrawerProvider>{children}</SettingsDrawerProvider>
+        <NotificationsProvider>
+          <SettingsDrawerProvider>{children}</SettingsDrawerProvider>
+        </NotificationsProvider>
       </ChatRailContext.Provider>
     )
   }
@@ -119,6 +122,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
 
   return (
     <ChatRailContext.Provider value={api}>
+      <NotificationsProvider>
       <SettingsDrawerProvider>
       <div className="h-screen flex overflow-hidden bg-background text-foreground">
         {/* Desktop chat rail — hidden below md. */}
@@ -191,6 +195,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
         </SheetContent>
       </Sheet>
       </SettingsDrawerProvider>
+      </NotificationsProvider>
     </ChatRailContext.Provider>
   )
 }

@@ -32,7 +32,7 @@ import { Button } from '@dashboard/ui/button'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { useTheme } from '@dashboard/providers/Theme'
 import { NotificationCenter } from '../notifications/NotificationCenter'
-import type { UseNotificationStoreReturn } from '../notifications/useNotificationStore'
+import { useNotifications } from '../notifications/NotificationsProvider'
 import { cn } from '../utils'
 import { PublishButton } from './PublishButton'
 import { SettingsDrawerTrigger } from './SettingsDrawer'
@@ -40,12 +40,6 @@ import { SimpleTooltip } from './SimpleTooltip'
 import { VibeToggle } from './VibeToggle'
 
 interface KodyHeaderProps {
-  /** Notification store + permission, owned by the parent so state isn't duplicated. */
-  notificationStore: UseNotificationStoreReturn
-  notificationPermission: NotificationPermission
-  notificationsSupported: boolean
-  onRequestNotificationPermission: () => void
-
   /** Called after a successful publish so the host page can focus the new issue. */
   onPublished?: (issueNumber: number) => void
 
@@ -66,10 +60,6 @@ interface KodyHeaderProps {
 }
 
 export function KodyHeader({
-  notificationStore,
-  notificationPermission,
-  notificationsSupported,
-  onRequestNotificationPermission,
   onPublished,
   onOpenBranchCleanup,
   onOpenMobileMenu,
@@ -80,6 +70,12 @@ export function KodyHeader({
 }: KodyHeaderProps) {
   const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity()
   const { theme, setTheme } = useTheme()
+  const {
+    store: notificationStore,
+    permission: notificationPermission,
+    isSupported: notificationsSupported,
+    requestPermission,
+  } = useNotifications()
   const [showUserDropdown, setShowUserDropdown] = useState(false)
 
   return (
@@ -156,7 +152,7 @@ export function KodyHeader({
           store={notificationStore}
           browserPermission={notificationPermission}
           isSupported={notificationsSupported}
-          onRequestPermission={onRequestNotificationPermission}
+          onRequestPermission={requestPermission}
         />
 
         <SimpleTooltip
