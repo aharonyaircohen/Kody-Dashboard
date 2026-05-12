@@ -223,12 +223,6 @@ interface Message {
     status: 'running' | 'success' | 'error'
     durationMs?: number
   }>
-  /**
-   * Mid-turn reasoning text streamed from Kody Live (chat.thinking events).
-   * Rendered in the same collapsed panel as Gemini-mode reasoning so the
-   * two backends share one UI affordance.
-   */
-  reasoning?: string
   /** Attachment refs (blobs live in IndexedDB). */
   attachments?: AttachmentRef[]
   /**
@@ -882,27 +876,29 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
             // emits these as the agent works so the user sees thinking +
             // tool calls live instead of a blank chat for 60-120s.
             case 'chat.thinking': {
-              // Append the reasoning chunk to the in-flight assistant
-              // bubble's reasoning field; create the bubble if it doesn't
-              // exist yet so very-early thinking has somewhere to land.
+              // Inline the reasoning chunk into content as a <think>
+              // block. The existing parseReasoning() in the renderer
+              // already splits content into a ReasoningPanel + answer,
+              // so one path handles both the kody-direct (<think>) and
+              // Kody Live backends — no parallel `reasoning` field
+              // needed, no renderer change required.
               const chunk = typeof parsed.text === 'string' ? parsed.text : ''
               if (!chunk) break
+              const block = `<think>${chunk}</think>`
               setMessages((prev) => {
                 const copy = [...prev]
-                let idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
+                const idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
                 if (idx < 0) {
                   copy.push({
                     role: 'assistant',
-                    content: '',
+                    content: block,
                     timestamp: parsed.timestamp ?? new Date().toISOString(),
                     isLoading: true,
-                    reasoning: chunk,
                   })
                 } else {
-                  const existing = copy[idx].reasoning ?? ''
                   copy[idx] = {
                     ...copy[idx],
-                    reasoning: existing ? `${existing}\n${chunk}` : chunk,
+                    content: copy[idx].content + block,
                   }
                 }
                 return copy
