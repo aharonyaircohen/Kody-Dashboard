@@ -9,6 +9,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { KodyTask, SortField } from "../types";
 import { filterTasksByView, getViewModeCounts, sortTasks } from "../utils";
+import { cn } from "../utils";
 import { TaskList } from "./TaskList";
 import { GoalGroupedView, useGoalCollapse } from "./GoalGroupedView";
 import { CreateGoalDialog, EditGoalDialog } from "./GoalControl";
@@ -1722,32 +1723,39 @@ export function KodyDashboard({
                 </button>
               )}
 
-              {/* Primary */}
-              <div className="space-y-2">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start gap-2 h-11"
-                  onClick={() => {
-                    setShowMobileMenu(false);
-                    handleOpenChat();
-                  }}
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  Chat with Kody
-                </Button>
+              {/* Vibe — single on/off toggle (parity with desktop VibeToggle). */}
+              <Button
+                asChild
+                variant="outline"
+                className={cn(
+                  'w-full justify-start gap-2 h-11',
+                  'bg-fuchsia-500/15 border-fuchsia-400/40 text-fuchsia-200',
+                )}
+                onClick={() => setShowMobileMenu(false)}
+              >
+                <Link href="/vibe" role="switch" aria-checked={false}>
+                  <Sparkles className="w-4 h-4" />
+                  Turn on Vibe
+                </Link>
+              </Button>
 
-                <Button
-                  asChild
-                  variant="outline"
-                  className="w-full justify-start gap-2 h-11"
-                  onClick={() => setShowMobileMenu(false)}
-                >
-                  <Link href="/vibe">
-                    <Sparkles className="w-4 h-4" />
-                    Vibe
-                  </Link>
-                </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2 h-11"
+                onClick={() => {
+                  setShowMobileMenu(false);
+                  handleOpenChat();
+                }}
+              >
+                <MessageSquare className="w-4 h-4" />
+                Chat with Kody
+              </Button>
 
+              {/* Jobs section — Jobs page hosts both Jobs and Reports as tabs. */}
+              <div className="space-y-2 pt-2 border-t border-border">
+                <span className="text-xs font-medium text-muted-foreground uppercase">
+                  Jobs
+                </span>
                 <Button
                   asChild
                   variant="outline"
@@ -1766,12 +1774,18 @@ export function KodyDashboard({
                   className="w-full justify-start gap-2 h-11"
                   onClick={() => setShowMobileMenu(false)}
                 >
-                  <Link href="/reports">
+                  <Link href="/jobs?tab=reports">
                     <FileText className="w-4 h-4" />
-                    Reports
+                    Job Reports
                   </Link>
                 </Button>
+              </div>
 
+              {/* Settings section — collapses everything else under one heading. */}
+              <div className="space-y-2 pt-2 border-t border-border">
+                <span className="text-xs font-medium text-muted-foreground uppercase">
+                  Settings
+                </span>
                 <Button
                   asChild
                   variant="outline"
