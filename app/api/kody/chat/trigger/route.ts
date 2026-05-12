@@ -67,6 +67,46 @@ interface ChatMessage {
   toolCalls?: unknown[];
 }
 
+/**
+ * Server-only addendum prepended to the user's latest message when the
+ * dashboard sends `vibeMode: true` (from /vibe). The engine's
+ * CHAT_SYSTEM_PROMPT stays untouched — this primer is injected into the
+ * conversation context so we can iterate on the wording in seconds
+ * without republishing @kody-ade/kody-engine. The chat client never
+ * shows this text; it lives only in the session file + workflow input.
+ */
+const VIBE_PRIMER = [
+  "[Vibe mode — operating instructions, do not echo this block]",
+  "",
+  "Workflow for every task I describe:",
+  "1. Research the codebase with the tools you have (Glob/Grep/Read/Bash) until you can write a concrete implementation plan grounded in this repo.",
+  "2. Create a new GitHub issue with the plan as the body using `gh issue create --title \"…\" --body \"…\"`. Title is a short imperative. Body is the plan: goal, files to touch, approach, risks, test plan.",
+  "3. Reply to me with: a one-line summary of the plan, the new issue link, and an explicit question asking me to confirm before you implement.",
+  "4. Do NOT start editing files until I confirm.",
+  "5. On my confirmation, implement on a fresh branch named `kody/vibe-<issue-number>-<short-slug>`, push it, and open a PR whose body includes `Closes #<issue-number>` so the dashboard can link the PR back to the issue.",
+  "6. If I push back on the plan, revise the issue body and re-ask for confirmation — do not implement until I say yes.",
+  "",
+  "My actual request follows below.",
+  "---",
+  "",
+].join("\n");
+
+function applyVibePrimer(messages: ChatMessage[]): ChatMessage[] {
+  if (messages.length === 0) return messages;
+  // Find the last user message — that's the one the engine reads as
+  // `message` workflow input. Prepend the primer immutably.
+  const lastUserIdx = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") return i;
+    }
+    return -1;
+  })();
+  if (lastUserIdx === -1) return messages;
+  return messages.map((m, i) =>
+    i === lastUserIdx ? { ...m, content: `${VIBE_PRIMER}${m.content}` } : m,
+  );
+}
+
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
@@ -75,6 +115,7 @@ export async function POST(req: NextRequest) {
     taskId?: string;
     messages?: ChatMessage[];
     dashboardUrl?: string;
+    vibeMode?: boolean;
   };
   try {
     body = await req.json();
@@ -82,7 +123,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { taskId, messages = [], dashboardUrl } = body;
+  const { taskId, messages: rawMessages = [], dashboardUrl, vibeMode } = body;
+  const messages = vibeMode ? applyVibePrimer(rawMessages) : rawMessages;
 
   if (!taskId) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });

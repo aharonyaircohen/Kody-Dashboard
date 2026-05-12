@@ -241,6 +241,14 @@ interface KodyChatProps {
    * suppressed and the brain auto-default logic is skipped.
    */
   lockedAgentId?: AgentId
+  /**
+   * Vibe mode — when true, every dispatch to the engine has a short
+   * "vibe primer" prepended to the last user message server-side. The
+   * primer tells Kody to research → create an issue with the plan →
+   * confirm with the user → implement and open a PR. No engine change
+   * needed; the dashboard injects context. Set by ChatRailShell on /vibe.
+   */
+  vibeMode?: boolean
 }
 
 function getFileIcon(mimeType: string) {
@@ -355,7 +363,7 @@ function TypingIndicator({ label }: { label: string }) {
   )
 }
 
-export function KodyChat({ context, actorLogin, onClose, lockedAgentId }: KodyChatProps) {
+export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode }: KodyChatProps) {
   // Context-kind derivations.
   const selectedTask: KodyTask | null =
     context?.kind === 'task' ? context.task : null
@@ -1890,6 +1898,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId }: KodyCh
             taskId: sessionId,
             messages: engineMessages,
             dashboardUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+            ...(vibeMode ? { vibeMode: true } : {}),
           }),
         })
 

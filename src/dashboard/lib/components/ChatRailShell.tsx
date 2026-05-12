@@ -112,7 +112,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
 
   // Vibe page locks the chat to Kody Live — the agent picker is hidden
   // and the rail can't drift onto Gemini/Brain (which can't edit code).
-  const lockedAgentId = pathname?.startsWith('/vibe') ? 'kody-live' : undefined
+  const isVibeRoute = pathname?.startsWith('/vibe') ?? false
+  const lockedAgentId = isVibeRoute ? 'kody-live' : undefined
 
   return (
     <ChatRailContext.Provider value={api}>
@@ -126,6 +127,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             context={scope}
             actorLogin={githubUser?.login}
             lockedAgentId={lockedAgentId}
+            vibeMode={isVibeRoute}
           />
         </aside>
 
@@ -178,6 +180,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 actorLogin={githubUser?.login}
                 onClose={() => setMobileOpen(false)}
                 lockedAgentId={lockedAgentId}
+                vibeMode={isVibeRoute}
               />
             ) : null}
           </div>
