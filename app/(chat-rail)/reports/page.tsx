@@ -1,24 +1,14 @@
 /**
  * @fileType page
  * @domain kody
- * @pattern reports-page
- * @ai-summary Reports entry point. Renders inside the shared PageWithChat
- *   shell so the assistant is always available alongside the report list.
+ * @pattern redirect
+ * @ai-summary Reports moved under the Jobs page (as the "Job Reports" tab).
+ *   This route forwards old links to `/jobs?tab=reports`.
  */
-import { ReportsView } from "@dashboard/lib/components/ReportsView";
-import { buildKodyMetadata } from "../../metadata";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-static";
-export const revalidate = false;
-export const fetchCache = "force-cache";
 
-export const metadata = buildKodyMetadata({
-  title: "Reports — Kody Operations Dashboard",
-  description:
-    "System reports produced by Kody jobs (doc-drift, coverage-floor, etc.).",
-  path: "/reports",
-});
-
-export default function ReportsPage() {
-  return <ReportsView />;
+export default function ReportsRedirect() {
+  redirect("/jobs?tab=reports");
 }

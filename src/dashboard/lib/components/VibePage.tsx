@@ -11,11 +11,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
-  ArrowLeft,
   ExternalLink,
   ListChecks,
   Loader2,
@@ -47,6 +45,7 @@ import { VibeIssueList } from './VibeIssueList'
 import { VibeDefaultPreviewField } from './VibeDefaultPreviewField'
 import { PreviewActions } from './PreviewActions'
 import { CIStatusBadge } from './CIStatusBadge'
+import { ViewSwitch } from './ViewSwitch'
 
 interface DashboardConfigResponse {
   config: { version: 1; defaultPreviewUrl?: string }
@@ -228,14 +227,10 @@ export function VibePage() {
     <div className="flex flex-col h-full min-h-0">
       {/* Top bar */}
       <header className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-white/[0.06] bg-black/30">
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/" aria-label="Back to dashboard">
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-        </Button>
         <Sparkles className="w-5 h-5 text-fuchsia-400 shrink-0" />
         <h1 className="text-base md:text-lg font-semibold truncate">Vibe</h1>
-        <span className="text-[11px] text-white/40 truncate hidden sm:inline">
+        <ViewSwitch className="hidden sm:inline-flex" />
+        <span className="text-[11px] text-white/40 truncate hidden md:inline">
           Chat • preview • ship
         </span>
         {/* Mobile-only issue picker — desktop renders the aside instead. */}

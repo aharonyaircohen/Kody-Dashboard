@@ -96,6 +96,7 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { SimpleTooltip } from "./SimpleTooltip";
+import { ViewSwitch } from "./ViewSwitch";
 import { PRIORITY_LEVELS, PRIORITY_META } from "../constants";
 
 interface KodyDashboardProps {
@@ -1236,15 +1237,18 @@ export function KodyDashboard({
             <>
               {/* Header — action buttons only, no filters */}
               <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/20">
-                <div className="flex items-baseline gap-2">
-                  <h1 className="text-lg md:text-xl font-semibold text-foreground">
-                    {connectedRepo?.split('/').pop() || 'Kody Operations'}
-                  </h1>
-                  {process.env.NEXT_PUBLIC_APP_VERSION ? (
-                    <span className="text-xs text-muted-foreground font-mono">
-                      v{process.env.NEXT_PUBLIC_APP_VERSION}
-                    </span>
-                  ) : null}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-baseline gap-2 min-w-0">
+                    <h1 className="text-lg md:text-xl font-semibold text-foreground truncate">
+                      {connectedRepo?.split('/').pop() || 'Kody Operations'}
+                    </h1>
+                    {process.env.NEXT_PUBLIC_APP_VERSION ? (
+                      <span className="text-xs text-muted-foreground font-mono">
+                        v{process.env.NEXT_PUBLIC_APP_VERSION}
+                      </span>
+                    ) : null}
+                  </div>
+                  <ViewSwitch className="hidden sm:inline-flex" />
                 </div>
 
                 {/* Desktop controls */}

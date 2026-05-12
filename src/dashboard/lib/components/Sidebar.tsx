@@ -4,9 +4,9 @@
  * @pattern app-sidebar
  * @ai-summary Persistent left navigation rail for the Kody dashboard.
  *   Desktop only (hidden below md). Collapsible (64px ↔ 220px) with
- *   localStorage persistence. Mobile keeps the existing in-header
- *   hamburger menu in KodyDashboard — this rail intentionally does not
- *   render on small screens.
+ *   localStorage persistence. Top-level entries are the primary surfaces
+ *   (Dashboard, Jobs); configuration screens live under an expandable
+ *   "Settings" group. Mobile keeps the existing in-header hamburger menu.
  */
 'use client'
 
@@ -16,16 +16,16 @@ import { useEffect, useState } from 'react'
 import {
   Bell,
   Bot,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  FileText,
   Github,
   Home,
   KeyRound,
   Layers,
   Settings as SettingsIcon,
   Settings2,
-  Sparkles,
+  Sliders,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -40,46 +40,79 @@ interface NavItem {
   exact?: boolean
 }
 
-const NAV_ITEMS: readonly NavItem[] = [
+const PRIMARY_ITEMS: readonly NavItem[] = [
   { href: '/', label: 'Dashboard', icon: Home, exact: true },
-  { href: '/vibe', label: 'Vibe', icon: Sparkles },
   { href: '/jobs', label: 'Jobs', icon: Layers },
-  { href: '/reports', label: 'Reports', icon: FileText },
+]
+
+const SETTINGS_ITEMS: readonly NavItem[] = [
   { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/secrets', label: 'Secrets', icon: KeyRound },
   { href: '/variables', label: 'Variables', icon: Settings2 },
   { href: '/models', label: 'Chat Models', icon: Bot },
   { href: '/repos', label: 'Repositories', icon: Github },
-  { href: '/settings', label: 'Settings', icon: SettingsIcon },
+  { href: '/settings', label: 'Settings', icon: Sliders },
 ]
 
-const STORAGE_KEY = 'kody.sidebar.collapsed'
+const COLLAPSED_KEY = 'kody.sidebar.collapsed'
+const SETTINGS_OPEN_KEY = 'kody.sidebar.settings.open'
 
 function isActive(pathname: string, item: NavItem): boolean {
   if (item.exact) return pathname === item.href
   return pathname === item.href || pathname.startsWith(`${item.href}/`)
 }
 
+function isSettingsActive(pathname: string): boolean {
+  return SETTINGS_ITEMS.some((item) => isActive(pathname, item))
+}
+
 export function Sidebar() {
   const pathname = usePathname() ?? '/'
   const [collapsed, setCollapsed] = useState<boolean>(false)
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false)
   const [hydrated, setHydrated] = useState<boolean>(false)
 
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem(STORAGE_KEY)
-      if (saved === '1') setCollapsed(true)
+      const savedCollapsed = window.localStorage.getItem(COLLAPSED_KEY)
+      if (savedCollapsed === '1') setCollapsed(true)
+      const savedSettings = window.localStorage.getItem(SETTINGS_OPEN_KEY)
+      // Auto-open if a settings child is currently active, otherwise honor
+      // saved preference (default closed).
+      if (isSettingsActive(pathname) || savedSettings === '1') {
+        setSettingsOpen(true)
+      }
     } catch {
-      // localStorage unavailable (private mode, etc.) — fall back to default
+      // localStorage unavailable (private mode, etc.) — fall back to defaults
     }
     setHydrated(true)
+    // pathname intentionally excluded — we only want to seed once on mount;
+    // pathname-driven opening is handled by the second effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const toggle = () => {
+  // Whenever the user navigates into a settings child, ensure the group is open.
+  useEffect(() => {
+    if (isSettingsActive(pathname)) setSettingsOpen(true)
+  }, [pathname])
+
+  const toggleCollapsed = () => {
     setCollapsed((prev) => {
       const next = !prev
       try {
-        window.localStorage.setItem(STORAGE_KEY, next ? '1' : '0')
+        window.localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0')
+      } catch {
+        // ignore — UI still updates
+      }
+      return next
+    })
+  }
+
+  const toggleSettings = () => {
+    setSettingsOpen((prev) => {
+      const next = !prev
+      try {
+        window.localStorage.setItem(SETTINGS_OPEN_KEY, next ? '1' : '0')
       } catch {
         // ignore — UI still updates
       }
@@ -88,6 +121,38 @@ export function Sidebar() {
   }
 
   const width = collapsed ? 'w-[64px]' : 'w-[220px]'
+  const settingsActive = isSettingsActive(pathname)
+
+  const renderLink = (item: NavItem, indent = false) => {
+    const Icon = item.icon
+    const active = isActive(pathname, item)
+    const link = (
+      <Link
+        href={item.href}
+        aria-current={active ? 'page' : undefined}
+        aria-label={item.label}
+        className={cn(
+          'flex items-center gap-3 rounded-md text-sm transition-colors',
+          'h-9 px-3',
+          collapsed && 'justify-center px-0',
+          indent && !collapsed && 'pl-9',
+          active
+            ? 'bg-accent text-foreground'
+            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+        )}
+      >
+        <Icon className="w-4 h-4 shrink-0" />
+        {!collapsed && <span className="truncate">{item.label}</span>}
+      </Link>
+    )
+    return collapsed ? (
+      <SimpleTooltip key={item.href} content={item.label} side="right">
+        {link}
+      </SimpleTooltip>
+    ) : (
+      <div key={item.href}>{link}</div>
+    )
+  }
 
   return (
     <aside
@@ -122,37 +187,42 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {NAV_ITEMS.map((item) => {
-          const Icon = item.icon
-          const active = isActive(pathname, item)
-          const link = (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={active ? 'page' : undefined}
-              aria-label={item.label}
+        {PRIMARY_ITEMS.map((item) => renderLink(item))}
+
+        {/* Settings group — expandable when sidebar is open; flat list of
+            icon-only links when collapsed. */}
+        {collapsed ? (
+          SETTINGS_ITEMS.map((item) => renderLink(item))
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={toggleSettings}
+              aria-expanded={settingsOpen}
+              aria-controls="sidebar-settings-group"
               className={cn(
-                'flex items-center gap-3 rounded-md text-sm transition-colors',
-                'h-9 px-3',
-                collapsed && 'justify-center px-0',
-                active
-                  ? 'bg-accent text-foreground'
+                'flex items-center gap-3 w-full rounded-md text-sm h-9 px-3',
+                settingsActive && !settingsOpen
+                  ? 'text-foreground'
                   : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
               )}
             >
-              <Icon className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="truncate">{item.label}</span>}
-            </Link>
-          )
-
-          return collapsed ? (
-            <SimpleTooltip key={item.href} content={item.label} side="right">
-              {link}
-            </SimpleTooltip>
-          ) : (
-            link
-          )
-        })}
+              <SettingsIcon className="w-4 h-4 shrink-0" />
+              <span className="truncate flex-1 text-left">Settings</span>
+              <ChevronDown
+                className={cn(
+                  'w-3.5 h-3.5 shrink-0 transition-transform',
+                  !settingsOpen && '-rotate-90',
+                )}
+              />
+            </button>
+            {settingsOpen && (
+              <div id="sidebar-settings-group" className="space-y-1">
+                {SETTINGS_ITEMS.map((item) => renderLink(item, true))}
+              </div>
+            )}
+          </>
+        )}
       </nav>
 
       <div className="border-t border-white/[0.06] p-2">
@@ -162,7 +232,7 @@ export function Sidebar() {
         >
           <button
             type="button"
-            onClick={toggle}
+            onClick={toggleCollapsed}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className={cn(
               'flex items-center gap-3 w-full rounded-md text-sm h-9 px-3',
