@@ -9,13 +9,17 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { ArrowLeft } from 'lucide-react'
 
+import { Button } from '@dashboard/ui/button'
 import { cn } from '@dashboard/lib/utils/ui'
 import { JobControl } from './JobControl'
 import { ReportsView } from './ReportsView'
 import { VibeToggle } from './VibeToggle'
 import { SettingsDrawerTrigger } from './SettingsDrawer'
+import { SimpleTooltip } from './SimpleTooltip'
 
 type Tab = 'jobs' | 'reports'
 
@@ -56,7 +60,15 @@ export function JobsPageTabs() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="shrink-0 flex items-center justify-between gap-3 px-4 md:px-6 pt-3 border-b border-white/[0.06] bg-black/30">
-        <div role="tablist" aria-label="Jobs view" className="flex items-center gap-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <SimpleTooltip content="Back to dashboard" side="bottom">
+            <Button asChild variant="ghost" size="sm" aria-label="Back to dashboard">
+              <Link href="/">
+                <ArrowLeft className="w-4 h-4" />
+              </Link>
+            </Button>
+          </SimpleTooltip>
+          <div role="tablist" aria-label="Jobs view" className="flex items-center gap-1">
           {TABS.map((tab) => {
             const isActive = active === tab.id
             return (
@@ -79,6 +91,7 @@ export function JobsPageTabs() {
               </button>
             )
           })}
+          </div>
         </div>
         <div className="flex items-center gap-2 pb-2">
           <VibeToggle className="hidden sm:inline-flex" />
