@@ -92,12 +92,12 @@ export function PageShell({
 }: PageShellProps) {
   const widthCls = WIDTH_CLASS[width]
   return (
-    <div className="min-h-screen bg-black/95 text-white/90">
+    <div className="h-full min-h-0 flex flex-col bg-black/95 text-white/90">
       <PageHeader {...header} />
       <main
         className={cn(
-          "px-4 md:px-6 py-6",
-          widthCls && `${widthCls} mx-auto`,
+          "flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-6",
+          widthCls && `${widthCls} w-full mx-auto`,
           contentClassName,
         )}
       >
