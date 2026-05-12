@@ -7,7 +7,7 @@
  *   migration is gradual and bootstrap (KODY_VAULT_KEY itself) still works.
  *
  *   Usage:
- *     const apiKey = await getSecret("GEMINI_API_KEY", { req })
+ *     const apiKey = await getSecret("AI_GATEWAY_API_KEY", { req })
  *
  *   When the request has no kody auth headers (no connected repo), the call
  *   falls through to process.env immediately. Keep that behavior — many CI

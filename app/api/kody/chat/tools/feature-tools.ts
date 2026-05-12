@@ -60,14 +60,14 @@ issues, PRs, workflow runs, branches, etc. change.
     id: 'chat-backends',
     name: 'Chat Backends (three of them)',
     summary:
-      'The dashboard has three chat backends picked by selectedAgentId: in-process Gemini (default), Brain, and the GH Actions engine.',
+      'The dashboard has three chat backends picked by selectedAgentId: in-process via Vercel AI Gateway (default), Brain, and the GH Actions engine.',
     details: `The chat UI routes to one of three backends based on \`selectedAgentId\`:
 
-| selectedAgentId | Endpoint                       | Backend                                    |
-|-----------------|--------------------------------|--------------------------------------------|
-| \`kody\` (default) | \`/api/kody/chat/kody\`        | In-process Gemini via @ai-sdk/google       |
-| \`brain\`         | \`/api/kody/chat/brain\`       | External Brain chat server (proxied SSE)   |
-| anything else   | \`/api/kody/chat/trigger\`     | GitHub Actions + \`@kody-ade/kody-engine\` |
+| selectedAgentId | Endpoint                       | Backend                                            |
+|-----------------|--------------------------------|----------------------------------------------------|
+| \`kody\` (default) | \`/api/kody/chat/kody\`        | In-process via @ai-sdk/gateway (Vercel AI Gateway) |
+| \`brain\`         | \`/api/kody/chat/brain\`       | External Brain chat server (proxied SSE)           |
+| anything else   | \`/api/kody/chat/trigger\`     | GitHub Actions + \`@kody-ade/kody-engine\`         |
 
 The legacy \`/api/kody/chat\` endpoint is deprecated and returns 410.
 

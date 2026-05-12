@@ -22,11 +22,17 @@
 import { randomBytes } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { streamText, stepCountIs, type ModelMessage } from "ai"
-import { createGoogleGenerativeAI } from "@ai-sdk/google"
+import { createGateway } from "@ai-sdk/gateway"
 import { AGENT_KODY, getAgent, isValidAgentId, type AgentId } from "@dashboard/lib/agents"
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
 import { createUserOctokit, setGitHubContext, clearGitHubContext } from "@dashboard/lib/github-client"
 import { getSecret } from "@dashboard/lib/vault/get-secret"
+import {
+  loadChatModels,
+  pickDefaultModel,
+  pickModelById,
+  pickSpeechModel,
+} from "@dashboard/lib/variables/models"
 import {
   buildSystemPrompt,
   type GoalContext,
@@ -54,9 +60,13 @@ export const runtime = "nodejs"
 // UI would hang. 300s is the Vercel Pro ceiling and gives plenty of slack.
 export const maxDuration = 300
 
-// `gemini-2.0-flash` is retired for new API keys. Default to the current
-// flash generation; override via KODY_DIRECT_MODEL env for other models.
-const DEFAULT_MODEL = process.env.KODY_DIRECT_MODEL ?? "gemini-2.5-flash"
+// Provider/model are managed entirely from the dashboard: the
+// `LLM_MODELS` variable lists the user-curated models, and each is
+// passed straight to Vercel AI Gateway as a `<provider>/<model>` id.
+// No SDK-specific defaults remain here — if no model is configured
+// or no `AI_GATEWAY_API_KEY` is set, the request returns 409 with
+// `fallback: "kody-live"` and the client routes the same turn
+// through the GitHub Actions engine instead.
 
 interface IncomingTextPart {
   type: "text"
@@ -115,12 +125,6 @@ function parseFileData(
 // next answer. The user-visible chat keeps its full transcript — only
 // the request to the model is trimmed.
 const MAX_HISTORY_MESSAGES = 16
-
-// Cap on Gemini 2.5's thinking budget. Default is dynamic/uncapped which
-// can stretch first-token latency well past the streaming-edge idle
-// window. 2048 covers normal reasoning without runaway. Set to 0 to
-// disable thinking entirely; -1 to restore the dynamic default.
-const THINKING_BUDGET = 2048
 
 // Stream tracing uses console.* (not the pino `logger`) on purpose: pino
 // buffers writes asynchronously, and Vercel functions can be killed or
@@ -212,16 +216,20 @@ export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req)
   if (authError) return authError
 
-  // Vault first (per-repo .kody/secrets.enc), then env fallback. The
-  // helper is a no-op when KODY_VAULT_KEY isn't set, so existing
-  // env-only deployments keep working.
-  const apiKey =
-    (await getSecret("GEMINI_API_KEY", { req })) ??
-    (await getSecret("GOOGLE_GENERATIVE_AI_API_KEY", { req }))
+  // Vault first (per-repo .kody/secrets.enc), then env fallback. When
+  // the gateway key isn't configured we return 409 with a hint so the
+  // client falls back to the Kody Live engine path for this turn —
+  // no hardcoded provider, no silent 5xx.
+  const apiKey = await getSecret("AI_GATEWAY_API_KEY", { req })
   if (!apiKey) {
     return NextResponse.json(
-      { error: "GEMINI_API_KEY not configured on the server" },
-      { status: 503 },
+      {
+        error: "ai_gateway_not_configured",
+        fallback: "kody-live",
+        message:
+          "AI_GATEWAY_API_KEY is not set. Add it under /secrets, or fall back to Kody Live.",
+      },
+      { status: 409 },
     )
   }
 
@@ -264,8 +272,28 @@ export async function POST(req: NextRequest) {
   const messages = trimToRecent(allMessages)
   const trimmedCount = allMessages.length - messages.length
 
-  const modelId = body.model ?? DEFAULT_MODEL
-  const google = createGoogleGenerativeAI({ apiKey })
+  // Resolve the model from the user-managed list in .kody/variables.json.
+  // The client can override per-request via `body.model`, but it must
+  // match an enabled entry — we never trust arbitrary ids from the wire.
+  const availableModels = await loadChatModels(req)
+  let resolvedModel =
+    pickModelById(availableModels, body.model) ??
+    (body.agentId === "kody-speech"
+      ? pickSpeechModel(availableModels) ?? pickDefaultModel(availableModels)
+      : pickDefaultModel(availableModels))
+  if (!resolvedModel) {
+    return NextResponse.json(
+      {
+        error: "no_models_configured",
+        fallback: "kody-live",
+        message:
+          "No chat models configured. Add one at /models, or fall back to Kody Live.",
+      },
+      { status: 409 },
+    )
+  }
+  const modelId = resolvedModel.id
+  const gateway = createGateway({ apiKey })
   const repo = getRequestAuth(req)
   const goalPlannerActive = body.goalPlanner === true && !!body.goal
 
@@ -314,10 +342,10 @@ export async function POST(req: NextRequest) {
   // resolved repo; remote tools require a configured actorLogin. The
   // built-in `fetch_url` is always wired so the model can browse links.
   //
-  // We intentionally do NOT use Gemini's provider tools (urlContext,
-  // googleSearch) — Gemini forbids combining provider-defined tools
-  // with custom function tools in one request, which would silently
-  // disable everything else. `fetch_url` is the swap-in replacement.
+  // We never wire provider-defined tools (Gemini's urlContext/googleSearch,
+  // Anthropic's web search, etc.) — many providers forbid combining them
+  // with custom function tools, which would silently disable everything
+  // else. `fetch_url` is the universal swap-in replacement.
   const baseTools: Record<string, unknown> = {
     fetch_url: fetchUrlTool,
     ...featureTools,
@@ -427,7 +455,7 @@ export async function POST(req: NextRequest) {
     armHeartbeat(30_000)
     armHeartbeat(60_000)
     const result = streamText({
-      model: google(modelId),
+      model: gateway(modelId),
       system: systemPrompt,
       messages,
       tools,
@@ -442,23 +470,10 @@ export async function POST(req: NextRequest) {
       // task, so 10 silently truncates a 5-task plan after the first
       // create. Raise to 30 in planner mode so the full sweep can land.
       stopWhen: stepCountIs(goalPlannerActive ? 30 : 10),
-      // Ask Gemini 2.5+ to surface its thought summaries (forwarded to the
-      // client by `sendReasoning: true` below). The thinking budget is
-      // capped — without it, dynamic thinking can stretch first-token
-      // latency past the streaming-edge idle window for chat-style turns.
-      //
-      // Voice agent (`kody-speech`) disables thinking entirely: TTS would
-      // read the thought summary aloud, and voice turns reward latency
-      // over deliberation.
-      providerOptions: {
-        google: {
-          thinkingConfig: {
-            includeThoughts: requestedAgentId !== "kody-speech",
-            thinkingBudget:
-              requestedAgentId === "kody-speech" ? 0 : THINKING_BUDGET,
-          },
-        },
-      },
+      // No provider-specific options — the gateway forwards what each
+      // model accepts. Thinking/reasoning behavior is the model's
+      // default. If a particular model needs tuning, add per-model
+      // `options` JSON to the LLM_MODELS schema and merge here.
       // Per-tool tracing. `experimental_onToolCallStart` fires before the
       // tool's `execute` is invoked; `experimental_onToolCallFinish`
       // afterward with the SDK-measured `durationMs` and a success flag.

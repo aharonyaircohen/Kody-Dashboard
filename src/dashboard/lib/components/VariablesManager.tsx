@@ -1,11 +1,11 @@
 /**
  * @fileType component
- * @domain vault
- * @pattern secrets-manager
- * @ai-summary CRUD UI for the dashboard secrets vault. Per-repo encrypted
- *   vault stored at .kody/secrets.enc in the connected GitHub repo. Values
- *   are write-only after creation — the GitHub Contents API returns
- *   ciphertext only and the server never echoes plaintext back to the client.
+ * @domain variables
+ * @pattern variables-manager
+ * @ai-summary CRUD UI for the dashboard variables store. Per-repo plaintext
+ *   JSON at .kody/variables.json. Unlike secrets, values are visible/editable
+ *   in the UI — variables hold non-sensitive config (model lists, feature
+ *   flags, etc) that the dashboard reads at runtime.
  */
 "use client"
 
@@ -14,12 +14,10 @@ import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
-  BookOpen,
-  KeyRound,
   Loader2,
   Pencil,
   Plus,
-  ShieldCheck,
+  Settings2,
   Trash2,
 } from "lucide-react"
 import { PageShell } from "./PageShell"
@@ -39,15 +37,16 @@ import { ConfirmDialog } from "./ConfirmDialog"
 import { AuthGuard } from "../auth-guard"
 import { useAuth, buildAuthHeaders } from "../auth-context"
 
-interface SecretRow {
+interface VariableRow {
   name: string
+  value: string
   updatedAt: string
   updatedBy?: string
 }
 
 const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/
 
-const secretsQueryKey = ["kody-secrets"] as const
+const variablesQueryKey = ["kody-variables"] as const
 
 function formatRelative(iso: string): string {
   try {
@@ -67,26 +66,26 @@ function formatRelative(iso: string): string {
   }
 }
 
-async function listSecrets(headers: Record<string, string>): Promise<SecretRow[]> {
-  const res = await fetch("/api/kody/secrets", { headers })
+async function listVariables(headers: Record<string, string>): Promise<VariableRow[]> {
+  const res = await fetch("/api/kody/variables", { headers })
   const json = (await res.json().catch(() => ({}))) as {
-    secrets?: SecretRow[]
+    variables?: VariableRow[]
     error?: string
     message?: string
   }
   if (!res.ok) {
     throw new Error(json.message || json.error || `HTTP ${res.status}`)
   }
-  return json.secrets ?? []
+  return json.variables ?? []
 }
 
-async function upsertSecret(
+async function upsertVariable(
   headers: Record<string, string>,
   name: string,
   value: string,
   actorLogin?: string,
 ): Promise<void> {
-  const res = await fetch("/api/kody/secrets", {
+  const res = await fetch("/api/kody/variables", {
     method: "POST",
     headers,
     body: JSON.stringify({ name, value, actorLogin }),
@@ -100,11 +99,11 @@ async function upsertSecret(
   }
 }
 
-async function deleteSecret(
+async function deleteVariable(
   headers: Record<string, string>,
   name: string,
 ): Promise<void> {
-  const res = await fetch(`/api/kody/secrets/${encodeURIComponent(name)}`, {
+  const res = await fetch(`/api/kody/variables/${encodeURIComponent(name)}`, {
     method: "DELETE",
     headers,
   })
@@ -117,15 +116,15 @@ async function deleteSecret(
   }
 }
 
-export function SecretsManager() {
+export function VariablesManager() {
   return (
     <AuthGuard>
-      <SecretsManagerInner />
+      <VariablesManagerInner />
     </AuthGuard>
   )
 }
 
-function SecretsManagerInner() {
+function VariablesManagerInner() {
   const { auth } = useAuth()
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -134,122 +133,141 @@ function SecretsManagerInner() {
   const actorLogin = auth?.user.login
 
   const queryClient = useQueryClient()
-  const { data, isLoading, error, refetch } = useQuery<SecretRow[]>({
-    queryKey: secretsQueryKey,
-    queryFn: () => listSecrets(headers),
+  const { data, isLoading, error, refetch } = useQuery<VariableRow[]>({
+    queryKey: variablesQueryKey,
+    queryFn: () => listVariables(headers),
     enabled: !!auth,
     staleTime: 30_000,
   })
-  const secrets = data ?? []
+  const variables = data ?? []
 
   const upsert = useMutation({
     mutationFn: (input: { name: string; value: string }) =>
-      upsertSecret(headers, input.name, input.value, actorLogin),
+      upsertVariable(headers, input.name, input.value, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: secretsQueryKey })
-      toast.success("Secret saved")
+      queryClient.invalidateQueries({ queryKey: variablesQueryKey })
+      toast.success("Variable saved")
     },
-    onError: (err: Error) => toast.error(err.message || "Failed to save secret"),
+    onError: (err: Error) =>
+      toast.error(err.message || "Failed to save variable"),
   })
 
   const remove = useMutation({
-    mutationFn: (name: string) => deleteSecret(headers, name),
+    mutationFn: (name: string) => deleteVariable(headers, name),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: secretsQueryKey })
-      toast.success("Secret deleted")
+      queryClient.invalidateQueries({ queryKey: variablesQueryKey })
+      toast.success("Variable deleted")
     },
-    onError: (err: Error) => toast.error(err.message || "Failed to delete secret"),
+    onError: (err: Error) =>
+      toast.error(err.message || "Failed to delete variable"),
   })
 
-  const [editing, setEditing] = useState<{ name: string; existing: boolean } | null>(null)
+  const [editing, setEditing] = useState<{
+    name: string
+    value: string
+    existing: boolean
+  } | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
 
   return (
     <PageShell
-      title="Secrets"
-      icon={KeyRound}
-      iconClassName="text-amber-400"
+      title="Variables"
+      icon={Settings2}
+      iconClassName="text-sky-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
       actions={
-        <>
-          <Button asChild variant="ghost" size="sm" className="gap-1">
-            <Link href="/secrets/docs" aria-label="Vault docs">
-              <BookOpen className="w-4 h-4" />
-              Docs
-            </Link>
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => setEditing({ name: "", existing: false })}
-            className="gap-1"
-          >
-            <Plus className="w-4 h-4" />
-            New secret
-          </Button>
-        </>
+        <Button
+          size="sm"
+          onClick={() => setEditing({ name: "", value: "", existing: false })}
+          className="gap-1"
+        >
+          <Plus className="w-4 h-4" />
+          New variable
+        </Button>
       }
     >
       <div className="space-y-3">
         {isLoading && (
           <p className="text-sm text-white/50 flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading secrets…
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading variables…
           </p>
         )}
 
         {error && (
           <Card className="border-rose-500/30 bg-rose-950/20">
             <CardContent className="p-4 text-sm">
-              <p className="text-rose-300 font-medium">Couldn&apos;t load secrets</p>
+              <p className="text-rose-300 font-medium">
+                Couldn&apos;t load variables
+              </p>
               <p className="text-rose-200/70 mt-1">
                 {error instanceof Error ? error.message : "Unknown error"}
               </p>
-              <Button size="sm" variant="outline" className="mt-3" onClick={() => refetch()}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3"
+                onClick={() => refetch()}
+              >
                 Retry
               </Button>
             </CardContent>
           </Card>
         )}
 
-        {!isLoading && !error && secrets.length === 0 && (
+        {!isLoading && !error && variables.length === 0 && (
           <Card className="border-white/[0.08] bg-white/[0.02]">
             <CardContent className="p-6 text-center space-y-3">
-              <ShieldCheck className="w-8 h-8 text-white/30 mx-auto" />
-              <p className="text-sm text-white/70">No secrets stored yet.</p>
+              <Settings2 className="w-8 h-8 text-white/30 mx-auto" />
+              <p className="text-sm text-white/70">No variables yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                Secrets are AES-256-GCM-encrypted and stored at{" "}
-                <code className="text-white/55">.kody/secrets.enc</code> in this repo. Use them in
-                place of Vercel env vars — the dashboard reads them at request time.
+                Variables are plaintext config stored at{" "}
+                <code className="text-white/55">.kody/variables.json</code> in
+                this repo. Use them for non-sensitive values the dashboard reads
+                at runtime — model lists, feature flags, default ids.
               </p>
               <Button
                 size="sm"
-                onClick={() => setEditing({ name: "", existing: false })}
+                onClick={() =>
+                  setEditing({ name: "", value: "", existing: false })
+                }
                 className="gap-1"
               >
                 <Plus className="w-4 h-4" />
-                Add your first secret
+                Add your first variable
               </Button>
             </CardContent>
           </Card>
         )}
 
         <ul className="space-y-2">
-          {secrets.map((s) => (
-            <li key={s.name}>
+          {variables.map((v) => (
+            <li key={v.name}>
               <Card className="border-white/[0.08] bg-white/[0.03]">
-                <CardContent className="p-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-mono text-sm text-white/90 truncate">{s.name}</p>
-                    <p className="text-[11px] text-white/40 mt-0.5">
-                      Updated {formatRelative(s.updatedAt)}
-                      {s.updatedBy ? ` by ${s.updatedBy}` : ""}
+                <CardContent className="p-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-sm text-white/90 truncate">
+                      {v.name}
+                    </p>
+                    <p className="font-mono text-xs text-white/55 mt-1 break-all line-clamp-2">
+                      {v.value}
+                    </p>
+                    <p className="text-[11px] text-white/40 mt-1">
+                      Updated {formatRelative(v.updatedAt)}
+                      {v.updatedBy ? ` by ${v.updatedBy}` : ""}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 shrink-0">
                     <Button
                       size="sm"
                       variant="ghost"
                       className="gap-1"
-                      onClick={() => setEditing({ name: s.name, existing: true })}
+                      onClick={() =>
+                        setEditing({
+                          name: v.name,
+                          value: v.value,
+                          existing: true,
+                        })
+                      }
                     >
                       <Pencil className="w-3.5 h-3.5" />
                       Edit
@@ -258,7 +276,7 @@ function SecretsManagerInner() {
                       size="sm"
                       variant="ghost"
                       className="gap-1 text-rose-300 hover:text-rose-200"
-                      onClick={() => setDeleting(s.name)}
+                      onClick={() => setDeleting(v.name)}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       Delete
@@ -271,15 +289,20 @@ function SecretsManagerInner() {
         </ul>
 
         <p className="text-[11px] text-white/30 pt-4">
-          Values are encrypted at rest with AES-256-GCM using{" "}
-          <code className="text-white/50">KODY_VAULT_KEY</code> from Vercel env. Rotating the key
-          invalidates the entire vault — back up secrets before rotating.
+          Stored in plaintext at{" "}
+          <code className="text-white/50">.kody/variables.json</code>. For
+          sensitive values, use{" "}
+          <Link href="/secrets" className="text-white/60 hover:text-white/80 underline">
+            /secrets
+          </Link>{" "}
+          instead.
         </p>
       </div>
 
       {editing && (
-        <SecretEditor
+        <VariableEditor
           initialName={editing.name}
+          initialValue={editing.value}
           isUpdate={editing.existing}
           onClose={() => setEditing(null)}
           onSave={(name, value) =>
@@ -292,7 +315,7 @@ function SecretsManagerInner() {
       <ConfirmDialog
         open={deleting !== null}
         title={`Delete ${deleting}?`}
-        description="The secret is removed from the vault and any code reading it will fall back to environment variables."
+        description="The variable is removed from .kody/variables.json. Runtime code reading it falls back to environment variables."
         confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
         onConfirm={() => {
@@ -304,23 +327,32 @@ function SecretsManagerInner() {
   )
 }
 
-interface SecretEditorProps {
+interface VariableEditorProps {
   initialName: string
+  initialValue: string
   isUpdate: boolean
   saving: boolean
   onClose: () => void
   onSave: (name: string, value: string) => Promise<void>
 }
 
-function SecretEditor({ initialName, isUpdate, saving, onClose, onSave }: SecretEditorProps) {
+function VariableEditor({
+  initialName,
+  initialValue,
+  isUpdate,
+  saving,
+  onClose,
+  onSave,
+}: VariableEditorProps) {
   const [name, setName] = useState(initialName)
-  const [value, setValue] = useState("")
+  const [value, setValue] = useState(initialValue)
   const [touchedName, setTouchedName] = useState(false)
 
   const nameError = (() => {
     if (!touchedName && !isUpdate) return null
     if (!name) return "Required"
-    if (!NAME_RE.test(name)) return "Use uppercase letters, digits, underscores. Start with a letter."
+    if (!NAME_RE.test(name))
+      return "Use uppercase letters, digits, underscores. Start with a letter."
     return null
   })()
 
@@ -336,40 +368,42 @@ function SecretEditor({ initialName, isUpdate, saving, onClose, onSave }: Secret
     >
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{isUpdate ? `Edit ${initialName}` : "New secret"}</DialogTitle>
+          <DialogTitle>{isUpdate ? `Edit ${initialName}` : "New variable"}</DialogTitle>
           <DialogDescription>
-            Stored encrypted in <code>.kody/secrets.enc</code>. Existing values aren&apos;t shown —
-            saving overwrites the current value.
+            Stored plaintext in <code>.kody/variables.json</code>. Use this
+            page for non-sensitive config only.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 mt-2">
           <div>
-            <Label htmlFor="secret-name" className="text-xs">
+            <Label htmlFor="var-name" className="text-xs">
               Name
             </Label>
             <Input
-              id="secret-name"
+              id="var-name"
               value={name}
               onChange={(e) => setName(e.target.value.toUpperCase())}
               onBlur={() => setTouchedName(true)}
               disabled={isUpdate}
-              placeholder="AI_GATEWAY_API_KEY"
+              placeholder="LLM_MODELS"
               className="font-mono"
             />
-            {nameError && <p className="text-xs text-rose-300 mt-1">{nameError}</p>}
+            {nameError && (
+              <p className="text-xs text-rose-300 mt-1">{nameError}</p>
+            )}
           </div>
           <div>
-            <Label htmlFor="secret-value" className="text-xs">
+            <Label htmlFor="var-value" className="text-xs">
               Value
             </Label>
             <Textarea
-              id="secret-value"
+              id="var-value"
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder={isUpdate ? "Enter new value to overwrite…" : "Paste the secret value"}
+              placeholder="any string — JSON, plain text, ids…"
               className="font-mono text-xs"
-              rows={4}
-              autoFocus
+              rows={6}
+              autoFocus={!isUpdate}
             />
           </div>
         </div>

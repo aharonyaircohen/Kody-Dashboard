@@ -15,6 +15,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
   Bell,
+  Bot,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -23,6 +24,7 @@ import {
   KeyRound,
   Layers,
   Settings as SettingsIcon,
+  Settings2,
   Sparkles,
   type LucideIcon,
 } from 'lucide-react'
@@ -45,6 +47,8 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: '/reports', label: 'Reports', icon: FileText },
   { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/secrets', label: 'Secrets', icon: KeyRound },
+  { href: '/variables', label: 'Variables', icon: Settings2 },
+  { href: '/models', label: 'Chat Models', icon: Bot },
   { href: '/repos', label: 'Repositories', icon: Github },
   { href: '/settings', label: 'Settings', icon: SettingsIcon },
 ]

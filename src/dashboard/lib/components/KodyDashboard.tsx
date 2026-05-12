@@ -65,8 +65,10 @@ import {
   FileText,
   Sparkles,
   Bell,
+  Bot,
   KeyRound,
   Settings as SettingsIcon,
+  Settings2,
   ChevronsDownUp,
   ChevronsUpDown,
   List,
@@ -1767,6 +1769,30 @@ export function KodyDashboard({
                   <Link href="/secrets">
                     <KeyRound className="w-4 h-4" />
                     Secrets
+                  </Link>
+                </Button>
+
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => setShowMobileMenu(false)}
+                >
+                  <Link href="/variables">
+                    <Settings2 className="w-4 h-4" />
+                    Variables
+                  </Link>
+                </Button>
+
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-11"
+                  onClick={() => setShowMobileMenu(false)}
+                >
+                  <Link href="/models">
+                    <Bot className="w-4 h-4" />
+                    Chat Models
                   </Link>
                 </Button>
 
