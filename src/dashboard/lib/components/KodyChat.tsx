@@ -2805,26 +2805,6 @@ export function KodyChat({
     sendText,
   ])
 
-  // Vibe auto-kickoff. `vibe_start_execution` returns a SwitchAgentDirective
-  // with `autoKickoff` set; the switch handler stashes that string in
-  // `pendingKickoff`. We wait here for the new runner agent AND the new
-  // task scope to both land before firing — without either, the runner
-  // gets the wrong primer (FRESH instead of FOLLOW-UP) and either idles or
-  // opens a second issue. Once everything aligns, we dispatch the kickoff
-  // and clear the pending state so it can't re-trigger.
-  useEffect(() => {
-    if (!pendingKickoff) return
-    const isRunner =
-      selectedAgentId === 'kody-live' || selectedAgentId === 'kody-live-fly'
-    if (!isRunner) return
-    if (context?.kind !== 'task') return
-    const kickoff = pendingKickoff
-    setPendingKickoff(null)
-    void Promise.resolve().then(() => {
-      void sendText(kickoff)
-    })
-  }, [pendingKickoff, selectedAgentId, context, sendText])
-
   // Kody Live: warm-up the long-lived runner. Wires the dispatch + SSE
   // for an interactive session. Chat input stays disabled until the runner
   // emits chat.ready (handled in connectSSE).
@@ -2978,6 +2958,36 @@ export function KodyChat({
     liveRestoreAttemptedRef.current = true
     rehydrateForScope(nextScope)
   }, [context, vibeMode, rehydrateForScope])
+
+  // Vibe auto-kickoff. `vibe_start_execution` returns a SwitchAgentDirective
+  // with `autoKickoff` set; the switch handler stashes that string in
+  // `pendingKickoff`. We wait here for the new runner agent AND the new
+  // task scope to both land before firing — without either, the runner
+  // gets the wrong primer (FRESH instead of FOLLOW-UP) and either idles or
+  // opens a second issue.
+  //
+  // ORDERING NOTE — this useEffect MUST come after `rehydrateForScope`
+  // above. When context first flips from null → task on a fresh issue,
+  // rehydrate calls `stopInteractivePoll()` and resets the
+  // interactive-session refs to idle/null. If the kickoff fired *first*
+  // it would set state to 'booting' and start the poll, then rehydrate
+  // would immediately kill the poll and zero the refs — symptom: the
+  // Stop button stays stuck (loading=true forever, no chat.done can
+  // arrive), composer stays disabled. Running rehydrate first means
+  // the kickoff's startInteractiveSession sets up the poll AFTER the
+  // reset, so events flow back normally.
+  useEffect(() => {
+    if (!pendingKickoff) return
+    const isRunner =
+      selectedAgentId === 'kody-live' || selectedAgentId === 'kody-live-fly'
+    if (!isRunner) return
+    if (context?.kind !== 'task') return
+    const kickoff = pendingKickoff
+    setPendingKickoff(null)
+    void Promise.resolve().then(() => {
+      void sendText(kickoff)
+    })
+  }, [pendingKickoff, selectedAgentId, context, sendText])
 
   const sendMessage = async () => {
     if (!input.trim() && attachments.length === 0) return
