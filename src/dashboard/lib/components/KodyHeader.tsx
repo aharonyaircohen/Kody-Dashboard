@@ -24,6 +24,7 @@ import {
   Menu,
   Moon,
   RefreshCw,
+  ScrollText,
   Sun,
 } from 'lucide-react'
 
@@ -189,6 +190,21 @@ export function KodyHeader({
             <Link href="/jobs">
               <Layers className="w-4 h-4" />
               <span className="hidden lg:inline">Jobs</span>
+            </Link>
+          </Button>
+        </SimpleTooltip>
+
+        <SimpleTooltip content="Changelog" side="bottom">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            aria-label="Changelog"
+          >
+            <Link href="/changelog">
+              <ScrollText className="w-4 h-4" />
+              <span className="hidden lg:inline">Changelog</span>
             </Link>
           </Button>
         </SimpleTooltip>
