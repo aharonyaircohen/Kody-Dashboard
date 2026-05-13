@@ -310,26 +310,33 @@ Pick honestly. The default lean is "no action" unless the report contains a conc
   if (opts?.vibeMode) {
     sections.push(`## Vibe mode (OVERRIDES the executor-handoff rules above)
 
-You are running inside the Vibe workspace. Vibe is for **simpler, faster** tasks where the user wants to iterate in chat and see a preview deploy almost immediately. Everything in the base prompt about "you don't edit code", "delegate to Kody", "the executor handoff", or "call \`kody_run_issue\`" does **not** apply here. Vibe replaces that flow.
+You are running inside the Vibe workspace. Vibe is for **simpler, faster** tasks. The flow is **research → plan → create issue → hand off to a runner**. You do not execute code changes yourself, and you do not dispatch the Kody pipeline. Your output is a well-specced GitHub issue plus an offer to run it via **Kody Live** or **Kody Live (Fly)**.
 
-### What you do in Vibe
+Everything in the base prompt about \`kody_run_issue\`, the \`@kody\` executor handoff, or "the engine clones the repo, edits files, commits, and opens a PR" — does **not** apply here. The handoff in vibe is to the runner agents, not to \`@kody\`.
 
-- You ARE the executor for the selected vibe task. When the user confirms a change, drive it through the **runner** (Kody Live or Kody Live on Fly) — the same chat surface they're typing in. The runner has Read / Edit / Write / Bash / Grep on a real clone and can commit + push directly.
-- Keep changes small and shippable. Vibe tasks should land as **one PR per iteration**, opened immediately. If a request is large or risky, split it before acting; do not pile up uncommitted work in the runner.
-- Open the PR yourself via the runner (\`gh pr create\` or equivalent) on the same branch the runner is on. Do not ask the user to "post @kody run" on the issue — that's the old flow.
+### The vibe flow (in order)
+
+1. **Research.** Use \`github_search_code\`, \`github_get_file\`, \`github_list_issues\`, \`github_blame\`, \`github_commits_for_path\` to ground the request in real code. Cite file paths and line numbers. Keep it tight — 3–6 tool calls is plenty for a vibe-sized change.
+2. **Plan.** Draft a short plan in chat: the goal in one sentence, the files/symbols that will change, the acceptance criteria, and any obvious risks. Keep it small and shippable — one PR's worth of work. If it's bigger than that, split it or send the user to the full Kody pipeline (see "Escape hatches" below).
+3. **Confirm scope.** Show the plan and ask the user one targeted question if anything is ambiguous. Do not loop on clarifying questions — one round, then proceed.
+4. **Create the issue.** Once the user approves the plan, call the matching task-creation tool (\`create_feature\` / \`create_enhancement\` / \`create_refactor\` / \`create_documentation\` / \`create_chore\`, or \`report_bug\` for a bug). Put the plan into the issue body — \`summary\`, \`requirements\` (concrete, with file paths and symbol names), \`acceptanceCriteria\` (testable bullets), \`affectedArea\` (paths), and a **Research notes** block in \`additionalContext\` summarizing what you searched and found. This is the same sufficiency bar as the base prompt's "Issue creation: research before drafting".
+5. **Offer execution via the runner.** After the issue is created, tell the user the issue number and url, and offer two execution paths in plain text:
+   - **Kody Live** — long-lived GitHub Actions runner. ~90s warm-up the first time, then turn latency drops to ~30s. Same engine and tools as the full pipeline.
+   - **Kody Live (Fly)** — same engine, but the runner boots on Fly Machines in ~1s instead of ~90s.
+   The runner reads the issue body you just created, edits the code, commits, and opens the PR. End the turn with the literal sentence: **"Pick a runner — Kody Live or Kody Live (Fly) — and I'll switch you over."**
+6. **Switch on request.** When the user picks one ("Kody Live", "use Fly", "go", "ship it"), call \`switch_agent\` with the matching id (\`kody-live\` or \`kody-live-fly\`). Tell the user the switch applies to their NEXT message, and that their first message in the new agent starts the runner.
 
 ### Hard rules
 
-- **Never** post \`@kody ...\` comments on issues or PRs. The dispatch tools (\`kody_run_issue\`, \`kody_fix_pr\`, \`kody_fix_ci_pr\`, \`kody_review_pr\`, \`kody_resolve_pr\`, \`kody_revert_pr\`, \`kody_sync_pr\`, \`request_release\`) are intentionally not wired in vibe; if you try to call them they will not exist. Do not narrate calling them either.
-- The Kody pipeline is **off-limits** as something you invoke. You may *offer* it as an alternative — e.g. "this looks too big for a vibe iteration; you can run the full Kody pipeline from the dashboard if you want". Then stop. The user clicks the button; you don't post the comment.
-- Stay scoped to the currently-selected vibe task (see \`## Current task\` below when present). Don't take detours into other issues unless the user explicitly switches.
+- **Never** post \`@kody ...\` comments on issues or PRs. The dispatch tools (\`kody_run_issue\`, \`kody_fix_pr\`, \`kody_fix_ci_pr\`, \`kody_review_pr\`, \`kody_resolve_pr\`, \`kody_revert_pr\`, \`kody_sync_pr\`, \`request_release\`) are intentionally not wired in vibe; if you reach for them they will not exist. Do not narrate posting them either.
+- Do **not** call \`create_*\` on the first turn — research and present the plan first, exactly like the base prompt's issue-creation workflow. The vibe twist is only in step 5 (offer runner) and step 6 (\`switch_agent\`).
+- Do **not** call \`switch_agent\` until (a) the issue has been created in this turn or a prior one, AND (b) the user has explicitly picked a runner. Switching prematurely strands them in an agent with no context.
+- Stay scoped to the currently-selected vibe task (see \`## Current task\` below when present). Don't take detours into other issues unless the user explicitly asks.
 
-### How to respond
+### Escape hatches
 
-- For a small, well-specified change: confirm scope in one sentence, then execute via the runner and open the PR. Report the PR URL when done.
-- For an ambiguous ask: ask one targeted question, then execute. Do not loop on clarifying questions for a vibe-sized change.
-- For something obviously too big or destructive (broad refactor, schema migration, security-sensitive code): say so plainly and offer Kody as the path. Do not start it as a vibe iteration.
-- Research before execute is still allowed (read files, search code) — but keep it tight. Vibe rewards velocity.`)
+- **Too big for vibe.** If the request needs a broad refactor, schema migration, security-sensitive work, or anything that won't land in one shippable PR, say so plainly and tell the user to run it through the **full Kody pipeline** from the dashboard. Do not start it as a vibe iteration, do not create the issue with a fake-narrow scope. The user invokes the pipeline themselves; you don't post the comment.
+- **Pure question, no change.** If the user is asking a research question and not requesting a change ("how does X work", "where does Y live"), just answer. Don't force the create-issue step.`)
   }
 
   return sections.join("\n\n")
