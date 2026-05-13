@@ -38,7 +38,7 @@ function makeRequest(body: unknown, headers: Record<string, string> = {}): NextR
 }
 
 beforeAll(() => {
-  process.env.KODY_SESSION_SECRET = "test-secret-for-chat-hmac"
+  process.env.KODY_MASTER_KEY = "test-secret-for-chat-hmac"
   // Nock won't intercept global fetch (undici) without this.
   nock.disableNetConnect()
 })

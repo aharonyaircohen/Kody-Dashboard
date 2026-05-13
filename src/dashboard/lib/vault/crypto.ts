@@ -3,7 +3,7 @@
  * @domain vault
  * @pattern crypto
  * @ai-summary Authenticated encryption for the dashboard vault. Uses AES-256-GCM
- *   with a 32-byte key from the KODY_VAULT_KEY env var (hex or base64).
+ *   with a 32-byte key from the KODY_MASTER_KEY env var (hex or base64).
  *   Output format: "v1:<iv_b64>:<ct_b64>:<tag_b64>".
  *
  *   Generate with `pnpm vault:init`. Rotating the key invalidates every
@@ -15,10 +15,10 @@ import { createCipheriv, createDecipheriv, randomBytes } from "crypto"
 const VERSION = "v1"
 
 function getKey(): Buffer {
-  const raw = process.env.KODY_VAULT_KEY
+  const raw = process.env.KODY_MASTER_KEY
   if (!raw) {
     throw new Error(
-      "KODY_VAULT_KEY is not configured. Run `pnpm vault:init` to generate one.",
+      "KODY_MASTER_KEY is not configured. Run `pnpm vault:init` to generate one.",
     )
   }
   // Accept hex (64 chars) or base64 (44 chars including padding).
@@ -28,7 +28,7 @@ function getKey(): Buffer {
   const buf = Buffer.from(raw, "base64")
   if (buf.length !== 32) {
     throw new Error(
-      "KODY_VAULT_KEY must decode to 32 bytes (64-char hex or base64-encoded 32 bytes).",
+      "KODY_MASTER_KEY must decode to 32 bytes (64-char hex or base64-encoded 32 bytes).",
     )
   }
   return buf
@@ -59,7 +59,7 @@ export function decrypt(payload: string): string {
   return pt.toString("utf8")
 }
 
-/** True if KODY_VAULT_KEY is configured and decodes correctly. */
+/** True if KODY_MASTER_KEY is configured and decodes correctly. */
 export function isVaultConfigured(): boolean {
   try {
     getKey()

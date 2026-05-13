@@ -905,7 +905,7 @@ export const jobsApi = {
    * because the operator clicked "Run now" — they want it to run regardless
    * of the body's cadence guard. Pass `force: false` to respect the guard.
    *
-   * Replaces the legacy chat-trigger fake — no `KODY_SESSION_SECRET`
+   * Replaces the legacy chat-trigger fake — no `KODY_MASTER_KEY` HMAC
    * required, no fake chat session, no overloaded sessionId.
    */
   run: async (

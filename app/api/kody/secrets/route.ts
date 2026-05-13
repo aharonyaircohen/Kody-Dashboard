@@ -39,7 +39,7 @@ function vaultUnconfiguredResponse() {
     {
       error: "vault_not_configured",
       message:
-        "KODY_VAULT_KEY is not set on the server. Run `pnpm vault:init` and add the key to Vercel env.",
+        "KODY_MASTER_KEY is not set on the server. Run `pnpm vault:init` and add the key to Vercel env.",
     },
     { status: 503 },
   )

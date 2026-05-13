@@ -28,7 +28,7 @@ function makeRequest(body: unknown): NextRequest {
 
 beforeAll(() => {
   // Auth requires this even though it's not directly used for the LLM call.
-  process.env.KODY_SESSION_SECRET = "kody-direct-test-secret"
+  process.env.KODY_MASTER_KEY = "kody-direct-test-secret"
 })
 
 afterEach(() => {

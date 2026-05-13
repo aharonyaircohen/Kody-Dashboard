@@ -22,23 +22,32 @@ Next.js dashboard for monitoring and managing the Kody CI/CD pipeline.
 
 ## Environment Variables
 
+The dashboard intentionally keeps the env-var surface tiny. Only **one** secret
+is required; everything else is either a non-secret config knob, or lives in
+the dashboard's Settings page (user-scoped, not Vercel-scoped).
+
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `KODY_SESSION_SECRET` | Yes | JWT session signing secret |
-| `GITHUB_TOKEN` | Yes | GitHub API token (needs `workflows: write`) |
-| `GITHUB_APP_CLIENT_ID` | Yes | GitHub OAuth App client ID |
-| `GITHUB_APP_CLIENT_SECRET` | Yes | GitHub OAuth App client secret |
-| `NEXT_PUBLIC_SERVER_URL` | Dev | Public URL for OAuth redirects |
-| `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from login) |
-| `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody.yml`) |
-| `JINA_API_KEY` | No | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier) |
-| `KODY_VAULT_KEY` | No | 32-byte AES-256-GCM key (hex or base64) unlocking the per-repo secrets vault. Generate with `pnpm vault:init`. Without it the `/secrets` page is disabled and runtime falls back to env vars. |
+| `KODY_MASTER_KEY` | Yes | 32-byte hex/base64 secret. Single key powering: per-repo secrets vault AES-256-GCM (`vault/crypto.ts`), Kody session JWT signing (`auth/kody_session.ts`), session token AES (same file), and chat-ingest HMAC (`chat-token.ts`). Each consumer purpose-prefixes the key before hashing — `kody-chat-token:`, `kody-gh-session:`, `kody-token-encryption:` — so they're cryptographically separated. Generate with `pnpm vault:init`. |
+| `GITHUB_TOKEN` | Yes | Server-side GitHub API token for tasks that run without a logged-in user (cron, webhook flows). Needs `repo` + `workflow` scope. |
+| `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from login). |
+| `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody.yml`). |
+| `JINA_API_KEY` | No | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier). |
+| `NEXT_PUBLIC_SERVER_URL` | Dev | Public URL for callbacks — set in dev only. |
+
+**Do NOT add `FLY_API_TOKEN` (or `FLY_IO_TOKEN`) as a Vercel env var.** The
+Fly Machines token is a **user-scoped** credential managed via the
+dashboard's Settings page → Fly Runner card, sent per-request as the
+`x-kody-fly-token` header. The server intentionally does not fall back to
+an env var. Same rule applies to any future per-user infra credentials —
+prefer Settings over Vercel envs whenever the secret belongs to a single
+user, not the whole deployment.
 
 ## Secrets vault (`/secrets`)
 
 Dashboard-managed alternative to Vercel env vars. Each connected repo has
 its own encrypted blob at `.kody/secrets.enc`. Values written via the
-`/secrets` page are AES-256-GCM-encrypted with `KODY_VAULT_KEY` (one
+`/secrets` page are AES-256-GCM-encrypted with `KODY_MASTER_KEY` (one
 shared Vercel env var, separate from session/OAuth secrets) and
 committed to the repo. Runtime code reads them via
 [`getSecret`](src/dashboard/lib/vault/get-secret.ts), which falls
@@ -73,10 +82,10 @@ from anywhere else return 403.
   — shared `ensureWebhook` helper. Idempotent: lists existing hooks on the
   repo and PATCHes the matching one or creates a new one. Caller's PAT
   must have `admin:repo_hook` (the classic `repo` scope already includes it).
-  - Auto-called from the OAuth callback ([app/api/oauth/github/callback/route.ts](app/api/oauth/github/callback/route.ts))
-    after session creation. Fire-and-forget; failure does not block login.
   - Manual endpoint: [app/api/webhooks/register/route.ts](app/api/webhooks/register/route.ts)
-    for re-running registration without re-logging-in.
+    — POST after login to register the webhook for the connected repo.
+    (Auto-registration on the OAuth callback was removed along with the
+    OAuth flow; dashboard auth is header-based PAT now.)
 
 Subscribed events: `issues`, `issue_comment`, `pull_request`,
 `pull_request_review`, `pull_request_review_comment`, `workflow_run`,
@@ -108,7 +117,7 @@ engine runs `kody dispatch`, which branches to the chat executable, streams
 events back to `/api/kody/events/ingest` (real-time), and commits them to
 `.kody/events/{sessionId}.jsonl` (durable fallback, polled by
 `/api/kody/events/stream`). Token is verified via HMAC of sessionId with
-`KODY_SESSION_SECRET` — no shared DB lookup.
+`KODY_MASTER_KEY` — no shared DB lookup.
 
 ## Deployment
 
@@ -121,14 +130,6 @@ https://kody-aguy.vercel.app
 ```bash
 export PATH="/opt/homebrew/bin:$PATH"  # macOS fix for node path
 vercel --prod  # Deploy to production
-```
-
-### OAuth Setup
-
-The GitHub OAuth App callback URL must match:
-
-```
-https://kody-aguy.vercel.app/api/oauth/github/callback
 ```
 
 ## Import Aliases

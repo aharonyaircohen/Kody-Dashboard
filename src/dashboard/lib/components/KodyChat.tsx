@@ -294,8 +294,8 @@ interface Message {
    * a request fails. These are visible in the UI but MUST be filtered out
    * of the transcript sent back to the model — otherwise the next turn
    * sees a fake assistant reply describing an old failure and tries to
-   * "respond" to it (e.g. apologizing for a stale KODY_SESSION_SECRET
-   * error). Always paired with role: 'assistant'.
+   * "respond" to it (e.g. apologizing for a stale KODY_MASTER_KEY
+   * misconfig). Always paired with role: 'assistant'.
    */
   isError?: boolean
 }

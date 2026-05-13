@@ -10,8 +10,9 @@
  * No webhook secret. Verification is by source IP — see github-ip.ts.
  *
  * Used by:
- * - POST /api/webhooks/register (explicit)
- * - GET  /api/oauth/github/callback (auto, on every login)
+ * - POST /api/webhooks/register (explicit; user POSTs after login).
+ *   The OAuth callback that used to auto-register was removed along with
+ *   the OAuth start route — dashboard auth is header-based PAT now.
  */
 
 import { logger } from "@dashboard/lib/logger";

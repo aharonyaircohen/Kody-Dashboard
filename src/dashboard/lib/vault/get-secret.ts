@@ -4,7 +4,7 @@
  * @pattern secret-resolver
  * @ai-summary High-level helper for runtime code that needs a secret. Reads
  *   the per-repo encrypted vault first, then falls back to process.env so
- *   migration is gradual and bootstrap (KODY_VAULT_KEY itself) still works.
+ *   migration is gradual and bootstrap (KODY_MASTER_KEY itself) still works.
  *
  *   Usage:
  *     const apiKey = await getSecret("AI_GATEWAY_API_KEY", { req })
