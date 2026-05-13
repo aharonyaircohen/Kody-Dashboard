@@ -16,7 +16,8 @@ import type { KodyTask } from '../types'
 import { cn, formatRelativeTime } from '../utils'
 import { CIStatusBadge } from './CIStatusBadge'
 import { MiniPipelineProgress } from './MiniPipelineProgress'
-import { GitPullRequest, Inbox, Loader2, Search, X } from 'lucide-react'
+import { AlertCircle, GitPullRequest, Inbox, Loader2, Search, ShieldAlert, X } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
 import { useGoals } from '../hooks/useGoals'
 import { GOAL_LABEL_PREFIX } from '../goals'
 import type { ColumnId } from '../constants'
@@ -252,6 +253,18 @@ export function VibeIssueList({
                   >
                     #{task.issueNumber}
                   </Link>
+
+                  {/* Blocked-on-you: jumps out so the user knows to act */}
+                  {task.clarifyWaiting && (
+                    <span
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-yellow-300 bg-yellow-500/15 ring-1 ring-inset ring-yellow-500/30"
+                      title="Engine is waiting for you to answer questions"
+                    >
+                      <AlertCircle className="w-2.5 h-2.5" />
+                      Needs answer
+                    </span>
+                  )}
+
                   {hasPR && (
                     <span
                       className="inline-flex items-center px-1 py-0.5 rounded text-purple-300 bg-purple-500/10 ring-1 ring-inset ring-purple-500/20"
@@ -265,7 +278,63 @@ export function VibeIssueList({
                   )}
                   {/* Self-gates: renders only for building/retrying/gate-waiting */}
                   <MiniPipelineProgress task={task} variant="inline" />
-                  <span className="text-[10px] text-zinc-500 ml-auto shrink-0">
+
+                  {/* Gate detail: which stage + hard-stop vs risk-gated */}
+                  {task.column === 'gate-waiting' && task.gateStage && (
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ring-1 ring-inset',
+                        task.gateType === 'hard-stop'
+                          ? 'text-red-300 bg-red-500/10 ring-red-500/20'
+                          : 'text-yellow-300 bg-yellow-500/10 ring-yellow-500/20',
+                      )}
+                      title={
+                        task.gateType === 'hard-stop'
+                          ? `Hard-stop gate at ${task.gateStage}`
+                          : `Risk-gated at ${task.gateStage}`
+                      }
+                    >
+                      <ShieldAlert className="w-2.5 h-2.5" />
+                      {task.gateStage}
+                    </span>
+                  )}
+
+                  {/* Right cluster: assignees + time */}
+                  {task.assignees && task.assignees.length > 0 && (
+                    <div className="flex items-center -space-x-1.5 shrink-0 ml-auto">
+                      {task.assignees.slice(0, 2).map((a) => (
+                        <Avatar
+                          key={a.login}
+                          className="h-4 w-4 ring-2 ring-[#0a0a0a]"
+                          title={`Assignee: @${a.login}`}
+                        >
+                          <AvatarImage src={a.avatar_url} alt={a.login} />
+                          <AvatarFallback className="text-[8px] bg-zinc-800 text-zinc-400">
+                            {a.login[0]?.toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      ))}
+                      {task.assignees.length > 2 && (
+                        <span
+                          className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-zinc-800 text-[8px] font-medium text-zinc-400 ring-2 ring-[#0a0a0a]"
+                          title={task.assignees
+                            .slice(2)
+                            .map((a) => `@${a.login}`)
+                            .join(', ')}
+                        >
+                          +{task.assignees.length - 2}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <span
+                    className={cn(
+                      'text-[10px] text-zinc-500 shrink-0',
+                      !task.assignees || task.assignees.length === 0
+                        ? 'ml-auto'
+                        : '',
+                    )}
+                  >
                     {formatRelativeTime(task.updatedAt)}
                   </span>
                 </div>
