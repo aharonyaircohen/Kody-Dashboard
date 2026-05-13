@@ -2427,48 +2427,61 @@ export function KodyChat({
           if (pendingCreatedIssue !== null && onIssueCreated) {
             const newIssueNumber = pendingCreatedIssue
             const taskIdForChat = String(newIssueNumber)
-            // Read the latest messages synchronously. Plain `setMessages`
-            // queues the updater for React's next commit — by the time
-            // the next line runs, our local `snapshot` is still its
-            // initial `[]` and we'd save nothing. flushSync forces the
-            // updater to run inline, so `snapshot` reflects the real
-            // current messages before we hit the save / clear / navigate
-            // steps below. (This was the root cause of the empty-chat
-            // bug on the new issue.)
-            let snapshot: Message[] = []
-            flushSync(() => {
-              setMessages((current) => {
-                snapshot = current
-                return current
-              })
-            })
-            const messagesForLocal: ChatMessage[] = snapshot.map((m) => ({
-              role: m.role,
-              text: m.content,
-              timestamp: m.timestamp || new Date().toISOString(),
-            }))
-            if (messagesForLocal.length > 0) {
-              saveTaskChatLocal(taskIdForChat, messagesForLocal)
-              void fetch('/api/kody/chat/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                body: JSON.stringify({
-                  taskId: taskIdForChat,
-                  messages: messagesForLocal,
-                }),
-              }).catch(() => {
-                // Non-fatal — localStorage mirror covers branchless tasks.
-              })
-              // Clear current scope buffer so the migrated conversation
-              // only lives in one place (the new task). Without this the
-              // user sees the same messages again next time they land in
-              // global/draft mode. flushSync again to make sure the
-              // clear has actually landed before the navigate fires —
-              // otherwise the source buffer can flicker back briefly.
-              flushSync(() => {
-                setMessages(() => [])
-              })
+            // Build the transferred chat *from local stream state*, not
+            // from React state. We tried `setMessages(c => snapshot = c)`
+            // (even wrapped in flushSync) and it didn't reliably capture
+            // the current turn's assistant text — the React render hadn't
+            // fully committed by the time the snapshot was read. Building
+            // from `messages` (the prior turns at click-time, captured in
+            // closure), the current user message (`displayContent`), and
+            // the streamed assistant text (`composeContent()`) gives us
+            // the exact same view the user sees, with zero timing risk.
+            const priorForTransfer: ChatMessage[] = messages
+              .filter((m) => !m.isLoading && !m.isError)
+              .filter((m) => m.content && m.content.trim().length > 0)
+              .map((m) => ({
+                role: m.role,
+                text: m.content,
+                timestamp: m.timestamp || new Date().toISOString(),
+                ...(m.attachments ? { attachments: m.attachments } : {}),
+                ...(m.toolCalls ? { toolCalls: m.toolCalls } : {}),
+              }))
+            const userTurnForTransfer: ChatMessage = {
+              role: 'user',
+              text: displayContent,
+              timestamp,
+              ...(attachmentRefs.length > 0 ? { attachments: attachmentRefs } : {}),
             }
+            const assistantTextForTransfer = composeContent()
+            const assistantTurnForTransfer: ChatMessage = {
+              role: 'assistant',
+              text: assistantTextForTransfer,
+              timestamp: new Date().toISOString(),
+            }
+            const transferredMessages: ChatMessage[] = [
+              ...priorForTransfer,
+              userTurnForTransfer,
+              ...(assistantTextForTransfer.trim().length > 0
+                ? [assistantTurnForTransfer]
+                : []),
+            ]
+            saveTaskChatLocal(taskIdForChat, transferredMessages)
+            void fetch('/api/kody/chat/save', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...authHeaders() },
+              body: JSON.stringify({
+                taskId: taskIdForChat,
+                messages: transferredMessages,
+              }),
+            }).catch(() => {
+              // Non-fatal — localStorage mirror covers branchless tasks.
+            })
+            // Clear the source scope so the conversation only lives in
+            // one place once the user lands on the new issue. flushSync
+            // guarantees the clear commits before navigate fires.
+            flushSync(() => {
+              setMessages(() => [])
+            })
             try {
               onIssueCreated(newIssueNumber)
             } catch {
