@@ -42,9 +42,9 @@ export function getStoredAuth(): {
 
 /**
  * Read the user-scoped Fly Machines API token. Stored alongside the rest of
- * the auth blob (per-browser, not per-repo), set via /settings. The kody-live-fly
- * runner uses it to spawn Fly Machines — falls back to the server's
- * FLY_API_TOKEN env var when null.
+ * the auth blob (per-browser, not per-repo), set via /settings. The
+ * kody-live-fly runner requires this; the server does not fall back to an
+ * env var, so kody-live-fly fails with a clear error when this is null.
  */
 export function getStoredFlyToken(): string | null {
   if (typeof window === "undefined") return null;

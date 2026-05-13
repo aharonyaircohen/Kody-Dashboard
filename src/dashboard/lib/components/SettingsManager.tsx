@@ -343,7 +343,7 @@ export function SettingsManager() {
         open={confirmClearFly}
         onClose={() => setConfirmClearFly(false)}
         title="Clear Fly token?"
-        description="Removes the saved Fly Machines API token from this browser. kody-live-fly sessions will fall back to the server's FLY_API_TOKEN env var (if set) or fail."
+        description="Removes the saved Fly Machines API token from this browser. kody-live-fly sessions will fail until a new token is saved — the dashboard does not fall back to a server env var."
         confirmLabel="Clear"
         variant="destructive"
         onConfirm={clearFly}
