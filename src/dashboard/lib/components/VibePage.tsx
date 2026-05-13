@@ -543,6 +543,11 @@ export function VibePage() {
                     setSelectedIssueNumber(detailTask.issueNumber)
                     setDetailIssueNumber(null)
                   }}
+                  // Vibe owns its URL (`/vibe?detail=N`). Letting TaskDetail
+                  // pushState `/{issueNumber}/comments` strips `?detail=N`,
+                  // closes this overlay, and parks the URL on the dashboard
+                  // route. Keep tab state in-memory only.
+                  syncTabToUrl={false}
                 />
               </div>
             </>

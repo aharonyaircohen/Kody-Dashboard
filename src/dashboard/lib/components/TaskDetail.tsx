@@ -82,6 +82,10 @@ interface TaskDetailProps {
   onOpenPreview?: () => void;
   onEditTask?: (task: KodyTask) => void;
   onDuplicate?: (task: KodyTask) => void;
+  // When false, tab changes do NOT pushState/read window.location.
+  // Used by hosts that own their own URL (e.g. Vibe overlay on `/vibe?detail=N`).
+  // Defaults to true so the dashboard's path-based routing keeps working.
+  syncTabToUrl?: boolean;
 }
 
 interface FullTaskDetails extends KodyTask {
@@ -640,6 +644,7 @@ export function TaskDetail({
   onOpenPreview,
   onEditTask,
   onDuplicate,
+  syncTabToUrl = true,
 }: TaskDetailProps) {
   const { githubUser } = useGitHubIdentity();
   const actorLogin = githubUser?.login;
@@ -656,6 +661,7 @@ export function TaskDetail({
     isFetching: isDetailsFetching,
   } = useTaskDetails(task?.issueNumber ?? null, actorLogin);
   const [activeTab, setActiveTab] = useState<"description" | "comments">(() => {
+    if (!syncTabToUrl) return "description";
     if (typeof window === "undefined") return "description";
     return window.location.pathname.endsWith("/comments")
       ? "comments"
@@ -686,6 +692,7 @@ export function TaskDetail({
 
   // Sync tab from URL on browser back/forward
   useEffect(() => {
+    if (!syncTabToUrl) return;
     const handlePopState = () => {
       const path = window.location.pathname;
       // Only handle if we're on a task detail URL
@@ -698,17 +705,21 @@ export function TaskDetail({
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [syncTabToUrl]);
 
   useEffect(() => {
     setCompletedActions(new Set());
     setShowMobileExtra(false);
+    if (!syncTabToUrl) {
+      setActiveTab("description");
+      return;
+    }
     setActiveTab(
       window.location.pathname.endsWith("/comments")
         ? "comments"
         : "description",
     );
-  }, [task?.issueNumber]);
+  }, [task?.issueNumber, syncTabToUrl]);
 
   const retryWithContext = useRetryWithContext({
     issueNumber: task?.issueNumber ?? 0,
@@ -1000,7 +1011,7 @@ export function TaskDetail({
           active={effectiveTab === key}
           onClick={() => {
             setActiveTab(key);
-            if (task) {
+            if (task && syncTabToUrl) {
               const base = `/${task.issueNumber}`;
               const path = key === "description" ? base : `${base}/${key}`;
               window.history.pushState(null, "", path);
