@@ -19,18 +19,7 @@ import { MiniPipelineProgress } from './MiniPipelineProgress'
 import { GitPullRequest, Inbox, Loader2, Search, X } from 'lucide-react'
 import { useGoals } from '../hooks/useGoals'
 import { GOAL_LABEL_PREFIX } from '../goals'
-import { COLUMN_DEFS, type ColumnId } from '../constants'
-
-// Per-column chip styling. "open" intentionally omitted — it's the idle
-// default and would clutter every row with a redundant "Open" pill. "done"
-// can't appear here because the list filters to state==='open'.
-const COLUMN_CHIP: Partial<Record<ColumnId, string>> = {
-  building: 'bg-blue-500/10 text-blue-300 ring-blue-500/20',
-  review: 'bg-purple-500/10 text-purple-300 ring-purple-500/20',
-  failed: 'bg-red-500/10 text-red-300 ring-red-500/20',
-  'gate-waiting': 'bg-yellow-500/10 text-yellow-300 ring-yellow-500/20',
-  retrying: 'bg-orange-500/10 text-orange-300 ring-orange-500/20',
-}
+import type { ColumnId } from '../constants'
 
 // Per-column row-background tint. Subtle by default (~4% alpha) so titles
 // stay readable; deepens on hover and selection to keep affordances visible.
@@ -57,16 +46,16 @@ interface VibeIssueListProps {
 // the chip reads as "tinted" rather than "solid color block". Classes are
 // listed as literals so Tailwind's JIT picks them up.
 const GOAL_PALETTE = [
-  { dot: 'bg-emerald-400', chip: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' },
-  { dot: 'bg-sky-400',     chip: 'bg-sky-500/10 text-sky-300 ring-sky-500/20' },
-  { dot: 'bg-violet-400',  chip: 'bg-violet-500/10 text-violet-300 ring-violet-500/20' },
-  { dot: 'bg-amber-400',   chip: 'bg-amber-500/10 text-amber-300 ring-amber-500/20' },
-  { dot: 'bg-rose-400',    chip: 'bg-rose-500/10 text-rose-300 ring-rose-500/20' },
-  { dot: 'bg-cyan-400',    chip: 'bg-cyan-500/10 text-cyan-300 ring-cyan-500/20' },
-  { dot: 'bg-lime-400',    chip: 'bg-lime-500/10 text-lime-300 ring-lime-500/20' },
-  { dot: 'bg-fuchsia-400', chip: 'bg-fuchsia-500/10 text-fuchsia-300 ring-fuchsia-500/20' },
-  { dot: 'bg-orange-400',  chip: 'bg-orange-500/10 text-orange-300 ring-orange-500/20' },
-  { dot: 'bg-indigo-400',  chip: 'bg-indigo-500/10 text-indigo-300 ring-indigo-500/20' },
+  { dot: 'bg-emerald-400', chip: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20', border: 'border-emerald-400' },
+  { dot: 'bg-sky-400',     chip: 'bg-sky-500/10 text-sky-300 ring-sky-500/20',             border: 'border-sky-400' },
+  { dot: 'bg-violet-400',  chip: 'bg-violet-500/10 text-violet-300 ring-violet-500/20',    border: 'border-violet-400' },
+  { dot: 'bg-amber-400',   chip: 'bg-amber-500/10 text-amber-300 ring-amber-500/20',       border: 'border-amber-400' },
+  { dot: 'bg-rose-400',    chip: 'bg-rose-500/10 text-rose-300 ring-rose-500/20',          border: 'border-rose-400' },
+  { dot: 'bg-cyan-400',    chip: 'bg-cyan-500/10 text-cyan-300 ring-cyan-500/20',          border: 'border-cyan-400' },
+  { dot: 'bg-lime-400',    chip: 'bg-lime-500/10 text-lime-300 ring-lime-500/20',          border: 'border-lime-400' },
+  { dot: 'bg-fuchsia-400', chip: 'bg-fuchsia-500/10 text-fuchsia-300 ring-fuchsia-500/20', border: 'border-fuchsia-400' },
+  { dot: 'bg-orange-400',  chip: 'bg-orange-500/10 text-orange-300 ring-orange-500/20',    border: 'border-orange-400' },
+  { dot: 'bg-indigo-400',  chip: 'bg-indigo-500/10 text-indigo-300 ring-indigo-500/20',    border: 'border-indigo-400' },
 ] as const
 
 function hashGoalId(s: string): number {
@@ -233,89 +222,52 @@ export function VibeIssueList({
                   }
                 }}
                 className={cn(
-                  'group w-full text-left px-3 py-2.5 transition-colors cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20',
+                  'group w-full text-left pl-3 pr-3 py-2.5 border-l-[3px] transition-colors cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20',
+                  color ? color.border : 'border-transparent',
                   isSelected
                     ? COLUMN_ROW_BG[task.column].selected
                     : cn(COLUMN_ROW_BG[task.column].idle, COLUMN_ROW_BG[task.column].hover),
                 )}
+                title={goalName ? `Goal: ${goalName}` : undefined}
               >
-                <div className="flex items-start gap-2.5 min-w-0">
-                  {/* Goal dot (reserves space even when missing so titles align) */}
-                  <span
-                    className={cn(
-                      'mt-[7px] w-1.5 h-1.5 rounded-full shrink-0',
-                      color ? color.dot : 'bg-white/10',
-                    )}
-                    aria-hidden
-                  />
+                {/* Title row — full width, wraps; line-clamp-3 as a sanity bound */}
+                <div
+                  className={cn(
+                    'text-sm leading-snug line-clamp-3 break-words',
+                    isSelected
+                      ? 'text-white font-medium'
+                      : 'text-zinc-200 group-hover:text-white',
+                  )}
+                >
+                  {task.title}
+                </div>
 
-                  <div className="flex-1 min-w-0">
-                    {/* Title line */}
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className={cn(
-                          'text-sm truncate flex-1 leading-snug',
-                          isSelected
-                            ? 'text-white font-medium'
-                            : 'text-zinc-200 group-hover:text-white',
-                        )}
-                        title={task.title}
-                      >
-                        {task.title}
-                      </span>
-                      <Link
-                        href={`/${task.issueNumber}`}
-                        onClick={(e) => e.stopPropagation()}
-                        title="Open issue details"
-                        className="text-[11px] tabular-nums font-medium text-sky-400 hover:text-sky-300 underline decoration-sky-400/40 hover:decoration-sky-300 underline-offset-2 shrink-0 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/40 rounded px-0.5"
-                      >
-                        #{task.issueNumber}
-                      </Link>
-                    </div>
-
-                    {/* Meta line */}
-                    <div className="flex items-center gap-1.5 mt-1.5 min-w-0">
-                      {goalName && color && (
-                        <span
-                          className={cn(
-                            'inline-flex items-center max-w-[140px] px-1.5 py-0.5 rounded text-[10px] font-medium ring-1 ring-inset truncate',
-                            color.chip,
-                          )}
-                          title={`Goal: ${goalName}`}
-                        >
-                          <span className="truncate">{goalName}</span>
-                        </span>
-                      )}
-                      {COLUMN_CHIP[task.column] && (
-                        <span
-                          className={cn(
-                            'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ring-1 ring-inset',
-                            COLUMN_CHIP[task.column],
-                          )}
-                          title={`Status: ${COLUMN_DEFS[task.column].label}`}
-                        >
-                          {COLUMN_DEFS[task.column].label}
-                        </span>
-                      )}
-                      {hasPR && (
-                        <span
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-purple-300 bg-purple-500/10 ring-1 ring-inset ring-purple-500/20"
-                          title="Has open PR"
-                        >
-                          <GitPullRequest className="w-2.5 h-2.5" />
-                          PR
-                        </span>
-                      )}
-                      {task.associatedPR && (
-                        <CIStatusBadge prNumber={task.associatedPR.number} />
-                      )}
-                      {/* Self-gates: renders only for building/retrying/gate-waiting */}
-                      <MiniPipelineProgress task={task} variant="inline" />
-                      <span className="text-[10px] text-zinc-500 ml-auto shrink-0">
-                        {formatRelativeTime(task.updatedAt)}
-                      </span>
-                    </div>
-                  </div>
+                {/* Meta row */}
+                <div className="flex items-center gap-1.5 mt-1.5 min-w-0">
+                  <Link
+                    href={`/${task.issueNumber}`}
+                    onClick={(e) => e.stopPropagation()}
+                    title="Open issue details"
+                    className="text-[11px] tabular-nums font-medium text-sky-400 hover:text-sky-300 underline decoration-sky-400/40 hover:decoration-sky-300 underline-offset-2 shrink-0 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/40 rounded px-0.5"
+                  >
+                    #{task.issueNumber}
+                  </Link>
+                  {hasPR && (
+                    <span
+                      className="inline-flex items-center px-1 py-0.5 rounded text-purple-300 bg-purple-500/10 ring-1 ring-inset ring-purple-500/20"
+                      title="Has open PR"
+                    >
+                      <GitPullRequest className="w-2.5 h-2.5" />
+                    </span>
+                  )}
+                  {task.associatedPR && (
+                    <CIStatusBadge prNumber={task.associatedPR.number} />
+                  )}
+                  {/* Self-gates: renders only for building/retrying/gate-waiting */}
+                  <MiniPipelineProgress task={task} variant="inline" />
+                  <span className="text-[10px] text-zinc-500 ml-auto shrink-0">
+                    {formatRelativeTime(task.updatedAt)}
+                  </span>
                 </div>
               </div>
             </li>
