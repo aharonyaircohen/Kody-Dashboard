@@ -2026,6 +2026,10 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
               messages: kodyMessages,
               task: kodyTaskContext,
               agentId: effectiveAgentId,
+              // Vibe flips the system prompt to "you ARE the executor" and
+              // strips the @kody dispatch tools. Only meaningful when the
+              // chat is hosted on /vibe; the dashboard rail leaves it off.
+              ...(vibeMode ? { vibeMode: true } : {}),
               // Forward the user-managed gateway model id when one is
               // active. The server validates against the LLM_MODELS list,
               // so a stale value falls back to the configured default.

@@ -314,6 +314,13 @@ export async function POST(req: NextRequest) {
      * (voice-tuned). All other agent ids fall back to `kody`.
      */
     agentId?: AgentId
+    /**
+     * Vibe mode. When true the chat is scoped to the selected vibe task and
+     * the prompt flips to "you ARE the executor — drive Kody Live/Fly, open
+     * PRs directly, never dispatch @kody". The Kody-dispatch tools are
+     * stripped from the tool set so the model can't trigger the pipeline.
+     */
+    vibeMode?: boolean
   }
   try {
     body = (await req.json()) as typeof body
@@ -423,6 +430,7 @@ export async function POST(req: NextRequest) {
   const agent =
     requestedAgentId === "kody-speech" ? getAgent("kody-speech") : AGENT_KODY
 
+  const vibeMode = body.vibeMode === true
   const systemPrompt = buildSystemPrompt(
     agent.systemPrompt,
     repo ? { owner: repo.owner, repo: repo.repo } : null,
@@ -434,6 +442,7 @@ export async function POST(req: NextRequest) {
       goal: goalPlannerActive ? body.goal : undefined,
       report: body.report,
       memoryIndex,
+      vibeMode,
     },
   )
 
@@ -512,7 +521,26 @@ export async function POST(req: NextRequest) {
     ...extraTools,
     ...createRemoteTools(body.actorLogin ?? null),
   }
-  const tools = { ...baseTools, ...extraTools } as Parameters<typeof streamText>[0]["tools"]
+  // Vibe mode: strip every tool that posts an `@kody ...` comment on an
+  // issue or PR. In vibe the chat IS the executor — it drives the Live/Fly
+  // runner directly and opens PRs without going through the Kody pipeline.
+  // The user can still invoke @kody manually from the dashboard UI; the
+  // model just isn't allowed to do it for them.
+  const VIBE_DISALLOWED_TOOLS = new Set<string>([
+    "kody_run_issue",
+    "kody_fix_pr",
+    "kody_fix_ci_pr",
+    "kody_review_pr",
+    "kody_resolve_pr",
+    "kody_revert_pr",
+    "kody_sync_pr",
+    "request_release",
+  ])
+  const mergedTools = { ...baseTools, ...extraTools }
+  if (vibeMode) {
+    for (const name of VIBE_DISALLOWED_TOOLS) delete mergedTools[name]
+  }
+  const tools = mergedTools as Parameters<typeof streamText>[0]["tools"]
 
   let stepNum = 0
 
