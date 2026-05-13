@@ -41,6 +41,7 @@ export interface ChatModelEntry {
 
 function buildAgentList(
   brainConfigured: boolean,
+  flyConfigured: boolean,
   models: ChatModelEntry[],
 ): ChatDropdownEntry[] {
   const entries: ChatDropdownEntry[] = []
@@ -58,15 +59,19 @@ function buildAgentList(
   // POC: parallel runtime on Fly Machines (sub-second warm boot vs ~90s
   // GH Actions cold start). Same engine + same session model — only the
   // host moves. See app/api/kody/chat/interactive/start-fly/route.ts.
-  const liveFly = AGENTS['kody-live-fly']
-  entries.push({
-    key: 'kody-live-fly',
-    agentId: 'kody-live-fly',
-    modelId: null,
-    name: liveFly.name,
-    description: liveFly.description,
-    icon: liveFly.icon,
-  })
+  // Hidden until the user adds a Fly API token in Settings — picking it
+  // without a token would just fail at start-fly time.
+  if (flyConfigured) {
+    const liveFly = AGENTS['kody-live-fly']
+    entries.push({
+      key: 'kody-live-fly',
+      agentId: 'kody-live-fly',
+      modelId: null,
+      name: liveFly.name,
+      description: liveFly.description,
+      icon: liveFly.icon,
+    })
+  }
   if (brainConfigured) {
     const brain = AGENTS.brain
     entries.push({
@@ -561,13 +566,17 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [brainConfigured, setBrainConfigured] = useState(false)
+  // Mirrors brainConfigured: true only when the per-repo vault holds a
+  // non-empty FLY_API_TOKEN. The Fly dropdown row is hidden until then so
+  // users can't pick a runner that will fail at start-fly time.
+  const [flyConfigured, setFlyConfigured] = useState(false)
   // User-managed chat models from /api/kody/models (LLM_MODELS variable).
   // Empty until first load completes; renders only Kody Live (+ Brain) in
   // the dropdown while empty.
   const [chatModels, setChatModels] = useState<ChatModelEntry[]>([])
   const brainAbortRef = useRef<AbortController | null>(null)
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT
-  const agentList = buildAgentList(brainConfigured, chatModels)
+  const agentList = buildAgentList(brainConfigured, flyConfigured, chatModels)
   // What to show in the header — when a gateway model is active, prefer
   // its label over the static `kody` agent name.
   const currentEntry =
@@ -618,6 +627,44 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
       setSelectedModelId(null)
     }
   }, [brainConfigured, selectedAgentId, lockedAgentId])
+
+  // Probe the per-repo vault for FLY_API_TOKEN so the dropdown can hide the
+  // Fly row when no token is configured. Silent on any error — the row just
+  // stays hidden, matching the "not configured" state.
+  useEffect(() => {
+    let cancelled = false
+    const headers = authHeaders()
+    if (Object.keys(headers).length === 0) {
+      setFlyConfigured(false)
+      return
+    }
+    fetch('/api/kody/secrets/FLY_API_TOKEN/value', { headers })
+      .then(async (res) => {
+        if (cancelled) return
+        if (!res.ok) {
+          setFlyConfigured(false)
+          return
+        }
+        const body = (await res.json().catch(() => ({}))) as { value?: string }
+        setFlyConfigured(Boolean(body.value && body.value.trim().length > 0))
+      })
+      .catch(() => {
+        if (!cancelled) setFlyConfigured(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // If the user (or a stale localStorage value) had Fly selected but no
+  // token is configured, snap to Kody Live so chat keeps working.
+  useEffect(() => {
+    if (lockedAgentId) return
+    if (selectedAgentId === 'kody-live-fly' && !flyConfigured) {
+      setSelectedAgentId('kody-live')
+      setSelectedModelId(null)
+    }
+  }, [flyConfigured, selectedAgentId, lockedAgentId])
 
   // If the user had a gateway model selected but it was removed from the
   // list (or disabled), fall back to Kody Live so the chat keeps working.
