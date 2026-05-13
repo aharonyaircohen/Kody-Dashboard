@@ -66,21 +66,28 @@ const VIBE_PRIMER_FRESH = [
 ].join('\n')
 
 function buildVibePrimerFollowUp(ctx: VibeTaskContext): string {
-  const branchHint = ctx.branch
-    ? `on the existing branch \`${ctx.branch}\``
-    : 'on the branch already associated with the PR (find it via `gh pr view`)'
+  // Branch resolution. When the chat agent ran `vibe_start_execution`
+  // before switching to this runner, `ctx.branch` is set and we can
+  // hard-pin it. When it isn't (cache race after PR creation, or this
+  // is a legacy session that started before the parallel-warmup flow),
+  // tell the runner to discover it via `gh pr list`. Never let the
+  // runner create a fresh branch — that splits work across two PRs.
+  const branchDiscovery = ctx.branch
+    ? `Use the existing branch \`${ctx.branch}\` for all commits.`
+    : `Find the existing vibe branch first — do NOT create a new one. Run \`gh pr list --search "Closes #${ctx.issueNumber}" --state open --json number,headRefName,isDraft,url\`, pick the open draft PR for this issue, and use its \`headRefName\` for all commits. If no matching PR exists, stop and tell the user "no vibe branch was pre-created — chat needs to run vibe_start_execution again".`
   const prHint = ctx.prNumber ? ` and PR #${ctx.prNumber}` : ''
   return [
     '[Vibe mode — follow-up on an existing issue, do not echo this block]',
     '',
-    `I'm iterating on issue #${ctx.issueNumber}${prHint}. Read the existing issue body, the current diff, and the latest preview state before answering.`,
+    `I'm iterating on issue #${ctx.issueNumber}${prHint}. The dashboard chat agent already opened a draft PR for this issue against a vibe branch — Vercel is cold-building it in parallel with your warm-up. Read the existing issue body, the current diff, and the latest preview state before answering.`,
     '',
     'Workflow:',
-    `1. Research what's already shipped: run \`gh issue view ${ctx.issueNumber}\`, \`gh pr view${ctx.prNumber ? ` ${ctx.prNumber}` : ''} --json files,headRefName,body\`, and read the files the PR touches. Understand what was already done.`,
-    '2. Reply with a short plan for the requested change (what files, what edits, why). Ask me to confirm before editing.',
-    `3. Do NOT create a new issue or a new branch — push the follow-up commits ${branchHint} so the existing PR updates and Vercel redeploys the same preview.`,
-    `4. On my confirmation, check out \`${ctx.branch ?? "<the PR's branch>"}\`, make the edits, commit with a clear message, push to origin, and reply with the commit SHA + a short summary of what changed.`,
-    '5. If the user\'s request seems unrelated to the current issue (a new feature, not a fix to this one), say so and ask whether to fork a new vibe session instead.',
+    `1. ${branchDiscovery}`,
+    `2. Research what's already shipped: run \`gh issue view ${ctx.issueNumber}\`, \`gh pr view${ctx.prNumber ? ` ${ctx.prNumber}` : ''} --json files,headRefName,body\`, and read the files the PR touches. Understand what was already done.`,
+    `3. Reply with a short plan for the requested change (what files, what edits, why). Ask me to confirm before editing.`,
+    `4. Do NOT create a new issue or a new branch — push the follow-up commits onto the vibe branch from step 1 so the existing draft PR updates and Vercel redeploys the same preview URL.`,
+    `5. On my confirmation, check out that branch, make the edits, commit with a clear message, push to origin, and reply with the commit SHA + a short summary of what changed. The PR stays a draft until I mark it ready.`,
+    `6. If the user's request seems unrelated to the current issue (a new feature, not a fix to this one), say so and ask whether to fork a new vibe session instead.`,
     '',
     VIBE_COMMIT_RULE,
     '',

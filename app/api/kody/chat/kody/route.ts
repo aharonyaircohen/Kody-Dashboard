@@ -50,6 +50,7 @@ import { createMemoryTools } from "../tools/memory-tools"
 import { createPlannerTools } from "../tools/planner-tools"
 import { createReleaseTools } from "../tools/release-tools"
 import { createKodyTools } from "../tools/kody-tools"
+import { createVibeTools } from "../tools/vibe-tools"
 import { fetchUrlTool } from "../tools/fetch-url"
 import { featureTools } from "../tools/feature-tools"
 import { uiTools } from "../tools/ui-tools"
@@ -498,6 +499,10 @@ export async function POST(req: NextRequest) {
         actorLogin: body.actorLogin ?? null,
       }),
       ...createKodyTools({ octokit, owner: repo.owner, repo: repo.repo }),
+      // Vibe-only: pre-create branch + draft PR so Vercel cold-builds in
+      // parallel with the runner warmup. Stripped from the tool set when
+      // not in vibe mode below (alongside the @kody dispatch tools).
+      ...createVibeTools({ octokit, owner: repo.owner, repo: repo.repo }),
       ...(goalPlannerActive && body.goal
         ? createPlannerTools({
             octokit,
@@ -539,6 +544,10 @@ export async function POST(req: NextRequest) {
   const mergedTools = { ...baseTools, ...extraTools }
   if (vibeMode) {
     for (const name of VIBE_DISALLOWED_TOOLS) delete mergedTools[name]
+  } else {
+    // Outside vibe, the chat doesn't pre-create branches/PRs — that's
+    // strictly a vibe-mode parallelism trick.
+    delete mergedTools.vibe_start_execution
   }
   const tools = mergedTools as Parameters<typeof streamText>[0]["tools"]
 
