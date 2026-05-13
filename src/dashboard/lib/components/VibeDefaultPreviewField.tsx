@@ -77,7 +77,7 @@ export function VibeDefaultPreviewField({
         <Input
           id="vibe-default-preview"
           type="url"
-          placeholder="https://kody-aguy.vercel.app"
+          placeholder="https://your-app.example.com"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           disabled={isSaving}

@@ -13,7 +13,7 @@
 
 import { test, expect } from "@playwright/test";
 
-const BASE_URL = process.env.BASE_URL ?? "https://kody-dashboard-sable.vercel.app";
+const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_SESSION_ID = `pw-test-session-${Date.now()}`;
 
 function authHeaders(): Record<string, string> {
