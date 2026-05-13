@@ -16,11 +16,7 @@
  * Body: see /interactive/start (taskId, idleExitMs, hardCapMs).
  */
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  requireKodyAuth,
-  getUserOctokit,
-  getRequestAuth,
-} from '@dashboard/lib/auth'
+import { requireKodyAuth } from '@dashboard/lib/auth'
 import { logger } from '@dashboard/lib/logger'
 import {
   buildMetaLine,
@@ -28,53 +24,24 @@ import {
 } from '@dashboard/lib/interactive-session'
 import { mintSessionToken } from '@dashboard/lib/chat-token'
 import { spawnRunner } from '@dashboard/lib/runners/fly'
-import { readVault } from '@dashboard/lib/vault/store'
-import type { Octokit } from '@octokit/rest'
+import { resolveFlyContext } from '@dashboard/lib/runners/fly-context'
 
 export const runtime = 'nodejs'
 
-function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
-  const override = (process.env.KODY_CHAT_WORKFLOW_REPO ?? '').trim()
-  if (override && override.includes('/')) {
-    const [owner, repo] = override.split('/').map((s) => s.trim())
-    if (owner && repo) return { owner, repo }
-  }
-  const headerAuth = getRequestAuth(req)
-  if (headerAuth) return { owner: headerAuth.owner, repo: headerAuth.repo }
-  const { GITHUB_OWNER, GITHUB_REPO } = process.env as Record<string, string>
-  return {
-    owner: (GITHUB_OWNER ?? 'aharonyaircohen').trim(),
-    repo: (GITHUB_REPO ?? 'Kody-Dashboard').trim(),
-  }
-}
-
 /**
- * Builds the ALL_SECRETS blob the engine reads at runtime by decrypting
- * the per-repo secrets vault (.kody/secrets.enc). This mirrors what
- * `toJSON(secrets)` returns on GH Actions — model API keys (and anything
- * else the user has saved at /secrets) flow through unchanged.
- *
- * Returns {} when the vault is missing, empty, or unreadable. The engine
- * will then fail its own auth check downstream; do NOT fall back to env
- * vars or pick a model here — model selection lives in the dashboard,
- * not in this route.
+ * Chat is unique among Fly-spawning routes: it may target a separate
+ * "engine repo" (where `kody.yml` lives) instead of the user's connected
+ * repo. KODY_CHAT_WORKFLOW_REPO opts in; otherwise the connected repo
+ * from header auth is used (same as the shared context default).
  */
-async function buildAllSecretsFromVault(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<Record<string, string>> {
-  try {
-    const { doc } = await readVault(octokit, owner, repo)
-    const out: Record<string, string> = {}
-    for (const [name, entry] of Object.entries(doc.secrets)) {
-      if (entry?.value) out[name] = entry.value
-    }
-    return out
-  } catch (err) {
-    logger.warn({ err, owner, repo }, 'interactive-fly: vault read failed')
-    return {}
-  }
+function getChatRepoOverride():
+  | { owner: string; repo: string }
+  | undefined {
+  const override = (process.env.KODY_CHAT_WORKFLOW_REPO ?? '').trim()
+  if (!override || !override.includes('/')) return undefined
+  const [owner, repo] = override.split('/').map((s) => s.trim())
+  if (!owner || !repo) return undefined
+  return { owner, repo }
 }
 
 export async function POST(req: NextRequest) {
@@ -104,21 +71,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'taskId required' }, { status: 400 })
   }
 
-  const { owner, repo } = getEngineRepo(req)
-  const octokit = await getUserOctokit(req)
-  const headerAuth = getRequestAuth(req)
-  const githubToken =
-    headerAuth?.token ??
-    process.env.KODY_BOT_TOKEN ??
-    process.env.GITHUB_TOKEN ??
-    ''
-
-  if (!octokit || !githubToken) {
+  const ctxResult = await resolveFlyContext(req, {
+    repoOverride: getChatRepoOverride(),
+  })
+  if (!ctxResult.ok) {
     return NextResponse.json(
-      { error: 'No GitHub token available' },
-      { status: 503 },
+      { error: ctxResult.error },
+      { status: ctxResult.status },
     )
   }
+  const { owner, repo, githubToken, octokit, allSecrets, flyToken, perfTier, litellmUrl } =
+    ctxResult.context
 
   try {
     logger.info(
@@ -144,30 +107,6 @@ export async function POST(req: NextRequest) {
       )}&token=${token}`
     }
 
-    // Model selection happens entirely on the engine side using the
-    // secrets the vault provides. No hardcoded fallbacks here.
-    const allSecrets = await buildAllSecretsFromVault(octokit, owner, repo)
-
-    // Fly Machines API token is a PROJECT credential — pulled from the
-    // same repo vault as the model keys, not from the browser. The
-    // engine machine doesn't need the token itself, so strip it from
-    // ALL_SECRETS before passing the rest through.
-    const flyToken = allSecrets.FLY_API_TOKEN
-    if (flyToken) delete allSecrets.FLY_API_TOKEN
-
-    // Optional perf tier from Settings → Fly Runner. Defaults to "medium"
-    // (performance-1x) on the runner side when missing or unrecognized.
-    const rawPerf = req.headers.get('x-kody-fly-perf')
-    const perfTier =
-      rawPerf === 'low' || rawPerf === 'medium' || rawPerf === 'high'
-        ? rawPerf
-        : undefined
-    // Optional always-on LiteLLM proxy. Default points at the kody-litellm
-    // Fly app over the private 6PN network; set FLY_LITELLM_URL="" to
-    // disable and fall back to per-session pre-warm.
-    const litellmUrl =
-      process.env.FLY_LITELLM_URL ?? 'http://kody-litellm.internal:4000'
-
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
       githubToken,
@@ -178,7 +117,7 @@ export async function POST(req: NextRequest) {
       allSecrets,
       flyToken,
       perfTier,
-      litellmUrl: litellmUrl || undefined,
+      litellmUrl,
     })
 
     logger.info(
