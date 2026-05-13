@@ -2223,6 +2223,11 @@ export function KodyChat({
                   | { type: 'reasoning-delta'; delta: string }
                   | { type: 'error'; errorText: string }
                   | {
+                      type: 'tool-input-start'
+                      toolCallId: string
+                      toolName: string
+                    }
+                  | {
                       type: 'tool-input-available'
                       toolCallId: string
                       toolName: string
@@ -2247,6 +2252,21 @@ export function KodyChat({
                   if (!voiceMode) reasoningBuf += chunk.delta
                 } else if (chunk.type === 'error' && 'errorText' in chunk) {
                   textBuf += `\n\n[Error] ${chunk.errorText}`
+                } else if (
+                  // The AI SDK emits `tool-input-start` *before* it
+                  // streams the input deltas, and `tool-input-available`
+                  // once the full input has been parsed. Both carry the
+                  // toolName for the same toolCallId — capture from
+                  // either, since `tool-input-available` can be skipped
+                  // in some edge cases (parse errors, providers that
+                  // bypass delta streaming). Without this fallback, the
+                  // map miss leaves `name` undefined and the issue-
+                  // creation detection below silently no-ops.
+                  chunk.type === 'tool-input-start' &&
+                  'toolCallId' in chunk &&
+                  'toolName' in chunk
+                ) {
+                  toolNameById.set(chunk.toolCallId, chunk.toolName)
                 } else if (
                   chunk.type === 'tool-input-available' &&
                   'toolCallId' in chunk &&
@@ -2312,16 +2332,40 @@ export function KodyChat({
                   // tools that returned `{ number: <positive int> }` is a
                   // newly opened GitHub issue. Capture so the post-stream
                   // handler can migrate the conversation onto that issue.
+                  // Two-tier match:
+                  //   1. Tool name in our whitelist (cheap, common case).
+                  //   2. Output shape match — `{ number, url:.../issues/...
+                  //      }` with no `prNumber` / `branch` (which would
+                  //      indicate vibe_start_execution). Saves us when
+                  //      the tool name didn't land in toolNameById
+                  //      (e.g. tool-input-available was skipped by the
+                  //      provider). Without the shape fallback, an
+                  //      otherwise-correct create_* call silently no-ops
+                  //      the transfer if the name was never captured.
                   if (
-                    name &&
-                    ISSUE_CREATION_TOOL_NAMES.has(name) &&
                     chunk.output &&
                     typeof chunk.output === 'object' &&
                     'number' in chunk.output
                   ) {
-                    const out = chunk.output as { number?: unknown }
-                    if (typeof out.number === 'number' && Number.isInteger(out.number) && out.number > 0) {
-                      pendingCreatedIssue = out.number
+                    const out = chunk.output as {
+                      number?: unknown
+                      url?: unknown
+                      prNumber?: unknown
+                      branch?: unknown
+                    }
+                    const isIssueNumber =
+                      typeof out.number === 'number' &&
+                      Number.isInteger(out.number) &&
+                      out.number > 0
+                    const nameMatches = !!(name && ISSUE_CREATION_TOOL_NAMES.has(name))
+                    const shapeMatches =
+                      isIssueNumber &&
+                      typeof out.url === 'string' &&
+                      out.url.includes('/issues/') &&
+                      out.prNumber === undefined &&
+                      out.branch === undefined
+                    if (isIssueNumber && (nameMatches || shapeMatches)) {
+                      pendingCreatedIssue = out.number as number
                     }
                   }
                   void name
