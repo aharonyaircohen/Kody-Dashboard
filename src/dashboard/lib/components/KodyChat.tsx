@@ -606,6 +606,11 @@ export function KodyChat({
   // the dropdown while empty.
   const [chatModels, setChatModels] = useState<ChatModelEntry[]>([])
   const brainAbortRef = useRef<AbortController | null>(null)
+  // AbortController for the in-process Gemini path (`/api/kody/chat/kody`).
+  // Without this the Stop button can't cancel the in-flight stream — the
+  // model keeps generating, tokens keep flowing into the assistant bubble,
+  // and the user has no recourse. Mirrors the Brain backend's pattern.
+  const kodyAbortRef = useRef<AbortController | null>(null)
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT
   const agentList = buildAgentList(brainConfigured, flyConfigured, chatModels)
   // What to show in the header — when a gateway model is active, prefer
@@ -2096,10 +2101,17 @@ export function KodyChat({
           { role: 'user' as const, content: userTurnContent },
         ]
 
+        // Fresh AbortController per turn — Stop button calls .abort() on
+        // whichever request is in-flight. Cancel any prior controller in
+        // the unlikely case a previous turn never settled.
+        kodyAbortRef.current?.abort()
+        const kodyAbort = new AbortController()
+        kodyAbortRef.current = kodyAbort
         try {
           const res = await fetch('/api/kody/chat/kody', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            signal: kodyAbort.signal,
             body: JSON.stringify({
               messages: kodyMessages,
               task: kodyTaskContext,
@@ -2453,6 +2465,27 @@ export function KodyChat({
           // in a normal text bubble.
           return textBuf.trim() || null
         } catch (err) {
+          // Stop button fired — fetch/reader throws an AbortError. That's
+          // not a real failure; just settle the bubble and bail. Without
+          // this guard the user sees an "Error: signal is aborted..."
+          // bubble after every stop.
+          const isAbort =
+            (err instanceof DOMException && err.name === 'AbortError') ||
+            (err instanceof Error && err.name === 'AbortError')
+          if (isAbort) {
+            setLoading(false)
+            setMessages((prev) => {
+              const copy = [...prev]
+              const idx = copy.findIndex(
+                (m) => m.role === 'assistant' && m.isLoading,
+              )
+              if (idx >= 0) {
+                copy[idx] = { ...copy[idx], isLoading: false }
+              }
+              return copy
+            })
+            return null
+          }
           const errorMessage = err instanceof Error ? err.message : 'Unknown error'
           setLoading(false)
           setMessages((prev) => {
@@ -2463,6 +2496,11 @@ export function KodyChat({
             ]
           })
           return null
+        } finally {
+          // Drop the controller so the next turn starts fresh.
+          if (kodyAbortRef.current === kodyAbort) {
+            kodyAbortRef.current = null
+          }
         }
       }
 
@@ -2922,7 +2960,13 @@ export function KodyChat({
   }
 
   const handleStop = () => {
+    // Cancel every backend the chat can be talking to. Each abort/close
+    // is a no-op if that backend wasn't active — calling them all
+    // unconditionally keeps the handler simple and the Stop button
+    // honest regardless of which agent is selected.
     eventSourceRef.current?.close()
+    kodyAbortRef.current?.abort()
+    brainAbortRef.current?.abort()
     setLoading(false)
     setMessages((prev) => {
       const newMessages = [...prev]
