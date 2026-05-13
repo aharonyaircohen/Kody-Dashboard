@@ -432,6 +432,22 @@ export async function POST(req: NextRequest) {
     requestedAgentId === "kody-speech" ? getAgent("kody-speech") : AGENT_KODY
 
   const vibeMode = body.vibeMode === true
+
+  // In vibe mode the agent decides Fly vs. Live without asking. Probe
+  // the vault for FLY_API_TOKEN so the prompt can tell the agent which
+  // runner is actually configured for THIS user — Fly is opt-in, not
+  // default. Outside vibe mode this signal isn't used, so skip the
+  // vault read on the hot path.
+  let flyConfigured = false
+  if (vibeMode) {
+    try {
+      const flyToken = await getSecret('FLY_API_TOKEN', { req })
+      flyConfigured = Boolean(flyToken && flyToken.trim().length > 0)
+    } catch {
+      flyConfigured = false
+    }
+  }
+
   const systemPrompt = buildSystemPrompt(
     agent.systemPrompt,
     repo ? { owner: repo.owner, repo: repo.repo } : null,
@@ -444,6 +460,7 @@ export async function POST(req: NextRequest) {
       report: body.report,
       memoryIndex,
       vibeMode,
+      flyConfigured,
     },
   )
 

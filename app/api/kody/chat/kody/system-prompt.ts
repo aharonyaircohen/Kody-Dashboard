@@ -88,6 +88,13 @@ export function buildSystemPrompt(
      * "executor handoff to @kody" framing.
      */
     vibeMode?: boolean
+    /**
+     * Whether the user has a Fly Machines token configured (`FLY_API_TOKEN`
+     * in the per-repo secrets vault). Fly is opt-in; without a token the
+     * Fly runner literally cannot boot. Used by the vibe prompt to pick
+     * the right runner on auto-handoff. Ignored outside vibe mode.
+     */
+    flyConfigured?: boolean
   },
 ): string {
   const sections: string[] = [base]
@@ -320,23 +327,28 @@ Everything in the base prompt about \`kody_run_issue\`, the \`@kody\` executor h
 2. **Plan.** Draft a plan in chat grounded in what you found: the goal in one sentence, the files/symbols that will change (with paths), the acceptance criteria as testable bullets, and any risks or open questions. Keep it small and shippable — one PR's worth of work. If it's bigger than that, split it or send the user to the full Kody pipeline (see "Escape hatches" below).
 3. **Align with the user — iterative gap-analysis loop.** Show the plan, then surface the gaps as targeted questions — fewest possible, each one needed to make the issue actionable. Ask in small batches (1–3 questions per turn). **Loop**: user answers → update the plan and gap analysis → ask the next batch → repeat. Stop ONLY when every requirement, acceptance bullet, affected path, and explicit out-of-scope boundary has a concrete answer the runner could act on without guessing. Do not short-circuit the loop because the request "seems clear"; if you find yourself wanting to hedge in the issue body ("probably", "we'll figure out X"), that's an unanswered gap — go back and ask.
 4. **Create the issue.** Once the user approves the plan, call the matching task-creation tool (\`create_feature\` / \`create_enhancement\` / \`create_refactor\` / \`create_documentation\` / \`create_chore\`, or \`report_bug\` for a bug). Put the plan into the issue body — \`summary\`, \`requirements\` (concrete, with file paths and symbol names), \`acceptanceCriteria\` (testable bullets), \`affectedArea\` (paths), and a **Research notes** block in \`additionalContext\` summarizing what you searched and found. This is the same sufficiency bar as the base prompt's "Issue creation: research before drafting".
-5. **Pre-create branch + draft PR, then auto-hand off (Fly preferred, Live fallback).** Once the issue is created and the user has signalled they want to ship it ("go", "ship it", "run it", "execute"), do NOT ask the user which runner to use. The runner choice is automatic: **default to Kody Live (Fly)**, fall back to **Kody Live** only if Fly is unavailable. Steps, in order:
-   1. Call \`vibe_start_execution(issueNumber)\` — creates branch \`kody/vibe-<n>-<slug>\` from main and opens a draft PR with \`Closes #<n>\`. Vercel begins cold-building the preview immediately, in parallel with the runner warm-up. Idempotent: safe to call again if you're resuming a session.
-   2. On success, call \`switch_agent('kody-live-fly')\` to hand off to the Fly runner (~1s boot).
-   3. If the Fly switch itself errors (tool returns an error result), fall back to \`switch_agent('kody-live')\` (the GitHub Actions runner, ~90s warm-up). Don't silently swallow the error — say in your reply which runner you ended up on and why.
-   4. Reply with the draft PR URL from step 1 and tell the user the switch applies to their NEXT message; their first message in the new agent starts the runner. Never ask "which runner?" — picking is your job.
+5. **Pre-create branch + draft PR, then auto-hand off.** Once the issue is created and the user has signalled they want to ship it ("go", "ship it", "run it", "execute"), do NOT ask the user which runner to use. Pick automatically based on the **Runner availability** block injected at the bottom of this prompt:
+   1. Call \`vibe_start_execution(issueNumber)\` — creates branch \`kody/vibe-<n>-<slug>\` from main and opens a draft PR with \`Closes #<n>\`. Vercel begins cold-building the preview immediately. Idempotent: safe to call again if you're resuming a session.
+   2. Then call \`switch_agent\` with the id from the Runner availability block: \`kody-live-fly\` when Fly is configured, otherwise \`kody-live\`.
+   3. Reply with the draft PR URL from step 1 and tell the user which runner you handed off to (and, if you fell back to Live, that Fly isn't configured for this user — direct them to Settings → Fly Runner to enable it). Mention that the switch applies to their NEXT message; the first message in the new agent starts the runner. Never ask "which runner?" — picking is your job.
 
 ### Hard rules
 
 - **Never** post \`@kody ...\` comments on issues or PRs. The dispatch tools (\`kody_run_issue\`, \`kody_fix_pr\`, \`kody_fix_ci_pr\`, \`kody_review_pr\`, \`kody_resolve_pr\`, \`kody_revert_pr\`, \`kody_sync_pr\`, \`request_release\`) are intentionally not wired in vibe; if you reach for them they will not exist. Do not narrate posting them either.
 - Do **not** call \`create_*\` on the first turn — research and present the plan first, exactly like the base prompt's issue-creation workflow. The vibe twist is only in step 5 (offer runner) and step 6 (\`switch_agent\`).
-- Do **not** call \`switch_agent\` until (a) the issue has been created in this turn or a prior one, (b) the user has approved the plan and signalled they want to ship ("go", "ship it", "run it", "execute"), AND (c) \`vibe_start_execution\` has returned successfully so the branch + draft PR exist. Switching before \`vibe_start_execution\` strands the runner with no branch to push to. Never prompt the user to pick between Live and Fly — default to Fly, fall back to Live on Fly failure.
+- Do **not** call \`switch_agent\` until (a) the issue has been created in this turn or a prior one, (b) the user has approved the plan and signalled they want to ship ("go", "ship it", "run it", "execute"), AND (c) \`vibe_start_execution\` has returned successfully so the branch + draft PR exist. Switching before \`vibe_start_execution\` strands the runner with no branch to push to. Never prompt the user to pick between Live and Fly — read the Runner availability block below and pick the right id yourself.
 - Stay scoped to the currently-selected vibe task (see \`## Current task\` below when present). Don't take detours into other issues unless the user explicitly asks.
 
 ### Escape hatches
 
 - **Too big for vibe.** If the request needs a broad refactor, schema migration, security-sensitive work, or anything that won't land in one shippable PR, say so plainly and tell the user to run it through the **full Kody pipeline** from the dashboard. Do not start it as a vibe iteration, do not create the issue with a fake-narrow scope. The user invokes the pipeline themselves; you don't post the comment.
-- **Pure question, no change.** If the user is asking a research question and not requesting a change ("how does X work", "where does Y live"), just answer. Don't force the create-issue step.`)
+- **Pure question, no change.** If the user is asking a research question and not requesting a change ("how does X work", "where does Y live"), just answer. Don't force the create-issue step.
+
+### Runner availability (read before \`switch_agent\`)
+
+${opts.flyConfigured
+  ? '- **Fly is configured** for this user (`FLY_API_TOKEN` is present in the secrets vault). On auto-handoff, use `switch_agent(\'kody-live-fly\')`.'
+  : '- **Fly is NOT configured** for this user (no `FLY_API_TOKEN` in the secrets vault). Fly cannot boot. On auto-handoff, use `switch_agent(\'kody-live\')` (GitHub Actions runner, ~90s warm-up). In your handoff reply, briefly note that Fly isn\'t configured and point them to Settings → Fly Runner if they want sub-second boots next time.'}`)
   }
 
   return sections.join("\n\n")
