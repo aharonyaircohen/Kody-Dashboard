@@ -51,6 +51,13 @@ export interface KodyAuth {
   // ─── Optional integrations (per-browser) ───────────────────────────────
   brain?: { url: string; apiKey: string };
   vercelBypassSecret?: string;
+  /**
+   * Fly Machines API token, used by the kody-live-fly runtime to spawn
+   * ephemeral runner VMs. Dashboard-infrastructure setting (one Fly
+   * account regardless of repo), kept here rather than the per-repo
+   * vault. Falls back to FLY_API_TOKEN env var on the server when absent.
+   */
+  flyToken?: string;
 }
 
 interface AuthContextValue {
@@ -70,6 +77,7 @@ interface AuthContextValue {
   updateIntegrations: (patch: {
     brain?: { url: string; apiKey: string } | null;
     vercelBypassSecret?: string | null;
+    flyToken?: string | null;
   }) => void;
 }
 
@@ -129,6 +137,7 @@ function migrateAuth(raw: unknown): KodyAuth | null {
     currentRepoIndex: 0,
     brain: a.brain,
     vercelBypassSecret: a.vercelBypassSecret,
+    flyToken: a.flyToken,
   };
 }
 
@@ -273,6 +282,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (patch: {
       brain?: { url: string; apiKey: string } | null;
       vercelBypassSecret?: string | null;
+      flyToken?: string | null;
     }) => {
       setAuth((prev) => {
         if (!prev) return prev;
@@ -283,6 +293,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (patch.vercelBypassSecret !== undefined) {
           next.vercelBypassSecret =
             patch.vercelBypassSecret === null ? undefined : patch.vercelBypassSecret;
+        }
+        if (patch.flyToken !== undefined) {
+          next.flyToken = patch.flyToken === null ? undefined : patch.flyToken;
         }
         persist(next);
         return next;

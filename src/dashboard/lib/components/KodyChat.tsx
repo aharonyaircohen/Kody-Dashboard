@@ -96,7 +96,7 @@ function buildAgentList(
   }
   return entries
 }
-import { getStoredAuth, getStoredBrainConfig, tasksApi } from '../api'
+import { getStoredAuth, getStoredBrainConfig, getStoredFlyToken, tasksApi } from '../api'
 import { toast } from 'sonner'
 import type { KodyTask } from '../types'
 
@@ -2447,13 +2447,24 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
         typeof window !== 'undefined' ? `${window.location.origin}/api/kody/events/ingest` : undefined
       // Route to Fly Machines spawner when the user picked the kody-live-fly
       // agent — same engine + same session JSONL, different runtime.
-      const startEndpoint =
-        selectedAgentId === 'kody-live-fly'
-          ? '/api/kody/chat/interactive/start-fly'
-          : '/api/kody/chat/interactive/start'
+      const isFlyRoute = selectedAgentId === 'kody-live-fly'
+      const startEndpoint = isFlyRoute
+        ? '/api/kody/chat/interactive/start-fly'
+        : '/api/kody/chat/interactive/start'
+      // Attach the user-scoped Fly token when present; the server falls
+      // back to FLY_API_TOKEN env var when this header is missing.
+      const flyHeader: Record<string, string> = {}
+      if (isFlyRoute) {
+        const flyToken = getStoredFlyToken()
+        if (flyToken) flyHeader['x-kody-fly-token'] = flyToken
+      }
       const startRes = await fetch(startEndpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders(),
+          ...flyHeader,
+        },
         body: JSON.stringify({
           taskId: sessionId,
           dashboardUrl,

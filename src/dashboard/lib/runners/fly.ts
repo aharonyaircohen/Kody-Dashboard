@@ -42,6 +42,12 @@ export interface SpawnRunnerInput {
   idleExitMs?: number
   /** Hard cap override (ms) for interactive mode */
   hardCapMs?: number
+  /**
+   * Fly Machines API token. When omitted, falls back to FLY_API_TOKEN /
+   * FLY_IO_TOKEN env vars. The user-scoped token (set via /settings) is
+   * the preferred source — env is only a server fallback.
+   */
+  flyToken?: string
 }
 
 export interface SpawnRunnerResult {
@@ -50,14 +56,16 @@ export interface SpawnRunnerResult {
   region: string
 }
 
-function requireFlyToken(): string {
+function requireFlyToken(explicit?: string): string {
   const token =
+    explicit ??
     process.env.FLY_API_TOKEN ??
     process.env.FLY_IO_TOKEN ??
     ''
   if (!token) {
     throw new Error(
-      'Fly runner not configured: set FLY_API_TOKEN (or FLY_IO_TOKEN) in env',
+      'Fly runner not configured: save a token via Settings → Fly Runner ' +
+        '(or set FLY_API_TOKEN in env as a server-side fallback)',
     )
   }
   return token
@@ -92,7 +100,7 @@ function buildMachineEnv(input: SpawnRunnerInput): Record<string, string> {
 export async function spawnRunner(
   input: SpawnRunnerInput,
 ): Promise<SpawnRunnerResult> {
-  const token = requireFlyToken()
+  const token = requireFlyToken(input.flyToken)
   const app = DEFAULT_APP
   const region = DEFAULT_REGION
   const image = DEFAULT_IMAGE
