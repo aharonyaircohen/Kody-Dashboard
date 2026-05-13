@@ -3482,7 +3482,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
             placeholder={placeholder}
             rows={1}
             className="flex-1 px-3 py-2 text-base rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={loading}
+            disabled={loading || (isKodyLive && interactiveState !== 'ready')}
             style={{ height: 'auto' }}
           />
           {loading ? (
