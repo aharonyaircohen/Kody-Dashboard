@@ -144,6 +144,8 @@ export async function POST(req: NextRequest) {
     // /interactive/start. The runner polls the session JSONL instead;
     // events arrive via the file-stream poller.
     const model = pickFallbackModel()
+    // User-scoped Fly token from Settings (preferred); env var is fallback.
+    const flyToken = req.headers.get('x-kody-fly-token') ?? undefined
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
       githubToken,
@@ -152,6 +154,7 @@ export async function POST(req: NextRequest) {
       hardCapMs,
       model,
       allSecrets: buildAllSecrets(),
+      flyToken,
     })
 
     logger.info(

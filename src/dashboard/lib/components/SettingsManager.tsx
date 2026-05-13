@@ -13,7 +13,7 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { Brain, Github, KeyRound, LogOut, ShieldCheck } from "lucide-react"
+import { Brain, Github, KeyRound, LogOut, Rocket, ShieldCheck } from "lucide-react"
 import { Button } from "@dashboard/ui/button"
 import { Card, CardContent } from "@dashboard/ui/card"
 import { Input } from "@dashboard/ui/input"
@@ -32,21 +32,32 @@ export function SettingsManager() {
   // ─── Vercel bypass secret ───────────────────────────────────────────────
   const [vercelSecret, setVercelSecret] = useState("")
 
+  // ─── Fly Machines API token ─────────────────────────────────────────────
+  const [flyToken, setFlyToken] = useState("")
+
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [confirmClearBrain, setConfirmClearBrain] = useState(false)
   const [confirmClearVercel, setConfirmClearVercel] = useState(false)
+  const [confirmClearFly, setConfirmClearFly] = useState(false)
 
   // Seed form state once auth loads (or repo switches).
   useEffect(() => {
     setBrainUrl(auth?.brain?.url ?? "")
     setBrainKey(auth?.brain?.apiKey ?? "")
     setVercelSecret(auth?.vercelBypassSecret ?? "")
-  }, [auth?.brain?.url, auth?.brain?.apiKey, auth?.vercelBypassSecret])
+    setFlyToken(auth?.flyToken ?? "")
+  }, [
+    auth?.brain?.url,
+    auth?.brain?.apiKey,
+    auth?.vercelBypassSecret,
+    auth?.flyToken,
+  ])
 
   const brainHasChanges =
     brainUrl.trim() !== (auth?.brain?.url ?? "") ||
     brainKey.trim() !== (auth?.brain?.apiKey ?? "")
   const vercelHasChanges = vercelSecret.trim() !== (auth?.vercelBypassSecret ?? "")
+  const flyHasChanges = flyToken.trim() !== (auth?.flyToken ?? "")
 
   function saveBrain() {
     const url = brainUrl.trim()
@@ -82,6 +93,23 @@ export function SettingsManager() {
     setVercelSecret("")
     setConfirmClearVercel(false)
     toast.success("Vercel bypass secret cleared")
+  }
+
+  function saveFly() {
+    const tok = flyToken.trim()
+    if (!tok) {
+      toast.error("Fly token cannot be empty — use Clear to remove it")
+      return
+    }
+    updateIntegrations({ flyToken: tok })
+    toast.success("Fly token saved")
+  }
+
+  function clearFly() {
+    updateIntegrations({ flyToken: null })
+    setFlyToken("")
+    setConfirmClearFly(false)
+    toast.success("Fly token cleared")
   }
 
   return (
@@ -188,6 +216,49 @@ export function SettingsManager() {
           </CardContent>
         </Card>
 
+        {/* ─── Fly Runner token ───────────────────────────────────────── */}
+        <Card className="border-white/[0.08] bg-white/[0.03]">
+          <CardContent className="p-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <Rocket className="w-4 h-4 text-sky-400" />
+              <h2 className="text-sm font-semibold">Fly Runner</h2>
+            </div>
+            <p className="text-xs text-white/50 -mt-2">
+              Fly Machines API token. Lets the dashboard spawn the kody-live-fly
+              runner on Fly.io as an alternative to GitHub Actions. Create one
+              at fly.io → Tokens, scoped to the kody-runner app.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="fly-token" className="text-xs text-white/70">
+                API token
+              </Label>
+              <Input
+                id="fly-token"
+                type="password"
+                placeholder="fo1_..."
+                value={flyToken}
+                onChange={(e) => setFlyToken(e.target.value)}
+                className="bg-black/30 border-white/10 font-mono"
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Button size="sm" onClick={saveFly} disabled={!flyHasChanges}>
+                Save
+              </Button>
+              {auth?.flyToken && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setConfirmClearFly(true)}
+                  className="text-rose-300 hover:text-rose-200"
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* ─── Pointers to per-repo concerns ──────────────────────────── */}
         <Card className="border-white/[0.08] bg-white/[0.02]">
           <CardContent className="p-4 space-y-3">
@@ -267,6 +338,15 @@ export function SettingsManager() {
         confirmLabel="Clear"
         variant="destructive"
         onConfirm={clearVercel}
+      />
+      <ConfirmDialog
+        open={confirmClearFly}
+        onClose={() => setConfirmClearFly(false)}
+        title="Clear Fly token?"
+        description="Removes the saved Fly Machines API token from this browser. kody-live-fly sessions will fall back to the server's FLY_API_TOKEN env var (if set) or fail."
+        confirmLabel="Clear"
+        variant="destructive"
+        onConfirm={clearFly}
       />
     </PageShell>
   )

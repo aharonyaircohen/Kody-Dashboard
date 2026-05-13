@@ -41,6 +41,24 @@ export function getStoredAuth(): {
 }
 
 /**
+ * Read the user-scoped Fly Machines API token. Stored alongside the rest of
+ * the auth blob (per-browser, not per-repo), set via /settings. The kody-live-fly
+ * runner uses it to spawn Fly Machines — falls back to the server's
+ * FLY_API_TOKEN env var when null.
+ */
+export function getStoredFlyToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("kody_auth");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { flyToken?: string };
+    return parsed.flyToken && parsed.flyToken.length > 0 ? parsed.flyToken : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Read optional Brain assistant config stored at login. Returns null unless
  * both `url` and `apiKey` are present — partial config is treated as missing.
  */
