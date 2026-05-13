@@ -100,7 +100,7 @@ async function saveDashboardConfig(
 export function VibePage() {
   const queryClient = useQueryClient()
   const { githubUser } = useGitHubIdentity()
-  const { setScope } = useChatScope()
+  const { setScope, setOnIssueCreated } = useChatScope()
 
   const [showBranchCleanup, setShowBranchCleanup] = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
@@ -210,6 +210,20 @@ export function VibePage() {
     // Clear scope on unmount so other pages don't inherit our selection.
     return () => setScope(null)
   }, [selectedTask, setScope])
+
+  // When the chat creates a new issue (via `create_*` / `report_bug`), the
+  // chat has already migrated its running messages to that issue's chat
+  // store. Our job is to navigate the Vibe page onto the new issue so the
+  // user lands there and sees the transferred conversation. We also kick
+  // a task-list refetch so the issue appears in the sidebar without
+  // waiting for the poll interval.
+  useEffect(() => {
+    setOnIssueCreated((issueNumber: number) => {
+      queryClient.invalidateQueries({ queryKey: ['kody-tasks'] })
+      setSelectedIssueNumber(issueNumber)
+    })
+    return () => setOnIssueCreated(null)
+  }, [setOnIssueCreated, setSelectedIssueNumber, queryClient])
 
   // ── Dashboard config (default preview URL) ──────────────────────────────
   const configQuery = useQuery({

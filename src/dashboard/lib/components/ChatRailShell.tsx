@@ -21,6 +21,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -47,6 +48,17 @@ interface ChatRailApi {
   setScope: (next: ChatContext | null) => void
   /** Programmatically open the mobile chat sheet (e.g. from an error state). */
   openMobileChat: () => void
+  /**
+   * Register a listener that fires when a chat tool creates a new issue
+   * (`create_*`, `report_bug`). The chat will have already migrated the
+   * running conversation to that issue's chat store by the time this
+   * fires — the host typically just navigates (e.g. updates the URL's
+   * `?issue=N` param on the Vibe page) so the user lands on the new
+   * issue and sees the transferred history.
+   *
+   * Pass `null` to unregister (e.g. on unmount).
+   */
+  setOnIssueCreated: (cb: ((issueNumber: number) => void) | null) => void
 }
 
 const ChatRailContext = createContext<ChatRailApi | null>(null)
@@ -64,6 +76,7 @@ const NOOP_API: ChatRailApi = {
   scope: null,
   setScope: () => {},
   openMobileChat: () => {},
+  setOnIssueCreated: () => {},
 }
 
 // Routes that must NOT render the chat rail — public surface only.
@@ -93,9 +106,26 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
 
   const openMobileChat = useCallback(() => setMobileOpen(true), [])
 
+  // Ref, not state, so registering/unregistering doesn't re-render the
+  // entire app tree under the rail. The KodyChat instance reads the
+  // current value through a stable proxy callback wired below.
+  const onIssueCreatedRef = useRef<((issueNumber: number) => void) | null>(null)
+  const setOnIssueCreated = useCallback(
+    (cb: ((issueNumber: number) => void) | null) => {
+      onIssueCreatedRef.current = cb
+    },
+    [],
+  )
+  // Stable wrapper passed to KodyChat — dispatches to whatever callback
+  // the host has currently registered. Stable identity keeps useCallback
+  // / useEffect deps inside KodyChat from churning.
+  const dispatchIssueCreated = useCallback((issueNumber: number) => {
+    onIssueCreatedRef.current?.(issueNumber)
+  }, [])
+
   const api = useMemo<ChatRailApi>(
-    () => ({ scope, setScope, openMobileChat }),
-    [scope, openMobileChat],
+    () => ({ scope, setScope, openMobileChat, setOnIssueCreated }),
+    [scope, openMobileChat, setOnIssueCreated],
   )
 
   // No rail on /login, before hydration, or while auth is still loading.
@@ -135,6 +165,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             actorLogin={githubUser?.login}
             lockedAgentId={lockedAgentId}
             vibeMode={isVibeRoute}
+            onIssueCreated={dispatchIssueCreated}
           />
         </aside>
 
@@ -189,6 +220,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 onClose={() => setMobileOpen(false)}
                 lockedAgentId={lockedAgentId}
                 vibeMode={isVibeRoute}
+                onIssueCreated={dispatchIssueCreated}
               />
             ) : null}
           </div>

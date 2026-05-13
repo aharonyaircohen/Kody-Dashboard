@@ -393,7 +393,31 @@ interface KodyChatProps {
    * needed; the dashboard injects context. Set by ChatRailShell on /vibe.
    */
   vibeMode?: boolean
+  /**
+   * Fired when an issue-creation tool (`create_feature`, `create_enhancement`,
+   * `create_refactor`, `create_documentation`, `create_chore`, `report_bug`)
+   * completes with a new GitHub issue number. The chat has *already* migrated
+   * the running conversation to that issue's chat store by the time this
+   * fires — the host typically just navigates (e.g. `setSelectedIssueNumber`
+   * on the Vibe page) so the user lands on the new issue and sees the
+   * transferred history.
+   */
+  onIssueCreated?: (issueNumber: number) => void
 }
+
+/**
+ * Tools that, on success, return `{ number: <issue#>, ... }`. When any of
+ * these completes in the in-process Gemini path, the surrounding chat
+ * transfer logic kicks in (see `pendingCreatedIssue` in `sendText`).
+ */
+const ISSUE_CREATION_TOOL_NAMES = new Set<string>([
+  'create_feature',
+  'create_enhancement',
+  'create_refactor',
+  'create_documentation',
+  'create_chore',
+  'report_bug',
+])
 
 function getFileIcon(mimeType: string) {
   if (mimeType.startsWith('image/')) return <ImageIcon className="w-4 h-4" />
@@ -507,7 +531,14 @@ function TypingIndicator({ label }: { label: string }) {
   )
 }
 
-export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode }: KodyChatProps) {
+export function KodyChat({
+  context,
+  actorLogin,
+  onClose,
+  lockedAgentId,
+  vibeMode,
+  onIssueCreated,
+}: KodyChatProps) {
   // Context-kind derivations.
   const selectedTask: KodyTask | null =
     context?.kind === 'task' ? context.task : null
@@ -2141,6 +2172,12 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
           // closes so the assistant bubble settles before the agent flips —
           // otherwise the in-flight message would be re-routed mid-render.
           let pendingSwitchAgent: ReturnType<typeof JSON.parse> | null = null
+          // Issue number returned by a `create_*` / `report_bug` tool, if
+          // any. Captured here so we can transfer the in-flight conversation
+          // to the new issue's chat store once the stream settles. See the
+          // detection block in `tool-output-available` and the post-stream
+          // handler that mirrors `pendingSwitchAgent`.
+          let pendingCreatedIssue: number | null = null
 
           const composeContent = () =>
             (reasoningBuf ? `<think>${reasoningBuf}</think>\n\n` : '') + textBuf
@@ -2250,8 +2287,22 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                     // Defer the dispatch — see comment on pendingSwitchAgent.
                     pendingSwitchAgent = chunk.output
                   }
-                  // Tool name is still read here for other side-effects
-                  // (the status-chip flip below); keep it referenced.
+                  // Issue creation: any of the `create_*` / `report_bug`
+                  // tools that returned `{ number: <positive int> }` is a
+                  // newly opened GitHub issue. Capture so the post-stream
+                  // handler can migrate the conversation onto that issue.
+                  if (
+                    name &&
+                    ISSUE_CREATION_TOOL_NAMES.has(name) &&
+                    chunk.output &&
+                    typeof chunk.output === 'object' &&
+                    'number' in chunk.output
+                  ) {
+                    const out = chunk.output as { number?: unknown }
+                    if (typeof out.number === 'number' && Number.isInteger(out.number) && out.number > 0) {
+                      pendingCreatedIssue = out.number
+                    }
+                  }
                   void name
                   // Flip the matching running chip to "success".
                   setMessages((prev) => {
@@ -2341,6 +2392,58 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
           if (isPlannerMode && onPlannerTasksCreated) {
             try {
               onPlannerTasksCreated()
+            } catch {
+              // Host callback errors should never break the chat.
+            }
+          }
+          // Issue-creation transfer: when a `create_*` / `report_bug` tool
+          // returned a new issue number on this turn, migrate the running
+          // conversation onto that issue's chat store before notifying the
+          // host. Without this, the user navigating to the new issue lands
+          // in an empty chat — the conversation that birthed the issue is
+          // lost because chat is keyed by selected task. We:
+          //   1. snapshot the current `messages` (reads latest via setter)
+          //   2. mirror to localStorage under the new task's id
+          //      (task id == String(issueNumber) for branchless tasks —
+          //      see app/api/kody/tasks/route.ts:483)
+          //   3. fire a best-effort server save (skips on branchless tasks,
+          //      that's OK — the localStorage mirror covers refresh)
+          //   4. clear the current scope's buffer so the conversation
+          //      doesn't double-up in both global/draft and the new task
+          //   5. fire `onIssueCreated` so the host can navigate
+          if (pendingCreatedIssue !== null && onIssueCreated) {
+            const newIssueNumber = pendingCreatedIssue
+            const taskIdForChat = String(newIssueNumber)
+            let snapshot: Message[] = []
+            setMessages((current) => {
+              snapshot = current
+              return current
+            })
+            const messagesForLocal: ChatMessage[] = snapshot.map((m) => ({
+              role: m.role,
+              text: m.content,
+              timestamp: m.timestamp || new Date().toISOString(),
+            }))
+            if (messagesForLocal.length > 0) {
+              saveTaskChatLocal(taskIdForChat, messagesForLocal)
+              void fetch('/api/kody/chat/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({
+                  taskId: taskIdForChat,
+                  messages: messagesForLocal,
+                }),
+              }).catch(() => {
+                // Non-fatal — localStorage mirror covers branchless tasks.
+              })
+              // Clear current scope buffer so the migrated conversation
+              // only lives in one place (the new task). Without this the
+              // user sees the same messages again next time they land in
+              // global/draft mode.
+              setMessages(() => [])
+            }
+            try {
+              onIssueCreated(newIssueNumber)
             } catch {
               // Host callback errors should never break the chat.
             }
