@@ -2211,18 +2211,15 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
       }
 
       // ─── Kody Live: long-lived interactive runner ───
-      // Non-vibe mode: the user has already pressed "Start Live Runner"
-      // and the input is disabled until chat.ready arrives — we just /append.
-      // Vibe mode: idle → auto-start the per-issue runner and queue the
-      // message via /append. appendUserTurn writes to the session JSONL,
-      // which the runner reads on its first git pull, so we don't need
-      // to wait for chat.ready before queueing.
+      // First send always auto-starts the runner if there's no live session
+      // (or the previous one ended). The user message gets queued through
+      // /append — the runner reads the session JSONL on its first git pull,
+      // so we don't need to wait for chat.ready before queueing.
       if (
         selectedAgentId === 'kody-live' ||
         selectedAgentId === 'kody-live-fly'
       ) {
         if (
-          vibeMode &&
           (interactiveStateRef.current === 'idle' ||
             interactiveStateRef.current === 'ended') &&
           !interactiveSessionIdRef.current
@@ -2239,8 +2236,9 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
             ...prev,
             {
               role: 'assistant',
-              content: 'The live runner is not ready yet. Click "Start Live Runner" first.',
+              content: 'Live runner failed to start. Try again, or check Settings → Fly Runner.',
               isLoading: false,
+              isError: true,
             },
           ])
           return null
@@ -2704,27 +2702,36 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
     }
   }, [scopedIssueNumber, actorLogin])
 
-  // Kody Live blocks the input until the runner is ready. Other agents
-  // are unaffected — only the explicit warm-up flow uses this gate.
   // Both `kody-live` (GH Actions) and `kody-live-fly` (Fly Machines) use
   // the same interactive session model, so they share this UI state.
   const isKodyLive =
     selectedAgentId === 'kody-live' || selectedAgentId === 'kody-live-fly'
-  // Vibe mode auto-starts the runner on first send, so the input doesn't
-  // need to be disabled while idle — the user can type freely and the
-  // message is queued through /append. Outside vibe, keep the original
-  // gate so the manual "Start Live Runner" button stays the entry point.
-  const liveLocked =
-    isKodyLive &&
-    interactiveState !== 'ready' &&
-    !(vibeMode && (interactiveState === 'idle' || interactiveState === 'booting'))
+
+  // The composer's primary button switches role for Kody Live agents based
+  // on whether there's input AND the current session state:
+  //   has text          → 'send'  (auto-starts the runner if needed)
+  //   empty + idle/end  → 'start' (warm up the runner)
+  //   empty + booting   → 'cancel' (abandon the boot attempt)
+  //   empty + ready     → 'stop'  (end the live session)
+  // For non-Kody-Live agents the button is always 'send' (disabled if empty).
+  const hasComposerContent = input.trim().length > 0 || attachments.length > 0
+  type ComposerAction = 'send' | 'start' | 'stop' | 'cancel'
+  const composerAction: ComposerAction = !isKodyLive
+    ? 'send'
+    : hasComposerContent
+      ? 'send'
+      : interactiveState === 'ready'
+        ? 'stop'
+        : interactiveState === 'booting'
+          ? 'cancel'
+          : 'start'
 
   // Generate placeholder based on mode
   const placeholder = isKodyLive
     ? interactiveState === 'idle' || interactiveState === 'ended'
-      ? 'Click "Start Live Runner" above to warm up the runner...'
+      ? 'Type a message to start the runner — or hit Start to warm it up first.'
       : interactiveState === 'booting'
-        ? 'Booting runner... ~90s'
+        ? 'Booting runner — type ahead, your message will be queued.'
         : 'Ask Kody (live runner)...'
     : isKodyWaiting
       ? `Give Kody instructions...`
@@ -2736,7 +2743,9 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
             ? `Describe the job you want Kody to run...`
             : `Ask Kody...`
 
-  const canSend = (input.trim() || attachments.length > 0) && !liveLocked
+  // Send is always enabled for Kody Live (button morphs into start/stop on
+  // empty input). For other agents, only enabled when there's content.
+  const canSend = hasComposerContent || isKodyLive
 
   return (
     <div
@@ -3378,31 +3387,8 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1">
-              {interactiveState !== 'booting' ? (
-                <button
-                  type="button"
-                  onClick={() => void startInteractiveSession()}
-                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-                >
-                  {interactiveState === 'ended' ? 'Start new session' : 'Start Live Runner'}
-                </button>
-              ) : null}
-              {interactiveState === 'booting' || interactiveState === 'ended' ? (
-                <button
-                  type="button"
-                  onClick={endInteractiveSession}
-                  className="rounded-md border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
-                  title={
-                    interactiveState === 'booting'
-                      ? 'Abandon this boot attempt and reset. The GitHub runner will idle-exit on its own (~5min).'
-                      : 'Clear this ended session and reset.'
-                  }
-                >
-                  Cancel
-                </button>
-              ) : null}
-            </div>
+            {/* Action buttons removed — the composer's primary button
+                now handles Start/Stop/Cancel based on input + session state. */}
           </div>
         ) : null}
         {isKodyLive && interactiveState === 'ready' ? (
@@ -3410,7 +3396,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
             <div className="flex flex-col gap-0.5">
               <div className="flex items-center gap-2">
                 <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-                <span>Live runner ready. Chat normally — replies arrive via the long-lived workflow.</span>
+                <span>Live runner ready. Chat normally — clear the box and hit Stop to end.</span>
               </div>
               {interactiveRunUrl || interactiveTarget ? (
                 <a
@@ -3428,14 +3414,6 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                 </a>
               ) : null}
             </div>
-            <button
-              type="button"
-              onClick={endInteractiveSession}
-              className="rounded-md border border-green-700/30 px-2 py-0.5 text-xs font-medium text-green-900 hover:bg-green-500/20 dark:text-green-100"
-              title="End this live session. The runner will idle-exit on its own."
-            >
-              End session
-            </button>
           </div>
         ) : null}
         <div className="flex gap-2 items-end">
@@ -3504,7 +3482,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
             placeholder={placeholder}
             rows={1}
             className="flex-1 px-3 py-2 text-base rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={loading || liveLocked}
+            disabled={loading}
             style={{ height: 'auto' }}
           />
           {loading ? (
@@ -3513,6 +3491,28 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
               className="px-3 py-2 text-base bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90"
             >
               Stop
+            </button>
+          ) : composerAction === 'stop' || composerAction === 'cancel' ? (
+            <button
+              type="button"
+              onClick={endInteractiveSession}
+              className="px-3 py-2 text-base bg-destructive/85 text-destructive-foreground rounded-md hover:bg-destructive/95"
+              title={
+                composerAction === 'cancel'
+                  ? 'Abandon this boot attempt. The runner will idle-exit on its own.'
+                  : 'End this live session. The runner will idle-exit on its own.'
+              }
+            >
+              {composerAction === 'cancel' ? 'Cancel' : 'Stop'}
+            </button>
+          ) : composerAction === 'start' ? (
+            <button
+              type="button"
+              onClick={() => void startInteractiveSession()}
+              className="px-3 py-2 text-base bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              title="Warm up the live runner now (boots in ~30–60s)."
+            >
+              Start
             </button>
           ) : (
             <button
