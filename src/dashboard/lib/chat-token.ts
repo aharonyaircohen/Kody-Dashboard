@@ -7,8 +7,11 @@
  * kody engine back to the dashboard. Generated server-side at dispatch time,
  * appended inline to the dashboardUrl query string, and verified on /ingest.
  *
- * Signed with KODY_SESSION_SECRET — rotating the secret invalidates all
- * in-flight session tokens, which is the desired behavior on secret rotation.
+ * Signed with KODY_MASTER_KEY (purpose-prefixed with `kody-chat-token:`
+ * before hashing so this use is cryptographically separated from the
+ * other consumers of the same key — vault, JWT, token AES).
+ * Rotating the master key invalidates all in-flight session tokens,
+ * which is the desired behavior on secret rotation.
  */
 
 import crypto from "crypto";
@@ -16,9 +19,9 @@ import crypto from "crypto";
 const TOKEN_BYTES = 16; // 128 bits of HMAC output
 
 function getSecret(): string {
-  const s = process.env.KODY_SESSION_SECRET;
-  if (!s) throw new Error("KODY_SESSION_SECRET not configured");
-  return s;
+  const s = process.env.KODY_MASTER_KEY;
+  if (!s) throw new Error("KODY_MASTER_KEY not configured");
+  return `kody-chat-token:${s}`;
 }
 
 export function mintSessionToken(sessionId: string): string {

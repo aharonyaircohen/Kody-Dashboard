@@ -3,9 +3,11 @@
  * @domain kody
  * @pattern github-identity
  * @ai-summary Hook to read the authenticated GitHub identity from the Kody session cookie.
- *   Replaces the localStorage-based "Who are you?" picker with verified GitHub OAuth identity.
- *   The session is set server-side by /api/oauth/github/callback.
- *   signOut() logs out (clears session cookie) and shows the login screen.
+ *   The session module (auth/kody_session.ts) is currently inactive — the
+ *   OAuth callback that used to set the cookie was removed (dashboard auth
+ *   is header-based PAT, see /api/auth/login). This hook still exists so
+ *   that code reading the cookie keeps working if OAuth is re-introduced.
+ *   signOut() clears the cookie via /api/kody/auth/logout (POST).
  */
 'use client'
 

@@ -44,7 +44,6 @@ src/dashboard/
 
 | Variable | Purpose |
 |----------|---------|
-| `KODY_SESSION_SECRET` | JWT session signing |
-| `GITHUB_TOKEN` / `KODY_BOT_TOKEN` | GitHub API access |
-| `KODY_PUBLIC_SERVER_URL` | Public URL for OAuth |
-| `GITHUB_APP_CLIENT_ID` / `GITHUB_APP_CLIENT_SECRET` | OAuth app credentials |
+| `KODY_MASTER_KEY` | Single master secret — vault AES, session JWT, ingest HMAC. |
+| `GITHUB_TOKEN` / `KODY_BOT_TOKEN` | GitHub API access for server-side flows. |
+| `KODY_PUBLIC_SERVER_URL` | Public URL for redirects (dev only). |

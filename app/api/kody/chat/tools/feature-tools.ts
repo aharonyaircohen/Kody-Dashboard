@@ -27,7 +27,7 @@ const HAND_WRITTEN_FEATURES: FeatureEntry[] = [
 
 - Each connected repo has its own encrypted blob at \`.kody/secrets.enc\`.
 - Values written via the \`/secrets\` page are AES-256-GCM-encrypted with the shared
-  \`KODY_VAULT_KEY\` env var and committed back to the repo.
+  \`KODY_MASTER_KEY\` env var and committed back to the repo.
 - Runtime code reads values via \`getSecret\` (src/dashboard/lib/vault/get-secret.ts),
   which falls through to \`process.env\` when the vault is missing.
 - Bootstrap with \`pnpm vault:init\` to print a fresh key, then paste it into the
@@ -76,7 +76,7 @@ session ID and an inline HMAC token. The engine streams events back to
 \`/api/kody/events/ingest\` (real-time) and commits them to
 \`.kody/events/{sessionId}.jsonl\` (durable fallback, polled by
 \`/api/kody/events/stream\`). Token verified via HMAC of sessionId with
-\`KODY_SESSION_SECRET\`.`,
+\`KODY_MASTER_KEY\` (purpose-prefixed as \`kody-chat-token:\${KODY_MASTER_KEY}\`).`,
   },
   {
     id: 'pipeline-stages',

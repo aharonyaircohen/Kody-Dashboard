@@ -6,14 +6,14 @@
  *   pnpm vault:init
  *
  * Prints the key in hex. Paste it into:
- *   1) Vercel project env vars as KODY_VAULT_KEY (Production + Preview)
+ *   1) Vercel project env vars as KODY_MASTER_KEY (Production + Preview)
  *   2) Your password manager — losing this key invalidates every secret.
  */
 import { randomBytes } from "crypto"
 
 const key = randomBytes(32).toString("hex")
 process.stdout.write(
-  `\nKODY_VAULT_KEY=${key}\n\n` +
+  `\nKODY_MASTER_KEY=${key}\n\n` +
     `Add the line above to:\n` +
     `  - Vercel -> Project Settings -> Environment Variables (Production + Preview)\n` +
     `  - Your password manager (1Password / Bitwarden / etc.) for recovery\n\n` +

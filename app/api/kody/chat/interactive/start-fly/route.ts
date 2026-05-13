@@ -26,6 +26,7 @@ import {
   buildMetaLine,
   writeSessionMeta,
 } from '@dashboard/lib/interactive-session'
+import { mintSessionToken } from '@dashboard/lib/chat-token'
 import { spawnRunner } from '@dashboard/lib/runners/fly'
 
 export const runtime = 'nodejs'
@@ -97,9 +98,12 @@ export async function POST(req: NextRequest) {
     taskId?: string
     idleExitMs?: number
     hardCapMs?: number
-    // Accepted for forward compatibility — currently ignored, matching
-    // /interactive/start. See that route's comment about Vercel's
-    // per-instance in-memory bus and why polling is more reliable.
+    /**
+     * Base URL the runner POSTs chat events to. The route appends an inline
+     * HMAC token so the ingest endpoint can authenticate the Fly machine
+     * (its IP isn't in GitHub's CIDR list). Optional — when absent the
+     * runner falls back to git-polling the session JSONL.
+     */
     dashboardUrl?: string
   }
   try {
@@ -108,7 +112,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { taskId, idleExitMs, hardCapMs } = body
+  const { taskId, idleExitMs, hardCapMs, dashboardUrl } = body
   if (!taskId) {
     return NextResponse.json({ error: 'taskId required' }, { status: 400 })
   }
@@ -140,16 +144,28 @@ export async function POST(req: NextRequest) {
     const meta = buildMetaLine({ idleExitMs, hardCapMs })
     await writeSessionMeta(octokit, owner, repo, taskId, meta)
 
-    // dashboardUrl intentionally omitted — same reason as
-    // /interactive/start. The runner polls the session JSONL instead;
-    // events arrive via the file-stream poller.
+    // dashboardUrl + inline HMAC token so the runner can push events
+    // straight to /api/kody/events/ingest. The Fly machine's source IP
+    // isn't in GitHub Actions's CIDR list, so the token is the only way
+    // it gets past the ingest auth gate.
+    let ingestUrl: string | undefined
+    if (dashboardUrl) {
+      const token = mintSessionToken(taskId)
+      const joiner = dashboardUrl.includes('?') ? '&' : '?'
+      ingestUrl = `${dashboardUrl}${joiner}sessionId=${encodeURIComponent(
+        taskId,
+      )}&token=${token}`
+    }
+
     const model = pickFallbackModel()
-    // User-scoped Fly token from Settings (preferred); env var is fallback.
+    // User-scoped Fly token from Settings (the dashboard does not fall
+    // back to a server env var — see Settings → Fly Runner).
     const flyToken = req.headers.get('x-kody-fly-token') ?? undefined
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
       githubToken,
       sessionId: taskId,
+      dashboardUrl: ingestUrl,
       idleExitMs,
       hardCapMs,
       model,

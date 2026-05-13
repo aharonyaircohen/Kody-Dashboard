@@ -272,7 +272,7 @@ function SecretsManagerInner() {
 
         <p className="text-[11px] text-white/30 pt-4">
           Values are encrypted at rest with AES-256-GCM using{" "}
-          <code className="text-white/50">KODY_VAULT_KEY</code> from Vercel env. Rotating the key
+          <code className="text-white/50">KODY_MASTER_KEY</code> from Vercel env. Rotating the key
           invalidates the entire vault — back up secrets before rotating.
         </p>
       </div>

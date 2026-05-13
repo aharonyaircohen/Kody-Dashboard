@@ -3,7 +3,7 @@
 The dashboard ships with a per-repo encrypted vault you can use instead
 of pasting API keys into Vercel environment variables. Secrets are
 stored in the connected GitHub repo at `.kody/secrets.enc`,
-AES-256-GCM-encrypted with a single shared key (`KODY_VAULT_KEY`)
+AES-256-GCM-encrypted with a single shared key (`KODY_MASTER_KEY`)
 that lives only in Vercel env. Runtime code reads them at request
 time via the `getSecret()` helper, falling back to `process.env`
 when the vault is empty or unconfigured.
@@ -32,13 +32,14 @@ Do **not** use the vault for:
   runs. Those still live in GitHub Actions repository secrets — the
   engine reads `${{ toJSON(secrets) }}` directly. Future work could
   unify both, but today they are separate stores.
-- **Bootstrap secrets** that the dashboard itself needs before it
-  can read the vault — e.g. `KODY_VAULT_KEY`, `KODY_SESSION_SECRET`,
-  `GITHUB_APP_CLIENT_ID/SECRET`. These must stay in Vercel env.
+- **The master secret itself** (`KODY_MASTER_KEY`) — must stay in
+  Vercel env, because it's what unlocks the vault. Plus the
+  server-side `GITHUB_TOKEN` for cron/webhook flows. That's the entire
+  required-env surface.
 
 ## One-time setup
 
-The vault needs one server-side secret (`KODY_VAULT_KEY`). This is
+The vault needs one server-side secret (`KODY_MASTER_KEY`). This is
 the only manual step.
 
 1. **Generate the key locally**
@@ -50,13 +51,13 @@ the only manual step.
    The script prints a fresh 32-byte key in hex:
 
    ```
-   KODY_VAULT_KEY=<64 hex characters>
+   KODY_MASTER_KEY=<64 hex characters>
    ```
 
 2. **Add it to Vercel**
 
    - Vercel project → **Settings** → **Environment Variables**
-   - Add `KODY_VAULT_KEY` with the value, scoped to **Production**
+   - Add `KODY_MASTER_KEY` with the value, scoped to **Production**
      and **Preview** (both).
 
 3. **Save it in your team's password manager**
@@ -82,7 +83,7 @@ logs into the dashboard.
 4. **Save**.
 
 The dashboard:
-- Encrypts the new map with `KODY_VAULT_KEY`.
+- Encrypts the new map with `KODY_MASTER_KEY`.
 - Commits `.kody/secrets.enc` to the connected repo with a message
   like `chore(vault): upsert GEMINI_API_KEY`.
 - Invalidates the in-memory cache. Next read sees the new value.
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
 
 The helper:
 
-- Returns the vault value if `KODY_VAULT_KEY` is set, the request
+- Returns the vault value if `KODY_MASTER_KEY` is set, the request
   has auth headers, and the secret exists.
 - Falls back to `process.env[name]` otherwise.
 - Caches per-repo for 60s with in-flight dedup so polling endpoints
@@ -128,7 +129,7 @@ The helper:
 │ /secrets page (browser) │─────────────▶│ /api/kody/secrets      │
 └─────────────────────────┘              │  POST { name, value }  │
                                          └─────────┬──────────────┘
-                                                   │ encrypt with KODY_VAULT_KEY
+                                                   │ encrypt with KODY_MASTER_KEY
                                                    ▼
                                          ┌────────────────────────┐
                                          │ GitHub Contents API    │
@@ -159,8 +160,8 @@ The helper:
 | Public internet only | No (`.kody/secrets.enc` is in a private repo). |
 | Read access to the repo | No — they get ciphertext only. |
 | Write access to the repo | They can replace the vault file with garbage (denial of service), but cannot read existing values. |
-| `KODY_VAULT_KEY` (e.g. via Vercel env leak) | No — the key alone doesn't give them the encrypted blob. They also need repo read access. |
-| `KODY_VAULT_KEY` **and** repo read access | Yes — every secret in the vault is exposed. |
+| `KODY_MASTER_KEY` (e.g. via Vercel env leak) | No — the key alone doesn't give them the encrypted blob. They also need repo read access. |
+| `KODY_MASTER_KEY` **and** repo read access | Yes — every secret in the vault is exposed. |
 
 So: the security model is "Vercel env *and* GitHub repo together". An
 attacker needs both. Either alone yields nothing useful. This is
@@ -183,7 +184,7 @@ strictly stronger than putting the same secrets in Vercel env vars
 Just update it on the `/secrets` page. The new ciphertext replaces
 the old; the next request reads the new value.
 
-### Rotating `KODY_VAULT_KEY`
+### Rotating `KODY_MASTER_KEY`
 
 Treat as a destructive operation — the entire vault becomes
 unreadable.
@@ -191,14 +192,14 @@ unreadable.
 1. Export current values manually (you cannot decrypt later without
    the old key). Use a temporary scratch store.
 2. Generate a new key (`pnpm vault:init`).
-3. Update `KODY_VAULT_KEY` in Vercel env.
+3. Update `KODY_MASTER_KEY` in Vercel env.
 4. Redeploy.
 5. Re-enter every secret on the `/secrets` page.
 6. Optionally: rewrite `.kody/secrets.enc` history with `git filter-repo`
    to remove old ciphertext (defense in depth — under the old key it's
    still encrypted).
 
-### What if I lose `KODY_VAULT_KEY`?
+### What if I lose `KODY_MASTER_KEY`?
 
 The vault is unrecoverable. But: the values are third-party API
 keys, not unique data. Reissue each one (Google AI Studio, Jina,
@@ -225,7 +226,7 @@ Already cut over: `GEMINI_API_KEY` (read by
 
 | File | Purpose |
 |---|---|
-| [`src/dashboard/lib/vault/crypto.ts`](../src/dashboard/lib/vault/crypto.ts) | AES-256-GCM encrypt/decrypt + key loading from `KODY_VAULT_KEY` |
+| [`src/dashboard/lib/vault/crypto.ts`](../src/dashboard/lib/vault/crypto.ts) | AES-256-GCM encrypt/decrypt + key loading from `KODY_MASTER_KEY` |
 | [`src/dashboard/lib/vault/store.ts`](../src/dashboard/lib/vault/store.ts) | GitHub Contents API read/write of `.kody/secrets.enc` + per-repo cache |
 | [`src/dashboard/lib/vault/get-secret.ts`](../src/dashboard/lib/vault/get-secret.ts) | Runtime helper: `getSecret(name, { req })` |
 | [`app/api/kody/secrets/route.ts`](../app/api/kody/secrets/route.ts) | `GET` (list) and `POST` (upsert) |

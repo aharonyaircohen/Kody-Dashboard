@@ -11,7 +11,7 @@
  *   not chat sessions. This path uses three established conventions
  *   (`@kody <subcommand>`, `job-tick --job <slug>`, `issue_comment` trigger)
  *   without overloading any of them — and crucially without needing
- *   `KODY_SESSION_SECRET`, since no chat session is being minted.
+ *   `KODY_MASTER_KEY` for HMAC signing, since no chat session is being minted.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'

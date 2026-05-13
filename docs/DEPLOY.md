@@ -34,13 +34,13 @@ This creates a `.vercel` directory with your project ID.
 Set the required secrets. You can do this via the Vercel dashboard or CLI:
 
 ```bash
-# Core secrets (required)
-vercel env add KODY_SESSION_SECRET
-vercel env add GITHUB_APP_CLIENT_ID
-vercel env add GITHUB_APP_CLIENT_SECRET
+# Single required secret. Generate it with:
+#   openssl rand -hex 32
+# Powers the per-repo vault AES, kody session JWT, and chat-ingest HMAC.
+vercel env add KODY_MASTER_KEY production
 
-# GitHub OAuth App callback URL must match:
-# https://<your-project>.vercel.app/api/oauth/github/callback
+# Server-side GitHub API token for cron / webhook flows.
+vercel env add GITHUB_TOKEN production
 ```
 
 Optional variables:

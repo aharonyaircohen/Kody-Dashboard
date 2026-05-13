@@ -38,19 +38,20 @@ interface KodySessionPayload {
 }
 
 function getSecret(): Uint8Array {
-  const secret = process.env.KODY_SESSION_SECRET
-  if (!secret) throw new Error('KODY_SESSION_SECRET is required for kody session signing')
-  // Prefix to namespace the key from Payload's own JWT usage
+  const secret = process.env.KODY_MASTER_KEY
+  if (!secret) throw new Error('KODY_MASTER_KEY is required for kody session signing')
+  // Prefix to namespace this use from other consumers of the same master key
   return new TextEncoder().encode(`kody-gh-session:${secret}`)
 }
 
 /**
- * Derive a 256-bit AES key from KODY_SESSION_SECRET.
- * Uses SHA-256 hash so any length secret produces a valid 32-byte key.
+ * Derive a 256-bit AES key from KODY_MASTER_KEY (purpose-prefixed for
+ * key separation from the JWT signing input). Uses SHA-256 so any length
+ * secret produces a valid 32-byte key.
  */
 function getEncryptionKey(): Buffer {
-  const secret = process.env.KODY_SESSION_SECRET
-  if (!secret) throw new Error('KODY_SESSION_SECRET is required for token encryption')
+  const secret = process.env.KODY_MASTER_KEY
+  if (!secret) throw new Error('KODY_MASTER_KEY is required for token encryption')
   return createHash('sha256').update(`kody-token-encryption:${secret}`).digest()
 }
 
