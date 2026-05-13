@@ -267,7 +267,7 @@ export function VibeIssueList({
                         href={`/${task.issueNumber}`}
                         onClick={(e) => e.stopPropagation()}
                         title="Open issue details"
-                        className="text-[10px] tabular-nums text-zinc-500 hover:text-zinc-200 hover:underline shrink-0 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20 rounded"
+                        className="text-[11px] tabular-nums font-medium text-sky-400 hover:text-sky-300 underline decoration-sky-400/40 hover:decoration-sky-300 underline-offset-2 shrink-0 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/40 rounded px-0.5"
                       >
                         #{task.issueNumber}
                       </Link>
