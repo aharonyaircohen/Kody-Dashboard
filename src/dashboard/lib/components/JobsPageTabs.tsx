@@ -17,19 +17,23 @@ import { Button } from '@dashboard/ui/button'
 import { cn } from '@dashboard/lib/utils/ui'
 import { JobControl } from './JobControl'
 import { ReportsView } from './ReportsView'
+import { ChangelogView } from './ChangelogView'
 import { VibeToggle } from './VibeToggle'
 import { SettingsDrawerTrigger } from './SettingsDrawer'
 import { SimpleTooltip } from './SimpleTooltip'
 
-type Tab = 'jobs' | 'reports'
+type Tab = 'jobs' | 'reports' | 'changelog'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'jobs', label: 'Jobs' },
   { id: 'reports', label: 'Job Reports' },
+  { id: 'changelog', label: 'Changelog' },
 ]
 
 function parseTab(value: string | null | undefined): Tab {
-  return value === 'reports' ? 'reports' : 'jobs'
+  if (value === 'reports') return 'reports'
+  if (value === 'changelog') return 'changelog'
+  return 'jobs'
 }
 
 export function JobsPageTabs() {
@@ -104,7 +108,13 @@ export function JobsPageTabs() {
         role="tabpanel"
         className="flex-1 min-h-0 overflow-hidden"
       >
-        {active === 'jobs' ? <JobControl embedded /> : <ReportsView embedded />}
+        {active === 'jobs' ? (
+          <JobControl embedded />
+        ) : active === 'reports' ? (
+          <ReportsView embedded />
+        ) : (
+          <ChangelogView embedded />
+        )}
       </div>
     </div>
   )

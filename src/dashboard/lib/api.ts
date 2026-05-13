@@ -1266,6 +1266,20 @@ export const notificationsApi = {
   },
 };
 
+// ============ Changelog API ============
+
+export interface ChangelogPayload {
+  content: string;
+  htmlUrl: string | null;
+}
+
+export const changelogApi = {
+  get: async (): Promise<ChangelogPayload> => {
+    const res = await fetch(`${API_BASE}/changelog`, { headers: buildHeaders() });
+    return handleResponse<ChangelogPayload>(res);
+  },
+};
+
 // ============ Combined API ============
 
 export const kodyApi = {
@@ -1281,4 +1295,5 @@ export const kodyApi = {
   reports: reportsApi,
   goals: goalsApi,
   notifications: notificationsApi,
+  changelog: changelogApi,
 };
