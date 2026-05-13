@@ -193,6 +193,14 @@ export function createVibeTools(ctx: Ctx) {
             agentName,
             reason: `Vibe execution started — handing off to ${agentName} runner.`,
             autoKickoff,
+            // Gate the client-side kickoff useEffect on context matching
+            // THIS issue specifically. Without this the kickoff fires
+            // the moment context flips to any task scope (typically the
+            // previously-viewed issue, because the tasks query hasn't
+            // refetched yet), and the runner gets dispatched against
+            // the wrong sessionId. Symptom: workflow_dispatch logs show
+            // `vibe-<oldIssue>-...` while the PR is on the new branch.
+            autoKickoffIssueNumber: issueNumber,
           }
 
           if (existingPrs.length > 0) {
