@@ -42,6 +42,23 @@ function slugifyTitle(title: string): string {
   return cleaned || 'untitled'
 }
 
+/**
+ * Engine convention (see kody2/src/branch.ts `deriveBranchName`): flat
+ * `<issueNumber>-<slug>` with no type prefix and no slash. The dashboard's
+ * branch matcher in `app/api/kody/tasks/route.ts` recognises this shape via
+ * `^(\d{3,})-` so issue↔PR linkage works even if the PR body loses its
+ * `Closes #N` line. We follow the same convention so vibe branches behave
+ * identically to engine-created ones.
+ *
+ * Earlier versions used `kody/vibe-<n>-<slug>` — that broke in repos with
+ * branch-protection rules on `kody/*` (the engine-tester repo is one) and
+ * also didn't match the dashboard's branch heuristic, leaving the PR
+ * unlinked when the body lacked `Closes #N`.
+ */
+function buildBranchName(issueNumber: number, slug: string): string {
+  return `${issueNumber}-${slug}`
+}
+
 export function createVibeTools(ctx: Ctx) {
   const { octokit, owner, repo } = ctx
 
@@ -86,7 +103,7 @@ export function createVibeTools(ctx: Ctx) {
             }
           }
           const effectiveSlug = slugifyTitle(slug ?? issue.title)
-          const branchName = `kody/vibe-${issueNumber}-${effectiveSlug}`
+          const branchName = buildBranchName(issueNumber, effectiveSlug)
 
           // Default branch (usually main).
           const { data: repoData } = await octokit.rest.repos.get({
