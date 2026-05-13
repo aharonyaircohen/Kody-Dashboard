@@ -50,6 +50,7 @@ import { KodyHeader } from './KodyHeader'
 import { BranchCleanupDialog } from './BranchCleanupDialog'
 import { MobileMenu } from './MobileMenu'
 import { SimpleTooltip } from './SimpleTooltip'
+import { TaskDetail } from './TaskDetail'
 
 interface DashboardConfigResponse {
   config: { version: 1; defaultPreviewUrl?: string }
@@ -130,11 +131,49 @@ export function VibePage() {
       const params = new URLSearchParams(searchParams?.toString() ?? '')
       if (next === null) params.delete('issue')
       else params.set('issue', String(next))
+      // Also clear any open detail overlay — selection swaps the
+      // underlying preview, so leaving the overlay open masks the change.
+      params.delete('detail')
       const qs = params.toString()
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
     },
     [router, pathname, searchParams],
   )
+
+  // Detail overlay — a separate URL param so refresh / share preserves it
+  // and so back/forward closes it like a real navigation.
+  const detailParam = searchParams?.get('detail') ?? null
+  const parsedDetail = detailParam ? Number.parseInt(detailParam, 10) : NaN
+  const urlDetailNumber: number | null =
+    Number.isFinite(parsedDetail) && parsedDetail > 0 ? parsedDetail : null
+  const [detailIssueNumber, setDetailIssueNumberState] = useState<number | null>(
+    urlDetailNumber,
+  )
+  useEffect(() => {
+    setDetailIssueNumberState(urlDetailNumber)
+  }, [urlDetailNumber])
+
+  const setDetailIssueNumber = useCallback(
+    (next: number | null) => {
+      setDetailIssueNumberState(next)
+      const params = new URLSearchParams(searchParams?.toString() ?? '')
+      if (next === null) params.delete('detail')
+      else params.set('detail', String(next))
+      const qs = params.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    },
+    [router, pathname, searchParams],
+  )
+
+  // ESC closes the detail overlay (preview + chat stay where they were).
+  useEffect(() => {
+    if (detailIssueNumber === null) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDetailIssueNumber(null)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [detailIssueNumber, setDetailIssueNumber])
   // Bump to force iframe remount on Refresh — same trick as PreviewModal.
   const [iframeKey, setIframeKey] = useState(0)
   // Same Web/Admin split as PreviewModal so vibe iterations can target /admin.
@@ -152,6 +191,13 @@ export function VibePage() {
     if (selectedIssueNumber === null || !tasks) return null
     return tasks.find((t) => t.issueNumber === selectedIssueNumber) ?? null
   }, [selectedIssueNumber, tasks])
+
+  // Same pattern for the detail overlay — resolve from query data so it
+  // reflects optimistic edits/refetches without local copies drifting.
+  const detailTask = useMemo<KodyTask | null>(() => {
+    if (detailIssueNumber === null || !tasks) return null
+    return tasks.find((t) => t.issueNumber === detailIssueNumber) ?? null
+  }, [detailIssueNumber, tasks])
 
   // Push the selected task into the persistent chat rail so KodyChat
   // re-scopes its context (system prompt, attached issue, history).
@@ -307,6 +353,7 @@ export function VibePage() {
             onSelect={(task) =>
               setSelectedIssueNumber(task ? task.issueNumber : null)
             }
+            onOpenDetail={(task) => setDetailIssueNumber(task.issueNumber)}
             isLoading={tasksQuery.isLoading}
           />
         </aside>
@@ -328,14 +375,18 @@ export function VibePage() {
                   setSelectedIssueNumber(task ? task.issueNumber : null)
                   setMobileIssuesOpen(false)
                 }}
+                onOpenDetail={(task) => {
+                  setDetailIssueNumber(task.issueNumber)
+                  setMobileIssuesOpen(false)
+                }}
                 isLoading={tasksQuery.isLoading}
               />
             </div>
           </SheetContent>
         </Sheet>
 
-        {/* Preview pane */}
-        <section className="flex-1 min-w-0 flex flex-col">
+        {/* Preview pane — relative for the detail overlay below */}
+        <section className="relative flex-1 min-w-0 flex flex-col">
           {/* Preview toolbar */}
           <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/[0.06] bg-black/20">
             <div className="flex items-center gap-3 min-w-0">
@@ -463,6 +514,38 @@ export function VibePage() {
               isMerging={mergingTaskId === selectedTask.id}
               onCancelPR={() => setSelectedIssueNumber(null)}
             />
+          )}
+
+          {/* Issue detail overlay — scoped to the preview pane only.
+              Stays on Vibe (no route change), preserves chat scope, and
+              ESC / X / row-select all close it. */}
+          {detailTask && (
+            <>
+              <button
+                type="button"
+                aria-label="Close issue details"
+                onClick={() => setDetailIssueNumber(null)}
+                className="absolute inset-0 bg-black/40 backdrop-blur-[1px] z-40 animate-in fade-in duration-150"
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={`Issue #${detailTask.issueNumber} details`}
+                className="absolute inset-0 z-50 bg-[#0a0a0a] border-l border-white/[0.06] shadow-2xl overflow-hidden flex flex-col animate-in fade-in slide-in-from-right-4 duration-200"
+              >
+                <TaskDetail
+                  task={detailTask}
+                  onClose={() => setDetailIssueNumber(null)}
+                  onRefresh={() => tasksQuery.refetch()}
+                  onOpenPreview={() => {
+                    // "Open preview" from inside the overlay = make this
+                    // issue the selected one and dismiss the overlay.
+                    setSelectedIssueNumber(detailTask.issueNumber)
+                    setDetailIssueNumber(null)
+                  }}
+                />
+              </div>
+            </>
           )}
         </section>
       </div>

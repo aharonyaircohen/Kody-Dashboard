@@ -11,7 +11,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
 import type { KodyTask } from '../types'
 import { cn, formatRelativeTime } from '../utils'
 import { CIStatusBadge } from './CIStatusBadge'
@@ -39,6 +38,12 @@ interface VibeIssueListProps {
   tasks: KodyTask[] | undefined
   selectedIssueNumber: number | null
   onSelect: (task: KodyTask | null) => void
+  /**
+   * Open the issue card as an overlay on top of the preview pane (NOT a
+   * route change). Wiring this through the parent keeps detail open/close
+   * scoped to the Vibe page so users never lose their preview + chat scope.
+   */
+  onOpenDetail: (task: KodyTask) => void
   isLoading: boolean
 }
 
@@ -73,6 +78,7 @@ export function VibeIssueList({
   tasks,
   selectedIssueNumber,
   onSelect,
+  onOpenDetail,
   isLoading,
 }: VibeIssueListProps) {
   const [query, setQuery] = useState('')
@@ -245,14 +251,17 @@ export function VibeIssueList({
 
                 {/* Meta row */}
                 <div className="flex items-center gap-1.5 mt-1.5 min-w-0">
-                  <Link
-                    href={`/${task.issueNumber}`}
-                    onClick={(e) => e.stopPropagation()}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onOpenDetail(task)
+                    }}
                     title="Open issue details"
                     className="text-[11px] tabular-nums font-medium text-sky-400 hover:text-sky-300 underline decoration-sky-400/40 hover:decoration-sky-300 underline-offset-2 shrink-0 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/40 rounded px-0.5"
                   >
                     #{task.issueNumber}
-                  </Link>
+                  </button>
 
                   {/* Blocked-on-you: jumps out so the user knows to act */}
                   {task.clarifyWaiting && (
