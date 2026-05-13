@@ -59,6 +59,26 @@ export function getStoredFlyToken(): string | null {
 }
 
 /**
+ * Read the user-scoped Fly performance tier. Returns null when unset; the
+ * server then falls back to the documented default ("medium" =
+ * performance-1x). Sent as the `x-kody-fly-perf` header on start-fly calls.
+ */
+export function getStoredFlyPerf(): "low" | "medium" | "high" | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("kody_auth");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { flyPerf?: string };
+    if (parsed.flyPerf === "low" || parsed.flyPerf === "medium" || parsed.flyPerf === "high") {
+      return parsed.flyPerf;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Read optional Brain assistant config stored at login. Returns null unless
  * both `url` and `apiKey` are present — partial config is treated as missing.
  */

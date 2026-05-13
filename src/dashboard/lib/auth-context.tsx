@@ -58,7 +58,17 @@ export interface KodyAuth {
    * vault. Required for kody-live-fly — no server-side env fallback.
    */
   flyToken?: string;
+  /**
+   * Fly VM performance tier for kody-live-fly spawns. Sent as the
+   * `x-kody-fly-perf` header; the server picks the matching guest config:
+   *   low    → shared-cpu-2x / 2GB  (chat-only, ~$0.005/30min session)
+   *   medium → performance-1x / 2GB (vibe coding, ~$0.05/30min) — default
+   *   high   → performance-2x / 4GB (heavy installs/tests, ~$0.11/30min)
+   */
+  flyPerf?: 'low' | 'medium' | 'high';
 }
+
+export type FlyPerfTier = NonNullable<KodyAuth['flyPerf']>;
 
 interface AuthContextValue {
   auth: KodyAuth | null;
@@ -78,6 +88,7 @@ interface AuthContextValue {
     brain?: { url: string; apiKey: string } | null;
     vercelBypassSecret?: string | null;
     flyToken?: string | null;
+    flyPerf?: FlyPerfTier | null;
   }) => void;
 }
 
@@ -138,6 +149,7 @@ function migrateAuth(raw: unknown): KodyAuth | null {
     brain: a.brain,
     vercelBypassSecret: a.vercelBypassSecret,
     flyToken: a.flyToken,
+    flyPerf: a.flyPerf,
   };
 }
 
@@ -283,6 +295,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       brain?: { url: string; apiKey: string } | null;
       vercelBypassSecret?: string | null;
       flyToken?: string | null;
+      flyPerf?: FlyPerfTier | null;
     }) => {
       setAuth((prev) => {
         if (!prev) return prev;
@@ -296,6 +309,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         if (patch.flyToken !== undefined) {
           next.flyToken = patch.flyToken === null ? undefined : patch.flyToken;
+        }
+        if (patch.flyPerf !== undefined) {
+          next.flyPerf = patch.flyPerf === null ? undefined : patch.flyPerf;
         }
         persist(next);
         return next;
