@@ -21,7 +21,6 @@ pnpm vault:init   # prints a 32-byte hex secret — save it
 cat > .env <<EOF
 KODY_MASTER_KEY=<paste from above>
 GITHUB_TOKEN=ghp_...
-GEMINI_API_KEY=...        # optional, for in-process chat
 NEXT_PUBLIC_SERVER_URL=http://localhost:3333
 EOF
 
@@ -29,7 +28,7 @@ EOF
 pnpm dev
 ```
 
-Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where the [Kody Engine](https://github.com/aharonyaircohen/Kody-Engine) is installed.
+Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where the [Kody Engine](https://github.com/aharonyaircohen/Kody-Engine) is installed. Add at least one LLM provider in the dashboard's Models manager (any OpenAI-compatible or Anthropic endpoint — Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, or a custom endpoint).
 
 ---
 
@@ -41,7 +40,8 @@ Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where 
 - PR viewer with file diffs, CI status, and gate approvals
 - Live previews — per-task Fly.io preview environments
 - Per-repo encrypted secrets vault (`.kody/secrets.enc`, AES-256-GCM)
-- Three chat backends (in-process Gemini, external Brain, engine via GitHub Actions)
+- Provider-agnostic chat — Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, or any OpenAI-compatible endpoint, configured in-app (Anthropic Messages or OpenAI Chat Completions protocols)
+- Multiple chat backends (direct via configured provider, external Brain, engine via GitHub Actions)
 - Real-time pipeline status via GitHub webhooks (push-based, IP-verified)
 - Changelog & report aggregation from autonomous runs
 - Desktop + in-app notifications
@@ -58,13 +58,12 @@ The dashboard intentionally keeps the env surface tiny. **One** secret is requir
 |----------|----------|---------|
 | `KODY_MASTER_KEY` | Yes | 32-byte hex/base64 secret. Powers per-repo secrets vault (AES-256-GCM), session JWT signing, and chat-ingest HMAC. Each consumer purpose-prefixes the key so they're cryptographically separated. Generate with `pnpm vault:init`. |
 | `GITHUB_TOKEN` | Yes | Server-side GitHub API token for cron/webhook flows. Needs `repo` + `workflow` scope. |
-| `GEMINI_API_KEY` | Optional | Enables the in-process Gemini chat backend. |
 | `KODY_CHAT_WORKFLOW_REPO` | Optional | Central engine repo (default: connected repo). |
 | `KODY_CHAT_WORKFLOW_ID` | Optional | Chat workflow filename (default: `kody.yml`). |
 | `JINA_API_KEY` | Optional | Jina Reader key for the `fetch_url` tool. |
 | `NEXT_PUBLIC_SERVER_URL` | Dev only | Public URL for callbacks. |
 
-**Per-user infra credentials (e.g. Fly tokens) live in the dashboard's Settings page**, not as deployment env vars. They're stored in the per-repo encrypted vault and sent per-request via headers. Same rule for any future per-user credential.
+**Per-user credentials live in the dashboard's Settings page**, not as deployment env vars. This includes LLM API keys (configured per model entry in Models manager) and infra tokens like Fly. They're stored in the per-repo encrypted vault and sent per-request via headers. Same rule for any future per-user credential.
 
 ### GitHub token / PAT scopes
 

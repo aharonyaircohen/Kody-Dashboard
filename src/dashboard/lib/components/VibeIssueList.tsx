@@ -11,6 +11,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import type { KodyTask } from '../types'
 import { cn, formatRelativeTime } from '../utils'
 import { CIStatusBadge } from './CIStatusBadge'
@@ -221,11 +222,18 @@ export function VibeIssueList({
 
           return (
             <li key={task.id}>
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => onSelect(task)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onSelect(task)
+                  }
+                }}
                 className={cn(
-                  'group w-full text-left px-3 py-2.5 transition-colors',
+                  'group w-full text-left px-3 py-2.5 transition-colors cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20',
                   isSelected
                     ? COLUMN_ROW_BG[task.column].selected
                     : cn(COLUMN_ROW_BG[task.column].idle, COLUMN_ROW_BG[task.column].hover),
@@ -255,9 +263,14 @@ export function VibeIssueList({
                       >
                         {task.title}
                       </span>
-                      <span className="text-[10px] tabular-nums text-zinc-500 shrink-0">
+                      <Link
+                        href={`/${task.issueNumber}`}
+                        onClick={(e) => e.stopPropagation()}
+                        title="Open issue details"
+                        className="text-[10px] tabular-nums text-zinc-500 hover:text-zinc-200 hover:underline shrink-0 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20 rounded"
+                      >
                         #{task.issueNumber}
-                      </span>
+                      </Link>
                     </div>
 
                     {/* Meta line */}
@@ -304,7 +317,7 @@ export function VibeIssueList({
                     </div>
                   </div>
                 </div>
-              </button>
+              </div>
             </li>
           )
         })}

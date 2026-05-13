@@ -1,8 +1,11 @@
 # Why Kody
 
-**The open, self-hosted control plane for an autonomous engineering workforce.**
+**An open, self-hosted autonomous engineering platform — engine plus visual control plane.**
 
-Kody Dashboard + [Kody Engine](https://github.com/aharonyaircohen/Kody-Engine) form a complete autonomous development platform for engineering teams. Schedule agents, run many in parallel, review their PRs and reports, and keep full control of your code, secrets, and CI.
+Kody is two pieces designed to work together:
+
+- **[Kody Engine](https://github.com/aharonyaircohen/Kody-Engine)** — the autonomous-agent runtime. A `kody` CLI built on the Claude Agent SDK, packaged as a GitHub Actions workflow that runs in your own repo. Implements features end-to-end, fixes CI, reviews PRs, browses preview deployments, runs scheduled jobs, manages goals as issues. **This is the actual product.**
+- **Kody Dashboard** (this repo) — the visual control plane for the engine. A Next.js app that lets you launch tasks, monitor parallel runs, schedule jobs, review reports, manage secrets, and chat with Kody. **Optional but essential at scale.** The engine works without it (via `@kody` comments and scheduled workflows); the dashboard turns it from a CLI into a platform.
 
 ---
 
@@ -16,15 +19,98 @@ Kody is the platform that does it. Unattended. On a schedule. In parallel. With 
 
 ---
 
-## What makes it different
+## What the Engine does
 
-### 1. Scheduled, autonomous, reporting
+The engine is a single CLI, `kody`, with one entrypoint per capability. Install it in any repo with one command:
 
-Agents run on cron, not on prompt. Define a job once — "audit dependencies weekly," "sweep dead code every Friday," "triage new issues hourly" — and Kody handles it. Output is a PR you can review, an issue with findings, or a markdown report in the dashboard's changelog view.
+```bash
+npx -y -p @kody-ade/kody-engine@latest kody init
+```
 
-No competitor in the open-source space does this. Renovate and Dependabot are single-purpose; Kody is a general autonomous-agent runtime.
+That scaffolds the GitHub Actions workflow, the config, and the scheduled-job workflows. From there, every command below can be invoked via `@kody <command>` comments, the GitHub Actions `workflow_dispatch` UI, or the Kody Dashboard.
 
-**Real use cases this unlocks:**
+### Agent commands (write code)
+
+| Command | What it does |
+|---|---|
+| `kody run --issue N` | Implements an issue end-to-end. Opens a PR. |
+| `kody fix --pr N` | Applies PR review feedback. |
+| `kody fix-ci --pr N` | Diagnoses and fixes failing CI runs. |
+| `kody resolve --pr N` | Merges the default branch into the PR branch and resolves conflicts. |
+
+### Agent commands (read-only)
+
+| Command | What it does |
+|---|---|
+| `kody plan --issue N` | Research + implementation plan, posted as a comment. |
+| `kody research --issue N` | Maps repo context, surfaces gaps for an issue. |
+| `kody review --pr N` | Structured diff review with severity levels. |
+| `kody ui-review --pr N` | Drives the running preview deployment via Playwright MCP, reviews UI alongside the diff. |
+| `kody qa-engineer` | **Free-form QA pass** — browses the running site, exercises happy/empty/error/loading/mobile/a11y states, opens severity-labelled bug issues. Read-only on the repo. |
+| `kody classify --issue N` | Picks a flow type (feature/bug/spec/chore) for an unlabelled issue. |
+
+### Flow orchestrators (declarative pipelines)
+
+Each flow is a transition table — postflight hooks dispatch the next executable based on the previous outcome. No engine changes to add a new flow; drop a new directory.
+
+| Flow | Pipeline |
+|---|---|
+| `kody feature --issue N` | research → plan → run → review → (fix loop) |
+| `kody bug --issue N` | plan → run → review → (fix loop) |
+| `kody spec --issue N` | research → plan (terminates at plan, no code) |
+| `kody chore --issue N` | run → review → (fix loop) |
+
+### Jobs, watches, managers
+
+A **job** is a stateful, bounded goal expressed as a GitHub issue labelled `kody:job`. A **watch** is a stateless repeating loop. A **manager** is a job whose goal is overseeing other jobs.
+
+`job-scheduler` runs on cron (default every 5 minutes), finds every open `kody:job` issue, and calls `job-tick` once per issue. The tick agent reads the issue body (human-owned prose) and a state comment (bot-owned JSON), decides the next step, and updates state. Children spawn via `gh workflow run`.
+
+This is how Kody runs **autonomously without supervision**. You file a goal as an issue, label it `kody:job`, and the scheduler keeps making progress every five minutes until the goal is done. Manager jobs let you set up org-wide policies (e.g. "keep dependencies fresh across all repos") without any external orchestrator.
+
+### Built-in deterministic commands
+
+`kody sync`, `kody release` (prepare/finalize semver bumps with auto-generated changelogs), `kody init` (idempotent scaffold), `kody memorize` (daily vault wiki update from recent PRs), `kody watch-stale-prs` (weekly report).
+
+### What makes the engine architecturally different
+
+- **Zero hardcoded executable names.** The router resolves `@kody <token>` through config aliases, then auto-discovers from `src/executables/<name>/`. Drop a `profile.json` + `prompt.md` (+ optional `.sh` scripts) and `kody <name>` works.
+- **Declarative profiles, not code.** Executable directories contain only three kinds of files: declaration JSON, agent prompt markdown, mechanical side-effect shell scripts. Cross-cutting TypeScript lives separately and can't branch on profile name.
+- **Single-session Claude agent.** Every command is one agent session with a focused prompt and a curated tool set — not a chain of LLM calls glued together. Easier to debug, easier to reason about, easier to extend.
+- **Playwright MCP integration.** UI review and QA work because the agent can drive a real browser against a real preview deployment, with auth via committed Playwright storageState files.
+- **`@kody` ChatOps.** Every command is reachable from issue/PR comments. No new UI to learn — you talk to Kody where the work already lives.
+
+---
+
+## What the Dashboard adds
+
+The engine handles the agent work. The dashboard turns it into a managed platform.
+
+| Capability | Why it matters |
+|---|---|
+| **Task board** | Kanban view (inbox → spec → building → review → done) across all engine activity. Drag to change status, click to drill in. |
+| **Parallel run monitoring** | Watch 10 agents work on 10 tasks at once, live, in one view. CLI can't do this. |
+| **Job scheduler UI** | Markdown-defined jobs in `.kody/jobs/`, ticked off in the dashboard as they complete. Visual cron without leaving the app. |
+| **Live preview management** | Per-task Fly.io preview environments, with per-repo Fly tokens managed in Settings (never deployment env vars). |
+| **PR viewer** | File diffs, CI status, gate approvals — all inline, no GitHub roundtrip. |
+| **Provider-agnostic chat** | Configure any LLM (Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, custom endpoints) per model entry. Two protocols, your keys. |
+| **Multiple chat backends** | Direct provider chat for quick questions, external Brain server for advanced reasoning, engine via Actions for full-power agent tasks. One UI. |
+| **Per-repo encrypted secrets vault** | AES-256-GCM blob at `.kody/secrets.enc`. One master key powers vault + session JWT + HMAC, cryptographically separated by purpose prefixes. Per-user creds (Fly tokens, API keys) live here, not in deployment env. |
+| **Real-time status** | Push-based GitHub webhooks, IP-verified against GitHub's CIDR list (no shared secret). Polling is the backstop, not the source of truth. |
+| **Changelog & report aggregation** | Readable, dated output from every autonomous run, indexed and searchable. |
+| **Notifications** | Desktop + in-app for completed tasks, blocked gates, report deliveries. |
+
+The dashboard never bypasses GitHub — every state change is a real issue/PR/workflow event. If the dashboard goes down, the engine keeps running. If the engine goes down, the dashboard still shows you the last known state.
+
+---
+
+## What makes the platform different (cross-cutting)
+
+### Scheduled, autonomous, reporting
+
+Agents run on cron, not on prompt. Define a job once, get output forever — as PRs you review, issues you triage, or markdown reports in the changelog. **Renovate and Dependabot are single-purpose; Kody is a general autonomous-agent runtime.**
+
+Real use cases:
 
 - Nightly dependency upgrades with PRs ready by morning
 - Weekly tech-debt sweeps (dead code, lint debt, type coverage)
@@ -33,18 +119,13 @@ No competitor in the open-source space does this. Renovate and Dependabot are si
 - Continuous test coverage improvements
 - Doc freshness checks against the codebase
 - Performance regression hunts after each deploy
+- Recurring QA passes against staging with severity-labelled bug reports
 
-These are things teams already pay humans to do and never get around to.
+### Parallel by design
 
-### 2. Parallel by design
+Kick off 10 features at once. Get 10 PRs back with 10 live preview environments. Each task is its own GitHub Actions workflow run on its own runner — no shared sandbox, no editor lock, no queue. Every other agent platform serializes work; Kody parallelizes it natively.
 
-Kick off 10 features at once. Get 10 PRs back with 10 live preview environments. The architecture supports it natively because every task is its own workflow run on its own runner — no shared sandbox, no editor lock, no queue.
-
-Every other agent platform serializes work. Kody parallelizes it.
-
-### 3. Runs in *your* CI, on *your* account
-
-The runtime is GitHub Actions. That means:
+### Runs in *your* CI, on *your* account
 
 - **Your compute, your control.** No SaaS bill scaling with usage. Your Actions minutes, your runners (including self-hosted).
 - **Your secrets stay yours.** API keys live in your repo's encrypted vault or GitHub Actions secrets — they never touch a third-party service.
@@ -53,35 +134,16 @@ The runtime is GitHub Actions. That means:
 
 This isn't "agent as a SaaS." It's "agent as a teammate with a GitHub account."
 
-### 4. Open and self-hosted
+### Open and self-hosted
 
-The whole stack is yours to read, fork, and run. No vendor lock-in, no per-seat pricing, no opaque hosted runtime. Self-host the dashboard on Vercel (or anywhere Next.js runs) and the engine in your repos.
+The whole stack is yours to read, fork, and run. No vendor lock-in, no per-seat pricing, no opaque hosted runtime. Self-host the dashboard on Vercel (or anywhere Next.js runs); install the engine in your repos with one `npx` command.
 
-### 5. Multi-model out of the box
+### Bring your own model — at every layer
 
-The engine is built on the Claude Agent SDK but routes non-Anthropic models through LiteLLM's Anthropic-compatible proxy. Use Claude, GPT, Gemini, Llama, Mistral, or local models — the platform doesn't care.
+- **Dashboard chat:** Anthropic Messages API or OpenAI Chat Completions protocol covers Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, DeepInfra, Together, Fireworks, plus a "custom endpoint" preset for self-hosted LiteLLM proxies, vLLM, Ollama, or in-house services.
+- **Engine:** built on the Claude Agent SDK, routes non-Anthropic models through LiteLLM's Anthropic-compatible proxy. Configure per-executable model choice if you want (e.g. cheap model for classification, smart model for implementation).
 
-### 6. Three chat backends, one UI
-
-- **In-process Gemini** for fast, low-cost interactive chat
-- **External Brain server** for advanced reasoning
-- **Engine via GitHub Actions** for full-power agent tasks that produce PRs
-
-Pick the right tool for the request without leaving the dashboard.
-
----
-
-## What the dashboard gives you
-
-- **Task board** — Kanban view (inbox → spec → building → review → done) for everything the engine is working on, with drag-and-drop status changes.
-- **Job scheduler** — define scheduled and on-demand jobs as markdown files in `.kody/jobs/`; the dashboard ticks them off as they run.
-- **Live previews** — per-task preview environments on Fly.io, with per-repo Fly tokens managed in the dashboard's Settings (never as a deployment env var).
-- **PR viewer** — file diffs, CI status, gate approvals, all without leaving the tab.
-- **Real-time pipeline status** — push-based via GitHub webhooks (verified by source IP, no shared secret needed), with polling fallback.
-- **Per-repo encrypted secrets vault** — AES-256-GCM-encrypted blob committed to the repo at `.kody/secrets.enc`. Keys never appear in deployment env, never leave your repo. Single master key powers vault, session JWT, and HMAC.
-- **Chat with Kody** — three backends, one interface, with full system-prompt configuration per agent.
-- **Changelog & reports** — readable, dated output from autonomous job runs.
-- **Notifications** — desktop + in-app for completed tasks, blocked gates, and report deliveries.
+No hardcoded provider, no vendor lock-in, at any layer.
 
 ---
 
@@ -107,7 +169,11 @@ Pick the right tool for the request without leaving the dashboard.
 | Scheduled / autonomous runs | Yes | No | No | No | No |
 | Parallel tasks | Yes (native) | Limited | No | No | No |
 | Runs in your CI | Yes | No | GitHub-locked | No | No |
-| Multi-model | Yes (LiteLLM) | No | No | Limited | Yes |
+| `@kody`-style ChatOps in issues/PRs | Yes | No | No | No | No |
+| Free-form QA agent | Yes | No | No | No | No |
+| Goal-driven jobs (autonomous loops) | Yes | No | No | No | No |
+| Multi-model (any provider) | Yes (LiteLLM + OpenAI-compat) | No | No | Limited | Yes |
+| Visual control plane (dashboard) | Yes | Yes | Yes | n/a | Yes |
 | Per-seat pricing | No | Yes | Yes | Yes | No |
 | Audit trail in your repo | Yes | No | Partial | No | No |
 
@@ -116,27 +182,31 @@ Pick the right tool for the request without leaving the dashboard.
 ## Architecture at a glance
 
 ```
-┌─────────────────────┐         ┌──────────────────────┐
-│   Kody Dashboard    │         │    Kody Engine       │
-│   (Next.js)         │◄───────►│  (GitHub Actions)    │
-│                     │         │                      │
-│  - Task board       │         │  - Claude Agent SDK  │
-│  - Job scheduler    │         │  - Multi-model via   │
-│  - PR viewer        │         │    LiteLLM           │
-│  - Chat UI          │         │  - Runs per-task in  │
-│  - Reports          │         │    isolated workflow │
-│  - Secrets vault    │         │    runs              │
-└─────────────────────┘         └──────────────────────┘
-         │                                  │
-         └───────────► GitHub ◄─────────────┘
-                  (issues, PRs, webhooks,
-                   workflows, branches)
+┌──────────────────────────┐       ┌──────────────────────────────┐
+│   Kody Dashboard         │       │    Kody Engine               │
+│   (Next.js — optional)   │◄─────►│   (GitHub Actions runtime)   │
+│                          │       │                              │
+│   Visual control plane:  │       │   Autonomous agent runtime:  │
+│   - Task board           │       │   - `kody` CLI               │
+│   - Job scheduler UI     │       │   - Claude Agent SDK         │
+│   - Parallel monitoring  │       │   - Multi-model (LiteLLM)    │
+│   - PR viewer            │       │   - Auto-discovered          │
+│   - Provider-agnostic    │       │     executables              │
+│     chat                 │       │   - Flow orchestrators       │
+│   - Reports & changelog  │       │   - Job scheduler + tick     │
+│   - Secrets vault        │       │   - Playwright MCP for UI    │
+└──────────────────────────┘       │     review & QA              │
+            │                      └──────────────────────────────┘
+            │                                  │
+            └────────────► GitHub ◄────────────┘
+              (issues, PRs, comments, webhooks,
+                workflow runs, branches)
 ```
 
-The dashboard is the brain; GitHub Actions is the hands; your repo is the world the agents act on.
+The engine does the work. The dashboard makes it observable and steerable. GitHub is the source of truth.
 
 ---
 
 ## Get started
 
-See [README.md](./README.md) for setup, environment configuration, and deployment.
+See [README.md](./README.md) for dashboard setup. For the engine, run `npx -y -p @kody-ade/kody-engine@latest kody init` in any repo to scaffold the workflow, then comment `@kody help` on an issue.
