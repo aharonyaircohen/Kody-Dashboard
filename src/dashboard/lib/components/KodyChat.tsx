@@ -99,7 +99,6 @@ function buildAgentList(
 import {
   getStoredAuth,
   getStoredBrainConfig,
-  getStoredFlyToken,
   getStoredFlyPerf,
   tasksApi,
 } from '../api'
@@ -2463,13 +2462,11 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
       const startEndpoint = isFlyRoute
         ? '/api/kody/chat/interactive/start-fly'
         : '/api/kody/chat/interactive/start'
-      // Attach the user-scoped Fly token. Required — the server does NOT
-      // fall back to an env var, so the start-fly call will fail with a
-      // clear error if the user hasn't saved a token in Settings.
+      // Fly token now lives in the repo vault (project-scoped) and is read
+      // by the start-fly route directly — no header needed. Perf tier
+      // stays per-user in localStorage and is sent as a header.
       const flyHeader: Record<string, string> = {}
       if (isFlyRoute) {
-        const flyToken = getStoredFlyToken()
-        if (flyToken) flyHeader['x-kody-fly-token'] = flyToken
         const flyPerf = getStoredFlyPerf()
         if (flyPerf) flyHeader['x-kody-fly-perf'] = flyPerf
       }

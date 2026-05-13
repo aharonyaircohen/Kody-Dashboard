@@ -52,13 +52,6 @@ export interface KodyAuth {
   brain?: { url: string; apiKey: string };
   vercelBypassSecret?: string;
   /**
-   * Fly Machines API token, used by the kody-live-fly runtime to spawn
-   * ephemeral runner VMs. Dashboard-infrastructure setting (one Fly
-   * account regardless of repo), kept here rather than the per-repo
-   * vault. Required for kody-live-fly — no server-side env fallback.
-   */
-  flyToken?: string;
-  /**
    * Fly VM performance tier for kody-live-fly spawns. Sent as the
    * `x-kody-fly-perf` header; the server picks the matching guest config:
    *   low    → shared-cpu-2x / 2GB  (chat-only, ~$0.005/30min session)
@@ -87,7 +80,6 @@ interface AuthContextValue {
   updateIntegrations: (patch: {
     brain?: { url: string; apiKey: string } | null;
     vercelBypassSecret?: string | null;
-    flyToken?: string | null;
     flyPerf?: FlyPerfTier | null;
   }) => void;
 }
@@ -148,7 +140,6 @@ function migrateAuth(raw: unknown): KodyAuth | null {
     currentRepoIndex: 0,
     brain: a.brain,
     vercelBypassSecret: a.vercelBypassSecret,
-    flyToken: a.flyToken,
     flyPerf: a.flyPerf,
   };
 }
@@ -294,7 +285,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (patch: {
       brain?: { url: string; apiKey: string } | null;
       vercelBypassSecret?: string | null;
-      flyToken?: string | null;
       flyPerf?: FlyPerfTier | null;
     }) => {
       setAuth((prev) => {
@@ -306,9 +296,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (patch.vercelBypassSecret !== undefined) {
           next.vercelBypassSecret =
             patch.vercelBypassSecret === null ? undefined : patch.vercelBypassSecret;
-        }
-        if (patch.flyToken !== undefined) {
-          next.flyToken = patch.flyToken === null ? undefined : patch.flyToken;
         }
         if (patch.flyPerf !== undefined) {
           next.flyPerf = patch.flyPerf === null ? undefined : patch.flyPerf;
