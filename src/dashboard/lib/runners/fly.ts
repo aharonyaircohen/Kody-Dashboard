@@ -68,6 +68,13 @@ export interface SpawnRunnerInput {
    * one-shot execution path; leave empty for chat-mode sessions.
    */
   issueNumber?: number
+  /**
+   * Git ref to clone (branch name or SHA). When unset, the entrypoint
+   * falls back to `main`. Callers should pass the repo's actual default
+   * branch when it differs from main — otherwise the runner clones a
+   * stale tree and the agent's diff is rooted at the wrong base.
+   */
+  ref?: string
 }
 
 export type PerfTier = 'low' | 'medium' | 'high'
@@ -129,6 +136,7 @@ function buildMachineEnv(input: SpawnRunnerInput): Record<string, string> {
   if (input.issueNumber && input.issueNumber > 0) {
     env.ISSUE_NUMBER = String(input.issueNumber)
   }
+  if (input.ref) env.REF = input.ref
   if (input.allSecrets) {
     env.ALL_SECRETS = JSON.stringify(input.allSecrets)
   }

@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       { status: ctxResult.status },
     )
   }
-  const { owner, repo, githubToken, allSecrets, flyToken, perfTier, litellmUrl } =
+  const { owner, repo, githubToken, octokit, allSecrets, flyToken, perfTier, litellmUrl } =
     ctxResult.context
 
   // sessionId is traceable but unused by the engine in agent mode —
@@ -60,9 +60,24 @@ export async function POST(req: NextRequest) {
   // click distinguishable in logs even when the same issue is re-run.
   const sessionId = `vibe-issue-${issueNumber}-${Date.now()}`
 
+  // Clone the repo's actual default branch, not the runner's hardcoded
+  // "main" fallback. Repos using "dev" or "develop" as default would
+  // otherwise get a stale main checkout and the agent's PR would diverge
+  // from the active line of development.
+  let ref: string | undefined
+  try {
+    const { data } = await octokit.repos.get({ owner, repo })
+    ref = data.default_branch
+  } catch (err) {
+    logger.warn(
+      { err, owner, repo },
+      'vibe-execute: default-branch lookup failed; runner will fall back to main',
+    )
+  }
+
   try {
     logger.info(
-      { issueNumber, owner, repo, sessionId },
+      { issueNumber, owner, repo, sessionId, ref },
       'vibe-execute: spawning runner',
     )
 
@@ -71,6 +86,7 @@ export async function POST(req: NextRequest) {
       githubToken,
       sessionId,
       issueNumber,
+      ref,
       allSecrets,
       flyToken,
       perfTier,
