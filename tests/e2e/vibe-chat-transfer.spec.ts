@@ -156,6 +156,63 @@ test.describe('Vibe — chat transfer on issue create', () => {
       })
     })
 
+    // Mock the interactive runner start endpoint. We need the kickoff
+    // assertion below to verify it was hit, but we DON'T want it to
+    // actually dispatch a real GitHub Actions workflow_run against the
+    // tester repo. Return a synthetic OK so sendText proceeds without
+    // hitting the real backend. We also record the call so the test can
+    // assert it happened — `waitForRequest` only catches FUTURE matches,
+    // and the kickoff can fire before the assertion is registered.
+    let interactiveStartCalled = false
+    let interactiveStartTaskId: string | null = null
+    await page.route(
+      '**/api/kody/chat/interactive/start*',
+      async (route, req) => {
+        interactiveStartCalled = true
+        try {
+          const body = JSON.parse(req.postData() ?? '{}') as {
+            taskId?: string
+          }
+          interactiveStartTaskId = body.taskId ?? null
+        } catch {
+          /* ignore */
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            taskId: interactiveStartTaskId ?? 'mock-session',
+            mode: 'interactive',
+            target: {
+              owner: 'test-owner',
+              repo: 'test-repo',
+              branch: 'main',
+              workflow: 'kody.yml',
+            },
+          }),
+        })
+      },
+    )
+    // Also mock the append endpoint so the kickoff message doesn't
+    // 404 against a non-existent backend.
+    let interactiveAppendBody: { content?: string; taskContext?: { issueNumber?: number } } | null = null
+    await page.route(
+      '**/api/kody/chat/interactive/append',
+      async (route, req) => {
+        try {
+          interactiveAppendBody = JSON.parse(req.postData() ?? 'null')
+        } catch {
+          /* ignore */
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true }),
+        })
+      },
+    )
+
     // Mock /api/kody/chat/kody to stream a UI-message-stream SSE response
     // matching the *real* vibe-mode turn where the agent fires TWO tools
     // in sequence: create_enhancement (which produces the issue number we
@@ -309,6 +366,28 @@ test.describe('Vibe — chat transfer on issue create', () => {
       assistantBubble,
       'new issue chat should hydrate with the transferred assistant text',
     ).toBeVisible({ timeout: 15_000 })
+
+    // Regression: the auto-kickoff must dispatch the runner. The
+    // useEffect waits for `selectedAgentId === 'kody-live'` AND
+    // `context.kind === 'task'` to both land before firing sendText
+    // with the autoKickoff string. sendText for kody-live calls
+    // /api/kody/chat/interactive/start (workflow_dispatch). Without
+    // this assertion the chat-transfer can pass while the kickoff
+    // silently no-ops — which was the production symptom: "issue +
+    // empty PR, runner never edits". We poll the accumulator instead
+    // of waitForRequest because the kickoff can fire before the
+    // assertion is reached.
+    await expect
+      .poll(() => interactiveStartCalled, { timeout: 20_000 })
+      .toBe(true)
+    expect(
+      interactiveAppendBody,
+      'append must be hit with the kickoff content',
+    ).toBeTruthy()
+    expect(
+      (interactiveAppendBody as { content?: string })?.content,
+      'append content must include the kickoff string',
+    ).toContain('Implement issue now.')
   })
 
   test('detects issue creation by output shape when tool-input-available is missing', async ({
