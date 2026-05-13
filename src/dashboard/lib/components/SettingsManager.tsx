@@ -11,7 +11,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Brain, Github, KeyRound, LogOut, Rocket, ShieldCheck } from "lucide-react"
 import { Button } from "@dashboard/ui/button"
@@ -28,6 +28,21 @@ import {
 import { ConfirmDialog } from "./ConfirmDialog"
 import { PageShell } from "./PageShell"
 import { useAuth, type FlyPerfTier } from "../auth-context"
+import { getStoredAuth } from "../api"
+
+/** Vault key under which the project-scoped Fly Machines token is stored. */
+const FLY_VAULT_KEY = "FLY_API_TOKEN"
+
+function vaultHeaders(): Record<string, string> {
+  const auth = getStoredAuth()
+  return auth
+    ? {
+        "x-kody-token": auth.token,
+        "x-kody-owner": auth.owner,
+        "x-kody-repo": auth.repo,
+      }
+    : {}
+}
 
 const FLY_PERF_DEFAULT: FlyPerfTier = "medium"
 
@@ -57,7 +72,12 @@ export function SettingsManager() {
   const [vercelSecret, setVercelSecret] = useState("")
 
   // ─── Fly Machines API token + perf tier ─────────────────────────────────
+  // Token lives in the repo vault (.kody/secrets.enc → FLY_API_TOKEN) so it
+  // is project-scoped instead of per-browser. Perf tier stays per-user in
+  // localStorage via auth-context, so the card behaves as before: edits to
+  // either are committed together when Save is clicked.
   const [flyToken, setFlyToken] = useState("")
+  const [savedFlyToken, setSavedFlyToken] = useState("")
   const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT)
 
   const [confirmLogout, setConfirmLogout] = useState(false)
@@ -65,19 +85,50 @@ export function SettingsManager() {
   const [confirmClearVercel, setConfirmClearVercel] = useState(false)
   const [confirmClearFly, setConfirmClearFly] = useState(false)
 
+  // Load FLY_API_TOKEN from the per-repo vault. Re-runs whenever auth (and
+  // therefore the connected repo) changes.
+  const loadFlyToken = useCallback(async () => {
+    const headers = vaultHeaders()
+    if (Object.keys(headers).length === 0) {
+      setSavedFlyToken("")
+      setFlyToken("")
+      return
+    }
+    try {
+      const res = await fetch(
+        `/api/kody/secrets/${FLY_VAULT_KEY}/value`,
+        { headers },
+      )
+      if (res.status === 404) {
+        setSavedFlyToken("")
+        setFlyToken("")
+        return
+      }
+      if (!res.ok) return
+      const body = (await res.json()) as { value?: string }
+      const v = body.value ?? ""
+      setSavedFlyToken(v)
+      setFlyToken(v)
+    } catch {
+      // Network/vault errors leave the field empty — same UX as no token.
+    }
+  }, [])
+
   // Seed form state once auth loads (or repo switches).
   useEffect(() => {
     setBrainUrl(auth?.brain?.url ?? "")
     setBrainKey(auth?.brain?.apiKey ?? "")
     setVercelSecret(auth?.vercelBypassSecret ?? "")
-    setFlyToken(auth?.flyToken ?? "")
     setFlyPerf(auth?.flyPerf ?? FLY_PERF_DEFAULT)
+    void loadFlyToken()
   }, [
     auth?.brain?.url,
     auth?.brain?.apiKey,
     auth?.vercelBypassSecret,
-    auth?.flyToken,
     auth?.flyPerf,
+    auth?.owner,
+    auth?.repo,
+    loadFlyToken,
   ])
 
   const brainHasChanges =
@@ -85,7 +136,7 @@ export function SettingsManager() {
     brainKey.trim() !== (auth?.brain?.apiKey ?? "")
   const vercelHasChanges = vercelSecret.trim() !== (auth?.vercelBypassSecret ?? "")
   const flyHasChanges =
-    flyToken.trim() !== (auth?.flyToken ?? "") ||
+    flyToken.trim() !== savedFlyToken ||
     flyPerf !== (auth?.flyPerf ?? FLY_PERF_DEFAULT)
 
   function saveBrain() {
@@ -124,26 +175,68 @@ export function SettingsManager() {
     toast.success("Vercel bypass secret cleared")
   }
 
-  function saveFly() {
+  async function saveFly() {
     const tok = flyToken.trim()
     if (!tok) {
       toast.error("Fly token cannot be empty — use Clear to remove it")
       return
     }
-    // Persist the token AND the perf tier together so the user only clicks
-    // Save once for any change in this card. Pass tier as null when it's the
-    // default so we don't pollute storage with redundant state.
-    updateIntegrations({
-      flyToken: tok,
-      flyPerf: flyPerf === FLY_PERF_DEFAULT ? null : flyPerf,
-    })
-    toast.success("Fly settings saved")
+    const headers = vaultHeaders()
+    if (Object.keys(headers).length === 0) {
+      toast.error("Sign in to a repo before saving Fly settings")
+      return
+    }
+    // Token → repo vault; perf tier stays per-user in localStorage. Save
+    // both in one click so the card behaves as before.
+    const tokenChanged = tok !== savedFlyToken
+    try {
+      if (tokenChanged) {
+        const res = await fetch("/api/kody/secrets", {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: FLY_VAULT_KEY,
+            value: tok,
+            actorLogin: auth?.user?.login,
+          }),
+        })
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { message?: string }
+          toast.error(body.message ?? `Save failed (HTTP ${res.status})`)
+          return
+        }
+        setSavedFlyToken(tok)
+      }
+      updateIntegrations({
+        flyPerf: flyPerf === FLY_PERF_DEFAULT ? null : flyPerf,
+      })
+      toast.success("Fly settings saved")
+    } catch (err) {
+      toast.error(`Save failed: ${(err as Error).message}`)
+    }
   }
 
-  function clearFly() {
-    // Clear both the token and the per-user perf override.
-    updateIntegrations({ flyToken: null, flyPerf: null })
+  async function clearFly() {
+    const headers = vaultHeaders()
+    if (savedFlyToken && Object.keys(headers).length > 0) {
+      try {
+        const res = await fetch(`/api/kody/secrets/${FLY_VAULT_KEY}`, {
+          method: "DELETE",
+          headers,
+        })
+        if (!res.ok && res.status !== 404) {
+          const body = (await res.json().catch(() => ({}))) as { message?: string }
+          toast.error(body.message ?? `Clear failed (HTTP ${res.status})`)
+          return
+        }
+      } catch (err) {
+        toast.error(`Clear failed: ${(err as Error).message}`)
+        return
+      }
+    }
+    updateIntegrations({ flyPerf: null })
     setFlyToken("")
+    setSavedFlyToken("")
     setFlyPerf(FLY_PERF_DEFAULT)
     setConfirmClearFly(false)
     toast.success("Fly settings cleared")
@@ -306,7 +399,7 @@ export function SettingsManager() {
               <Button size="sm" onClick={saveFly} disabled={!flyHasChanges}>
                 Save
               </Button>
-              {auth?.flyToken && (
+              {savedFlyToken && (
                 <Button
                   size="sm"
                   variant="ghost"

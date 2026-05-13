@@ -41,24 +41,6 @@ export function getStoredAuth(): {
 }
 
 /**
- * Read the user-scoped Fly Machines API token. Stored alongside the rest of
- * the auth blob (per-browser, not per-repo), set via /settings. The
- * kody-live-fly runner requires this; the server does not fall back to an
- * env var, so kody-live-fly fails with a clear error when this is null.
- */
-export function getStoredFlyToken(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem("kody_auth");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { flyToken?: string };
-    return parsed.flyToken && parsed.flyToken.length > 0 ? parsed.flyToken : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Read the user-scoped Fly performance tier. Returns null when unset; the
  * server then falls back to the documented default ("medium" =
  * performance-1x). Sent as the `x-kody-fly-perf` header on start-fly calls.

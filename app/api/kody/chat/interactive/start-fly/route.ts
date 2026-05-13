@@ -148,9 +148,13 @@ export async function POST(req: NextRequest) {
     // secrets the vault provides. No hardcoded fallbacks here.
     const allSecrets = await buildAllSecretsFromVault(octokit, owner, repo)
 
-    // User-scoped Fly token from Settings (the dashboard does not fall
-    // back to a server env var — see Settings → Fly Runner).
-    const flyToken = req.headers.get('x-kody-fly-token') ?? undefined
+    // Fly Machines API token is a PROJECT credential — pulled from the
+    // same repo vault as the model keys, not from the browser. The
+    // engine machine doesn't need the token itself, so strip it from
+    // ALL_SECRETS before passing the rest through.
+    const flyToken = allSecrets.FLY_API_TOKEN
+    if (flyToken) delete allSecrets.FLY_API_TOKEN
+
     // Optional perf tier from Settings → Fly Runner. Defaults to "medium"
     // (performance-1x) on the runner side when missing or unrecognized.
     const rawPerf = req.headers.get('x-kody-fly-perf')
