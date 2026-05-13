@@ -36,6 +36,8 @@ export const DEFAULT_WEBHOOK_EVENTS = [
   "discussion_comment",
   // Repo capability changes (Discussions toggled on/off, category renamed).
   "repository",
+  // CHANGELOG.md maintenance — promote [Unreleased] on release.published.
+  "release",
 ];
 
 interface GitHubHook {

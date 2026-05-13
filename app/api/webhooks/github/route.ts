@@ -18,7 +18,7 @@
  *
  * Subscribed events (configured at hook registration):
  *   issues, issue_comment, pull_request, pull_request_review,
- *   workflow_run, workflow_job, check_run, push
+ *   workflow_run, workflow_job, check_run, push, release
  *
  * Idempotency: GitHub may deliver the same event more than once. We dedupe
  * by X-GitHub-Delivery via an in-memory LRU. Cross-instance duplicate
@@ -39,6 +39,10 @@ import { logger } from "@dashboard/lib/logger";
 import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { maybeDispatchUiReview } from "@dashboard/lib/ui-verify/dispatch";
 import { applyVerdictFromComment } from "@dashboard/lib/ui-verify/apply-label";
+import {
+  handlePrMerged,
+  handleReleasePublished,
+} from "@dashboard/lib/changelog/handlers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,7 +75,13 @@ interface IssueCommentPayload {
   comment?: { body?: string; user?: { login?: string } };
 }
 interface PullRequestPayload {
-  pull_request?: { number?: number };
+  action?: string;
+  pull_request?: { number?: number; merged?: boolean };
+}
+
+interface ReleasePayload {
+  action?: string;
+  release?: { tag_name?: string };
 }
 interface CheckRunPayload {
   action?: string;
@@ -156,7 +166,27 @@ function dispatch(event: string, payload: unknown): { handled: boolean; detail: 
       invalidatePRBehindCache();
       // PRs are also exposed as issues in the GitHub API; clear that too.
       invalidateIssueCache(p?.pull_request?.number);
+      // On merge, append a bullet to CHANGELOG.md under `## [Unreleased]`.
+      // Idempotent on PR number; fire-and-forget so a slow GitHub write
+      // never blocks the webhook ACK.
+      if (event === "pull_request" && p?.action === "closed" && p?.pull_request?.merged) {
+        fireAndForget(
+          handlePrMerged(payload as Record<string, unknown>),
+          `changelog.append#${p.pull_request.number ?? "?"}`,
+        );
+      }
       return { handled: true, detail: `pr#${p?.pull_request?.number ?? "?"}` };
+    }
+
+    case "release": {
+      const p = payload as ReleasePayload;
+      if (p?.action === "published") {
+        fireAndForget(
+          handleReleasePublished(payload as Record<string, unknown>),
+          `changelog.promote#${p.release?.tag_name ?? "?"}`,
+        );
+      }
+      return { handled: true, detail: `release:${p?.release?.tag_name ?? "?"}` };
     }
 
     case "check_run": {
