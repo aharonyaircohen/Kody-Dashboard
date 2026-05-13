@@ -267,6 +267,7 @@ function brainHeaders(): Record<string, string> {
   const b = getStoredBrainConfig()
   return b ? { 'x-brain-url': b.url, 'x-brain-key': b.apiKey } : {}
 }
+import { flushSync } from 'react-dom'
 import type { AttachmentRef, ChatContext, ChatMessage, ChatSession } from '../chat-types'
 import {
   putAttachment,
@@ -2426,10 +2427,20 @@ export function KodyChat({
           if (pendingCreatedIssue !== null && onIssueCreated) {
             const newIssueNumber = pendingCreatedIssue
             const taskIdForChat = String(newIssueNumber)
+            // Read the latest messages synchronously. Plain `setMessages`
+            // queues the updater for React's next commit — by the time
+            // the next line runs, our local `snapshot` is still its
+            // initial `[]` and we'd save nothing. flushSync forces the
+            // updater to run inline, so `snapshot` reflects the real
+            // current messages before we hit the save / clear / navigate
+            // steps below. (This was the root cause of the empty-chat
+            // bug on the new issue.)
             let snapshot: Message[] = []
-            setMessages((current) => {
-              snapshot = current
-              return current
+            flushSync(() => {
+              setMessages((current) => {
+                snapshot = current
+                return current
+              })
             })
             const messagesForLocal: ChatMessage[] = snapshot.map((m) => ({
               role: m.role,
@@ -2451,8 +2462,12 @@ export function KodyChat({
               // Clear current scope buffer so the migrated conversation
               // only lives in one place (the new task). Without this the
               // user sees the same messages again next time they land in
-              // global/draft mode.
-              setMessages(() => [])
+              // global/draft mode. flushSync again to make sure the
+              // clear has actually landed before the navigate fires —
+              // otherwise the source buffer can flicker back briefly.
+              flushSync(() => {
+                setMessages(() => [])
+              })
             }
             try {
               onIssueCreated(newIssueNumber)
