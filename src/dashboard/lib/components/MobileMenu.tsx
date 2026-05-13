@@ -26,6 +26,7 @@ import {
   KeyRound,
   Layers,
   LogOut,
+  ScrollText,
   Settings as SettingsIcon,
   Settings2,
   Sparkles,
@@ -224,7 +225,7 @@ export function MobileMenu({
             Workspace
           </div>
           {workspacePrimary}
-          <div className="grid grid-cols-2 gap-2 mt-2">
+          <div className="grid grid-cols-3 gap-2 mt-2">
             <Link
               href="/jobs"
               onClick={close}
@@ -246,6 +247,17 @@ export function MobileMenu({
               </span>
               <span className="text-sm font-medium">Reports</span>
               <span className="text-[11px] text-muted-foreground">Job outputs</span>
+            </Link>
+            <Link
+              href="/changelog"
+              onClick={close}
+              className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
+            >
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-emerald-500/10">
+                <ScrollText className="w-4 h-4 text-emerald-300" />
+              </span>
+              <span className="text-sm font-medium">Changelog</span>
+              <span className="text-[11px] text-muted-foreground">What shipped</span>
             </Link>
           </div>
         </div>
