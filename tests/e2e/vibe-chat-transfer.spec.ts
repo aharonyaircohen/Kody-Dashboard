@@ -385,7 +385,7 @@ test.describe('Vibe — chat transfer on issue create', () => {
       'append must be hit with the kickoff content',
     ).toBeTruthy()
     expect(
-      (interactiveAppendBody as { content?: string })?.content,
+      (interactiveAppendBody as unknown as { content?: string } | null)?.content,
       'append content must include the kickoff string',
     ).toContain('Implement issue now.')
   })
