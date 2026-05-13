@@ -28,6 +28,8 @@ import {
 } from '@dashboard/lib/interactive-session'
 import { mintSessionToken } from '@dashboard/lib/chat-token'
 import { spawnRunner } from '@dashboard/lib/runners/fly'
+import { readVault } from '@dashboard/lib/vault/store'
+import type { Octokit } from '@octokit/rest'
 
 export const runtime = 'nodejs'
 
@@ -47,47 +49,32 @@ function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
 }
 
 /**
- * Builds the ALL_SECRETS blob the engine reads at runtime. On GH Actions
- * this comes from `toJSON(secrets)`. Here we pass through any *_API_KEY
- * env var the dashboard knows about. POC scope — full vault wiring later.
- */
-function buildAllSecrets(): Record<string, string> {
-  const passthroughKeys = [
-    'ANTHROPIC_API_KEY',
-    'OPENAI_API_KEY',
-    'GOOGLE_API_KEY',
-    'GEMINI_API_KEY',
-    'MINIMAX_API_KEY',
-    'KODY_TOKEN',
-  ]
-  const out: Record<string, string> = {}
-  for (const key of passthroughKeys) {
-    const v = process.env[key]
-    if (v) out[key] = v
-  }
-  return out
-}
-
-/**
- * Decide which model to ask LiteLLM to start with. The engine's built-in
- * default is `minimax/MiniMax-M2.7-highspeed` — if that key isn't in the
- * dashboard env, LiteLLM will hang for ~60s trying to authenticate and
- * then fail. So pick a model whose key we actually have.
+ * Builds the ALL_SECRETS blob the engine reads at runtime by decrypting
+ * the per-repo secrets vault (.kody/secrets.enc). This mirrors what
+ * `toJSON(secrets)` returns on GH Actions — model API keys (and anything
+ * else the user has saved at /secrets) flow through unchanged.
  *
- * Order of preference matches the engine's own ranking (cheapest/fastest
- * proven model first) — Gemini Flash is the cheapest viable option for
- * chat-style usage.
+ * Returns {} when the vault is missing, empty, or unreadable. The engine
+ * will then fail its own auth check downstream; do NOT fall back to env
+ * vars or pick a model here — model selection lives in the dashboard,
+ * not in this route.
  */
-function pickFallbackModel(): string | undefined {
-  if (process.env.MINIMAX_API_KEY) return undefined // engine default works
-  if (process.env.ANTHROPIC_API_KEY) {
-    return 'anthropic/claude-haiku-4-5-20251001'
+async function buildAllSecretsFromVault(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<Record<string, string>> {
+  try {
+    const { doc } = await readVault(octokit, owner, repo)
+    const out: Record<string, string> = {}
+    for (const [name, entry] of Object.entries(doc.secrets)) {
+      if (entry?.value) out[name] = entry.value
+    }
+    return out
+  } catch (err) {
+    logger.warn({ err, owner, repo }, 'interactive-fly: vault read failed')
+    return {}
   }
-  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
-    return 'gemini/gemini-2.5-flash'
-  }
-  if (process.env.OPENAI_API_KEY) return 'openai/gpt-4o-mini'
-  return undefined
 }
 
 export async function POST(req: NextRequest) {
@@ -157,7 +144,10 @@ export async function POST(req: NextRequest) {
       )}&token=${token}`
     }
 
-    const model = pickFallbackModel()
+    // Model selection happens entirely on the engine side using the
+    // secrets the vault provides. No hardcoded fallbacks here.
+    const allSecrets = await buildAllSecretsFromVault(octokit, owner, repo)
+
     // User-scoped Fly token from Settings (the dashboard does not fall
     // back to a server env var — see Settings → Fly Runner).
     const flyToken = req.headers.get('x-kody-fly-token') ?? undefined
@@ -168,8 +158,7 @@ export async function POST(req: NextRequest) {
       dashboardUrl: ingestUrl,
       idleExitMs,
       hardCapMs,
-      model,
-      allSecrets: buildAllSecrets(),
+      allSecrets,
       flyToken,
     })
 
