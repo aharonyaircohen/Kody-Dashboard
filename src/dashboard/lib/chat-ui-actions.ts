@@ -18,6 +18,14 @@ export interface SwitchAgentDirective {
   agentId: SwitchAgentTargetId
   agentName: string
   reason: string
+  /**
+   * Optional kickoff message. When set, the client auto-sends this string
+   * as the first user message under the new agent after the switch. Used
+   * by `vibe_start_execution` to immediately ask the runner to implement
+   * the issue — without it the runner just idles after the agent flip,
+   * waiting for the user to type something, and the draft PR stays empty.
+   */
+  autoKickoff?: string
 }
 
 export function isSwitchAgentDirective(value: unknown): value is SwitchAgentDirective {
@@ -28,6 +36,7 @@ export function isSwitchAgentDirective(value: unknown): value is SwitchAgentDire
     typeof v.agentId === 'string' &&
     v.agentId !== 'kody-speech' &&
     typeof v.agentName === 'string' &&
-    typeof v.reason === 'string'
+    typeof v.reason === 'string' &&
+    (v.autoKickoff === undefined || typeof v.autoKickoff === 'string')
   )
 }
