@@ -1210,19 +1210,15 @@ export function KodyDashboard({
   return (
     <ErrorBoundary>
       <div className="h-full flex flex-col overflow-hidden">
-        {/* Preview Modal — full-screen overlay.
-            Only shown once the task reaches an advanced status (review/done);
-            earlier statuses keep the trigger buttons visible but a click is a no-op. */}
-        {showPreview &&
-          selectedTask &&
-          (selectedTask.column === 'review' || selectedTask.column === 'done') && (
-            <PreviewModal
-              task={selectedTask}
-              onClose={handleClosePreview}
-              onMerge={() => handleMerge(selectedTask)}
-              isMerging={!!(mergingTaskId === selectedTask.id)}
-            />
-          )}
+        {/* Preview Modal — full-screen overlay */}
+        {showPreview && selectedTask && (
+          <PreviewModal
+            task={selectedTask}
+            onClose={handleClosePreview}
+            onMerge={() => handleMerge(selectedTask)}
+            isMerging={!!(mergingTaskId === selectedTask.id)}
+          />
+        )}
         {/* Chat rail + primary nav are owned by the root layout
             (ChatRailShell). We render only the page content. */}
 

@@ -641,22 +641,24 @@ const TaskRow = memo(function TaskRow({
                   </>
                 )}
 
-                {hasPR && onOpenPreview && (
-                  <SimpleTooltip content="Open PR preview" side="bottom">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onOpenPreview(task)
-                      }}
-                      aria-label="Open PR preview"
-                      className="h-7 w-7 p-0 text-emerald-400 hover:bg-emerald-500/20"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                    </Button>
-                  </SimpleTooltip>
-                )}
+                {hasPR &&
+                  onOpenPreview &&
+                  (task.column === 'review' || task.column === 'done') && (
+                    <SimpleTooltip content="Open PR preview" side="bottom">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onOpenPreview(task)
+                        }}
+                        aria-label="Open PR preview"
+                        className="h-7 w-7 p-0 text-emerald-400 hover:bg-emerald-500/20"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                    </SimpleTooltip>
+                  )}
 
                 {(task.column === 'building' &&
                   task.workflowRun?.status === 'in_progress' &&
