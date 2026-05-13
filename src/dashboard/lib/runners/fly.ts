@@ -48,7 +48,34 @@ export interface SpawnRunnerInput {
    * env var; the token has to be attributed to the authenticated user.
    */
   flyToken?: string
+  /**
+   * Performance tier for the spawned Fly Machine. Maps to a fixed VM
+   * shape (see PERF_GUEST). Omit to use the default ("medium").
+   */
+  perfTier?: PerfTier
 }
+
+export type PerfTier = 'low' | 'medium' | 'high'
+
+/**
+ * Fly guest configurations per perf tier. Tier names + costs are
+ * mirrored in the Settings UI (SettingsManager.tsx FLY_PERF_LABELS) so
+ * users can pick by tradeoff. Cost approximations are per 30-min session.
+ *   low    — shared-cpu-2x / 2GB  (~$0.005)  chat-only, light tools
+ *   medium — performance-1x / 2GB (~$0.05)   vibe coding (default)
+ *   high   — performance-2x / 4GB (~$0.11)   heavy installs / parallel tests
+ */
+const PERF_GUEST: Record<PerfTier, {
+  cpu_kind: 'shared' | 'performance'
+  cpus: number
+  memory_mb: number
+}> = {
+  low: { cpu_kind: 'shared', cpus: 2, memory_mb: 2048 },
+  medium: { cpu_kind: 'performance', cpus: 1, memory_mb: 2048 },
+  high: { cpu_kind: 'performance', cpus: 2, memory_mb: 4096 },
+}
+
+const DEFAULT_PERF_TIER: PerfTier = 'medium'
 
 export interface SpawnRunnerResult {
   machineId: string
@@ -102,18 +129,19 @@ export async function spawnRunner(
   const region = DEFAULT_REGION
   const image = DEFAULT_IMAGE
 
-  // performance-1x with 2GB. Boot is no longer CPU-bound (clone +
-  // LiteLLM run in parallel), but vibe coding sessions run pnpm install
-  // / tsc / biome / pnpm test inside the engine's tool calls — those
-  // workloads ARE CPU-bound and benefit a lot from dedicated cores.
-  // 1 dedicated CPU is the sweet spot vs cost (~$0.05/30-min session).
+  // VM shape comes from the user-selected perf tier (Settings → Fly
+  // Runner). Default is "medium" (performance-1x / 2GB) — the sweet
+  // spot for vibe coding. See PERF_GUEST for the full mapping.
+  const tier: PerfTier = input.perfTier ?? DEFAULT_PERF_TIER
+  const guest = PERF_GUEST[tier]
+
   const body = {
     config: {
       image,
       env: buildMachineEnv(input),
       auto_destroy: true,
       restart: { policy: 'no' },
-      guest: { cpu_kind: 'performance', cpus: 1, memory_mb: 2048 },
+      guest,
     },
     region,
   }
@@ -145,7 +173,13 @@ export async function spawnRunner(
   }
 
   logger.info(
-    { machineId: data.id, app, region: data.region ?? region, sessionId: input.sessionId },
+    {
+      machineId: data.id,
+      app,
+      region: data.region ?? region,
+      sessionId: input.sessionId,
+      perfTier: tier,
+    },
     'fly: machine spawned',
   )
 

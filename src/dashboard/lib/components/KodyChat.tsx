@@ -96,7 +96,13 @@ function buildAgentList(
   }
   return entries
 }
-import { getStoredAuth, getStoredBrainConfig, getStoredFlyToken, tasksApi } from '../api'
+import {
+  getStoredAuth,
+  getStoredBrainConfig,
+  getStoredFlyToken,
+  getStoredFlyPerf,
+  tasksApi,
+} from '../api'
 import { toast } from 'sonner'
 import type { KodyTask } from '../types'
 
@@ -2458,6 +2464,8 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
       if (isFlyRoute) {
         const flyToken = getStoredFlyToken()
         if (flyToken) flyHeader['x-kody-fly-token'] = flyToken
+        const flyPerf = getStoredFlyPerf()
+        if (flyPerf) flyHeader['x-kody-fly-perf'] = flyPerf
       }
       const startRes = await fetch(startEndpoint, {
         method: 'POST',

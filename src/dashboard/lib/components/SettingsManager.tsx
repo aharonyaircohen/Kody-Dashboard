@@ -18,9 +18,33 @@ import { Button } from "@dashboard/ui/button"
 import { Card, CardContent } from "@dashboard/ui/card"
 import { Input } from "@dashboard/ui/input"
 import { Label } from "@dashboard/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dashboard/ui/select"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { PageShell } from "./PageShell"
-import { useAuth } from "../auth-context"
+import { useAuth, type FlyPerfTier } from "../auth-context"
+
+const FLY_PERF_DEFAULT: FlyPerfTier = "medium"
+
+const FLY_PERF_LABELS: Record<FlyPerfTier, { label: string; hint: string }> = {
+  low: {
+    label: "Low — shared CPU, 2GB",
+    hint: "Cheapest. Fine for chat-only sessions; pnpm install / tsc are slower.",
+  },
+  medium: {
+    label: "Medium — performance-1x, 2GB (default)",
+    hint: "Balanced. Good for vibe coding; most build/test loops feel snappy.",
+  },
+  high: {
+    label: "High — performance-2x, 4GB",
+    hint: "Fastest. For heavy installs, parallel tests, or large repos. Costlier.",
+  },
+}
 
 export function SettingsManager() {
   const { auth, logout, updateIntegrations } = useAuth()
@@ -32,8 +56,9 @@ export function SettingsManager() {
   // ─── Vercel bypass secret ───────────────────────────────────────────────
   const [vercelSecret, setVercelSecret] = useState("")
 
-  // ─── Fly Machines API token ─────────────────────────────────────────────
+  // ─── Fly Machines API token + perf tier ─────────────────────────────────
   const [flyToken, setFlyToken] = useState("")
+  const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT)
 
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [confirmClearBrain, setConfirmClearBrain] = useState(false)
@@ -46,18 +71,22 @@ export function SettingsManager() {
     setBrainKey(auth?.brain?.apiKey ?? "")
     setVercelSecret(auth?.vercelBypassSecret ?? "")
     setFlyToken(auth?.flyToken ?? "")
+    setFlyPerf(auth?.flyPerf ?? FLY_PERF_DEFAULT)
   }, [
     auth?.brain?.url,
     auth?.brain?.apiKey,
     auth?.vercelBypassSecret,
     auth?.flyToken,
+    auth?.flyPerf,
   ])
 
   const brainHasChanges =
     brainUrl.trim() !== (auth?.brain?.url ?? "") ||
     brainKey.trim() !== (auth?.brain?.apiKey ?? "")
   const vercelHasChanges = vercelSecret.trim() !== (auth?.vercelBypassSecret ?? "")
-  const flyHasChanges = flyToken.trim() !== (auth?.flyToken ?? "")
+  const flyHasChanges =
+    flyToken.trim() !== (auth?.flyToken ?? "") ||
+    flyPerf !== (auth?.flyPerf ?? FLY_PERF_DEFAULT)
 
   function saveBrain() {
     const url = brainUrl.trim()
@@ -101,15 +130,23 @@ export function SettingsManager() {
       toast.error("Fly token cannot be empty — use Clear to remove it")
       return
     }
-    updateIntegrations({ flyToken: tok })
-    toast.success("Fly token saved")
+    // Persist the token AND the perf tier together so the user only clicks
+    // Save once for any change in this card. Pass tier as null when it's the
+    // default so we don't pollute storage with redundant state.
+    updateIntegrations({
+      flyToken: tok,
+      flyPerf: flyPerf === FLY_PERF_DEFAULT ? null : flyPerf,
+    })
+    toast.success("Fly settings saved")
   }
 
   function clearFly() {
-    updateIntegrations({ flyToken: null })
+    // Clear both the token and the per-user perf override.
+    updateIntegrations({ flyToken: null, flyPerf: null })
     setFlyToken("")
+    setFlyPerf(FLY_PERF_DEFAULT)
     setConfirmClearFly(false)
-    toast.success("Fly token cleared")
+    toast.success("Fly settings cleared")
   }
 
   return (
@@ -240,6 +277,30 @@ export function SettingsManager() {
                 onChange={(e) => setFlyToken(e.target.value)}
                 className="bg-black/30 border-white/10 font-mono"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fly-perf" className="text-xs text-white/70">
+                Performance tier
+              </Label>
+              <Select
+                value={flyPerf}
+                onValueChange={(v) => setFlyPerf(v as FlyPerfTier)}
+              >
+                <SelectTrigger
+                  id="fly-perf"
+                  className="bg-black/30 border-white/10"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">{FLY_PERF_LABELS.low.label}</SelectItem>
+                  <SelectItem value="medium">{FLY_PERF_LABELS.medium.label}</SelectItem>
+                  <SelectItem value="high">{FLY_PERF_LABELS.high.label}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-white/45 leading-snug">
+                {FLY_PERF_LABELS[flyPerf].hint}
+              </p>
             </div>
             <div className="flex items-center gap-2 pt-1">
               <Button size="sm" onClick={saveFly} disabled={!flyHasChanges}>

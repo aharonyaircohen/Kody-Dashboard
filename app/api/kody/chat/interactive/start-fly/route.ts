@@ -151,6 +151,13 @@ export async function POST(req: NextRequest) {
     // User-scoped Fly token from Settings (the dashboard does not fall
     // back to a server env var — see Settings → Fly Runner).
     const flyToken = req.headers.get('x-kody-fly-token') ?? undefined
+    // Optional perf tier from Settings → Fly Runner. Defaults to "medium"
+    // (performance-1x) on the runner side when missing or unrecognized.
+    const rawPerf = req.headers.get('x-kody-fly-perf')
+    const perfTier =
+      rawPerf === 'low' || rawPerf === 'medium' || rawPerf === 'high'
+        ? rawPerf
+        : undefined
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
       githubToken,
@@ -160,6 +167,7 @@ export async function POST(req: NextRequest) {
       hardCapMs,
       allSecrets,
       flyToken,
+      perfTier,
     })
 
     logger.info(
