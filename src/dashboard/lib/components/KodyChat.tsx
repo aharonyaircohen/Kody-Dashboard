@@ -2193,10 +2193,19 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                   'output' in chunk
                 ) {
                   const name = toolNameById.get(chunk.toolCallId)
-                  if (name === 'switch_agent' && isSwitchAgentDirective(chunk.output)) {
+                  // Any tool may emit a switch directive — not just
+                  // `switch_agent`. `vibe_start_execution` embeds one in its
+                  // output so the runner hand-off doesn't depend on the
+                  // model also calling `switch_agent` (it often skips it
+                  // and just narrates "handed off"). Match by shape, not
+                  // by tool name.
+                  if (isSwitchAgentDirective(chunk.output)) {
                     // Defer the dispatch — see comment on pendingSwitchAgent.
                     pendingSwitchAgent = chunk.output
                   }
+                  // Tool name is still read here for other side-effects
+                  // (the status-chip flip below); keep it referenced.
+                  void name
                   // Flip the matching running chip to "success".
                   setMessages((prev) => {
                     const copy = [...prev]

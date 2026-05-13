@@ -24,6 +24,7 @@ import { z } from 'zod'
 import type { Octokit } from '@octokit/rest'
 import { logger } from '@dashboard/lib/logger'
 import { invalidateIssueCache } from '@dashboard/lib/github-client'
+import { SWITCH_AGENT_DIRECTIVE } from '@dashboard/lib/chat-ui-actions'
 
 interface Ctx {
   octokit: Octokit
@@ -86,8 +87,17 @@ export function createVibeTools(ctx: Ctx) {
             'Short kebab-case slug, e.g. "fix-button-color". Derived from the ' +
               'issue title if omitted.',
           ),
+        targetAgent: z
+          .enum(['kody-live', 'kody-live-fly'])
+          .describe(
+            "Which runner to hand off to. Pick 'kody-live-fly' when the user " +
+              "has a Fly token configured (see the 'Runner availability' block in " +
+              "the prompt), otherwise 'kody-live'. The dashboard switches the " +
+              "active agent automatically when this tool returns — you do NOT " +
+              'need to also call switch_agent.',
+          ),
       }),
-      execute: async ({ issueNumber, slug }) => {
+      execute: async ({ issueNumber, slug, targetAgent }) => {
         try {
           // Validate the issue and pick a slug.
           const { data: issue } = await octokit.rest.issues.get({
@@ -156,18 +166,33 @@ export function createVibeTools(ctx: Ctx) {
             head: `${owner}:${branchName}`,
             state: 'open',
           })
+          // The dashboard's stream parser auto-flips the active agent when
+          // any tool output matches the SwitchAgentDirective shape. Embedding
+          // it here means the model can't skip the hand-off (it kept
+          // narrating "handed off" without actually calling switch_agent).
+          const agentName =
+            targetAgent === 'kody-live-fly' ? 'Kody Live (Fly)' : 'Kody Live'
+          const switchDirective = {
+            action: SWITCH_AGENT_DIRECTIVE,
+            agentId: targetAgent,
+            agentName,
+            reason: `Vibe execution started — handing off to ${agentName} runner.`,
+          }
+
           if (existingPrs.length > 0) {
             const pr = existingPrs[0]
             invalidateIssueCache(issueNumber)
             return {
+              ...switchDirective,
               branch: branchName,
               prNumber: pr.number,
               prUrl: pr.html_url,
               reused: branchExisted,
               note:
-                branchExisted && existingPrs.length === 1
-                  ? 'Existing branch + draft PR reused. Runner can push to it.'
-                  : 'Existing draft PR found. Runner can push to its branch.',
+                (branchExisted && existingPrs.length === 1
+                  ? 'Existing branch + draft PR reused. '
+                  : 'Existing draft PR found. ') +
+                `Auto-handing off to ${agentName} — the dashboard has already flipped the active agent.`,
             }
           }
 
@@ -188,14 +213,16 @@ export function createVibeTools(ctx: Ctx) {
           })
           invalidateIssueCache(issueNumber)
           return {
+            ...switchDirective,
             branch: branchName,
             prNumber: pr.number,
             prUrl: pr.html_url,
             reused: branchExisted,
             note:
-              'Draft PR opened. Mention the PR URL in your reply, then call ' +
-              'switch_agent to hand off to the runner. The runner will push ' +
-              `commits to ${branchName} (taskContext.branch will be set).`,
+              `Draft PR opened. The dashboard auto-flipped the active agent to ${agentName} — ` +
+              'you do NOT need to call switch_agent. Mention the PR URL and the ' +
+              "runner you handed off to in your reply, and tell the user the switch " +
+              "applies to their NEXT message.",
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
