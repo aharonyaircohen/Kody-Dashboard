@@ -43,9 +43,9 @@ export interface SpawnRunnerInput {
   /** Hard cap override (ms) for interactive mode */
   hardCapMs?: number
   /**
-   * Fly Machines API token. When omitted, falls back to FLY_API_TOKEN /
-   * FLY_IO_TOKEN env vars. The user-scoped token (set via /settings) is
-   * the preferred source — env is only a server fallback.
+   * Fly Machines API token. Required — must come from the user-scoped
+   * Settings (see SettingsManager). The server does NOT fall back to an
+   * env var; the token has to be attributed to the authenticated user.
    */
   flyToken?: string
 }
@@ -57,15 +57,12 @@ export interface SpawnRunnerResult {
 }
 
 function requireFlyToken(explicit?: string): string {
-  const token =
-    explicit ??
-    process.env.FLY_API_TOKEN ??
-    process.env.FLY_IO_TOKEN ??
-    ''
+  const token = (explicit ?? '').trim()
   if (!token) {
     throw new Error(
-      'Fly runner not configured: save a token via Settings → Fly Runner ' +
-        '(or set FLY_API_TOKEN in env as a server-side fallback)',
+      'Fly runner not configured: save a token via Settings → Fly Runner. ' +
+        'The dashboard does not fall back to server env vars — the token ' +
+        'must come from the authenticated user.',
     )
   }
   return token

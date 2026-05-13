@@ -2451,8 +2451,9 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
       const startEndpoint = isFlyRoute
         ? '/api/kody/chat/interactive/start-fly'
         : '/api/kody/chat/interactive/start'
-      // Attach the user-scoped Fly token when present; the server falls
-      // back to FLY_API_TOKEN env var when this header is missing.
+      // Attach the user-scoped Fly token. Required — the server does NOT
+      // fall back to an env var, so the start-fly call will fail with a
+      // clear error if the user hasn't saved a token in Settings.
       const flyHeader: Record<string, string> = {}
       if (isFlyRoute) {
         const flyToken = getStoredFlyToken()

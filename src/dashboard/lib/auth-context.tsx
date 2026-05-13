@@ -55,7 +55,7 @@ export interface KodyAuth {
    * Fly Machines API token, used by the kody-live-fly runtime to spawn
    * ephemeral runner VMs. Dashboard-infrastructure setting (one Fly
    * account regardless of repo), kept here rather than the per-repo
-   * vault. Falls back to FLY_API_TOKEN env var on the server when absent.
+   * vault. Required for kody-live-fly — no server-side env fallback.
    */
   flyToken?: string;
 }
