@@ -3376,7 +3376,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                       )} · {formatElapsed(bootElapsed)} elapsed
                     </span>
                   </div>
-                  {interactiveTarget ? (
+                  {interactiveTarget && selectedAgentId !== 'kody-live-fly' ? (
                     <a
                       href={
                         interactiveRunUrl ??
@@ -3411,7 +3411,7 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                 <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
                 <span>Live runner ready. Chat normally — clear the box and hit Stop to end.</span>
               </div>
-              {interactiveRunUrl || interactiveTarget ? (
+              {selectedAgentId !== 'kody-live-fly' && (interactiveRunUrl || interactiveTarget) ? (
                 <a
                   href={
                     interactiveRunUrl ??
