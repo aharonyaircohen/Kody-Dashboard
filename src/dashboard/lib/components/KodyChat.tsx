@@ -2609,41 +2609,19 @@ export function KodyChat({
         selectedAgentId === 'kody-live' ||
         selectedAgentId === 'kody-live-fly'
       ) {
-        // TEMP DEBUG — investigating why /interactive/append is never
-        // called after /start succeeds on the live auto-kickoff path.
-        // Remove once root-caused.
-        console.warn('[vibe-debug] kody-live branch entered', {
-          stateBefore: interactiveStateRef.current,
-          sessionBefore: interactiveSessionIdRef.current,
-          messageContentLen: messageContent.length,
-          contextKind: context?.kind ?? 'null',
-        })
         if (
           (interactiveStateRef.current === 'idle' ||
             interactiveStateRef.current === 'ended') &&
           !interactiveSessionIdRef.current
         ) {
-          console.warn('[vibe-debug] calling startInteractiveSession')
           await startInteractiveSession()
-          console.warn('[vibe-debug] startInteractiveSession returned', {
-            stateAfter: interactiveStateRef.current,
-            sessionAfter: interactiveSessionIdRef.current,
-          })
         }
         const liveSessionId = interactiveSessionIdRef.current
         const liveState = interactiveStateRef.current
-        console.warn('[vibe-debug] state read for /append gate', {
-          liveSessionId,
-          liveState,
-        })
         if (
           !liveSessionId ||
           (liveState !== 'ready' && liveState !== 'booting')
         ) {
-          console.warn('[vibe-debug] /append gate FAILED — adding error msg', {
-            liveSessionId,
-            liveState,
-          })
           setMessages((prev) => [
             ...prev,
             {
@@ -2655,7 +2633,6 @@ export function KodyChat({
           ])
           return null
         }
-        console.warn('[vibe-debug] /append gate passed — about to fetch')
 
         const liveUserContent =
           currentAttachments.length > 0
@@ -2669,12 +2646,6 @@ export function KodyChat({
             : messageContent
 
         try {
-          console.warn('[vibe-debug] /append fetch starting', {
-            taskId: liveSessionId,
-            contentLen: liveUserContent.length,
-            vibeMode,
-            hasTaskContext: vibeMode && context?.kind === 'task',
-          })
           const appendRes = await fetch('/api/kody/chat/interactive/append', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -2698,19 +2669,12 @@ export function KodyChat({
                 : {}),
             }),
           })
-          console.warn('[vibe-debug] /append fetch responded', {
-            ok: appendRes.ok,
-            status: appendRes.status,
-          })
           if (!appendRes.ok) {
             const body = (await appendRes.json().catch(() => ({}))) as { error?: string }
             throw new Error(body.error ?? `HTTP ${appendRes.status}`)
           }
           return null
         } catch (error) {
-          console.warn('[vibe-debug] /append fetch threw', {
-            error: error instanceof Error ? error.message : String(error),
-          })
           const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           setLoading(false)
           setMessages((prev) => {
@@ -3022,14 +2986,6 @@ export function KodyChat({
   // the kickoff's startInteractiveSession sets up the poll AFTER the
   // reset, so events flow back normally.
   useEffect(() => {
-    // TEMP DEBUG — kickoff dispatch trace. Remove once root-caused.
-    console.warn('[vibe-debug] kickoff effect ran', {
-      hasPending: !!pendingKickoff,
-      pendingIssue: pendingKickoff?.issueNumber ?? null,
-      selectedAgentId,
-      contextKind: context?.kind ?? 'null',
-      contextIssue: context?.kind === 'task' ? context.task.issueNumber : null,
-    })
     if (!pendingKickoff) return
     const isRunner =
       selectedAgentId === 'kody-live' || selectedAgentId === 'kody-live-fly'
@@ -3043,16 +2999,9 @@ export function KodyChat({
       pendingKickoff.issueNumber !== null &&
       context.task.issueNumber !== pendingKickoff.issueNumber
     ) {
-      console.warn('[vibe-debug] kickoff gate WAITING for issue match', {
-        want: pendingKickoff.issueNumber,
-        got: context.task.issueNumber,
-      })
       return
     }
     const kickoffContent = pendingKickoff.content
-    console.warn('[vibe-debug] kickoff firing sendText', {
-      issueNumber: pendingKickoff.issueNumber,
-    })
     setPendingKickoff(null)
     void Promise.resolve().then(() => {
       void sendText(kickoffContent)
