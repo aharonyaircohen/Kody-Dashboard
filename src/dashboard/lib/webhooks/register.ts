@@ -109,7 +109,20 @@ export async function ensureWebhook(
   }
 
   const hooks = (await listRes.json()) as GitHubHook[];
-  const existing = hooks.find((h) => h?.config?.url === hookUrl);
+  // Match by path, not full URL: the dashboard's public URL changes between
+  // preview/prod deployments and alias renames, but the receiver path is
+  // stable. This keeps a single canonical hook per repo and migrates its
+  // `config.url` to whichever deployment registered most recently — instead
+  // of stacking a new hook for every URL the user happens to register from.
+  const existing = hooks.find((h) => {
+    const url = h?.config?.url;
+    if (!url) return false;
+    try {
+      return new URL(url).pathname === "/api/webhooks/github";
+    } catch {
+      return false;
+    }
+  });
 
   // 2a) Update existing hook to refresh events list / clear any legacy secret.
   if (existing) {

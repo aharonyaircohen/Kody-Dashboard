@@ -122,7 +122,8 @@ import { ... } from '@/...'             // src/
 
 ## Deployment
 
-Reference deployment: <https://kody-aguy.vercel.app>
+Deploy to your own Vercel project (set `NEXT_PUBLIC_SERVER_URL` to the public
+URL of that deployment so webhook registration and OG metadata use it):
 
 ```bash
 vercel --prod

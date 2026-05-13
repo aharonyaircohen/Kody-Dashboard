@@ -12,9 +12,9 @@
 
 import { test, expect, type Page } from "@playwright/test";
 
-// Chromium auto-upgrades localhost → HTTPS, so default to the production URL.
-// Override with BASE_URL env var for local testing once HTTPS is supported.
-const BASE_URL = process.env.BASE_URL ?? "https://kody-dashboard-sable.vercel.app";
+// Set BASE_URL env var to point at a deployed dashboard (Chromium auto-upgrades
+// localhost → HTTPS, so the localhost default only works once HTTPS is supported).
+const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "https://github.com/aharonyaircohen/Kody-Dashboard";
 

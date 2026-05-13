@@ -12,7 +12,7 @@
 
 import { test, expect, type Page } from "@playwright/test"
 
-const BASE_URL = process.env.BASE_URL ?? "https://kody-dashboard-sable.vercel.app"
+const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333"
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "ghp_placeholder"
 const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "https://github.com/test-owner/test-repo"
 

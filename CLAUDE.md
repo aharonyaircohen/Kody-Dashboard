@@ -121,9 +121,9 @@ events back to `/api/kody/events/ingest` (real-time), and commits them to
 
 ## Deployment
 
-### Production URL
-
-https://kody-aguy.vercel.app
+The production URL is whatever your Vercel project resolves to — set
+`NEXT_PUBLIC_SERVER_URL` to that value so webhook registration and OG
+metadata point at it instead of latching onto a preview URL.
 
 ### Vercel CLI
 

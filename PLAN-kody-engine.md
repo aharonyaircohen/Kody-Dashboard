@@ -72,7 +72,7 @@ A generic, event-driven system that enables human-in-the-loop CI/CD workflows. K
 
 Environment variable:
 ```bash
-KODY_DASHBOARD_ENDPOINTS="production:https://kody-aguy.vercel.app,preview:...,development:http://localhost:3333"
+KODY_DASHBOARD_ENDPOINTS="production:https://your-app.example.com,preview:...,development:http://localhost:3333"
 ```
 
 Config file (`hooks.config.ts`):
