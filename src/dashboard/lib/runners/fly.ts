@@ -102,17 +102,18 @@ export async function spawnRunner(
   const region = DEFAULT_REGION
   const image = DEFAULT_IMAGE
 
-  // shared-cpu-2x with 2GB. With the runner pre-warming LiteLLM in
-  // parallel with the git clone (entrypoint.sh), neither phase is
-  // CPU-bound long enough to need dedicated CPUs. Shared cuts cost
-  // without measurable wall-time impact at this scale.
+  // performance-1x with 2GB. Boot is no longer CPU-bound (clone +
+  // LiteLLM run in parallel), but vibe coding sessions run pnpm install
+  // / tsc / biome / pnpm test inside the engine's tool calls — those
+  // workloads ARE CPU-bound and benefit a lot from dedicated cores.
+  // 1 dedicated CPU is the sweet spot vs cost (~$0.05/30-min session).
   const body = {
     config: {
       image,
       env: buildMachineEnv(input),
       auto_destroy: true,
       restart: { policy: 'no' },
-      guest: { cpu_kind: 'shared', cpus: 2, memory_mb: 2048 },
+      guest: { cpu_kind: 'performance', cpus: 1, memory_mb: 2048 },
     },
     region,
   }
