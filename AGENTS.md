@@ -46,4 +46,4 @@ src/dashboard/
 |----------|---------|
 | `KODY_MASTER_KEY` | Single master secret — vault AES, session JWT, ingest HMAC. |
 | `GITHUB_TOKEN` / `KODY_BOT_TOKEN` | GitHub API access for server-side flows. |
-| `KODY_PUBLIC_SERVER_URL` | Public URL for redirects (dev only). |
+| `NEXT_PUBLIC_SERVER_URL` | Public URL for redirects/callbacks (set in dev; in prod, Vercel headers are used). |

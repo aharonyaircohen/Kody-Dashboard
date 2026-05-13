@@ -1,8 +1,6 @@
 import type { NextRequest } from "next/server";
 
 export function getPublicBaseUrl(req?: NextRequest): string {
-  if (process.env.KODY_PUBLIC_SERVER_URL)
-    return process.env.KODY_PUBLIC_SERVER_URL.trim();
   if (process.env.NEXT_PUBLIC_SERVER_URL)
     return process.env.NEXT_PUBLIC_SERVER_URL.trim();
 
