@@ -166,10 +166,80 @@ export function createGitHubTools(ctx: Ctx) {
       },
     }),
 
+    github_list_tree: tool({
+      description:
+        `List files and directories in ${owner}/${repo}. Use this when the user ` +
+        'asks "what files are in this repo", "list the contents", or you need to ' +
+        'discover the layout before reading specific files. Works on freshly-' +
+        "connected repos where github_search_code hasn't been indexed yet. " +
+        'Returns up to 1000 entries from the recursive git tree.',
+      inputSchema: z.object({
+        path: z
+          .string()
+          .optional()
+          .describe(
+            'Optional path prefix filter (e.g. "src/dashboard"). Empty / omitted = full repo tree.',
+          ),
+        ref: z
+          .string()
+          .optional()
+          .describe('Branch / tag / commit SHA. Defaults to the repo default branch.'),
+      }),
+      execute: async ({ path, ref }) => {
+        try {
+          // Resolve the ref to a commit SHA so we can ask the git API for
+          // its tree. Octokit's getTree wants a tree SHA — using the
+          // branch ref directly works for top-level refs, but commit SHAs
+          // and tag SHAs need an extra hop. Easiest: resolve via getCommit.
+          let treeSha: string
+          if (ref) {
+            const refData = await octokit.rest.repos.getCommit({ owner, repo, ref })
+            treeSha = refData.data.commit.tree.sha
+          } else {
+            const repoData = await octokit.rest.repos.get({ owner, repo })
+            const branch = repoData.data.default_branch
+            const branchData = await octokit.rest.repos.getBranch({
+              owner,
+              repo,
+              branch,
+            })
+            treeSha = branchData.data.commit.commit.tree.sha
+          }
+          const tree = await octokit.rest.git.getTree({
+            owner,
+            repo,
+            tree_sha: treeSha,
+            recursive: 'true',
+          })
+          const prefix = path?.trim().replace(/^\/+|\/+$/g, '') ?? ''
+          const allEntries = tree.data.tree
+          const filtered = prefix
+            ? allEntries.filter((e) => e.path?.startsWith(`${prefix}/`) || e.path === prefix)
+            : allEntries
+          const capped = filtered.slice(0, 1000)
+          return {
+            path: prefix || '/',
+            ref: ref ?? 'default',
+            truncated: Boolean(tree.data.truncated) || filtered.length > capped.length,
+            totalEntries: filtered.length,
+            entries: capped.map((e) => ({
+              path: e.path,
+              type: e.type,
+              size: e.size,
+            })),
+          }
+        } catch (err) {
+          logger.warn({ err, owner, repo, path, ref }, 'github_list_tree failed')
+          return { error: err instanceof Error ? err.message : 'Failed to list tree' }
+        }
+      },
+    }),
+
     github_get_file: tool({
       description:
         `Read a file from ${owner}/${repo} at a given path and ref (branch, tag, ` +
-        'or SHA — defaults to the default branch). Returns decoded text up to 30 KB.',
+        'or SHA — defaults to the default branch). Returns decoded text up to 30 KB. ' +
+        'If you need to list contents instead of read a single file, use github_list_tree.',
       inputSchema: z.object({
         path: z.string().min(1).describe('Path to the file in the repo'),
         ref: z
