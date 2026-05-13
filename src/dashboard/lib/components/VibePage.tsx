@@ -217,8 +217,45 @@ export function VibePage() {
   // user lands there and sees the transferred conversation. We also kick
   // a task-list refetch so the issue appears in the sidebar without
   // waiting for the poll interval.
+  //
+  // OPTIMISTIC INSERT — without this, `selectedTask` stays null until the
+  // tasks query refetches AND the server-side ETag cache invalidates,
+  // which can take 30+ seconds on a cold path. While `selectedTask` is
+  // null, the chat scope falls back to 'global' and the kickoff
+  // useEffect (which gates on context.kind === 'task' matching the new
+  // issue) never fires — workflow_dispatch lands on the previously-
+  // viewed issue's sessionId and the new PR stays empty.
+  //
+  // We insert a synthetic minimal KodyTask into every active tasks
+  // query immediately so selectedTask resolves on the next render.
+  // The next real fetch replaces the synthetic record with the real
+  // one (same id, so React Query dedupes cleanly).
   useEffect(() => {
     setOnIssueCreated((issueNumber: number) => {
+      const synthetic: KodyTask = {
+        id: String(issueNumber),
+        issueNumber,
+        title: '(new — loading)',
+        body: '',
+        state: 'open',
+        labels: [],
+        column: 'open',
+        kodyPhase: null,
+        kodyFlow: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      // Update every cached tasks query — the key has variant suffixes
+      // for days+includeDetails, so we match by prefix instead of by
+      // exact key shape.
+      queryClient.setQueriesData<KodyTask[]>(
+        { queryKey: ['kody-tasks'] },
+        (prev) => {
+          if (!Array.isArray(prev)) return prev
+          if (prev.some((t) => t.issueNumber === issueNumber)) return prev
+          return [synthetic, ...prev]
+        },
+      )
       queryClient.invalidateQueries({ queryKey: ['kody-tasks'] })
       setSelectedIssueNumber(issueNumber)
     })
