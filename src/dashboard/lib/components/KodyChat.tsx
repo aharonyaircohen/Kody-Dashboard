@@ -614,6 +614,14 @@ export function KodyChat({
   const kodyAbortRef = useRef<AbortController | null>(null)
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT
   const agentList = buildAgentList(brainConfigured, flyConfigured, chatModels)
+  // Vibe auto-kickoff. When `vibe_start_execution` returns a
+  // SwitchAgentDirective with `autoKickoff`, the dashboard records the
+  // message here so a useEffect can dispatch it *after* the agent flip
+  // AND the task-scope resolution have both landed. Sending earlier
+  // would either go to the wrong agent or miss `taskContext` (which
+  // changes the vibe primer the engine sees), and the runner would
+  // either idle or open a second issue — exactly the empty-PR symptom.
+  const [pendingKickoff, setPendingKickoff] = useState<string | null>(null)
   // What to show in the header — when a gateway model is active, prefer
   // its label over the static `kody` agent name.
   const currentEntry =
@@ -2396,6 +2404,13 @@ export function KodyChat({
             if (voiceMode && targetBackend !== 'kody-direct') {
               setVoiceOverlayOpen(false)
             }
+            // Defer the kickoff dispatch to a useEffect so we can wait
+            // for the new agent + task scope to settle before sending.
+            // See the comment on `pendingKickoff` near the top of the
+            // component for why both must align first.
+            if (target.autoKickoff && target.autoKickoff.trim().length > 0) {
+              setPendingKickoff(target.autoKickoff)
+            }
           }
           // Planner mode: a Pass 2 turn typically creates one or more issues
           // via `create_task_for_goal`. We can't observe per-tool results
@@ -2745,6 +2760,26 @@ export function KodyChat({
     currentPlannerMessages.length,
     sendText,
   ])
+
+  // Vibe auto-kickoff. `vibe_start_execution` returns a SwitchAgentDirective
+  // with `autoKickoff` set; the switch handler stashes that string in
+  // `pendingKickoff`. We wait here for the new runner agent AND the new
+  // task scope to both land before firing — without either, the runner
+  // gets the wrong primer (FRESH instead of FOLLOW-UP) and either idles or
+  // opens a second issue. Once everything aligns, we dispatch the kickoff
+  // and clear the pending state so it can't re-trigger.
+  useEffect(() => {
+    if (!pendingKickoff) return
+    const isRunner =
+      selectedAgentId === 'kody-live' || selectedAgentId === 'kody-live-fly'
+    if (!isRunner) return
+    if (context?.kind !== 'task') return
+    const kickoff = pendingKickoff
+    setPendingKickoff(null)
+    void Promise.resolve().then(() => {
+      void sendText(kickoff)
+    })
+  }, [pendingKickoff, selectedAgentId, context, sendText])
 
   // Kody Live: warm-up the long-lived runner. Wires the dispatch + SSE
   // for an interactive session. Chat input stays disabled until the runner

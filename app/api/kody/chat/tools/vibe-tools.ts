@@ -170,13 +170,29 @@ export function createVibeTools(ctx: Ctx) {
           // any tool output matches the SwitchAgentDirective shape. Embedding
           // it here means the model can't skip the hand-off (it kept
           // narrating "handed off" without actually calling switch_agent).
+          //
+          // `autoKickoff` is the user-message the dashboard will auto-send
+          // to the runner immediately after the switch. Without it the
+          // runner sits idle (the agent flips, but nothing tells the
+          // runner to start), and the draft PR stays empty — exactly the
+          // "everything succeeds, PR has no changes" symptom. The vibe
+          // primer (server-only, see src/dashboard/lib/vibe/primer.ts)
+          // gets prepended to this content automatically by the
+          // /interactive/append route, so the runner sees the full
+          // follow-up instructions plus this explicit ship signal.
           const agentName =
             targetAgent === 'kody-live-fly' ? 'Kody Live (Fly)' : 'Kody Live'
+          const autoKickoff =
+            `Implement issue #${issueNumber} now. The plan was approved in the ` +
+            'previous chat — do not ask for confirmation again, just read the issue ' +
+            'body, make the file edits it describes, commit with a clear message, ' +
+            'push to the existing vibe branch, and reply with the commit SHA.'
           const switchDirective = {
             action: SWITCH_AGENT_DIRECTIVE,
             agentId: targetAgent,
             agentName,
             reason: `Vibe execution started — handing off to ${agentName} runner.`,
+            autoKickoff,
           }
 
           if (existingPrs.length > 0) {
