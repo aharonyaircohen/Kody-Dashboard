@@ -616,12 +616,17 @@ export function KodyChat({
   const agentList = buildAgentList(brainConfigured, flyConfigured, chatModels)
   // Vibe auto-kickoff. When `vibe_start_execution` returns a
   // SwitchAgentDirective with `autoKickoff`, the dashboard records the
-  // message here so a useEffect can dispatch it *after* the agent flip
-  // AND the task-scope resolution have both landed. Sending earlier
-  // would either go to the wrong agent or miss `taskContext` (which
-  // changes the vibe primer the engine sees), and the runner would
-  // either idle or open a second issue — exactly the empty-PR symptom.
-  const [pendingKickoff, setPendingKickoff] = useState<string | null>(null)
+  // message + target issue number here so a useEffect can dispatch it
+  // *after* the agent flip AND `context.task.issueNumber` matches the
+  // target. Without the issue-number gate, the kickoff fires the moment
+  // context flips to any task scope — typically the previously-viewed
+  // issue, because the tasks query hasn't refetched yet — and the
+  // runner gets dispatched against the wrong sessionId (symptom seen
+  // in prod: workflow_dispatch logs show `vibe-<oldIssue>-...` and the
+  // new issue's PR stays empty).
+  const [pendingKickoff, setPendingKickoff] = useState<
+    { content: string; issueNumber: number | null } | null
+  >(null)
   // What to show in the header — when a gateway model is active, prefer
   // its label over the static `kody` agent name.
   const currentEntry =
@@ -2449,11 +2454,15 @@ export function KodyChat({
               setVoiceOverlayOpen(false)
             }
             // Defer the kickoff dispatch to a useEffect so we can wait
-            // for the new agent + task scope to settle before sending.
-            // See the comment on `pendingKickoff` near the top of the
-            // component for why both must align first.
+            // for the new agent + matching task scope to settle before
+            // sending. See the comment on `pendingKickoff` near the top
+            // of the component for why both must align first — and why
+            // the issue-number gate is load-bearing.
             if (target.autoKickoff && target.autoKickoff.trim().length > 0) {
-              setPendingKickoff(target.autoKickoff)
+              setPendingKickoff({
+                content: target.autoKickoff,
+                issueNumber: target.autoKickoffIssueNumber ?? null,
+              })
             }
           }
           // Planner mode: a Pass 2 turn typically creates one or more issues
@@ -2982,10 +2991,20 @@ export function KodyChat({
       selectedAgentId === 'kody-live' || selectedAgentId === 'kody-live-fly'
     if (!isRunner) return
     if (context?.kind !== 'task') return
-    const kickoff = pendingKickoff
+    // Issue-number gate. If the directive named a specific issue, only
+    // fire once the task scope resolves to THAT issue. Otherwise the
+    // kickoff goes out the moment we land on the previously-viewed task
+    // (cached in tasks query) before the new issue appears in the list.
+    if (
+      pendingKickoff.issueNumber !== null &&
+      context.task.issueNumber !== pendingKickoff.issueNumber
+    ) {
+      return
+    }
+    const kickoffContent = pendingKickoff.content
     setPendingKickoff(null)
     void Promise.resolve().then(() => {
-      void sendText(kickoff)
+      void sendText(kickoffContent)
     })
   }, [pendingKickoff, selectedAgentId, context, sendText])
 

@@ -258,6 +258,7 @@ test.describe('Vibe — chat transfer on issue create', () => {
             agentName: 'Kody Live',
             reason: 'Vibe execution started.',
             autoKickoff: 'Implement issue now.',
+            autoKickoffIssueNumber: NEW_ISSUE,
             branch: `${NEW_ISSUE}-update-landing-page-text`,
             prNumber: 12345,
             prUrl: `https://github.com/test-owner/test-repo/pull/12345`,

@@ -26,6 +26,15 @@ export interface SwitchAgentDirective {
    * waiting for the user to type something, and the draft PR stays empty.
    */
   autoKickoff?: string
+  /**
+   * Issue number the kickoff targets. The client gates the auto-kickoff
+   * useEffect on `context.task.issueNumber === autoKickoffIssueNumber`
+   * — without that gate, the kickoff fires the moment context flips to
+   * ANY task scope (typically the previously-viewed issue, because the
+   * tasks list hasn't refetched the NEW one yet), and the runner gets
+   * dispatched against the wrong sessionId.
+   */
+  autoKickoffIssueNumber?: number
 }
 
 export function isSwitchAgentDirective(value: unknown): value is SwitchAgentDirective {
@@ -37,6 +46,10 @@ export function isSwitchAgentDirective(value: unknown): value is SwitchAgentDire
     v.agentId !== 'kody-speech' &&
     typeof v.agentName === 'string' &&
     typeof v.reason === 'string' &&
-    (v.autoKickoff === undefined || typeof v.autoKickoff === 'string')
+    (v.autoKickoff === undefined || typeof v.autoKickoff === 'string') &&
+    (v.autoKickoffIssueNumber === undefined ||
+      (typeof v.autoKickoffIssueNumber === 'number' &&
+        Number.isInteger(v.autoKickoffIssueNumber) &&
+        v.autoKickoffIssueNumber > 0))
   )
 }
