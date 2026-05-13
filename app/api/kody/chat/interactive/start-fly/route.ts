@@ -162,6 +162,12 @@ export async function POST(req: NextRequest) {
       rawPerf === 'low' || rawPerf === 'medium' || rawPerf === 'high'
         ? rawPerf
         : undefined
+    // Optional always-on LiteLLM proxy. Default points at the kody-litellm
+    // Fly app over the private 6PN network; set FLY_LITELLM_URL="" to
+    // disable and fall back to per-session pre-warm.
+    const litellmUrl =
+      process.env.FLY_LITELLM_URL ?? 'http://kody-litellm.internal:4000'
+
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
       githubToken,
@@ -172,6 +178,7 @@ export async function POST(req: NextRequest) {
       allSecrets,
       flyToken,
       perfTier,
+      litellmUrl: litellmUrl || undefined,
     })
 
     logger.info(
