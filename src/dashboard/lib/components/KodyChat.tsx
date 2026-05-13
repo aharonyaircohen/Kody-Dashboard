@@ -2117,8 +2117,18 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                   | { type: 'text-delta'; delta: string }
                   | { type: 'reasoning-delta'; delta: string }
                   | { type: 'error'; errorText: string }
-                  | { type: 'tool-input-available'; toolCallId: string; toolName: string }
-                  | { type: 'tool-output-available'; toolCallId: string; output: unknown }
+                  | {
+                      type: 'tool-input-available'
+                      toolCallId: string
+                      toolName: string
+                      input?: unknown
+                    }
+                  | {
+                      type: 'tool-output-available'
+                      toolCallId: string
+                      output: unknown
+                    }
+                  | { type: 'tool-output-error'; toolCallId: string; errorText?: string }
                   | { type: string }
                 if (chunk.type === 'text-delta' && 'delta' in chunk) {
                   textBuf += chunk.delta
@@ -2138,6 +2148,45 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                   'toolName' in chunk
                 ) {
                   toolNameById.set(chunk.toolCallId, chunk.toolName)
+                  // Push a "running" tool-call chip onto the in-flight
+                  // assistant bubble so the user sees live progress as the
+                  // model works — same UX as the kody-live runner path.
+                  // Without this the chat looks idle while github_search_code
+                  // / fetch_url / etc. fire under the hood.
+                  const toolInput =
+                    'input' in chunk && chunk.input && typeof chunk.input === 'object'
+                      ? (chunk.input as Record<string, unknown>)
+                      : {}
+                  setMessages((prev) => {
+                    const copy = [...prev]
+                    let idx = copy.findIndex(
+                      (m) => m.role === 'assistant' && m.isLoading,
+                    )
+                    if (idx < 0) {
+                      copy.push({
+                        role: 'assistant',
+                        content: '',
+                        timestamp: new Date().toISOString(),
+                        isLoading: true,
+                        toolCalls: [],
+                      })
+                      idx = copy.length - 1
+                    }
+                    const existing = copy[idx].toolCalls ?? []
+                    copy[idx] = {
+                      ...copy[idx],
+                      toolCalls: [
+                        ...existing,
+                        {
+                          id: chunk.toolCallId,
+                          name: chunk.toolName,
+                          arguments: toolInput,
+                          status: 'running',
+                        },
+                      ],
+                    }
+                    return copy
+                  })
                 } else if (
                   chunk.type === 'tool-output-available' &&
                   'toolCallId' in chunk &&
@@ -2148,6 +2197,44 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                     // Defer the dispatch — see comment on pendingSwitchAgent.
                     pendingSwitchAgent = chunk.output
                   }
+                  // Flip the matching running chip to "success".
+                  setMessages((prev) => {
+                    const copy = [...prev]
+                    const idx = copy.findIndex(
+                      (m) => m.role === 'assistant' && m.isLoading,
+                    )
+                    if (idx < 0) return copy
+                    const existing = copy[idx].toolCalls ?? []
+                    const next = existing.map((tc) =>
+                      tc.id === chunk.toolCallId
+                        ? { ...tc, status: 'success' as const }
+                        : tc,
+                    )
+                    copy[idx] = { ...copy[idx], toolCalls: next }
+                    return copy
+                  })
+                } else if (
+                  chunk.type === 'tool-output-error' &&
+                  'toolCallId' in chunk
+                ) {
+                  // Flip the matching running chip to "error" so a failed
+                  // tool call is visible instead of staying stuck on
+                  // "running" forever.
+                  setMessages((prev) => {
+                    const copy = [...prev]
+                    const idx = copy.findIndex(
+                      (m) => m.role === 'assistant' && m.isLoading,
+                    )
+                    if (idx < 0) return copy
+                    const existing = copy[idx].toolCalls ?? []
+                    const next = existing.map((tc) =>
+                      tc.id === chunk.toolCallId
+                        ? { ...tc, status: 'error' as const }
+                        : tc,
+                    )
+                    copy[idx] = { ...copy[idx], toolCalls: next }
+                    return copy
+                  })
                 }
               } catch {
                 // Ignore malformed chunks rather than aborting the stream.

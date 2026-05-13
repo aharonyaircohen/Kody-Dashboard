@@ -597,10 +597,25 @@ export async function POST(req: NextRequest) {
       // task, so 10 silently truncates a 5-task plan after the first
       // create. Raise to 30 in planner mode so the full sweep can land.
       stopWhen: stepCountIs(goalPlannerActive ? 30 : 10),
-      // No provider-specific options today — each protocol's SDK uses
-      // its model defaults. If a particular model needs tuning,
-      // extend the LLM_MODELS schema with optional `providerOptions`
-      // JSON and merge it here.
+      // Per-provider thinking config so reasoning-delta chunks actually
+      // reach the client. Without this, `sendReasoning: true` below has
+      // nothing to stream and the chat looks idle until the final answer.
+      // Anthropic via the native SDK accepts extended-thinking under a
+      // stable provider-options key — wire it whenever the resolved model
+      // uses that protocol. The openai-compatible SDK has no comparable
+      // stable path for Gemini's `thinking_config`; for Gemini we lean on
+      // tool-call chips (now rendered in KodyChat) to surface progress.
+      // Voice mode (`kody-speech`) skips reasoning entirely — the speech
+      // prompt forbids reading anything other than the final answer.
+      ...(resolvedModel.protocol === "anthropic" && body.agentId !== "kody-speech"
+        ? {
+            providerOptions: {
+              anthropic: {
+                thinking: { type: "enabled", budgetTokens: 5000 },
+              },
+            },
+          }
+        : {}),
       // Per-tool tracing. `experimental_onToolCallStart` fires before the
       // tool's `execute` is invoked; `experimental_onToolCallFinish`
       // afterward with the SDK-measured `durationMs` and a success flag.
