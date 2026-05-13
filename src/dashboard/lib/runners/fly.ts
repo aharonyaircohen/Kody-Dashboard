@@ -60,6 +60,14 @@ export interface SpawnRunnerInput {
    * skips its own ~24s startup. Omit for the per-session pre-warm path.
    */
   litellmUrl?: string
+  /**
+   * GitHub issue number for agent (run-executable) mode. When set, the
+   * runner's entrypoint invokes `kody run --issue N` instead of bare
+   * `kody`. The engine's existing `--issue` path then routes to the
+   * `run` executable (branch → code → commit → PR). Used by Vibe's
+   * one-shot execution path; leave empty for chat-mode sessions.
+   */
+  issueNumber?: number
 }
 
 export type PerfTier = 'low' | 'medium' | 'high'
@@ -118,6 +126,9 @@ function buildMachineEnv(input: SpawnRunnerInput): Record<string, string> {
   if (input.idleExitMs) env.KODY_IDLE_EXIT_MS = String(input.idleExitMs)
   if (input.hardCapMs) env.KODY_HARD_CAP_MS = String(input.hardCapMs)
   if (input.litellmUrl) env.KODY_LITELLM_URL = input.litellmUrl
+  if (input.issueNumber && input.issueNumber > 0) {
+    env.ISSUE_NUMBER = String(input.issueNumber)
+  }
   if (input.allSecrets) {
     env.ALL_SECRETS = JSON.stringify(input.allSecrets)
   }
