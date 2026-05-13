@@ -172,25 +172,58 @@ export function createGitHubTools(ctx: Ctx) {
         'asks "what files are in this repo", "list the contents", or you need to ' +
         'discover the layout before reading specific files. Works on freshly-' +
         "connected repos where github_search_code hasn't been indexed yet. " +
-        'Returns up to 1000 entries from the recursive git tree.',
+        'Default = top-level entries only (like `ls`). Pass `recursive: true` to ' +
+        'get the full tree under `path`, capped at 1000 entries.',
       inputSchema: z.object({
         path: z
           .string()
           .optional()
           .describe(
-            'Optional path prefix filter (e.g. "src/dashboard"). Empty / omitted = full repo tree.',
+            'Optional path prefix. Empty / omitted = repo root. Example: "src/dashboard".',
+          ),
+        recursive: z
+          .boolean()
+          .optional()
+          .describe(
+            'If true, list every descendant under `path` (up to 1000). If false / omitted, ' +
+              'list only direct children (like `ls`). Prefer non-recursive first to map the ' +
+              'layout, then drill in.',
           ),
         ref: z
           .string()
           .optional()
           .describe('Branch / tag / commit SHA. Defaults to the repo default branch.'),
       }),
-      execute: async ({ path, ref }) => {
+      execute: async ({ path, recursive, ref }) => {
         try {
-          // Resolve the ref to a commit SHA so we can ask the git API for
-          // its tree. Octokit's getTree wants a tree SHA — using the
-          // branch ref directly works for top-level refs, but commit SHAs
-          // and tag SHAs need an extra hop. Easiest: resolve via getCommit.
+          // For non-recursive listings we can hit the contents API directly —
+          // one round trip, returns size/type per entry. For recursive ones
+          // we resolve the ref's tree SHA and walk the git tree.
+          const prefix = path?.trim().replace(/^\/+|\/+$/g, '') ?? ''
+
+          if (!recursive) {
+            const res = await octokit.rest.repos.getContent({
+              owner,
+              repo,
+              path: prefix,
+              ...(ref ? { ref } : {}),
+            })
+            if (!Array.isArray(res.data)) {
+              return { error: `Path "${prefix || '/'}" is a file, not a directory. Use github_get_file to read it.` }
+            }
+            return {
+              path: prefix || '/',
+              ref: ref ?? 'default',
+              recursive: false,
+              totalEntries: res.data.length,
+              entries: res.data.map((e) => ({
+                path: e.path,
+                type: e.type,
+                size: e.size,
+              })),
+            }
+          }
+
           let treeSha: string
           if (ref) {
             const refData = await octokit.rest.repos.getCommit({ owner, repo, ref })
@@ -211,7 +244,6 @@ export function createGitHubTools(ctx: Ctx) {
             tree_sha: treeSha,
             recursive: 'true',
           })
-          const prefix = path?.trim().replace(/^\/+|\/+$/g, '') ?? ''
           const allEntries = tree.data.tree
           const filtered = prefix
             ? allEntries.filter((e) => e.path?.startsWith(`${prefix}/`) || e.path === prefix)
@@ -220,6 +252,7 @@ export function createGitHubTools(ctx: Ctx) {
           return {
             path: prefix || '/',
             ref: ref ?? 'default',
+            recursive: true,
             truncated: Boolean(tree.data.truncated) || filtered.length > capped.length,
             totalEntries: filtered.length,
             entries: capped.map((e) => ({
@@ -229,7 +262,7 @@ export function createGitHubTools(ctx: Ctx) {
             })),
           }
         } catch (err) {
-          logger.warn({ err, owner, repo, path, ref }, 'github_list_tree failed')
+          logger.warn({ err, owner, repo, path, recursive, ref }, 'github_list_tree failed')
           return { error: err instanceof Error ? err.message : 'Failed to list tree' }
         }
       },
