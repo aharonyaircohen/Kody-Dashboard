@@ -427,11 +427,12 @@ test.describe('Vibe — chat transfer on issue create', () => {
     await trigger.click()
     const listbox = page.getByRole('listbox')
     await listbox.waitFor({ state: 'visible', timeout: 5_000 })
-    await listbox.getByRole('option').first().click()
+    await listbox.getByRole('option', { name: /Gemini 2\.5 Pro/ }).click()
 
     const input = page
       .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
       .first()
+    await input.waitFor({ state: 'visible', timeout: 10_000 })
     await input.fill('shape test')
     await input.press('Enter')
 
