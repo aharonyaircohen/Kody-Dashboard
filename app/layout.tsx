@@ -25,7 +25,7 @@ const assistant = Assistant({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.KODY_PUBLIC_SERVER_URL || 'https://www.dev.aguy.co.il'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SERVER_URL?.trim() || 'http://localhost:3333'),
   title: {
     default: 'Kody Operations Dashboard',
     template: '%s | Kody Operations',

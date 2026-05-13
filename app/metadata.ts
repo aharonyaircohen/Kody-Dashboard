@@ -9,7 +9,7 @@ import { fetchIssue } from "@dashboard/lib/github-client";
 
 const SITE_NAME = "Kody Operations Dashboard";
 const BASE_URL =
-  process.env.KODY_PUBLIC_SERVER_URL || "https://www.dev.aguy.co.il";
+  process.env.NEXT_PUBLIC_SERVER_URL?.trim() || "http://localhost:3333";
 const DEFAULT_IMAGE = `${BASE_URL}/website-template-OG.webp`;
 
 /** Build base metadata with OG + Twitter tags for static kody pages */
