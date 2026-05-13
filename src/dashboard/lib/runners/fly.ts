@@ -53,6 +53,13 @@ export interface SpawnRunnerInput {
    * shape (see PERF_GUEST). Omit to use the default ("medium").
    */
   perfTier?: PerfTier
+  /**
+   * Optional always-on LiteLLM proxy URL (e.g. http://kody-litellm.internal:4000).
+   * When set, the runner's entrypoint forwards localhost:4000 to this URL via
+   * socat — the engine's existing health check then reuses the live proxy and
+   * skips its own ~24s startup. Omit for the per-session pre-warm path.
+   */
+  litellmUrl?: string
 }
 
 export type PerfTier = 'low' | 'medium' | 'high'
@@ -110,6 +117,7 @@ function buildMachineEnv(input: SpawnRunnerInput): Record<string, string> {
   if (input.dashboardUrl) env.DASHBOARD_URL = input.dashboardUrl
   if (input.idleExitMs) env.KODY_IDLE_EXIT_MS = String(input.idleExitMs)
   if (input.hardCapMs) env.KODY_HARD_CAP_MS = String(input.hardCapMs)
+  if (input.litellmUrl) env.KODY_LITELLM_URL = input.litellmUrl
   if (input.allSecrets) {
     env.ALL_SECRETS = JSON.stringify(input.allSecrets)
   }
