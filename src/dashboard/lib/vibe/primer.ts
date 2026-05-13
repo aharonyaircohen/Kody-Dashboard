@@ -55,7 +55,7 @@ const VIBE_PRIMER_FRESH = [
   '2. Create a new GitHub issue with the plan as the body using `gh issue create --title "…" --body "…"`. Title is a short imperative. Body is the plan: goal, files to touch, approach, risks, test plan.',
   '3. Reply to me with: a one-line summary of the plan, the new issue link, and an explicit question asking me to confirm before you implement.',
   '4. Do NOT start editing files until I confirm.',
-  '5. On my confirmation, create a fresh branch named `kody/vibe-<issue-number>-<short-slug>`, make the edits, commit, push the branch, and open a PR whose body includes `Closes #<issue-number>` so the dashboard can link the PR back to the issue.',
+  '5. On my confirmation, create a fresh branch using the engine convention `<issue-number>-<short-slug>` (flat, no type prefix, no slash — see kody2/src/branch.ts `deriveBranchName`), make the edits, commit, push the branch, and open a PR whose body includes `Closes #<issue-number>` so the dashboard can link the PR back to the issue.',
   '6. If I push back on the plan, revise the issue body and re-ask for confirmation — do not implement until I say yes.',
   '',
   VIBE_COMMIT_RULE,
