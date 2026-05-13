@@ -115,12 +115,20 @@ function authHeaders(): Record<string, string> {
 }
 
 /**
- * Phase label for the Kody Live boot banner. Times are derived from the
- * live test (run 25437723431): queue ~10s, runner setup + checkout ~25s,
- * npx install + LiteLLM pip ~50s, model warm-up ~80s, ready by ~90s.
- * Estimates only — no GitHub API call.
+ * Phase label for the Kody Live boot banner. Two timelines because the
+ * two backends are wildly different — kody-live boots through GitHub
+ * Actions (~90s, dominated by runner provisioning + npx install), while
+ * kody-live-fly boots a Fly Machine (~45-60s, dominated by image pull
+ * + repo clone + LiteLLM startup, with the last two running in parallel
+ * via the runner entrypoint). Estimates only — no API calls.
  */
-function bootPhaseLabel(elapsed: number): string {
+function bootPhaseLabel(elapsed: number, runtime: 'gh' | 'fly'): string {
+  if (runtime === 'fly') {
+    if (elapsed < 12) return 'Spawning Fly machine'
+    if (elapsed < 35) return 'Cloning repo & warming model proxy'
+    if (elapsed < 50) return 'Starting engine'
+    return 'Almost ready...'
+  }
   if (elapsed < 10) return 'Queueing workflow run'
   if (elapsed < 25) return 'Setting up GitHub Actions runner'
   if (elapsed < 50) return 'Installing Kody engine'
@@ -2729,9 +2737,11 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
   // Generate placeholder based on mode
   const placeholder = isKodyLive
     ? interactiveState === 'idle' || interactiveState === 'ended'
-      ? 'Type a message to start the runner — or hit Start to warm it up first.'
+      ? 'Click Start to warm up the runner.'
       : interactiveState === 'booting'
-        ? 'Booting runner — type ahead, your message will be queued.'
+        ? selectedAgentId === 'kody-live-fly'
+          ? 'Booting runner — ~45-60s on Fly...'
+          : 'Booting runner — ~90s on GitHub Actions...'
         : 'Ask Kody (live runner)...'
     : isKodyWaiting
       ? `Give Kody instructions...`
@@ -3360,7 +3370,10 @@ export function KodyChat({ context, actorLogin, onClose, lockedAgentId, vibeMode
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-yellow-500" />
                     <span>
-                      {bootPhaseLabel(bootElapsed)} · {formatElapsed(bootElapsed)} elapsed
+                      {bootPhaseLabel(
+                        bootElapsed,
+                        selectedAgentId === 'kody-live-fly' ? 'fly' : 'gh',
+                      )} · {formatElapsed(bootElapsed)} elapsed
                     </span>
                   </div>
                   {interactiveTarget ? (
