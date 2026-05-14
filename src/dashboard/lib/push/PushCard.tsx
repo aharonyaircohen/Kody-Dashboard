@@ -13,7 +13,8 @@
  *   and push isn't already on/denied. See `useAutoEnablePush`.
  */
 import { useState } from "react"
-import { Smartphone } from "lucide-react"
+import Link from "next/link"
+import { Smartphone, BookOpen } from "lucide-react"
 import { Card, CardContent } from "@dashboard/ui/card"
 import { Button } from "@dashboard/ui/button"
 import { usePushSubscription } from "./usePushSubscription"
@@ -144,11 +145,20 @@ export function PushCard() {
   return (
     <Card className="border-white/[0.08] bg-white/[0.02]">
       <CardContent className="p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <Smartphone className="w-4 h-4 text-emerald-400" />
-          <h3 className="text-sm font-semibold">
-            Push notifications (this device)
-          </h3>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Smartphone className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-sm font-semibold">
+              Push notifications (this device)
+            </h3>
+          </div>
+          <Link
+            href="/notifications/push-docs"
+            className="inline-flex items-center gap-1 text-[11px] text-white/50 hover:text-white"
+          >
+            <BookOpen className="w-3 h-3" />
+            Docs
+          </Link>
         </div>
         {renderState()}
         {error && (
