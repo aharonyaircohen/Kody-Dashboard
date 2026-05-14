@@ -76,6 +76,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
 import { TaskList } from './TaskList'
 import { GoalDiscussion } from './GoalDiscussion'
+import { GoalAssigneePicker } from './GoalAssigneePicker'
 import { KodyChat } from './KodyChat'
 
 interface GoalProgress {
@@ -344,6 +345,7 @@ function GoalDetail({
   // ephemeral planner messages on this. New id each open = fresh thread.
   const [plannerSessionId, setPlannerSessionId] = useState<string | null>(null)
   const { githubUser } = useGitHubIdentity()
+  const assigneeMutation = useUpdateGoal(goal.id, githubUser?.login)
   const pct = progress.total > 0 ? (progress.done / progress.total) * 100 : 0
   const inProgressTasks = progress.tasks.filter(
     (t) => !(t.state === 'closed' || t.column === 'done'),
@@ -389,6 +391,15 @@ function GoalDetail({
                     </span>
                   </>
                 ) : null}
+                <span>·</span>
+                <GoalAssigneePicker
+                  variant="compact"
+                  value={goal.assignee ?? null}
+                  pending={assigneeMutation.isPending}
+                  onChange={(login) =>
+                    assigneeMutation.mutate({ assignee: login })
+                  }
+                />
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -861,12 +872,14 @@ export function CreateGoalDialog({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [assignee, setAssignee] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       setName(initial?.name ?? '')
       setDescription(initial?.description ?? '')
       setDueDate(initial?.dueDate ?? '')
+      setAssignee(null)
     }
   }, [open, initial?.name, initial?.description, initial?.dueDate])
 
@@ -877,6 +890,7 @@ export function CreateGoalDialog({
         name: name.trim(),
         description: description.trim() || undefined,
         dueDate: dueDate.trim() || undefined,
+        assignee: assignee?.trim() || undefined,
       },
       {
         onSuccess: (goal) => onCreated(goal),
@@ -913,6 +927,10 @@ export function CreateGoalDialog({
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Owner (optional)</Label>
+            <GoalAssigneePicker value={assignee} onChange={setAssignee} />
           </div>
           <div className="space-y-1.5">
             <Label>Description (optional)</Label>
@@ -952,11 +970,13 @@ export function EditGoalDialog({
   const [name, setName] = useState(goal.name)
   const [description, setDescription] = useState(goal.description ?? '')
   const [dueDate, setDueDate] = useState(goal.dueDate ?? '')
+  const [assignee, setAssignee] = useState<string | null>(goal.assignee ?? null)
 
   useEffect(() => {
     setName(goal.name)
     setDescription(goal.description ?? '')
     setDueDate(goal.dueDate ?? '')
+    setAssignee(goal.assignee ?? null)
   }, [goal])
 
   const handleSubmit = () => {
@@ -965,6 +985,7 @@ export function EditGoalDialog({
       name?: string
       description?: string | null
       dueDate?: string | null
+      assignee?: string | null
     } = {}
     if (name.trim() !== goal.name) patch.name = name.trim()
     if ((description ?? '') !== (goal.description ?? '')) {
@@ -972,6 +993,9 @@ export function EditGoalDialog({
     }
     if ((dueDate ?? '') !== (goal.dueDate ?? '')) {
       patch.dueDate = dueDate.trim() ? dueDate.trim() : null
+    }
+    if ((assignee ?? null) !== (goal.assignee ?? null)) {
+      patch.assignee = assignee && assignee.trim() ? assignee.trim() : null
     }
     if (Object.keys(patch).length === 0) {
       onSaved()
@@ -1008,6 +1032,10 @@ export function EditGoalDialog({
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Owner</Label>
+            <GoalAssigneePicker value={assignee} onChange={setAssignee} />
           </div>
           <div className="space-y-1.5">
             <Label>Description</Label>

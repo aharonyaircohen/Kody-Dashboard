@@ -49,6 +49,7 @@ const patchGoalSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   description: z.string().max(2000).optional().nullable(),
   dueDate: z.string().optional().nullable(),
+  assignee: z.string().max(120).optional().nullable(),
   actorLogin: z.string().optional(),
 })
 
@@ -98,6 +99,12 @@ export async function PATCH(
               : patch.dueDate === undefined
                 ? cur.dueDate
                 : patch.dueDate.trim() || undefined,
+          assignee:
+            patch.assignee === null
+              ? undefined
+              : patch.assignee === undefined
+                ? cur.assignee
+                : patch.assignee.trim() || undefined,
           updatedAt: new Date().toISOString(),
         }
         const nextGoals = [...current.goals]

@@ -119,7 +119,7 @@ export function useCreateGoal(actorLogin?: string) {
   return useMutation<
     Goal,
     Error,
-    { name: string; description?: string; dueDate?: string }
+    { name: string; description?: string; dueDate?: string; assignee?: string }
   >({
     mutationFn: (data) =>
       kodyApi.goals.create({
@@ -150,7 +150,12 @@ export function useUpdateGoal(id: string, actorLogin?: string) {
   return useMutation<
     Goal,
     Error,
-    { name?: string; description?: string | null; dueDate?: string | null }
+    {
+      name?: string
+      description?: string | null
+      dueDate?: string | null
+      assignee?: string | null
+    }
   >({
     mutationFn: (data) =>
       kodyApi.goals.update(id, {

@@ -976,6 +976,8 @@ export interface Goal {
   name: string;
   description?: string;
   dueDate?: string;
+  /** GitHub login of the single accountable owner. Optional. */
+  assignee?: string;
   createdAt: string;
   updatedAt?: string;
   discussionId?: string;
@@ -1093,6 +1095,7 @@ export const goalsApi = {
     name: string;
     description?: string;
     dueDate?: string;
+    assignee?: string;
     actorLogin?: string;
   }): Promise<Goal> => {
     const res = await fetch(`${API_BASE}/goals`, {
@@ -1110,6 +1113,7 @@ export const goalsApi = {
       name?: string;
       description?: string | null;
       dueDate?: string | null;
+      assignee?: string | null;
       actorLogin?: string;
     },
   ): Promise<Goal> => {

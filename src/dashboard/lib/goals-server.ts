@@ -124,7 +124,8 @@ function manifestsEqual(a: GoalsManifest, b: GoalsManifest): boolean {
       ga.createdAt !== gb.createdAt ||
       (ga.updatedAt ?? null) !== (gb.updatedAt ?? null) ||
       (ga.discussionId ?? null) !== (gb.discussionId ?? null) ||
-      (ga.discussionNumber ?? null) !== (gb.discussionNumber ?? null)
+      (ga.discussionNumber ?? null) !== (gb.discussionNumber ?? null) ||
+      (ga.assignee ?? null) !== (gb.assignee ?? null)
     ) {
       return false
     }

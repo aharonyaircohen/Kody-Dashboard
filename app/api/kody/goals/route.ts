@@ -133,6 +133,7 @@ const createGoalSchema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(2000).optional(),
   dueDate: z.string().optional(),
+  assignee: z.string().max(120).optional(),
   actorLogin: z.string().optional(),
 })
 
@@ -199,6 +200,7 @@ export async function POST(req: NextRequest) {
           name: parsed.name.trim(),
           description: parsed.description?.trim() || undefined,
           dueDate: parsed.dueDate?.trim() || undefined,
+          assignee: parsed.assignee?.trim() || undefined,
           createdAt: now,
           updatedAt: now,
           discussionId: discussionRef?.id,

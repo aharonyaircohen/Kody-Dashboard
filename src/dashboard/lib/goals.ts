@@ -32,6 +32,13 @@ export interface Goal {
   /** Numeric discussion number (for the github.com URL). */
   discussionNumber?: number
   /**
+   * GitHub login of the single accountable owner for this goal. Optional —
+   * goals can be unowned. Stored as a plain login string in the manifest JSON
+   * (no `assignees` array — accountability is intentionally single-user; tasks
+   * under the goal can still have their own multi-assignee lists).
+   */
+  assignee?: string
+  /**
    * @deprecated Umbrella-era field (engine ≤ 0.4.38). Stacked-PR engines
    * don't write this and the dashboard no longer hydrates it. Kept on the
    * type for one release so older API consumers don't break at compile time.
@@ -97,6 +104,10 @@ export function parseManifestBody(body: string | null | undefined): GoalsManifes
         discussionNumber:
           typeof (g as Goal).discussionNumber === 'number'
             ? (g as Goal).discussionNumber
+            : undefined,
+        assignee:
+          typeof (g as Goal).assignee === 'string' && (g as Goal).assignee!.trim()
+            ? (g as Goal).assignee!.trim()
             : undefined,
       }))
     return { version: 1, goals }
