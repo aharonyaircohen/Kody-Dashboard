@@ -25,6 +25,7 @@ import {
 import { readPushManifest, mutatePushManifest } from "../push-server";
 import type { PushSubscriptionRecord } from "../push";
 import { logger } from "../logger";
+import { deriveVapidKeys } from "./vapid-keys";
 
 // GitHub login: 1–39 chars, alphanumeric or single hyphens, not starting/
 // ending with hyphen. We also bound on word boundaries so emails and
@@ -153,13 +154,16 @@ function extractEvent(
 }
 
 function initVapid(): boolean {
-  const publicKey = process.env.VAPID_PUBLIC_KEY;
-  const privateKey = process.env.VAPID_PRIVATE_KEY;
-  if (!publicKey || !privateKey) return false;
-  const subject =
-    process.env.VAPID_SUBJECT?.trim() || "mailto:kody@example.com";
-  webpush.setVapidDetails(subject, publicKey, privateKey);
-  return true;
+  try {
+    const { publicKey, privateKey } = deriveVapidKeys();
+    webpush.setVapidDetails("mailto:kody@example.com", publicKey, privateKey);
+    return true;
+  } catch {
+    // Derivation only fails if KODY_MASTER_KEY isn't set — same hard
+    // dependency the vault has. Skip silently so a misconfigured server
+    // can't break webhook delivery.
+    return false;
+  }
 }
 
 function toSubscription(r: PushSubscriptionRecord): WebPushSubscription {
