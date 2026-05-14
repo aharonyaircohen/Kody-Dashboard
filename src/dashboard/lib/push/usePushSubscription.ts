@@ -52,6 +52,10 @@ interface UsePushSubscriptionResult {
   error: string | null
   enable: () => Promise<void>
   disable: () => Promise<void>
+  /** Send a one-shot push to *this* device only. Returns the server's
+   *  reported HTTP status from the push service (201 = accepted) or
+   *  throws. Used by the "Send test push" button. */
+  sendTest: () => Promise<number>
   busy: boolean
 }
 
@@ -222,5 +226,39 @@ export function usePushSubscription(
     }
   }, [])
 
-  return { status, error, enable, disable, busy }
+  const sendTest = useCallback(async (): Promise<number> => {
+    setError(null)
+    setBusy(true)
+    try {
+      if (!browserSupportsPush()) {
+        throw new Error("Browser doesn't support push")
+      }
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.getSubscription()
+      if (!sub) {
+        throw new Error("No active subscription — enable push first")
+      }
+      const res = await fetch("/api/push/test", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ endpoint: sub.endpoint }),
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => "")
+        throw new Error(
+          `test send failed: ${res.status} ${text.slice(0, 200)}`,
+        )
+      }
+      const data = (await res.json()) as { statusCode?: number }
+      return data.statusCode ?? res.status
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(msg)
+      throw err
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  return { status, error, enable, disable, sendTest, busy }
 }

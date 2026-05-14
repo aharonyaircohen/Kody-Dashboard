@@ -194,10 +194,21 @@ function buildPayload(
             ? "opened a PR"
             : "mentioned you";
   const who = ev.author ? `@${ev.author}` : "Someone";
-  const where = ev.title ? `: ${ev.title}` : "";
+  const where = ev.title ? ` on "${ev.title}"` : "";
+
+  // The body is what the user actually sees — so put the comment snippet
+  // first (that's the distinguishing content), then the repo/title context
+  // on the second line. Earlier we only showed the issue title, which made
+  // every notification on the same issue look identical.
+  const snippet = ev.body
+    .replace(/```[\s\S]*?```/g, "[code]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+
   return JSON.stringify({
-    title: `${who} mentioned you`,
-    body: `${ev.repoFullName} — ${kind}${where}`,
+    title: `${who} mentioned you${where}`,
+    body: snippet || `${ev.repoFullName} — ${kind}`,
     url: ev.url,
     tag: `mention:${mention}:${ev.url ?? ev.repoFullName}`,
   });

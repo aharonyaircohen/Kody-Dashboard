@@ -12,6 +12,7 @@
  *   page detects we're running as an installed PWA (display-mode: standalone)
  *   and push isn't already on/denied. See `useAutoEnablePush`.
  */
+import { useState } from "react"
 import { Smartphone } from "lucide-react"
 import { Card, CardContent } from "@dashboard/ui/card"
 import { Button } from "@dashboard/ui/button"
@@ -41,7 +42,18 @@ export function PushCard() {
   // No-ops on the desktop site / when already enabled / when denied.
   useAutoEnablePush(push)
 
-  const { status, error, enable, disable, busy } = push
+  const { status, error, enable, disable, sendTest, busy } = push
+  const [testMsg, setTestMsg] = useState<string | null>(null)
+
+  const onTest = async () => {
+    setTestMsg(null)
+    try {
+      const code = await sendTest()
+      setTestMsg(`Push service accepted (${code}). Should arrive within seconds.`)
+    } catch {
+      // sendTest already wrote to `error`; nothing else to do here.
+    }
+  }
 
   const renderState = () => {
     switch (status) {
@@ -104,14 +116,26 @@ export function PushCard() {
             <p className="text-sm text-emerald-300/90">
               Push is enabled on this device.
             </p>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void disable()}
-              disabled={busy}
-            >
-              {busy ? "Disabling…" : "Disable on this device"}
-            </Button>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                size="sm"
+                onClick={() => void onTest()}
+                disabled={busy}
+              >
+                {busy ? "Sending…" : "Send test push"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void disable()}
+                disabled={busy}
+              >
+                {busy ? "…" : "Disable on this device"}
+              </Button>
+            </div>
+            {testMsg && (
+              <p className="text-[12px] text-emerald-300/80">{testMsg}</p>
+            )}
           </div>
         )
     }
