@@ -13,7 +13,7 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
-import { Brain, Github, KeyRound, LogOut, Rocket, ShieldCheck } from "lucide-react"
+import { Bot, Brain, Cpu, Github, KeyRound, LogOut, MessageSquare, Rocket, ShieldCheck } from "lucide-react"
 import { Button } from "@dashboard/ui/button"
 import { Card, CardContent } from "@dashboard/ui/card"
 import { Input } from "@dashboard/ui/input"
@@ -420,6 +420,44 @@ export function SettingsManager() {
           headers={vaultHeaders()}
           flyTokenConfigured={Boolean(savedFlyToken)}
         />
+
+        {/* ─── Chat ───────────────────────────────────────────────────── */}
+        <Card className="border-white/[0.08] bg-white/[0.02]">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-indigo-300/80" />
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-white/50">
+                Chat
+              </h2>
+            </div>
+            <p className="text-xs text-white/45 leading-snug">
+              What shows up in the chat composer: which models you can pick, and
+              the slash-command prompts available with <code>/</code>.
+            </p>
+            <div className="grid gap-2">
+              <Button
+                asChild
+                variant="outline"
+                className="justify-start gap-2 bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
+              >
+                <Link href="/models">
+                  <Cpu className="w-4 h-4" />
+                  Chat models
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="justify-start gap-2 bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
+              >
+                <Link href="/prompts">
+                  <Bot className="w-4 h-4" />
+                  Slash-command prompts
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ─── Pointers to per-repo concerns ──────────────────────────── */}
         <Card className="border-white/[0.08] bg-white/[0.02]">
