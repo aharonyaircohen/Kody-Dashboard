@@ -186,20 +186,21 @@ before destructive operations.`,
     id: 'voice-modality',
     name: 'Voice Modality',
     summary:
-      'Speech-to-text input + text-to-speech output layered onto the regular Kody chat. Picks the kody-speech agent under the hood.',
+      'Speech-to-text input + text-to-speech output layered onto the regular Kody chat. Keeps whichever agent the user picked in the dropdown — only the reply shape changes.',
     details: `Voice is a modality, not a separate agent dropdown. Toggling the mic in
 KodyChat:
 
 - Streams mic audio to a speech-to-text provider, which transcribes utterances
   into chat messages.
-- Routes those messages to \`/api/kody/chat/kody\` with \`agentId: 'kody-speech'\`,
-  which uses the same in-process Gemini backend but a system prompt rewritten
-  for replies that will be read aloud.
+- Routes those messages to \`/api/kody/chat/kody\` with the user's selected
+  \`agentId\` plus \`voiceMode: true\`. The server appends a voice overlay
+  (no markdown, short sentences, symbols read aloud as words) to that agent's
+  system prompt — so the selected agent's brain and tools stay in charge,
+  only the output shape changes.
 - Streams the reply text to a text-to-speech provider that speaks it back.
 
-The Speech prompt forbids markdown, bullets, code fences, headings, and tables.
-Replies are short sentences, one idea per sentence, with symbols read aloud as
-words ("hash", "at", "dot", "slash").`,
+If a model in /models is flagged as the speech model, voice prefers it for
+latency. Otherwise voice uses whichever model is currently selected for chat.`,
   },
 ]
 

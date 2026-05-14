@@ -16,9 +16,9 @@ import {
   type SwitchAgentTargetId,
 } from '@dashboard/lib/chat-ui-actions'
 
-const SELECTABLE_AGENT_IDS = Object.values(AGENTS)
-  .filter((a) => a.id !== 'kody-speech')
-  .map((a) => a.id) as SwitchAgentTargetId[]
+const SELECTABLE_AGENT_IDS = Object.values(AGENTS).map(
+  (a) => a.id,
+) as SwitchAgentTargetId[]
 
 export const switchAgentTool = tool({
   description:
@@ -29,16 +29,16 @@ export const switchAgentTool = tool({
     'current turn — explain that to the user. For Kody Live specifically, the ' +
     'first message after the switch starts the live session (the runner boots ' +
     'on first message — there is no separate "start" action). When the call is ' +
-    'made from voice mode and the target agent is not voice-tuned (anything ' +
-    'except kody / kody-assistant), voice will close automatically; mention ' +
-    'that the user will need to type the next message.',
+    'made from voice mode and the target agent\'s backend is not the in-process ' +
+    'Gemini path (anything except kody / kody-assistant), voice will close ' +
+    'automatically; mention that the user will need to type the next message.',
   inputSchema: z.object({
     agentId: z
       .enum(SELECTABLE_AGENT_IDS as [string, ...string[]])
       .describe(
         'Target agent id. Valid: ' +
           SELECTABLE_AGENT_IDS.join(', ') +
-          '. "kody-speech" is not selectable — voice is a modality, not an agent.',
+          '. Voice is a modality (the mic icon), not an agent — every agent works in voice mode but only kody / kody-assistant currently keep the mic open after a switch.',
       ),
     reason: z
       .string()
@@ -51,8 +51,8 @@ export const switchAgentTool = tool({
   }),
   execute: async ({ agentId, reason }): Promise<SwitchAgentDirective | { error: string }> => {
     const target = AGENTS[agentId as AgentId]
-    if (!target || agentId === 'kody-speech') {
-      return { error: `Unknown or non-selectable agent id "${agentId}"` }
+    if (!target) {
+      return { error: `Unknown agent id "${agentId}"` }
     }
     return {
       action: SWITCH_AGENT_DIRECTIVE,

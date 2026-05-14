@@ -24,7 +24,14 @@ import { NextRequest, NextResponse } from "next/server"
 import { streamText, stepCountIs, type ModelMessage, type LanguageModel } from "ai"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
-import { AGENT_KODY, getAgent, isValidAgentId, type AgentId } from "@dashboard/lib/agents"
+import {
+  AGENT_KODY,
+  VOICE_OVERLAY_PROMPT,
+  getAgent,
+  isValidAgentId,
+  type AgentConfig,
+  type AgentId,
+} from "@dashboard/lib/agents"
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
 import { createUserOctokit, setGitHubContext, clearGitHubContext } from "@dashboard/lib/github-client"
 import { getSecret } from "@dashboard/lib/vault/get-secret"
@@ -311,10 +318,23 @@ export async function POST(req: NextRequest) {
     report?: { slug: string; title: string; body: string }
     /**
      * Which agent persona to use for the system prompt. Defaults to `kody`.
-     * Currently supported on this endpoint: `kody` (text) and `kody-speech`
-     * (voice-tuned). All other agent ids fall back to `kody`.
+     * Any agent whose backend is `kody-direct` is served natively here;
+     * agents whose backend is the engine, brain, or kody-live don't have
+     * their prompts proxied through this route, so the route falls back to
+     * `AGENT_KODY`'s prompt for those (the dashboard reaches this route in
+     * voice mode regardless of selected agent — voice is a modality, not a
+     * backend swap).
      */
     agentId?: AgentId
+    /**
+     * Voice modality. When true the server appends `VOICE_OVERLAY_PROMPT`
+     * to the resolved agent's base prompt (no markdown, short sentences,
+     * symbols read aloud as words), disables thinking/reasoning streaming,
+     * and prefers a model flagged `speech: true` in `LLM_MODELS` when the
+     * client hasn't pinned a model explicitly. The chosen agent's brain
+     * and tools stay in charge — only the output shape changes.
+     */
+    voiceMode?: boolean
     /**
      * Vibe mode. When true the chat is scoped to the selected vibe task and
      * the prompt flips to "you ARE the executor — drive Kody Live/Fly, open
@@ -339,10 +359,14 @@ export async function POST(req: NextRequest) {
   // Resolve the model from the user-managed list in .kody/variables.json.
   // The client can override per-request via `body.model`, but it must
   // match an enabled entry — we never trust arbitrary ids from the wire.
+  // In voice mode, fall through to a model flagged `speech: true` when no
+  // explicit override is set — that's the user's "use this faster model
+  // when the mic is on" knob.
   const availableModels = await loadChatModels(req)
+  const voiceMode = body.voiceMode === true
   const resolvedModel =
     pickModelById(availableModels, body.model) ??
-    (body.agentId === "kody-speech"
+    (voiceMode
       ? pickSpeechModel(availableModels) ?? pickDefaultModel(availableModels)
       : pickDefaultModel(availableModels))
   if (!resolvedModel) {
@@ -423,13 +447,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Pick the agent persona. Only `kody` and `kody-speech` route through
-  // this endpoint today; anything else falls back to AGENT_KODY so older
-  // clients keep working.
+  // Pick the agent persona. Agents whose backend is `kody-direct` are
+  // served natively here; the rest (engine, brain, kody-live) don't have
+  // a usable in-process prompt to swap in, so we fall back to AGENT_KODY
+  // for those. This matters for voice mode: the client routes voice
+  // turns through this endpoint regardless of the dropdown selection,
+  // and the user's choice of e.g. `brain` should still produce a
+  // working voice reply (Kody persona + voice overlay).
   const requestedAgentId =
     body.agentId && isValidAgentId(body.agentId) ? body.agentId : "kody"
-  const agent =
-    requestedAgentId === "kody-speech" ? getAgent("kody-speech") : AGENT_KODY
+  const requestedAgent: AgentConfig = getAgent(requestedAgentId)
+  const agent: AgentConfig =
+    requestedAgent.backend === "kody-direct" ? requestedAgent : AGENT_KODY
 
   const vibeMode = body.vibeMode === true
 
@@ -448,8 +477,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Voice modality is layered onto the agent's base prompt, not a separate
+  // agent. The overlay appends AFTER the base so its formatting rules
+  // (no markdown, short sentences, etc.) override anything the base
+  // prompt says about bullets/code fences. The agent's brain and tools
+  // are untouched — the user picks the brain in the dropdown.
+  const basePrompt = voiceMode
+    ? `${agent.systemPrompt}\n\n${VOICE_OVERLAY_PROMPT}`
+    : agent.systemPrompt
+
   const systemPrompt = buildSystemPrompt(
-    agent.systemPrompt,
+    basePrompt,
     repo ? { owner: repo.owner, repo: repo.repo } : null,
     body.task,
     {
@@ -631,9 +669,10 @@ export async function POST(req: NextRequest) {
       // uses that protocol. The openai-compatible SDK has no comparable
       // stable path for Gemini's `thinking_config`; for Gemini we lean on
       // tool-call chips (now rendered in KodyChat) to surface progress.
-      // Voice mode (`kody-speech`) skips reasoning entirely — the speech
-      // prompt forbids reading anything other than the final answer.
-      ...(resolvedModel.protocol === "anthropic" && body.agentId !== "kody-speech"
+      // Voice mode skips reasoning entirely — the voice overlay forbids
+      // reading anything other than the final answer, and the chat client
+      // also drops reasoning chunks defensively in this mode.
+      ...(resolvedModel.protocol === "anthropic" && !voiceMode
         ? {
             providerOptions: {
               anthropic: {

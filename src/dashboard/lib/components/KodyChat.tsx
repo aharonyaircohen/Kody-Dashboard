@@ -1976,11 +1976,16 @@ export function KodyChat({
     ): Promise<string | null> => {
       if (!messageContent.trim() && currentAttachments.length === 0) return null
 
-      // Voice mode forces the in-process Gemini path and the speech-tuned
-      // system prompt regardless of which agent is selected in the
-      // dropdown. The dropdown is a text-modality picker only.
+      // Voice mode is a MODALITY. It does NOT swap agents — the user's
+      // dropdown choice still drives the brain and tools. The server
+      // appends a TTS-friendly overlay to that agent's system prompt
+      // when we set `voiceMode: true` on the request. For agents whose
+      // backend isn't the in-process Gemini path (brain, kody-engine,
+      // kody-live), we still route through /api/kody/chat/kody for
+      // voice — the kody route falls back to AGENT_KODY for those and
+      // applies the overlay there.
       const voiceMode = options.voiceMode === true
-      const effectiveAgentId: AgentId = voiceMode ? 'kody-speech' : selectedAgentId
+      const effectiveAgentId: AgentId = selectedAgentId
 
       const timestamp = new Date().toISOString()
 
@@ -2388,6 +2393,11 @@ export function KodyChat({
               messages: kodyMessages,
               task: kodyTaskContext,
               agentId: effectiveAgentId,
+              // Voice modality flag. When true the server appends the
+              // voice overlay (no markdown, short sentences, etc.) to
+              // the selected agent's system prompt and prefers the
+              // speech-flagged model if no model is explicitly set.
+              ...(voiceMode ? { voiceMode: true } : {}),
               // Vibe flips the system prompt to "you ARE the executor" and
               // strips the @kody dispatch tools. Only meaningful when the
               // chat is hosted on /vibe; the dashboard rail leaves it off.
@@ -2509,9 +2519,9 @@ export function KodyChat({
                   // Voice mode never shows or speaks reasoning. Drop the
                   // chunks at the source so the bubble equals textBuf
                   // and TTS gets exactly what the user reads. Server-side
-                  // we also disable thinking for kody-speech, but the SDK
-                  // can occasionally leak a stray reasoning event — this
-                  // is the belt-and-suspenders guard.
+                  // we also disable thinking when voiceMode is set, but
+                  // the SDK can occasionally leak a stray reasoning event
+                  // — this is the belt-and-suspenders guard.
                   if (!voiceMode) reasoningBuf += chunk.delta
                 } else if (chunk.type === 'error' && 'errorText' in chunk) {
                   textBuf += `\n\n[Error] ${chunk.errorText}`
@@ -2702,11 +2712,12 @@ export function KodyChat({
           if (pendingSwitchAgent && isSwitchAgentDirective(pendingSwitchAgent)) {
             const target = pendingSwitchAgent
             setSelectedAgentId(target.agentId)
-            // If voice is active and the new agent isn't a voice-tunable
-            // kody-direct backend, close the overlay. Voice mode forces
-            // every message to kody-speech regardless of the dropdown
-            // (see sendText), so leaving voice open after switching to
-            // e.g. kody-live would silently keep routing to Gemini.
+            // If voice is active and the new agent isn't backed by the
+            // in-process Gemini path, close the overlay. The overlay is
+            // appended server-side on /api/kody/chat/kody only — engine
+            // and brain agents proxy to backends that don't honor the
+            // voice overlay, so leaving the mic open after a switch to
+            // them would speak markdown-heavy replies.
             const targetBackend = AGENTS[target.agentId]?.backend
             if (voiceMode && targetBackend !== 'kody-direct') {
               setVoiceOverlayOpen(false)
@@ -3396,9 +3407,9 @@ export function KodyChat({
 
   const handleVoiceSend = useCallback(
     async (transcript: string) => {
-      // Voice mode forces the kody-direct backend + `kody-speech` system
-      // prompt regardless of the dropdown selection. The user picks an
-      // agent for text; the mic always speaks via Gemini.
+      // Voice is a modality, not an agent. We keep the user's selected
+      // agent and just flip the voiceMode flag — the server appends the
+      // voice overlay onto that agent's system prompt.
       const response = await sendText(transcript, [], { voiceMode: true })
       if (response) voiceChatRef.current?.onResponseComplete(response)
     },

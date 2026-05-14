@@ -272,7 +272,7 @@ function ModelsManagerInner() {
                         {m.speech && (
                           <span
                             className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300"
-                            title="Used for voice (kody-speech)"
+                            title="Preferred model when voice mode is on"
                           >
                             <Mic className="w-3 h-3" />
                             Voice
@@ -534,7 +534,7 @@ function ModelEditor({
               }
             />
             <Mic className="w-3.5 h-3.5 text-white/40" />
-            Use for voice (kody-speech)
+            Use for voice mode
           </label>
 
           <button

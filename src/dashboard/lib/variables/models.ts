@@ -106,7 +106,7 @@ export const ChatModelSchema = z.object({
   apiKeySecret: z.string().min(1).max(128),
   /** Hide from dropdown without deleting. */
   enabled: z.boolean().optional().default(true),
-  /** Marks this entry as the kody-speech model. At most one. */
+  /** Marks this entry as the preferred model when voice mode is on. At most one. */
   speech: z.boolean().optional(),
   /** Marks this entry as the default selection when chat opens. At most
    * one. Beats Brain auto-default. */

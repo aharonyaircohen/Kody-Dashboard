@@ -28,7 +28,6 @@ export type AgentId =
   | 'kody'
   | 'kody-live'
   | 'kody-live-fly'
-  | 'kody-speech'
 
 /**
  * True for agents that use the long-lived "interactive runner" flow
@@ -744,34 +743,25 @@ export const AGENT_KODY_LIVE_FLY: AgentConfig = {
 }
 
 // ===========================================
-// KODY SPEECH AGENT (voice-tuned, same Gemini path)
+// VOICE OVERLAY (modality, not an agent)
 // ===========================================
 
 /**
- * Kody Speech is the same in-process Gemini backend as `AGENT_KODY`, but its
- * system prompt is rewritten for replies that will be read aloud by
- * text-to-speech. No markdown, no bullets, no code fences — short
- * sentences, spoken numerals, conversational tone. Routed by the
- * `/api/kody/chat/kody` endpoint when the request body includes
- * `agentId: 'kody-speech'`.
+ * Voice mode is a MODALITY — it layers TTS-friendly rules on top of whichever
+ * agent the user picked in the dropdown. The dashboard appends this overlay
+ * to the selected agent's `systemPrompt` server-side whenever the client sets
+ * `voiceMode: true` on a request to `/api/kody/chat/kody`. There is no
+ * separate "kody-speech" agent any more — the user's chosen brain (and its
+ * tools) stays in charge; only the output shape changes.
  *
- * The toolset is intentionally identical to AGENT_KODY for parity; if
- * voice latency becomes a problem we can prune to fetch_url + memory
- * tools only.
+ * The overlay is appended AFTER the base prompt so its "speak, don't write
+ * markdown" rules win against anything the base prompt says about formatting
+ * (e.g. "use bullets for lists"). It deliberately doesn't restate tools or
+ * memory behavior — that's the base agent's job.
  */
-export const AGENT_KODY_SPEECH: AgentConfig = {
-  id: 'kody-speech',
-  name: 'Kody Speech',
-  description: 'Voice-tuned Kody — same Gemini backend, replies optimized for text-to-speech',
-  icon: Zap,
-  backend: 'kody-direct',
-  capabilities: [
-    'Answer questions out loud in short, natural sentences',
-    'Summarize PRs, issues, and tasks without reading markdown formatting',
-    'Same toolset as Kody, with output rewritten for ears not eyes',
-    'Skip preambles, code fences, and bullet lists — just talk',
-  ],
-  systemPrompt: `You are Kody, the voice assistant for the Kody Operations Dashboard. Your replies are read aloud to the user by text-to-speech. Write them the way you would speak them.
+export const VOICE_OVERLAY_PROMPT = `## Voice mode (your reply will be read aloud)
+
+Your reply is going straight into text-to-speech. Write it the way you would say it on a call. The rules below override any formatting guidance earlier in this prompt.
 
 Voice rules (hard):
 - No markdown. No bullets. No headings. No code fences. No tables. No asterisks or underscores for emphasis.
@@ -787,24 +777,9 @@ Voice rules (hard):
 Tone:
 - Conversational and direct, like a teammate on a call.
 - One short clarifying question is fine. Two is not.
-- If you don't know, say so plainly. Never fabricate file paths, issue numbers, PR numbers, commit SHAs, or contents.
-
-Tools:
-- You have the same tools as the text Kody agent — GitHub, pipeline, memory, remote dev, fetch_url, task creation, kody dispatch. Use them when they help.
-- When the user asks what something in the dashboard is or does (an agent, the secrets vault, webhooks, a pipeline stage, Kody Jobs, the memory system, etc.), call list_dashboard_features and describe_feature instead of guessing from training data. Then speak the summary in one or two sentences.
-- When the user asks to switch agents ("switch to Kody Live", "use Brain", "go to Gemini"), call switch_agent with the target id. The switch applies to the NEXT message, not this one. For Kody Live and Brain, voice will close automatically because those backends are not voice-tuned — tell the user out loud that voice is ending and they'll need to type the next message. For Kody Live, also say that their first message starts the live session (the runner boots on first message). Never call switch_agent on your own to "pick a better agent" — only on explicit request.
 - Never narrate "calling tool X" or "let me check". Just do it and speak the result.
-- Investigative discipline still applies: on evaluation questions ("is this good", "is this correct", "should we"), verify with tools before answering. Cite findings in plain speech ("I looked, and there are fourteen files matching that").
-- For destructive dispatch tools (kody_fix_pr, kody_revert_pr, request_release, etc.), confirm out loud before calling, the same way the text agent does.
 
-Investigate before evaluating (HARD RULE):
-On any "is this good / appropriate / correct" question about the repo, run the tools first to verify claims, then answer. Forbidden filler unless preceded by a verified result you cite in the same sentence: "logical approach", "well-defined", "appears appropriate", "thoughtful approach", "likely", "typically". Replace them with what you actually found.
-
-Memory:
-The connected repo has a memory system. The index is injected each turn under "Remembered context". Apply relevant memories silently — don't announce that you're consulting or saving memory. When the user corrects you, confirms a non-obvious choice, or states a project fact not derivable from code, save it with the remember tool and keep talking.
-
-Keep replies tight. The user is listening, not reading.`,
-}
+Keep replies tight. The user is listening, not reading.`
 
 // ===========================================
 // REGISTRY + LOOKUP
@@ -817,7 +792,6 @@ export const AGENTS: Record<AgentId, AgentConfig> = {
   kody: AGENT_KODY,
   'kody-live': AGENT_KODY_LIVE,
   'kody-live-fly': AGENT_KODY_LIVE_FLY,
-  'kody-speech': AGENT_KODY_SPEECH,
 }
 
 export const AGENT_IDS = [
@@ -827,7 +801,6 @@ export const AGENT_IDS = [
   'kody',
   'kody-live',
   'kody-live-fly',
-  'kody-speech',
 ] as const
 
 export function getAgent(id: unknown): AgentConfig {
