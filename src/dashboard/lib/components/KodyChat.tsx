@@ -716,7 +716,13 @@ export function KodyChat({
   // and never remounts after Settings saves a Brain config — the dropdown
   // entry wouldn't appear until a full page reload.
   const { auth, loading: authLoading } = useAuth()
-  const brainConfigured = Boolean(auth?.brain?.url && auth?.brain?.apiKey)
+  const userBrainConfigured = Boolean(auth?.brain?.url && auth?.brain?.apiKey)
+  // The deployment may also have a server-wide Brain via
+  // `BRAIN_CHAT_URL` + `BRAIN_CHAT_API_KEY` env vars (see
+  // /api/kody/chat/brain/route.ts). The status probe tells the dropdown
+  // when to surface "Kody Brain" without per-user URL+key.
+  const [serverBrainConfigured, setServerBrainConfigured] = useState(false)
+  const brainConfigured = userBrainConfigured || serverBrainConfigured
   // Mirrors brainConfigured: true only when the per-repo vault holds a
   // non-empty FLY_API_TOKEN. The Fly dropdown row is hidden until then so
   // users can't pick a runner that will fail at start-fly time.
@@ -823,6 +829,36 @@ export function KodyChat({
       setSelectedModelId(null)
     }
   }, [brainConfigured, selectedAgentId, lockedAgentId])
+
+  // Probe for a server-wide Brain (BRAIN_CHAT_URL + BRAIN_CHAT_API_KEY env
+  // vars on the deployment). Lets the dropdown show "Kody Brain" even when
+  // the user has not set per-browser URL+key in Settings. Silent on errors.
+  useEffect(() => {
+    let cancelled = false
+    const headers = authHeaders()
+    if (Object.keys(headers).length === 0) {
+      setServerBrainConfigured(false)
+      return
+    }
+    fetch('/api/kody/chat/brain/status', { headers })
+      .then(async (res) => {
+        if (cancelled) return
+        if (!res.ok) {
+          setServerBrainConfigured(false)
+          return
+        }
+        const body = (await res.json().catch(() => ({}))) as {
+          serverConfigured?: boolean
+        }
+        setServerBrainConfigured(Boolean(body.serverConfigured))
+      })
+      .catch(() => {
+        if (!cancelled) setServerBrainConfigured(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Probe the per-repo vault for FLY_API_TOKEN so the dropdown can hide the
   // Fly row when no token is configured. Silent on any error — the row just
