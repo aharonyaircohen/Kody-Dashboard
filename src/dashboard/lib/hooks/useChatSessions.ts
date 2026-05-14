@@ -8,9 +8,30 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createEmptyGlobalStore } from '../chat-types'
 import type { ChatMessage, GlobalChatStore, SessionMeta } from '../chat-types'
 
-const STORAGE_KEY = 'kody-sessions-v3'
+const STORAGE_KEY_BASE = 'kody-sessions-v3'
+const LEGACY_UNSCOPED_KEY = 'kody-sessions-v3'
 const MAX_SESSIONS = 50
 const DEBOUNCE_MS = 1000
+
+/**
+ * Compute the per-repo storage key from the connected repo in localStorage.kody_auth.
+ * Returns the unscoped legacy key when no repo is connected (e.g. logged out).
+ *
+ * Repo switching reloads the page (see auth-context.tsx setCurrentRepo), so this
+ * value is stable for the lifetime of the hook — no reactive re-keying needed.
+ */
+function getStorageKey(): string {
+  if (typeof window === 'undefined') return LEGACY_UNSCOPED_KEY
+  try {
+    const raw = window.localStorage.getItem('kody_auth')
+    if (!raw) return LEGACY_UNSCOPED_KEY
+    const auth = JSON.parse(raw) as { owner?: string; repo?: string }
+    if (!auth.owner || !auth.repo) return LEGACY_UNSCOPED_KEY
+    return `${STORAGE_KEY_BASE}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`
+  } catch {
+    return LEGACY_UNSCOPED_KEY
+  }
+}
 
 /**
  * Generate a unique session ID
@@ -56,23 +77,43 @@ function migrateFromV2(v2Data: GlobalChatStore | null): GlobalChatStore {
 }
 
 /**
- * Load data from localStorage with migration support
+ * Load data from localStorage with migration support.
+ *
+ * One-time migration: if the legacy unscoped `kody-sessions-v3` key exists and
+ * no per-repo key has been written yet for the current repo, adopt the legacy
+ * blob under the current repo key and delete the legacy entry. This preserves
+ * the user's existing chats for whichever repo they were last using.
  */
-function loadStore(): GlobalChatStore {
+function loadStore(storageKey: string): GlobalChatStore {
   if (typeof window === 'undefined') {
     return createEmptyGlobalStore()
   }
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(storageKey)
     if (raw) {
       const parsed = JSON.parse(raw) as GlobalChatStore
       if (parsed.version === 3) return parsed
-      // Migrate older versions
       if (parsed.version === 2) {
         const migrated = migrateFromV2(parsed)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
+        localStorage.setItem(storageKey, JSON.stringify(migrated))
         return migrated
+      }
+    }
+
+    // No data under the scoped key — try the legacy unscoped key once.
+    if (storageKey !== LEGACY_UNSCOPED_KEY) {
+      const legacyRaw = localStorage.getItem(LEGACY_UNSCOPED_KEY)
+      if (legacyRaw) {
+        const legacyParsed = JSON.parse(legacyRaw) as GlobalChatStore
+        let adopted: GlobalChatStore | null = null
+        if (legacyParsed.version === 3) adopted = legacyParsed
+        else if (legacyParsed.version === 2) adopted = migrateFromV2(legacyParsed)
+        if (adopted) {
+          localStorage.setItem(storageKey, JSON.stringify(adopted))
+          localStorage.removeItem(LEGACY_UNSCOPED_KEY)
+          return adopted
+        }
       }
     }
   } catch (error) {
@@ -87,14 +128,14 @@ function loadStore(): GlobalChatStore {
  */
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
 
-function saveStore(store: GlobalChatStore): void {
+function saveStore(store: GlobalChatStore, storageKey: string): void {
   if (typeof window === 'undefined') return
 
   if (saveTimeout) clearTimeout(saveTimeout)
 
   saveTimeout = setTimeout(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
+      localStorage.setItem(storageKey, JSON.stringify(store))
     } catch (error) {
       console.error('Failed to save chat sessions:', error)
     }
@@ -129,11 +170,14 @@ export interface UseChatSessionsResult {
  */
 export function useChatSessions(): UseChatSessionsResult {
   const [store, setStore] = useState<GlobalChatStore | null>(null)
+  // Computed once on mount — switching repos triggers a full reload, so this
+  // value never goes stale within the hook's lifetime.
+  const [storageKey] = useState<string>(() => getStorageKey())
 
   // Load on mount (client-side only)
   useEffect(() => {
-    setStore(loadStore())
-  }, [])
+    setStore(loadStore(storageKey))
+  }, [storageKey])
 
   // Get sessions sorted by updatedAt descending
   const sessions = useMemo(() => {
@@ -192,7 +236,7 @@ export function useChatSessions(): UseChatSessionsResult {
             sessions: [...newStore.sessions, newSession],
             messages: { ...newStore.messages, [sessionId]: [] },
           }
-          saveStore(withNew)
+          saveStore(withNew, storageKey)
           return withNew
         }
       }
@@ -203,22 +247,22 @@ export function useChatSessions(): UseChatSessionsResult {
         messages: { ...prev.messages, [sessionId]: [] },
         activeSessionId: sessionId,
       }
-      saveStore(newStore)
+      saveStore(newStore, storageKey)
       return newStore
     })
 
     return sessionId
-  }, [])
+  }, [storageKey])
 
   // Switch to a different session
   const switchSession = useCallback((sessionId: string) => {
     setStore((prev) => {
       if (!prev) return prev
       const newStore: GlobalChatStore = { ...prev, activeSessionId: sessionId }
-      saveStore(newStore)
+      saveStore(newStore, storageKey)
       return newStore
     })
-  }, [])
+  }, [storageKey])
 
   // Rename a session
   const renameSession = useCallback((sessionId: string, title: string) => {
@@ -230,10 +274,10 @@ export function useChatSessions(): UseChatSessionsResult {
           s.id === sessionId ? { ...s, title, updatedAt: new Date().toISOString() } : s,
         ),
       }
-      saveStore(newStore)
+      saveStore(newStore, storageKey)
       return newStore
     })
-  }, [])
+  }, [storageKey])
 
   // Delete a session
   const deleteSession = useCallback((sessionId: string) => {
@@ -257,10 +301,10 @@ export function useChatSessions(): UseChatSessionsResult {
         messages: restMessages,
         activeSessionId: newActiveId,
       }
-      saveStore(newStore)
+      saveStore(newStore, storageKey)
       return newStore
     })
-  }, [])
+  }, [storageKey])
 
   // Pin/unpin a session
   const pinSession = useCallback((sessionId: string) => {
@@ -272,10 +316,10 @@ export function useChatSessions(): UseChatSessionsResult {
           s.id === sessionId ? { ...s, pinned: !s.pinned, updatedAt: new Date().toISOString() } : s,
         ),
       }
-      saveStore(newStore)
+      saveStore(newStore, storageKey)
       return newStore
     })
-  }, [])
+  }, [storageKey])
 
   // Clear messages in active session
   const clearActiveSession = useCallback(() => {
@@ -292,10 +336,10 @@ export function useChatSessions(): UseChatSessionsResult {
             : s,
         ),
       }
-      saveStore(newStore)
+      saveStore(newStore, storageKey)
       return newStore
     })
-  }, [activeSession])
+  }, [activeSession, storageKey])
 
   // Set messages (with auto-update of session metadata).
   // If no active session exists, auto-create one on the spot. This matters for
@@ -350,11 +394,11 @@ export function useChatSessions(): UseChatSessionsResult {
               : s,
           ),
         }
-        saveStore(newStore)
+        saveStore(newStore, storageKey)
         return newStore
       })
     },
-    [],
+    [storageKey],
   )
 
   return {
