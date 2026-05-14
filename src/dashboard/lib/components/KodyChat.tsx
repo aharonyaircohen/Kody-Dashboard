@@ -995,6 +995,27 @@ export function KodyChat({
   // Use session hook for global (non-task) chat
   const sessionHook = useChatSessions()
 
+  // Abort any in-flight stream + reset loading when the active session
+  // changes. Without this, switching to (or creating) a new session
+  // mid-stream leaks the previous turn's events into the new session's
+  // message list — the deltas keep firing after the switch, hit
+  // setMessages (which now writes to the new session), and leave the
+  // loading flag stuck so the input is disabled. Fires on agent switch
+  // too, which is also the correct behaviour (kody-direct, brain,
+  // brain-fly, and kody-live all stop on agent flip).
+  const activeSessionIdForReset = sessionHook.activeSession?.id ?? null
+  useEffect(() => {
+    brainAbortRef.current?.abort()
+    kodyAbortRef.current?.abort()
+    eventSourceRef.current?.close()
+    setLoading(false)
+    setToolCalls([])
+    // Intentionally omit the abort/setter refs from deps — they are
+    // stable refs / setters, and including them would re-fire this
+    // effect every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSessionIdForReset, selectedAgentId])
+
   // Poll action state — detects when Kody is waiting for instructions
   const { state: actionState, isWaiting: isKodyWaiting } = useKodyActionState(selectedTask?.id)
 
