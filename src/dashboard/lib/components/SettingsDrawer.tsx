@@ -20,16 +20,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import {
-  Bell,
-  Bot,
-  Github,
-  KeyRound,
-  Settings as SettingsIcon,
-  Settings2,
-  Sliders,
-  type LucideIcon,
-} from 'lucide-react'
+import { Settings as SettingsIcon } from 'lucide-react'
 
 import {
   Sheet,
@@ -39,52 +30,7 @@ import {
   SheetTitle,
 } from '@dashboard/ui/sheet'
 import { cn } from '@dashboard/lib/utils/ui'
-
-interface NavItem {
-  href: string
-  label: string
-  icon: LucideIcon
-  description?: string
-}
-
-const SETTINGS_ITEMS: readonly NavItem[] = [
-  {
-    href: '/notifications',
-    label: 'Notifications',
-    icon: Bell,
-    description: 'Browser + email alerts and routing rules.',
-  },
-  {
-    href: '/secrets',
-    label: 'Secrets',
-    icon: KeyRound,
-    description: 'Encrypted per-repo secrets vault.',
-  },
-  {
-    href: '/variables',
-    label: 'Variables',
-    icon: Settings2,
-    description: 'Non-secret config shared across runs.',
-  },
-  {
-    href: '/models',
-    label: 'Chat Models',
-    icon: Bot,
-    description: 'LLM provider + model selection.',
-  },
-  {
-    href: '/repos',
-    label: 'Repositories',
-    icon: Github,
-    description: 'Connected GitHub repos and tokens.',
-  },
-  {
-    href: '/settings',
-    label: 'Settings',
-    icon: Sliders,
-    description: 'Dashboard-wide preferences.',
-  },
-]
+import { SETTINGS_NAV_SECTIONS } from './settings-nav'
 
 interface SettingsDrawerContextValue {
   open: () => void
@@ -149,38 +95,46 @@ function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
           </SheetDescription>
         </SheetHeader>
 
-        <nav className="flex-1 overflow-y-auto p-2 space-y-1">
-          {SETTINGS_ITEMS.map((item) => {
-            const Icon = item.icon
-            const active =
-              pathname === item.href || pathname.startsWith(`${item.href}/`)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => onOpenChange(false)}
-                aria-current={active ? 'page' : undefined}
-                className={cn(
-                  'flex items-start gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                  active
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                )}
-              >
-                <Icon className="w-4 h-4 mt-0.5 shrink-0" />
-                <span className="min-w-0">
-                  <span className="block truncate font-medium">
-                    {item.label}
-                  </span>
-                  {item.description && (
-                    <span className="block text-[11px] text-muted-foreground/80 truncate">
-                      {item.description}
+        <nav className="flex-1 overflow-y-auto p-2 space-y-4">
+          {SETTINGS_NAV_SECTIONS.map((section) => (
+            <div key={section.title} className="space-y-1">
+              <p className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                {section.title}
+              </p>
+              {section.items.map((item) => {
+                const Icon = item.icon
+                const active =
+                  pathname === item.href ||
+                  pathname.startsWith(`${item.href}/`)
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => onOpenChange(false)}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'flex items-start gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                      active
+                        ? 'bg-accent text-foreground'
+                        : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                    )}
+                  >
+                    <Icon className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">
+                        {item.label}
+                      </span>
+                      {item.description && (
+                        <span className="block text-[11px] text-muted-foreground/80 truncate">
+                          {item.description}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-              </Link>
-            )
-          })}
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
         </nav>
       </SheetContent>
     </Sheet>

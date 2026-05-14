@@ -18,19 +18,13 @@ import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Bell,
-  Bot,
   ChevronDown,
   FileText,
   Github,
-  KeyRound,
   Layers,
   LogOut,
   ScrollText,
-  Settings as SettingsIcon,
-  Settings2,
   Sparkles,
-  type LucideIcon,
 } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
@@ -44,52 +38,7 @@ import {
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { cn } from '../utils'
 import { SimpleTooltip } from './SimpleTooltip'
-
-interface SettingsItem {
-  href: string
-  label: string
-  icon: LucideIcon
-  tint: string
-}
-
-const SETTINGS_ITEMS: readonly SettingsItem[] = [
-  {
-    href: '/notifications',
-    label: 'Notifications',
-    icon: Bell,
-    tint: 'text-amber-300 bg-amber-500/10',
-  },
-  {
-    href: '/secrets',
-    label: 'Secrets',
-    icon: KeyRound,
-    tint: 'text-rose-300 bg-rose-500/10',
-  },
-  {
-    href: '/variables',
-    label: 'Variables',
-    icon: Settings2,
-    tint: 'text-indigo-300 bg-indigo-500/10',
-  },
-  {
-    href: '/models',
-    label: 'Chat Models',
-    icon: Bot,
-    tint: 'text-emerald-300 bg-emerald-500/10',
-  },
-  {
-    href: '/repos',
-    label: 'Repositories',
-    icon: Github,
-    tint: 'text-zinc-300 bg-white/[0.08]',
-  },
-  {
-    href: '/settings',
-    label: 'Settings',
-    icon: SettingsIcon,
-    tint: 'text-sky-300 bg-sky-500/10',
-  },
-]
+import { SETTINGS_NAV_SECTIONS } from './settings-nav'
 
 interface MobileMenuProps {
   open: boolean
@@ -279,28 +228,39 @@ export function MobileMenu({
             />
           </button>
           {settingsOpen && (
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.04] mt-1">
-              {SETTINGS_ITEMS.map((item) => {
-                const Icon = item.icon
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={close}
-                    className="flex items-center gap-3 h-12 px-3 hover:bg-white/[0.04] transition-colors"
-                  >
-                    <span
-                      className={cn(
-                        'inline-flex h-7 w-7 items-center justify-center rounded-md',
-                        item.tint,
-                      )}
-                    >
-                      <Icon className="w-4 h-4" />
-                    </span>
-                    <span className="text-sm font-medium flex-1">{item.label}</span>
-                  </Link>
-                )
-              })}
+            <div className="space-y-3 mt-1">
+              {SETTINGS_NAV_SECTIONS.map((section) => (
+                <div key={section.title}>
+                  <p className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                    {section.title}
+                  </p>
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.04]">
+                    {section.items.map((item) => {
+                      const Icon = item.icon
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={close}
+                          className="flex items-center gap-3 h-12 px-3 hover:bg-white/[0.04] transition-colors"
+                        >
+                          <span
+                            className={cn(
+                              'inline-flex h-7 w-7 items-center justify-center rounded-md',
+                              item.tint,
+                            )}
+                          >
+                            <Icon className="w-4 h-4" />
+                          </span>
+                          <span className="text-sm font-medium flex-1">
+                            {item.label}
+                          </span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
