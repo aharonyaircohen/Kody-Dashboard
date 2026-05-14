@@ -27,20 +27,20 @@ import { setGitHubContext, clearGitHubContext } from "../../github-client";
 import { readPushManifest, mutatePushManifest } from "../../push-server";
 import type { PushSubscriptionRecord } from "../../push";
 import { logger } from "../../logger";
+import { deriveVapidKeys } from "../../push/vapid-keys";
 
 type Channel = Extract<NotificationChannel, { type: "web-push" }>;
 
-/** Initialise web-push lazily — keys may not be present at module-import
- *  time (e.g. during build). Throws iff env vars are missing. */
+// `validateWebPush` lives in web-push-validate.ts (client-safe). This file
+// is server-only and intentionally doesn't re-export it.
+
+/** Initialise web-push lazily. The keypair is derived from KODY_MASTER_KEY
+ *  via HKDF (see `vapid-keys.ts`) — no separate VAPID env vars. */
 function initVapid() {
-  const publicKey = process.env.VAPID_PUBLIC_KEY;
-  const privateKey = process.env.VAPID_PRIVATE_KEY;
-  if (!publicKey || !privateKey) {
-    throw new Error("VAPID keys not configured");
-  }
+  const { publicKey, privateKey } = deriveVapidKeys();
   // The subject identifies the application server to the push service.
-  // It's only used for abuse reporting; any mailto:/https: URL works.
-  const subject = process.env.VAPID_SUBJECT?.trim() || "mailto:kody@example.com";
+  // Only used for abuse reporting; a static mailto: is fine.
+  const subject = "mailto:kody@example.com";
   webpush.setVapidDetails(subject, publicKey, privateKey);
 }
 
