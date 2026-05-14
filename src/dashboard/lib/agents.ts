@@ -24,6 +24,7 @@ export type ChatBackend = 'kody-engine' | 'brain' | 'kody-direct' | 'kody-live'
 export type AgentId =
   | 'kody-assistant'
   | 'brain'
+  | 'brain-fly'
   | 'kody'
   | 'kody-live'
   | 'kody-live-fly'
@@ -215,6 +216,37 @@ export const AGENT_BRAIN: AgentConfig = {
     'Summarize and explain unfamiliar areas of the codebase',
   ],
   systemPrompt: 'Handled by the Brain server profile.',
+}
+
+// ===========================================
+// KODY BRAIN ON FLY
+// ===========================================
+
+/**
+ * Same Brain shape as AGENT_BRAIN (chat-with-tools, session memory, live
+ * worktree), but the server runs on a per-user Fly Machine instead of the
+ * external Brain VPS. No Settings UI required — the dashboard provisions
+ * the machine lazily on first message using the user's FLY_API_TOKEN from
+ * the repo vault.
+ *
+ * Routed to /api/kody/chat/brain-fly (server-side provisioning + same SSE
+ * proxy as /api/kody/chat/brain). Only surfaced in the chat picker when
+ * the connected repo's vault has a FLY_API_TOKEN — the same probe the
+ * `kody-live-fly` agent uses.
+ */
+export const AGENT_BRAIN_FLY: AgentConfig = {
+  id: 'brain-fly',
+  name: 'Kody Brain (Fly)',
+  description: 'Per-user Brain on Fly — auto-provisioned from your Fly token, no Settings step',
+  icon: Brain,
+  backend: 'brain',
+  capabilities: [
+    'Same tools and session model as Kody Brain (Grep, Glob, Read, gh CLI)',
+    'Server lives on YOUR Fly account — provisioned per-user, idles suspended',
+    'No external Brain URL/key needed — the dashboard provisions and uses it server-side',
+    'First message provisions the machine (~30s); subsequent messages are warm',
+  ],
+  systemPrompt: 'Handled by the Brain server profile (kody brain-serve).',
 }
 
 // ===========================================
@@ -781,6 +813,7 @@ Keep replies tight. The user is listening, not reading.`,
 export const AGENTS: Record<AgentId, AgentConfig> = {
   [AGENT_ID]: AGENT,
   brain: AGENT_BRAIN,
+  'brain-fly': AGENT_BRAIN_FLY,
   kody: AGENT_KODY,
   'kody-live': AGENT_KODY_LIVE,
   'kody-live-fly': AGENT_KODY_LIVE_FLY,
@@ -790,6 +823,7 @@ export const AGENTS: Record<AgentId, AgentConfig> = {
 export const AGENT_IDS = [
   AGENT_ID,
   'brain',
+  'brain-fly',
   'kody',
   'kody-live',
   'kody-live-fly',
