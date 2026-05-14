@@ -200,6 +200,21 @@ export const tasksApi = {
     return handleResponse(res);
   },
 
+  /**
+   * Lightweight fetch for closed issues filtered by a goal label.
+   * Used by the per-goal "Show closed" toggle in GoalGroupedView.
+   * Returns minimally-shaped KodyTask[] (column='done', state='closed') —
+   * no pipeline derivation, no workflow run matching, no PR linkage.
+   */
+  listClosedForGoal: async (goalId: string): Promise<KodyTask[]> => {
+    const res = await fetch(
+      `${API_BASE}/tasks/closed?goal=${encodeURIComponent(goalId)}`,
+      { headers: buildHeaders() },
+    );
+    const data = await handleResponse<TasksResponse>(res);
+    return data.tasks;
+  },
+
   create: async (data: {
     title: string;
     body: string;

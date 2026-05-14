@@ -11,6 +11,7 @@
 
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import {
+  Archive,
   Bug,
   Calendar,
   ChevronDown,
@@ -18,6 +19,7 @@ import {
   Flag,
   GripVertical,
   Inbox,
+  Loader2,
   MessageSquare,
   Pause,
   Pencil,
@@ -53,6 +55,7 @@ import { goalPalette } from '../goal-palette'
 import { useReorderGoals } from '../hooks/useGoals'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { useGoalState, useSetGoalState } from '../hooks/useGoalState'
+import { useClosedGoalTasks } from '../hooks/useClosedGoalTasks'
 import { formatTickAge } from '../goal-state'
 import { TaskList } from './TaskList'
 import { GoalProgressRing } from './GoalProgressRing'
@@ -258,6 +261,19 @@ export function GoalGroupedView({
 }: GoalGroupedViewProps) {
   const [dragTask, setDragTask] = useState<KodyTask | null>(null)
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
+  // Per-goal "Show closed" toggle membership. Closed tasks aren't part of the
+  // main polled payload — toggling on triggers a one-off fetch via
+  // `useClosedGoalTasks` for that goal only, so the global rate budget stays
+  // flat regardless of how many goals exist.
+  const [showClosedSet, setShowClosedSet] = useState<Set<string>>(new Set())
+  const toggleShowClosed = useCallback((goalId: string) => {
+    setShowClosedSet((prev) => {
+      const next = new Set(prev)
+      if (next.has(goalId)) next.delete(goalId)
+      else next.add(goalId)
+      return next
+    })
+  }, [])
   const groups = useMemo(() => buildGroups(goals, tasks), [goals, tasks])
   const toggle = onToggleCollapsed
 
@@ -469,6 +485,30 @@ export function GoalGroupedView({
                 {group.goal ? (
                   <div className="flex items-center gap-1 shrink-0">
                     <RunGoalButton goal={group.goal} taskCount={total} />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        'h-8 w-8 p-0 transition-colors',
+                        showClosedSet.has(group.goal.id)
+                          ? 'text-sky-400 hover:text-sky-300'
+                          : 'text-muted-foreground hover:text-sky-400',
+                      )}
+                      onClick={() => toggleShowClosed(group.goal!.id)}
+                      aria-pressed={showClosedSet.has(group.goal.id)}
+                      aria-label={
+                        showClosedSet.has(group.goal.id)
+                          ? `Hide closed tasks in ${group.goal.name}`
+                          : `Show closed tasks in ${group.goal.name}`
+                      }
+                      title={
+                        showClosedSet.has(group.goal.id)
+                          ? 'Hide closed tasks'
+                          : 'Show closed tasks'
+                      }
+                    >
+                      <Archive className="w-3.5 h-3.5" />
+                    </Button>
                     {onPlanGoal ? (
                       <Button
                         variant="ghost"
@@ -526,16 +566,17 @@ export function GoalGroupedView({
                       (palette ? palette.rowBg : 'bg-background/40'),
                   )}
                 >
-                  {total > 0 ? (
-                    <TaskList
-                      tasks={group.tasks}
-                      {...taskListProps}
-                      draggable={!!onMoveTask}
-                      onDragStartTask={(task) => setDragTask(task)}
-                      onDragEndTask={() => {
-                        setDragTask(null)
-                        setDropTargetKey(null)
-                      }}
+                  {total > 0 || (group.goal && showClosedSet.has(group.goal.id)) ? (
+                    <GoalSectionTasks
+                      goalId={group.goal?.id ?? null}
+                      openTasks={group.tasks}
+                      showClosed={
+                        !!group.goal && showClosedSet.has(group.goal.id)
+                      }
+                      taskListProps={taskListProps}
+                      onMoveTask={onMoveTask}
+                      setDragTask={setDragTask}
+                      setDropTargetKey={setDropTargetKey}
                       accent={
                         palette
                           ? {
@@ -769,5 +810,84 @@ function SortableGoalWrapper({
     <div ref={setNodeRef} style={style}>
       {children({ ...attributes, ...listeners })}
     </div>
+  )
+}
+
+/**
+ * Per-goal task list wrapper. Owns the optional closed-tasks fetch so the
+ * hook only runs when the user opens the "Show closed" toggle for THIS goal
+ * — keeps the global rate budget flat regardless of how many goals exist.
+ */
+type GoalSectionTaskListProps = Omit<
+  GoalGroupedViewProps,
+  | 'goals'
+  | 'tasks'
+  | 'collapsed'
+  | 'onToggleCollapsed'
+  | 'onCreateGoal'
+  | 'onEditGoal'
+  | 'onDeleteGoal'
+  | 'onOpenGoalDiscussion'
+  | 'onPlanGoal'
+  | 'onCreateTaskInGoal'
+  | 'onReportBugInGoal'
+  | 'onMoveTask'
+>
+
+function GoalSectionTasks({
+  goalId,
+  openTasks,
+  showClosed,
+  taskListProps,
+  onMoveTask,
+  setDragTask,
+  setDropTargetKey,
+  accent,
+}: {
+  goalId: string | null
+  openTasks: KodyTask[]
+  showClosed: boolean
+  taskListProps: GoalSectionTaskListProps
+  onMoveTask?: GoalGroupedViewProps['onMoveTask']
+  setDragTask: (t: KodyTask | null) => void
+  setDropTargetKey: (k: string | null) => void
+  accent?: { divide: string; rowBg: string; rowHover: string }
+}) {
+  const { data: closed, isFetching } = useClosedGoalTasks(
+    goalId ?? '',
+    showClosed && !!goalId,
+  )
+  const merged = useMemo(() => {
+    if (!showClosed || !closed?.length) return openTasks
+    const seen = new Set(openTasks.map((t) => t.issueNumber))
+    const additions = closed.filter((t) => !seen.has(t.issueNumber))
+    return [...openTasks, ...additions]
+  }, [openTasks, closed, showClosed])
+
+  return (
+    <>
+      <TaskList
+        tasks={merged}
+        {...taskListProps}
+        draggable={!!onMoveTask}
+        onDragStartTask={(task) => setDragTask(task)}
+        onDragEndTask={() => {
+          setDragTask(null)
+          setDropTargetKey(null)
+        }}
+        accent={accent}
+      />
+      {showClosed && isFetching ? (
+        <div className="flex items-center justify-center gap-2 py-2 text-[11px] text-muted-foreground">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Loading closed…
+        </div>
+      ) : null}
+      {showClosed && !isFetching && (closed?.length ?? 0) === 0 ? (
+        <div className="px-4 md:px-6 py-3 text-center text-[11px] text-muted-foreground">
+          No closed tasks in this goal yet.
+        </div>
+      ) : null}
+    </>
   )
 }

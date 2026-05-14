@@ -300,15 +300,32 @@ const TaskRow = memo(function TaskRow({
   onDragEndTask,
   accent,
 }: TaskRowProps) {
-  const canExecute = task.column === 'open' && onExecuteTask
+  const isClosed = task.state === 'closed'
+  // Closed tasks come from the "Show closed" toggle (loaded on-demand). They
+  // shouldn't offer execute/run actions, and they get a distinct slate
+  // palette + "Closed" word so users can tell them apart from in-flight
+  // `done`-column tasks at a glance.
+  const canExecute = !isClosed && task.column === 'open' && onExecuteTask
   const hasPR = !!task.associatedPR
-  const isHardStop = task.column === 'gate-waiting' && task.gateType === 'hard-stop'
+  const isHardStop =
+    !isClosed && task.column === 'gate-waiting' && task.gateType === 'hard-stop'
   // gate-waiting tasks also show pipeline progress (they're paused mid-pipeline)
   const isActive =
-    task.column === 'building' || task.column === 'retrying' || task.column === 'gate-waiting'
-  const colors = statusColors[task.column]
-  const gateLabel =
-    task.column === 'gate-waiting' && task.gateType === 'hard-stop'
+    !isClosed &&
+    (task.column === 'building' ||
+      task.column === 'retrying' ||
+      task.column === 'gate-waiting')
+  const colors = isClosed
+    ? {
+        dot: 'bg-slate-500',
+        text: 'text-slate-400',
+        bg: 'bg-slate-500/[0.03]',
+        border: 'border-l-slate-500/40',
+      }
+    : statusColors[task.column]
+  const gateLabel = isClosed
+    ? 'Closed'
+    : task.column === 'gate-waiting' && task.gateType === 'hard-stop'
       ? 'Hard Stop'
       : task.column === 'gate-waiting' && task.gateType === 'risk-gated'
         ? 'Risk Gated'
@@ -359,20 +376,33 @@ const TaskRow = memo(function TaskRow({
       {/* Main row */}
       <div className="flex items-center gap-3 px-4 py-3">
               {/* Status icon */}
-              <div className="shrink-0">{statusIcon[task.column]}</div>
+              <div className="shrink-0">
+                {isClosed ? (
+                  <CheckCircle2 className="w-[18px] h-[18px] text-slate-500" />
+                ) : (
+                  statusIcon[task.column]
+                )}
+              </div>
 
               {/* Content — title + meta */}
               <div
                 className={cn(
                   'flex-1 min-w-0',
-                  task.column === 'done' &&
-                    !isSelected &&
-                    'opacity-50 group-hover:opacity-80 transition-opacity',
+                  isClosed && !isSelected
+                    ? 'opacity-55 group-hover:opacity-90 transition-opacity'
+                    : task.column === 'done' &&
+                        !isSelected &&
+                        'opacity-50 group-hover:opacity-80 transition-opacity',
                 )}
               >
                 {/* Title row */}
                 <div className="flex items-center gap-2.5">
-                  <h3 className="text-[15px] font-medium text-zinc-100 truncate flex-1">
+                  <h3
+                    className={cn(
+                      'text-[15px] font-medium truncate flex-1',
+                      isClosed ? 'text-slate-300 line-through' : 'text-zinc-100',
+                    )}
+                  >
                     {task.title}
                   </h3>
 
