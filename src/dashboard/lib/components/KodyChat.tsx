@@ -55,50 +55,23 @@ function buildAgentList(
   models: ChatModelEntry[],
 ): ChatDropdownEntry[] {
   const entries: ChatDropdownEntry[] = []
-  // Kody Live is always the universal fallback — surfaced first so it's
-  // the default landing when no user-managed models are configured.
-  const live = AGENTS['kody-live']
+  // Live row: prefer the Fly runner when configured, fall back to GH
+  // Actions Live otherwise. Only one Live entry is shown — having both
+  // is noise once the user has opted into the faster Fly path.
+  const liveAgentId: AgentId = flyConfigured ? 'kody-live-fly' : 'kody-live'
+  const liveAgent = AGENTS[liveAgentId]
   entries.push({
-    key: 'kody-live',
-    agentId: 'kody-live',
+    key: liveAgentId,
+    agentId: liveAgentId,
     modelId: null,
-    name: live.name,
-    description: live.description,
-    icon: live.icon,
+    name: liveAgent.name,
+    description: liveAgent.description,
+    icon: liveAgent.icon,
   })
-  // POC: parallel runtime on Fly Machines (sub-second warm boot vs ~90s
-  // GH Actions cold start). Same engine + same session model — only the
-  // host moves. See app/api/kody/chat/interactive/start-fly/route.ts.
-  // Hidden until the user adds a Fly API token in Settings — picking it
-  // without a token would just fail at start-fly time.
-  if (flyConfigured) {
-    const liveFly = AGENTS['kody-live-fly']
-    entries.push({
-      key: 'kody-live-fly',
-      agentId: 'kody-live-fly',
-      modelId: null,
-      name: liveFly.name,
-      description: liveFly.description,
-      icon: liveFly.icon,
-    })
-  }
-  if (brainConfigured) {
-    const brain = AGENTS.brain
-    entries.push({
-      key: 'brain',
-      agentId: 'brain',
-      modelId: null,
-      name: brain.name,
-      description: brain.description,
-      icon: brain.icon,
-    })
-  }
-  // Brain on Fly — same shape as the manual Brain agent above, but the
-  // server runs on a per-user Fly app. Surfaced only when the user has
-  // explicitly turned it on from Settings (i.e. the app exists). The
-  // brainFlyOn flag mirrors GET /api/kody/brain/status returning
-  // anything other than "off", so the dropdown stays in sync with the
-  // Settings toggle without the user having to refresh.
+  // Brain row: prefer Brain on Fly when it's running; otherwise the
+  // manual Brain (URL+key via Settings or server-wide via BRAIN_CHAT_URL
+  // env). Same single-slot rule as Live — surface one or the other,
+  // never both.
   if (brainFlyOn) {
     const brainFly = AGENTS['brain-fly']
     entries.push({
@@ -108,6 +81,16 @@ function buildAgentList(
       name: brainFly.name,
       description: brainFly.description,
       icon: brainFly.icon,
+    })
+  } else if (brainConfigured) {
+    const brain = AGENTS.brain
+    entries.push({
+      key: 'brain',
+      agentId: 'brain',
+      modelId: null,
+      name: brain.name,
+      description: brain.description,
+      icon: brain.icon,
     })
   }
   // One dropdown row per enabled user-managed model. All route through
@@ -820,15 +803,47 @@ export function KodyChat({
     initialDefaultAppliedRef.current = true
   }, [chatModels, lockedAgentId])
 
-  // If the user had Brain selected but then removed the config, fall back to
-  // Kody Live.
+  // Keep the selection on a visible dropdown entry. Live and Live (Fly)
+  // share one slot in the dropdown; same for Brain and Brain (Fly). When
+  // a probe flips availability, snap the selection to the visible row of
+  // the same family — Live↔Live (Fly), Brain↔Brain (Fly) — or to the
+  // visible Live row when neither Brain variant is available.
   useEffect(() => {
     if (lockedAgentId) return
-    if (selectedAgentId === 'brain' && !brainConfigured) {
-      setSelectedAgentId('kody-live')
-      setSelectedModelId(null)
+    // Gateway models are policed by a separate effect below.
+    if (selectedAgentId === 'kody' && selectedModelId) return
+    const liveTarget: AgentId = flyConfigured ? 'kody-live-fly' : 'kody-live'
+    if (selectedAgentId === 'kody-live' || selectedAgentId === 'kody-live-fly') {
+      if (selectedAgentId !== liveTarget) {
+        setSelectedAgentId(liveTarget)
+        setSelectedModelId(null)
+      }
+      return
     }
-  }, [brainConfigured, selectedAgentId, lockedAgentId])
+    if (selectedAgentId === 'brain' || selectedAgentId === 'brain-fly') {
+      const brainTarget: AgentId | null = brainFlyOn
+        ? 'brain-fly'
+        : brainConfigured
+          ? 'brain'
+          : null
+      if (brainTarget === null) {
+        setSelectedAgentId(liveTarget)
+        setSelectedModelId(null)
+        return
+      }
+      if (selectedAgentId !== brainTarget) {
+        setSelectedAgentId(brainTarget)
+        setSelectedModelId(null)
+      }
+    }
+  }, [
+    flyConfigured,
+    brainFlyOn,
+    brainConfigured,
+    selectedAgentId,
+    selectedModelId,
+    lockedAgentId,
+  ])
 
   // Probe for a server-wide Brain (BRAIN_CHAT_URL + BRAIN_CHAT_API_KEY env
   // vars on the deployment). Lets the dropdown show "Kody Brain" even when
@@ -921,23 +936,6 @@ export function KodyChat({
       clearInterval(id)
     }
   }, [flyConfigured])
-
-  // If the user (or a stale localStorage value) had Fly selected but no
-  // token is configured, snap to Kody Live so chat keeps working. Also
-  // covers brain-fly when the user turned Brain off from Settings while
-  // having it selected.
-  useEffect(() => {
-    if (lockedAgentId) return
-    if (selectedAgentId === 'kody-live-fly' && !flyConfigured) {
-      setSelectedAgentId('kody-live')
-      setSelectedModelId(null)
-      return
-    }
-    if (selectedAgentId === 'brain-fly' && !brainFlyOn) {
-      setSelectedAgentId('kody-live')
-      setSelectedModelId(null)
-    }
-  }, [flyConfigured, brainFlyOn, selectedAgentId, lockedAgentId])
 
   // If the user had a gateway model selected but it was removed from the
   // list (or disabled), fall back to Kody Live so the chat keeps working.
