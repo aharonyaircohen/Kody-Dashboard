@@ -130,11 +130,13 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     [scope, openMobileChat, setOnIssueCreated],
   )
 
-  // No rail before hydration, while auth is still loading, or when the
-  // user has no credentials yet (AuthGuard renders the empty-state
-  // RepoManager in that case — chat itself needs a PAT to function).
-  const showRail =
-    hydrated && !loading && !!auth && !isPublicRoute(pathname)
+  // Keep the rail visible even when the user has no credentials yet —
+  // the dashboard renders the RepoManager empty-state in its task pane
+  // and we want the chrome (header + chat aside) to stay intact so the
+  // user sees the full app shell from the first paint. The chat itself
+  // is swapped for a "connect a repo" placeholder below when `auth`
+  // is null, since `<KodyChat />` needs a PAT to be useful.
+  const showRail = hydrated && !loading && !isPublicRoute(pathname)
 
   if (!showRail) {
     return (
@@ -163,13 +165,21 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
           className="hidden md:flex flex-col shrink-0 border-r border-border bg-black/20 w-[400px]"
           aria-label="Kody chat"
         >
-          <KodyChat
-            context={scope}
-            actorLogin={githubUser?.login}
-            lockedAgentId={lockedAgentId}
-            vibeMode={isVibeRoute}
-            onIssueCreated={dispatchIssueCreated}
-          />
+          {auth ? (
+            <KodyChat
+              context={scope}
+              actorLogin={githubUser?.login}
+              lockedAgentId={lockedAgentId}
+              vibeMode={isVibeRoute}
+              onIssueCreated={dispatchIssueCreated}
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center p-6">
+              <p className="text-xs text-muted-foreground text-center leading-relaxed">
+                Connect a repository to start chatting with Kody.
+              </p>
+            </div>
+          )}
         </aside>
 
         {/* Primary navigation lives in page headers (Vibe toggle, Jobs
@@ -216,7 +226,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             </button>
           </SheetHeader>
           <div className="flex-1 min-h-0">
-            {mobileOpen ? (
+            {mobileOpen && auth ? (
               <KodyChat
                 context={scope}
                 actorLogin={githubUser?.login}
@@ -225,6 +235,12 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 vibeMode={isVibeRoute}
                 onIssueCreated={dispatchIssueCreated}
               />
+            ) : mobileOpen ? (
+              <div className="flex-1 flex items-center justify-center p-6">
+                <p className="text-sm text-muted-foreground text-center leading-relaxed">
+                  Connect a repository to start chatting with Kody.
+                </p>
+              </div>
             ) : null}
           </div>
         </SheetContent>
