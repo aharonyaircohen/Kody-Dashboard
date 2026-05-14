@@ -97,6 +97,31 @@ iOS catch: Safari only allows push from installed PWAs. Users must
 **Share → Add to Home Screen** first, open Kody from the icon, then tap
 Enable. The UI surfaces this as the `needs-pwa` state with an inline hint.
 
+### Extending push to a new feature
+
+Two paths, depending on where the new feature stores comments/mentions:
+
+1. **Backed by GitHub** (issues, PRs, comments, discussions, reviews) →
+   **automatic.** The webhook receiver routes the event through
+   [`dispatchMentionPushes`](src/dashboard/lib/push/mention-dispatch.ts).
+   Already wired event types: `issues`, `pull_request`, `issue_comment`,
+   `pull_request_review`, `pull_request_review_comment`, `commit_comment`,
+   `discussion`, `discussion_comment`. **New GitHub event type needs a
+   case** in `extractEvent` — pick the right `action` filter (usually
+   `created`/`opened`/`edited`), pull `body` / `author` / `html_url` /
+   `title` out of the payload. If the webhook hook on the repo doesn't
+   subscribe to the new event yet, POST `/api/webhooks/register` once
+   to refresh the event list (see
+   [src/dashboard/lib/webhooks/register.ts](src/dashboard/lib/webhooks/register.ts)).
+
+2. **Dashboard-native** (mention stored only in dashboard state, no
+   GitHub artifact) → **manual call.** Import `dispatchMentionPushes`
+   from the write path that persists the mention and call it with a
+   synthetic event payload (`{ body, action: "created", repository: {...},
+   comment: { body, user, html_url } }`). Prefer routing through GitHub
+   when feasible — every backed-by-GitHub feature gets push, Slack,
+   webhooks, and audit history for free.
+
 ## GitHub webhooks (push-based cache invalidation)
 
 To replace polling with push, the dashboard receives webhooks from GitHub
