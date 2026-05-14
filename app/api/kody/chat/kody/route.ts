@@ -477,17 +477,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Voice modality is layered onto the agent's base prompt, not a separate
-  // agent. The overlay appends AFTER the base so its formatting rules
-  // (no markdown, short sentences, etc.) override anything the base
-  // prompt says about bullets/code fences. The agent's brain and tools
-  // are untouched — the user picks the brain in the dropdown.
-  const basePrompt = voiceMode
-    ? `${agent.systemPrompt}\n\n${VOICE_OVERLAY_PROMPT}`
-    : agent.systemPrompt
-
-  const systemPrompt = buildSystemPrompt(
-    basePrompt,
+  const assembledPrompt = buildSystemPrompt(
+    agent.systemPrompt,
     repo ? { owner: repo.owner, repo: repo.repo } : null,
     body.task,
     {
@@ -501,6 +492,16 @@ export async function POST(req: NextRequest) {
       flyConfigured,
     },
   )
+
+  // Voice modality is layered onto the FULLY-ASSEMBLED prompt, appended
+  // LAST so its rules ("no markdown, short sentences, symbols-as-words")
+  // win by recency over the research/issue-creation/memory blocks above
+  // which otherwise teach the model to reply in bullet-heavy markdown.
+  // The agent's brain and tools are untouched — the user picks the brain
+  // in the dropdown; only the output shape changes.
+  const systemPrompt = voiceMode
+    ? `${assembledPrompt}\n\n${VOICE_OVERLAY_PROMPT}`
+    : assembledPrompt
 
   // Build the per-request tool set. GitHub + pipeline tools require a
   // resolved repo; remote tools require a configured actorLogin. The
