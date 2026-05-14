@@ -182,7 +182,27 @@ function getColumnForIssue(
   }
 
   // 7. Associated PR (always fetched via bulk)
-  if (associatedPR && !associatedPR.merged_at) return 'review'
+  if (associatedPR && !associatedPR.merged_at) {
+    // Mid-flow kody:* labels on the PR mean the engine is actively working
+    // on it (e.g. @kody fix added kody:fixing). The issue's labels don't
+    // change in this case, so without this check the task stays in "review"
+    // while kody is in fact rebuilding.
+    const prLabels = (associatedPR.labels ?? []).map((l) => l.toLowerCase())
+    const prMidFlow = prLabels.some(
+      (l) =>
+        l === 'kody:fixing' ||
+        l === 'kody:syncing' ||
+        l === 'kody:resolving' ||
+        l === 'kody:building' ||
+        l === 'kody:running' ||
+        l === 'kody:planning' ||
+        l === 'kody:classifying' ||
+        l === 'kody:researching' ||
+        l === 'kody:orchestrating',
+    )
+    if (prMidFlow) return 'building'
+    return 'review'
+  }
 
   // 8. Other labels
   if (labelNames.includes('released')) return 'done'
