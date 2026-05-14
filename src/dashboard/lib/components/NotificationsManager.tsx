@@ -53,6 +53,7 @@ import {
   type NotificationRule,
 } from "../notifications";
 import { validateChannel } from "../notifications/channels";
+import { PushCard } from "../push/PushCard";
 
 interface FormState {
   id?: string;
@@ -143,6 +144,8 @@ function NotificationsManagerInner() {
       }
     >
       <div className="space-y-3">
+        <PushCard />
+
         {isLoading && <p className="text-sm text-white/50">Loading rules…</p>}
         {error && (
           <Card className="border-rose-500/30 bg-rose-950/20">
