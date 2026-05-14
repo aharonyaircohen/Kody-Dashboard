@@ -3191,6 +3191,13 @@ export function KodyChat({
         params.set('repo', auth.repo)
         params.set('token', auth.token)
       }
+      // Pass our local lastEventAt so the server can detect the
+      // "engine pushed events via real-time HTTP but never committed
+      // them to the file" zombie case.
+      const localLast = cur.lastEventAt ?? cur.bootStartedAt ?? null
+      if (localLast !== null) {
+        params.set('clientLastEventAt', String(localLast))
+      }
       fetch(
         `/api/kody/chat/session/${encodeURIComponent(sessionId)}/status${params.size ? `?${params}` : ''}`,
         { headers: { ...liveAuthHeaders(sessionId) } },

@@ -198,7 +198,7 @@ describe('liveReducer', () => {
       expect(next.phase).toBe('ended')
     })
 
-    it('only updates lastEventAt when the runner is still alive', () => {
+    it('uses server lastEventAt when present (alive case)', () => {
       const prev = withState({
         phase: 'ready',
         sessionId: 's',
@@ -211,6 +211,24 @@ describe('liveReducer', () => {
       })
       expect(next.phase).toBe('ready')
       expect(next.lastEventAt).toBe(200)
+    })
+
+    it('bumps lastEventAt to Date.now() when server reports alive but no events', () => {
+      // Critical for re-firing the watchdog after a false-alarm check —
+      // without this bump, the effect dependency list doesn't change and
+      // the watchdog stays silent for the rest of the session.
+      const start = Date.now()
+      const prev = withState({
+        phase: 'awaiting',
+        sessionId: 's',
+        lastEventAt: 100,
+      })
+      const next = liveReducer(prev, {
+        type: 'STATUS_RESULT',
+        runnerAlive: true,
+        lastEventAt: null,
+      })
+      expect(next.lastEventAt).toBeGreaterThanOrEqual(start)
     })
   })
 

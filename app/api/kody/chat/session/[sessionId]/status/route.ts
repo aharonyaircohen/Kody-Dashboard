@@ -106,14 +106,33 @@ function inferPhase(
   lastEventType: string | null,
   ageMs: number | null,
   totalEvents: number,
+  clientStaleAgeMs: number | null,
 ): InferResult {
   if (totalEvents === 0) {
+    // No commits in the events file. Two scenarios diverge here:
+    //
+    // (a) The engine just booted and hasn't flushed yet — common in the
+    //     first 30-60s of a fresh session.
+    // (b) The engine emitted events via the real-time HTTP push to
+    //     /api/kody/events/ingest but died before committing the file.
+    //     The dashboard saw the events on SSE; we can't see them from
+    //     here. This is a real zombie state.
+    //
+    // The client's own `lastEventAt` disambiguates: if the dashboard
+    // saw events on SSE long ago and nothing has been committed since,
+    // it's case (b) — declare the runner dead.
+    if (
+      clientStaleAgeMs !== null &&
+      clientStaleAgeMs > STALE_THRESHOLD_MS
+    ) {
+      return {
+        phase: "live",
+        alive: false,
+        reason: `dashboard saw events ${Math.round(clientStaleAgeMs / 1000)}s ago but none have been committed (zombie via real-time push)`,
+      };
+    }
     return {
       phase: "unknown",
-      // No events yet ≠ dead. The engine commits the file lazily — first
-      // commit can take 30-60s. Let the client's watchdog decide based on
-      // its own boot timer; report alive=true so it doesn't prematurely
-      // mark stuck.
       alive: true,
       reason: "no events committed yet",
     };
@@ -207,10 +226,22 @@ export async function GET(rawReq: NextRequest, ctx: RouteContext) {
   }
 
   const ageMs = lastEventAt !== null ? Date.now() - lastEventAt : null;
+  // Optional: client's own lastEventAt (from in-process SSE/poll) lets us
+  // detect the "engine pushed events via HTTP only, then died before
+  // committing the file" case — common when a runner is killed shortly
+  // after boot and before its periodic flush.
+  const clientLastRaw = req.nextUrl.searchParams.get("clientLastEventAt");
+  const clientLastEventAt =
+    clientLastRaw && Number.isFinite(Number(clientLastRaw))
+      ? Number(clientLastRaw)
+      : null;
+  const clientStaleAgeMs =
+    clientLastEventAt !== null ? Date.now() - clientLastEventAt : null;
   const { phase, alive, reason } = inferPhase(
     lastEventType,
     ageMs,
     result.lines.length,
+    clientStaleAgeMs,
   );
 
   return NextResponse.json(

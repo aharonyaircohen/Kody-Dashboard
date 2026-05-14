@@ -216,9 +216,13 @@ export function liveReducer(
           lastEventAt: action.lastEventAt ?? state.lastEventAt,
         }
       }
+      // Runner still considered alive. Bump lastEventAt so the watchdog
+      // effect re-fires after another deadline — without this, the effect
+      // wouldn't re-run (deps haven't changed) and a single false-alarm
+      // check would silence the watchdog for the rest of the session.
       return {
         ...state,
-        lastEventAt: action.lastEventAt ?? state.lastEventAt,
+        lastEventAt: action.lastEventAt ?? Date.now(),
       }
     }
     case 'MARK_STUCK':
