@@ -85,17 +85,35 @@ Migrate the SearchBar component from React to Vue.
 
 ## Built-in prompts
 
-| Slug       | What it does                                        |
-| ---------- | --------------------------------------------------- |
-| `/plan`    | Plan a change without writing code yet.             |
-| `/review`  | Review your uncommitted changes.                    |
-| `/explain` | Explain a topic in this codebase.                   |
-| `/issue`   | Draft a new GitHub issue (title + DoD checklist).   |
-| `/goal`    | Draft a new goal (motivation + metric + milestone). |
-| `/analyze` | Analyze whatever you're viewing (issue, PR, run).   |
-| `/job`     | Draft a `.kody/jobs/<slug>.md` scheduled job.       |
+| Slug        | What it does                                                      |
+| ----------- | ----------------------------------------------------------------- |
+| `/plan`     | Plan a change without writing code yet.                           |
+| `/research` | Investigate a topic. 3–5 tool calls, summary only — no edits.     |
+| `/review`   | Review your uncommitted changes.                                  |
+| `/explain`  | Explain a topic in this codebase.                                 |
+| `/issue`    | Research → draft → create an issue, then offer to run with Kody.  |
+| `/goal`     | Draft a new goal (motivation + metric + milestone).               |
+| `/analyze`  | Analyze whatever you're viewing (issue, PR, run).                 |
+| `/job`      | Draft a `.kody/jobs/<slug>.md` scheduled job.                     |
+| `/init`     | Install the Kody engine in the connected repo.                    |
 
 Fork any of them to customize the wording for your repo.
+
+### The research-plan flow
+
+`/research`, `/plan`, and `/issue` all expect the agent to follow a
+research-first pattern that the kody-live system prompt enforces as
+a hard rule:
+
+1. Investigate the codebase with 3–5 search/read tool calls before
+   writing or drafting anything.
+2. Cite concrete `path:line` references, not recalled paths.
+3. For `/issue`: include a **Research notes** block (2–4 bullets) in
+   `additionalContext` summarizing what was searched and found.
+
+`/issue` extends this with the executor handoff: after the issue is
+created, the agent asks whether to dispatch it with `kody_run_issue` —
+and only fires if you confirm.
 
 ## Why this is dashboard-only
 
