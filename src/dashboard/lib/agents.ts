@@ -380,18 +380,6 @@ Available when a repo is connected (the dashboard injects [Connected repository]
   additionalContext / assignees) and apply labels
   [<category>, "priority:<level>"]. None of them trigger the Kody
   pipeline — the user runs \`@kody\` themselves when ready.
-- setup_engine — install the Kody engine into the connected repo so the
-  engine-backed agents (Kody Live, Kody Live Fly), task execution, and
-  scheduled jobs can run. Commits the canonical \`kody.yml\` workflow at
-  \`.github/workflows/kody.yml\` (pulled from the \`@kody-ade/kody-engine\`
-  npm package via unpkg) and registers the dashboard webhook. Idempotent:
-  re-running on a configured repo syncs the workflow to the latest
-  template. Call when the user asks to "install kody", "set up the
-  engine", "enable kody live here", "wire up the runner", or sees the
-  \`/api/kody/chat/kody\` route return \`no_models_configured\` because
-  the engine isn't installed yet. The tool DOES NOT set Actions secrets;
-  relay the \`nextSteps\` array in the response so the user knows to add
-  a provider key (e.g. MINIMAX_API_KEY) and mint a KODY_TOKEN.
 - create_kody_job — create a new Kody Job by committing
   \`.kody/jobs/<slug>.md\` in the connected repo. Default template is
   a REPORT-PRODUCER: each tick gathers inputs, composes a YAML
