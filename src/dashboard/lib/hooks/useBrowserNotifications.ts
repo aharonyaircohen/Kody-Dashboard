@@ -67,15 +67,43 @@ export function useBrowserNotifications({
         Notification.permission === 'granted' &&
         store?.prefs.browserEnabled !== false
       ) {
-        const notification = new Notification(`${meta.icon} ${title}`, {
+        const displayTitle = `${meta.icon} ${title}`
+        const options: NotificationOptions = {
           body,
           icon: '/favicon.ico',
           tag: opts?.taskIssueNumber ? `task-${opts.taskIssueNumber}` : undefined,
-        })
-        notification.onclick = () => {
-          window.focus()
-          notification.close()
         }
+
+        // Mobile / PWA browsers forbid `new Notification(...)` and require
+        // ServiceWorkerRegistration.showNotification(). Prefer SW path on
+        // every platform when available; fall back to the constructor only
+        // on desktop where SW isn't ready. All paths swallow errors so a
+        // notification failure can never crash the dashboard.
+        const showViaServiceWorker = async () => {
+          try {
+            if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+              const reg = await navigator.serviceWorker.ready
+              await reg.showNotification(displayTitle, options)
+              return true
+            }
+          } catch {
+            // fall through to constructor fallback
+          }
+          return false
+        }
+
+        void showViaServiceWorker().then((shown) => {
+          if (shown) return
+          try {
+            const notification = new Notification(displayTitle, options)
+            notification.onclick = () => {
+              window.focus()
+              notification.close()
+            }
+          } catch {
+            // Some environments (mobile PWAs) throw — already tried SW, give up silently.
+          }
+        })
       }
     },
     [isSupported, store],
