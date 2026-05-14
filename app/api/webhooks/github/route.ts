@@ -37,6 +37,7 @@ import {
 import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@dashboard/lib/logger";
 import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
+import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
 import { maybeDispatchUiReview } from "@dashboard/lib/ui-verify/dispatch";
 import { applyVerdictFromComment } from "@dashboard/lib/ui-verify/apply-label";
 import {
@@ -294,17 +295,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Fire-and-forget Slack notifications. Errors are swallowed inside; we
   // never want a failed Slack POST to cause GitHub to retry the delivery.
   if (typeof payload === "object" && payload !== null) {
-    dispatchNotifications(eventType, payload as Record<string, unknown>).catch(
-      (err: unknown) => {
-        logger.error(
-          {
-            event: "notifications_dispatch_crashed",
-            error: err instanceof Error ? err.message : String(err),
-          },
-          "dispatchNotifications threw — should have been caught internally",
-        );
-      },
-    );
+    const obj = payload as Record<string, unknown>;
+    dispatchNotifications(eventType, obj).catch((err: unknown) => {
+      logger.error(
+        {
+          event: "notifications_dispatch_crashed",
+          error: err instanceof Error ? err.message : String(err),
+        },
+        "dispatchNotifications threw — should have been caught internally",
+      );
+    });
+    // Push @mentions to the mentioned users' devices. Independent of the
+    // rules engine: this routes by GitHub login, not by per-repo rules.
+    dispatchMentionPushes(eventType, obj).catch((err: unknown) => {
+      logger.error(
+        {
+          event: "mention_push_dispatch_crashed",
+          error: err instanceof Error ? err.message : String(err),
+        },
+        "dispatchMentionPushes threw — should have been caught internally",
+      );
+    });
   }
 
   return NextResponse.json({ ok: true, handled: result.handled }, { status: 200 });

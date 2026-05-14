@@ -13,8 +13,14 @@
 import { isProtectedBranch } from '../domain/protected-branches'
 import { buildBranchName, slugifyTitle } from '../domain/branch-name'
 import { isKodyOwnedBranch } from '../domain/branch-ownership'
-import { ForeignBranchError } from '../errors'
+import type { LockPort } from '../domain/lock-port'
+import { ForeignBranchError, LockTakenError } from '../errors'
 import type { BranchRepo, MergeResult } from '../infra/github-branch-repo'
+
+/** Default lease TTL for `getOrCreate` — 5 minutes covers branch
+ *  create + sync + PR creation comfortably, and any crashed holder
+ *  gets unblocked within that window. */
+const GET_OR_CREATE_LOCK_TTL_MS = 5 * 60_000
 
 export interface GetOrCreateInput {
   issueNumber: number

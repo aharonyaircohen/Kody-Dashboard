@@ -630,6 +630,100 @@ test.describe('Kody Live — watchdog + reducer (live)', () => {
     }
   })
 
+  test('Kody Live (Fly) runtime: full soft path on the alternate runner', async ({
+    page,
+  }, testInfo) => {
+    // Same lifecycle assertions as the GHA soft path, but against the
+    // Fly Machines runner. Different boot endpoint
+    // (/api/kody/chat/interactive/start-fly), different cold-start time
+    // (~45s vs ~90s), but the reducer + watchdog path is shared.
+    //
+    // Skipped automatically if the tester repo's vault doesn't have
+    // FLY_API_TOKEN — in which case the kody-live-fly dropdown row
+    // never renders and the test can't pick it.
+    testInfo.setTimeout(300_000)
+    const { owner, repo } = parseRepo(TEST_REPO)
+
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        // eslint-disable-next-line no-console
+        console.log(`BROWSER [error] ${msg.text()}`)
+      }
+    })
+
+    await page.goto(`${BASE_URL}/login`)
+    await injectAuth(page, owner, repo)
+    await page.goto(`${BASE_URL}/vibe`)
+    await page.waitForLoadState('domcontentloaded')
+
+    const viewport = await page.viewportSize()
+    test.skip(
+      (viewport?.width ?? 1280) < 768,
+      'chat rail hidden on mobile',
+    )
+
+    // The Fly dropdown row only appears once flyConfigured resolves
+    // (the dashboard probes /api/kody/secrets/FLY_API_TOKEN/value on
+    // mount, async). Give that probe a moment, then open the dropdown
+    // and wait for the Fly option to render — without this wait, the
+    // dropdown opens before the probe resolves and the test wrongly
+    // skips.
+    await page.waitForTimeout(2_000)
+    const agentTrigger = page
+      .locator('button')
+      .filter({ hasText: /Kody Live|GEMINI|Brain/i })
+      .first()
+    await agentTrigger.click()
+    const listbox = page.getByRole('listbox')
+    await listbox.waitFor({ state: 'visible', timeout: 10_000 })
+    const flyOption = listbox.locator('[role="option"]', {
+      hasText: /Kody Live \(Fly\)/i,
+    })
+    try {
+      await flyOption.waitFor({ state: 'visible', timeout: 10_000 })
+    } catch {
+      test.skip(
+        true,
+        'kody-live-fly not configured for this repo (FLY_API_TOKEN missing from vault)',
+      )
+      return
+    }
+    await flyOption.click()
+
+    // From here on, the flow is the same as the GHA soft path.
+    await expect(
+      page.getByText(/Live runner is offline|Click Start to warm up/i),
+    ).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: /^Start$/ }).click()
+    await expect(
+      page.getByText(/elapsed|Spawning Fly|Cloning repo|Starting engine|Almost ready/i),
+    ).toBeVisible({ timeout: 10_000 })
+
+    // Fly boot is faster than GHA — typically 30-50s — but allow 120s
+    // for cold image pulls.
+    await expect(page.getByText(/Live runner ready/i)).toBeVisible({
+      timeout: 120_000,
+    })
+
+    // Send a turn → assistant reply → typing indicator clears.
+    const input = page.getByPlaceholder(/Ask Kody/i)
+    await input.fill('say hi in one word')
+    await input.press('Enter')
+    await expect(page.getByText(/is thinking/i).first()).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect(page.getByText(/is thinking/i).first()).toBeHidden({
+      timeout: 180_000,
+    })
+    await expect(page.getByText(/Live runner ready/i)).toBeVisible()
+
+    // Cleanup.
+    const stop = page.getByRole('button', { name: /^Stop$/ })
+    if (await stop.isVisible().catch(() => false)) {
+      await stop.click()
+    }
+  })
+
   test('Tab refresh during a ready session preserves the session (no silent drop)', async ({
     page,
   }, testInfo) => {

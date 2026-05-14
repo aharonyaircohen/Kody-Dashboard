@@ -93,6 +93,22 @@ export async function POST(req: NextRequest) {
     const parsed = subscribeSchema.parse(payload);
     const userOctokit = await getUserOctokit(req);
 
+    // Resolve the GitHub login from the PAT itself — clients can't be trusted
+    // to send their own login, and we need it for @mention-targeted pushes.
+    // Best-effort: if the lookup fails we keep whatever the client supplied
+    // (or existing value) rather than blocking the subscribe.
+    let resolvedLogin: string | undefined;
+    if (userOctokit) {
+      try {
+        const { data } = await userOctokit.users.getAuthenticated();
+        if (typeof data?.login === "string" && data.login.length > 0) {
+          resolvedLogin = data.login;
+        }
+      } catch {
+        // ignore — fall back below
+      }
+    }
+
     const outcome = await mutatePushManifest<PushSubscriptionRecord>(
       (current) => {
         const now = new Date().toISOString();
@@ -104,7 +120,8 @@ export async function POST(req: NextRequest) {
           endpoint: parsed.endpoint,
           keys: { p256dh: parsed.keys.p256dh, auth: parsed.keys.auth },
           label: parsed.label?.trim() || existing?.label,
-          userLogin: parsed.userLogin?.trim() || existing?.userLogin,
+          userLogin:
+            resolvedLogin ?? parsed.userLogin?.trim() ?? existing?.userLogin,
           createdAt: existing?.createdAt ?? now,
           lastSeenAt: now,
         };

@@ -23,3 +23,17 @@ export class ForeignBranchError extends Error {
     this.issueNumber = issueNumber
   }
 }
+
+export class LockTakenError extends Error {
+  readonly key: string
+
+  constructor(key: string) {
+    super(
+      `Another vibe session is already in progress for ${key}. ` +
+        'Wait for it to finish (or auto-expire after the TTL) before ' +
+        'starting a new one.',
+    )
+    this.name = 'LockTakenError'
+    this.key = key
+  }
+}
