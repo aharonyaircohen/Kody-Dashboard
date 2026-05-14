@@ -915,6 +915,15 @@ export function KodyChat({
   // Centralising the persistence here means start/ready/exit/error/stuck
   // all share one storage path — fixes a previous foot-gun where some
   // mutation sites forgot to save or clear.
+  //
+  // CRITICAL: on first mount, the reducer is in its initial { phase: 'idle',
+  // sessionId: null } state. The rehydrate effect (further down) reads
+  // localStorage and dispatches REHYDRATE_RESTORED. If THIS effect ran on
+  // mount and called clearLiveSession, it would wipe the saved record
+  // BEFORE rehydrate gets to read it — symptom: refresh-during-session
+  // loses the session. We skip the initial-idle case via a ref, only
+  // clearing on a genuine transition INTO idle/ended/etc.
+  const persistenceMountedRef = useRef(false)
   useEffect(() => {
     const { phase, sessionId, scopeKey, bootStartedAt: at, target, runUrl } =
       liveState
@@ -926,6 +935,13 @@ export function KodyChat({
         target: target ?? undefined,
         runUrl: runUrl ?? undefined,
       })
+      persistenceMountedRef.current = true
+      return
+    }
+    if (!persistenceMountedRef.current) {
+      // First render with idle/null state — leave any persisted record
+      // alone; the rehydrate effect below will pick it up.
+      persistenceMountedRef.current = true
       return
     }
     if (

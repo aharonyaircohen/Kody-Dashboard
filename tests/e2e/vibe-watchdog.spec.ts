@@ -233,16 +233,95 @@ test.describe('Kody Live — watchdog + reducer (live)', () => {
     expect(['idle', 'ended', 'ready']).toContain(final)
   })
 
-  test('stuck path: cancel runner mid-flight → watchdog → restart', async ({
+  test('stuck path: stale session → watchdog → status → reducer flips to stuck → restart', async ({
     page,
   }, testInfo) => {
-    testInfo.setTimeout(600_000) // 10 min: boot + 150s watchdog + restart boot.
+    // Deterministic stuck test. The "real" zombie scenario (live runner
+    // crash mid-session) is hard to reproduce reliably — cancelling a
+    // GHA run takes seconds to propagate and the engine often finishes a
+    // turn before dying. Instead, we inject a saved live session that
+    // points at a known-zombie sessionId: a real session that completed
+    // long ago with only chat.ready committed and no chat.exit.
+    //
+    // When the dashboard rehydrates this session:
+    //   1. REHYDRATE_RESTORED → phase='booting' with bootStartedAt in
+    //      the past (older than the 150s watchdog deadline).
+    //   2. Watchdog effect runs with remainingMs clamped to its 5s floor.
+    //   3. After 5s, watchdog fetches /status. The events file has only
+    //      chat.ready committed hours ago → status returns
+    //      runnerAlive=false with reason "no chat.exit".
+    //   4. STATUS_RESULT(runnerAlive=false) → reducer flips to 'stuck'.
+    //   5. Banner shows "Runner stuck — restart?" with Restart button.
+    //   6. Restart click → FORCE_RESET + startInteractiveSession → booting.
+    testInfo.setTimeout(180_000) // 3 min — most of it is the new boot.
     const { owner, repo } = parseRepo(TEST_REPO)
 
+    // Real session ID in Kody-Engine-Tester with only chat.ready committed.
+    // (Created during earlier E2E runs that got cancelled.) Confirmed via
+    //   curl /api/kody/chat/session/{this id}/status → runnerAlive: false
+    const ZOMBIE_SESSION_ID = 'global-1778767409173-dlgai1'
+
+    // Establish origin so localStorage is reachable. /login is fine even
+    // if it redirects — localStorage is shared across paths on the same
+    // origin.
     await page.goto(`${BASE_URL}/login`)
     await injectAuth(page, owner, repo)
+
+    // Seed a stale live-session record under the same key the dashboard
+    // reads on mount: `kody-live-sessions:<owner>/<repo>` (lowercased).
+    await page.evaluate(
+      ([sessionId, ownerArg, repoArg]) => {
+        const key = `kody-live-sessions:${ownerArg.toLowerCase()}/${repoArg.toLowerCase()}`
+        window.localStorage.setItem(
+          key,
+          JSON.stringify({
+            global: {
+              sessionId,
+              state: 'booting',
+              startedAt: Date.now() - 200_000, // older than 150s deadline
+              target: { owner: ownerArg, repo: repoArg },
+            },
+          }),
+        )
+      },
+      [ZOMBIE_SESSION_ID, owner, repo] as const,
+    )
+
+    // Sanity check: verify both keys persist before we navigate. Playwright
+    // sometimes clears localStorage between Page.goto() calls in certain
+    // configurations; making the test surface this clearly beats debugging
+    // a vague "didn't rehydrate" failure later.
+    const storageBefore = await page.evaluate(() => ({
+      auth: window.localStorage.getItem('kody_auth'),
+      keys: Object.keys(window.localStorage).filter((k) => k.startsWith('kody-live-sessions')),
+    }))
+    expect(storageBefore.auth, 'kody_auth must persist').not.toBeNull()
+    expect(
+      storageBefore.keys.length,
+      'a kody-live-sessions key must have been seeded',
+    ).toBeGreaterThan(0)
+
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        // eslint-disable-next-line no-console
+        console.log(`BROWSER [error] ${msg.text()}`)
+      }
+    })
+
     await page.goto(`${BASE_URL}/vibe`)
     await page.waitForLoadState('domcontentloaded')
+
+    // Verify the seeded record survived the navigation.
+    const storageAfter = await page.evaluate(() => ({
+      auth: window.localStorage.getItem('kody_auth'),
+      sessions: Object.fromEntries(
+        Object.keys(window.localStorage)
+          .filter((k) => k.startsWith('kody-live-sessions'))
+          .map((k) => [k, window.localStorage.getItem(k)]),
+      ),
+    }))
+    // eslint-disable-next-line no-console
+    console.log('After nav storage:', JSON.stringify(storageAfter, null, 2))
 
     const viewport = await page.viewportSize()
     test.skip(
@@ -250,56 +329,39 @@ test.describe('Kody Live — watchdog + reducer (live)', () => {
       'chat rail hidden on mobile',
     )
 
-    // 1. Click Start.
+    // 1. Should rehydrate as booting (so the watchdog effect fires).
     await expect(
-      page.getByText(/Live runner is offline|Click Start to warm up/i),
+      page.getByText(/elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i),
     ).toBeVisible({ timeout: 15_000 })
-    await page.getByRole('button', { name: /^Start$/ }).click()
-    await expect(page.getByText(/elapsed|Watching .* → Actions/i)).toBeVisible({
-      timeout: 10_000,
-    })
 
-    // 2. Wait for ready, THEN cancel the GHA run while the dashboard thinks
-    //    it's still alive. This is the canonical zombie scenario: dashboard
-    //    saw chat.ready but the runner dies before chat.exit fires.
-    await expect(page.getByText(/Live runner ready/i)).toBeVisible({
-      timeout: 180_000,
-    })
-
-    // 3. Find the run and cancel it.
-    const run = await findRecentKodyRun(owner, repo)
-    expect(run, 'recent kody.yml run must exist').toBeTruthy()
-    if (!run) return
-    // eslint-disable-next-line no-console
-    console.log(`Cancelling run ${run.id} (${run.status})...`)
-    await cancelRun(owner, repo, run.id)
-
-    // 4. Send a turn — TURN_SENT moves to awaiting. The runner is dead so
-    //    no chat.message will arrive. Watchdog deadline for awaiting is
-    //    240s; wait long enough for it to fire and reconcile to 'stuck'.
-    const input = page.getByPlaceholder(/Ask Kody/i)
-    await input.fill('this turn will never be answered')
-    await input.press('Enter')
-
-    // 5. Wait for the Restart affordance. The watchdog fires at 240s past
-    //    the last event; the events file may have a few events from boot
-    //    so we set a generous 300s ceiling.
+    // 2. Watchdog fires after 5s, /status returns runnerAlive=false,
+    //    STATUS_RESULT flips reducer to 'stuck'. Wait up to 30s for the
+    //    round trip — generous because /status fetches from GitHub.
     await expect(page.getByText(/Runner stuck/i)).toBeVisible({
-      timeout: 300_000,
+      timeout: 30_000,
     })
-    const restartButton = page.getByRole('button', { name: /^Restart$/ })
-    await expect(restartButton).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: /^Restart$/ }),
+    ).toBeVisible()
 
-    // 6. Click Restart → reducer FORCE_RESETs and immediately re-enters
-    //    booting via startInteractiveSession().
-    await restartButton.click()
+    // 3. Click Restart → FORCE_RESET + new startInteractiveSession.
+    await page.getByRole('button', { name: /^Restart$/ }).click()
     await expect(page.getByText(/elapsed|Watching .* → Actions/i)).toBeVisible({
       timeout: 15_000,
     })
 
-    // 7. Don't wait for the second boot — that would burn another 90s.
-    //    Just verify the reducer is back in booting and end the test.
+    // 4. Cancel the new run we just spawned — we don't actually need it.
+    //    The reducer is in 'booting'; the test goal is met.
     const phase = await readPhaseFromBanner(page)
     expect(phase).toBe('booting')
+
+    const newRun = await findRecentKodyRun(owner, repo)
+    if (newRun) {
+      try {
+        await cancelRun(owner, repo, newRun.id)
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
   })
 })
