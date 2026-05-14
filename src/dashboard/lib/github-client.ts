@@ -2150,11 +2150,15 @@ export async function fetchPRComments(prNumber: number): Promise<PRComment[]> {
   const octokit = getOctokit()
 
   try {
-    const { data } = await octokit.issues.listComments({
+    // Paginate to get the full thread. GitHub returns comments ascending by
+    // created_at, capped at 100 per page. Most PRs fit in one page; heavily
+    // iterated ones (fix-ci/ui-review loops) need 2-3. Octokit's paginate()
+    // walks all pages in one call.
+    const data = await octokit.paginate(octokit.issues.listComments, {
       owner: getOwner(),
       repo: getRepo(),
       issue_number: prNumber,
-      per_page: 50,
+      per_page: 100,
     })
 
     const comments: PRComment[] = data.map((comment) => ({
