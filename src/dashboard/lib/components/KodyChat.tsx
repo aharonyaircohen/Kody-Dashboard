@@ -132,6 +132,7 @@ import {
   getStoredBrainConfig,
   getStoredFlyPerf,
 } from '../api'
+import { useAuth } from '../auth-context'
 import { toast } from 'sonner'
 import type { KodyTask } from '../types'
 
@@ -710,7 +711,12 @@ export function KodyChat({
   // The chat request forwards it as `body.model`. Null = no override.
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
-  const [brainConfigured, setBrainConfigured] = useState(false)
+  // Reactive: re-derives whenever the auth context updates `brain`. Without
+  // useAuth this stayed stale because KodyChat lives in the persistent rail
+  // and never remounts after Settings saves a Brain config — the dropdown
+  // entry wouldn't appear until a full page reload.
+  const { auth, loading: authLoading } = useAuth()
+  const brainConfigured = Boolean(auth?.brain?.url && auth?.brain?.apiKey)
   // Mirrors brainConfigured: true only when the per-repo vault holds a
   // non-empty FLY_API_TOKEN. The Fly dropdown row is hidden until then so
   // users can't pick a runner that will fail at start-fly time.
@@ -752,18 +758,23 @@ export function KodyChat({
         (e.modelId ?? null) === selectedModelId,
     ) ?? null
 
-  // Read Brain config once on mount. When Brain credentials were provided at
-  // login, Brain becomes the default selection; otherwise Kody Live is the
-  // default. Skip the auto-switch when the parent locks a specific agent
-  // (Vibe page).
+  // Auto-default to Brain on first load when it's already configured. Runs
+  // once after auth hydrates so we don't preempt the user's later picks.
+  // Skipped when the parent locks a specific agent (Vibe page).
+  const initialBrainDefaultRef = useRef(false)
   useEffect(() => {
-    const configured = getStoredBrainConfig() !== null
-    setBrainConfigured(configured)
-    if (configured && !lockedAgentId) {
+    if (initialBrainDefaultRef.current) return
+    if (lockedAgentId) {
+      initialBrainDefaultRef.current = true
+      return
+    }
+    if (authLoading) return
+    if (brainConfigured) {
       setSelectedAgentId('brain')
       setSelectedModelId(null)
     }
-  }, [lockedAgentId])
+    initialBrainDefaultRef.current = true
+  }, [authLoading, brainConfigured, lockedAgentId])
 
   // Load the user-managed model list once on mount. The dropdown stays in
   // Kody Live-only mode until this resolves; failures are silent — chat
