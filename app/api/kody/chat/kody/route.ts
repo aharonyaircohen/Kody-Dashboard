@@ -673,7 +673,15 @@ export async function POST(req: NextRequest) {
       // and Pass 2 (per-task research + create) each chain ~2–4 calls per
       // task, so 10 silently truncates a 5-task plan after the first
       // create. Raise to 30 in planner mode so the full sweep can land.
-      stopWhen: stepCountIs(goalPlannerActive ? 30 : 10),
+      //
+      // Per-model override: `maxSteps` on the LLM_MODELS entry wins over
+      // both defaults, so a model that runs longer research chains (e.g.
+      // reasoning models that branch more) can be lifted individually
+      // without raising the cap for every other model. The
+      // `maxDuration: 300` Vercel ceiling still bounds wall-clock time.
+      stopWhen: stepCountIs(
+        resolvedModel.maxSteps ?? (goalPlannerActive ? 30 : 10),
+      ),
       // Per-provider thinking config so reasoning-delta chunks actually
       // reach the client. Without this, `sendReasoning: true` below has
       // nothing to stream and the chat looks idle until the final answer.
