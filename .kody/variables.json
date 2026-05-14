@@ -2,8 +2,8 @@
   "version": 1,
   "variables": {
     "LLM_MODELS": {
-      "value": "[{\"id\":\"minimax/MiniMax-M2.7-highspeed\",\"label\":\"MiniMax\",\"provider\":\"custom\",\"protocol\":\"openai\",\"baseURL\":\"https://api.minimax.io/v1\",\"modelName\":\"MiniMax-M2.7-highspeed\",\"apiKeySecret\":\"MINIMAX_API_KEY\",\"enabled\":true,\"speech\":false,\"default\":true}]",
-      "updatedAt": "2026-05-14T20:18:29.823Z",
+      "value": "[{\"id\":\"minimax/MiniMax-M2.7-highspeed\",\"label\":\"MiniMax\",\"provider\":\"custom\",\"protocol\":\"openai\",\"baseURL\":\"https://api.minimax.io/v1\",\"modelName\":\"MiniMax-M2.7-highspeed\",\"apiKeySecret\":\"MINIMAX_API_KEY\",\"enabled\":true,\"default\":true,\"maxSteps\":100}]",
+      "updatedAt": "2026-05-14T22:30:31.249Z",
       "updatedBy": "aguyaharonyair"
     }
   }
