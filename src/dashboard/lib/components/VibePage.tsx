@@ -10,7 +10,7 @@
  */
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -185,12 +185,54 @@ export function VibePage() {
   const tasksQuery = useKodyTasks({ refetchInterval: 'auto' })
   const tasks = tasksQuery.data
 
+  // Newly-created issues that we've optimistically pinned in the tasks
+  // cache. GitHub's list-issues response can lag for tens of seconds
+  // after a write (cache propagation on the dashboard server's side),
+  // so a refetch that arrives between optimistic insert and the issue
+  // actually appearing on the API will WIPE the synthetic record. When
+  // that happens mid-vibe-handoff, `selectedTask` drops to null,
+  // `context` drops to null, the chat-rail scope flips to 'global',
+  // and the rehydrate useEffect blows away the booting interactive
+  // session — symptom: kickoff `/append` never fires, runner idles,
+  // PR stays empty. Pinning the new issue here keeps `selectedTask`
+  // populated until the real fetch confirms the issue is present.
+  const pinnedNewTasksRef = useRef<Map<number, KodyTask>>(new Map())
+  // Render counter — force a re-render after the ref updates so the
+  // memo below picks up the new pin without waiting for a parent
+  // state change. Keeps the pin path side-effect free in the listener.
+  const [pinnedRev, setPinnedRev] = useState(0)
+
   // Resolve the selected task fresh from query data on every render so
-  // optimistic updates and refetches flow through without local state drift.
+  // optimistic updates and refetches flow through without local state
+  // drift. Falls back to the pinned synthetic when the real list
+  // hasn't caught up yet — critical for the vibe handoff race above.
   const selectedTask = useMemo<KodyTask | null>(() => {
-    if (selectedIssueNumber === null || !tasks) return null
-    return tasks.find((t) => t.issueNumber === selectedIssueNumber) ?? null
-  }, [selectedIssueNumber, tasks])
+    if (selectedIssueNumber === null) return null
+    const real = tasks?.find((t) => t.issueNumber === selectedIssueNumber) ?? null
+    if (real) {
+      // Real task is here — drop the pin if we still hold one for this
+      // issue (deferred to a useEffect to avoid mutating in render).
+      return real
+    }
+    return pinnedNewTasksRef.current.get(selectedIssueNumber) ?? null
+    // pinnedRev is in the dep array so React picks up pinned-map
+    // changes (the ref mutation alone isn't observable).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIssueNumber, tasks, pinnedRev])
+
+  // Drop pins for issues that have now appeared in the real fetch.
+  // We do this outside the memo so render stays pure.
+  useEffect(() => {
+    if (!tasks || pinnedNewTasksRef.current.size === 0) return
+    let removed = false
+    for (const issueNumber of Array.from(pinnedNewTasksRef.current.keys())) {
+      if (tasks.some((t) => t.issueNumber === issueNumber)) {
+        pinnedNewTasksRef.current.delete(issueNumber)
+        removed = true
+      }
+    }
+    if (removed) setPinnedRev((r) => r + 1)
+  }, [tasks])
 
   // Same pattern for the detail overlay — resolve from query data so it
   // reflects optimistic edits/refetches without local copies drifting.
@@ -245,9 +287,14 @@ export function VibePage() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
-      // Update every cached tasks query — the key has variant suffixes
-      // for days+includeDetails, so we match by prefix instead of by
-      // exact key shape.
+      // Pin the synthetic outside the react-query cache so it survives
+      // refetches that return stale lists (without the new issue). The
+      // memo above merges this pin with whatever's in the cache.
+      pinnedNewTasksRef.current.set(issueNumber, synthetic)
+      setPinnedRev((r) => r + 1)
+      // Also write into the cache so list views render the new row
+      // without waiting on the next poll. Both paths converge once the
+      // real fetch returns including the new issue.
       queryClient.setQueriesData<KodyTask[]>(
         { queryKey: ['kody-tasks'] },
         (prev) => {
