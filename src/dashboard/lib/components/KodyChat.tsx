@@ -1,6 +1,14 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import {
+  liveReducer,
+  initialLiveState,
+  isWatchdogActive,
+  type LivePhase,
+  type LiveAction,
+  type LiveSessionState,
+} from './kody-chat-reducer'
 import ReactMarkdown from 'react-markdown'
 import {
   Globe,
@@ -705,9 +713,8 @@ export function KodyChat({
   // runner gets dispatched against the wrong sessionId (symptom seen
   // in prod: workflow_dispatch logs show `vibe-<oldIssue>-...` and the
   // new issue's PR stays empty).
-  const [pendingKickoff, setPendingKickoff] = useState<
-    { content: string; issueNumber: number | null } | null
-  >(null)
+  // Vibe auto-kickoff queue lives in the live-session reducer (see below);
+  // these named getters keep read sites readable.
   // What to show in the header — when a gateway model is active, prefer
   // its label over the static `kody` agent name.
   const currentEntry =
@@ -849,51 +856,94 @@ export function KodyChat({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
 
-  // Kody Live (long-lived runner) — explicit warm-up flow:
-  //   1. user picks 'kody-live' agent → chat input is disabled, banner shows
-  //      "Start Live Runner" button.
-  //   2. user clicks button → /start dispatches kody.yml → state='booting'.
-  //   3. runner emits chat.ready (~90s) → state='ready', input enables.
-  //   4. user chats normally; every send hits /append (no new dispatch).
-  //   5. chat.exit (idle/cap) → state='ended', input disables, banner shows
-  //      a re-start button.
+  // Kody Live (long-lived runner) lifecycle — single reducer owns phase +
+  // session id + target + run url + boot timestamp + last-event timestamp +
+  // the vibe auto-kickoff queue. Every transition goes through `dispatchLive`,
+  // which (a) recomputes the next state, (b) writes a synchronous mirror to
+  // `liveStateRef` so closure-captured reads see fresh values immediately,
+  // and (c) calls React's setState so the UI re-renders. See
+  // kody-chat-reducer.ts for the action surface and transition table.
   //
-  // Refs (not state) because the SSE callback captures these in a closure;
-  // state alone would be stale by the time chat.ready arrives.
+  // Legacy phases ('idle' | 'booting' | 'ready' | 'ended') are extended with
+  // 'awaiting' (turn in flight), 'error' (start failed or chat.error), and
+  // 'stuck' (watchdog/status check declared the runner zombie).
+  const liveStateRef = useRef<LiveSessionState>(initialLiveState)
+  const [liveState, setLiveState] = useState<LiveSessionState>(initialLiveState)
+  const dispatchLive = useCallback((action: LiveAction) => {
+    const next = liveReducer(liveStateRef.current, action)
+    liveStateRef.current = next
+    setLiveState(next)
+    // Keep the legacy named refs in sync so closure readers don't go stale.
+    interactiveSessionIdRef.current = next.sessionId
+    interactiveStateRef.current = next.phase
+    interactiveTargetRef.current = next.target
+    currentScopeKeyRef.current = next.scopeKey
+  }, [])
+
+  // Legacy refs kept for the many closure readers in this file. Source of
+  // truth is `liveStateRef`; these are updated by `dispatchLive` above so
+  // a post-dispatch read in the same tick sees the new value.
   const interactiveSessionIdRef = useRef<string | null>(null)
-  const interactiveStateRef = useRef<'idle' | 'booting' | 'ready' | 'ended'>('idle')
-  // Scope of the currently-mounted live session. Each scope (e.g. each
-  // Vibe issue) has its own runner, so callbacks that persist live state
-  // must save under the right key.
-  const currentScopeKeyRef = useRef<LiveScopeKey>('global')
-  // Display state mirrors the ref so React re-renders the input lock + banner.
-  const [interactiveState, setInteractiveState] = useState<
-    'idle' | 'booting' | 'ready' | 'ended'
-  >('idle')
-  // Where the runner was dispatched. Surfaced in the banner so users can
-  // verify the connected repo + jump to its Actions tab if booting hangs.
-  const [interactiveTarget, setInteractiveTarget] = useState<{
-    owner: string
-    repo: string
-  } | null>(null)
+  const interactiveStateRef = useRef<LivePhase>('idle')
   const interactiveTargetRef = useRef<{ owner: string; repo: string } | null>(null)
-  // Direct URL to the specific GHA run, set when chat.ready arrives with
-  // the engine's GITHUB_RUN_ID. Until then, we link to the workflow page.
-  const [interactiveRunUrl, setInteractiveRunUrl] = useState<string | null>(null)
-  // When booting started — drives the elapsed-time + phase indicator in the
-  // banner. Reset to null on ready/ended so the next start re-anchors.
-  const [bootStartedAt, setBootStartedAt] = useState<number | null>(null)
+  const currentScopeKeyRef = useRef<LiveScopeKey>('global')
+
+  // Render aliases — kept named to minimise churn at JSX read sites.
+  const interactiveState = liveState.phase
+  const interactiveTarget = liveState.target
+  const interactiveRunUrl = liveState.runUrl
+  const pendingKickoff = liveState.pendingKickoff
+
+  // Boot-elapsed ticker — drives the banner countdown while booting.
   const [bootElapsed, setBootElapsed] = useState(0)
   useEffect(() => {
-    if (interactiveState !== 'booting' || !bootStartedAt) {
+    if (liveState.phase !== 'booting' || !liveState.bootStartedAt) {
       setBootElapsed(0)
       return
     }
-    const tick = () => setBootElapsed(Math.floor((Date.now() - bootStartedAt) / 1000))
+    const tick = () =>
+      setBootElapsed(
+        Math.floor((Date.now() - (liveState.bootStartedAt ?? Date.now())) / 1000),
+      )
     tick()
     const interval = setInterval(tick, 1000)
     return () => clearInterval(interval)
-  }, [interactiveState, bootStartedAt])
+  }, [liveState.phase, liveState.bootStartedAt])
+
+  // Persist the live-session record to localStorage whenever the reducer
+  // moves through booting/ready, and clear it when we leave those phases.
+  // Centralising the persistence here means start/ready/exit/error/stuck
+  // all share one storage path — fixes a previous foot-gun where some
+  // mutation sites forgot to save or clear.
+  useEffect(() => {
+    const { phase, sessionId, scopeKey, bootStartedAt: at, target, runUrl } =
+      liveState
+    if ((phase === 'booting' || phase === 'ready') && sessionId) {
+      saveLiveSession(scopeKey, {
+        sessionId,
+        state: phase,
+        startedAt: at ?? Date.now(),
+        target: target ?? undefined,
+        runUrl: runUrl ?? undefined,
+      })
+      return
+    }
+    if (
+      phase === 'ended' ||
+      phase === 'error' ||
+      phase === 'stuck' ||
+      (phase === 'idle' && !sessionId)
+    ) {
+      clearLiveSession(scopeKey)
+    }
+  }, [
+    liveState.phase,
+    liveState.sessionId,
+    liveState.scopeKey,
+    liveState.bootStartedAt,
+    liveState.target,
+    liveState.runUrl,
+  ])
 
   // Remote dev status (only polls when actorLogin is provided)
   const { data: remoteStatus } = useRemoteStatus(actorLogin)
@@ -1013,32 +1063,23 @@ export function KodyChat({
           const payload = event.payload ?? {}
           switch (event.event) {
             case 'chat.ready': {
-              interactiveStateRef.current = 'ready'
-              setInteractiveState('ready')
-              setBootStartedAt(null)
-              const runUrl = typeof payload.runUrl === 'string' ? payload.runUrl : undefined
-              if (runUrl) setInteractiveRunUrl(runUrl)
-              const id = interactiveSessionIdRef.current
-              if (id) {
-                saveLiveSession(currentScopeKeyRef.current, {
-                  sessionId: id,
-                  state: 'ready',
-                  startedAt: Date.now(),
-                  target: interactiveTargetRef.current ?? undefined,
-                  runUrl,
-                })
-              }
+              const runUrl =
+                typeof payload.runUrl === 'string' ? payload.runUrl : undefined
+              dispatchLive({ type: 'RUNNER_READY', runUrl })
               break
             }
             case 'chat.exit': {
-              interactiveStateRef.current = 'ended'
-              setInteractiveState('ended')
+              dispatchLive({ type: 'RUNNER_EXIT' })
               setLoading(false)
-              clearLiveSession(currentScopeKeyRef.current)
               stopInteractivePoll()
               break
             }
             case 'chat.message': {
+              // Hazard D fix: an assistant message always returns the
+              // session to ready, so the typing indicator can never outlive
+              // the reply even if chat.done is dropped.
+              dispatchLive({ type: 'MESSAGE_RECEIVED' })
+              setLoading(false)
               const role =
                 payload.role === 'user' || payload.role === 'assistant' ? payload.role : 'assistant'
               const content = typeof payload.content === 'string' ? payload.content : ''
@@ -1072,11 +1113,13 @@ export function KodyChat({
               break
             }
             case 'chat.done':
+              dispatchLive({ type: 'TURN_DONE' })
               setLoading(false)
               break
             case 'chat.error': {
-              setLoading(false)
               const error = typeof payload.error === 'string' ? payload.error : 'Unknown error'
+              dispatchLive({ type: 'RUNNER_ERROR', errorMessage: error })
+              setLoading(false)
               setMessages((prev) => {
                 const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
                 return [
@@ -1240,32 +1283,22 @@ export function KodyChat({
             case 'connected':
               break
             case 'chat.ready': {
-              interactiveStateRef.current = 'ready'
-              setInteractiveState('ready')
-              setBootStartedAt(null)
-              const id = interactiveSessionIdRef.current
-              const runUrl = typeof parsed.runUrl === 'string' ? parsed.runUrl : undefined
-              if (runUrl) setInteractiveRunUrl(runUrl)
-              if (id) {
-                saveLiveSession(currentScopeKeyRef.current, {
-                  sessionId: id,
-                  state: 'ready',
-                  startedAt: Date.now(),
-                  target: interactiveTargetRef.current ?? undefined,
-                  runUrl,
-                })
-              }
+              const runUrl =
+                typeof parsed.runUrl === 'string' ? parsed.runUrl : undefined
+              dispatchLive({ type: 'RUNNER_READY', runUrl })
               break
             }
             case 'chat.exit': {
-              interactiveStateRef.current = 'ended'
-              setInteractiveState('ended')
+              dispatchLive({ type: 'RUNNER_EXIT' })
               setLoading(false)
-              clearLiveSession(currentScopeKeyRef.current)
               es.close()
               break
             }
             case 'chat.message': {
+              // Hazard D fix (SSE path): mirror the polling path so chat.message
+              // alone is enough to clear awaiting + the typing indicator.
+              dispatchLive({ type: 'MESSAGE_RECEIVED' })
+              setLoading(false)
               const { role, content, timestamp } = parsed
               // Inherit mid-turn progress (reasoning + tool calls) from the
               // in-flight bubble before replacing it with the final reply —
@@ -1292,12 +1325,18 @@ export function KodyChat({
               break
             }
             case 'chat.done':
+              dispatchLive({ type: 'TURN_DONE' })
               setLoading(false)
               // In interactive mode, chat.done is per-turn — keep SSE open;
               // the runner stays alive until chat.exit.
               if (!opts.interactive) es.close()
               break
             case 'chat.error': {
+              dispatchLive({
+                type: 'RUNNER_ERROR',
+                errorMessage:
+                  typeof parsed.error === 'string' ? parsed.error : 'Unknown error',
+              })
               setLoading(false)
               setMessages((prev) => {
                 const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
@@ -2562,7 +2601,8 @@ export function KodyChat({
             // of the component for why both must align first — and why
             // the issue-number gate is load-bearing.
             if (target.autoKickoff && target.autoKickoff.trim().length > 0) {
-              setPendingKickoff({
+              dispatchLive({
+                type: 'KICKOFF_QUEUED',
                 content: target.autoKickoff,
                 issueNumber: target.autoKickoffIssueNumber ?? null,
               })
@@ -2748,6 +2788,11 @@ export function KodyChat({
                 .join('\n\n') + (messageContent ? `\n\n${messageContent}` : '')
             : messageContent
 
+        // Mark the session as awaiting a reply. The reducer will flip back
+        // to 'ready' on chat.message or chat.done — so even if chat.done
+        // never arrives (engine drops it on commit-only turns), the typing
+        // indicator clears as soon as the assistant message lands.
+        dispatchLive({ type: 'TURN_SENT' })
         try {
           const appendRes = await fetch('/api/kody/chat/interactive/append', {
             method: 'POST',
@@ -2924,7 +2969,8 @@ export function KodyChat({
   // for an interactive session. Chat input stays disabled until the runner
   // emits chat.ready (handled in connectSSE).
   const startInteractiveSession = useCallback(async () => {
-    if (interactiveStateRef.current === 'booting' || interactiveStateRef.current === 'ready') return
+    const cur = liveStateRef.current.phase
+    if (cur === 'booting' || cur === 'ready' || cur === 'awaiting') return
 
     // Embed the scope key in the sessionId so kody.yml's concurrency
     // group (`kody-${sessionId}`) puts each issue in its own bucket.
@@ -2932,12 +2978,7 @@ export function KodyChat({
     const scopeKey = currentScopeKeyRef.current
     const sessionId = `${scopeKey}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const startedAt = Date.now()
-    interactiveSessionIdRef.current = sessionId
-    interactiveStateRef.current = 'booting'
-    setInteractiveState('booting')
-    setBootStartedAt(startedAt)
-    setInteractiveRunUrl(null)
-    saveLiveSession(scopeKey, { sessionId, state: 'booting', startedAt })
+    dispatchLive({ type: 'START', sessionId, scopeKey, startedAt })
 
     try {
       // dashboardUrl re-enabled — engine pushes events to /ingest in
@@ -2981,28 +3022,20 @@ export function KodyChat({
         target?: { owner: string; repo: string }
       }
       if (startBody.target) {
-        setInteractiveTarget(startBody.target)
-        interactiveTargetRef.current = startBody.target
-        // Re-save with target so a refresh during boot still shows the link.
-        saveLiveSession(scopeKey, {
-          sessionId,
-          state: 'booting',
-          startedAt,
-          target: startBody.target,
-        })
+        // Reducer's persistence useEffect will re-save the record with the
+        // resolved target so a refresh during boot still shows the link.
+        dispatchLive({ type: 'TARGET_RESOLVED', target: startBody.target })
       }
       startInteractivePoll(sessionId)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      interactiveStateRef.current = 'ended'
-      setInteractiveState('ended')
-      clearLiveSession(scopeKey)
+      dispatchLive({ type: 'START_FAILED', errorMessage })
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: `Failed to start live runner: ${errorMessage}`, isLoading: false },
       ])
     }
-  }, [connectSSE, setMessages, selectedAgentId])
+  }, [setMessages, selectedAgentId, startInteractivePoll, dispatchLive])
 
   // Cancel a Kody Live session locally. Closes the SSE, clears the saved
   // record for the CURRENT scope, and flips state to 'idle' so the user
@@ -3012,15 +3045,22 @@ export function KodyChat({
     stopInteractivePoll()
     eventSourceRef.current?.close()
     eventSourceRef.current = null
-    interactiveSessionIdRef.current = null
-    interactiveStateRef.current = 'idle'
-    setInteractiveState('idle')
-    setBootStartedAt(null)
-    setInteractiveTarget(null)
-    interactiveTargetRef.current = null
-    setInteractiveRunUrl(null)
-    clearLiveSession(currentScopeKeyRef.current)
-  }, [stopInteractivePoll])
+    dispatchLive({ type: 'END' })
+  }, [stopInteractivePoll, dispatchLive])
+
+  // Force a clean restart of the live session — used by the "Runner stuck —
+  // restart?" affordance. Tears down poll + SSE, resets the reducer, then
+  // kicks off a fresh /start.
+  const restartInteractiveSession = useCallback(async () => {
+    stopInteractivePoll()
+    eventSourceRef.current?.close()
+    eventSourceRef.current = null
+    dispatchLive({ type: 'FORCE_RESET' })
+    // Defer to next tick so the reducer's persistence effect can clear the
+    // stale localStorage record before /start writes a new one.
+    await Promise.resolve()
+    await startInteractiveSession()
+  }, [stopInteractivePoll, dispatchLive, startInteractiveSession])
 
   // ── Scope tracking ───────────────────────────────────────────────────
   // Each chat scope (Vibe issue vs global) has its own live session. When
@@ -3037,31 +3077,22 @@ export function KodyChat({
       eventSourceRef.current = null
       stopInteractivePoll()
       if (!saved) {
-        interactiveSessionIdRef.current = null
-        interactiveStateRef.current = 'idle'
-        setInteractiveState('idle')
-        setBootStartedAt(null)
-        setInteractiveTarget(null)
-        interactiveTargetRef.current = null
-        setInteractiveRunUrl(null)
+        dispatchLive({ type: 'REHYDRATE_IDLE', scopeKey })
         return
       }
-      interactiveSessionIdRef.current = saved.sessionId
-      interactiveStateRef.current = saved.state
-      setInteractiveState(saved.state)
+      dispatchLive({
+        type: 'REHYDRATE_RESTORED',
+        scopeKey,
+        sessionId: saved.sessionId,
+        phase: saved.state,
+        bootStartedAt: saved.state === 'booting' ? saved.startedAt : null,
+        target: saved.target ?? null,
+        runUrl: saved.runUrl ?? null,
+      })
       setSelectedAgentId('kody-live')
-      setBootStartedAt(saved.state === 'booting' ? saved.startedAt : null)
-      if (saved.target) {
-        setInteractiveTarget(saved.target)
-        interactiveTargetRef.current = saved.target
-      } else {
-        setInteractiveTarget(null)
-        interactiveTargetRef.current = null
-      }
-      setInteractiveRunUrl(saved.runUrl ?? null)
       startInteractivePoll(saved.sessionId)
     },
-    [startInteractivePoll, stopInteractivePoll],
+    [startInteractivePoll, stopInteractivePoll, dispatchLive],
   )
 
   useEffect(() => {
@@ -3108,11 +3139,94 @@ export function KodyChat({
       return
     }
     const kickoffContent = pendingKickoff.content
-    setPendingKickoff(null)
+    dispatchLive({ type: 'KICKOFF_FIRED' })
     void Promise.resolve().then(() => {
       void sendText(kickoffContent)
     })
-  }, [pendingKickoff, selectedAgentId, context, sendText])
+  }, [pendingKickoff, selectedAgentId, context, sendText, dispatchLive])
+
+  // ── Watchdog ─────────────────────────────────────────────────────────
+  // The runner is supposed to drive its own lifecycle (chat.ready → ...
+  // → chat.exit). Sometimes it dies silently — GHA cancellation, network
+  // partition, OOM — and the dashboard is left believing it's still alive.
+  // When that happens the UI shows "Kody Live is thinking…" forever.
+  //
+  // The watchdog re-anchors the UI to server truth. If we've been in a
+  // waiting phase (booting/awaiting) without a new event for too long, we
+  // ask /api/kody/chat/session/[id]/status what the events file says, and
+  // dispatch STATUS_RESULT. The reducer downgrades to 'stuck' if the
+  // server confirms the runner is gone — at which point the banner
+  // surfaces a Restart button.
+  //
+  // Thresholds: booting takes ~90s on GHA cold start, ~45s on Fly; allow
+  // 150s before suspecting. A turn can take 2-3 min for complex work;
+  // allow 240s after the last event before suspecting.
+  const watchdogTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (watchdogTimeoutRef.current) {
+      clearTimeout(watchdogTimeoutRef.current)
+      watchdogTimeoutRef.current = null
+    }
+    if (!isWatchdogActive(liveState.phase) || !liveState.sessionId) return
+
+    const sessionId = liveState.sessionId
+    const since = liveState.lastEventAt ?? liveState.bootStartedAt ?? Date.now()
+    const deadlineMs = liveState.phase === 'booting' ? 150_000 : 240_000
+    const remainingMs = Math.max(5_000, deadlineMs - (Date.now() - since))
+
+    watchdogTimeoutRef.current = setTimeout(() => {
+      // Re-read the source of truth — the reducer may have advanced
+      // between scheduling and firing (a new event reset lastEventAt).
+      const cur = liveStateRef.current
+      if (!cur.sessionId || cur.sessionId !== sessionId) return
+      if (!isWatchdogActive(cur.phase)) return
+      const ageMs = Date.now() - (cur.lastEventAt ?? cur.bootStartedAt ?? Date.now())
+      const phaseDeadline = cur.phase === 'booting' ? 150_000 : 240_000
+      if (ageMs < phaseDeadline) return // false alarm — reschedule via next render
+
+      const params = new URLSearchParams()
+      const auth = liveAuthFor(sessionId)
+      if (auth) {
+        params.set('owner', auth.owner)
+        params.set('repo', auth.repo)
+        params.set('token', auth.token)
+      }
+      fetch(
+        `/api/kody/chat/session/${encodeURIComponent(sessionId)}/status${params.size ? `?${params}` : ''}`,
+        { headers: { ...liveAuthHeaders(sessionId) } },
+      )
+        .then((res) => (res.ok ? res.json() : null))
+        .then((body: { runnerAlive?: boolean; lastEventAt?: number | null; reason?: string | null } | null) => {
+          if (!body) return
+          // The reducer guards against a stale dispatch — only flips to
+          // 'stuck' if it's still in an active phase when STATUS_RESULT
+          // arrives.
+          dispatchLive({
+            type: 'STATUS_RESULT',
+            runnerAlive: Boolean(body.runnerAlive),
+            lastEventAt: body.lastEventAt ?? null,
+            errorMessage: body.reason ?? undefined,
+          })
+        })
+        .catch(() => {
+          // Network failure: don't assume zombie. Leave the user the manual
+          // restart affordance — the banner already shows after enough time.
+        })
+    }, remainingMs)
+
+    return () => {
+      if (watchdogTimeoutRef.current) {
+        clearTimeout(watchdogTimeoutRef.current)
+        watchdogTimeoutRef.current = null
+      }
+    }
+  }, [
+    liveState.phase,
+    liveState.sessionId,
+    liveState.lastEventAt,
+    liveState.bootStartedAt,
+    dispatchLive,
+  ])
 
   const sendMessage = async () => {
     if (!input.trim() && attachments.length === 0) return
@@ -3854,9 +3968,11 @@ export function KodyChat({
         {isKodyLive && interactiveState !== 'ready' ? (
           <div
             className={`mb-2 flex items-center justify-between gap-2 rounded-md border p-2 text-sm ${
-              interactiveState === 'booting'
+              interactiveState === 'booting' || interactiveState === 'awaiting'
                 ? 'border-yellow-500/50 bg-yellow-500/10 text-yellow-900 dark:text-yellow-100'
-                : 'border-border bg-muted/40'
+                : interactiveState === 'stuck' || interactiveState === 'error'
+                  ? 'border-red-500/50 bg-red-500/10 text-red-900 dark:text-red-100'
+                  : 'border-border bg-muted/40'
             }`}
           >
             <div className="flex items-center gap-2">
@@ -3889,14 +4005,39 @@ export function KodyChat({
                 </div>
               ) : interactiveState === 'ended' ? (
                 <span className="text-muted-foreground">Live runner ended. Start a new session to chat.</span>
+              ) : interactiveState === 'stuck' || interactiveState === 'error' ? (
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-medium text-red-700 dark:text-red-300">
+                    Runner stuck — restart?
+                  </span>
+                  {liveState.errorMessage ? (
+                    <span className="text-xs text-red-600/80 dark:text-red-400/80">
+                      {liveState.errorMessage}
+                    </span>
+                  ) : null}
+                </span>
+              ) : interactiveState === 'awaiting' ? (
+                <span className="text-muted-foreground">
+                  Live runner is processing — waiting for reply...
+                </span>
               ) : (
                 <span className="text-muted-foreground">
                   Live runner is offline. Start it to enable chat.
                 </span>
               )}
             </div>
-            {/* Action buttons removed — the composer's primary button
-                now handles Start/Stop/Cancel based on input + session state. */}
+            {/* Stuck/error get a one-click recovery affordance — clears the
+                dead session and immediately kicks off /start, so the user
+                doesn't have to manually click Stop then Start. */}
+            {(interactiveState === 'stuck' || interactiveState === 'error') ? (
+              <button
+                type="button"
+                onClick={() => void restartInteractiveSession()}
+                className="ml-2 rounded-md bg-red-600/90 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700"
+              >
+                Restart
+              </button>
+            ) : null}
           </div>
         ) : null}
         {isKodyLive && interactiveState === 'ready' ? (
