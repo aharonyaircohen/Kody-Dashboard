@@ -92,6 +92,22 @@ function buildAgentList(
       icon: brain.icon,
     })
   }
+  // Brain on Fly — same shape as the manual Brain agent above, but the
+  // server is auto-provisioned per-user on the user's own Fly account.
+  // Surfaced only when a FLY_API_TOKEN is in the vault (same gate as
+  // kody-live-fly). The dashboard never stores the brain URL/key — the
+  // chat route resolves them server-side on every request.
+  if (flyConfigured) {
+    const brainFly = AGENTS['brain-fly']
+    entries.push({
+      key: 'brain-fly',
+      agentId: 'brain-fly',
+      modelId: null,
+      name: brainFly.name,
+      description: brainFly.description,
+      icon: brainFly.icon,
+    })
+  }
   // One dropdown row per enabled user-managed model. All route through
   // the in-process gateway path (`/api/kody/chat/kody`) with the model id
   // forwarded in the request body.
@@ -814,10 +830,14 @@ export function KodyChat({
   }, [])
 
   // If the user (or a stale localStorage value) had Fly selected but no
-  // token is configured, snap to Kody Live so chat keeps working.
+  // token is configured, snap to Kody Live so chat keeps working. Covers
+  // both Fly-gated agents (kody-live-fly and brain-fly).
   useEffect(() => {
     if (lockedAgentId) return
-    if (selectedAgentId === 'kody-live-fly' && !flyConfigured) {
+    if (
+      (selectedAgentId === 'kody-live-fly' || selectedAgentId === 'brain-fly') &&
+      !flyConfigured
+    ) {
       setSelectedAgentId('kody-live')
       setSelectedModelId(null)
     }
@@ -1985,10 +2005,26 @@ export function KodyChat({
         { role: 'assistant', content: '', isLoading: true, timestamp: new Date().toISOString() },
       ])
 
-      // ─── Brain backend: sync SSE stream directly from /api/kody/chat/brain ───
+      // ─── Brain backend: sync SSE stream from a Brain server ───
+      // Two flavors share this branch, distinguished by selectedAgentId:
+      //   - 'brain'     → user-managed external server, URL/key from Settings
+      //                   (sent as x-brain-url/x-brain-key headers).
+      //                   Routes to /api/kody/chat/brain.
+      //   - 'brain-fly' → per-user Brain auto-provisioned on Fly. Credentials
+      //                   are resolved server-side from FLY_API_TOKEN in the
+      //                   repo vault. Routes to /api/kody/chat/brain-fly,
+      //                   no client-side credentials.
       // Voice mode bypasses Brain (different prompt + backend) — fall through
       // to the kody-direct branch below.
-      if (!voiceMode && selectedAgentId === 'brain') {
+      const isBrainAgent =
+        selectedAgentId === 'brain' || selectedAgentId === 'brain-fly'
+      if (!voiceMode && isBrainAgent) {
+        const brainEndpoint =
+          selectedAgentId === 'brain-fly'
+            ? '/api/kody/chat/brain-fly'
+            : '/api/kody/chat/brain'
+        const brainExtraHeaders: Record<string, string> =
+          selectedAgentId === 'brain-fly' ? {} : brainHeaders()
         brainAbortRef.current?.abort()
         const abort = new AbortController()
         brainAbortRef.current = abort
@@ -2043,12 +2079,12 @@ export function KodyChat({
         }))
 
         try {
-          const res = await fetch('/api/kody/chat/brain', {
+          const res = await fetch(brainEndpoint, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               ...authHeaders(),
-              ...brainHeaders(),
+              ...brainExtraHeaders,
             },
             body: JSON.stringify({
               chatId: brainChatId,
