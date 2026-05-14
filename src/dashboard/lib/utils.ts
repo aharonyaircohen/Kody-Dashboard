@@ -50,12 +50,19 @@ export interface ViewModeFilterOptions {
   statusFilter: string
   labelFilter: string
   priorityFilter: string
+  /**
+   * When true, skip the running/backlog split — show all non-terminal tasks.
+   * Used in goal-grouped view, where the running/backlog distinction is
+   * collapsed and every active task is visible under its goal section.
+   */
+  showAllStates?: boolean
 }
 
 /**
  * Filter tasks by view mode, then by status and label (combined with AND logic).
  * - 'running' view: excludes tasks in 'open' column
  * - 'backlog' view: only tasks in 'open' column
+ * - showAllStates=true: skip the running/backlog split entirely
  * Status and label filters apply within the selected view.
  */
 
@@ -79,17 +86,19 @@ function isTerminalTask(task: KodyTask): boolean {
 }
 
 export function filterTasksByView(tasks: KodyTask[], options: ViewModeFilterOptions): KodyTask[] {
-  const { viewMode, statusFilter, labelFilter, priorityFilter } = options
+  const { viewMode, statusFilter, labelFilter, priorityFilter, showAllStates } = options
   return tasks.filter((task) => {
     // View mode filter — primary split
-    if (viewMode === 'queue') {
+    if (viewMode === 'queue' && !showAllStates) {
       return task.labels.some((l) => QUEUE_LABELS.includes(l as (typeof QUEUE_LABELS)[number]))
     }
-    if (viewMode === 'backlog') {
+    if (showAllStates) {
+      // Goal view: every active task is visible, terminal tasks still hidden.
+      if (isTerminalTask(task)) return false
+    } else if (viewMode === 'backlog') {
       if (isTerminalTask(task)) return false
       if (task.column !== 'open') return false
-    }
-    if (viewMode === 'running') {
+    } else if (viewMode === 'running') {
       if (isTerminalTask(task)) return false
       if (task.column === 'open') return false
     }

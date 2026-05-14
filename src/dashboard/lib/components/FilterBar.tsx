@@ -33,6 +33,11 @@ export interface FilterBarProps {
   runningCount: number
   backlogCount: number
   queueCount?: number
+  /**
+   * When true, the Backlog toggle is disabled (goal-grouped view collapses
+   * the running/backlog distinction and shows every active task).
+   */
+  disableBacklog?: boolean
   searchQuery?: string
   onSearchChange?: (value: string) => void
   sortField?: SortField
@@ -54,13 +59,19 @@ export function ViewToggle({
   runningCount,
   backlogCount,
   queueCount,
+  disableBacklog = false,
 }: {
   viewMode: ViewMode
   onViewModeChange: (mode: ViewMode) => void
   runningCount: number
   backlogCount: number
   queueCount?: number
+  disableBacklog?: boolean
 }) {
+  // When backlog is disabled the running/backlog split is meaningless — the
+  // entire toggle is suppressed so the goal-grouped view's "all tasks" intent
+  // reads at a glance.
+  if (disableBacklog) return null
   return (
     <div className="inline-flex items-center rounded-md bg-white/[0.04] p-0.5 gap-0.5">
       <button
@@ -113,6 +124,7 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(function Fi
     runningCount,
     backlogCount,
     queueCount,
+    disableBacklog,
     searchQuery = '',
     onSearchChange,
     sortField = 'updatedAt',
@@ -132,13 +144,15 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(function Fi
 
   return (
     <div className="flex items-center gap-3 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-white/[0.02]">
-      {/* View toggle — Running / Backlog */}
+      {/* View toggle — Running / Backlog. Hidden in goal-grouped view where
+          all tasks are shown together under their goal sections. */}
       <ViewToggle
         viewMode={viewMode}
         onViewModeChange={onViewModeChange}
         runningCount={runningCount}
         backlogCount={backlogCount}
         queueCount={queueCount}
+        disableBacklog={disableBacklog}
       />
 
       {/* Search input */}

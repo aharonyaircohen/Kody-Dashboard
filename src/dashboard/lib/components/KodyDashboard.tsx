@@ -580,8 +580,11 @@ export function KodyDashboard({
         statusFilter,
         labelFilter,
         priorityFilter,
+        // Goal view collapses the running/backlog split — every active task
+        // is visible under its goal section.
+        showAllStates: taskListLayout === "grouped",
       }),
-    [tasks, viewMode, statusFilter, labelFilter, priorityFilter],
+    [tasks, viewMode, statusFilter, labelFilter, priorityFilter, taskListLayout],
   );
   const searchedTasks = useMemo(() => {
     if (!debouncedSearch.trim()) return baseFilteredTasks;
@@ -955,12 +958,13 @@ export function KodyDashboard({
   // Mobile filter controls — rendered inside the mobile menu Sheet
   const mobileFilterControls = (
     <>
-      {/* View toggle */}
+      {/* View toggle — hidden in goal-grouped view (all tasks visible). */}
       <ViewToggle
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         runningCount={runningCount}
         backlogCount={backlogCount}
+        disableBacklog={taskListLayout === "grouped"}
       />
       {/* Date filter */}
       <Select value={dateFilter} onValueChange={setDateFilter}>
@@ -1271,6 +1275,7 @@ export function KodyDashboard({
                   runningCount={runningCount}
                   backlogCount={backlogCount}
                   queueCount={queueCount}
+                  disableBacklog={taskListLayout === "grouped"}
                   searchQuery={searchQuery}
                   onSearchChange={handleSearchChange}
                   sortField={sortField as SortField}
