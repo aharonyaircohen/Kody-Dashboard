@@ -17,8 +17,27 @@ import type { ChatMessage } from './chat-types'
 
 const KEY_PREFIX = 'kody-job-chat-'
 
+/**
+ * Read the connected repo from localStorage.kody_auth so cache keys are
+ * scoped per repo — job slug "foo" in repo A must not share a localStorage
+ * slot with the same slug in repo B. Falls back to an unscoped key when no
+ * repo is known (e.g. logged out / SSR).
+ */
+function repoScope(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    const raw = window.localStorage.getItem('kody_auth')
+    if (!raw) return ''
+    const auth = JSON.parse(raw) as { owner?: string; repo?: string }
+    if (!auth.owner || !auth.repo) return ''
+    return `${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}:`
+  } catch {
+    return ''
+  }
+}
+
 function key(slug: string): string {
-  return `${KEY_PREFIX}${slug}`
+  return `${KEY_PREFIX}${repoScope()}${slug}`
 }
 
 export function loadJobChatLocal(slug: string): ChatMessage[] {
