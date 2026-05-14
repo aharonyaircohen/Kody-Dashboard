@@ -33,7 +33,6 @@ import {
 } from "@dashboard/lib/agents"
 import { applyVoiceOverlay } from "@dashboard/lib/voice/overlay"
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
-import { getPublicBaseUrl } from "@dashboard/lib/auth/oauth-url"
 import { createUserOctokit, setGitHubContext, clearGitHubContext } from "@dashboard/lib/github-client"
 import { getSecret } from "@dashboard/lib/vault/get-secret"
 import {
@@ -57,7 +56,6 @@ import { createMemoryTools } from "../tools/memory-tools"
 import { createPlannerTools } from "../tools/planner-tools"
 import { createReleaseTools } from "../tools/release-tools"
 import { createKodyTools } from "../tools/kody-tools"
-import { createSetupEngineTools } from "../tools/setup-engine"
 import { createVibeTools } from "../tools/vibe-tools"
 import { fetchUrlTool } from "../tools/fetch-url"
 import { featureTools } from "../tools/feature-tools"
@@ -569,13 +567,6 @@ export async function POST(req: NextRequest) {
         actorLogin: body.actorLogin ?? null,
       }),
       ...createKodyTools({ octokit, owner: repo.owner, repo: repo.repo }),
-      ...createSetupEngineTools({
-        octokit,
-        owner: repo.owner,
-        repo: repo.repo,
-        token: repo.token,
-        hookUrl: `${getPublicBaseUrl(req)}/api/webhooks/github`,
-      }),
       // Vibe-only: pre-create branch + draft PR so Vercel cold-builds in
       // parallel with the runner warmup. Stripped from the tool set when
       // not in vibe mode below (alongside the @kody dispatch tools).
