@@ -136,11 +136,22 @@ export class ApiError extends Error {
 }
 
 /**
- * Redirect to the login page.
+ * Drop stored credentials and bounce to the dashboard root. The root
+ * route's AuthGuard then renders the `<RepoManager />` empty-state so the
+ * user can re-connect a repo. There is no separate `/login` page anymore.
+ *
+ * `returnTo` is kept for call-site compatibility but is unused — we always
+ * land on `/`, since most callers were only redirecting to clear stale auth.
  */
-export function redirectToLogin(returnTo = "/"): void {
+export function redirectToLogin(_returnTo = "/"): void {
+  void _returnTo;
   if (typeof window !== "undefined") {
-    window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`;
+    try {
+      localStorage.removeItem("kody_auth");
+    } catch {
+      // ignore — SSR or storage disabled
+    }
+    window.location.href = "/";
   }
 }
 

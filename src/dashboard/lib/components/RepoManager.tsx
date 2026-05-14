@@ -43,6 +43,12 @@ interface AddRepoResponse {
     defaultBranch: string;
     htmlUrl: string;
   };
+  /** Token owner's GitHub identity — used to bootstrap auth on first add. */
+  user: {
+    login: string;
+    avatar_url: string;
+    id: number;
+  };
   webhook: {
     ok: boolean;
     created?: boolean;
@@ -102,7 +108,10 @@ export function RepoManager() {
   const [error, setError] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<{ index: number; entry: KodyRepoEntry } | null>(null);
 
-  if (!auth) return null;
+  // Empty-state mode: when `auth` is null this is the very first repo the user
+  // is adding. The list section is skipped and `addRepo` bootstraps the entire
+  // kody_auth object from the server response.
+  const isBootstrap = !auth;
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -134,12 +143,15 @@ export function RepoManager() {
         return;
       }
 
-      addRepo({
-        repoUrl: data.repository.htmlUrl,
-        owner: data.repository.fullName.split("/")[0],
-        repo: data.repository.fullName.split("/")[1],
-        token: trimmedToken,
-      });
+      addRepo(
+        {
+          repoUrl: data.repository.htmlUrl,
+          owner: data.repository.fullName.split("/")[0],
+          repo: data.repository.fullName.split("/")[1],
+          token: trimmedToken,
+        },
+        data.user,
+      );
 
       setRepoInput("");
       setToken("");
@@ -155,6 +167,13 @@ export function RepoManager() {
             "Repo added, but webhook setup failed — push updates may be delayed (polling still works).",
         });
       }
+
+      // On bootstrap (first repo) reload so the dashboard mounts with the
+      // freshly-populated auth and React Query / chat rail spin up cleanly.
+      if (isBootstrap) {
+        window.location.href = "/";
+        return;
+      }
     } catch (err) {
       setError(`Network error: ${String(err)}`);
     } finally {
@@ -163,19 +182,25 @@ export function RepoManager() {
   }
 
   return (
-    <PageShell title="Repositories" icon={Github} iconClassName="text-white/80" width="wide">
+    <PageShell
+      title={isBootstrap ? "Connect a repository" : "Repositories"}
+      icon={Github}
+      iconClassName="text-white/80"
+      width="wide"
+    >
       <div className="space-y-6">
         <p className="text-sm text-white/60">
-          Connect additional GitHub repositories to this dashboard. Each repo uses its own
-          personal access token, stored in this browser only. Switching the current repo
-          reloads the dashboard so all data is fresh.
+          {isBootstrap
+            ? "Welcome. Connect a GitHub repository with a personal access token to start using the dashboard. The token stays in this browser only — nothing is sent to a Kody backend."
+            : "Connect additional GitHub repositories to this dashboard. Each repo uses its own personal access token, stored in this browser only. Switching the current repo reloads the dashboard so all data is fresh."}
         </p>
 
-        {/* Repo list */}
-        <Card>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {auth.repos.map((entry, idx) => {
+        {/* Repo list — hidden until at least one repo is connected. */}
+        {auth && (
+          <Card>
+            <CardContent className="p-0">
+              <div className="divide-y">
+                {auth.repos.map((entry, idx) => {
                 const isCurrent = idx === auth.currentRepoIndex;
                 return (
                   <div
@@ -242,13 +267,16 @@ export function RepoManager() {
             </div>
           </CardContent>
         </Card>
+        )}
 
         {/* Add form */}
         <Card>
           <CardContent className="p-4 space-y-4">
             <div className="flex items-center gap-2">
               <Plus className="w-4 h-4" />
-              <h2 className="font-semibold text-sm">Add a repository</h2>
+              <h2 className="font-semibold text-sm">
+                {isBootstrap ? "Connect your first repository" : "Add a repository"}
+              </h2>
             </div>
             <form onSubmit={handleAdd} className="space-y-3">
               <div className="space-y-1.5">
@@ -307,7 +335,7 @@ export function RepoManager() {
                 ) : (
                   <>
                     <Plus className="w-4 h-4" />
-                    Add repository
+                    {isBootstrap ? "Connect repository" : "Add repository"}
                   </>
                 )}
               </Button>

@@ -2,17 +2,18 @@
  * @fileType utility
  * @domain kody
  * @pattern auth
- * @ai-summary Token-based authentication for the Kody Operations Dashboard.
+ * @ai-summary Per-request auth for the Kody Operations Dashboard.
  *
  * Auth priority:
  * 1. Request headers from client (x-kody-token, x-kody-owner, x-kody-repo)
- * 2. Env vars (KODY_BOT_TOKEN, GITHUB_TOKEN) — server-side only, no client access
+ * 2. Env vars (KODY_BOT_TOKEN, GITHUB_TOKEN, GH_PAT) — server-side fallback
+ *    used by cron jobs / webhook handlers that have no logged-in user.
  *
- * The client stores credentials in localStorage after login.
- * All API calls pass credentials via custom headers.
+ * There is no server-side session: the dashboard stores credentials in
+ * localStorage after the user connects a repo, and every API call passes
+ * them via the three custom headers above.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyKodySession } from '@dashboard/lib/auth/kody_session'
 import { createUserOctokit } from '@dashboard/lib/github-client'
 import { logger } from '@dashboard/lib/logger'
 import type { Octokit } from '@octokit/rest'
@@ -80,7 +81,6 @@ export async function requireKodyAuth(req: NextRequest): Promise<null | NextResp
  * Priority:
  * 1. Client token from x-kody-token header (localStorage auth)
  * 2. Env token fallback (CI / token-only deployments)
- * 3. OAuth session (legacy, from cookie)
  *
  * Callers should prefer the header token so operations are attributed
  * to the actual user rather than the bot account.
@@ -98,19 +98,19 @@ export async function getUserOctokit(req: NextRequest): Promise<Octokit | null> 
     return createUserOctokit(envToken)
   }
 
-  // 3. OAuth session (legacy)
-  const identity = await verifyKodySession(req)
-  if (identity?.ghToken) {
-    return createUserOctokit(identity.ghToken)
-  }
-
   return null
 }
 
 // ─── Actor login verification ───────────────────────────────────────────────────
 
 /**
- * Verify that the supplied actorLogin matches the authenticated session.
+ * Verify that the supplied actorLogin matches the authenticated request.
+ *
+ * Without a server-side session there is no canonical "logged-in user" to
+ * compare against — the PAT and its scopes are the only authority. This
+ * function now just accepts any actorLogin string as long as auth is
+ * present, returning a stub identity. Callers that need real attribution
+ * should resolve `actorLogin` to the GitHub user themselves.
  */
 export async function verifyActorLogin(
   req: NextRequest,
@@ -121,49 +121,15 @@ export async function verifyActorLogin(
     return authError
   }
 
-  const identity = await verifyKodySession(req)
-
-  // Header or env token auth — actorLogin check is skipped
-  if (!identity) {
-    const headerAuth = getRequestAuth(req)
-    const token = headerAuth?.token ?? getEnvToken()
-    if (token) {
-      logger.info(
-        { actorLogin: suppliedLogin, path: req.nextUrl.pathname },
-        'Token auth: actorLogin verification skipped',
-      )
-      return {
-        identity: {
-          login: suppliedLogin || 'token-user',
-          avatar_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
-          githubId: 0,
-        },
-      }
-    }
-    return NextResponse.json({ message: 'No auth token available' }, { status: 401 })
+  logger.info(
+    { actorLogin: suppliedLogin, path: req.nextUrl.pathname },
+    'Token auth: actorLogin verification skipped (no server session)',
+  )
+  return {
+    identity: {
+      login: suppliedLogin || 'token-user',
+      avatar_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
+      githubId: 0,
+    },
   }
-
-  if (!suppliedLogin) {
-    return { identity }
-  }
-
-  const normalizedSupplied = suppliedLogin.toLowerCase()
-  const normalizedIdentity = identity.login.toLowerCase()
-
-  if (normalizedSupplied !== normalizedIdentity) {
-    logger.warn(
-      {
-        suppliedLogin,
-        authenticatedLogin: identity.login,
-        path: req.nextUrl.pathname,
-      },
-      'ActorLogin mismatch — possible impersonation attempt',
-    )
-    return NextResponse.json(
-      { message: 'Invalid actorLogin: does not match authenticated session' },
-      { status: 403 },
-    )
-  }
-
-  return { identity }
 }

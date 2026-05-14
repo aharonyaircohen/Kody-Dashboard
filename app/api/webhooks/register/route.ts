@@ -5,22 +5,23 @@
  *
  * POST /api/webhooks/register
  *
- * Explicit, manual webhook registration entry point. Login flow already
- * calls this automatically (see app/api/oauth/github/callback/route.ts);
- * this endpoint exists for re-running registration without re-logging-in
- * or for targeting a different repo.
+ * Manual webhook registration entry point. Useful for re-running
+ * registration on an already-connected repo, or for targeting a different
+ * repo than the dashboard's current view.
  *
  * Body (optional): { owner?: string, repo?: string, events?: string[] }
- * Defaults to GITHUB_OWNER/GITHUB_REPO and the standard event set.
+ * Defaults to the headers' x-kody-owner / x-kody-repo, falling back to
+ * the build-time GITHUB_OWNER / GITHUB_REPO constants.
  *
- * Caller's PAT (from session) must have `admin:repo_hook` scope.
+ * Authentication: the same per-request PAT every other dashboard route
+ * uses — `x-kody-token` (with optional `x-kody-owner` / `x-kody-repo`).
+ * The PAT must have `admin:repo_hook` scope (covered by classic `repo`).
  *
  * No shared secret — webhook deliveries are verified by GitHub source IP
  * (see src/dashboard/lib/webhooks/github-ip.ts).
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyKodySession } from "@dashboard/lib/auth/kody_session";
 import { GITHUB_OWNER, GITHUB_REPO } from "@dashboard/lib/constants";
 import { getPublicBaseUrl } from "@dashboard/lib/auth/oauth-url";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
@@ -30,14 +31,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const session = await verifyKodySession(req);
-  if (!session) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
-  const token = session.ghToken;
+  const token = req.headers.get("x-kody-token")?.trim();
   if (!token) {
     return NextResponse.json(
-      { error: "session has no GitHub token; re-login" },
+      { error: "missing_token", message: "x-kody-token header required" },
       { status: 401 },
     );
   }
@@ -51,8 +48,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     body = {};
   }
 
-  const owner = body.owner?.trim() || GITHUB_OWNER;
-  const repo = body.repo?.trim() || GITHUB_REPO;
+  const owner =
+    body.owner?.trim() ||
+    req.headers.get("x-kody-owner")?.trim() ||
+    GITHUB_OWNER;
+  const repo =
+    body.repo?.trim() ||
+    req.headers.get("x-kody-repo")?.trim() ||
+    GITHUB_REPO;
   const hookUrl = `${getPublicBaseUrl(req)}/api/webhooks/github`;
 
   const result = await ensureWebhook({
@@ -77,7 +80,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       created: result.created,
       owner,
       repo,
-      by: session.login,
     },
     "Webhook registered (manual endpoint)",
   );

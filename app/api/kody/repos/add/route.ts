@@ -45,6 +45,17 @@ interface AddRepoResponse {
     defaultBranch: string;
     htmlUrl: string;
   };
+  /**
+   * Basic identity of the token's owner. Returned so the dashboard can
+   * bootstrap a fresh `kody_auth` object when this is the first repo
+   * added (no separate "login" step exists). Subsequent adds simply
+   * ignore this field.
+   */
+  user: {
+    login: string;
+    avatar_url: string;
+    id: number;
+  };
   webhook: {
     ok: boolean;
     created?: boolean;
@@ -138,6 +149,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // 1b) Fetch the token owner's basic identity. Needed so the client can
+  // bootstrap a fresh kody_auth object when this is the first repo added.
+  let userData: { login: string; avatar_url: string; id: number };
+  try {
+    const userRes = await fetch("https://api.github.com/user", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+    if (!userRes.ok) {
+      return NextResponse.json(
+        { error: "user_lookup_failed", status: userRes.status },
+        { status: 502 },
+      );
+    }
+    userData = (await userRes.json()) as typeof userData;
+  } catch (err) {
+    logger.warn(
+      { event: "user_lookup_network_error", owner, repo, err: String(err) },
+      "Network error fetching token owner",
+    );
+    return NextResponse.json(
+      { error: "network_error" },
+      { status: 502 },
+    );
+  }
+
   // 2) Best-effort webhook registration. Failure is non-fatal — polling still works.
   const hookUrl = `${getPublicBaseUrl(req)}/api/webhooks/github`;
   let webhook: AddRepoResponse["webhook"] = { ok: false };
@@ -175,6 +215,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       private: repoData.private,
       defaultBranch: repoData.default_branch,
       htmlUrl: repoData.html_url,
+    },
+    user: {
+      login: userData.login,
+      avatar_url: userData.avatar_url,
+      id: userData.id,
     },
     webhook,
   };

@@ -2,12 +2,11 @@
  * @fileType hook
  * @domain kody
  * @pattern github-identity
- * @ai-summary Hook to read the authenticated GitHub identity from the Kody session cookie.
- *   The session module (auth/kody_session.ts) is currently inactive — the
- *   OAuth callback that used to set the cookie was removed (dashboard auth
- *   is header-based PAT, see /api/auth/login). This hook still exists so
- *   that code reading the cookie keeps working if OAuth is re-introduced.
- *   signOut() clears the cookie via /api/kody/auth/logout (POST).
+ * @ai-summary Hook for the authenticated GitHub identity. Auth is entirely
+ *   header-based PAT (localStorage `kody_auth` → `x-kody-token` header on
+ *   every API call). This hook fetches `/api/kody/auth/me`, which resolves
+ *   the identity by hitting GitHub with the current request's token. There
+ *   is no server-side session cookie.
  */
 'use client'
 
@@ -109,21 +108,17 @@ export function useGitHubIdentity() {
   }, [])
 
   const clearGitHubUser = useCallback(async () => {
-    // Clear session cookie server-side (for legacy OAuth sessions)
-    try {
-      await fetch('/api/kody/auth/logout', { method: 'POST', credentials: 'include' })
-    } catch {
-      // Ignore errors — cookie may already be cleared
-    }
-    // Clear localStorage and React Query cache
+    // No server-side session anymore — auth lives entirely in localStorage.
+    // Drop the stored creds and the React Query cache, then hard-redirect so
+    // the AuthGuard re-renders against the empty store.
     localStorage.removeItem('kody_auth')
     queryClient.setQueryData(QUERY_KEY, null)
     queryClient.removeQueries({ queryKey: QUERY_KEY })
     // Hard navigation so AuthProvider re-reads localStorage and all React Query
-    // caches holding authenticated data are dropped — soft push('/login') leaves
-    // the AuthContext in-memory state stale, which the AuthGuard then trusts.
+    // caches holding authenticated data are dropped. The root route's AuthGuard
+    // then renders the RepoManager empty-state since `kody_auth` is gone.
     if (typeof window !== 'undefined') {
-      window.location.href = '/login'
+      window.location.href = '/'
     }
   }, [queryClient])
 

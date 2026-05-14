@@ -21,7 +21,7 @@ export async function GET(
   try {
     authError = await requireKodyAuth(req);
   } catch (err) {
-    // verifyKodySession can throw if the JWT is malformed — treat as 401
+    // Defensive: any unexpected throw in the auth path is a 401
     return NextResponse.json(
       { error: "Authentication failed", message: (err as Error)?.message },
       { status: 401 },
