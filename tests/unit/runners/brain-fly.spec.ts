@@ -11,6 +11,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  allocateIpsIfMissing,
   brainAppName,
   brainStatus,
   destroyBrain,
@@ -47,6 +48,26 @@ function installFetchStub(
       }
       const call: RecordedCall = { url, method, body, headers }
       calls.push(call)
+
+      // Default IP-allocation handling. The provisioner now calls
+      // `GET /apps/<name>/ips` to decide whether IPs are missing, and if
+      // empty, posts to api.fly.io/graphql to allocate them. Provision
+      // tests don't care about this side-flow, so we pre-stub it to
+      // "already has IPs" — no graphql calls happen and the test handler
+      // doesn't need to know about the endpoint.
+      if (call.method === 'GET' && /\/apps\/[^/]+\/ips$/.test(call.url)) {
+        return new Response(JSON.stringify([{ id: 'ip-1', address: '1.2.3.4' }]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (call.url === 'https://api.fly.io/graphql') {
+        return new Response(JSON.stringify({ data: {} }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+
       const r = handler(call)
       const status = r.status ?? 200
       return new Response(
@@ -367,6 +388,111 @@ describe('provisionBrain', () => {
     expect(svc.autostart).toBe(true)
     const portNums = svc.ports.map((p) => p.port).sort((a, b) => a - b)
     expect(portNums).toEqual([80, 443])
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// allocateIpsIfMissing: graphql IP allocation
+//
+// These tests use their own fetch stub directly (not installFetchStub) so the
+// default "/ips returns existing entries" shortcut is bypassed and we can
+// exercise the allocation path end-to-end.
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('allocateIpsIfMissing', () => {
+  function installRawStub(handler: (url: string, init?: RequestInit) => Response): RecordedCall[] {
+    const calls: RecordedCall[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const method = (init?.method ?? 'GET').toUpperCase()
+        const body =
+          typeof init?.body === 'string' && init.body.length > 0
+            ? JSON.parse(init.body)
+            : undefined
+        calls.push({ url, method, body, headers: {} })
+        return handler(url, init)
+      }),
+    )
+    return calls
+  }
+
+  it('skips allocation when the app already has at least one IP', async () => {
+    const calls = installRawStub(() =>
+      new Response(JSON.stringify([{ id: 'ip-1', address: '1.2.3.4' }]), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    await allocateIpsIfMissing(TOKEN, 'kody-brain-alice')
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.url).toContain('/apps/kody-brain-alice/ips')
+  })
+
+  it('allocates shared_v4 + v6 via GraphQL when no IPs exist', async () => {
+    const calls = installRawStub((url) => {
+      if (url.includes('/apps/kody-brain-alice/ips')) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (url === 'https://api.fly.io/graphql') {
+        return new Response(JSON.stringify({ data: { allocateIpAddress: { ipAddress: { id: 'ip-x', address: 'x' } } } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`unexpected url: ${url}`)
+    })
+    await allocateIpsIfMissing(TOKEN, 'kody-brain-alice')
+    const graphqlCalls = calls.filter((c) => c.url === 'https://api.fly.io/graphql')
+    expect(graphqlCalls).toHaveLength(2)
+    const types = graphqlCalls.map(
+      (c) => (c.body as { variables: { type: string } }).variables.type,
+    )
+    expect(types).toEqual(['shared_v4', 'v6'])
+  })
+
+  it('treats a 404 on /ips as "no IPs yet" and allocates', async () => {
+    let graphqlHits = 0
+    installRawStub((url) => {
+      if (url.includes('/apps/kody-brain-alice/ips')) {
+        return new Response(null, { status: 404 })
+      }
+      if (url === 'https://api.fly.io/graphql') {
+        graphqlHits += 1
+        return new Response(JSON.stringify({ data: {} }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`unexpected url: ${url}`)
+    })
+    await allocateIpsIfMissing(TOKEN, 'kody-brain-alice')
+    expect(graphqlHits).toBe(2)
+  })
+
+  it('throws when GraphQL returns errors', async () => {
+    installRawStub((url) => {
+      if (url.includes('/apps/kody-brain-alice/ips')) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      return new Response(
+        JSON.stringify({ errors: [{ message: 'Org has no payment method' }] }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      )
+    })
+    await expect(
+      allocateIpsIfMissing(TOKEN, 'kody-brain-alice'),
+    ).rejects.toThrow(/payment method/)
   })
 })
 
