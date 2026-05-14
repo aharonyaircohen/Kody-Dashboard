@@ -98,6 +98,18 @@ export interface BrainStatusInput {
   appNameOverride?: string
 }
 
+export interface SuspendBrainInput {
+  flyToken: string
+  owner: string
+  appNameOverride?: string
+}
+
+export interface ResumeBrainInput {
+  flyToken: string
+  owner: string
+  appNameOverride?: string
+}
+
 export interface BrainStatusResult {
   app: string
   /** "running" | "suspended" | "stopped" | "off" (= no app/machine yet) */
@@ -492,6 +504,63 @@ export async function destroyBrain(input: DestroyBrainInput): Promise<void> {
     { method: 'DELETE', token: input.flyToken, allow404: true },
   )
   logger.info({ app }, 'brain-fly: app destroyed')
+}
+
+/**
+ * Suspend the per-user Brain machine. Snapshot-pauses it (instant, near-zero
+ * cost, ~1s resume). No-op if no app/machine exists or it's already suspended.
+ *
+ * Mirrors the autostop behaviour Fly does on idle, but user-initiated — for
+ * when someone wants to guarantee no compute is running right now.
+ */
+export async function suspendBrain(input: SuspendBrainInput): Promise<void> {
+  if (!input.flyToken?.trim()) {
+    throw new Error('brain-fly: flyToken required')
+  }
+  const app = input.appNameOverride ?? brainAppName(input.owner)
+
+  const machine = await findExistingMachine(input.flyToken, app)
+  if (!machine) {
+    logger.info({ app }, 'brain-fly: suspend — no machine to suspend')
+    return
+  }
+  if (machine.state === 'suspended' || machine.state === 'suspending') {
+    logger.info({ app, machineId: machine.id }, 'brain-fly: already suspended')
+    return
+  }
+
+  await flyFetch<unknown>(
+    `/apps/${encodeURIComponent(app)}/machines/${encodeURIComponent(machine.id)}/suspend`,
+    { method: 'POST', token: input.flyToken },
+  )
+  logger.info({ app, machineId: machine.id }, 'brain-fly: machine suspended')
+}
+
+/**
+ * Resume (start) the per-user Brain machine. Works from suspended OR stopped.
+ * No-op when no app/machine exists or the machine is already live.
+ */
+export async function resumeBrain(input: ResumeBrainInput): Promise<void> {
+  if (!input.flyToken?.trim()) {
+    throw new Error('brain-fly: flyToken required')
+  }
+  const app = input.appNameOverride ?? brainAppName(input.owner)
+
+  const machine = await findExistingMachine(input.flyToken, app)
+  if (!machine) {
+    logger.info({ app }, 'brain-fly: resume — no machine to resume')
+    return
+  }
+  if (machine.state === 'started' || machine.state === 'starting') {
+    logger.info({ app, machineId: machine.id }, 'brain-fly: already running')
+    return
+  }
+
+  await flyFetch<unknown>(
+    `/apps/${encodeURIComponent(app)}/machines/${encodeURIComponent(machine.id)}/start`,
+    { method: 'POST', token: input.flyToken },
+  )
+  logger.info({ app, machineId: machine.id }, 'brain-fly: machine resumed')
 }
 
 /**
