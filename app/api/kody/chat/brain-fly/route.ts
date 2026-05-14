@@ -33,7 +33,7 @@ import {
   type BrainJobContext,
   type BrainTaskContext,
 } from '@dashboard/lib/brain-proxy'
-import { provisionBrain } from '@dashboard/lib/runners/brain-fly'
+import { provisionBrain, waitForBrainHealth } from '@dashboard/lib/runners/brain-fly'
 import { resolveFlyContext } from '@dashboard/lib/runners/fly-context'
 
 export const runtime = 'nodejs'
@@ -101,6 +101,25 @@ export async function POST(req: NextRequest) {
       'chat/brain-fly: provisionBrain failed',
     )
     return NextResponse.json({ error: `Brain provision failed: ${message}` }, { status: 502 })
+  }
+
+  // Provision returns when the Fly Machine API has accepted the create
+  // call, but the Node server inside doesn't bind :8080 until the
+  // entrypoint finishes the repo clone + LiteLLM + brain-serve startup
+  // (~30-60s on a cold provision). On reuse the server is already up and
+  // this returns on the first poll.
+  try {
+    await waitForBrainHealth(provisioned.url)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    logger.error(
+      { err, owner: ctx.context.owner, url: provisioned.url },
+      'chat/brain-fly: brain server did not become healthy',
+    )
+    return NextResponse.json(
+      { error: `Brain server did not become healthy: ${message}` },
+      { status: 504 },
+    )
   }
 
   const headerAuth = getRequestAuth(req)
