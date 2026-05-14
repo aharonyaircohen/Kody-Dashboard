@@ -21,7 +21,7 @@ import {
   type NotificationEvent,
   type NotificationRule,
 } from "./notifications";
-import { sendNotification } from "./notifications/channels";
+import { sendNotification } from "./notifications/channels/send";
 import { readNotificationsManifestFresh } from "./notifications-server";
 import { logger } from "./logger";
 
@@ -120,7 +120,11 @@ export async function fireNotifications(
       const template = rule.template ?? defaultTemplateForEvent(rule.event);
       const text = renderTemplate(template, payloadCtx);
       try {
-        await sendNotification(rule.channel, { text, vars: payloadCtx });
+        await sendNotification(rule.channel, {
+          text,
+          vars: payloadCtx,
+          github: { owner: ctx.owner, repo: ctx.repo, token: ctx.token },
+        });
         logger.info(
           {
             event: "notification_sent",

@@ -68,6 +68,9 @@ const channelSchema = z.discriminatedUnion("type", [
     bodyFormat: z.enum(["json", "form"]).optional(),
     headers: z.record(z.string(), z.string()).optional(),
   }),
+  z.object({
+    type: z.literal("web-push"),
+  }),
 ]);
 
 const patchRuleSchema = z.object({

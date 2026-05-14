@@ -33,6 +33,8 @@ the dashboard's Settings page (user-scoped, not Vercel-scoped).
 | `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from the user's stored credentials). |
 | `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody.yml`). |
 | `JINA_API_KEY` | No | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier). |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Push only | VAPID keypair for the `web-push` notification channel. Generate with `pnpm push:init`. Without these set, the PWA still installs but the "Mobile / push notifications" toggle reports `not-configured` and no pushes are sent. Losing the private key invalidates every browser subscription. |
+| `VAPID_SUBJECT` | No | `mailto:` or `https:` URL identifying the app server to push services (abuse reporting only). Defaults to a placeholder. |
 | `NEXT_PUBLIC_SERVER_URL` | Dev | Public URL for callbacks — set in dev only. |
 
 **Do NOT add `FLY_API_TOKEN` (or `FLY_IO_TOKEN`) as a Vercel env var.** The
@@ -63,6 +65,31 @@ Bootstrap: `pnpm vault:init` prints a fresh key. Paste into Vercel env
 secret (third-party API keys can be reissued; treat as inconvenience,
 not data loss). Engine workflows (`kody.yml`) are unchanged and still
 read from GitHub Actions secrets — the vault is dashboard-runtime only.
+
+## Web Push notifications (PWA / mobile)
+
+The dashboard ships with a service worker + manifest so it installs as a
+PWA. When a user enables push from Notification Settings, the browser
+subscribes to the OS push service (APNs on iOS 16.4+, FCM on Android) and
+the dashboard stores the resulting `PushSubscription` in a per-repo
+`kody:push-subscriptions` manifest issue. The `web-push` channel adapter
+loads that list and fans out to every subscribed device whenever a rule
+matches — same dispatch path as Slack/Discord, just N destinations.
+
+- PWA shell: [public/manifest.json](public/manifest.json), [public/sw.js](public/sw.js), [public/icon.svg](public/icon.svg)
+- Service worker register: [src/dashboard/lib/push/ServiceWorkerRegister.tsx](src/dashboard/lib/push/ServiceWorkerRegister.tsx) (mounted in [app/KodyProviders.tsx](app/KodyProviders.tsx))
+- Channel adapter: [src/dashboard/lib/notifications/channels/web-push.ts](src/dashboard/lib/notifications/channels/web-push.ts) — signs with VAPID, prunes 404/410 endpoints
+- Subscriptions manifest: [src/dashboard/lib/push.ts](src/dashboard/lib/push.ts) (types/parser) + [src/dashboard/lib/push-server.ts](src/dashboard/lib/push-server.ts) (CAS-based mutator)
+- API: [app/api/push/public-key/route.ts](app/api/push/public-key/route.ts) (GET VAPID public), [app/api/push/subscribe/route.ts](app/api/push/subscribe/route.ts) (POST/DELETE per-device)
+- UI: [src/dashboard/lib/push/PushToggle.tsx](src/dashboard/lib/push/PushToggle.tsx) + [src/dashboard/lib/push/usePushSubscription.ts](src/dashboard/lib/push/usePushSubscription.ts) (mounted inside `NotificationPreferences`)
+
+Bootstrap: `pnpm push:init` prints fresh VAPID keys. Paste into Vercel env
+**and** a password manager — losing the private key invalidates every
+existing browser subscription (users have to re-enable from each device).
+
+iOS catch: Safari only allows push from installed PWAs. Users must
+**Share → Add to Home Screen** first, open Kody from the icon, then tap
+Enable. The UI surfaces this as the `needs-pwa` state with an inline hint.
 
 ## GitHub webhooks (push-based cache invalidation)
 

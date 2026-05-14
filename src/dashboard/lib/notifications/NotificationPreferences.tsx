@@ -11,6 +11,7 @@ import { cn } from '@dashboard/lib/utils/ui'
 import type { UseNotificationStoreReturn } from './useNotificationStore'
 import { NOTIFICATION_META, type NotificationType } from './types'
 import { playNotificationSound } from './sounds'
+import { PushToggle } from '@dashboard/lib/push/PushToggle'
 
 interface NotificationPreferencesProps {
   store: UseNotificationStoreReturn
@@ -114,6 +115,9 @@ export function NotificationPreferences({
             className="w-4 h-4 rounded border-border accent-primary"
           />
         </label>
+
+        {/* Push (PWA / mobile) — server-side fan-out via web-push */}
+        <PushToggle />
       </div>
 
       {/* Per-type toggles */}

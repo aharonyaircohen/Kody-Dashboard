@@ -30,6 +30,19 @@ export const metadata: Metadata = {
     default: 'Kody Operations Dashboard',
     template: '%s | Kody Operations',
   },
+  // PWA: lets iOS Safari treat the site as installable. Combined with
+  // `apple-touch-icon` below, "Add to Home Screen" produces a real PWA icon
+  // and `display: standalone` from manifest.json makes it run chromeless.
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    title: 'Kody',
+    statusBarStyle: 'black-translucent',
+  },
+  icons: {
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+    apple: [{ url: '/icon.svg' }],
+  },
 }
 
 export default function KodyLayout({ children }: { children: React.ReactNode }) {

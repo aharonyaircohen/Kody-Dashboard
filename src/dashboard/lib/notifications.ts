@@ -43,6 +43,7 @@ export const CHANNEL_TYPES = [
   "telegram-bot",
   "discord-webhook",
   "generic-webhook",
+  "web-push",
 ] as const;
 
 export type ChannelType = (typeof CHANNEL_TYPES)[number];
@@ -74,6 +75,16 @@ export type NotificationChannel =
       jsonTemplate?: string;
       bodyFormat?: "json" | "form";
       headers?: Record<string, string>;
+    }
+  | {
+      /**
+       * Web Push (PWA). Unlike the other channels there's no per-channel
+       * destination — subscriptions live in a separate per-repo manifest
+       * (`kody:push-subscriptions`) and the adapter fans out to every
+       * subscribed device. Adding `web-push` to a rule means "every
+       * subscribed device on this repo gets a notification for this event".
+       */
+      type: "web-push";
     };
 
 export function channelTypeLabel(type: ChannelType): string {
@@ -86,6 +97,8 @@ export function channelTypeLabel(type: ChannelType): string {
       return "Discord (webhook)";
     case "generic-webhook":
       return "Generic webhook (custom HTTP POST)";
+    case "web-push":
+      return "Web Push (mobile/desktop PWA)";
   }
 }
 
@@ -135,6 +148,9 @@ function isChannel(v: unknown): v is NotificationChannel {
       );
     case "generic-webhook":
       return typeof c.url === "string" && c.url.length > 0;
+    case "web-push":
+      // No per-channel config; presence of the type tag is sufficient.
+      return true;
     default:
       return false;
   }
@@ -179,6 +195,8 @@ function sanitizeChannel(v: unknown): NotificationChannel | null {
         headers: headers && Object.keys(headers).length > 0 ? headers : undefined,
       };
     }
+    case "web-push":
+      return { type: "web-push" };
     default:
       return null;
   }
