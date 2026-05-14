@@ -72,21 +72,53 @@ interface ParsedEvent {
   timestamp: number | null;
 }
 
-/** Best-effort parse of an events JSONL line. Tolerates schema drift. */
+/**
+ * Best-effort parse of an events JSONL line. Tolerates schema drift —
+ * the engine has at least three timestamp fields across event types:
+ *
+ *   - top-level `emittedAt` (newer engines, all event types)
+ *   - top-level `timestamp` (older engines)
+ *   - `payload.timestamp` (chat.message specifically)
+ *   - `payload.endedAt` (chat.exit specifically)
+ *
+ * Pick the first one we can resolve to a finite number.
+ */
 function parseEvent(line: string): ParsedEvent | null {
   try {
     const obj = JSON.parse(line) as {
       event?: string;
+      emittedAt?: string | number;
       timestamp?: string | number;
-      payload?: { timestamp?: string | number };
+      payload?: {
+        timestamp?: string | number;
+        emittedAt?: string | number;
+        endedAt?: string | number;
+        startedAt?: string | number;
+      };
     };
     if (!obj || typeof obj.event !== "string") return null;
-    const rawTs = obj.timestamp ?? obj.payload?.timestamp;
+    const candidates: Array<string | number | undefined> = [
+      obj.emittedAt,
+      obj.timestamp,
+      obj.payload?.emittedAt,
+      obj.payload?.timestamp,
+      obj.payload?.endedAt,
+      obj.payload?.startedAt,
+    ];
     let ts: number | null = null;
-    if (typeof rawTs === "number") ts = rawTs;
-    else if (typeof rawTs === "string") {
-      const parsed = Date.parse(rawTs);
-      ts = Number.isFinite(parsed) ? parsed : null;
+    for (const raw of candidates) {
+      if (raw === undefined || raw === null) continue;
+      if (typeof raw === "number" && Number.isFinite(raw)) {
+        ts = raw;
+        break;
+      }
+      if (typeof raw === "string") {
+        const parsed = Date.parse(raw);
+        if (Number.isFinite(parsed)) {
+          ts = parsed;
+          break;
+        }
+      }
     }
     return { event: obj.event, timestamp: ts };
   } catch {
