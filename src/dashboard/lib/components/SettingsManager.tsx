@@ -68,6 +68,11 @@ export function SettingsManager() {
   const [brainUrl, setBrainUrl] = useState("")
   const [brainKey, setBrainKey] = useState("")
 
+  // ─── Brain-on-Fly status (queried from /api/kody/brain/status) ──────────
+  type BrainFlyState = "off" | "running" | "suspended" | "stopped" | "unknown"
+  const [brainFlyState, setBrainFlyState] = useState<BrainFlyState>("unknown")
+  const [brainFlyBusy, setBrainFlyBusy] = useState<"idle" | "provisioning" | "destroying">("idle")
+
   // ─── Vercel bypass secret ───────────────────────────────────────────────
   const [vercelSecret, setVercelSecret] = useState("")
 
@@ -130,6 +135,103 @@ export function SettingsManager() {
     auth?.repo,
     loadFlyToken,
   ])
+
+  // ─── Brain-on-Fly: status check ─────────────────────────────────────────
+  // Polls /api/kody/brain/status whenever the user has a saved Fly token —
+  // before that the server returns "off" without hitting the Fly API, so
+  // there's no point asking. The status drives the pill + which buttons
+  // we render under the URL/key fields.
+  const refreshBrainFlyStatus = useCallback(async () => {
+    const headers = vaultHeaders()
+    if (Object.keys(headers).length === 0 || !savedFlyToken) {
+      setBrainFlyState("off")
+      return
+    }
+    try {
+      const res = await fetch("/api/kody/brain/status", { headers })
+      if (!res.ok) {
+        setBrainFlyState("unknown")
+        return
+      }
+      const body = (await res.json()) as { state?: BrainFlyState }
+      setBrainFlyState(body.state ?? "unknown")
+    } catch {
+      setBrainFlyState("unknown")
+    }
+  }, [savedFlyToken])
+
+  useEffect(() => {
+    void refreshBrainFlyStatus()
+  }, [refreshBrainFlyStatus])
+
+  async function provisionBrainOnFly() {
+    const headers = vaultHeaders()
+    if (Object.keys(headers).length === 0) {
+      toast.error("Sign in to a repo before provisioning")
+      return
+    }
+    if (!savedFlyToken) {
+      toast.error("Save a Fly token in the Fly Runner card first")
+      return
+    }
+    setBrainFlyBusy("provisioning")
+    try {
+      const res = await fetch("/api/kody/brain/provision", {
+        method: "POST",
+        headers,
+      })
+      const body = (await res.json().catch(() => ({}))) as {
+        url?: string
+        apiKey?: string
+        error?: string
+      }
+      if (!res.ok) {
+        toast.error(body.error ?? `Provision failed (HTTP ${res.status})`)
+        return
+      }
+      if (!body.url || !body.apiKey) {
+        toast.error("Provision returned no URL or API key")
+        return
+      }
+      setBrainUrl(body.url)
+      setBrainKey(body.apiKey)
+      updateIntegrations({ brain: { url: body.url, apiKey: body.apiKey } })
+      toast.success("Brain provisioned on Fly — URL + key saved")
+      await refreshBrainFlyStatus()
+    } catch (err) {
+      toast.error(`Provision failed: ${(err as Error).message}`)
+    } finally {
+      setBrainFlyBusy("idle")
+    }
+  }
+
+  async function destroyBrainOnFly() {
+    const headers = vaultHeaders()
+    if (Object.keys(headers).length === 0) return
+    setBrainFlyBusy("destroying")
+    try {
+      const res = await fetch("/api/kody/brain/destroy", {
+        method: "POST",
+        headers,
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        toast.error(body.error ?? `Destroy failed (HTTP ${res.status})`)
+        return
+      }
+      // Clear the saved Brain URL/key — the destroyed machine's key is now
+      // useless. The user can re-provision later (auto-fills fresh values).
+      updateIntegrations({ brain: null })
+      setBrainUrl("")
+      setBrainKey("")
+      toast.success("Brain destroyed on Fly")
+      await refreshBrainFlyStatus()
+    } catch (err) {
+      toast.error(`Destroy failed: ${(err as Error).message}`)
+    } finally {
+      setBrainFlyBusy("idle")
+    }
+  }
 
   const brainHasChanges =
     brainUrl.trim() !== (auth?.brain?.url ?? "") ||
@@ -299,6 +401,77 @@ export function SettingsManager() {
                 >
                   Clear
                 </Button>
+              )}
+            </div>
+
+            {/* ─── Host on Fly (auto-fills URL + key above) ────────── */}
+            <div className="pt-4 mt-2 border-t border-white/[0.06] space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <h3 className="text-xs font-semibold text-white/80">
+                    Host on Fly
+                  </h3>
+                  <p className="text-[11px] text-white/45 leading-snug">
+                    Provision a per-user Brain server on Fly.io that wraps the
+                    Kody engine. Requires the Fly Runner token below. Returns
+                    a URL + API key that auto-fill the fields above.
+                  </p>
+                </div>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wide ${
+                    brainFlyState === "running"
+                      ? "bg-emerald-500/15 text-emerald-300"
+                      : brainFlyState === "suspended"
+                        ? "bg-amber-500/15 text-amber-300"
+                        : brainFlyState === "stopped"
+                          ? "bg-rose-500/15 text-rose-300"
+                          : "bg-white/5 text-white/40"
+                  }`}
+                >
+                  {brainFlyState === "unknown" ? "—" : brainFlyState}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={provisionBrainOnFly}
+                  disabled={
+                    brainFlyBusy !== "idle" ||
+                    !savedFlyToken ||
+                    brainFlyState === "running" ||
+                    brainFlyState === "suspended"
+                  }
+                >
+                  {brainFlyBusy === "provisioning" ? "Provisioning…" : "Provision"}
+                </Button>
+                {(brainFlyState === "running" ||
+                  brainFlyState === "suspended" ||
+                  brainFlyState === "stopped") && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={destroyBrainOnFly}
+                    disabled={brainFlyBusy !== "idle"}
+                    className="text-rose-300 hover:text-rose-200"
+                  >
+                    {brainFlyBusy === "destroying" ? "Destroying…" : "Destroy"}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={refreshBrainFlyStatus}
+                  disabled={brainFlyBusy !== "idle"}
+                  className="text-white/50 hover:text-white/80"
+                >
+                  Refresh
+                </Button>
+              </div>
+              {!savedFlyToken && (
+                <p className="text-[11px] text-white/40 italic">
+                  Save a Fly token in the Fly Runner card below to enable
+                  provisioning.
+                </p>
               )}
             </div>
           </CardContent>
