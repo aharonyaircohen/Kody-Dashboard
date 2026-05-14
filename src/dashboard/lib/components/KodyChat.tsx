@@ -154,9 +154,31 @@ function formatElapsed(seconds: number): string {
 // open Vibe issue) gets its own runner, its own GHA workflow run, and its
 // own state. Old single-record storage is migrated on read so existing
 // in-flight sessions don't get dropped on deploy.
-const LIVE_SESSION_STORAGE_KEY = 'kody-live-sessions'
+const LIVE_SESSION_STORAGE_KEY_BASE = 'kody-live-sessions'
+const LIVE_SESSION_UNSCOPED_KEY = 'kody-live-sessions'
 const LIVE_SESSION_LEGACY_KEY = 'kody-live-session'
 const LIVE_SESSION_MAX_AGE_MS = 35 * 60_000
+
+/**
+ * Per-repo storage key for live sessions. Same rule as the chat session and
+ * task-chat caches: scope by `<owner>/<repo>` (lowercase) from
+ * localStorage.kody_auth so a Vibe runner in repo A doesn't leak into repo B
+ * (issue numbers collide otherwise — `vibe-5` in both repos hits the same
+ * record). Falls back to the unscoped key when no repo is connected, which
+ * also doubles as the read target for the one-time legacy migration below.
+ */
+function liveSessionStorageKey(): string {
+  if (typeof window === 'undefined') return LIVE_SESSION_UNSCOPED_KEY
+  try {
+    const raw = window.localStorage.getItem('kody_auth')
+    if (!raw) return LIVE_SESSION_UNSCOPED_KEY
+    const auth = JSON.parse(raw) as { owner?: string; repo?: string }
+    if (!auth.owner || !auth.repo) return LIVE_SESSION_UNSCOPED_KEY
+    return `${LIVE_SESSION_STORAGE_KEY_BASE}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`
+  } catch {
+    return LIVE_SESSION_UNSCOPED_KEY
+  }
+}
 
 /** Stable identifier for a chat "scope" — task vs global. */
 export type LiveScopeKey = string
@@ -189,7 +211,8 @@ type LiveSessionMap = Record<LiveScopeKey, PersistedLiveSession>
 function readAllLiveSessions(): LiveSessionMap {
   if (typeof window === 'undefined') return {}
   try {
-    const raw = window.localStorage.getItem(LIVE_SESSION_STORAGE_KEY)
+    const storageKey = liveSessionStorageKey()
+    const raw = window.localStorage.getItem(storageKey)
     let parsed: LiveSessionMap = raw ? (JSON.parse(raw) as LiveSessionMap) : {}
     // One-time migration from the legacy single-record format.
     const legacy = window.localStorage.getItem(LIVE_SESSION_LEGACY_KEY)
@@ -198,15 +221,31 @@ function readAllLiveSessions(): LiveSessionMap {
         const legacyRecord = JSON.parse(legacy) as PersistedLiveSession
         if (legacyRecord?.sessionId && typeof legacyRecord.startedAt === 'number') {
           parsed = { global: legacyRecord }
-          window.localStorage.setItem(
-            LIVE_SESSION_STORAGE_KEY,
-            JSON.stringify(parsed),
-          )
+          window.localStorage.setItem(storageKey, JSON.stringify(parsed))
         }
       } catch {
         /* ignore malformed legacy record */
       }
       window.localStorage.removeItem(LIVE_SESSION_LEGACY_KEY)
+    }
+    // One-time migration from the unscoped per-map key: adopt under the
+    // current repo, then drop the unscoped entry. Only runs when storageKey
+    // is genuinely scoped — otherwise the read above already targeted the
+    // unscoped key.
+    if (storageKey !== LIVE_SESSION_UNSCOPED_KEY && Object.keys(parsed).length === 0) {
+      const unscopedRaw = window.localStorage.getItem(LIVE_SESSION_UNSCOPED_KEY)
+      if (unscopedRaw) {
+        try {
+          const unscoped = JSON.parse(unscopedRaw) as LiveSessionMap
+          if (unscoped && typeof unscoped === 'object') {
+            parsed = unscoped
+            window.localStorage.setItem(storageKey, JSON.stringify(parsed))
+          }
+        } catch {
+          /* malformed — drop it below */
+        }
+        window.localStorage.removeItem(LIVE_SESSION_UNSCOPED_KEY)
+      }
     }
     // Drop stale entries so callers never see expired records.
     const now = Date.now()
@@ -223,7 +262,7 @@ function readAllLiveSessions(): LiveSessionMap {
       }
     }
     if (changed) {
-      window.localStorage.setItem(LIVE_SESSION_STORAGE_KEY, JSON.stringify(parsed))
+      window.localStorage.setItem(storageKey, JSON.stringify(parsed))
     }
     return parsed
   } catch {
@@ -244,7 +283,7 @@ function saveLiveSession(
   try {
     const all = readAllLiveSessions()
     all[scopeKey] = record
-    window.localStorage.setItem(LIVE_SESSION_STORAGE_KEY, JSON.stringify(all))
+    window.localStorage.setItem(liveSessionStorageKey(), JSON.stringify(all))
   } catch {
     /* quota / disabled — non-fatal */
   }
@@ -256,7 +295,7 @@ function clearLiveSession(scopeKey: LiveScopeKey): void {
     const all = readAllLiveSessions()
     if (!(scopeKey in all)) return
     delete all[scopeKey]
-    window.localStorage.setItem(LIVE_SESSION_STORAGE_KEY, JSON.stringify(all))
+    window.localStorage.setItem(liveSessionStorageKey(), JSON.stringify(all))
   } catch {
     /* non-fatal */
   }
