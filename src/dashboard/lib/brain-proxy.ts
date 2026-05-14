@@ -60,6 +60,18 @@ export interface BrainChatRequest {
   jobContext?: BrainJobContext
   /** owner/name of the user's repo (forwarded so Brain can clone a worktree). */
   repo?: string
+  /**
+   * Voice modality. When true the upstream Brain server should append the
+   * shared voice overlay (see `@dashboard/lib/voice/overlay`) to its system
+   * prompt for this turn — short sentences, no markdown, symbols-as-words.
+   * The dashboard streams the resulting text into TTS as-is.
+   *
+   * Brain-side contract: if the server doesn't recognize the field, it
+   * SHOULD treat the turn as text (current behavior). The dashboard gates
+   * the mic on `agent.supportsVoice`, so an old server still receiving
+   * voice payloads is a deploy-skew issue, not a correctness issue.
+   */
+  voiceMode?: boolean
 }
 
 /** Wire shape of events received from the upstream Brain server. */
@@ -190,6 +202,7 @@ export async function streamBrainChat(
         message: decoratedMessage,
         ...(attachments.length > 0 ? { attachments } : {}),
         ...(input.repo ? { repo: input.repo } : {}),
+        ...(input.voiceMode === true ? { voiceMode: true } : {}),
       }),
     })
   } catch (err) {

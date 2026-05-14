@@ -26,12 +26,12 @@ import { createAnthropic } from "@ai-sdk/anthropic"
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import {
   AGENT_KODY,
-  VOICE_OVERLAY_PROMPT,
   getAgent,
   isValidAgentId,
   type AgentConfig,
   type AgentId,
 } from "@dashboard/lib/agents"
+import { applyVoiceOverlay } from "@dashboard/lib/voice/overlay"
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
 import { createUserOctokit, setGitHubContext, clearGitHubContext } from "@dashboard/lib/github-client"
 import { getSecret } from "@dashboard/lib/vault/get-secret"
@@ -517,9 +517,7 @@ export async function POST(req: NextRequest) {
   // which otherwise teach the model to reply in bullet-heavy markdown.
   // The agent's brain and tools are untouched — the user picks the brain
   // in the dropdown; only the output shape changes.
-  const systemPrompt = voiceMode
-    ? `${assembledPrompt}\n\n${VOICE_OVERLAY_PROMPT}`
-    : assembledPrompt
+  const systemPrompt = applyVoiceOverlay(assembledPrompt, voiceMode)
 
   // Build the per-request tool set. GitHub + pipeline tools require a
   // resolved repo; remote tools require a configured actorLogin. The
