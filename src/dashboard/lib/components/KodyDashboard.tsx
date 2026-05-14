@@ -96,6 +96,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useAuth } from "../auth-context";
+import { RepoManager } from "./RepoManager";
 import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { SimpleTooltip } from "./SimpleTooltip";
@@ -272,6 +274,13 @@ export function KodyDashboard({
 
   // GitHub identity — verified via OAuth session cookie
   const { githubUser, connectedRepo, authError, clearGitHubUser } = useGitHubIdentity();
+
+  // Auth presence — when no PAT is saved we render the dashboard chrome
+  // normally but swap the task pane for `<RepoManager />` so the user
+  // can connect their first repository without losing the app shell
+  // (chat rail, headers, banners all remain visible).
+  const { auth: storedAuth } = useAuth();
+  const noAuth = !storedAuth;
 
   // Theme toggle
   const { theme, setTheme } = useTheme();
@@ -1378,7 +1387,12 @@ export function KodyDashboard({
 
               {/* Task List */}
               <div className="flex-1 min-h-0 overflow-y-auto">
-                {isLoading && tasks.length === 0 ? (
+                {noAuth ? (
+                  // No PAT stored → show the repo-connect form in the
+                  // task pane instead of an empty list. Header, filter
+                  // bar, banners and chat rail all stay in place.
+                  <RepoManager />
+                ) : isLoading && tasks.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-muted-foreground">Loading...</div>
                   </div>

@@ -2,22 +2,20 @@
  * @fileType component
  * @domain kody
  *
- * AuthGuard — when no GitHub PAT is stored in localStorage, renders the
- * `<RepoManager />` empty-state instead of the requested page. Adding the
- * first repo bootstraps `kody_auth` and reloads, after which the gate
- * passes children through transparently.
- *
- * The dashboard no longer has a separate `/login` route — repo + PAT
- * entry happens inside the same dashboard shell as everything else.
+ * AuthGuard — historically redirected to `/login` when no PAT was saved.
+ * With the login route removed, gating now lives inside `KodyDashboard`
+ * itself: it preserves the chrome (header + chat rail) and renders the
+ * `<RepoManager />` empty-state in the task pane when no credentials
+ * exist. This component is kept as a passthrough so its call sites stay
+ * stable, and so the loading flash during auth hydration is centralised.
  */
 "use client";
 
 import { useAuth } from "@dashboard/lib/auth-context";
-import { RepoManager } from "@dashboard/lib/components/RepoManager";
 import { Loader2 } from "lucide-react";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { auth, loading } = useAuth();
+  const { loading } = useAuth();
 
   if (loading) {
     return (
@@ -26,8 +24,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-
-  if (!auth) return <RepoManager />;
 
   return <>{children}</>;
 }
