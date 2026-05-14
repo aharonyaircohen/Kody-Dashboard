@@ -358,4 +358,154 @@ test.describe('Kody Live — watchdog + reducer (live)', () => {
     // covered by unit tests. This test's scope is the new code path:
     // watchdog → /status → STATUS_RESULT → 'stuck' banner.
   })
+
+  test('Restart from stuck state reboots into booting (and spawns a fresh runner)', async ({
+    page,
+  }, testInfo) => {
+    // Closes the verification loop on the new code I shipped: the
+    // Restart button is the user-facing recovery affordance. The reducer
+    // path (FORCE_RESET + dispatch + START) is unit-tested, but no
+    // existing test confirms the button is wired up correctly end-to-end.
+    testInfo.setTimeout(240_000)
+    const { owner, repo } = parseRepo(TEST_REPO)
+    const ZOMBIE_SESSION_ID = `watchdog-e2e-restart-${Date.now()}`
+
+    await page.goto(`${BASE_URL}/login`)
+    await injectAuth(page, owner, repo)
+    await page.evaluate(
+      ([sessionId, ownerArg, repoArg]) => {
+        const key = `kody-live-sessions:${ownerArg.toLowerCase()}/${repoArg.toLowerCase()}`
+        window.localStorage.setItem(
+          key,
+          JSON.stringify({
+            global: {
+              sessionId,
+              state: 'booting',
+              startedAt: Date.now() - 200_000,
+              target: { owner: ownerArg, repo: repoArg },
+            },
+          }),
+        )
+      },
+      [ZOMBIE_SESSION_ID, owner, repo] as const,
+    )
+    await page.goto(`${BASE_URL}/vibe`)
+    await page.waitForLoadState('domcontentloaded')
+
+    const viewport = await page.viewportSize()
+    test.skip(
+      (viewport?.width ?? 1280) < 768,
+      'chat rail hidden on mobile',
+    )
+
+    // Wait for the stuck banner to appear (watchdog cycle, ~150s).
+    await expect(page.getByText(/Runner stuck/i)).toBeVisible({
+      timeout: 200_000,
+    })
+    const restart = page.getByRole('button', { name: /^Restart$/ })
+    await expect(restart).toBeVisible()
+
+    // ── The actual verification ──
+    // Click Restart. The handler should:
+    //   1. dispatchLive({ type: 'FORCE_RESET' }) — phase → 'idle'
+    //   2. await startInteractiveSession() which dispatches START — phase → 'booting'
+    // Net effect: the booting banner appears within seconds.
+    await restart.click()
+    await expect(
+      page.getByText(/elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i),
+    ).toBeVisible({ timeout: 20_000 })
+
+    // Cancel the GHA run that the rebound spawned, so we don't leave it
+    // burning minutes idle. Best-effort — the run list query might race
+    // the actual dispatch by a second or two, so we tolerate misses.
+    const fresh = await findRecentKodyRun(owner, repo)
+    if (fresh) {
+      try {
+        await cancelRun(owner, repo, fresh.id)
+      } catch {
+        /* non-fatal */
+      }
+    }
+  })
+
+  test('Tab refresh during a ready session preserves the session (no silent drop)', async ({
+    page,
+  }, testInfo) => {
+    // Regression check for the persistence-on-mount bug discovered while
+    // building the stuck test: my consolidated persistence useEffect was
+    // wiping the saved record on first render (phase=idle, sessionId=null
+    // looked like a transition INTO idle). The fix is a mounted-ref
+    // guard. Confirm here that a session in 'ready' phase actually
+    // survives a page reload — without this test, a future regression in
+    // the same area would re-introduce a silent session-loss bug.
+    testInfo.setTimeout(300_000)
+    const { owner, repo } = parseRepo(TEST_REPO)
+
+    await page.goto(`${BASE_URL}/login`)
+    await injectAuth(page, owner, repo)
+    await page.goto(`${BASE_URL}/vibe`)
+    await page.waitForLoadState('domcontentloaded')
+
+    const viewport = await page.viewportSize()
+    test.skip(
+      (viewport?.width ?? 1280) < 768,
+      'chat rail hidden on mobile',
+    )
+
+    // Boot a real runner to 'ready'.
+    await expect(
+      page.getByText(/Live runner is offline|Click Start to warm up/i),
+    ).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: /^Start$/ }).click()
+    await expect(
+      page.getByText(/elapsed|Watching .* → Actions/i),
+    ).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText(/Live runner ready/i)).toBeVisible({
+      timeout: 180_000,
+    })
+
+    // Capture the session id so we can verify the same one comes back.
+    const beforeStorage = await page.evaluate(() => {
+      const key = Object.keys(window.localStorage).find((k) =>
+        k.startsWith('kody-live-sessions'),
+      )
+      return key ? window.localStorage.getItem(key) : null
+    })
+    expect(beforeStorage).toBeTruthy()
+    const beforeMap = JSON.parse(beforeStorage as string) as {
+      global?: { sessionId: string; state: string }
+    }
+    expect(beforeMap.global?.state).toBe('ready')
+    const sessionIdBefore = beforeMap.global?.sessionId
+    expect(sessionIdBefore).toBeTruthy()
+
+    // ── The actual regression check: reload the page. ──
+    await page.reload()
+    await page.waitForLoadState('domcontentloaded')
+
+    // The saved session must still be there post-reload.
+    const afterStorage = await page.evaluate(() => {
+      const key = Object.keys(window.localStorage).find((k) =>
+        k.startsWith('kody-live-sessions'),
+      )
+      return key ? window.localStorage.getItem(key) : null
+    })
+    expect(afterStorage, 'session record must survive reload').toBeTruthy()
+    const afterMap = JSON.parse(afterStorage as string) as {
+      global?: { sessionId: string }
+    }
+    expect(afterMap.global?.sessionId).toBe(sessionIdBefore)
+
+    // The banner should rehydrate to 'ready' (poll will re-confirm via
+    // the events file). Give it a moment for poll/SSE to reconnect.
+    await expect(page.getByText(/Live runner ready/i)).toBeVisible({
+      timeout: 30_000,
+    })
+
+    // Clean up: end the session.
+    const stop = page.getByRole('button', { name: /^Stop$/ })
+    if (await stop.isVisible().catch(() => false)) {
+      await stop.click()
+    }
+  })
 })
