@@ -513,26 +513,6 @@ export const tasksApi = {
     return handleResponse(res);
   },
 
-  approve: async (
-    task: KodyTask,
-    actorLogin?: string,
-  ): Promise<ActionResponse> => {
-    if (!task.associatedPR) {
-      throw new Error("No PR associated with this task");
-    }
-    const res = await fetch(`${API_BASE}/tasks/approve`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify({
-        issueNumber: task.issueNumber,
-        prNumber: task.associatedPR.number,
-        branchName: task.associatedPR.head.ref,
-        ...(actorLogin && { actorLogin }),
-      }),
-    });
-    return handleResponse(res);
-  },
-
   approveReview: async (
     task: KodyTask,
     actorLogin?: string,
