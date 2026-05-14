@@ -18,6 +18,15 @@ export interface BuiltinPrompt {
 
 export const BUILTIN_PROMPTS: readonly BuiltinPrompt[] = [
   {
+    slug: "init",
+    description: "Install the Kody engine in this repo",
+    argumentHint: "[--force]",
+    // Body is unused — KodyChat.sendMessage intercepts `/init` before
+    // the slash-prompt expansion and runs the install action directly.
+    // Kept here so the slash menu lists it as a first-class command.
+    body: "",
+  },
+  {
     slug: "plan",
     description: "Plan a change before writing code",
     argumentHint: "<task>",
