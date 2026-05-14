@@ -27,7 +27,9 @@ import { SWITCH_AGENT_DIRECTIVE } from '@dashboard/lib/chat-ui-actions'
 import {
   BranchService,
   GitHubBranchRepo,
+  GitHubFileLock,
   ForeignBranchError,
+  LockTakenError,
 } from '@dashboard/lib/branches'
 
 interface Ctx {
@@ -38,7 +40,10 @@ interface Ctx {
 
 export function createVibeTools(ctx: Ctx) {
   const { octokit, owner, repo } = ctx
-  const branches = new BranchService(new GitHubBranchRepo({ octokit, owner, repo }))
+  const branches = new BranchService(
+    new GitHubBranchRepo({ octokit, owner, repo }),
+    new GitHubFileLock({ octokit, owner, repo }),
+  )
 
   return {
     vibe_start_execution: tool({
@@ -86,6 +91,13 @@ export function createVibeTools(ctx: Ctx) {
                 error: err.message,
                 code: 'foreign_branch',
                 branch: err.branchName,
+              }
+            }
+            if (err instanceof LockTakenError) {
+              return {
+                error: err.message,
+                code: 'session_in_progress',
+                key: err.key,
               }
             }
             const message = err instanceof Error ? err.message : String(err)
