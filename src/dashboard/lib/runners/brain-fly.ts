@@ -107,6 +107,43 @@ export interface BrainStatusResult {
 }
 
 /**
+ * Poll `<url>/healthz` until it returns 200, or give up after `timeoutMs`.
+ *
+ * On a fresh provision the machine returns from the Fly API in ~12s but
+ * the Node server inside doesn't bind :8080 until the entrypoint finishes
+ * the repo clone (~25-40s) and brain-serve initialises LiteLLM (~10-20s).
+ * Forwarding the chat request before then yields a Fly-edge 503 ("instance
+ * refused connection"). On reuse the server is already running and the
+ * first poll returns immediately.
+ */
+export async function waitForBrainHealth(
+  url: string,
+  timeoutMs = 120_000,
+): Promise<void> {
+  const start = Date.now()
+  const healthUrl = `${url.replace(/\/+$/, '')}/healthz`
+  let lastErr: unknown = null
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(healthUrl, {
+        // The Fly edge proxy returns quickly when no instance is listening,
+        // so a short per-attempt timeout keeps the polling cadence tight.
+        signal: AbortSignal.timeout(5_000),
+      })
+      if (res.ok) return
+      lastErr = `status ${res.status}`
+    } catch (err) {
+      lastErr = err
+    }
+    await new Promise((r) => setTimeout(r, 2_000))
+  }
+  const detail = lastErr instanceof Error ? lastErr.message : String(lastErr)
+  throw new Error(
+    `brain-fly: ${healthUrl} not ready after ${Math.round(timeoutMs / 1000)}s (${detail})`,
+  )
+}
+
+/**
  * Normalize a GitHub login into a Fly-app-safe slug. Fly app names must
  * match `^[a-z0-9][a-z0-9-]*$` and are globally unique, so we prefix
  * with `kody-brain-` and lowercase the owner. Non-alphanumerics become
