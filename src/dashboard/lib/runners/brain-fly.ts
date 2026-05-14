@@ -219,7 +219,22 @@ export async function flyFetch<T>(
     )
   }
   if (res.status === 204) return null
-  return (await res.json()) as T
+  // Fly returns 200/202 with an empty body on some mutating calls (e.g.
+  // DELETE /apps/{name}). Parsing an empty string as JSON throws — guard
+  // by reading text first.
+  const raw = await res.text()
+  if (!raw.trim()) return null
+  try {
+    return JSON.parse(raw) as T
+  } catch (err) {
+    logger.error(
+      { status: res.status, body: raw.slice(0, 500), path },
+      'brain-fly: Fly API returned non-JSON body',
+    )
+    throw new Error(
+      `Fly Machines API on ${path}: response was not JSON (status ${res.status})`,
+    )
+  }
 }
 
 interface FlyApp {
