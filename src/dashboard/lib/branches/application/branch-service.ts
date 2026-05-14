@@ -51,54 +51,87 @@ export interface PRResult {
 }
 
 export class BranchService {
-  constructor(private readonly repo: BranchRepo) {}
+  constructor(
+    private readonly repo: BranchRepo,
+    /**
+     * Optional lock port. When provided, `getOrCreate` acquires a lease
+     * keyed on `issue-<n>` for the duration of the call, serialising
+     * concurrent vibe sessions on the same issue. Without it, two
+     * concurrent callers can both pass the foreign-branch guard (the
+     * empty marker commit is identical, so both consider themselves
+     * the owner) and race on PR creation.
+     */
+    private readonly lock?: LockPort,
+  ) {}
 
   /**
    * Get-or-create a Kody work branch for an issue. Idempotent per
    * (issueNumber, slug) pair. The branch is seeded with a single empty
    * "marker" commit so future iterations can verify ownership.
    *
-   * Throws if the issue number actually points to a pull request.
+   * Throws:
+   * - plain `Error` if the issue number actually points to a PR
+   * - `ForeignBranchError` if branch exists but isn't Kody-owned
+   * - `LockTakenError` if another session is in progress on this issue
    */
   async getOrCreate(input: GetOrCreateInput): Promise<GetOrCreateResult> {
-    const issue = await this.repo.getIssue(input.issueNumber)
-    if (issue.isPullRequest) {
-      throw new Error(
-        `#${input.issueNumber} is a pull request, not an issue.`,
-      )
+    const lockKey = `issue-${input.issueNumber}`
+    const lease = this.lock
+      ? await this.lock.acquire(lockKey, GET_OR_CREATE_LOCK_TTL_MS)
+      : null
+    if (this.lock && !lease) {
+      throw new LockTakenError(lockKey)
     }
 
-    const slug = slugifyTitle(input.slug ?? issue.title)
-    const branchName = buildBranchName(input.issueNumber, slug)
-    const baseRef = input.baseRef ?? (await this.repo.getDefaultBranch())
+    try {
+      const issue = await this.repo.getIssue(input.issueNumber)
+      if (issue.isPullRequest) {
+        throw new Error(
+          `#${input.issueNumber} is a pull request, not an issue.`,
+        )
+      }
 
-    const result = await this.repo.createBranchWithMarker({
-      branchName,
-      baseRef,
-      markerMessage: `vibe: start session for #${input.issueNumber}`,
-    })
+      const slug = slugifyTitle(input.slug ?? issue.title)
+      const branchName = buildBranchName(input.issueNumber, slug)
+      const baseRef = input.baseRef ?? (await this.repo.getDefaultBranch())
 
-    // Foreign-branch guard: if the branch already existed, verify it
-    // was actually created by Kody for THIS issue before reusing it.
-    // Without this, a pre-existing human branch with the same name
-    // (or a Kody branch from a different issue that happens to slug
-    // to the same value) would be silently reused and clobbered.
-    if (result.existed) {
-      const messages = await this.repo.listBranchCommitMessages({
+      const result = await this.repo.createBranchWithMarker({
         branchName,
         baseRef,
+        markerMessage: `vibe: start session for #${input.issueNumber}`,
       })
-      if (!isKodyOwnedBranch(messages, input.issueNumber)) {
-        throw new ForeignBranchError(branchName, input.issueNumber)
-      }
-    }
 
-    return {
-      branchName,
-      sha: result.sha,
-      existed: result.existed,
-      baseRef,
-      issueTitle: issue.title,
+      // Foreign-branch guard: if the branch already existed, verify it
+      // was actually created by Kody for THIS issue before reusing it.
+      // Without this, a pre-existing human branch with the same name
+      // (or a Kody branch from a different issue that happens to slug
+      // to the same value) would be silently reused and clobbered.
+      if (result.existed) {
+        const messages = await this.repo.listBranchCommitMessages({
+          branchName,
+          baseRef,
+        })
+        if (!isKodyOwnedBranch(messages, input.issueNumber)) {
+          throw new ForeignBranchError(branchName, input.issueNumber)
+        }
+      }
+
+      return {
+        branchName,
+        sha: result.sha,
+        existed: result.existed,
+        baseRef,
+        issueTitle: issue.title,
+      }
+    } finally {
+      if (lease) {
+        try {
+          await lease.release()
+        } catch {
+          // Best-effort: lease will TTL-expire anyway. Don't mask the
+          // primary error (if any) with a release failure.
+        }
+      }
     }
   }
 

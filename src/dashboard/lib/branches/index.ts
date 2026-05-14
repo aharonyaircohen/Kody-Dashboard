@@ -40,6 +40,10 @@ export type {
 
 export { BranchService } from './application/branch-service'
 
-export { ForeignBranchError } from './errors'
+export { ForeignBranchError, LockTakenError } from './errors'
+
+export type { LockPort, Lease } from './domain/lock-port'
+
+export { GitHubFileLock } from './infra/github-file-lock'
 
 export { isKodyMarkerCommit, isKodyOwnedBranch } from './domain/branch-ownership'
