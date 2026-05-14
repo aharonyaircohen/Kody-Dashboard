@@ -100,7 +100,7 @@ test.describe('Vibe — LIVE full flow against production', () => {
   test('rename welcome text → approve → runner pushes the real diff', async ({
     page,
   }, testInfo) => {
-    testInfo.setTimeout(900_000) // 15 min hard cap (covers create + run + merge).
+    testInfo.setTimeout(1_800_000) // 30 min hard cap (create + run + CI wait + merge).
     const { owner, repo } = parseRepo(TEST_REPO)
     expect(owner, 'E2E_GITHUB_REPO must parse to owner/repo').toBeTruthy()
     expect(repo).toBeTruthy()
@@ -409,33 +409,36 @@ test.describe('Vibe — LIVE full flow against production', () => {
     // PR → runner commit → DASHBOARD MERGE → branch deleted → issue
     // closed. Without this step the test only proves half the flow.
     //
-    // We poll for `mergeable: true` from GitHub for up to 3 min so the
-    // approve call doesn't race the mergeability computation. If the
-    // tester repo requires CI checks and they're still running, the
-    // approve endpoint will report "merge may require CI checks to
-    // pass" and the test fails with a clear message — that's the
-    // right signal.
+    // We poll for `mergeable_state === 'clean'` (CI passing + no
+    // conflicts) for up to 8 min. "unstable" means CI is failing or
+    // pending — calling approve in that state would correctly return
+    // 409, but then we wouldn't be testing the merge path.
+    //
+    // If the tester repo's CI is slow/failing and we time out, the
+    // test fails with a clear "PR never became clean" message so it's
+    // obvious the failure is environmental (tester repo CI), not a
+    // dashboard regression.
     type PrDetail = {
       mergeable: boolean | null
       mergeable_state: string
       merged: boolean
     }
     let prDetail: PrDetail | null = null
-    const mergeableDeadline = Date.now() + 3 * 60_000
+    const mergeableDeadline = Date.now() + 8 * 60_000
     while (Date.now() < mergeableDeadline) {
       prDetail = (await ghFetch(
         `/repos/${owner}/${repo}/pulls/${prNumber}`,
       )) as PrDetail
-      if (prDetail.mergeable === true && prDetail.mergeable_state !== 'blocked') {
+      if (prDetail.mergeable_state === 'clean' || prDetail.merged) {
         break
       }
-      if (prDetail.merged) break
-      await page.waitForTimeout(5_000)
+      await page.waitForTimeout(10_000)
     }
     expect(
-      prDetail,
-      'PR detail should be fetchable',
-    ).toBeTruthy()
+      prDetail?.mergeable_state === 'clean' || prDetail?.merged,
+      `PR #${prNumber} never became mergeable (mergeable_state=${prDetail?.mergeable_state}). ` +
+        'This usually means tester repo CI is failing or too slow — not a dashboard regression.',
+    ).toBe(true)
 
     // Find the branch name from the PR for the approve payload.
     const prBranchName = pr!.head.ref
