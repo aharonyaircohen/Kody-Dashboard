@@ -700,7 +700,7 @@ export function PreviewModal({
               </button>
             </div>
             <PRCommentList
-              key={commentsKey}
+              key={`${pr.number}-${commentsKey}`}
               prNumber={pr.number}
               onCountChange={setCommentCount}
             />
