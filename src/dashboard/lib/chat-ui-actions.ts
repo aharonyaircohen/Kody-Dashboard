@@ -11,7 +11,12 @@ import type { AgentId } from './agents'
 
 export const SWITCH_AGENT_DIRECTIVE = 'switch_agent' as const
 
-export type SwitchAgentTargetId = Exclude<AgentId, 'kody-speech'>
+/**
+ * Voice is a modality, not an agent — every agent in the registry is a
+ * legitimate switch target. Alias kept so the codebase can document intent
+ * (and so callers don't have to import AgentId just to type a directive).
+ */
+export type SwitchAgentTargetId = AgentId
 
 export interface SwitchAgentDirective {
   action: typeof SWITCH_AGENT_DIRECTIVE
@@ -43,7 +48,6 @@ export function isSwitchAgentDirective(value: unknown): value is SwitchAgentDire
   return (
     v.action === SWITCH_AGENT_DIRECTIVE &&
     typeof v.agentId === 'string' &&
-    v.agentId !== 'kody-speech' &&
     typeof v.agentName === 'string' &&
     typeof v.reason === 'string' &&
     (v.autoKickoff === undefined || typeof v.autoKickoff === 'string') &&
