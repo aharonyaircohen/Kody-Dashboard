@@ -1150,8 +1150,8 @@ export function KodyDashboard({
           Check that your token has access to the repository and try logging in again.
         </p>
         <div className="flex flex-col items-center gap-2">
-          <Button onClick={() => { localStorage.removeItem('kody_auth'); window.location.href = '/login' }}>
-            Log in again
+          <Button onClick={() => { localStorage.removeItem('kody_auth'); window.location.href = '/' }}>
+            Connect repository
           </Button>
           {mobileChatEscapeHatch}
         </div>

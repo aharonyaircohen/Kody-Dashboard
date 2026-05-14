@@ -67,8 +67,16 @@ interface AuthContextValue {
   auth: KodyAuth | null;
   loading: boolean;
   logout: () => void;
-  /** Push a new repo entry. Does not switch to it — caller should call setCurrentRepo if desired. */
-  addRepo: (entry: Omit<KodyRepoEntry, "addedAt" | "isLogin">) => void;
+  /**
+   * Push a new repo entry. When auth is null this *bootstraps* the auth
+   * object — the caller must supply `user` (basic GitHub identity for the
+   * supplied token). For subsequent adds `user` is ignored.
+   * Does not switch to the new repo unless it's the bootstrap one.
+   */
+  addRepo: (
+    entry: Omit<KodyRepoEntry, "addedAt" | "isLogin">,
+    user?: KodyAuth["user"],
+  ) => void;
   /** Remove a repo by index. Removing the current repo falls back to index 0. Removing the only repo logs out. */
   removeRepo: (index: number) => void;
   /** Switch the active repo. Triggers a full page reload to clear React Query cache. */
@@ -178,13 +186,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem("kody_auth");
     setAuth(null);
-    window.location.href = "/login";
+    window.location.href = "/";
   }, []);
 
   const addRepo = useCallback(
-    (entry: Omit<KodyRepoEntry, "addedAt" | "isLogin">) => {
+    (
+      entry: Omit<KodyRepoEntry, "addedAt" | "isLogin">,
+      user?: KodyAuth["user"],
+    ) => {
       setAuth((prev) => {
-        if (!prev) return prev;
+        // Bootstrap: empty store, this is the first repo. Requires user info.
+        if (!prev) {
+          if (!user) {
+            // Callers MUST pass user for the bootstrap path — bail silently
+            // (the form-level validation should never let this happen).
+            return prev;
+          }
+          const now = Date.now();
+          const loginEntry: KodyRepoEntry = {
+            ...entry,
+            addedAt: now,
+            isLogin: true,
+          };
+          const next: KodyAuth = {
+            repoUrl: loginEntry.repoUrl,
+            owner: loginEntry.owner,
+            repo: loginEntry.repo,
+            token: loginEntry.token,
+            user,
+            loggedInAt: now,
+            repos: [loginEntry],
+            currentRepoIndex: 0,
+          };
+          persist(next);
+          return next;
+        }
         const ownerLc = entry.owner.toLowerCase();
         const repoLc = entry.repo.toLowerCase();
         // Dedupe: if the same owner/repo already exists, replace its token instead.
@@ -220,7 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (removing.isLogin) {
           // Removing the login repo == logout.
           localStorage.removeItem("kody_auth");
-          window.location.href = "/login";
+          window.location.href = "/";
           return null;
         }
 
@@ -228,7 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (nextRepos.length === 0) {
           // Shouldn't happen (login is non-removable), but bail to logout.
           localStorage.removeItem("kody_auth");
-          window.location.href = "/login";
+          window.location.href = "/";
           return null;
         }
 

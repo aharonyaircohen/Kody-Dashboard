@@ -12,7 +12,7 @@
  *   would drift between the two surfaces until reload.
  *
  *   `useNotifications()` returns a no-op surface when called outside the
- *   provider so non-authenticated routes (e.g. /login) don't crash.
+ *   provider so unauthenticated renders (e.g. the empty-state RepoManager) don't crash.
  */
 'use client'
 

@@ -8,10 +8,11 @@
  *   stays mounted across every navigation — scroll position, streaming
  *   state, and message history all persist.
  *
- *   The rail is hidden on /login (the only public route) and while
- *   `useAuth().loading` is true, to avoid flashing the chrome before
- *   auth resolves. Mobile mode swaps the desktop aside for a floating
- *   action button and a right-side Sheet.
+ *   The rail is hidden while `useAuth().loading` is true or when no
+ *   credentials are stored, since the chat itself needs a PAT to function.
+ *   In that state the dashboard's AuthGuard renders the RepoManager
+ *   empty-state in place of the page. Mobile mode swaps the desktop aside
+ *   for a floating action button and a right-side Sheet.
  */
 "use client"
 
@@ -65,8 +66,8 @@ const ChatRailContext = createContext<ChatRailApi | null>(null)
 
 /**
  * Read & control the persistent chat. Returns a no-op API when called
- * outside the rail (e.g. on /login or before auth loads) so callers
- * don't need to special-case it.
+ * outside the rail (e.g. before auth loads or while the RepoManager
+ * empty-state is shown) so callers don't need to special-case it.
  */
 export function useChatScope(): ChatRailApi {
   return useContext(ChatRailContext) ?? NOOP_API
@@ -79,8 +80,9 @@ const NOOP_API: ChatRailApi = {
   setOnIssueCreated: () => {},
 }
 
-// Routes that must NOT render the chat rail — public surface only.
-const PUBLIC_ROUTE_PREFIXES = ["/login"]
+// Routes that must NOT render the chat rail (none currently — the rail
+// is gated on `auth` instead, so unauth users see no rail anywhere).
+const PUBLIC_ROUTE_PREFIXES: readonly string[] = []
 
 function isPublicRoute(pathname: string | null): boolean {
   if (!pathname) return false
@@ -128,8 +130,9 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     [scope, openMobileChat, setOnIssueCreated],
   )
 
-  // No rail on /login, before hydration, or while auth is still loading.
-  // AuthGuard inside protected pages handles the redirect for unauth'd users.
+  // No rail before hydration, while auth is still loading, or when the
+  // user has no credentials yet (AuthGuard renders the empty-state
+  // RepoManager in that case — chat itself needs a PAT to function).
   const showRail =
     hydrated && !loading && !!auth && !isPublicRoute(pathname)
 

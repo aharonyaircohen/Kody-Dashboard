@@ -28,9 +28,9 @@ the dashboard's Settings page (user-scoped, not Vercel-scoped).
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `KODY_MASTER_KEY` | Yes | 32-byte hex/base64 secret. Single key powering: per-repo secrets vault AES-256-GCM (`vault/crypto.ts`), Kody session JWT signing (`auth/kody_session.ts`), session token AES (same file), and chat-ingest HMAC (`chat-token.ts`). Each consumer purpose-prefixes the key before hashing — `kody-chat-token:`, `kody-gh-session:`, `kody-token-encryption:` — so they're cryptographically separated. Generate with `pnpm vault:init`. |
+| `KODY_MASTER_KEY` | Yes | 32-byte hex/base64 secret. Powers per-repo secrets vault AES-256-GCM (`vault/crypto.ts`) and chat-ingest HMAC (`chat-token.ts`). Each consumer purpose-prefixes the key before hashing — `kody-chat-token:`, `kody-token-encryption:` — so they're cryptographically separated. Generate with `pnpm vault:init`. |
 | `GITHUB_TOKEN` | Yes | Server-side GitHub API token for tasks that run without a logged-in user (cron, webhook flows). Needs `repo` + `workflow` scope. |
-| `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from login). |
+| `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from the user's stored credentials). |
 | `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody.yml`). |
 | `JINA_API_KEY` | No | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier). |
 | `NEXT_PUBLIC_SERVER_URL` | Dev | Public URL for callbacks — set in dev only. |
