@@ -11,8 +11,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireKodyAuth, verifyActorLogin } from "@dashboard/lib/auth";
-import { sendNotification } from "@dashboard/lib/notifications/channels";
+import {
+  requireKodyAuth,
+  verifyActorLogin,
+  getRequestAuth,
+} from "@dashboard/lib/auth";
+import { sendNotification } from "@dashboard/lib/notifications/channels/send";
 
 const channelSchema = z.discriminatedUnion("type", [
   z.object({
@@ -38,6 +42,9 @@ const channelSchema = z.discriminatedUnion("type", [
     bodyFormat: z.enum(["json", "form"]).optional(),
     headers: z.record(z.string(), z.string()).optional(),
   }),
+  z.object({
+    type: z.literal("web-push"),
+  }),
 ]);
 
 const testSchema = z.object({
@@ -58,9 +65,17 @@ export async function POST(req: NextRequest) {
     if (actorResult instanceof NextResponse) return actorResult;
 
     try {
+      const headerAuth = getRequestAuth(req);
       await sendNotification(parsed.channel, {
         text: parsed.text,
         vars: { repo: "test", prUrl: "", prTitle: "", prBody: "", author: "", version: "" },
+        github: headerAuth
+          ? {
+              owner: headerAuth.owner,
+              repo: headerAuth.repo,
+              token: headerAuth.token,
+            }
+          : undefined,
       });
       return NextResponse.json({ ok: true });
     } catch (err: any) {

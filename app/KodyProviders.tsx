@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
 import { ThemeProvider } from '@dashboard/providers/Theme'
 import { AuthProvider } from '@dashboard/lib/auth-context'
+import { ServiceWorkerRegister } from '@dashboard/lib/push/ServiceWorkerRegister'
 
 function makeQueryClient() {
   return new QueryClient({
@@ -39,7 +40,10 @@ export function KodyProviders({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ServiceWorkerRegister />
+          {children}
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   )

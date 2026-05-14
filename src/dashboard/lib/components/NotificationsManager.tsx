@@ -73,6 +73,8 @@ function blankChannel(type: ChannelType): NotificationChannel {
       return { type: "discord-webhook", url: "" };
     case "generic-webhook":
       return { type: "generic-webhook", url: "" };
+    case "web-push":
+      return { type: "web-push" };
   }
 }
 
@@ -663,5 +665,13 @@ function ChannelFields({
         </>
       );
     }
+    case "web-push":
+      return (
+        <p className="text-[11px] text-white/40">
+          Notifications go to every device that has enabled push for this
+          repo via Notification Settings → Mobile / push notifications.
+          No per-channel config — server-side fan-out via VAPID.
+        </p>
+      );
   }
 }
