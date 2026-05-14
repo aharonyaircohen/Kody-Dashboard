@@ -428,6 +428,208 @@ test.describe('Kody Live — watchdog + reducer (live)', () => {
     }
   })
 
+  test('Vibe-scoped session: rehydrate uses vibe-N scope key when on /vibe?issue=N', async ({
+    page,
+  }, testInfo) => {
+    // Covers the user's actual code path: scope key 'vibe-<issueNumber>'
+    // instead of 'global'. The lifecycle code is shared, but the scope
+    // resolution + storage map indexing is a separate code path that
+    // was never exercised by the prior tests (all of which ran on /vibe
+    // without ?issue=N → context: null → scope: 'global').
+    testInfo.setTimeout(60_000)
+    const { owner, repo } = parseRepo(TEST_REPO)
+
+    // Use an existing open issue in the tester repo. Validated at the
+    // top of this run via `gh issues --state open`.
+    const ISSUE_NUMBER = 3425
+    const ZOMBIE_SESSION_ID = `vibe-${ISSUE_NUMBER}-${Date.now()}`
+
+    await page.goto(`${BASE_URL}/login`)
+    await injectAuth(page, owner, repo)
+    await page.evaluate(
+      ([sessionId, ownerArg, repoArg, issueN]) => {
+        const key = `kody-live-sessions:${ownerArg.toLowerCase()}/${repoArg.toLowerCase()}`
+        // Note the scope key shape: `vibe-${issueNumber}`, not `global`.
+        window.localStorage.setItem(
+          key,
+          JSON.stringify({
+            [`vibe-${issueN}`]: {
+              sessionId,
+              state: 'booting',
+              startedAt: Date.now() - 200_000,
+              target: { owner: ownerArg, repo: repoArg },
+            },
+          }),
+        )
+      },
+      [ZOMBIE_SESSION_ID, owner, repo, ISSUE_NUMBER] as const,
+    )
+
+    await page.goto(`${BASE_URL}/vibe?issue=${ISSUE_NUMBER}`)
+    await page.waitForLoadState('domcontentloaded')
+
+    const viewport = await page.viewportSize()
+    test.skip(
+      (viewport?.width ?? 1280) < 768,
+      'chat rail hidden on mobile',
+    )
+
+    // The dashboard should:
+    //   1. Read context from ?issue=N → context.kind = 'task'
+    //   2. With vibeMode=true (vibe page), getLiveScopeKey → 'vibe-N'
+    //   3. rehydrateForScope('vibe-N') → REHYDRATE_RESTORED with our seed
+    //   4. phase='booting' → booting banner visible
+    await expect(
+      page.getByText(/elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i),
+    ).toBeVisible({ timeout: 20_000 })
+
+    // Verify the storage key shape — confirms scope is 'vibe-N', not 'global'.
+    const storage = await page.evaluate(() => {
+      const key = Object.keys(window.localStorage).find((k) =>
+        k.startsWith('kody-live-sessions'),
+      )
+      return key ? window.localStorage.getItem(key) : null
+    })
+    expect(storage).toBeTruthy()
+    const parsed = JSON.parse(storage as string) as Record<
+      string,
+      { sessionId: string }
+    >
+    expect(Object.keys(parsed)).toContain(`vibe-${ISSUE_NUMBER}`)
+    expect(parsed[`vibe-${ISSUE_NUMBER}`]?.sessionId).toBe(ZOMBIE_SESSION_ID)
+  })
+
+  test('Issue switch mid-flight: each issue keeps its own scoped session', async ({
+    page,
+  }, testInfo) => {
+    // Hazard C from the audit: switching issues while a session is
+    // in-flight must not lose the old scope's session or smear it into
+    // the new scope. Each Vibe issue gets its own scoped record.
+    testInfo.setTimeout(90_000)
+    const { owner, repo } = parseRepo(TEST_REPO)
+
+    const ISSUE_A = 3425
+    const ISSUE_B = 3421
+    const SESSION_A = `vibe-${ISSUE_A}-${Date.now()}-aaa`
+    const SESSION_B = `vibe-${ISSUE_B}-${Date.now()}-bbb`
+
+    await page.goto(`${BASE_URL}/login`)
+    await injectAuth(page, owner, repo)
+    await page.evaluate(
+      ([sA, sB, ownerArg, repoArg, iA, iB]) => {
+        const key = `kody-live-sessions:${ownerArg.toLowerCase()}/${repoArg.toLowerCase()}`
+        window.localStorage.setItem(
+          key,
+          JSON.stringify({
+            [`vibe-${iA}`]: {
+              sessionId: sA,
+              state: 'booting',
+              startedAt: Date.now() - 200_000,
+              target: { owner: ownerArg, repo: repoArg },
+            },
+            [`vibe-${iB}`]: {
+              sessionId: sB,
+              state: 'booting',
+              startedAt: Date.now() - 200_000,
+              target: { owner: ownerArg, repo: repoArg },
+            },
+          }),
+        )
+      },
+      [SESSION_A, SESSION_B, owner, repo, ISSUE_A, ISSUE_B] as const,
+    )
+
+    // ── Land on issue A first.
+    await page.goto(`${BASE_URL}/vibe?issue=${ISSUE_A}`)
+    await page.waitForLoadState('domcontentloaded')
+
+    const viewport = await page.viewportSize()
+    test.skip(
+      (viewport?.width ?? 1280) < 768,
+      'chat rail hidden on mobile',
+    )
+
+    await expect(
+      page.getByText(/elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i),
+    ).toBeVisible({ timeout: 20_000 })
+
+    // ── Navigate to issue B without going through Stop/End.
+    await page.goto(`${BASE_URL}/vibe?issue=${ISSUE_B}`)
+    await page.waitForLoadState('domcontentloaded')
+
+    // Should rehydrate the B scope (different sessionId), not leak A's
+    // session into B's view.
+    await expect(
+      page.getByText(/elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i),
+    ).toBeVisible({ timeout: 20_000 })
+
+    // ── Back to A — its session must still be there.
+    await page.goto(`${BASE_URL}/vibe?issue=${ISSUE_A}`)
+    await page.waitForLoadState('domcontentloaded')
+    await expect(
+      page.getByText(/elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i),
+    ).toBeVisible({ timeout: 20_000 })
+
+    const finalStorage = await page.evaluate(() => {
+      const key = Object.keys(window.localStorage).find((k) =>
+        k.startsWith('kody-live-sessions'),
+      )
+      return key ? window.localStorage.getItem(key) : null
+    })
+    const finalMap = JSON.parse(finalStorage as string) as Record<
+      string,
+      { sessionId: string }
+    >
+    expect(finalMap[`vibe-${ISSUE_A}`]?.sessionId).toBe(SESSION_A)
+    expect(finalMap[`vibe-${ISSUE_B}`]?.sessionId).toBe(SESSION_B)
+  })
+
+  test('SSE break does not kill the session: polling keeps the lifecycle alive', async ({
+    page,
+  }, testInfo) => {
+    // Hazard B from the audit: SSE drops mid-stream. The dashboard runs
+    // a parallel poll fallback every 3s — this test confirms that even
+    // when SSE is completely unreachable, the session reaches 'ready'
+    // and the reducer transitions correctly.
+    testInfo.setTimeout(300_000)
+    const { owner, repo } = parseRepo(TEST_REPO)
+
+    // Block all SSE requests at the network layer.
+    await page.route('**/api/kody/events/stream*', (route) =>
+      route.abort('failed'),
+    )
+
+    await page.goto(`${BASE_URL}/login`)
+    await injectAuth(page, owner, repo)
+    await page.goto(`${BASE_URL}/vibe`)
+    await page.waitForLoadState('domcontentloaded')
+
+    const viewport = await page.viewportSize()
+    test.skip(
+      (viewport?.width ?? 1280) < 768,
+      'chat rail hidden on mobile',
+    )
+
+    await expect(
+      page.getByText(/Live runner is offline|Click Start to warm up/i),
+    ).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: /^Start$/ }).click()
+    await expect(
+      page.getByText(/elapsed|Watching .* → Actions/i),
+    ).toBeVisible({ timeout: 10_000 })
+
+    // The runner must still reach 'ready' via the 3s poll loop alone.
+    await expect(page.getByText(/Live runner ready/i)).toBeVisible({
+      timeout: 180_000,
+    })
+
+    // Cleanup.
+    const stop = page.getByRole('button', { name: /^Stop$/ })
+    if (await stop.isVisible().catch(() => false)) {
+      await stop.click()
+    }
+  })
+
   test('Tab refresh during a ready session preserves the session (no silent drop)', async ({
     page,
   }, testInfo) => {
