@@ -209,14 +209,73 @@ async function ensureApp(flyToken: string, appName: string): Promise<FlyApp> {
     `/apps/${encodeURIComponent(appName)}`,
     { token: flyToken, allow404: true },
   )
-  if (existing) return existing
+  if (existing) {
+    // Existing apps may already have IPs (or not, on a half-finished
+    // provision). allocateIpsIfMissing is idempotent.
+    await allocateIpsIfMissing(flyToken, appName)
+    return existing
+  }
   const created = await flyFetch<FlyApp>('/apps', {
     method: 'POST',
     token: flyToken,
     body: { app_name: appName, org_slug: ORGANIZATION },
   })
   if (!created) throw new Error('brain-fly: create app returned empty')
+  await allocateIpsIfMissing(flyToken, appName)
   return created
+}
+
+/**
+ * Allocate a shared v4 + dedicated v6 IP for the app if it doesn't have
+ * any yet. The Machines REST API does NOT auto-allocate IPs on
+ * `POST /apps`, so without this the app's *.fly.dev DNS resolves to
+ * nothing and HTTPS requests fail with NXDOMAIN. IP allocation lives on
+ * Fly's GraphQL API rather than Machines REST.
+ */
+export async function allocateIpsIfMissing(
+  flyToken: string,
+  appName: string,
+): Promise<void> {
+  // Cheap probe — Machines API exposes /ips on the app. If it returns
+  // anything, leave it alone.
+  const existing = await flyFetch<unknown[]>(
+    `/apps/${encodeURIComponent(appName)}/ips`,
+    { token: flyToken, allow404: true },
+  )
+  if (Array.isArray(existing) && existing.length > 0) return
+
+  const query = `mutation($appId: ID!, $type: IPAddressType!) {
+    allocateIpAddress(input: { appId: $appId, type: $type }) {
+      ipAddress { id address type }
+    }
+  }`
+
+  const allocate = async (type: 'shared_v4' | 'v6') => {
+    const res = await fetch('https://api.fly.io/graphql', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${flyToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query, variables: { appId: appName, type } }),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(
+        `brain-fly: allocate IP (${type}) failed ${res.status}: ${text.slice(0, 200)}`,
+      )
+    }
+    const body = (await res.json()) as { errors?: Array<{ message: string }> }
+    if (body.errors && body.errors.length > 0) {
+      throw new Error(
+        `brain-fly: allocate IP (${type}) graphql error: ${body.errors[0]!.message}`,
+      )
+    }
+  }
+
+  await allocate('shared_v4')
+  await allocate('v6')
+  logger.info({ app: appName }, 'brain-fly: IPs allocated (shared v4 + dedicated v6)')
 }
 
 async function findExistingMachine(
