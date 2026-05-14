@@ -17,7 +17,7 @@ import {
   TASK_ID_REGEX,
   ALL_STAGES,
 } from './constants'
-import { isProtectedBranch } from './branches/protected-branches'
+import { isProtectedBranch } from './branches'
 import type {
   KodyPipelineStatus,
   GitHubIssue,

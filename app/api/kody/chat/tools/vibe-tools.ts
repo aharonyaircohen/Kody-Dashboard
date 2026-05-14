@@ -4,20 +4,19 @@
  * @pattern ai-sdk-tool
  * @ai-summary Vibe-only tools for the kody-direct chat agent.
  *
- *   `vibe_start_execution` creates a draft PR + new branch from main
- *   so Vercel can start cold-building the preview in parallel with
- *   the Kody Live / Fly runner warmup. By the time the runner finishes
- *   editing, Vercel's first build is mostly done — every subsequent
- *   push is a fast delta deploy.
+ *   `vibe_start_execution` creates a draft PR + new branch from the repo's
+ *   default branch so Vercel can start cold-building the preview in
+ *   parallel with the Kody Live / Fly runner warmup. By the time the
+ *   runner finishes editing, Vercel's first build is mostly done — every
+ *   subsequent push is a fast delta deploy.
  *
  *   The chat agent calls this AFTER the user picks a runner and BEFORE
  *   `switch_agent`. The runner then pushes onto the branch this tool
  *   created (the follow-up vibe primer expects `taskContext.branch`).
  *
- *   Collision handling: if the slug-derived branch already exists from
- *   a prior aborted session, we reuse it instead of failing — same for
- *   an existing open draft PR on that branch. This makes the tool
- *   idempotent per (issue, slug) pair.
+ *   Branch logic itself lives in `@dashboard/lib/branches` (BranchService
+ *   + GitHubBranchRepo). This file is pure orchestration: validate input,
+ *   delegate to the service, return the chat-agent payload.
  */
 import { tool } from 'ai'
 import { z } from 'zod'
@@ -25,6 +24,10 @@ import type { Octokit } from '@octokit/rest'
 import { logger } from '@dashboard/lib/logger'
 import { invalidateIssueCache } from '@dashboard/lib/github-client'
 import { SWITCH_AGENT_DIRECTIVE } from '@dashboard/lib/chat-ui-actions'
+import {
+  BranchService,
+  GitHubBranchRepo,
+} from '@dashboard/lib/branches'
 
 interface Ctx {
   octokit: Octokit
@@ -32,115 +35,9 @@ interface Ctx {
   repo: string
 }
 
-function slugifyTitle(title: string): string {
-  const cleaned = title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 40)
-  return cleaned || 'untitled'
-}
-
-/**
- * Engine convention (see kody2/src/branch.ts `deriveBranchName`): flat
- * `<issueNumber>-<slug>` with no type prefix and no slash. The dashboard's
- * branch matcher in `app/api/kody/tasks/route.ts` recognises this shape via
- * `^(\d{3,})-` so issue↔PR linkage works even if the PR body loses its
- * `Closes #N` line. We follow the same convention so vibe branches behave
- * identically to engine-created ones.
- *
- * Earlier versions used `kody/vibe-<n>-<slug>` — that broke in repos with
- * branch-protection rules on `kody/*` (the engine-tester repo is one) and
- * also didn't match the dashboard's branch heuristic, leaving the PR
- * unlinked when the body lacked `Closes #N`.
- */
-function buildBranchName(issueNumber: number, slug: string): string {
-  return `${issueNumber}-${slug}`
-}
-
-/**
- * When we reuse an existing branch (prior aborted session, or the runner
- * pre-created it), it may be stale w.r.t. the default branch — sometimes by
- * hundreds of commits. Opening a PR off that stale tip surfaces every drift
- * commit as a "change" and triggers spurious merge conflicts.
- *
- * This brings the branch back in sync with `defaultBranch`:
- *  - `behind` / `identical` → fast-forward branch ref to default's HEAD.
- *  - `ahead`               → no-op (branch has work, default has nothing new).
- *  - `diverged`            → merge default into branch (preserves work).
- *
- * Returns the resulting branch HEAD sha and a short status for telemetry.
- * On merge conflict, throws — the caller surfaces a clear error to the user
- * rather than silently opening a PR on a broken branch.
- */
-async function syncBranchWithDefault(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  branchName: string,
-  defaultBranch: string,
-): Promise<{ headSha: string; status: 'identical' | 'fast-forwarded' | 'ahead' | 'merged' }> {
-  const { data: comparison } = await octokit.rest.repos.compareCommits({
-    owner,
-    repo,
-    base: branchName,
-    head: defaultBranch,
-  })
-
-  // GitHub's compare API returns status from base's perspective:
-  //   'identical' → same commit
-  //   'behind'    → base is behind head (i.e. our branch is behind default)
-  //   'ahead'     → base is ahead of head (i.e. our branch has unique work, default has nothing new)
-  //   'diverged'  → both sides have unique commits
-  if (comparison.status === 'identical' || comparison.status === 'ahead') {
-    return {
-      headSha: comparison.merge_base_commit.sha,
-      status: comparison.status === 'identical' ? 'identical' : 'ahead',
-    }
-  }
-
-  if (comparison.status === 'behind') {
-    const { data: defaultRef } = await octokit.rest.git.getRef({
-      owner,
-      repo,
-      ref: `heads/${defaultBranch}`,
-    })
-    await octokit.rest.git.updateRef({
-      owner,
-      repo,
-      ref: `heads/${branchName}`,
-      sha: defaultRef.object.sha,
-      force: false,
-    })
-    return { headSha: defaultRef.object.sha, status: 'fast-forwarded' }
-  }
-
-  // diverged → merge default into branch
-  try {
-    const { data: merge } = await octokit.rest.repos.merge({
-      owner,
-      repo,
-      base: branchName,
-      head: defaultBranch,
-      commit_message: `Merge ${defaultBranch} into ${branchName}`,
-    })
-    return { headSha: merge.sha, status: 'merged' }
-  } catch (err) {
-    const e = err as { status?: number; message?: string }
-    if (e.status === 409) {
-      throw new Error(
-        `Branch '${branchName}' has merge conflicts with '${defaultBranch}'. ` +
-          'Resolve manually or delete the branch to start fresh.',
-      )
-    }
-    throw err
-  }
-}
-
 export function createVibeTools(ctx: Ctx) {
   const { octokit, owner, repo } = ctx
+  const branches = new BranchService(new GitHubBranchRepo({ octokit, owner, repo }))
 
   return {
     vibe_start_execution: tool({
@@ -178,101 +75,59 @@ export function createVibeTools(ctx: Ctx) {
       }),
       execute: async ({ issueNumber, slug, targetAgent }) => {
         try {
-          // Validate the issue and pick a slug.
-          const { data: issue } = await octokit.rest.issues.get({
-            owner,
-            repo,
-            issue_number: issueNumber,
-          })
-          if (issue.pull_request) {
-            return {
-              error:
-                `#${issueNumber} is a pull request, not an issue. ` +
-                'vibe_start_execution targets the issue the runner will close.',
-            }
-          }
-          const effectiveSlug = slugifyTitle(slug ?? issue.title)
-          const branchName = buildBranchName(issueNumber, effectiveSlug)
-
-          // Default branch (usually main).
-          const { data: repoData } = await octokit.rest.repos.get({
-            owner,
-            repo,
-          })
-          const defaultBranch = repoData.default_branch
-
-          // Try to create the branch from default. Reuse on 422 (already exists).
-          let branchExisted = false
+          // 1. Get-or-create the branch.
+          let created
           try {
-            const { data: baseRef } = await octokit.rest.git.getRef({
-              owner,
-              repo,
-              ref: `heads/${defaultBranch}`,
-            })
-            const baseSha = baseRef.object.sha
-            const { data: baseCommit } = await octokit.rest.git.getCommit({
-              owner,
-              repo,
-              commit_sha: baseSha,
-            })
-            const { data: emptyCommit } =
-              await octokit.rest.git.createCommit({
-                owner,
-                repo,
-                message: `vibe: start session for #${issueNumber}`,
-                tree: baseCommit.tree.sha,
-                parents: [baseSha],
-              })
-            await octokit.rest.git.createRef({
-              owner,
-              repo,
-              ref: `refs/heads/${branchName}`,
-              sha: emptyCommit.sha,
-            })
+            created = await branches.getOrCreate({ issueNumber, slug })
           } catch (err) {
-            const e = err as { status?: number; message?: string }
-            if (e.status === 422) {
-              branchExisted = true
-            } else {
-              throw err
-            }
+            const message = err instanceof Error ? err.message : String(err)
+            return { error: message }
           }
 
-          // Stale-branch guard: if we reused an existing branch, sync it with
-          // the current default branch before opening a PR on top of it.
-          // Without this, a branch left over from a prior aborted session
-          // (often cut from main when main was still the default) ends up
-          // hundreds of commits behind dev — the resulting PR shows every
-          // drift commit as a "change" and conflicts with everything.
-          if (branchExisted) {
-            try {
-              const sync = await syncBranchWithDefault(
-                octokit,
-                owner,
-                repo,
-                branchName,
-                defaultBranch,
-              )
-              logger.info(
-                { branchName, defaultBranch, syncStatus: sync.status },
-                'vibe_start_execution synced reused branch with default',
-              )
-            } catch (err) {
-              const message = err instanceof Error ? err.message : String(err)
+          // 2. If the branch was reused, bring it back in sync with the
+          //    default branch before opening a PR on it. Without this, a
+          //    branch left over from a prior aborted session (often cut
+          //    from main when main was still the default) ends up hundreds
+          //    of commits behind dev — the resulting PR shows every drift
+          //    commit as a "change" and conflicts with everything.
+          if (created.existed) {
+            const sync = await branches.syncWithBase(
+              created.branchName,
+              created.baseRef,
+            )
+            if (sync.status === 'conflict') {
               return {
                 error:
-                  `Reused branch '${branchName}' could not be brought up to date with '${defaultBranch}': ${message}`,
+                  `Reused branch '${created.branchName}' has merge conflicts with ` +
+                  `'${created.baseRef}': ${sync.message}. Resolve manually or ` +
+                  'delete the branch to start fresh.',
               }
             }
+            logger.info(
+              {
+                branchName: created.branchName,
+                defaultBranch: created.baseRef,
+                syncStatus: sync.status,
+              },
+              'vibe_start_execution synced reused branch with default',
+            )
           }
 
-          // Look for an existing open PR on this branch (handles reused branch).
-          const { data: existingPrs } = await octokit.rest.pulls.list({
-            owner,
-            repo,
-            head: `${owner}:${branchName}`,
-            state: 'open',
+          // 3. Find-or-create the draft PR.
+          const pr = await branches.findOrCreateDraftPR({
+            branchName: created.branchName,
+            baseRef: created.baseRef,
+            title: `Vibe: ${created.issueTitle}`,
+            body:
+              `Vibe session for #${issueNumber}.\n\n` +
+              `The runner will push commits to \`${created.branchName}\` as it ` +
+              'implements the plan. Vercel begins cold-building this PR now so ' +
+              'the preview is ready by the time the runner finishes.\n\n' +
+              `Closes #${issueNumber}`,
           })
+
+          invalidateIssueCache(issueNumber)
+
           // The dashboard's stream parser auto-flips the active agent when
           // any tool output matches the SwitchAgentDirective shape. Embedding
           // it here means the model can't skip the hand-off (it kept
@@ -294,7 +149,18 @@ export function createVibeTools(ctx: Ctx) {
             'previous chat — do not ask for confirmation again, just read the issue ' +
             'body, make the file edits it describes, commit with a clear message, ' +
             'push to the existing vibe branch, and reply with the commit SHA.'
-          const switchDirective = {
+
+          const noteSuffix =
+            `Auto-handing off to ${agentName} — the dashboard has already flipped the active agent.`
+          const note = pr.created
+            ? `Draft PR opened. ${noteSuffix} You do NOT need to call switch_agent. ` +
+              "Mention the PR URL and the runner you handed off to in your reply, " +
+              "and tell the user the switch applies to their NEXT message."
+            : (created.existed
+                ? 'Existing branch + draft PR reused. '
+                : 'Existing draft PR found. ') + noteSuffix
+
+          return {
             action: SWITCH_AGENT_DIRECTIVE,
             agentId: targetAgent,
             agentName,
@@ -308,52 +174,11 @@ export function createVibeTools(ctx: Ctx) {
             // the wrong sessionId. Symptom: workflow_dispatch logs show
             // `vibe-<oldIssue>-...` while the PR is on the new branch.
             autoKickoffIssueNumber: issueNumber,
-          }
-
-          if (existingPrs.length > 0) {
-            const pr = existingPrs[0]
-            invalidateIssueCache(issueNumber)
-            return {
-              ...switchDirective,
-              branch: branchName,
-              prNumber: pr.number,
-              prUrl: pr.html_url,
-              reused: branchExisted,
-              note:
-                (branchExisted && existingPrs.length === 1
-                  ? 'Existing branch + draft PR reused. '
-                  : 'Existing draft PR found. ') +
-                `Auto-handing off to ${agentName} — the dashboard has already flipped the active agent.`,
-            }
-          }
-
-          // Open the draft PR. Closes #N makes the issue auto-close on merge.
-          const { data: pr } = await octokit.rest.pulls.create({
-            owner,
-            repo,
-            title: `Vibe: ${issue.title}`,
-            head: branchName,
-            base: defaultBranch,
-            draft: true,
-            body:
-              `Vibe session for #${issueNumber}.\n\n` +
-              `The runner will push commits to \`${branchName}\` as it implements ` +
-              'the plan. Vercel begins cold-building this PR now so the preview ' +
-              'is ready by the time the runner finishes.\n\n' +
-              `Closes #${issueNumber}`,
-          })
-          invalidateIssueCache(issueNumber)
-          return {
-            ...switchDirective,
-            branch: branchName,
+            branch: created.branchName,
             prNumber: pr.number,
-            prUrl: pr.html_url,
-            reused: branchExisted,
-            note:
-              `Draft PR opened. The dashboard auto-flipped the active agent to ${agentName} — ` +
-              'you do NOT need to call switch_agent. Mention the PR URL and the ' +
-              "runner you handed off to in your reply, and tell the user the switch " +
-              "applies to their NEXT message.",
+            prUrl: pr.url,
+            reused: created.existed,
+            note,
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)

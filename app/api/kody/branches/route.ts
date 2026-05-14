@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireKodyAuth, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
 import { getOctokit, setGitHubContext, clearGitHubContext, getOwner, getRepo } from '@dashboard/lib/github-client'
-import { isProtectedBranch } from '@dashboard/lib/branches/protected-branches'
+import { isProtectedBranch } from '@dashboard/lib/branches'
 
 const DELETE_BRANCH_SCHEMA = z.object({
   branch: z.string(),
