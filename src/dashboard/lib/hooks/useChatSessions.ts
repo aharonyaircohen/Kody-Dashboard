@@ -14,22 +14,32 @@ const MAX_SESSIONS = 50
 const DEBOUNCE_MS = 1000
 
 /**
+ * Logical "bucket" of sessions for the same repo. `'global'` is the
+ * dashboard chat (and legacy data); other scopes get their own isolated
+ * stores so e.g. the Vibe page's default (no-task) chat doesn't share
+ * sessions with the dashboard.
+ */
+export type ChatSessionScope = 'global' | 'vibe-default'
+
+/**
  * Compute the per-repo storage key from the connected repo in localStorage.kody_auth.
  * Returns the unscoped legacy key when no repo is connected (e.g. logged out).
  *
  * Repo switching reloads the page (see auth-context.tsx setCurrentRepo), so this
- * value is stable for the lifetime of the hook — no reactive re-keying needed.
+ * value is stable for a given (repo, scope) pair.
  */
-function getStorageKey(): string {
-  if (typeof window === 'undefined') return LEGACY_UNSCOPED_KEY
+function getStorageKey(scope: ChatSessionScope): string {
+  const base = scope === 'global' ? STORAGE_KEY_BASE : `${STORAGE_KEY_BASE}-${scope}`
+  const unscopedFallback = scope === 'global' ? LEGACY_UNSCOPED_KEY : base
+  if (typeof window === 'undefined') return unscopedFallback
   try {
     const raw = window.localStorage.getItem('kody_auth')
-    if (!raw) return LEGACY_UNSCOPED_KEY
+    if (!raw) return unscopedFallback
     const auth = JSON.parse(raw) as { owner?: string; repo?: string }
-    if (!auth.owner || !auth.repo) return LEGACY_UNSCOPED_KEY
-    return `${STORAGE_KEY_BASE}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`
+    if (!auth.owner || !auth.repo) return unscopedFallback
+    return `${base}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`
   } catch {
-    return LEGACY_UNSCOPED_KEY
+    return unscopedFallback
   }
 }
 
@@ -84,7 +94,7 @@ function migrateFromV2(v2Data: GlobalChatStore | null): GlobalChatStore {
  * blob under the current repo key and delete the legacy entry. This preserves
  * the user's existing chats for whichever repo they were last using.
  */
-function loadStore(storageKey: string): GlobalChatStore {
+function loadStore(storageKey: string, scope: ChatSessionScope): GlobalChatStore {
   if (typeof window === 'undefined') {
     return createEmptyGlobalStore()
   }
@@ -101,8 +111,10 @@ function loadStore(storageKey: string): GlobalChatStore {
       }
     }
 
-    // No data under the scoped key — try the legacy unscoped key once.
-    if (storageKey !== LEGACY_UNSCOPED_KEY) {
+    // Legacy unscoped-key adoption only applies to the global scope —
+    // other scopes (e.g. vibe-default) start empty so they don't inherit
+    // the dashboard's conversation history.
+    if (scope === 'global' && storageKey !== LEGACY_UNSCOPED_KEY) {
       const legacyRaw = localStorage.getItem(LEGACY_UNSCOPED_KEY)
       if (legacyRaw) {
         const legacyParsed = JSON.parse(legacyRaw) as GlobalChatStore
@@ -167,17 +179,22 @@ export interface UseChatSessionsResult {
 
 /**
  * Hook for managing chat sessions.
+ *
+ * `scope` defaults to `'global'` (the dashboard chat). Pass `'vibe-default'`
+ * to isolate the Vibe page's no-task chat into its own store so it doesn't
+ * share history with the dashboard.
  */
-export function useChatSessions(): UseChatSessionsResult {
+export function useChatSessions(scope: ChatSessionScope = 'global'): UseChatSessionsResult {
   const [store, setStore] = useState<GlobalChatStore | null>(null)
-  // Computed once on mount — switching repos triggers a full reload, so this
-  // value never goes stale within the hook's lifetime.
-  const [storageKey] = useState<string>(() => getStorageKey())
+  // Re-derive when scope changes (e.g. Vibe selection clears → switch to
+  // vibe-default bucket). Repo switching forces a full page reload, so we
+  // only need to react to scope here.
+  const storageKey = useMemo(() => getStorageKey(scope), [scope])
 
-  // Load on mount (client-side only)
+  // Load on mount and whenever the storage key (i.e. scope) changes.
   useEffect(() => {
-    setStore(loadStore(storageKey))
-  }, [storageKey])
+    setStore(loadStore(storageKey, scope))
+  }, [storageKey, scope])
 
   // Get sessions sorted by updatedAt descending
   const sessions = useMemo(() => {
