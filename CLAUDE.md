@@ -180,7 +180,7 @@ identically on Gemini, Brain, and Engine.
 
 Two layers, merged at runtime:
 
-- **Built-ins** ship in [src/dashboard/lib/prompts/builtins.ts](src/dashboard/lib/prompts/builtins.ts) (`/plan`, `/review`, `/explain`, `/issue`, `/goal`, `/analyze`, `/job`).
+- **Built-ins** ship in [src/dashboard/lib/prompts/builtins.ts](src/dashboard/lib/prompts/builtins.ts) (`/plan`, `/research`, `/review`, `/explain`, `/issue`, `/goal`, `/analyze`, `/job`, `/init`). `/research`, `/plan`, and `/issue` follow the research-first flow enforced by the kody-live system prompt; `/issue` ends with an opt-in `kody_run_issue` handoff.
 - **Repo prompts** live at `.kody/prompts/<slug>.md` (frontmatter: `description`, `argument-hint`; body is the template). Repo wins on slug collision — that's how "fork the built-in" works.
 
 Drop `.kody/prompts/.disable-builtins` to suppress every built-in for the repo.

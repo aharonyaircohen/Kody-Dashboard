@@ -7,6 +7,13 @@
  *   at `.kody/prompts/<slug>.md` override built-ins by slug. Drop a file
  *   `.kody/prompts/.disable-builtins` in the repo to hide every built-in
  *   without overriding individually.
+ *
+ *   `/research`, `/plan`, and `/issue` enforce the research-first flow
+ *   the kody-live system prompt expects (see
+ *   app/api/kody/chat/kody/system-prompt.ts "Issue creation: research
+ *   before drafting"). `/issue` extends that with the executor handoff —
+ *   after the issue is created the model offers to run it with Kody,
+ *   gated on explicit user confirmation.
  */
 
 export interface BuiltinPrompt {
@@ -51,13 +58,39 @@ export const BUILTIN_PROMPTS: readonly BuiltinPrompt[] = [
       "Cite concrete file paths.",
   },
   {
+    slug: "research",
+    description: "Investigate a topic without writing code",
+    argumentHint: "<topic>",
+    body:
+      "Research $ARGUMENTS in this repo. Do NOT write code, open issues, or " +
+      "dispatch any pipeline — research only.\n\n" +
+      "1. Use search/read/blame tools (3–5 calls) to find where it lives.\n" +
+      "2. Note related symbols, file paths, prior art, and any blockers.\n" +
+      "3. Summarize findings in 4–6 bullets with concrete `path:line` citations.\n" +
+      "4. End with a one-line suggestion for the next step (plan, issue, ignore).\n\n" +
+      "Stop after the summary.",
+  },
+  {
     slug: "issue",
-    description: "Draft a new GitHub issue",
+    description: "Research → draft → create a GitHub issue",
     argumentHint: "<title or short description>",
     body:
-      "Draft a GitHub issue for: $ARGUMENTS.\n\n" +
-      'Include a clear title, a short context paragraph, and a "Definition of done" checklist. ' +
-      "Suggest relevant labels at the end. Do not open the issue yet — show me the draft first.",
+      "Open a GitHub issue for: $ARGUMENTS.\n\n" +
+      "Follow the research-plan flow — do NOT skip steps:\n\n" +
+      "1. **Research first.** 3–5 tool calls (`github_search_code`, " +
+      "`github_get_file`, `github_blame`, `github_list_issues`) to find " +
+      "affected files, symbols, and prior art. Negative results count.\n" +
+      "2. **Draft the body** with concrete `path:line` references, " +
+      "`requirements` (file paths + symbol names), `acceptanceCriteria` " +
+      "(testable bullets), `affectedArea` (paths), and a mandatory " +
+      "**Research notes** block in `additionalContext` (2–4 bullets " +
+      "summarizing what you searched and what you found).\n" +
+      "3. **Show me the draft.** Wait for explicit approval before " +
+      "calling the matching `create_*` tool. No unverified paths or " +
+      "symbols.\n" +
+      "4. **After the issue is created**, ask whether to execute it " +
+      "with Kody. Only call `kody_run_issue(issueNumber, notes=<the plan>)` " +
+      "if I confirm — never dispatch automatically.",
   },
   {
     slug: "goal",
