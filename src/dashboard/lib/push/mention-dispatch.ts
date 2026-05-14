@@ -213,9 +213,35 @@ export async function dispatchMentionPushes(
 ): Promise<void> {
   try {
     const ev = extractEvent(eventType, payload);
-    if (!ev) return;
+    if (!ev) {
+      logger.info(
+        { event: "mention_push_skip_event_shape", eventType },
+        "Event type/action not routable for mention push",
+      );
+      return;
+    }
     const mentions = extractMentions(ev.body);
-    if (mentions.length === 0) return;
+    if (mentions.length === 0) {
+      logger.info(
+        {
+          event: "mention_push_no_mentions",
+          eventType,
+          repo: ev.repoFullName,
+          bodyPreview: ev.body.slice(0, 80),
+        },
+        "Event body contained no @mentions",
+      );
+      return;
+    }
+    logger.info(
+      {
+        event: "mention_push_mentions_found",
+        eventType,
+        mentions,
+        repo: ev.repoFullName,
+      },
+      `Found ${mentions.length} @mention(s)`,
+    );
 
     const [owner, repo] = ev.repoFullName.split("/");
     if (!owner || !repo) return;
@@ -266,6 +292,8 @@ export async function dispatchMentionPushes(
         {
           event: "mention_push_no_targets",
           mentions: [...mentionSet],
+          subscriberLogins: subs.map((s) => s.userLogin ?? null),
+          totalSubs: subs.length,
           repo: ev.repoFullName,
         },
         "No matching push subscriptions for @mentions",
