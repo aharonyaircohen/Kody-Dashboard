@@ -20,7 +20,6 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
-  Mic,
   Pencil,
   Plus,
   Save,
@@ -97,7 +96,6 @@ function blankModel(): ChatModel {
     modelName: "",
     apiKeySecret: p.keyHint,
     enabled: true,
-    speech: false,
     default: false,
   }
 }
@@ -156,15 +154,12 @@ function ModelsManagerInner() {
     } else {
       list.push(next)
     }
-    // Enforce "at most one default" and "at most one speech" client-side
-    // by clearing the flag on every other entry when this one sets it.
-    // Without this the server rejects the save.
+    // Enforce "at most one default" client-side by clearing the flag on
+    // every other entry when this one sets it. Without this the server
+    // rejects the save.
     const savedIdx = editing?.mode === "edit" ? editing.idx : list.length - 1
     if (next.default) {
       list = list.map((m, i) => (i === savedIdx ? m : { ...m, default: false }))
-    }
-    if (next.speech) {
-      list = list.map((m, i) => (i === savedIdx ? m : { ...m, speech: false }))
     }
     return save.mutateAsync(list).then(() => {
       toast.success("Model saved")
@@ -267,15 +262,6 @@ function ModelsManagerInner() {
                           >
                             <Star className="w-3 h-3" />
                             Default
-                          </span>
-                        )}
-                        {m.speech && (
-                          <span
-                            className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300"
-                            title="Preferred model when voice mode is on"
-                          >
-                            <Mic className="w-3 h-3" />
-                            Voice
                           </span>
                         )}
                       </div>
@@ -524,17 +510,6 @@ function ModelEditor({
             />
             <Star className="w-3.5 h-3.5 text-white/40" />
             Default for chat (auto-selected on open)
-          </label>
-
-          <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
-            <Checkbox
-              checked={draft.speech === true}
-              onCheckedChange={(checked) =>
-                setDraft((cur) => ({ ...cur, speech: checked === true }))
-              }
-            />
-            <Mic className="w-3.5 h-3.5 text-white/40" />
-            Use for voice mode
           </label>
 
           <button

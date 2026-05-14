@@ -106,8 +106,6 @@ export const ChatModelSchema = z.object({
   apiKeySecret: z.string().min(1).max(128),
   /** Hide from dropdown without deleting. */
   enabled: z.boolean().optional().default(true),
-  /** Marks this entry as the preferred model when voice mode is on. At most one. */
-  speech: z.boolean().optional(),
   /** Marks this entry as the default selection when chat opens. At most
    * one. Beats Brain auto-default. */
   default: z.boolean().optional(),
@@ -136,12 +134,6 @@ export function pickModelById(
 ): ChatModel | null {
   if (!id) return null
   return models.find((m) => m.enabled !== false && m.id === id) ?? null
-}
-
-export function pickSpeechModel(models: ChatModel[]): ChatModel | null {
-  return (
-    models.find((m) => m.enabled !== false && m.speech === true) ?? null
-  )
 }
 
 export function pickDefaultModel(models: ChatModel[]): ChatModel | null {

@@ -39,7 +39,6 @@ import {
   loadChatModels,
   pickDefaultModel,
   pickModelById,
-  pickSpeechModel,
 } from "@dashboard/lib/variables/models"
 import {
   buildSystemPrompt,
@@ -359,16 +358,13 @@ export async function POST(req: NextRequest) {
   // Resolve the model from the user-managed list in .kody/variables.json.
   // The client can override per-request via `body.model`, but it must
   // match an enabled entry — we never trust arbitrary ids from the wire.
-  // In voice mode, fall through to a model flagged `speech: true` when no
-  // explicit override is set — that's the user's "use this faster model
-  // when the mic is on" knob.
+  // Voice mode does not affect model selection; it's a per-turn prompt
+  // overlay only (see system-prompt builder).
   const availableModels = await loadChatModels(req)
   const voiceMode = body.voiceMode === true
   const resolvedModel =
     pickModelById(availableModels, body.model) ??
-    (voiceMode
-      ? pickSpeechModel(availableModels) ?? pickDefaultModel(availableModels)
-      : pickDefaultModel(availableModels))
+    pickDefaultModel(availableModels)
   if (!resolvedModel) {
     return NextResponse.json(
       {

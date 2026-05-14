@@ -96,15 +96,6 @@ export async function PUT(req: NextRequest) {
     )
   }
 
-  // At most one speech model.
-  const speechCount = parsed.data.models.filter((m) => m.speech).length
-  if (speechCount > 1) {
-    return NextResponse.json(
-      { error: "validation_error", message: "Only one model may be marked as speech." },
-      { status: 400 },
-    )
-  }
-
   // At most one default model.
   const defaultCount = parsed.data.models.filter((m) => m.default).length
   if (defaultCount > 1) {
