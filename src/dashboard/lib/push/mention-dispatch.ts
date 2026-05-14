@@ -148,6 +148,42 @@ function extractEvent(
       };
     }
 
+    // Goal threads in the dashboard are backed by GitHub Discussions, so
+    // dashboard chat → Discussions → webhook → mention dispatch.
+    case "discussion": {
+      if (action !== "created" && action !== "edited") return null;
+      const disc = payload.discussion as Record<string, unknown> | undefined;
+      const body = typeof disc?.body === "string" ? disc.body : "";
+      if (!body) return null;
+      const author = (disc?.user as Record<string, unknown> | undefined)?.login;
+      const url = typeof disc?.html_url === "string" ? disc.html_url : "";
+      const title = typeof disc?.title === "string" ? disc.title : "";
+      return {
+        body,
+        author: typeof author === "string" ? author : undefined,
+        url,
+        title,
+        repoFullName,
+      };
+    }
+
+    case "discussion_comment": {
+      if (action && action !== "created") return null;
+      const comment = payload.comment as Record<string, unknown> | undefined;
+      const body = typeof comment?.body === "string" ? comment.body : "";
+      const author = (comment?.user as Record<string, unknown> | undefined)?.login;
+      const url = typeof comment?.html_url === "string" ? comment.html_url : "";
+      const disc = payload.discussion as Record<string, unknown> | undefined;
+      const title = typeof disc?.title === "string" ? disc.title : "";
+      return {
+        body,
+        author: typeof author === "string" ? author : undefined,
+        url,
+        title,
+        repoFullName,
+      };
+    }
+
     default:
       return null;
   }
