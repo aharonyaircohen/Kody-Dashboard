@@ -571,6 +571,34 @@ function ModelEditor({
                   <p className="text-[11px] text-rose-300 mt-1">{errors.id}</p>
                 )}
               </div>
+              <div>
+                <Label className="text-xs">Max research steps</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={draft.maxSteps ?? ""}
+                  onChange={(ev) => {
+                    const raw = ev.target.value.trim()
+                    if (raw === "") {
+                      setDraft((cur) => {
+                        const { maxSteps: _, ...rest } = cur
+                        return rest as ChatModel
+                      })
+                      return
+                    }
+                    const n = Number.parseInt(raw, 10)
+                    if (!Number.isFinite(n)) return
+                    setDraft((cur) => ({ ...cur, maxSteps: n }))
+                  }}
+                  placeholder="10 (default)"
+                  className="font-mono text-xs"
+                />
+                <p className="text-[11px] text-white/40 mt-1">
+                  Per-turn tool-call rounds. Blank → 10 (30 in goal-planner).
+                  Raise for models that need long research chains.
+                </p>
+              </div>
             </div>
           )}
         </div>
