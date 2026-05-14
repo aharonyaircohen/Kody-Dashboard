@@ -449,14 +449,32 @@ export async function POST(req: NextRequest) {
 
   // Pick the agent persona. Agents whose backend is `kody-direct` are
   // served natively here; the rest (engine, brain, kody-live) don't have
-  // a usable in-process prompt to swap in, so we fall back to AGENT_KODY
-  // for those. This matters for voice mode: the client routes voice
-  // turns through this endpoint regardless of the dropdown selection,
-  // and the user's choice of e.g. `brain` should still produce a
-  // working voice reply (Kody persona + voice overlay).
+  // a usable in-process prompt to swap in.
+  //
+  // For text turns we fall back to AGENT_KODY for non-direct agents so
+  // older clients keep working (the dashboard UI never routes a brain or
+  // engine TEXT turn here, but defense-in-depth).
+  //
+  // For VOICE turns we refuse the request instead of silently falling
+  // back. Voice was the source of an actual user-visible bug: the
+  // dropdown said "brain-fly" while the mic produced a Kody/Gemini
+  // answer. The mic is also gated client-side now (see KodyChat
+  // VoiceButton), so a voice turn with a non-direct agent is either a
+  // stale client or someone calling the API directly — neither should
+  // be answered as Kody.
   const requestedAgentId =
     body.agentId && isValidAgentId(body.agentId) ? body.agentId : "kody"
   const requestedAgent: AgentConfig = getAgent(requestedAgentId)
+  if (voiceMode && requestedAgent.backend !== "kody-direct") {
+    return NextResponse.json(
+      {
+        error: "voice_not_supported_for_agent",
+        message:
+          `Voice mode requires a kody-direct agent. "${requestedAgent.name}" runs on ${requestedAgent.backend}; the voice overlay can't be applied there. Switch to a Kody (in-process) agent in the dropdown to use the mic.`,
+      },
+      { status: 400 },
+    )
+  }
   const agent: AgentConfig =
     requestedAgent.backend === "kody-direct" ? requestedAgent : AGENT_KODY
 

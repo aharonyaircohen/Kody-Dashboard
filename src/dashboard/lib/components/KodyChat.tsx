@@ -4237,10 +4237,15 @@ export function KodyChat({
             <Paperclip className="w-5 h-5" />
           </button>
 
-          {/* Voice button */}
+          {/* Voice button — gated to kody-direct agents only. Voice
+              applies a TTS overlay to the agent's system prompt, which we
+              can only do for in-process LLM calls. Brain / brain-fly /
+              kody-live / kody-engine agents proxy elsewhere and don't
+              honor the overlay, so showing the mic for them would silently
+              fall back to Kody — the opposite of what the dropdown promises. */}
           <VoiceButton
             isActive={voiceOverlayOpen}
-            isSupported={voiceChat.isSupported}
+            isSupported={voiceChat.isSupported && currentAgent.backend === 'kody-direct'}
             onTap={() => {
               // Handle tap based on current voice state:
               // - If AI is speaking: interrupt and start listening (voice interrupt)
