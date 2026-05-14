@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
     attachments?: BrainAttachment[]
     jobDraft?: boolean
     jobContext?: BrainJobContext
+    voiceMode?: boolean
   }
   try {
     body = await req.json()
@@ -85,5 +86,6 @@ export async function POST(req: NextRequest) {
     jobDraft: body.jobDraft,
     jobContext: body.jobContext,
     repo,
+    voiceMode: body.voiceMode === true,
   })
 }

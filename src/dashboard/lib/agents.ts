@@ -47,6 +47,19 @@ export interface AgentConfig {
   capabilities: string[]
   systemPrompt: string
   backend: ChatBackend
+  /**
+   * Whether voice mode (mic icon → STT → backend → TTS) can run against
+   * this agent. Voice requires (a) a route that knows how to apply the
+   * voice overlay to that agent's system prompt, and (b) low-enough
+   * end-to-end latency that the TTS playback doesn't drift.
+   *
+   * kody-direct + brain meet both bars. kody-live (GH Actions / Fly
+   * Machines + JSONL polling fallback) is too async — the user would
+   * hear the start of a reply minutes after speaking. The flag is the
+   * single source of truth for the mic gate, both in the chat UI and
+   * the `switch_agent` tool's voice-handling logic.
+   */
+  supportsVoice: boolean
 }
 
 export const AGENT: AgentConfig = {
@@ -55,6 +68,7 @@ export const AGENT: AgentConfig = {
   description: 'AI assistant for the Kody Operations Dashboard',
   icon: Bot,
   backend: 'kody-engine',
+  supportsVoice: false,
   capabilities: [
     'List and explain tasks and their status',
     'Show pipeline stage progress',
@@ -207,6 +221,7 @@ export const AGENT_BRAIN: AgentConfig = {
   description: 'Claude-powered code research with a live repo checkout and session memory',
   icon: Brain,
   backend: 'brain',
+  supportsVoice: true,
   capabilities: [
     'Explore the repository with real Grep, Glob, and Read',
     'Follow code across files to answer architectural questions',
@@ -239,6 +254,7 @@ export const AGENT_BRAIN_FLY: AgentConfig = {
   description: 'Per-user Brain on Fly — auto-provisioned from your Fly token, no Settings step',
   icon: Brain,
   backend: 'brain',
+  supportsVoice: true,
   capabilities: [
     'Same tools and session model as Kody Brain (Grep, Glob, Read, gh CLI)',
     'Server lives on YOUR Fly account — provisioned per-user, idles suspended',
@@ -268,6 +284,7 @@ export const AGENT_KODY: AgentConfig = {
   description: 'In-process dashboard assistant — direct provider call, no runner, no VPS',
   icon: Zap,
   backend: 'kody-direct',
+  supportsVoice: true,
   capabilities: [
     'Answer questions about the codebase from conversation context',
     'Explain architecture, flows, and design decisions',
@@ -703,6 +720,7 @@ export const AGENT_KODY_LIVE: AgentConfig = {
   description: 'Long-lived runner — warm-up once, chat for hours without dispatch overhead',
   icon: Zap,
   backend: 'kody-live',
+  supportsVoice: false,
   capabilities: [
     'Multi-turn chat in a single GitHub Actions runner (no per-message dispatch)',
     'Same tools as Kody engine: Read, Edit, Write, Bash, Grep on your repo',
@@ -732,6 +750,7 @@ export const AGENT_KODY_LIVE_FLY: AgentConfig = {
     'Same engine as Kody Live, but on Fly Machines — boots in ~1s, not ~90s',
   icon: Zap,
   backend: 'kody-live',
+  supportsVoice: false,
   capabilities: [
     'Same engine + same tools as Kody Live (Read, Edit, Write, Bash, Grep)',
     'Sub-second warm start on Fly Machines (vs ~90s GitHub Actions cold start)',
@@ -742,45 +761,10 @@ export const AGENT_KODY_LIVE_FLY: AgentConfig = {
     'Inherits the engine chat prompt — see kody2/src/chat/loop.ts CHAT_SYSTEM_PROMPT.',
 }
 
-// ===========================================
-// VOICE OVERLAY (modality, not an agent)
-// ===========================================
-
-/**
- * Voice mode is a MODALITY — it layers TTS-friendly rules on top of whichever
- * agent the user picked in the dropdown. The dashboard appends this overlay
- * to the selected agent's `systemPrompt` server-side whenever the client sets
- * `voiceMode: true` on a request to `/api/kody/chat/kody`. There is no
- * separate "kody-speech" agent any more — the user's chosen brain (and its
- * tools) stays in charge; only the output shape changes.
- *
- * The overlay is appended AFTER the base prompt so its "speak, don't write
- * markdown" rules win against anything the base prompt says about formatting
- * (e.g. "use bullets for lists"). It deliberately doesn't restate tools or
- * memory behavior — that's the base agent's job.
- */
-export const VOICE_OVERLAY_PROMPT = `## Voice mode (your reply will be read aloud)
-
-Your reply is going straight into text-to-speech. Write it the way you would say it on a call. The rules below override any formatting guidance earlier in this prompt.
-
-Voice rules (hard):
-- No markdown. No bullets. No headings. No code fences. No tables. No asterisks or underscores for emphasis.
-- No \`<think>\`, \`<thinking>\`, or any other inline thinking/scratchpad tags in your reply — the user only hears what you write here, so write the final answer directly. Reason silently.
-- Short sentences. One idea per sentence. Prefer two sentences over one long one.
-- Read symbols as words when reading code, paths, or URLs aloud: say "hash" not "#", "at" not "@", "dot" not ".", "slash" not "/", "dash" not "-".
-- Say numbers the way a person says them: "PR forty-five" not "PR #45", "twelve thousand" not "12,000". Issue numbers can stay as digits ("issue 312").
-- Never read JSON, diffs, raw logs, or stack traces aloud. Summarize them in one or two sentences and offer details if asked.
-- If there are more than three items, give the count and the top one or two. Offer to read more if the user asks.
-- No preambles. No "Sure!", no "Here's what I found", no capability rundowns. Get to the answer in the first sentence.
-- If a file path or URL is essential, say it once, slowly, then move on. Don't repeat it.
-- If the user asks for something visual (a diagram, a table, a screenshot), say it's better seen on screen and give the gist out loud.
-
-Tone:
-- Conversational and direct, like a teammate on a call.
-- One short clarifying question is fine. Two is not.
-- Never narrate "calling tool X" or "let me check". Just do it and speak the result.
-
-Keep replies tight. The user is listening, not reading.`
+// Voice overlay lives in @dashboard/lib/voice/overlay — re-exported here
+// for the small number of legacy callers that still import it via this
+// module. Prefer importing from voice/overlay directly in new code.
+export { VOICE_OVERLAY_PROMPT, applyVoiceOverlay } from './voice/overlay'
 
 // ===========================================
 // REGISTRY + LOOKUP

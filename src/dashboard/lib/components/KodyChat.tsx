@@ -2141,11 +2141,13 @@ export function KodyChat({
       //                   are resolved server-side from FLY_API_TOKEN in the
       //                   repo vault. Routes to /api/kody/chat/brain-fly,
       //                   no client-side credentials.
-      // Voice mode bypasses Brain (different prompt + backend) — fall through
-      // to the kody-direct branch below.
+      // Voice mode rides through Brain when the selected agent's
+      // `supportsVoice` flag is true (the brain server applies the voice
+      // overlay server-side, per the shared contract in
+      // src/dashboard/lib/voice/overlay.ts).
       const isBrainAgent =
         selectedAgentId === 'brain' || selectedAgentId === 'brain-fly'
-      if (!voiceMode && isBrainAgent) {
+      if (isBrainAgent) {
         const brainEndpoint =
           selectedAgentId === 'brain-fly'
             ? '/api/kody/chat/brain-fly'
@@ -2228,6 +2230,10 @@ export function KodyChat({
                 : {}),
               ...(brainAttachments.length > 0 ? { attachments: brainAttachments } : {}),
               ...(isDraftMode ? { jobDraft: true } : {}),
+              // Voice modality. Brain forwards this to the upstream chat
+              // server, which is responsible for appending the voice
+              // overlay to its system prompt for this turn.
+              ...(voiceMode ? { voiceMode: true } : {}),
             }),
             signal: abort.signal,
           })
@@ -2353,7 +2359,14 @@ export function KodyChat({
           }
           setLoading(false)
           setMessages((prev) => prev.map((m) => (m.isLoading ? { ...m, isLoading: false } : m)))
-          return latestAssistantText || null
+          // Voice mode: defense-in-depth strip of `<think>` blocks before
+          // handing the reply to TTS. The brain server is expected to drop
+          // them when voiceMode is set, but the dashboard should never
+          // narrate them even if an old server leaks them through.
+          const spokenText = voiceMode
+            ? latestAssistantText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim()
+            : latestAssistantText
+          return spokenText || null
         } catch (error) {
           if (error instanceof Error && error.name === 'AbortError') {
             setMessages((prev) => prev.slice(0, -1))
@@ -2373,10 +2386,12 @@ export function KodyChat({
       }
 
       // ─── Kody direct backend: in-process LLM stream, no Actions/Brain ───
-      // Any agent with backend === 'kody-direct' routes here, and voice
-      // mode is forced here as well so the mic always uses Gemini + the
-      // speech prompt regardless of the dropdown selection.
-      if (voiceMode || currentAgent.backend === 'kody-direct') {
+      // Any agent with backend === 'kody-direct' routes here. Voice on
+      // a kody-direct agent rides this branch with `voiceMode: true` on
+      // the body so the route appends the voice overlay to the agent's
+      // system prompt. Voice on a brain agent rides the Brain branch
+      // above and is overlay'd server-side by the brain server.
+      if (currentAgent.backend === 'kody-direct') {
         // Forward task context when the user is chatting about a specific
         // task — same shape Brain receives, so the server can anchor the
         // reply in the right issue/PR.
@@ -4284,15 +4299,15 @@ export function KodyChat({
             <Paperclip className="w-5 h-5" />
           </button>
 
-          {/* Voice button — gated to kody-direct agents only. Voice
-              applies a TTS overlay to the agent's system prompt, which we
-              can only do for in-process LLM calls. Brain / brain-fly /
-              kody-live / kody-engine agents proxy elsewhere and don't
-              honor the overlay, so showing the mic for them would silently
-              fall back to Kody — the opposite of what the dropdown promises. */}
+          {/* Voice button — gated on `agent.supportsVoice`. Each agent
+              declares whether its backend can honor the voice overlay
+              (see AgentConfig.supportsVoice). Brain agents support it
+              once the brain server applies the overlay server-side;
+              kody-live/engine agents don't (latency). The mic stays
+              hidden for unsupported agents so the dropdown never lies. */}
           <VoiceButton
             isActive={voiceOverlayOpen}
-            isSupported={voiceChat.isSupported && currentAgent.backend === 'kody-direct'}
+            isSupported={voiceChat.isSupported && currentAgent.supportsVoice}
             onTap={() => {
               // Handle tap based on current voice state:
               // - If AI is speaking: interrupt and start listening (voice interrupt)
