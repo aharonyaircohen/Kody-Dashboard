@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireKodyAuth, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
 import { getOctokit, setGitHubContext, clearGitHubContext, getOwner, getRepo } from '@dashboard/lib/github-client'
+import { isProtectedBranch } from '@dashboard/lib/branches/protected-branches'
 
 const DELETE_BRANCH_SCHEMA = z.object({
   branch: z.string(),
@@ -49,9 +50,10 @@ export async function GET(req: NextRequest) {
     // Map branches to PR status
     const prBranches = new Map(prs.map((pr) => [pr.head.ref, pr.state]))
 
-    // Filter out default branch and map to info
+    // Filter out protected branches (main / master / dev) — these are never
+    // deletable from the UI so showing them as deletion candidates is noise.
     const branchInfo = branches
-      .filter((b) => b.name !== 'main' && b.name !== 'master')
+      .filter((b) => !isProtectedBranch(b.name))
       .map((branch) => {
         const prState = prBranches.get(branch.name)
         let status: 'active' | 'merged' | 'closed' = 'active'
@@ -95,9 +97,9 @@ export async function DELETE(req: NextRequest) {
     const body = await req.json()
     const { branch } = DELETE_BRANCH_SCHEMA.parse(body)
 
-    // Don't allow deleting main or master
-    if (branch === 'main' || branch === 'master') {
-      return NextResponse.json({ error: 'Cannot delete default branch' }, { status: 400 })
+    // Don't allow deleting protected branches (main / master / dev)
+    if (isProtectedBranch(branch)) {
+      return NextResponse.json({ error: 'Cannot delete protected branch' }, { status: 400 })
     }
 
     try {
@@ -142,8 +144,8 @@ export async function POST(req: NextRequest) {
     const results: { branch: string; success: boolean; error?: string }[] = []
 
     for (const branch of branches) {
-      if (branch === 'main' || branch === 'master') {
-        results.push({ branch, success: false, error: 'Cannot delete default branch' })
+      if (isProtectedBranch(branch)) {
+        results.push({ branch, success: false, error: 'Cannot delete protected branch' })
         continue
       }
 

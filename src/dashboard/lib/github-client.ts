@@ -17,6 +17,7 @@ import {
   TASK_ID_REGEX,
   ALL_STAGES,
 } from './constants'
+import { isProtectedBranch } from './branches/protected-branches'
 import type {
   KodyPipelineStatus,
   GitHubIssue,
@@ -2235,8 +2236,9 @@ export async function closePR(prNumber: number, userOctokit?: Octokit): Promise<
  * Delete a branch
  */
 export async function deleteBranch(branchName: string, userOctokit?: Octokit): Promise<void> {
-  // Don't delete protected branches
-  if (branchName === 'dev' || branchName === 'main' || branchName === 'master') {
+  // Don't delete protected branches (single source of truth in
+  // src/dashboard/lib/branches/protected-branches.ts)
+  if (isProtectedBranch(branchName)) {
     console.log(`[Kody] Skipping deletion of protected branch: ${branchName}`)
     return
   }

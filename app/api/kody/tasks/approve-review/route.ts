@@ -19,7 +19,11 @@ import {
   invalidateIssueCache,
   invalidateTaskCache,
 } from '@dashboard/lib/github-client'
+import { isProtectedBranch } from '@dashboard/lib/branches/protected-branches'
 
+// Release-flow markers (dev → main is the publish PR). These are NOT the
+// same as the protected-from-deletion list — keep separate from
+// `isProtectedBranch` so the two concerns stay decoupled.
 const DEV_BRANCH = 'dev'
 const PROD_BRANCH = 'main'
 
@@ -109,7 +113,7 @@ export async function POST(req: NextRequest) {
     if (!isPublishPR) {
       try {
         const branchRef = prData.head.ref
-        if (branchRef !== DEV_BRANCH && branchRef !== PROD_BRANCH) {
+        if (!isProtectedBranch(branchRef)) {
           await octokit.git.deleteRef({
             owner: getOwner(),
             repo: getRepo(),

@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireKodyAuth, verifyActorLogin, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
 import { getOctokit, setGitHubContext, clearGitHubContext, getOwner, getRepo } from '@dashboard/lib/github-client'
+import { isProtectedBranch } from '@dashboard/lib/branches/protected-branches'
 
 // Zod schema for request validation
 const ApproveRequestSchema = z.object({
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Delete the branch (if provided and not protected)
-    if (branchName && branchName !== 'dev' && branchName !== 'main') {
+    if (branchName && !isProtectedBranch(branchName)) {
       try {
         await octokit.git.deleteRef({
           owner: getOwner(),
