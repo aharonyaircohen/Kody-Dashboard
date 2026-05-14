@@ -65,6 +65,8 @@ interface PreviewModalProps {
   onClose: () => void;
   onMerge: () => Promise<void>;
   isMerging: boolean;
+  onRefresh?: () => void | Promise<unknown>;
+  isRefreshing?: boolean;
 }
 
 export function PreviewModal({
@@ -72,6 +74,8 @@ export function PreviewModal({
   onClose,
   onMerge,
   isMerging,
+  onRefresh,
+  isRefreshing,
 }: PreviewModalProps) {
   const [activeTab, setActiveTab] = useState<PreviewTab>(() => {
     if (typeof window === "undefined") return "preview";
@@ -127,7 +131,23 @@ export function PreviewModal({
   const [previewView, setPreviewView] = useState<"web" | "admin">("web");
   const [previewKey, setPreviewKey] = useState(0); // Bump to force iframe remount/refresh
   const [commentsKey, setCommentsKey] = useState(0); // Used to force-refresh comment list
+  const [changesKey, setChangesKey] = useState(0); // Bump to force re-fetch of changed files
+  const [localRefreshing, setLocalRefreshing] = useState(false);
   const [showCommentDialog, setShowCommentDialog] = useState(false);
+
+  const handleRefreshAll = useCallback(async () => {
+    setLocalRefreshing(true);
+    setPreviewKey((k) => k + 1);
+    setCommentsKey((k) => k + 1);
+    setChangesKey((k) => k + 1);
+    try {
+      await onRefresh?.();
+    } finally {
+      setLocalRefreshing(false);
+    }
+  }, [onRefresh]);
+
+  const refreshing = !!isRefreshing || localRefreshing;
 
   const pr = task.associatedPR;
   const actorLogin = githubUser?.login;
@@ -194,7 +214,7 @@ export function PreviewModal({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, pr, task.id]);
+  }, [activeTab, pr, task.id, changesKey]);
 
   // Close on Escape
   useEffect(() => {
@@ -290,6 +310,19 @@ export function PreviewModal({
         </span>
 
         <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRefreshAll}
+            disabled={refreshing}
+            title="Refresh PR details, changes, and comments"
+            aria-label="Refresh PR details"
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <RefreshCw
+              className={cn("w-3 h-3", refreshing && "animate-spin")}
+            />
+            Refresh
+          </button>
           <a
             href={pr.html_url}
             target="_blank"

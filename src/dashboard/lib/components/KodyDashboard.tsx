@@ -1221,6 +1221,8 @@ export function KodyDashboard({
             onClose={handleClosePreview}
             onMerge={() => handleMerge(selectedTask)}
             isMerging={!!(mergingTaskId === selectedTask.id)}
+            onRefresh={refetch}
+            isRefreshing={isFetching}
           />
         )}
         {/* Chat rail + primary nav are owned by the root layout
