@@ -519,9 +519,15 @@ export async function brainStatus(
     return { app, state: 'off', url: brainAppUrl(app) }
   }
 
-  // Fly machine states we care about: started, stopped, suspended.
+  // Fly machine states we care about: started/starting/created/replacing
+  // are all "the machine is or is about to be live" → running. Suspended
+  // is its own bucket (idle, resumes on next request). Everything else
+  // (stopped, stopping, destroying) renders as stopped.
   const state: BrainStatusResult['state'] =
-    machine.state === 'started' || machine.state === 'starting'
+    machine.state === 'started' ||
+    machine.state === 'starting' ||
+    machine.state === 'created' ||
+    machine.state === 'replacing'
       ? 'running'
       : machine.state === 'suspended' || machine.state === 'suspending'
         ? 'suspended'
