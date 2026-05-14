@@ -60,6 +60,85 @@ function buildBranchName(issueNumber: number, slug: string): string {
   return `${issueNumber}-${slug}`
 }
 
+/**
+ * When we reuse an existing branch (prior aborted session, or the runner
+ * pre-created it), it may be stale w.r.t. the default branch — sometimes by
+ * hundreds of commits. Opening a PR off that stale tip surfaces every drift
+ * commit as a "change" and triggers spurious merge conflicts.
+ *
+ * This brings the branch back in sync with `defaultBranch`:
+ *  - `behind` / `identical` → fast-forward branch ref to default's HEAD.
+ *  - `ahead`               → no-op (branch has work, default has nothing new).
+ *  - `diverged`            → merge default into branch (preserves work).
+ *
+ * Returns the resulting branch HEAD sha and a short status for telemetry.
+ * On merge conflict, throws — the caller surfaces a clear error to the user
+ * rather than silently opening a PR on a broken branch.
+ */
+async function syncBranchWithDefault(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branchName: string,
+  defaultBranch: string,
+): Promise<{ headSha: string; status: 'identical' | 'fast-forwarded' | 'ahead' | 'merged' }> {
+  const { data: comparison } = await octokit.rest.repos.compareCommits({
+    owner,
+    repo,
+    base: branchName,
+    head: defaultBranch,
+  })
+
+  // GitHub's compare API returns status from base's perspective:
+  //   'identical' → same commit
+  //   'behind'    → base is behind head (i.e. our branch is behind default)
+  //   'ahead'     → base is ahead of head (i.e. our branch has unique work, default has nothing new)
+  //   'diverged'  → both sides have unique commits
+  if (comparison.status === 'identical' || comparison.status === 'ahead') {
+    return {
+      headSha: comparison.merge_base_commit.sha,
+      status: comparison.status === 'identical' ? 'identical' : 'ahead',
+    }
+  }
+
+  if (comparison.status === 'behind') {
+    const { data: defaultRef } = await octokit.rest.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${defaultBranch}`,
+    })
+    await octokit.rest.git.updateRef({
+      owner,
+      repo,
+      ref: `heads/${branchName}`,
+      sha: defaultRef.object.sha,
+      force: false,
+    })
+    return { headSha: defaultRef.object.sha, status: 'fast-forwarded' }
+  }
+
+  // diverged → merge default into branch
+  try {
+    const { data: merge } = await octokit.rest.repos.merge({
+      owner,
+      repo,
+      base: branchName,
+      head: defaultBranch,
+      commit_message: `Merge ${defaultBranch} into ${branchName}`,
+    })
+    return { headSha: merge.sha, status: 'merged' }
+  } catch (err) {
+    const e = err as { status?: number; message?: string }
+    if (e.status === 409) {
+      throw new Error(
+        `Branch '${branchName}' has merge conflicts with '${defaultBranch}'. ` +
+          'Resolve manually or delete the branch to start fresh.',
+      )
+    }
+    throw err
+  }
+}
+
 export function createVibeTools(ctx: Ctx) {
   const { octokit, owner, repo } = ctx
 
@@ -156,6 +235,34 @@ export function createVibeTools(ctx: Ctx) {
               branchExisted = true
             } else {
               throw err
+            }
+          }
+
+          // Stale-branch guard: if we reused an existing branch, sync it with
+          // the current default branch before opening a PR on top of it.
+          // Without this, a branch left over from a prior aborted session
+          // (often cut from main when main was still the default) ends up
+          // hundreds of commits behind dev — the resulting PR shows every
+          // drift commit as a "change" and conflicts with everything.
+          if (branchExisted) {
+            try {
+              const sync = await syncBranchWithDefault(
+                octokit,
+                owner,
+                repo,
+                branchName,
+                defaultBranch,
+              )
+              logger.info(
+                { branchName, defaultBranch, syncStatus: sync.status },
+                'vibe_start_execution synced reused branch with default',
+              )
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err)
+              return {
+                error:
+                  `Reused branch '${branchName}' could not be brought up to date with '${defaultBranch}': ${message}`,
+              }
             }
           }
 
