@@ -2609,45 +2609,19 @@ export function KodyChat({
         selectedAgentId === 'kody-live' ||
         selectedAgentId === 'kody-live-fly'
       ) {
-        // TEMP DEBUG — intermittent /append miss on vibe auto-kickoff.
-        // Remove once we've captured the failing path.
-        console.warn('[vibe-debug] sendText kody-live', {
-          phase: 'enter',
-          stateBefore: interactiveStateRef.current,
-          sessionBefore: interactiveSessionIdRef.current,
-          messageContentLen: messageContent.length,
-          contextKind: context?.kind ?? 'null',
-          contextIssue: context?.kind === 'task' ? context.task.issueNumber : null,
-        })
         if (
           (interactiveStateRef.current === 'idle' ||
             interactiveStateRef.current === 'ended') &&
           !interactiveSessionIdRef.current
         ) {
-          console.warn('[vibe-debug] sendText kody-live', { phase: 'before-start' })
           await startInteractiveSession()
-          console.warn('[vibe-debug] sendText kody-live', {
-            phase: 'after-start',
-            stateAfter: interactiveStateRef.current,
-            sessionAfter: interactiveSessionIdRef.current,
-          })
         }
         const liveSessionId = interactiveSessionIdRef.current
         const liveState = interactiveStateRef.current
-        console.warn('[vibe-debug] sendText kody-live', {
-          phase: 'gate-check',
-          liveSessionId,
-          liveState,
-        })
         if (
           !liveSessionId ||
           (liveState !== 'ready' && liveState !== 'booting')
         ) {
-          console.warn('[vibe-debug] sendText kody-live', {
-            phase: 'gate-FAILED',
-            liveSessionId,
-            liveState,
-          })
           setMessages((prev) => [
             ...prev,
             {
@@ -2659,7 +2633,6 @@ export function KodyChat({
           ])
           return null
         }
-        console.warn('[vibe-debug] sendText kody-live', { phase: 'gate-passed' })
 
         const liveUserContent =
           currentAttachments.length > 0
@@ -2672,11 +2645,6 @@ export function KodyChat({
                 .join('\n\n') + (messageContent ? `\n\n${messageContent}` : '')
             : messageContent
 
-        console.warn('[vibe-debug] sendText kody-live', {
-          phase: 'before-append-fetch',
-          taskId: liveSessionId,
-          contentLen: liveUserContent.length,
-        })
         try {
           const appendRes = await fetch('/api/kody/chat/interactive/append', {
             method: 'POST',
@@ -3018,16 +2986,6 @@ export function KodyChat({
   // the kickoff's startInteractiveSession sets up the poll AFTER the
   // reset, so events flow back normally.
   useEffect(() => {
-    // TEMP DEBUG — kickoff dispatch trace. Remove once intermittent
-    // /append miss is root-caused.
-    if (pendingKickoff) {
-      console.warn('[vibe-debug] kickoff effect', {
-        pendingIssue: pendingKickoff.issueNumber,
-        selectedAgentId,
-        contextKind: context?.kind ?? 'null',
-        contextIssue: context?.kind === 'task' ? context.task.issueNumber : null,
-      })
-    }
     if (!pendingKickoff) return
     const isRunner =
       selectedAgentId === 'kody-live' || selectedAgentId === 'kody-live-fly'
@@ -3041,19 +2999,11 @@ export function KodyChat({
       pendingKickoff.issueNumber !== null &&
       context.task.issueNumber !== pendingKickoff.issueNumber
     ) {
-      console.warn('[vibe-debug] kickoff waiting for issue match', {
-        want: pendingKickoff.issueNumber,
-        got: context.task.issueNumber,
-      })
       return
     }
     const kickoffContent = pendingKickoff.content
-    console.warn('[vibe-debug] kickoff firing sendText', {
-      issueNumber: pendingKickoff.issueNumber,
-    })
     setPendingKickoff(null)
     void Promise.resolve().then(() => {
-      console.warn('[vibe-debug] kickoff microtask running sendText')
       void sendText(kickoffContent)
     })
   }, [pendingKickoff, selectedAgentId, context, sendText])
