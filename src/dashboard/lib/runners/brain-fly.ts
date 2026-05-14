@@ -262,8 +262,11 @@ async function createMachine(
       guest,
       services: [
         {
+          // force_https belongs on the plain-HTTP port (it redirects to
+          // 443); Fly rejects it on a TLS-handled port. The :443 listener
+          // does both TLS termination and HTTP/2 upgrade.
           ports: [
-            { port: 443, handlers: ['tls', 'http'], force_https: true },
+            { port: 443, handlers: ['tls', 'http'] },
             { port: 80, handlers: ['http'], force_https: true },
           ],
           protocol: 'tcp',
