@@ -301,6 +301,47 @@ function clearLiveSession(scopeKey: LiveScopeKey): void {
   }
 }
 
+/**
+ * Look up the engine repo a live session was dispatched to. The user may
+ * switch their connected repo after Kody Live boots — but events still
+ * live in the dispatch repo, so SSE/poll/append must keep targeting it
+ * for the lifetime of the runner. Falls back to null when the session
+ * isn't a known live one (regular per-task chat).
+ */
+function findLiveSessionTarget(
+  sessionId: string,
+): { owner: string; repo: string } | null {
+  if (!sessionId || typeof window === 'undefined') return null
+  const all = readAllLiveSessions()
+  for (const rec of Object.values(all)) {
+    if (rec.sessionId === sessionId && rec.target) return rec.target
+  }
+  return null
+}
+
+/**
+ * Like getStoredAuth(), but for live-session-bound calls: keeps the user's
+ * PAT, overrides owner/repo with the session's pinned target when present.
+ * Use this for /events/poll, /events/stream, and /interactive/append —
+ * never for the initial /interactive/start (that defines the target).
+ */
+function liveAuthFor(
+  sessionId: string,
+): { token: string; owner: string; repo: string } | null {
+  const auth = getStoredAuth()
+  if (!auth) return null
+  const target = findLiveSessionTarget(sessionId)
+  if (target) return { token: auth.token, owner: target.owner, repo: target.repo }
+  return auth
+}
+
+function liveAuthHeaders(sessionId: string): Record<string, string> {
+  const a = liveAuthFor(sessionId)
+  return a
+    ? { 'x-kody-token': a.token, 'x-kody-owner': a.owner, 'x-kody-repo': a.repo }
+    : {}
+}
+
 /** Add per-user Brain config headers on Brain-path requests. */
 function brainHeaders(): Record<string, string> {
   const b = getStoredBrainConfig()
@@ -1109,7 +1150,7 @@ export function KodyChat({
       }
 
       const tick = async () => {
-        const auth = getStoredAuth()
+        const auth = liveAuthFor(sessionId)
         const params = new URLSearchParams({
           taskId: sessionId,
           since: String(pollWatermarkRef.current),
@@ -1121,7 +1162,7 @@ export function KodyChat({
         }
         try {
           const res = await fetch(`/api/kody/events/poll?${params.toString()}`, {
-            headers: { ...authHeaders() },
+            headers: { ...liveAuthHeaders(sessionId) },
           })
           if (!res.ok) return
           const body = (await res.json()) as { lines?: string[]; totalLines?: number }
@@ -1154,7 +1195,10 @@ export function KodyChat({
       // EventSource cannot attach custom headers — we pass the same auth
       // triplet as query params so the stream route can resolve the target
       // repo + GitHub token the same way the other chat endpoints do.
-      const auth = getStoredAuth()
+      // For live runners (Kody Live), use the pinned engine repo from the
+      // persisted live session — the user may have switched their connected
+      // repo after dispatch, but events still live in the dispatch repo.
+      const auth = liveAuthFor(sessionId)
       const params = new URLSearchParams({ taskId: sessionId })
       // mode=interactive keeps the SSE alive across multiple chat.done
       // events (one per turn). Closes only on chat.exit.
@@ -2687,7 +2731,10 @@ export function KodyChat({
         try {
           const appendRes = await fetch('/api/kody/chat/interactive/append', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            headers: {
+              'Content-Type': 'application/json',
+              ...liveAuthHeaders(liveSessionId),
+            },
             body: JSON.stringify({
               taskId: liveSessionId,
               content: liveUserContent,
