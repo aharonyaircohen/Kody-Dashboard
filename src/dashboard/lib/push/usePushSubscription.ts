@@ -18,6 +18,25 @@
  */
 import { useCallback, useEffect, useState } from "react"
 import { urlBase64ToUint8Array } from "../push"
+import { getStoredAuth } from "../api"
+
+/**
+ * Build the dashboard's standard repo-auth headers (`x-kody-token / -owner /
+ * -repo`). The push API mirrors the rest of `/api/kody/*` and `/api/push/*`
+ * — without these the server returns 401 "Missing repo auth headers". We
+ * deliberately don't go through `buildHeaders` in api.ts because that
+ * helper isn't exported; duplicating the three header names here is cheap.
+ */
+function authHeaders(): Record<string, string> {
+  const auth = getStoredAuth()
+  if (!auth) return { "Content-Type": "application/json" }
+  return {
+    "Content-Type": "application/json",
+    "x-kody-token": auth.token,
+    "x-kody-owner": auth.owner,
+    "x-kody-repo": auth.repo,
+  }
+}
 
 export type PushStatus =
   | "loading" // first render / determining state
@@ -146,10 +165,10 @@ export function usePushSubscription(
         throw new Error("Browser returned an incomplete PushSubscription")
       }
 
-      // 5) Register with the dashboard server
+      // 5) Register with the dashboard server (needs repo-auth headers)
       const subRes = await fetch("/api/push/subscribe", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(),
         body: JSON.stringify({
           endpoint: json.endpoint,
           keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
@@ -191,7 +210,7 @@ export function usePushSubscription(
       // unsubscribe() on the browser fails.
       await fetch("/api/push/subscribe", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(),
         body: JSON.stringify({ endpoint: sub.endpoint }),
       }).catch(() => {})
       await sub.unsubscribe()
