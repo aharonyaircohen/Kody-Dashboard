@@ -119,6 +119,15 @@ import {
 import { useAuth } from '../auth-context'
 import { toast } from 'sonner'
 import type { KodyTask } from '../types'
+import {
+  useSlashPrompts,
+  parseSlashTrigger,
+  expandSlashCommand,
+} from '../prompts/useSlashPrompts'
+import {
+  SlashCommandMenu,
+  filterPrompts,
+} from './SlashCommandMenu'
 
 /** Build fetch headers including client auth when available */
 function authHeaders(): Record<string, string> {
@@ -684,6 +693,12 @@ export function KodyChat({
   >({})
 
   const [input, setInput] = useState('')
+  // Slash command autocomplete state. Open while the user is typing the
+  // slug portion of `/foo` (no space yet). Once a space is typed the
+  // menu closes and we treat the rest of the line as arguments. Enter
+  // expands `/slug args` against the prompt list before sending.
+  const [slashMenuOpen, setSlashMenuOpen] = useState(false)
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [isDraggingFile, setIsDraggingFile] = useState(false)
   const dragCounterRef = useRef(0)
@@ -700,6 +715,10 @@ export function KodyChat({
   // and never remounts after Settings saves a Brain config — the dropdown
   // entry wouldn't appear until a full page reload.
   const { auth, loading: authLoading } = useAuth()
+  // Slash command prompt list (builtins + repo `.kody/prompts/*.md`).
+  // Stale-while-revalidate keeps autocomplete instant; the API itself
+  // is cached on the server side via the GitHub client.
+  const { prompts: slashPrompts } = useSlashPrompts(auth)
   const userBrainConfigured = Boolean(auth?.brain?.url && auth?.brain?.apiKey)
   // The deployment may also have a server-wide Brain via
   // `BRAIN_CHAT_URL` + `BRAIN_CHAT_API_KEY` env vars (see
@@ -3457,8 +3476,17 @@ export function KodyChat({
 
   const sendMessage = async () => {
     if (!input.trim() && attachments.length === 0) return
-    const userMessage = input.trim()
+    // Expand slash commands before send: `/review` or `/explain foo` →
+    // the prompt body with $ARGUMENTS substituted. The model never sees
+    // the slash form (every backend just gets normal text). Unknown
+    // slugs pass through unchanged so users can still type "/" prefixed
+    // text freely.
+    const rawInput = input.trim()
+    const expanded = expandSlashCommand(rawInput, slashPrompts)
+    const userMessage = expanded ? expanded.text : rawInput
     setInput('')
+    setSlashMenuOpen(false)
+    setSlashSelectedIndex(0)
     const currentAttachments = [...attachments]
     setAttachments([])
 
@@ -3535,7 +3563,51 @@ export function KodyChat({
     voiceChatRef.current?.stopConversation()
   }, [voiceOverlayOpen])
 
+  // Apply a slash prompt to the input: replaces the entire input with
+  // "/slug " so the user can immediately type arguments, OR sends right
+  // away when the prompt takes no arguments and the user pressed Enter.
+  const applySlashSelection = (slug: string) => {
+    const prompt = slashPrompts.find((p) => p.slug === slug)
+    if (!prompt) return
+    setSlashMenuOpen(false)
+    setSlashSelectedIndex(0)
+    // Always insert "/slug " and let the user add args (or hit Enter
+    // again to send). Sending immediately on first select would break
+    // the case where the prompt needs arguments.
+    setInput(`/${slug} `)
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Slash menu keyboard navigation. Only intercept when the menu is
+    // open AND the input still looks like a slug-in-progress (so once
+    // the user types a space the menu's gone and normal handling resumes).
+    if (slashMenuOpen) {
+      const { filter } = parseSlashTrigger(input)
+      const matches = filterPrompts(slashPrompts, filter)
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSlashSelectedIndex((i) => Math.min(i + 1, Math.max(matches.length - 1, 0)))
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSlashSelectedIndex((i) => Math.max(i - 1, 0))
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setSlashMenuOpen(false)
+        return
+      }
+      if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
+        if (matches.length > 0) {
+          e.preventDefault()
+          const picked = matches[Math.min(slashSelectedIndex, matches.length - 1)]
+          if (picked) applySlashSelection(picked.slug)
+          return
+        }
+      }
+    }
     // Enter or ⌘/Ctrl+Enter sends; Shift+Enter inserts a newline as usual.
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -4444,21 +4516,45 @@ export function KodyChat({
             }}
             disabled={loading}
           />
-          <textarea
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value)
-              // Auto-expand height
-              e.target.style.height = 'auto'
-              e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            rows={1}
-            className="flex-1 px-3 py-2 text-base rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={loading || (isKodyLive && interactiveState !== 'ready')}
-            style={{ height: 'auto' }}
-          />
+          <div className="flex-1 relative">
+            {slashMenuOpen && (
+              <SlashCommandMenu
+                prompts={slashPrompts}
+                filter={parseSlashTrigger(input).filter}
+                selectedIndex={slashSelectedIndex}
+                onSelect={applySlashSelection}
+                onHover={setSlashSelectedIndex}
+              />
+            )}
+            <textarea
+              value={input}
+              onChange={(e) => {
+                const next = e.target.value
+                setInput(next)
+                // Slash menu opens on `/` at line start, stays open while
+                // the user types the slug, closes when they add a space
+                // or clear the slash.
+                const trigger = parseSlashTrigger(next)
+                setSlashMenuOpen(trigger.active && slashPrompts.length > 0)
+                if (trigger.active) setSlashSelectedIndex(0)
+                // Auto-expand height
+                e.target.style.height = 'auto'
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`
+              }}
+              onKeyDown={handleKeyDown}
+              onBlur={() => {
+                // Small delay so the menu's onMouseDown can fire before
+                // close — onMouseDown uses preventDefault to avoid blur,
+                // but defensive close keeps stale menus from hanging.
+                setTimeout(() => setSlashMenuOpen(false), 120)
+              }}
+              placeholder={placeholder}
+              rows={1}
+              className="w-full px-3 py-2 text-base rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || (isKodyLive && interactiveState !== 'ready')}
+              style={{ height: 'auto' }}
+            />
+          </div>
           {loading ? (
             <button
               onClick={handleStop}

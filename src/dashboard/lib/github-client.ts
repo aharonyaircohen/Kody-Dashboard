@@ -165,6 +165,20 @@ export function invalidateJobsCache(slug?: string): void {
 }
 
 /**
+ * Invalidate cache entries for prompt files. Pass a slug to scope to one
+ * prompt, or omit to clear the listing cache (e.g. on bulk changes).
+ * Prompts live at `.kody/prompts/<slug>.md` and back the chat slash
+ * command menu.
+ */
+export function invalidatePromptsCache(slug?: string): void {
+  if (typeof slug === 'string' && slug.length > 0) {
+    // Repo-scoped key shape: `prompt:owner:repo:slug`. Wipe across repos.
+    invalidateCache('prompt:')
+  }
+  invalidateCache('prompts:')
+}
+
+/**
  * Invalidate cache entries for memory files. Pass an id to scope to one
  * memory, or omit to clear the listing/index cache (e.g. on bulk changes).
  */
