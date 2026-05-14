@@ -29,6 +29,9 @@ export function PRCommentList({ prNumber, className, onCountChange }: PRCommentL
     let cancelled = false
     setLoading(true)
     setError(null)
+    // Clear old list immediately so the previous PR's comments can't bleed
+    // through during the new fetch (or stick around if the fetch fails).
+    setComments([])
 
     prsApi
       .comments(prNumber)
