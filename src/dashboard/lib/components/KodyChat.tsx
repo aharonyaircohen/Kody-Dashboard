@@ -51,6 +51,7 @@ export interface ChatModelEntry {
 function buildAgentList(
   brainConfigured: boolean,
   flyConfigured: boolean,
+  brainFlyOn: boolean,
   models: ChatModelEntry[],
 ): ChatDropdownEntry[] {
   const entries: ChatDropdownEntry[] = []
@@ -93,11 +94,12 @@ function buildAgentList(
     })
   }
   // Brain on Fly — same shape as the manual Brain agent above, but the
-  // server is auto-provisioned per-user on the user's own Fly account.
-  // Surfaced only when a FLY_API_TOKEN is in the vault (same gate as
-  // kody-live-fly). The dashboard never stores the brain URL/key — the
-  // chat route resolves them server-side on every request.
-  if (flyConfigured) {
+  // server runs on a per-user Fly app. Surfaced only when the user has
+  // explicitly turned it on from Settings (i.e. the app exists). The
+  // brainFlyOn flag mirrors GET /api/kody/brain/status returning
+  // anything other than "off", so the dropdown stays in sync with the
+  // Settings toggle without the user having to refresh.
+  if (brainFlyOn) {
     const brainFly = AGENTS['brain-fly']
     entries.push({
       key: 'brain-fly',
@@ -380,7 +382,6 @@ import {
   deleteAttachment,
   purgeOrphans,
 } from '../attachment-store'
-import { BrainFlyStatusBar } from './BrainFlyStatusBar'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useRemoteStatus } from '../hooks/useRemoteStatus'
 import { useVoiceChat } from '../hooks/useVoiceChat'
@@ -708,6 +709,10 @@ export function KodyChat({
   // non-empty FLY_API_TOKEN. The Fly dropdown row is hidden until then so
   // users can't pick a runner that will fail at start-fly time.
   const [flyConfigured, setFlyConfigured] = useState(false)
+  // Mirror of GET /api/kody/brain/status. True when the user has turned
+  // Brain on Fly on from Settings (state != 'off'). Gates the brain-fly
+  // dropdown entry so an "off" Brain doesn't appear as a pickable agent.
+  const [brainFlyOn, setBrainFlyOn] = useState(false)
   // User-managed chat models from /api/kody/models (LLM_MODELS variable).
   // Empty until first load completes; renders only Kody Live (+ Brain) in
   // the dropdown while empty.
@@ -719,7 +724,7 @@ export function KodyChat({
   // and the user has no recourse. Mirrors the Brain backend's pattern.
   const kodyAbortRef = useRef<AbortController | null>(null)
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT
-  const agentList = buildAgentList(brainConfigured, flyConfigured, chatModels)
+  const agentList = buildAgentList(brainConfigured, flyConfigured, brainFlyOn, chatModels)
   // Vibe auto-kickoff. When `vibe_start_execution` returns a
   // SwitchAgentDirective with `autoKickoff`, the dashboard records the
   // message + target issue number here so a useEffect can dispatch it
@@ -830,19 +835,56 @@ export function KodyChat({
     }
   }, [])
 
+  // Brain on Fly status — polled when the Fly token is configured so the
+  // chat dropdown can hide brain-fly if Settings turns the Brain off.
+  // 30s cadence is plenty for a setting that flips deliberately; bumped
+  // to /status only (no provision/destroy here).
+  useEffect(() => {
+    if (!flyConfigured) {
+      setBrainFlyOn(false)
+      return
+    }
+    let cancelled = false
+    const headers = authHeaders()
+    if (Object.keys(headers).length === 0) return
+    const probe = async () => {
+      try {
+        const res = await fetch('/api/kody/brain/status', { headers })
+        if (cancelled) return
+        if (!res.ok) {
+          setBrainFlyOn(false)
+          return
+        }
+        const body = (await res.json()) as { state?: string }
+        setBrainFlyOn(Boolean(body.state) && body.state !== 'off')
+      } catch {
+        if (!cancelled) setBrainFlyOn(false)
+      }
+    }
+    void probe()
+    const id = setInterval(probe, 30_000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [flyConfigured])
+
   // If the user (or a stale localStorage value) had Fly selected but no
-  // token is configured, snap to Kody Live so chat keeps working. Covers
-  // both Fly-gated agents (kody-live-fly and brain-fly).
+  // token is configured, snap to Kody Live so chat keeps working. Also
+  // covers brain-fly when the user turned Brain off from Settings while
+  // having it selected.
   useEffect(() => {
     if (lockedAgentId) return
-    if (
-      (selectedAgentId === 'kody-live-fly' || selectedAgentId === 'brain-fly') &&
-      !flyConfigured
-    ) {
+    if (selectedAgentId === 'kody-live-fly' && !flyConfigured) {
+      setSelectedAgentId('kody-live')
+      setSelectedModelId(null)
+      return
+    }
+    if (selectedAgentId === 'brain-fly' && !brainFlyOn) {
       setSelectedAgentId('kody-live')
       setSelectedModelId(null)
     }
-  }, [flyConfigured, selectedAgentId, lockedAgentId])
+  }, [flyConfigured, brainFlyOn, selectedAgentId, lockedAgentId])
 
   // If the user had a gateway model selected but it was removed from the
   // list (or disabled), fall back to Kody Live so the chat keeps working.
@@ -4145,9 +4187,6 @@ export function KodyChat({
               ) : null}
             </div>
           </div>
-        ) : null}
-        {selectedAgentId === 'brain-fly' ? (
-          <BrainFlyStatusBar headers={authHeaders()} />
         ) : null}
         <div className="flex gap-2 items-end">
           {/* Attachment button */}

@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@dashboard/ui/select"
+import { BrainFlyCard } from "./BrainFlyCard"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { PageShell } from "./PageShell"
 import { useAuth, type FlyPerfTier } from "../auth-context"
@@ -413,6 +414,12 @@ export function SettingsManager() {
             </div>
           </CardContent>
         </Card>
+
+        {/* ─── Brain on Fly toggle ────────────────────────────────────── */}
+        <BrainFlyCard
+          headers={vaultHeaders()}
+          flyTokenConfigured={Boolean(savedFlyToken)}
+        />
 
         {/* ─── Pointers to per-repo concerns ──────────────────────────── */}
         <Card className="border-white/[0.08] bg-white/[0.02]">
