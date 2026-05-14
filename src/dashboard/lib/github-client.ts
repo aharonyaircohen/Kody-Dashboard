@@ -143,6 +143,10 @@ export function invalidateIssueCache(issueNumber?: number): void {
     // Webhooks don't carry repo context, so wipe across all repos via prefix.
     invalidateCache('issue:')
     invalidateCache('comments:')
+    // PRs are issues in the GitHub API — `issue_comment` events fire for PR
+    // conversation comments too. The PreviewModal comment list reads from
+    // `pr-comments:` (separate prefix from `comments:`), so clear that too.
+    invalidateCache('pr-comments:')
   }
   invalidateCache('issues:')
 }
@@ -2433,8 +2437,12 @@ export async function postComment(
     body,
   })
 
-  // Invalidate comment cache
+  // Invalidate both comment caches — issue conversation and PR conversation
+  // share GitHub's issue-comments endpoint, but the dashboard caches them
+  // under separate keys (`comments:` for the issue panel, `pr-comments:` for
+  // PreviewModal). Clear both so neither view shows stale data.
   cache.delete(`comments:${getOwner()}:${getRepo()}:${issueNumber}`)
+  cache.delete(`pr-comments:${getOwner()}:${getRepo()}:${issueNumber}`)
 }
 
 /**
