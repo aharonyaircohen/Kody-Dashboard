@@ -59,6 +59,16 @@ export interface BranchRepo {
     head: string
   }): Promise<{ status: CompareStatus; mergeBaseSha: string }>
 
+  /**
+   * Returns commit messages on `branchName` that are not yet on
+   * `baseRef`. Used by the ownership guard to look for the
+   * "vibe: start session for #N" marker on a reused branch.
+   */
+  listBranchCommitMessages(input: {
+    branchName: string
+    baseRef: string
+  }): Promise<string[]>
+
   fastForward(input: { branchName: string; targetSha: string }): Promise<void>
 
   merge(input: {
@@ -159,6 +169,21 @@ export class GitHubBranchRepo implements BranchRepo {
       status: data.status as CompareStatus,
       mergeBaseSha: data.merge_base_commit.sha,
     }
+  }
+
+  async listBranchCommitMessages(input: {
+    branchName: string
+    baseRef: string
+  }): Promise<string[]> {
+    // Call with base=baseRef, head=branchName so `commits` returns
+    // commits unique to the branch (not yet on the base).
+    const { data } = await this.ctx.octokit.rest.repos.compareCommits({
+      owner: this.ctx.owner,
+      repo: this.ctx.repo,
+      base: input.baseRef,
+      head: input.branchName,
+    })
+    return data.commits.map((c) => c.commit.message)
   }
 
   async fastForward(input: { branchName: string; targetSha: string }): Promise<void> {
