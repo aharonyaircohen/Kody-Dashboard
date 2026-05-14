@@ -26,14 +26,14 @@ The dashboard intentionally keeps the env-var surface tiny. Only **one** secret
 is required; everything else is either a non-secret config knob, or lives in
 the dashboard's Settings page (user-scoped, not Vercel-scoped).
 
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `KODY_MASTER_KEY` | Yes | 32-byte hex/base64 secret. Powers per-repo secrets vault AES-256-GCM (`vault/crypto.ts`) and chat-ingest HMAC (`chat-token.ts`). Each consumer purpose-prefixes the key before hashing — `kody-chat-token:`, `kody-token-encryption:` — so they're cryptographically separated. Generate with `pnpm vault:init`. |
-| `GITHUB_TOKEN` | Yes | Server-side GitHub API token for tasks that run without a logged-in user (cron, webhook flows). Needs `repo` + `workflow` scope. |
-| `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from the user's stored credentials). |
-| `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody.yml`). |
-| `JINA_API_KEY` | No | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier). |
-| `NEXT_PUBLIC_SERVER_URL` | Dev | Public URL for callbacks — set in dev only. |
+| Variable                  | Required | Purpose                                                                                                                                                                                                                                                                                                          |
+| ------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `KODY_MASTER_KEY`         | Yes      | 32-byte hex/base64 secret. Powers per-repo secrets vault AES-256-GCM (`vault/crypto.ts`) and chat-ingest HMAC (`chat-token.ts`). Each consumer purpose-prefixes the key before hashing — `kody-chat-token:`, `kody-token-encryption:` — so they're cryptographically separated. Generate with `pnpm vault:init`. |
+| `GITHUB_TOKEN`            | Yes      | Server-side GitHub API token for tasks that run without a logged-in user (cron, webhook flows). Needs `repo` + `workflow` scope.                                                                                                                                                                                 |
+| `KODY_CHAT_WORKFLOW_REPO` | No       | Central engine repo for chat (default: the connected repo from the user's stored credentials).                                                                                                                                                                                                                   |
+| `KODY_CHAT_WORKFLOW_ID`   | No       | Chat workflow file name (default: `kody.yml`).                                                                                                                                                                                                                                                                   |
+| `JINA_API_KEY`            | No       | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier).                                                                                                                                                                                                                                         |
+| `NEXT_PUBLIC_SERVER_URL`  | Dev      | Public URL for callbacks — set in dev only.                                                                                                                                                                                                                                                                      |
 
 > **Web Push VAPID keys are NOT a separate env var.** They're derived
 > deterministically from `KODY_MASTER_KEY` via HKDF (info: `kody-vapid:v1`).
@@ -118,7 +118,7 @@ Two paths, depending on where the new feature stores comments/mentions:
    GitHub artifact) → **manual call.** Import `dispatchMentionPushes`
    from the write path that persists the mention and call it with a
    synthetic event payload (`{ body, action: "created", repository: {...},
-   comment: { body, user, html_url } }`). Prefer routing through GitHub
+comment: { body, user, html_url } }`). Prefer routing through GitHub
    when feasible — every backed-by-GitHub feature gets push, Slack,
    webhooks, and audit history for free.
 
@@ -161,13 +161,41 @@ The dashboard has **three** chat backends, picked by the UI's `selectedAgentId`
 Don't assume "the chat" means the engine — most user traffic hits the in-process
 Gemini path.
 
-| `selectedAgentId` | Endpoint | Backend | System prompt lives in |
-|---|---|---|---|
-| `kody` (**default**) | [`/api/kody/chat/kody`](app/api/kody/chat/kody/route.ts) | In-process Gemini via `@ai-sdk/google` | [`src/dashboard/lib/agents.ts`](src/dashboard/lib/agents.ts) (`AGENT_KODY.systemPrompt`) |
-| `brain` | [`/api/kody/chat/brain`](app/api/kody/chat/brain/route.ts) | External Brain chat server (proxied) | Brain server profile (out of repo) |
-| anything else | [`/api/kody/chat/trigger`](app/api/kody/chat/trigger/route.ts) | GitHub Actions + `@kody-ade/kody-engine` | `kody2/src/chat/loop.ts` (`CHAT_SYSTEM_PROMPT`) |
+| `selectedAgentId`    | Endpoint                                                       | Backend                                  | System prompt lives in                                                                   |
+| -------------------- | -------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `kody` (**default**) | [`/api/kody/chat/kody`](app/api/kody/chat/kody/route.ts)       | In-process Gemini via `@ai-sdk/google`   | [`src/dashboard/lib/agents.ts`](src/dashboard/lib/agents.ts) (`AGENT_KODY.systemPrompt`) |
+| `brain`              | [`/api/kody/chat/brain`](app/api/kody/chat/brain/route.ts)     | External Brain chat server (proxied)     | Brain server profile (out of repo)                                                       |
+| anything else        | [`/api/kody/chat/trigger`](app/api/kody/chat/trigger/route.ts) | GitHub Actions + `@kody-ade/kody-engine` | `kody2/src/chat/loop.ts` (`CHAT_SYSTEM_PROMPT`)                                          |
 
 The legacy `/api/kody/chat` endpoint is deprecated and returns 410.
+
+### Slash commands (`/prompts`)
+
+The chat composer has a slash-command menu. Typing `/` opens a filtered
+list of prompts; selection inserts `/<slug> ` so the user can add
+arguments before Enter. On send, `expandSlashCommand` substitutes
+`$ARGUMENTS` / `$0` / `$1` into the prompt body and ships the rendered
+text — every backend just sees a normal user message, so commands work
+identically on Gemini, Brain, and Engine.
+
+Two layers, merged at runtime:
+
+- **Built-ins** ship in [src/dashboard/lib/prompts/builtins.ts](src/dashboard/lib/prompts/builtins.ts) (`/plan`, `/review`, `/explain`, `/issue`, `/goal`, `/analyze`, `/job`).
+- **Repo prompts** live at `.kody/prompts/<slug>.md` (frontmatter: `description`, `argument-hint`; body is the template). Repo wins on slug collision — that's how "fork the built-in" works.
+
+Drop `.kody/prompts/.disable-builtins` to suppress every built-in for the repo.
+
+- Storage helpers: [src/dashboard/lib/prompts/files.ts](src/dashboard/lib/prompts/files.ts)
+- Merge + substitution: [src/dashboard/lib/prompts/index.ts](src/dashboard/lib/prompts/index.ts), [src/dashboard/lib/prompts/substitute.ts](src/dashboard/lib/prompts/substitute.ts)
+- API: [app/api/kody/prompts/route.ts](app/api/kody/prompts/route.ts), [app/api/kody/prompts/[slug]/route.ts](app/api/kody/prompts/[slug]/route.ts)
+- UI: [app/(chat-rail)/prompts/page.tsx](<app/(chat-rail)/prompts/page.tsx>), [src/dashboard/lib/components/PromptsManager.tsx](src/dashboard/lib/components/PromptsManager.tsx)
+- Chat wiring: [src/dashboard/lib/components/SlashCommandMenu.tsx](src/dashboard/lib/components/SlashCommandMenu.tsx), [src/dashboard/lib/prompts/useSlashPrompts.ts](src/dashboard/lib/prompts/useSlashPrompts.ts)
+- Full docs: [docs/prompts.md](docs/prompts.md)
+
+Important: Claude Code's `` !`shell` `` injection is **not** supported.
+That's a CLI preprocessing feature (it shells out before the message is
+sent); the dashboard server has no working tree to shell into. Stick to
+plain text + `$ARGUMENTS` for portable prompts.
 
 **Engine path details** (when used): dispatches `kody.yml` in the connected
 repo with the session ID and an inline HMAC token in `dashboardUrl`. The kody
@@ -223,7 +251,7 @@ multi-hour outages. Read [src/dashboard/lib/github-client.ts](src/dashboard/lib/
 
 3. **New GraphQL queries on the polling path need three things:**
    in-process cache (with TTL ≥ 60s for low-churn data), in-flight request
-   dedup, and a stale fallback that *refreshes the cache TTL on error* so
+   dedup, and a stale fallback that _refreshes the cache TTL on error_ so
    GraphQL throttling doesn't compound. See `fetchOpenPRs` for the pattern.
    GraphQL has its own 5000-points/hr bucket and no ETag/304 escape hatch.
 

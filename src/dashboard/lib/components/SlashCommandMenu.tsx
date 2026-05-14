@@ -9,6 +9,7 @@
  */
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
 import type { SlashPrompt } from "../prompts/useSlashPrompts";
 
@@ -49,9 +50,9 @@ export function SlashCommandMenu({
     return (
       <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl px-3 py-2 text-xs text-white/50">
         No matching prompts. Manage them at{" "}
-        <a className="underline hover:text-white/80" href="/prompts">
+        <Link className="underline hover:text-white/80" href="/prompts">
           /prompts
-        </a>
+        </Link>
         .
       </div>
     );
@@ -103,9 +104,9 @@ export function SlashCommandMenu({
       </ul>
       <div className="border-t border-white/[0.06] px-3 py-1.5 text-[10px] text-white/35 flex items-center justify-between">
         <span>↑↓ navigate · Enter/Tab select · Esc close</span>
-        <a href="/prompts" className="underline hover:text-white/70">
+        <Link href="/prompts" className="underline hover:text-white/70">
           Manage
-        </a>
+        </Link>
       </div>
     </div>
   );

@@ -11,9 +11,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  BookOpen,
   Bot,
   Loader2,
   Pencil,
@@ -195,14 +197,22 @@ function PromptsManagerInner() {
       iconClassName="text-violet-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
       actions={
-        <Button
-          size="sm"
-          onClick={() => setEditing({ prompt: null, isNew: true })}
-          className="gap-1"
-        >
-          <Plus className="w-4 h-4" />
-          New prompt
-        </Button>
+        <>
+          <Button asChild variant="ghost" size="sm" className="gap-1">
+            <Link href="/prompts/docs" aria-label="Prompts docs">
+              <BookOpen className="w-4 h-4" />
+              Docs
+            </Link>
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setEditing({ prompt: null, isNew: true })}
+            className="gap-1"
+          >
+            <Plus className="w-4 h-4" />
+            New prompt
+          </Button>
+        </>
       }
     >
       <div className="space-y-3">

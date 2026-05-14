@@ -9,7 +9,7 @@
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { PromptsManager } from "@dashboard/lib/components/PromptsManager";
-import { buildKodyMetadata } from "../metadata";
+import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";
 export const revalidate = false;
