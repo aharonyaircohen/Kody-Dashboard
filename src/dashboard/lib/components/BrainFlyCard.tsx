@@ -8,13 +8,14 @@
  *
  *   - "Brain on Fly" header + status pill (Off / Running / Suspended).
  *   - Turn on  → POST /api/kody/brain/provision (idempotent).
+ *   - Suspend  → POST /api/kody/brain/suspend (when running).
+ *   - Resume   → POST /api/kody/brain/resume  (when suspended/stopped).
  *   - Turn off → POST /api/kody/brain/destroy (with confirm).
  *   - Refresh  → re-fetch GET /api/kody/brain/status.
  *
- * Suspend is intentionally invisible to the user — the machine
- * auto-suspends after idle and resumes in ~1s on the next chat message.
- * The pill still shows "Suspended" so an operator looking at Settings
- * can tell when it last ran, but the user doesn't act on it.
+ * Suspend/resume are also automatic: the machine auto-suspends after idle
+ * and auto-resumes in ~1s on the next chat. The explicit buttons let the
+ * user force a pause now (zero compute) without tearing down the app.
  *
  * Visibility: rendered only when the connected repo has FLY_API_TOKEN in
  * its vault (same gate as the existing Fly Runner card). Without that
@@ -24,7 +25,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Brain, Loader2, Power, RefreshCw } from 'lucide-react'
+import { Brain, Loader2, Pause, Play, Power, RefreshCw } from 'lucide-react'
 
 import { Button } from '@dashboard/ui/button'
 import { Card, CardContent } from '@dashboard/ui/card'
@@ -89,7 +90,9 @@ export function BrainFlyCard({ headers, flyTokenConfigured }: BrainFlyCardProps)
   const [state, setState] = useState<BrainFlyState>('unknown')
   const [app, setApp] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [busy, setBusy] = useState<'idle' | 'provisioning' | 'destroying'>('idle')
+  const [busy, setBusy] = useState<
+    'idle' | 'provisioning' | 'destroying' | 'suspending' | 'resuming'
+  >('idle')
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const refresh = useCallback(async () => {
@@ -137,6 +140,42 @@ export function BrainFlyCard({ headers, flyTokenConfigured }: BrainFlyCardProps)
       await refresh()
     } catch (err) {
       toast.error(`Provision failed: ${(err as Error).message}`)
+    } finally {
+      setBusy('idle')
+    }
+  }
+
+  async function suspend() {
+    setBusy('suspending')
+    try {
+      const res = await fetch('/api/kody/brain/suspend', { method: 'POST', headers })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        toast.error(body.error ?? `Suspend failed (HTTP ${res.status})`)
+        return
+      }
+      toast.success('Brain suspended — resumes on next chat or Resume click')
+      await refresh()
+    } catch (err) {
+      toast.error(`Suspend failed: ${(err as Error).message}`)
+    } finally {
+      setBusy('idle')
+    }
+  }
+
+  async function resume() {
+    setBusy('resuming')
+    try {
+      const res = await fetch('/api/kody/brain/resume', { method: 'POST', headers })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        toast.error(body.error ?? `Resume failed (HTTP ${res.status})`)
+        return
+      }
+      toast.success('Brain resumed')
+      await refresh()
+    } catch (err) {
+      toast.error(`Resume failed: ${(err as Error).message}`)
     } finally {
       setBusy('idle')
     }
@@ -214,18 +253,46 @@ export function BrainFlyCard({ headers, flyTokenConfigured }: BrainFlyCardProps)
               {app}.fly.dev
             </div>
           )}
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-2 pt-1 flex-wrap">
             {isOn ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setConfirmOpen(true)}
-                disabled={busy !== 'idle' || !flyTokenConfigured}
-                className="text-rose-300 hover:text-rose-200"
-              >
-                <Power className="w-3 h-3 mr-1" />
-                {busy === 'destroying' ? 'Turning off…' : 'Turn off'}
-              </Button>
+              <>
+                {state === 'running' && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={suspend}
+                    disabled={busy !== 'idle' || !flyTokenConfigured}
+                    className="text-amber-300 hover:text-amber-200"
+                    title="Pause the machine now (auto-resumes on next chat)"
+                  >
+                    <Pause className="w-3 h-3 mr-1" />
+                    {busy === 'suspending' ? 'Suspending…' : 'Suspend'}
+                  </Button>
+                )}
+                {(state === 'suspended' || state === 'stopped') && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={resume}
+                    disabled={busy !== 'idle' || !flyTokenConfigured}
+                    className="text-emerald-300 hover:text-emerald-200"
+                    title="Wake the machine without sending a chat"
+                  >
+                    <Play className="w-3 h-3 mr-1" />
+                    {busy === 'resuming' ? 'Resuming…' : 'Resume'}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setConfirmOpen(true)}
+                  disabled={busy !== 'idle' || !flyTokenConfigured}
+                  className="text-rose-300 hover:text-rose-200 ml-auto"
+                >
+                  <Power className="w-3 h-3 mr-1" />
+                  {busy === 'destroying' ? 'Turning off…' : 'Turn off'}
+                </Button>
+              </>
             ) : (
               <Button
                 size="sm"
