@@ -537,8 +537,17 @@ export async function suspendBrain(input: SuspendBrainInput): Promise<void> {
 }
 
 /**
- * Resume (start) the per-user Brain machine. Works from suspended OR stopped.
- * No-op when no app/machine exists or the machine is already live.
+ * Resume (wake) the per-user Brain machine.
+ *
+ * Implementation: hit the machine through Fly's edge proxy (`/healthz`) and
+ * let `autostart: true` on the service definition restore it. This is the
+ * Fly-documented pattern and works for BOTH `suspended` and `stopped`
+ * machines.
+ *
+ * We avoid `POST /machines/{id}/start` because Fly returns
+ * `500 internal: process not found` against suspended machines whose snapshot
+ * metadata hasn't fully synced yet — the edge-proxy path doesn't have that
+ * race. waitForBrainHealth polls until `/healthz` returns 200.
  */
 export async function resumeBrain(input: ResumeBrainInput): Promise<void> {
   if (!input.flyToken?.trim()) {
@@ -556,11 +565,8 @@ export async function resumeBrain(input: ResumeBrainInput): Promise<void> {
     return
   }
 
-  await flyFetch<unknown>(
-    `/apps/${encodeURIComponent(app)}/machines/${encodeURIComponent(machine.id)}/start`,
-    { method: 'POST', token: input.flyToken },
-  )
-  logger.info({ app, machineId: machine.id }, 'brain-fly: machine resumed')
+  await waitForBrainHealth(brainAppUrl(app), 60_000)
+  logger.info({ app, machineId: machine.id }, 'brain-fly: machine resumed via edge proxy')
 }
 
 /**
