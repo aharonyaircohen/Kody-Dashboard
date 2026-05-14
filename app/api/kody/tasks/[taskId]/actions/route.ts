@@ -37,6 +37,7 @@ import {
 } from '@dashboard/lib/github-client'
 import { GOAL_LABEL_PREFIX } from '@dashboard/lib/goals'
 import { getOwner, getRepo } from '@dashboard/lib/github-client'
+import { isProtectedBranch } from '@dashboard/lib/branches'
 import { matchWorkflowRunsForTask } from '@dashboard/lib/workflow-matching'
 
 const actionSchema = z.object({
@@ -323,12 +324,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
 
         // Delete branch if exists
         const branchName = await findTaskBranch(taskId)
-        if (
-          branchName &&
-          branchName !== 'dev' &&
-          branchName !== 'main' &&
-          branchName !== 'master'
-        ) {
+        if (branchName && !isProtectedBranch(branchName)) {
           await deleteBranch(branchName, userOctokit ?? undefined)
         }
 
@@ -370,12 +366,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
         }
 
         // Delete branch if exists
-        if (
-          branchName &&
-          branchName !== 'dev' &&
-          branchName !== 'main' &&
-          branchName !== 'master'
-        ) {
+        if (branchName && !isProtectedBranch(branchName)) {
           await deleteBranch(branchName, userOctokit ?? undefined)
         }
 
