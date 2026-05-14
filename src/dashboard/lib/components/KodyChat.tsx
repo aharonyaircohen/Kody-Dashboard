@@ -37,6 +37,7 @@ export interface ChatModelEntry {
   label: string
   enabled?: boolean
   speech?: boolean
+  default?: boolean
 }
 
 function buildAgentList(
@@ -747,6 +748,25 @@ export function KodyChat({
       cancelled = true
     }
   }, [])
+
+  // Apply the user-marked default model on first load. Beats both
+  // Kody Live (the unconditional fallback) and the Brain auto-default —
+  // an explicit Models-page choice wins over any heuristic. Runs at most
+  // once per chat mount; later dropdown picks aren't overridden.
+  const initialDefaultAppliedRef = useRef(false)
+  useEffect(() => {
+    if (lockedAgentId) return
+    if (initialDefaultAppliedRef.current) return
+    if (chatModels.length === 0) return
+    const def = chatModels.find(
+      (m) => m.default === true && m.enabled !== false,
+    )
+    if (def) {
+      setSelectedAgentId('kody')
+      setSelectedModelId(def.id)
+    }
+    initialDefaultAppliedRef.current = true
+  }, [chatModels, lockedAgentId])
 
   // If the user had Brain selected but then removed the config, fall back to
   // Kody Live.

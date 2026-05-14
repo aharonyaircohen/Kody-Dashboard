@@ -105,6 +105,15 @@ export async function PUT(req: NextRequest) {
     )
   }
 
+  // At most one default model.
+  const defaultCount = parsed.data.models.filter((m) => m.default).length
+  if (defaultCount > 1) {
+    return NextResponse.json(
+      { error: "validation_error", message: "Only one model may be marked as default." },
+      { status: 400 },
+    )
+  }
+
   const verify = await verifyActorLogin(req, parsed.data.actorLogin)
   if ("status" in verify) return verify
   const actorLogin = verify.identity.login
