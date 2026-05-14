@@ -12,6 +12,8 @@
  */
 import { isProtectedBranch } from '../domain/protected-branches'
 import { buildBranchName, slugifyTitle } from '../domain/branch-name'
+import { isKodyOwnedBranch } from '../domain/branch-ownership'
+import { ForeignBranchError } from '../errors'
 import type { BranchRepo, MergeResult } from '../infra/github-branch-repo'
 
 export interface GetOrCreateInput {
@@ -69,6 +71,21 @@ export class BranchService {
       baseRef,
       markerMessage: `vibe: start session for #${input.issueNumber}`,
     })
+
+    // Foreign-branch guard: if the branch already existed, verify it
+    // was actually created by Kody for THIS issue before reusing it.
+    // Without this, a pre-existing human branch with the same name
+    // (or a Kody branch from a different issue that happens to slug
+    // to the same value) would be silently reused and clobbered.
+    if (result.existed) {
+      const messages = await this.repo.listBranchCommitMessages({
+        branchName,
+        baseRef,
+      })
+      if (!isKodyOwnedBranch(messages, input.issueNumber)) {
+        throw new ForeignBranchError(branchName, input.issueNumber)
+      }
+    }
 
     return {
       branchName,

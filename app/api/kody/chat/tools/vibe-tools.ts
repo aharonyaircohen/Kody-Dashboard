@@ -27,6 +27,7 @@ import { SWITCH_AGENT_DIRECTIVE } from '@dashboard/lib/chat-ui-actions'
 import {
   BranchService,
   GitHubBranchRepo,
+  ForeignBranchError,
 } from '@dashboard/lib/branches'
 
 interface Ctx {
@@ -80,6 +81,13 @@ export function createVibeTools(ctx: Ctx) {
           try {
             created = await branches.getOrCreate({ issueNumber, slug })
           } catch (err) {
+            if (err instanceof ForeignBranchError) {
+              return {
+                error: err.message,
+                code: 'foreign_branch',
+                branch: err.branchName,
+              }
+            }
             const message = err instanceof Error ? err.message : String(err)
             return { error: message }
           }

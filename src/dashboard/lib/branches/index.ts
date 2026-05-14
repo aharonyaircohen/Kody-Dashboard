@@ -39,3 +39,7 @@ export type {
 } from './application/branch-service'
 
 export { BranchService } from './application/branch-service'
+
+export { ForeignBranchError } from './errors'
+
+export { isKodyMarkerCommit, isKodyOwnedBranch } from './domain/branch-ownership'
