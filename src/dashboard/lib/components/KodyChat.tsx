@@ -217,6 +217,12 @@ export function getLiveScopeKey(
   if (vibeMode && context?.kind === 'task') {
     return `vibe-${context.task.issueNumber}`
   }
+  // Vibe page with no task selected — keep its live-runner state
+  // separate from the dashboard's global chat so the two don't share
+  // an in-flight Kody Live session.
+  if (vibeMode) {
+    return 'vibe-default'
+  }
   return 'global'
 }
 
@@ -1034,8 +1040,13 @@ export function KodyChat({
   const [taskSessions, setTaskSessions] = useState<ChatSession[]>([])
   const [showTaskHistory, setShowTaskHistory] = useState(false)
 
-  // Use session hook for global (non-task) chat
-  const sessionHook = useChatSessions()
+  // Use session hook for global (non-task) chat. On the Vibe page, the
+  // no-task ("default preview") chat lives in its own bucket so it
+  // doesn't share history with the dashboard chat — selecting an issue
+  // still swaps over to per-task chat as usual.
+  const sessionStoreScope: import('../hooks/useChatSessions').ChatSessionScope =
+    vibeMode && !selectedTask ? 'vibe-default' : 'global'
+  const sessionHook = useChatSessions(sessionStoreScope)
 
   // Abort any in-flight stream + reset loading when the active session
   // changes. Without this, switching to (or creating) a new session
@@ -2828,8 +2839,15 @@ export function KodyChat({
           }
           // Voice mode needs the spoken text only — no reasoning, no
           // empty string. `textBuf` is the answer the model would render
-          // in a normal text bubble.
-          return textBuf.trim() || null
+          // in a normal text bubble. We additionally strip any
+          // `<think>…</think>` blocks the model wrote INTO the text
+          // stream (some providers route thoughts through text-delta
+          // instead of reasoning-delta, especially under OpenAI-compat
+          // shims) so TTS never narrates them.
+          const stripThink = (s: string) =>
+            s.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim()
+          const spoken = voiceMode ? stripThink(textBuf) : textBuf.trim()
+          return spoken || null
         } catch (err) {
           // Stop button fired — fetch/reader throws an AbortError. That's
           // not a real failure; just settle the bubble and bail. Without

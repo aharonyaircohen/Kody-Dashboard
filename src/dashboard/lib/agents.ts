@@ -765,6 +765,7 @@ Your reply is going straight into text-to-speech. Write it the way you would say
 
 Voice rules (hard):
 - No markdown. No bullets. No headings. No code fences. No tables. No asterisks or underscores for emphasis.
+- No \`<think>\`, \`<thinking>\`, or any other inline thinking/scratchpad tags in your reply — the user only hears what you write here, so write the final answer directly. Reason silently.
 - Short sentences. One idea per sentence. Prefer two sentences over one long one.
 - Read symbols as words when reading code, paths, or URLs aloud: say "hash" not "#", "at" not "@", "dot" not ".", "slash" not "/", "dash" not "-".
 - Say numbers the way a person says them: "PR forty-five" not "PR #45", "twelve thousand" not "12,000". Issue numbers can stay as digits ("issue 312").
