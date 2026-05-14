@@ -2,26 +2,34 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern push-vapid-public-key
- * @ai-summary GET returns the dashboard's VAPID public key so the browser
- *   can call `pushManager.subscribe({ applicationServerKey })`. The public
- *   key is intentionally readable without auth — it's published per the
- *   VAPID spec and reveals nothing exploitable on its own.
+ * @ai-summary GET returns the VAPID public key so the browser can call
+ *   `pushManager.subscribe({ applicationServerKey })`. The keypair is
+ *   derived deterministically from `KODY_MASTER_KEY` — no per-purpose env
+ *   var, no fallback chain. See `src/dashboard/lib/push/vapid-keys.ts`.
  *
- *   If env vars aren't configured we return 503 with a hint rather than 500
- *   so the UI can degrade to "push not available on this server".
+ *   Public key is intentionally readable without auth — it's published per
+ *   the VAPID spec and reveals nothing exploitable on its own.
+ *
+ *   If `KODY_MASTER_KEY` is missing we return 503 with a hint rather than
+ *   500 so the UI can degrade to "push not available on this server".
  */
 import { NextResponse } from "next/server";
+import { deriveVapidKeys } from "@dashboard/lib/push/vapid-keys";
 
 export async function GET() {
-  const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
-  if (!publicKey) {
+  try {
+    const { publicKey } = deriveVapidKeys();
     return NextResponse.json(
-      { error: "push_not_configured", message: "VAPID keys are not set on the server" },
+      { publicKey },
+      { headers: { "Cache-Control": "public, max-age=3600" } },
+    );
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error: "push_not_configured",
+        message: err instanceof Error ? err.message : "VAPID derivation failed",
+      },
       { status: 503 },
     );
   }
-  return NextResponse.json(
-    { publicKey },
-    { headers: { "Cache-Control": "public, max-age=3600" } },
-  );
 }

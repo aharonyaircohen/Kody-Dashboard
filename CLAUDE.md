@@ -33,9 +33,14 @@ the dashboard's Settings page (user-scoped, not Vercel-scoped).
 | `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from the user's stored credentials). |
 | `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody.yml`). |
 | `JINA_API_KEY` | No | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier). |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Push only | VAPID keypair for the `web-push` notification channel. Generate with `pnpm push:init`. Without these set, the PWA still installs but the "Mobile / push notifications" toggle reports `not-configured` and no pushes are sent. Losing the private key invalidates every browser subscription. |
-| `VAPID_SUBJECT` | No | `mailto:` or `https:` URL identifying the app server to push services (abuse reporting only). Defaults to a placeholder. |
 | `NEXT_PUBLIC_SERVER_URL` | Dev | Public URL for callbacks — set in dev only. |
+
+> **Web Push VAPID keys are NOT a separate env var.** They're derived
+> deterministically from `KODY_MASTER_KEY` via HKDF (info: `kody-vapid:v1`).
+> See [src/dashboard/lib/push/vapid-keys.ts](src/dashboard/lib/push/vapid-keys.ts).
+> Rotate by bumping the info string to `:v2` (every existing subscription
+> becomes invalid, users have to re-enable). Inspect the derived keypair
+> with `KODY_MASTER_KEY=... pnpm push:init`.
 
 **Do NOT add `FLY_API_TOKEN` (or `FLY_IO_TOKEN`) as a Vercel env var.** The
 Fly Machines token is a **user-scoped** credential managed via the
@@ -83,9 +88,10 @@ matches — same dispatch path as Slack/Discord, just N destinations.
 - API: [app/api/push/public-key/route.ts](app/api/push/public-key/route.ts) (GET VAPID public), [app/api/push/subscribe/route.ts](app/api/push/subscribe/route.ts) (POST/DELETE per-device)
 - UI: [src/dashboard/lib/push/PushToggle.tsx](src/dashboard/lib/push/PushToggle.tsx) + [src/dashboard/lib/push/usePushSubscription.ts](src/dashboard/lib/push/usePushSubscription.ts) (mounted inside `NotificationPreferences`)
 
-Bootstrap: `pnpm push:init` prints fresh VAPID keys. Paste into Vercel env
-**and** a password manager — losing the private key invalidates every
-existing browser subscription (users have to re-enable from each device).
+No bootstrap needed: VAPID keys are derived from `KODY_MASTER_KEY` (already
+required). `pnpm push:init` just inspects the derived keypair if you want
+to share the public key with an external sender, or sanity-check after a
+rotation.
 
 iOS catch: Safari only allows push from installed PWAs. Users must
 **Share → Add to Home Screen** first, open Kody from the icon, then tap

@@ -1,33 +1,57 @@
 #!/usr/bin/env node
 /**
- * Generate a VAPID keypair for the dashboard's web-push channel.
+ * Inspect the deterministically-derived VAPID keypair for the dashboard.
+ *
+ * The dashboard derives its VAPID keypair from `KODY_MASTER_KEY` via HKDF
+ * (`info="kody-vapid:v1"`, see src/dashboard/lib/push/vapid-keys.ts), so
+ * there is NO separate `VAPID_*` env var to set. This script prints what
+ * the live server is using — handy for debugging push delivery or for
+ * sharing the public key with an external service.
  *
  * Usage:
- *   pnpm push:init
- *
- * Prints the public + private key. Paste into:
- *   - Vercel env vars (Production + Preview):
- *       VAPID_PUBLIC_KEY=<public>
- *       VAPID_PRIVATE_KEY=<private>
- *       VAPID_SUBJECT=mailto:you@example.com   # optional, only used for
- *                                                abuse-reporting by push svcs
- *
- *   - Your password manager — losing the private key invalidates every
- *     existing subscription (devices will need to re-subscribe).
+ *   KODY_MASTER_KEY=<the hex/base64url master key> pnpm push:init
  */
-import webpush from "web-push"
+import { createECDH, hkdfSync } from "node:crypto"
 
-const { publicKey, privateKey } = webpush.generateVAPIDKeys()
+const masterRaw = process.env.KODY_MASTER_KEY?.trim()
+if (!masterRaw) {
+  process.stderr.write(
+    "\nKODY_MASTER_KEY is not set. Source the same value you have in Vercel\n" +
+      "  (Project → Settings → Environment Variables → KODY_MASTER_KEY)\n" +
+      "and re-run, e.g.:\n\n" +
+      "  KODY_MASTER_KEY=<value> pnpm push:init\n\n",
+  )
+  process.exit(1)
+}
+
+function base64Url(buf) {
+  return buf
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
+}
+
+const masterBytes =
+  /^[0-9a-fA-F]{64}$/.test(masterRaw)
+    ? Buffer.from(masterRaw, "hex")
+    : Buffer.from(
+        masterRaw.replace(/-/g, "+").replace(/_/g, "/"),
+        "base64",
+      )
+
+const scalar = Buffer.from(
+  hkdfSync("sha256", masterBytes, Buffer.alloc(0), "kody-vapid:v1", 32),
+)
+
+const ecdh = createECDH("prime256v1")
+ecdh.setPrivateKey(scalar)
+const pub = ecdh.getPublicKey()
 
 process.stdout.write(
-  `\n` +
-    `VAPID_PUBLIC_KEY=${publicKey}\n` +
-    `VAPID_PRIVATE_KEY=${privateKey}\n` +
-    `# VAPID_SUBJECT=mailto:you@example.com\n` +
-    `\n` +
-    `Add the lines above to:\n` +
-    `  - Vercel -> Project Settings -> Environment Variables (Production + Preview)\n` +
-    `  - Your password manager (1Password / Bitwarden / etc.) for recovery\n\n` +
-    `Losing the private key invalidates every existing browser subscription —\n` +
-    `users will need to re-enable push from their device.\n\n`,
+  `\nVAPID public key:  ${base64Url(pub)}\n` +
+    `VAPID private key: ${base64Url(scalar)}\n\n` +
+    `These are derived from KODY_MASTER_KEY — you do NOT need to set them\n` +
+    `as separate env vars in Vercel. Bump the HKDF info string ("kody-vapid:v1")\n` +
+    `in src/dashboard/lib/push/vapid-keys.ts to rotate.\n\n`,
 )
