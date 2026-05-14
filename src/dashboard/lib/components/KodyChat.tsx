@@ -380,6 +380,7 @@ import {
   deleteAttachment,
   purgeOrphans,
 } from '../attachment-store'
+import { BrainFlyStatusBar } from './BrainFlyStatusBar'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useRemoteStatus } from '../hooks/useRemoteStatus'
 import { useVoiceChat } from '../hooks/useVoiceChat'
@@ -4123,6 +4124,9 @@ export function KodyChat({
               ) : null}
             </div>
           </div>
+        ) : null}
+        {selectedAgentId === 'brain-fly' ? (
+          <BrainFlyStatusBar headers={authHeaders()} />
         ) : null}
         <div className="flex gap-2 items-end">
           {/* Attachment button */}
