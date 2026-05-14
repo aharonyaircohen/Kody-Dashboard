@@ -22,6 +22,7 @@ import {
   Target,
   CheckCircle2,
   Loader2,
+  ChevronDown,
 } from 'lucide-react'
 import { AGENT, AGENTS, type AgentId, type AgentConfig } from '../agents'
 
@@ -967,6 +968,8 @@ export function KodyChat({
   const [voiceMuted, setVoiceMuted] = useState(false)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const [isAtBottom, setIsAtBottom] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
 
@@ -1847,13 +1850,25 @@ export function KodyChat({
     )
   }, [isJobMode, jobSlug, currentJobMessages])
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior })
+    setIsAtBottom(true)
+  }, [])
+
+  // Track whether the user is pinned to the bottom. We only auto-scroll on new
+  // content when they are — otherwise scrolling up to read history would fight
+  // every streamed token. Threshold is generous (80px) to account for the
+  // input bar and "new messages" pill overlap.
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesContainerRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    setIsAtBottom(distanceFromBottom < 80)
   }, [])
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages, loading, scrollToBottom])
+    if (isAtBottom) scrollToBottom()
+  }, [messages, loading, isAtBottom, scrollToBottom])
 
   // Cleanup SSE on unmount
   useEffect(() => {
@@ -3618,8 +3633,14 @@ export function KodyChat({
         <SessionSidebar
           sessions={sessionHook.sessions}
           activeSessionId={sessionHook.activeSession?.id || null}
-          onSwitchSession={sessionHook.switchSession}
-          onCreateSession={sessionHook.createSession}
+          onSwitchSession={(id) => {
+            sessionHook.switchSession(id)
+            setShowSessionSidebar(false)
+          }}
+          onCreateSession={() => {
+            sessionHook.createSession()
+            setShowSessionSidebar(false)
+          }}
           onDeleteSession={sessionHook.deleteSession}
           onRenameSession={sessionHook.renameSession}
           onPinSession={sessionHook.pinSession}
@@ -3894,7 +3915,11 @@ export function KodyChat({
       )}
 
       {/* Messages area */}
-      <div className="flex-1 overflow-auto px-1.5 py-2 sm:p-4 space-y-4">
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleMessagesScroll}
+        className="flex-1 overflow-auto px-1.5 py-2 sm:p-4 space-y-4 relative"
+      >
         {messages.length === 0 && !loading && !isLoadingTaskChat && (
           <div className="text-center text-muted-foreground text-base py-8">
             {isTaskMode ? (
@@ -4142,6 +4167,23 @@ export function KodyChat({
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* "Jump to latest" pill — visible only when the user has scrolled up
+          and is therefore not pinned to the bottom. Clicking re-engages
+          sticky scrolling. */}
+      {!isAtBottom && (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => scrollToBottom('smooth')}
+            className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:opacity-90 transition-opacity"
+            aria-label="Jump to latest messages"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+            {loading ? 'New messages' : 'Jump to latest'}
+          </button>
+        </div>
+      )}
 
       {/* Attachments preview */}
       {attachments.length > 0 && (
