@@ -253,13 +253,16 @@ test.describe('Kody Live — watchdog + reducer (live)', () => {
     //   4. STATUS_RESULT(runnerAlive=false) → reducer flips to 'stuck'.
     //   5. Banner shows "Runner stuck — restart?" with Restart button.
     //   6. Restart click → FORCE_RESET + startInteractiveSession → booting.
-    testInfo.setTimeout(180_000) // 3 min — most of it is the new boot.
+    testInfo.setTimeout(240_000) // ~150s watchdog deadline + status round trip + grace
     const { owner, repo } = parseRepo(TEST_REPO)
 
-    // Real session ID in Kody-Engine-Tester with only chat.ready committed.
-    // (Created during earlier E2E runs that got cancelled.) Confirmed via
-    //   curl /api/kody/chat/session/{this id}/status → runnerAlive: false
-    const ZOMBIE_SESSION_ID = 'global-1778767409173-dlgai1'
+    // Synthetic session ID that does NOT exist in the events repo. The
+    // dashboard rehydrates as 'booting', polling /events returns 404
+    // (no file), no RUNNER_READY ever dispatches, phase stays in
+    // 'booting', watchdog fires after 5s (its floor — our seeded
+    // startedAt is in the past so deadline is already exceeded), and
+    // /status reports zombie via the clientLastEventAt branch.
+    const ZOMBIE_SESSION_ID = `watchdog-e2e-zombie-${Date.now()}`
 
     // Establish origin so localStorage is reachable. /login is fine even
     // if it redirects — localStorage is shared across paths on the same
@@ -334,34 +337,25 @@ test.describe('Kody Live — watchdog + reducer (live)', () => {
       page.getByText(/elapsed|Almost ready|Warming up|Installing|Setting up|Queueing/i),
     ).toBeVisible({ timeout: 15_000 })
 
-    // 2. Watchdog fires after 5s, /status returns runnerAlive=false,
-    //    STATUS_RESULT flips reducer to 'stuck'. Wait up to 30s for the
-    //    round trip — generous because /status fetches from GitHub.
+    // 2. Watchdog fires after the booting deadline (~150s). On rehydrate
+    //    the reducer resets lastEventAt to Date.now() (so the runner gets
+    //    a grace window before being declared dead post-refresh), which
+    //    means the watchdog uses the full 150s deadline regardless of
+    //    how old our seeded startedAt is. /status then returns
+    //    runnerAlive=false (no events file + clientLastEventAt old
+    //    enough) and STATUS_RESULT flips the reducer to 'stuck'.
     await expect(page.getByText(/Runner stuck/i)).toBeVisible({
-      timeout: 30_000,
+      timeout: 200_000,
     })
     await expect(
       page.getByRole('button', { name: /^Restart$/ }),
     ).toBeVisible()
 
-    // 3. Click Restart → FORCE_RESET + new startInteractiveSession.
-    await page.getByRole('button', { name: /^Restart$/ }).click()
-    await expect(page.getByText(/elapsed|Watching .* → Actions/i)).toBeVisible({
-      timeout: 15_000,
-    })
-
-    // 4. Cancel the new run we just spawned — we don't actually need it.
-    //    The reducer is in 'booting'; the test goal is met.
-    const phase = await readPhaseFromBanner(page)
-    expect(phase).toBe('booting')
-
-    const newRun = await findRecentKodyRun(owner, repo)
-    if (newRun) {
-      try {
-        await cancelRun(owner, repo, newRun.id)
-      } catch {
-        /* best-effort cleanup */
-      }
-    }
+    // We deliberately do NOT click Restart here — that would spawn a
+    // real GHA workflow to verify the rebound to 'booting', and the
+    // soft-path test already exercises start→booting from the same
+    // entry point. The reducer's FORCE_RESET → START transition is
+    // covered by unit tests. This test's scope is the new code path:
+    // watchdog → /status → STATUS_RESULT → 'stuck' banner.
   })
 })
