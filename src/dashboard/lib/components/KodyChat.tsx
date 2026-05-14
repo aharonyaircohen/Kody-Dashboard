@@ -3535,12 +3535,64 @@ export function KodyChat({
     voiceChatRef.current?.stopConversation()
   }, [voiceOverlayOpen])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter or ⌘/Ctrl+Enter sends; Shift+Enter inserts a newline as usual.
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       sendMessage()
+      return
+    }
+    // Esc aborts a streaming reply.
+    if (e.key === 'Escape' && loading) {
+      e.preventDefault()
+      handleStop()
+      return
+    }
+    // ↑ on an empty composer recalls the last user message for editing —
+    // matches the shell history convention.
+    if (e.key === 'ArrowUp' && !input && attachments.length === 0) {
+      const lastUser = [...messages].reverse().find((m) => m.role === 'user')
+      if (lastUser) {
+        e.preventDefault()
+        setInput(lastUser.content)
+      }
     }
   }
+
+  // Global ⌘/Ctrl+K toggles the sessions sidebar. Skips when a modifier-less
+  // key would interfere with native browser shortcuts.
+  useEffect(() => {
+    if (!isGlobalMode) return
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setShowSessionSidebar((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isGlobalMode])
+
+  // Auto-title sessions once the conversation has substance. Triggers when:
+  //   - global mode (per-session sidebar shown)
+  //   - the current session still has the default "New conversation" title
+  //   - at least one full user → assistant exchange has streamed in
+  //   - no reply is currently streaming (avoid mid-stream rename flicker)
+  // Title is derived locally from the first user message — cheap, no extra
+  // backend call, and good enough to make the sidebar legible. Can be
+  // upgraded to an LLM-generated title later if needed.
+  useEffect(() => {
+    if (!isGlobalMode || loading) return
+    const session = sessionHook.activeSession
+    if (!session || session.title !== 'New conversation') return
+    const firstUser = messages.find((m) => m.role === 'user')
+    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+    if (!firstUser || !lastAssistant || !lastAssistant.content.trim()) return
+    const raw = firstUser.content.trim().replace(/\s+/g, ' ')
+    if (raw.length === 0) return
+    const title = raw.length > 48 ? `${raw.slice(0, 48).trim()}…` : raw
+    sessionHook.renameSession(session.id, title)
+  }, [isGlobalMode, loading, messages, sessionHook])
 
   const handleStop = () => {
     // Cancel every backend the chat can be talking to. Each abort/close
@@ -4054,18 +4106,32 @@ export function KodyChat({
                 onRetry={
                   msg.role === 'assistant' && i === messages.length - 1
                     ? () => {
-                        /* TODO: Implement retry */
+                        // Walk back to the last user message. Drop both that
+                        // user turn AND the failed assistant reply — sendText
+                        // pushes a fresh user bubble, so trimming both keeps
+                        // the transcript intact (no duplicate user msg).
+                        let userIdx = -1
+                        for (let j = i - 1; j >= 0; j--) {
+                          if (messages[j].role === 'user') {
+                            userIdx = j
+                            break
+                          }
+                        }
+                        if (userIdx < 0) return
+                        const lastUserContent = messages[userIdx].content
+                        setMessages((prev) => prev.slice(0, userIdx))
+                        void sendText(lastUserContent, [])
                       }
                     : undefined
                 }
                 onEdit={
                   msg.role === 'user'
                     ? (content) => {
-                        setMessages((prev) => {
-                          const newMessages = [...prev]
-                          newMessages[i] = { ...newMessages[i], content }
-                          return newMessages
-                        })
+                        // Drop the edited user msg + everything after it,
+                        // then resubmit. sendText repushes the user bubble
+                        // with the new content, so we don't keep the old one.
+                        setMessages((prev) => prev.slice(0, i))
+                        void sendText(content, [])
                       }
                     : undefined
                 }
