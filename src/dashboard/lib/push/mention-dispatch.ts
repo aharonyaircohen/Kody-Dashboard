@@ -249,9 +249,11 @@ export async function dispatchMentionPushes(
       clearGitHubContext();
     }
 
-    const authorLower = ev.author?.toLowerCase();
+    // Note: we used to drop the author from the mention set so people
+    // didn't ping themselves when typing `@me` in their own comment. The
+    // user pointed out that's a footgun — if someone @s themselves it's
+    // almost always intentional (a reminder, a self-cc), so respect it.
     const mentionSet = new Set(mentions);
-    if (authorLower) mentionSet.delete(authorLower);
     if (mentionSet.size === 0) return;
 
     const targets = subs.filter((s) => {
