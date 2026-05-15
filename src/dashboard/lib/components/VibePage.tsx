@@ -417,12 +417,7 @@ export function VibePage() {
         desktopExtras={
           <div className="flex items-center gap-3 min-w-0">
             {selectedTask?.associatedPR ? (
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xs text-zinc-500 truncate hidden lg:inline max-w-[220px]">
-                  #{selectedTask.issueNumber} {selectedTask.title}
-                </span>
-                <CIStatusBadge prNumber={selectedTask.associatedPR.number} />
-              </div>
+              <CIStatusBadge prNumber={selectedTask.associatedPR.number} />
             ) : null}
             <PageActions
               onOpenBranchCleanup={() => setShowBranchCleanup(true)}
