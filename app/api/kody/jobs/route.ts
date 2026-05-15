@@ -71,6 +71,7 @@ const createJobSchema = z.object({
     .enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d", "manual"])
     .nullable()
     .optional(),
+  disabled: z.boolean().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -99,6 +100,7 @@ export async function POST(req: NextRequest) {
       title,
       body,
       schedule,
+      disabled,
       actorLogin,
     } = createJobSchema.parse(payload);
 
@@ -142,6 +144,7 @@ export async function POST(req: NextRequest) {
       title,
       body,
       schedule: schedule ?? null,
+      disabled: disabled === true,
     });
 
     return NextResponse.json({ job });

@@ -54,6 +54,13 @@ export interface JobFile {
    * whatever the file declares.
    */
   schedule: ScheduleEvery | null;
+  /**
+   * Mirrors `disabled: true` in the frontmatter. When `true` the engine
+   * skips this job on every cron wake; manual triggers still fire. The
+   * dashboard reads this to render the enable/disable toggle and the
+   * "disabled" pill in list rows.
+   */
+  disabled: boolean;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -271,6 +278,7 @@ export async function listJobFiles(): Promise<JobFile[]> {
           lastTickAt,
           nextEligibleAt,
           schedule: frontmatter.every ?? null,
+          disabled: frontmatter.disabled === true,
           htmlUrl: buildHtmlUrl(slug, branch),
         } satisfies JobFile;
       } catch {
@@ -318,6 +326,7 @@ export async function readJobFile(slug: string): Promise<JobFile | null> {
       lastTickAt,
       nextEligibleAt,
       schedule: frontmatter.every ?? null,
+      disabled: frontmatter.disabled === true,
       htmlUrl: buildHtmlUrl(slug, branch),
     };
   } catch (error: any) {
@@ -336,6 +345,12 @@ interface WriteOptions {
    * no `every:` line, leaving the job on the global cron tick.
    */
   schedule?: ScheduleEvery | null;
+  /**
+   * When `true`, emits `disabled: true` in frontmatter so the scheduler
+   * skips this job on every cron wake. Absent or `false` keeps the job
+   * active.
+   */
+  disabled?: boolean;
   /** SHA of the existing blob; omit on create. */
   sha?: string;
   /** Commit message override. */
@@ -346,10 +361,14 @@ function buildFileContent(
   title: string,
   body: string,
   schedule: ScheduleEvery | null,
+  disabled: boolean,
 ): string {
   const trimmedBody = body.replace(/^\s+/, "");
   const titled = `# ${title.trim()}\n\n${trimmedBody}${trimmedBody.endsWith("\n") ? "" : "\n"}`;
-  return joinFrontmatter(schedule ? { every: schedule } : {}, titled);
+  const fm: JobFrontmatter = {};
+  if (schedule) fm.every = schedule;
+  if (disabled) fm.disabled = true;
+  return joinFrontmatter(fm, titled);
 }
 
 /**
@@ -367,6 +386,7 @@ export async function writeJobFile(opts: WriteOptions): Promise<JobFile> {
     opts.title,
     opts.body,
     opts.schedule ?? null,
+    opts.disabled === true,
   );
   const message =
     opts.message ??

@@ -19,6 +19,8 @@ import {
   Pencil,
   Play,
   Plus,
+  Power,
+  PowerOff,
   RefreshCw,
   Sparkles,
   Target,
@@ -284,6 +286,7 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
                         className={cn(
                           "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                           isActive && "bg-accent/70",
+                          job.disabled && "opacity-60",
                         )}
                       >
                         {isActive ? (
@@ -301,6 +304,15 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
                           <span className="font-medium text-sm truncate flex-1">
                             {job.title}
                           </span>
+                          {job.disabled ? (
+                            <span
+                              className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
+                              title="Scheduler skips this job. Manual Run still works."
+                            >
+                              <PowerOff className="w-2.5 h-2.5" />
+                              Disabled
+                            </span>
+                          ) : null}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                           <span className="font-mono opacity-80">
@@ -313,10 +325,12 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
                           </span>
                           <ScheduleInline schedule={job.schedule} />
                           <LastTickInline lastTickAt={job.lastTickAt} />
-                          <NextRunInline
-                            nextEligibleAt={job.nextEligibleAt}
-                            schedule={job.schedule}
-                          />
+                          {!job.disabled ? (
+                            <NextRunInline
+                              nextEligibleAt={job.nextEligibleAt}
+                              schedule={job.schedule}
+                            />
+                          ) : null}
                         </div>
                       </button>
                     </li>
@@ -442,6 +456,13 @@ function JobDetail({
   isRunning: boolean;
 }) {
   const hasBody = job.body.trim().length > 0;
+  const { githubUser } = useGitHubIdentity();
+  const updateMutation = useUpdateJob(job.slug, githubUser?.login);
+  const isToggling = updateMutation.isPending;
+  const toggleDisabled = () => {
+    if (isToggling) return;
+    updateMutation.mutate({ disabled: !job.disabled });
+  };
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -462,8 +483,17 @@ function JobDetail({
                 <Target className="w-3.5 h-3.5" />
                 Job
               </div>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words">
-                {job.title}
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words inline-flex items-center gap-3 flex-wrap">
+                <span>{job.title}</span>
+                {job.disabled ? (
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
+                    title="Scheduler skips this job. Manual Run still works."
+                  >
+                    <PowerOff className="w-3 h-3" />
+                    Disabled
+                  </span>
+                ) : null}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span className="font-mono opacity-80">{job.slug}</span>
@@ -474,10 +504,12 @@ function JobDetail({
                 </span>
                 <ScheduleInline schedule={job.schedule} />
                 <LastTickDetail lastTickAt={job.lastTickAt} />
-                <NextRunDetail
-                  nextEligibleAt={job.nextEligibleAt}
-                  schedule={job.schedule}
-                />
+                {!job.disabled ? (
+                  <NextRunDetail
+                    nextEligibleAt={job.nextEligibleAt}
+                    schedule={job.schedule}
+                  />
+                ) : null}
                 <span>·</span>
                 <a
                   href={job.htmlUrl}
@@ -496,30 +528,55 @@ function JobDetail({
                 size="sm"
                 onClick={onRun}
                 disabled={isRunning}
-                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="w-9 px-0 bg-emerald-600 hover:bg-emerald-700 text-white"
+                title={isRunning ? "Dispatching…" : "Run job now"}
+                aria-label="Run job now"
               >
                 <Play className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">
-                  {isRunning ? "Dispatching…" : "Run"}
-                </span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleDisabled}
+                disabled={isToggling}
+                title={
+                  job.disabled
+                    ? "Enable scheduler (auto-ticks resume)"
+                    : "Disable scheduler (manual Run still works)"
+                }
+                aria-label={
+                  job.disabled ? "Enable job scheduler" : "Disable job scheduler"
+                }
+                className={cn(
+                  "w-9 px-0",
+                  job.disabled && "text-amber-400",
+                )}
+              >
+                {job.disabled ? (
+                  <PowerOff className="w-3.5 h-3.5" />
+                ) : (
+                  <Power className="w-3.5 h-3.5" />
+                )}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={onEdit}
-                className="gap-1.5"
+                className="w-9 px-0"
+                title="Edit job"
+                aria-label="Edit job"
               >
                 <Pencil className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Edit</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={onDelete}
-                className="gap-1.5 text-red-400"
+                className="w-9 px-0 text-red-400"
+                title="Delete job"
+                aria-label="Delete job"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Close</span>
               </Button>
             </div>
           </header>

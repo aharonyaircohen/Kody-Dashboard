@@ -866,6 +866,11 @@ export interface Job {
    * (every 15 min). Engine-side gating ships separately.
    */
   schedule: JobSchedule | null;
+  /**
+   * Mirrors `disabled: true` in the frontmatter. When `true` the engine
+   * scheduler skips this job; manual "Run now" still fires.
+   */
+  disabled: boolean;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -890,6 +895,7 @@ export const jobsApi = {
     title: string;
     body: string;
     schedule?: JobSchedule | null;
+    disabled?: boolean;
     actorLogin?: string;
   }): Promise<Job> => {
     const res = await fetch(`${API_BASE}/jobs`, {
@@ -907,6 +913,7 @@ export const jobsApi = {
       title?: string;
       body?: string;
       schedule?: JobSchedule | null;
+      disabled?: boolean;
       actorLogin?: string;
     },
   ): Promise<Job> => {

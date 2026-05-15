@@ -58,6 +58,7 @@ export function useCreateJob(actorLogin?: string) {
       title: string;
       body: string;
       schedule?: JobSchedule | null;
+      disabled?: boolean;
     }
   >({
     mutationFn: (data) =>
@@ -81,7 +82,12 @@ export function useUpdateJob(slug: string, actorLogin?: string) {
   return useMutation<
     Job,
     Error,
-    { title?: string; body?: string; schedule?: JobSchedule | null }
+    {
+      title?: string;
+      body?: string;
+      schedule?: JobSchedule | null;
+      disabled?: boolean;
+    }
   >({
     mutationFn: (data) =>
       kodyApi.jobs.update(slug, {

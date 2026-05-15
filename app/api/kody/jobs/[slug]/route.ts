@@ -68,6 +68,7 @@ const updateJobSchema = z.object({
     .enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d", "manual"])
     .nullable()
     .optional(),
+  disabled: z.boolean().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -94,7 +95,7 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, body, schedule, actorLogin } =
+    const { title, body, schedule, disabled, actorLogin } =
       updateJobSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
@@ -117,6 +118,7 @@ export async function PATCH(
       title: title ?? existing.title,
       body: body ?? existing.body,
       schedule: schedule === undefined ? existing.schedule : schedule,
+      disabled: disabled === undefined ? existing.disabled : disabled,
       sha: existing.sha,
     });
 

@@ -47,6 +47,13 @@ const SCHEDULE_EVERY_VALUES: readonly ScheduleEvery[] = [
 export interface JobFrontmatter {
   /** Cadence between ticks. Absent = "every cron wake" (legacy default). */
   every?: ScheduleEvery;
+  /**
+   * When `true`, the scheduler skips this job on every cron wake. Manual
+   * triggers (the dashboard "Run now" button) still fire — disabling only
+   * blocks autonomous execution, not deliberate user action. Absent or
+   * `false` keeps the job active.
+   */
+  disabled?: boolean;
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -165,6 +172,11 @@ function parseFlatYaml(text: string): JobFrontmatter {
     const value = stripQuotes(line.slice(colon + 1).trim());
     if (key === "every" && isScheduleEvery(value)) {
       out.every = value;
+    } else if (key === "disabled") {
+      // Accept true/false (any case); anything else stays absent.
+      const lower = value.toLowerCase();
+      if (lower === "true") out.disabled = true;
+      else if (lower === "false") out.disabled = false;
     }
     // Unknown keys silently dropped on read — they round-trip via the
     // raw body if callers preserve it. We don't surface them on the
@@ -176,6 +188,9 @@ function parseFlatYaml(text: string): JobFrontmatter {
 function serializeFlatYaml(frontmatter: JobFrontmatter): string[] {
   const lines: string[] = [];
   if (frontmatter.every) lines.push(`every: ${frontmatter.every}`);
+  // Only emit `disabled: true` — the default (enabled) leaves the line
+  // out so an unchanged job file stays byte-identical.
+  if (frontmatter.disabled === true) lines.push(`disabled: true`);
   return lines;
 }
 
