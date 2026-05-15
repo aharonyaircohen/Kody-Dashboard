@@ -91,7 +91,6 @@ export function PublishButton({ actorLogin, onPublished, triggerClassName }: Pub
           className={triggerClassName ?? "gap-1"}
         >
           <Rocket className={`w-4 h-4 ${pending ? "animate-pulse" : ""}`} />
-          {pending ? "Publishing…" : "Publish"}
         </Button>
       </SimpleTooltip>
 

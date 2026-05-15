@@ -189,7 +189,6 @@ export function KodyHeader({
           >
             <Link href="/jobs">
               <Layers className="w-4 h-4" />
-              <span className="hidden lg:inline">Jobs</span>
             </Link>
           </Button>
         </SimpleTooltip>
@@ -204,7 +203,6 @@ export function KodyHeader({
           >
             <Link href="/changelog">
               <ScrollText className="w-4 h-4" />
-              <span className="hidden lg:inline">Changelog</span>
             </Link>
           </Button>
         </SimpleTooltip>
@@ -220,7 +218,6 @@ export function KodyHeader({
             className="gap-1"
           >
             <GitBranch className="w-4 h-4" />
-            Cleanup
           </Button>
         </SimpleTooltip>
 

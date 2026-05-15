@@ -44,7 +44,6 @@ export function VibeToggle({ className }: { className?: string }) {
             on ? 'text-fuchsia-300' : 'text-muted-foreground',
           )}
         />
-        <span>Vibe</span>
       </Link>
     </SimpleTooltip>
   )
