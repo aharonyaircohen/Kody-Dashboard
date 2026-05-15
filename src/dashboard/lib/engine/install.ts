@@ -6,19 +6,25 @@
  *
  * Pulls the canonical `kody.yml` from the `@kody-ade/kody-engine` npm
  * package (via unpkg), commits it to `.github/workflows/kody.yml` in
- * the target repo, and (best-effort) registers the dashboard webhook so
- * push-based cache invalidation works from day one.
+ * the target repo, (best-effort) writes the user's PAT as the
+ * `KODY_TOKEN` Actions secret so the engine has GitHub auth at runtime,
+ * and (best-effort) registers the dashboard webhook so push-based cache
+ * invalidation works from day one.
  *
  * Idempotent: re-running on a configured repo syncs the workflow to the
- * latest template and refreshes the webhook subscription.
+ * latest template, refreshes the `KODY_TOKEN` secret, and refreshes the
+ * webhook subscription.
  *
- * Does NOT set Actions secrets. Dashboard PATs usually lack
- * `repo:secrets:write`, and `KODY_TOKEN` needs a fine-grained PAT the
- * user mints by hand. Returns `nextSteps` so the caller can surface them.
+ * The `KODY_TOKEN` write needs `repo:secrets:write` on the PAT (a normal
+ * `repo`-scoped fine-grained PAT covers this). When it fails we soft-fail
+ * and surface a `nextSteps` entry so the user can set the secret manually.
  */
 import type { Octokit } from '@octokit/rest'
+import sodium from 'libsodium-wrappers'
 import { logger } from '@dashboard/lib/logger'
 import { ensureWebhook } from '@dashboard/lib/webhooks/register'
+
+export const KODY_TOKEN_SECRET = 'KODY_TOKEN'
 
 export const TEMPLATE_URL =
   'https://unpkg.com/@kody-ade/kody-engine@latest/templates/kody.yml'
@@ -54,6 +60,11 @@ export interface InstallEngineResult {
     hookId?: number
     error?: string
   }
+  kodyTokenSecret: {
+    ok: boolean
+    name: string
+    error?: string
+  }
   nextSteps: string[]
   summary: string
 }
@@ -80,6 +91,55 @@ async function fetchTemplate(): Promise<string> {
     )
   }
   return body
+}
+
+async function encryptForRepo(
+  value: string,
+  base64PublicKey: string,
+): Promise<string> {
+  await sodium.ready
+  const messageBytes = sodium.from_string(value)
+  const keyBytes = sodium.from_base64(
+    base64PublicKey,
+    sodium.base64_variants.ORIGINAL,
+  )
+  const encryptedBytes = sodium.crypto_box_seal(messageBytes, keyBytes)
+  return sodium.to_base64(encryptedBytes, sodium.base64_variants.ORIGINAL)
+}
+
+/**
+ * Best-effort: encrypt `value` against the repo's Actions public key and
+ * upsert it as the `secretName` repo secret. Returns `{ ok: false, error }`
+ * on any failure — callers should surface the error in `nextSteps` rather
+ * than aborting the install.
+ */
+async function setRepoActionsSecret(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  secretName: string,
+  value: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const { data: key } = await octokit.rest.actions.getRepoPublicKey({
+      owner,
+      repo,
+    })
+    const encrypted_value = await encryptForRepo(value, key.key)
+    await octokit.rest.actions.createOrUpdateRepoSecret({
+      owner,
+      repo,
+      secret_name: secretName,
+      encrypted_value,
+      key_id: key.key_id,
+    })
+    return { ok: true }
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'set_repo_secret_failed',
+    }
+  }
 }
 
 async function readExisting(
@@ -152,6 +212,22 @@ export async function installEngine(
       workflowHtmlUrl = data.content?.html_url ?? null
     }
 
+    const kodyTokenResult = await setRepoActionsSecret(
+      octokit,
+      owner,
+      repo,
+      KODY_TOKEN_SECRET,
+      token,
+    )
+    const kodyTokenSecret: InstallEngineResult['kodyTokenSecret'] =
+      kodyTokenResult.ok
+        ? { ok: true, name: KODY_TOKEN_SECRET }
+        : {
+            ok: false,
+            name: KODY_TOKEN_SECRET,
+            error: kodyTokenResult.error,
+          }
+
     let webhook: InstallEngineResult['webhook']
     try {
       const result = await ensureWebhook({ token, owner, repo, hookUrl })
@@ -175,6 +251,7 @@ export async function installEngine(
         workflowAction,
         workflowCommitSha,
         webhookOk: webhook.ok,
+        kodyTokenSecretOk: kodyTokenSecret.ok,
       },
       'installEngine: installed engine workflow',
     )
@@ -184,20 +261,34 @@ export async function installEngine(
         '`*_API_KEY` secret automatically via `toJSON(secrets)` — common picks: ' +
         '`MINIMAX_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`. ' +
         `Repo settings: https://github.com/${owner}/${repo}/settings/secrets/actions/new`,
-      'Recommended: also add `KODY_TOKEN` — a fine-grained PAT with `repo`, ' +
-        '`read:org`, and `workflow` scopes. Without it, commits touching ' +
-        '`.github/workflows/*` are rejected and PR-body updates degrade. ' +
-        'Mint one at https://github.com/settings/personal-access-tokens/new',
       'Pick "Kody Live" (or "Kody Live Fly") in the chat agent dropdown to ' +
         'verify the workflow runs. First dispatch cold-starts in ~30s.',
     ]
+    if (!kodyTokenSecret.ok) {
+      nextSteps.unshift(
+        `Couldn't auto-set the \`${KODY_TOKEN_SECRET}\` Actions secret ` +
+          `(${kodyTokenSecret.error ?? 'unknown error'}). The PAT used here ` +
+          'likely lacks `repo:secrets:write`. Without it the engine has no ' +
+          'GitHub auth at runtime — labels, comments and PR updates will fail. ' +
+          'Either re-mint the PAT with secrets write access and re-run /init, ' +
+          `or add the secret by hand: ` +
+          `https://github.com/${owner}/${repo}/settings/secrets/actions/new`,
+      )
+    }
 
-    const summary =
+    const tokenSummary = kodyTokenSecret.ok
+      ? `${KODY_TOKEN_SECRET} secret ${workflowAction === 'created' ? 'set' : 'refreshed'}.`
+      : `${KODY_TOKEN_SECRET} secret FAILED — ${kodyTokenSecret.error ?? 'unknown'}.`
+    const webhookSummary = webhook.ok
+      ? `Webhook ${workflowAction === 'created' ? 'registered' : 'refreshed'}.`
+      : `Webhook FAILED — ${webhook.error ?? 'unknown'}.`
+    const workflowSummary =
       workflowAction === 'created'
-        ? `Engine workflow created at ${WORKFLOW_PATH}. Webhook ${webhook.ok ? 'registered' : 'FAILED — ' + (webhook.error ?? 'unknown')}.`
+        ? `Engine workflow created at ${WORKFLOW_PATH}.`
         : workflowAction === 'updated'
-          ? `Engine workflow updated to the latest template. Webhook ${webhook.ok ? 'refreshed' : 'FAILED — ' + (webhook.error ?? 'unknown')}.`
-          : `Engine workflow already matches the latest template — no commit needed. Webhook ${webhook.ok ? 'refreshed' : 'FAILED — ' + (webhook.error ?? 'unknown')}.`
+          ? 'Engine workflow updated to the latest template.'
+          : 'Engine workflow already matches the latest template — no commit needed.'
+    const summary = `${workflowSummary} ${tokenSummary} ${webhookSummary}`
 
     return {
       ok: true,
@@ -209,6 +300,7 @@ export async function installEngine(
         templateSource: TEMPLATE_URL,
       },
       webhook,
+      kodyTokenSecret,
       nextSteps,
       summary,
     }
