@@ -10,11 +10,11 @@
  *   Groq, OpenRouter, Mistral). One model entry, one secret, one provider.
  */
 
-import { z } from "zod"
-import type { NextRequest } from "next/server"
-import { getVariable } from "./get-variable"
+import { z } from "zod";
+import type { NextRequest } from "next/server";
+import { getVariable } from "./get-variable";
 
-export const VAR_LLM_MODELS = "LLM_MODELS"
+export const VAR_LLM_MODELS = "LLM_MODELS";
 
 /**
  * Built-in provider presets. The UI uses these to auto-fill `baseURL` and
@@ -76,13 +76,15 @@ export const PROVIDER_PRESETS = {
     baseURL: "",
     keyHint: "API_KEY",
   },
-} as const
+} as const;
 
-export type ProviderPreset = keyof typeof PROVIDER_PRESETS
-export const PROVIDER_PRESET_IDS = Object.keys(PROVIDER_PRESETS) as ProviderPreset[]
+export type ProviderPreset = keyof typeof PROVIDER_PRESETS;
+export const PROVIDER_PRESET_IDS = Object.keys(
+  PROVIDER_PRESETS,
+) as ProviderPreset[];
 
-export const ChatProtocolSchema = z.enum(["anthropic", "openai"])
-export type ChatProtocol = z.infer<typeof ChatProtocolSchema>
+export const ChatProtocolSchema = z.enum(["anthropic", "openai"]);
+export type ChatProtocol = z.infer<typeof ChatProtocolSchema>;
 
 export const ChatModelSchema = z.object({
   /** Stable id, also the React key. Free-form; the UI defaults to
@@ -92,7 +94,9 @@ export const ChatModelSchema = z.object({
   label: z.string().min(1).max(80),
   /** Which preset this entry was created from. Drives the UI's defaults,
    * not the runtime — runtime uses `protocol` + `baseURL` directly. */
-  provider: z.enum(PROVIDER_PRESET_IDS as [ProviderPreset, ...ProviderPreset[]]),
+  provider: z.enum(
+    PROVIDER_PRESET_IDS as [ProviderPreset, ...ProviderPreset[]],
+  ),
   /** Wire protocol — picks the SDK at request time. */
   protocol: ChatProtocolSchema,
   /** Endpoint base URL (without trailing slash). Empty string means
@@ -114,22 +118,22 @@ export const ChatModelSchema = z.object({
    * let a model run a longer research chain; the function-level
    * `maxDuration` (300s) still bounds wall-clock time regardless. */
   maxSteps: z.number().int().min(1).max(500).optional(),
-})
+});
 
-export const ChatModelsSchema = z.array(ChatModelSchema)
+export const ChatModelsSchema = z.array(ChatModelSchema);
 
-export type ChatModel = z.infer<typeof ChatModelSchema>
+export type ChatModel = z.infer<typeof ChatModelSchema>;
 
 export async function loadChatModels(req: NextRequest): Promise<ChatModel[]> {
-  const raw = await getVariable(VAR_LLM_MODELS, { req })
-  if (!raw) return []
+  const raw = await getVariable(VAR_LLM_MODELS, { req });
+  if (!raw) return [];
   try {
-    const parsed = JSON.parse(raw)
-    const result = ChatModelsSchema.safeParse(parsed)
-    if (!result.success) return []
-    return result.data
+    const parsed = JSON.parse(raw);
+    const result = ChatModelsSchema.safeParse(parsed);
+    if (!result.success) return [];
+    return result.data;
   } catch {
-    return []
+    return [];
   }
 }
 
@@ -137,11 +141,11 @@ export function pickModelById(
   models: ChatModel[],
   id: string | undefined | null,
 ): ChatModel | null {
-  if (!id) return null
-  return models.find((m) => m.enabled !== false && m.id === id) ?? null
+  if (!id) return null;
+  return models.find((m) => m.enabled !== false && m.id === id) ?? null;
 }
 
 export function pickDefaultModel(models: ChatModel[]): ChatModel | null {
-  const enabled = models.filter((m) => m.enabled !== false)
-  return enabled.find((m) => m.default === true) ?? enabled[0] ?? null
+  const enabled = models.filter((m) => m.enabled !== false);
+  return enabled.find((m) => m.default === true) ?? enabled[0] ?? null;
 }

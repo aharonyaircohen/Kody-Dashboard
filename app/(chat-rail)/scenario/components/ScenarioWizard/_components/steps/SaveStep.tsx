@@ -4,21 +4,24 @@
  * @pattern save-step
  * @ai-summary Step 4: Preview, save and export scenario
  */
-'use client'
+"use client";
 
-import { Button } from '@dashboard/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@dashboard/ui/card'
-import { Badge } from '@dashboard/ui/badge'
-import { Save, Github, Download } from 'lucide-react'
-import type { Scenario, DSComponent } from '@dashboard/lib/scenario-schema-stub'
+import { Button } from "@dashboard/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@dashboard/ui/card";
+import { Badge } from "@dashboard/ui/badge";
+import { Save, Github, Download } from "lucide-react";
+import type {
+  Scenario,
+  DSComponent,
+} from "@dashboard/lib/scenario-schema-stub";
 
 interface SaveStepProps {
-  scenario: Partial<Scenario>
-  selectedPrototype: string | null
-  selectedComponents: DSComponent[]
-  onSave: () => Promise<void>
-  onCreateGitHubIssue: () => void
-  onExport: (format: 'playwright') => Promise<void>
+  scenario: Partial<Scenario>;
+  selectedPrototype: string | null;
+  selectedComponents: DSComponent[];
+  onSave: () => Promise<void>;
+  onCreateGitHubIssue: () => void;
+  onExport: (format: "playwright") => Promise<void>;
 }
 
 export function SaveStep({
@@ -33,21 +36,29 @@ export function SaveStep({
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold mb-2">Preview & Save</h2>
-        <p className="text-muted-foreground">Review your scenario and choose how to proceed.</p>
+        <p className="text-muted-foreground">
+          Review your scenario and choose how to proceed.
+        </p>
       </div>
 
       {/* Summary Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{scenario.name || 'Untitled Scenario'}</CardTitle>
+          <CardTitle className="text-base">
+            {scenario.name || "Untitled Scenario"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-4 text-sm">
-            <Badge variant="outline">{scenario.type || 'feature'}</Badge>
+            <Badge variant="outline">{scenario.type || "feature"}</Badge>
             {selectedPrototype && (
-              <span className="text-muted-foreground">Prototype: {selectedPrototype}</span>
+              <span className="text-muted-foreground">
+                Prototype: {selectedPrototype}
+              </span>
             )}
-            <span className="text-muted-foreground">{scenario.steps?.length || 0} steps</span>
+            <span className="text-muted-foreground">
+              {scenario.steps?.length || 0} steps
+            </span>
           </div>
 
           {scenario.steps && scenario.steps.length > 0 && (
@@ -57,7 +68,8 @@ export function SaveStep({
                   <Badge variant="outline" className="mr-2 text-xs">
                     {step.type}
                   </Badge>
-                  {step.action} <span className="text-muted-foreground">{step.target}</span>
+                  {step.action}{" "}
+                  <span className="text-muted-foreground">{step.target}</span>
                 </div>
               ))}
             </div>
@@ -85,11 +97,11 @@ export function SaveStep({
           <Github className="h-4 w-4 mr-2" />
           Create GitHub Issue
         </Button>
-        <Button variant="outline" onClick={() => onExport('playwright')}>
+        <Button variant="outline" onClick={() => onExport("playwright")}>
           <Download className="h-4 w-4 mr-2" />
           Export Playwright
         </Button>
       </div>
     </div>
-  )
+  );
 }

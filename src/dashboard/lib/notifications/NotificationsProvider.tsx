@@ -14,19 +14,19 @@
  *   `useNotifications()` returns a no-op surface when called outside the
  *   provider so unauthenticated renders (e.g. the empty-state RepoManager) don't crash.
  */
-'use client'
+"use client";
 
-import { createContext, useContext, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 
-import { useBrowserNotifications } from '../hooks/useBrowserNotifications'
-import { useNotificationStore } from './useNotificationStore'
-import type { UseNotificationStoreReturn } from './useNotificationStore'
+import { useBrowserNotifications } from "../hooks/useBrowserNotifications";
+import { useNotificationStore } from "./useNotificationStore";
+import type { UseNotificationStoreReturn } from "./useNotificationStore";
 
 export interface NotificationsApi {
-  store: UseNotificationStoreReturn
-  permission: NotificationPermission
-  isSupported: boolean
-  requestPermission: () => void
+  store: UseNotificationStoreReturn;
+  permission: NotificationPermission;
+  isSupported: boolean;
+  requestPermission: () => void;
 }
 
 const NOOP_STORE: UseNotificationStoreReturn = {
@@ -41,37 +41,38 @@ const NOOP_STORE: UseNotificationStoreReturn = {
   updatePrefs: () => {},
   toggleType: () => {},
   isTypeEnabled: () => false,
-}
+};
 
 const NOOP_API: NotificationsApi = {
   store: NOOP_STORE,
-  permission: 'default',
+  permission: "default",
   isSupported: false,
   requestPermission: () => {},
-}
+};
 
-const NotificationsContext = createContext<NotificationsApi | null>(null)
+const NotificationsContext = createContext<NotificationsApi | null>(null);
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const store = useNotificationStore()
-  const { permission, isSupported, requestPermission } = useBrowserNotifications({
-    store,
-  })
+  const store = useNotificationStore();
+  const { permission, isSupported, requestPermission } =
+    useBrowserNotifications({
+      store,
+    });
 
   const value = useMemo<NotificationsApi>(
     () => ({ store, permission, isSupported, requestPermission }),
     [store, permission, isSupported, requestPermission],
-  )
+  );
 
   return (
     <NotificationsContext.Provider value={value}>
       {children}
     </NotificationsContext.Provider>
-  )
+  );
 }
 
 /** Read the shared notifications API. Returns a no-op surface when called
  *  outside the provider so unauthenticated routes don't crash. */
 export function useNotifications(): NotificationsApi {
-  return useContext(NotificationsContext) ?? NOOP_API
+  return useContext(NotificationsContext) ?? NOOP_API;
 }

@@ -219,9 +219,7 @@ export function KodyDashboard({
     // (/new, /bug). The modal owns the foreground; background list will
     // refresh on close via invalidation.
     refetchInterval:
-      selectedIssueNumber || showCreateDialog || showBugDialog
-        ? false
-        : "auto",
+      selectedIssueNumber || showCreateDialog || showBugDialog ? false : "auto",
   });
 
   // Default-branch CI roll-up — banner uses this as its primary signal so
@@ -274,7 +272,8 @@ export function KodyDashboard({
   );
 
   // GitHub identity — verified via OAuth session cookie
-  const { githubUser, connectedRepo, authError, clearGitHubUser } = useGitHubIdentity();
+  const { githubUser, connectedRepo, authError, clearGitHubUser } =
+    useGitHubIdentity();
 
   // Auth presence — when no PAT is saved we render the dashboard chrome
   // normally but swap the task pane for `<RepoManager />` so the user
@@ -495,7 +494,9 @@ export function KodyDashboard({
   // `useBrowserNotifications` here (with the shared store) to get the
   // dashboard-specific `checkTaskChanges` callback used below.
   const { store: notificationStore } = useNotifications();
-  const { checkTaskChanges } = useBrowserNotifications({ store: notificationStore });
+  const { checkTaskChanges } = useBrowserNotifications({
+    store: notificationStore,
+  });
 
   // Check for task changes when tasks update
   useEffect(() => {
@@ -594,7 +595,14 @@ export function KodyDashboard({
         // is visible under its goal section.
         showAllStates: taskListLayout === "grouped",
       }),
-    [tasks, viewMode, statusFilter, labelFilter, priorityFilter, taskListLayout],
+    [
+      tasks,
+      viewMode,
+      statusFilter,
+      labelFilter,
+      priorityFilter,
+      taskListLayout,
+    ],
   );
   const searchedTasks = useMemo(() => {
     if (!debouncedSearch.trim()) return baseFilteredTasks;
@@ -683,9 +691,7 @@ export function KodyDashboard({
   const retryAfter = isRateLimited
     ? (error as RateLimitError).retryAfter
     : null;
-  const resetTime = isRateLimited
-    ? (error as RateLimitError).resetTime
-    : null;
+  const resetTime = isRateLimited ? (error as RateLimitError).resetTime : null;
 
   // Live-tick "X minutes" countdown derived from the GitHub
   // x-ratelimit-reset epoch. Falls back to the static `retryAfter` string
@@ -800,11 +806,7 @@ export function KodyDashboard({
           existingGoalLabels
             .filter((l) => l !== targetLabel)
             .map((l) =>
-              kodyApi.tasks.removeLabel(
-                task.issueNumber,
-                l,
-                githubUser?.login,
-              ),
+              kodyApi.tasks.removeLabel(task.issueNumber, l, githubUser?.login),
             ),
         );
         // Add the target label (if we have one and the task doesn't already carry it)
@@ -1117,13 +1119,14 @@ export function KodyDashboard({
           Authentication Error
         </h2>
         <p className="text-muted-foreground mb-4">
-          Your session is invalid. Ensure <code>GITHUB_TOKEN</code> is set in your environment variables.
+          Your session is invalid. Ensure <code>GITHUB_TOKEN</code> is set in
+          your environment variables.
         </p>
         <div className="flex flex-col items-center gap-2">
           <Button onClick={() => refetch()}>Retry</Button>
           {mobileChatEscapeHatch}
         </div>
-      </div>
+      </div>,
     );
   }
 
@@ -1143,7 +1146,7 @@ export function KodyDashboard({
           <Button onClick={() => refetch()}>Retry</Button>
           {mobileChatEscapeHatch}
         </div>
-      </div>
+      </div>,
     );
   }
 
@@ -1157,15 +1160,21 @@ export function KodyDashboard({
         </h2>
         <p className="text-muted-foreground mb-4">{authError}</p>
         <p className="text-sm text-muted-foreground mb-4">
-          Check that your token has access to the repository and try logging in again.
+          Check that your token has access to the repository and try logging in
+          again.
         </p>
         <div className="flex flex-col items-center gap-2">
-          <Button onClick={() => { localStorage.removeItem('kody_auth'); window.location.href = '/' }}>
+          <Button
+            onClick={() => {
+              localStorage.removeItem("kody_auth");
+              window.location.href = "/";
+            }}
+          >
             Connect repository
           </Button>
           {mobileChatEscapeHatch}
         </div>
-      </div>
+      </div>,
     );
   }
 
@@ -1191,7 +1200,7 @@ export function KodyDashboard({
           <Button onClick={() => refetch()}>Retry now</Button>
           {mobileChatEscapeHatch}
         </div>
-      </div>
+      </div>,
     );
   }
 
@@ -1208,7 +1217,7 @@ export function KodyDashboard({
           <Button onClick={() => refetch()}>Retry</Button>
           {mobileChatEscapeHatch}
         </div>
-      </div>
+      </div>,
     );
   }
 
@@ -1258,7 +1267,9 @@ export function KodyDashboard({
                 onOpenMobileMenu={() => setShowMobileMenu(true)}
                 onRefresh={() => {
                   refetch();
-                  queryClient.invalidateQueries({ queryKey: goalQueryKeys.list });
+                  queryClient.invalidateQueries({
+                    queryKey: goalQueryKeys.list,
+                  });
                 }}
                 isFetching={isFetching}
               />
@@ -1600,14 +1611,16 @@ export function KodyDashboard({
                     className="w-full justify-start gap-2 h-11"
                     onClick={() => {
                       refetch();
-                      queryClient.invalidateQueries({ queryKey: goalQueryKeys.list });
+                      queryClient.invalidateQueries({
+                        queryKey: goalQueryKeys.list,
+                      });
                     }}
                     disabled={isFetching}
                   >
                     <RefreshCw
                       className={cn(
-                        'w-4 h-4 text-muted-foreground',
-                        isFetching && 'animate-spin',
+                        "w-4 h-4 text-muted-foreground",
+                        isFetching && "animate-spin",
                       )}
                     />
                     Refresh
@@ -1615,14 +1628,16 @@ export function KodyDashboard({
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-2 h-11"
-                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                    onClick={() =>
+                      setTheme(theme === "dark" ? "light" : "dark")
+                    }
                   >
-                    {theme === 'dark' ? (
+                    {theme === "dark" ? (
                       <Sun className="w-4 h-4 text-muted-foreground" />
                     ) : (
                       <Moon className="w-4 h-4 text-muted-foreground" />
                     )}
-                    {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                    {theme === "dark" ? "Light mode" : "Dark mode"}
                   </Button>
                   <Button
                     variant="ghost"
@@ -1703,9 +1718,7 @@ export function KodyDashboard({
               : undefined
           }
           presetLabels={
-            presetGoalForCreate
-              ? [`goal:${presetGoalForCreate.id}`]
-              : undefined
+            presetGoalForCreate ? [`goal:${presetGoalForCreate.id}`] : undefined
           }
         />
 

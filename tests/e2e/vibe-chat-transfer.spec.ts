@@ -14,64 +14,64 @@
  * component should detect this and run the transfer logic.
  */
 
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page } from "@playwright/test";
 
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3333'
-const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? 'ghp_placeholder'
+const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
+const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "ghp_placeholder";
 const TEST_REPO =
-  process.env.E2E_GITHUB_REPO ?? 'https://github.com/test-owner/test-repo'
+  process.env.E2E_GITHUB_REPO ?? "https://github.com/test-owner/test-repo";
 
 function parseRepo(url: string): { owner: string; repo: string } {
   try {
-    const u = new URL(url)
-    const parts = u.pathname.replace(/^\//, '').split('/').filter(Boolean)
+    const u = new URL(url);
+    const parts = u.pathname.replace(/^\//, "").split("/").filter(Boolean);
     return {
-      owner: parts[0] ?? 'test-owner',
-      repo: parts[1] ?? 'test-repo',
-    }
+      owner: parts[0] ?? "test-owner",
+      repo: parts[1] ?? "test-repo",
+    };
   } catch {
-    return { owner: 'test-owner', repo: 'test-repo' }
+    return { owner: "test-owner", repo: "test-repo" };
   }
 }
 
 async function injectAuth(page: Page): Promise<void> {
-  const { owner, repo } = parseRepo(TEST_REPO)
+  const { owner, repo } = parseRepo(TEST_REPO);
   await page.evaluate(
-    (auth) => localStorage.setItem('kody_auth', JSON.stringify(auth)),
+    (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
     {
       repoUrl: TEST_REPO,
       owner,
       repo,
       token: TEST_TOKEN,
-      user: { login: 'transfer-e2e', avatar_url: '', id: 1 },
+      user: { login: "transfer-e2e", avatar_url: "", id: 1 },
       loggedInAt: Date.now(),
     },
-  )
+  );
 }
 
 function sseBody(events: unknown[]): string {
-  return events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('')
+  return events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
 }
 
-test.describe('Vibe — chat transfer on issue create', () => {
+test.describe("Vibe — chat transfer on issue create", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`)
-    await page.waitForLoadState('domcontentloaded')
-    await injectAuth(page)
-  })
+    await page.goto(`${BASE_URL}/login`);
+    await page.waitForLoadState("domcontentloaded");
+    await injectAuth(page);
+  });
 
-  test('issue-creation tool result transfers chat to the new issue and clears the source', async ({
+  test("issue-creation tool result transfers chat to the new issue and clears the source", async ({
     page,
   }) => {
-    const NEW_ISSUE = 9999
+    const NEW_ISSUE = 9999;
 
     // Mock the tasks endpoint so /vibe doesn't sit in the loading skeleton.
     // First call returns empty; once the chat creates the issue and the
     // page invalidates the query, subsequent calls return the new task.
     // The API returns `{ tasks: KodyTask[] }`; tasksApi.list reads `.tasks`.
-    let tasksFetchCount = 0
-    await page.route('**/api/kody/tasks*', async (route) => {
-      tasksFetchCount += 1
+    let tasksFetchCount = 0;
+    await page.route("**/api/kody/tasks*", async (route) => {
+      tasksFetchCount += 1;
       const tasks =
         tasksFetchCount === 1
           ? []
@@ -79,82 +79,84 @@ test.describe('Vibe — chat transfer on issue create', () => {
               {
                 id: String(NEW_ISSUE),
                 issueNumber: NEW_ISSUE,
-                title: 'Update landing page text',
-                body: '',
-                state: 'open',
-                labels: ['enhancement'],
-                column: 'open',
+                title: "Update landing page text",
+                body: "",
+                state: "open",
+                labels: ["enhancement"],
+                column: "open",
                 kodyPhase: null,
                 kodyFlow: null,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
               },
-            ]
+            ];
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify({ tasks }),
-      })
-    })
+      });
+    });
 
     // Mock the dashboard config endpoint (used by /vibe).
-    await page.route('**/api/kody/config*', (route) =>
+    await page.route("**/api/kody/config*", (route) =>
       route.fulfill({
         status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ config: { defaultPreviewUrl: '' } }),
+        contentType: "application/json",
+        body: JSON.stringify({ config: { defaultPreviewUrl: "" } }),
       }),
-    )
+    );
 
     // Mock the user-managed chat models list — provide one entry so the
     // dropdown lets the user pick a kody-direct model.
-    await page.route('**/api/kody/models*', (route) =>
+    await page.route("**/api/kody/models*", (route) =>
       route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify({
           models: [
             {
-              id: 'gemini-2.5-pro',
-              provider: 'gemini',
-              modelName: 'gemini-2.5-pro',
-              label: 'Gemini 2.5 Pro',
-              apiKeySecret: 'GEMINI_API_KEY',
-              baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-              protocol: 'openai',
+              id: "gemini-2.5-pro",
+              provider: "gemini",
+              modelName: "gemini-2.5-pro",
+              label: "Gemini 2.5 Pro",
+              apiKeySecret: "GEMINI_API_KEY",
+              baseURL:
+                "https://generativelanguage.googleapis.com/v1beta/openai/",
+              protocol: "openai",
               enabled: true,
               isDefault: true,
             },
           ],
         }),
       }),
-    )
+    );
 
     // Mock the chat load endpoint — task has no branch, returns empty.
-    await page.route('**/api/kody/chat/load*', (route) =>
+    await page.route("**/api/kody/chat/load*", (route) =>
       route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify({ sessions: [] }),
       }),
-    )
+    );
 
     // Mock the chat save endpoint — accept the POST and return success.
-    let savedToServer:
-      | { taskId?: string; messages?: { role: string; text: string }[] }
-      | null = null
-    await page.route('**/api/kody/chat/save', async (route, req) => {
+    let savedToServer: {
+      taskId?: string;
+      messages?: { role: string; text: string }[];
+    } | null = null;
+    await page.route("**/api/kody/chat/save", async (route, req) => {
       try {
-        savedToServer = JSON.parse(req.postData() ?? 'null')
+        savedToServer = JSON.parse(req.postData() ?? "null");
       } catch {
         /* ignore */
       }
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify({ success: true }),
-      })
-    })
+      });
+    });
 
     // Mock the interactive runner start endpoint. We need the kickoff
     // assertion below to verify it was hit, but we DON'T want it to
@@ -163,55 +165,58 @@ test.describe('Vibe — chat transfer on issue create', () => {
     // hitting the real backend. We also record the call so the test can
     // assert it happened — `waitForRequest` only catches FUTURE matches,
     // and the kickoff can fire before the assertion is registered.
-    let interactiveStartCalled = false
-    let interactiveStartTaskId: string | null = null
+    let interactiveStartCalled = false;
+    let interactiveStartTaskId: string | null = null;
     await page.route(
-      '**/api/kody/chat/interactive/start*',
+      "**/api/kody/chat/interactive/start*",
       async (route, req) => {
-        interactiveStartCalled = true
+        interactiveStartCalled = true;
         try {
-          const body = JSON.parse(req.postData() ?? '{}') as {
-            taskId?: string
-          }
-          interactiveStartTaskId = body.taskId ?? null
+          const body = JSON.parse(req.postData() ?? "{}") as {
+            taskId?: string;
+          };
+          interactiveStartTaskId = body.taskId ?? null;
         } catch {
           /* ignore */
         }
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
-            taskId: interactiveStartTaskId ?? 'mock-session',
-            mode: 'interactive',
+            taskId: interactiveStartTaskId ?? "mock-session",
+            mode: "interactive",
             target: {
-              owner: 'test-owner',
-              repo: 'test-repo',
-              branch: 'main',
-              workflow: 'kody.yml',
+              owner: "test-owner",
+              repo: "test-repo",
+              branch: "main",
+              workflow: "kody.yml",
             },
           }),
-        })
+        });
       },
-    )
+    );
     // Also mock the append endpoint so the kickoff message doesn't
     // 404 against a non-existent backend.
-    let interactiveAppendBody: { content?: string; taskContext?: { issueNumber?: number } } | null = null
+    let interactiveAppendBody: {
+      content?: string;
+      taskContext?: { issueNumber?: number };
+    } | null = null;
     await page.route(
-      '**/api/kody/chat/interactive/append',
+      "**/api/kody/chat/interactive/append",
       async (route, req) => {
         try {
-          interactiveAppendBody = JSON.parse(req.postData() ?? 'null')
+          interactiveAppendBody = JSON.parse(req.postData() ?? "null");
         } catch {
           /* ignore */
         }
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({ ok: true }),
-        })
+        });
       },
-    )
+    );
 
     // Mock /api/kody/chat/kody to stream a UI-message-stream SSE response
     // matching the *real* vibe-mode turn where the agent fires TWO tools
@@ -220,153 +225,156 @@ test.describe('Vibe — chat transfer on issue create', () => {
     // switch_agent directive in its output to flip the chat to
     // kody-live). This exercises the same post-stream code path as
     // production (pendingSwitchAgent + pendingCreatedIssue both set).
-    await page.route('**/api/kody/chat/kody', async (route) => {
+    await page.route("**/api/kody/chat/kody", async (route) => {
       const events = [
-        { type: 'text-delta', delta: "I'll create the issue now.\n" },
+        { type: "text-delta", delta: "I'll create the issue now.\n" },
         {
-          type: 'tool-input-available',
-          toolCallId: 'call_1',
-          toolName: 'create_enhancement',
-          input: { title: 'Update landing page text' },
+          type: "tool-input-available",
+          toolCallId: "call_1",
+          toolName: "create_enhancement",
+          input: { title: "Update landing page text" },
         },
         {
-          type: 'tool-output-available',
-          toolCallId: 'call_1',
+          type: "tool-output-available",
+          toolCallId: "call_1",
           output: {
             number: NEW_ISSUE,
-            title: 'Update landing page text',
+            title: "Update landing page text",
             url: `https://github.com/test-owner/test-repo/issues/${NEW_ISSUE}`,
-            labels: ['enhancement'],
+            labels: ["enhancement"],
             assignees: [],
-            priority: 'P2',
-            category: 'enhancement',
-            note: 'Done.',
+            priority: "P2",
+            category: "enhancement",
+            note: "Done.",
           },
         },
         {
-          type: 'tool-input-available',
-          toolCallId: 'call_2',
-          toolName: 'vibe_start_execution',
-          input: { issueNumber: NEW_ISSUE, targetAgent: 'kody-live' },
+          type: "tool-input-available",
+          toolCallId: "call_2",
+          toolName: "vibe_start_execution",
+          input: { issueNumber: NEW_ISSUE, targetAgent: "kody-live" },
         },
         {
-          type: 'tool-output-available',
-          toolCallId: 'call_2',
+          type: "tool-output-available",
+          toolCallId: "call_2",
           output: {
-            action: 'switch_agent',
-            agentId: 'kody-live',
-            agentName: 'Kody Live',
-            reason: 'Vibe execution started.',
-            autoKickoff: 'Implement issue now.',
+            action: "switch_agent",
+            agentId: "kody-live",
+            agentName: "Kody Live",
+            reason: "Vibe execution started.",
+            autoKickoff: "Implement issue now.",
             autoKickoffIssueNumber: NEW_ISSUE,
             branch: `${NEW_ISSUE}-update-landing-page-text`,
             prNumber: 12345,
             prUrl: `https://github.com/test-owner/test-repo/pull/12345`,
             reused: false,
-            note: 'Handed off.',
+            note: "Handed off.",
           },
         },
-        { type: 'text-delta', delta: 'Created and handed off.' },
-      ]
+        { type: "text-delta", delta: "Created and handed off." },
+      ];
       await route.fulfill({
         status: 200,
         headers: {
-          'content-type': 'text/event-stream; charset=utf-8',
-          'cache-control': 'no-cache',
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
         },
         body: sseBody(events),
-      })
-    })
+      });
+    });
 
     // Land on /vibe with no issue selected (=> chat is in global mode).
-    await page.goto(`${BASE_URL}/vibe`)
-    await page.waitForLoadState('domcontentloaded')
+    await page.goto(`${BASE_URL}/vibe`);
+    await page.waitForLoadState("domcontentloaded");
 
-    const viewport = await page.viewportSize()
+    const viewport = await page.viewportSize();
     if ((viewport?.width ?? 1280) < 768) {
-      test.skip(true, 'chat rail hidden on mobile')
-      return
+      test.skip(true, "chat rail hidden on mobile");
+      return;
     }
 
     // Pick the user-managed Gemini model (kody-direct backend).
     const trigger = page
-      .locator('button')
+      .locator("button")
       .filter({ hasText: /Gemini|Kody(\s|$)|Brain/ })
-      .first()
-    await trigger.click()
-    const listbox = page.getByRole('listbox')
-    await listbox.waitFor({ state: 'visible', timeout: 5_000 })
+      .first();
+    await trigger.click();
+    const listbox = page.getByRole("listbox");
+    await listbox.waitFor({ state: "visible", timeout: 5_000 });
     await listbox
-      .getByRole('option', { name: /Gemini 2\.5 Pro/ })
+      .getByRole("option", { name: /Gemini 2\.5 Pro/ })
       .click()
       .catch(async () => {
         // Fallback: pick whichever Kody option exists.
-        await listbox.getByRole('option').first().click()
-      })
+        await listbox.getByRole("option").first().click();
+      });
 
     // Type a user message and send.
     const input = page
       .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
-      .first()
-    await input.waitFor({ state: 'visible', timeout: 10_000 })
-    await input.fill('please update the landing page text')
-    await input.press('Enter')
+      .first();
+    await input.waitFor({ state: "visible", timeout: 10_000 });
+    await input.fill("please update the landing page text");
+    await input.press("Enter");
 
     // The Vibe page should navigate to ?issue=9999 after onIssueCreated fires
     // (proxy for: stream completed AND issue-creation handler ran AND VibePage
     // listener fired).
     await page.waitForURL(new RegExp(`/vibe\\?issue=${NEW_ISSUE}`), {
       timeout: 15_000,
-    })
+    });
 
     // localStorage under the new task's id should contain the transferred
     // user + assistant messages. This is what the new task's chat hydrates
     // from when the user lands on the issue.
     const stored = await page.evaluate(
-      (issueNum) =>
-        window.localStorage.getItem(`kody-task-chat-${issueNum}`),
+      (issueNum) => window.localStorage.getItem(`kody-task-chat-${issueNum}`),
       NEW_ISSUE,
-    )
-    expect(stored, 'expected localStorage entry for the new issue').toBeTruthy()
+    );
+    expect(
+      stored,
+      "expected localStorage entry for the new issue",
+    ).toBeTruthy();
     const parsed = JSON.parse(stored as string) as Array<{
-      role: string
-      text: string
-    }>
-    const roles = parsed.map((m) => m.role)
-    expect(roles, 'transferred chat must include user + assistant turns').toEqual(
-      expect.arrayContaining(['user', 'assistant']),
-    )
-    const userMsg = parsed.find((m) => m.role === 'user')
-    expect(userMsg?.text).toContain('update the landing page text')
-    const assistantMsg = parsed.find((m) => m.role === 'assistant')
-    expect(assistantMsg?.text).toContain('Created and handed off.')
+      role: string;
+      text: string;
+    }>;
+    const roles = parsed.map((m) => m.role);
+    expect(
+      roles,
+      "transferred chat must include user + assistant turns",
+    ).toEqual(expect.arrayContaining(["user", "assistant"]));
+    const userMsg = parsed.find((m) => m.role === "user");
+    expect(userMsg?.text).toContain("update the landing page text");
+    const assistantMsg = parsed.find((m) => m.role === "assistant");
+    expect(assistantMsg?.text).toContain("Created and handed off.");
 
     // Server save should have been hit with the same payload.
     const saved = savedToServer as {
-      taskId?: string
-      messages?: Array<{ role: string; text: string }>
-    } | null
-    expect(saved?.taskId, 'server save should target the new task').toBe(
+      taskId?: string;
+      messages?: Array<{ role: string; text: string }>;
+    } | null;
+    expect(saved?.taskId, "server save should target the new task").toBe(
       String(NEW_ISSUE),
-    )
+    );
     expect(
       saved?.messages?.some(
-        (m) => m.role === 'user' && m.text.includes('landing page'),
+        (m) => m.role === "user" && m.text.includes("landing page"),
       ),
-      'server save should include the user message',
-    ).toBe(true)
+      "server save should include the user message",
+    ).toBe(true);
 
     // Finally — assert the user sees the transferred messages in the new
     // issue's chat. The chat scope flips to the new task once the tasks
     // query refetches; the chat then hydrates from localStorage.
     const assistantBubble = page
-      .locator('.prose')
-      .filter({ hasText: 'Created and handed off.' })
-      .first()
+      .locator(".prose")
+      .filter({ hasText: "Created and handed off." })
+      .first();
     await expect(
       assistantBubble,
-      'new issue chat should hydrate with the transferred assistant text',
-    ).toBeVisible({ timeout: 15_000 })
+      "new issue chat should hydrate with the transferred assistant text",
+    ).toBeVisible({ timeout: 15_000 });
 
     // Regression: the auto-kickoff must dispatch the runner. The
     // useEffect waits for `selectedAgentId === 'kody-live'` AND
@@ -380,18 +388,19 @@ test.describe('Vibe — chat transfer on issue create', () => {
     // assertion is reached.
     await expect
       .poll(() => interactiveStartCalled, { timeout: 20_000 })
-      .toBe(true)
+      .toBe(true);
     expect(
       interactiveAppendBody,
-      'append must be hit with the kickoff content',
-    ).toBeTruthy()
+      "append must be hit with the kickoff content",
+    ).toBeTruthy();
     expect(
-      (interactiveAppendBody as unknown as { content?: string } | null)?.content,
-      'append content must include the kickoff string',
-    ).toContain('Implement issue now.')
-  })
+      (interactiveAppendBody as unknown as { content?: string } | null)
+        ?.content,
+      "append content must include the kickoff string",
+    ).toContain("Implement issue now.");
+  });
 
-  test('detects issue creation by output shape when tool-input-available is missing', async ({
+  test("detects issue creation by output shape when tool-input-available is missing", async ({
     page,
   }) => {
     // Real-world failure mode: the AI SDK occasionally elides the
@@ -399,21 +408,21 @@ test.describe('Vibe — chat transfer on issue create', () => {
     // single block of input without deltas), so `toolNameById` never
     // gets populated. The detection must still fire on shape alone —
     // `{ number, url:/issues/..., no prNumber, no branch }`.
-    const NEW_ISSUE = 7777
-    await page.route('**/api/kody/tasks*', (route) =>
+    const NEW_ISSUE = 7777;
+    await page.route("**/api/kody/tasks*", (route) =>
       route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify({
           tasks: [
             {
               id: String(NEW_ISSUE),
               issueNumber: NEW_ISSUE,
-              title: 'Shape-only test',
-              body: '',
-              state: 'open',
+              title: "Shape-only test",
+              body: "",
+              state: "open",
               labels: [],
-              column: 'open',
+              column: "open",
               kodyPhase: null,
               kodyFlow: null,
               createdAt: new Date().toISOString(),
@@ -422,108 +431,111 @@ test.describe('Vibe — chat transfer on issue create', () => {
           ],
         }),
       }),
-    )
-    await page.route('**/api/kody/config*', (route) =>
+    );
+    await page.route("**/api/kody/config*", (route) =>
       route.fulfill({
         status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ config: { defaultPreviewUrl: '' } }),
+        contentType: "application/json",
+        body: JSON.stringify({ config: { defaultPreviewUrl: "" } }),
       }),
-    )
-    await page.route('**/api/kody/models*', (route) =>
+    );
+    await page.route("**/api/kody/models*", (route) =>
       route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify({
           models: [
             {
-              id: 'gemini-2.5-pro',
-              provider: 'gemini',
-              modelName: 'gemini-2.5-pro',
-              label: 'Gemini 2.5 Pro',
-              apiKeySecret: 'GEMINI_API_KEY',
-              baseURL: 'https://example/v1/',
-              protocol: 'openai',
+              id: "gemini-2.5-pro",
+              provider: "gemini",
+              modelName: "gemini-2.5-pro",
+              label: "Gemini 2.5 Pro",
+              apiKeySecret: "GEMINI_API_KEY",
+              baseURL: "https://example/v1/",
+              protocol: "openai",
               enabled: true,
               isDefault: true,
             },
           ],
         }),
       }),
-    )
-    await page.route('**/api/kody/chat/load*', (route) =>
+    );
+    await page.route("**/api/kody/chat/load*", (route) =>
       route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify({ sessions: [] }),
       }),
-    )
-    await page.route('**/api/kody/chat/save', (route) =>
+    );
+    await page.route("**/api/kody/chat/save", (route) =>
       route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify({ success: true }),
       }),
-    )
+    );
 
     // Mock the stream WITHOUT a `tool-input-available` chunk — only
     // `tool-output-available` with an issue-shaped output. Shape-based
     // detection must still capture the issue number.
-    await page.route('**/api/kody/chat/kody', (route) =>
+    await page.route("**/api/kody/chat/kody", (route) =>
       route.fulfill({
         status: 200,
         headers: {
-          'content-type': 'text/event-stream; charset=utf-8',
-          'cache-control': 'no-cache',
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
         },
         body: sseBody([
-          { type: 'text-delta', delta: 'ok' },
+          { type: "text-delta", delta: "ok" },
           {
-            type: 'tool-output-available',
-            toolCallId: 'orphan',
+            type: "tool-output-available",
+            toolCallId: "orphan",
             output: {
               number: NEW_ISSUE,
-              title: 'Shape-only test',
+              title: "Shape-only test",
               url: `https://github.com/test-owner/test-repo/issues/${NEW_ISSUE}`,
             },
           },
         ]),
       }),
-    )
+    );
 
-    await page.goto(`${BASE_URL}/vibe`)
-    await page.waitForLoadState('domcontentloaded')
+    await page.goto(`${BASE_URL}/vibe`);
+    await page.waitForLoadState("domcontentloaded");
 
-    const viewport = await page.viewportSize()
+    const viewport = await page.viewportSize();
     if ((viewport?.width ?? 1280) < 768) {
-      test.skip(true, 'chat rail hidden on mobile')
-      return
+      test.skip(true, "chat rail hidden on mobile");
+      return;
     }
 
     const trigger = page
-      .locator('button')
+      .locator("button")
       .filter({ hasText: /Gemini|Kody(\s|$)|Brain/ })
-      .first()
-    await trigger.click()
-    const listbox = page.getByRole('listbox')
-    await listbox.waitFor({ state: 'visible', timeout: 5_000 })
-    await listbox.getByRole('option', { name: /Gemini 2\.5 Pro/ }).click()
+      .first();
+    await trigger.click();
+    const listbox = page.getByRole("listbox");
+    await listbox.waitFor({ state: "visible", timeout: 5_000 });
+    await listbox.getByRole("option", { name: /Gemini 2\.5 Pro/ }).click();
 
     const input = page
       .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
-      .first()
-    await input.waitFor({ state: 'visible', timeout: 10_000 })
-    await input.fill('shape test')
-    await input.press('Enter')
+      .first();
+    await input.waitFor({ state: "visible", timeout: 10_000 });
+    await input.fill("shape test");
+    await input.press("Enter");
 
     await page.waitForURL(new RegExp(`/vibe\\?issue=${NEW_ISSUE}`), {
       timeout: 15_000,
-    })
+    });
 
     const stored = await page.evaluate(
       (n) => window.localStorage.getItem(`kody-task-chat-${n}`),
       NEW_ISSUE,
-    )
-    expect(stored, 'shape-only detection must save to localStorage').toBeTruthy()
-  })
-})
+    );
+    expect(
+      stored,
+      "shape-only detection must save to localStorage",
+    ).toBeTruthy();
+  });
+});

@@ -1,7 +1,7 @@
-import Script from 'next/script'
-import React from 'react'
+import Script from "next/script";
+import React from "react";
 
-import { defaultTheme, themeLocalStorageKey } from '../shared'
+import { defaultTheme, themeLocalStorageKey } from "../shared";
 
 export const InitTheme: React.FC = () => {
   return (
@@ -46,5 +46,5 @@ export const InitTheme: React.FC = () => {
       id="theme-script"
       strategy="beforeInteractive"
     />
-  )
-}
+  );
+};

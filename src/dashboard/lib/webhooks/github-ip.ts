@@ -39,7 +39,9 @@ let inflightActions: Promise<string[]> | null = null;
  * delivery CIDR ranges. Returns false for missing/invalid input or when
  * the meta endpoint can't be reached and we have no cached list.
  */
-export async function isFromGitHub(ip: string | null | undefined): Promise<boolean> {
+export async function isFromGitHub(
+  ip: string | null | undefined,
+): Promise<boolean> {
   return matchAgainstField(ip, "hooks");
 }
 
@@ -49,7 +51,9 @@ export async function isFromGitHub(ip: string | null | undefined): Promise<boole
  * a shared HMAC secret. Same trust model as isFromGitHub — TCP+TLS make
  * spoofing infeasible from the public internet.
  */
-export async function isFromGitHubActions(ip: string | null | undefined): Promise<boolean> {
+export async function isFromGitHubActions(
+  ip: string | null | undefined,
+): Promise<boolean> {
   return matchAgainstField(ip, "actions");
 }
 
@@ -64,7 +68,10 @@ async function matchAgainstField(
   try {
     cidrs = await getCidrs(field);
   } catch (err) {
-    logger.warn({ event: "github_ip_meta_fetch_failed", err, field }, "Could not fetch GitHub meta");
+    logger.warn(
+      { event: "github_ip_meta_fetch_failed", err, field },
+      "Could not fetch GitHub meta",
+    );
     return false;
   }
   return cidrs.some((cidr) => ipInCidr(cleaned, cidr));
@@ -109,7 +116,10 @@ async function getCidrs(field: "hooks" | "actions"): Promise<string[]> {
 
 async function fetchCidrs(field: "hooks" | "actions"): Promise<string[]> {
   const res = await fetch(META_URL, {
-    headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+    headers: {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
   });
   if (!res.ok) throw new Error(`meta ${res.status}`);
   const json = (await res.json()) as { hooks?: string[]; actions?: string[] };
@@ -146,7 +156,7 @@ function ipInCidr(ip: string, cidr: string): boolean {
     if (a == null || b == null) return false;
     if (bits === 0) return true;
     if (bits > 32) return false;
-    const mask = bits === 32 ? 0xffffffff : (~((1 << (32 - bits)) - 1)) >>> 0;
+    const mask = bits === 32 ? 0xffffffff : ~((1 << (32 - bits)) - 1) >>> 0;
     return (a & mask) === (b & mask);
   }
 
@@ -185,7 +195,12 @@ function ipv6ToBytes(ip: string): Uint8Array | null {
   if (ipv4Match) {
     const v4 = ipv4ToInt(ipv4Match[1]);
     if (v4 == null) return null;
-    ipv4Tail = [(v4 >>> 24) & 0xff, (v4 >>> 16) & 0xff, (v4 >>> 8) & 0xff, v4 & 0xff];
+    ipv4Tail = [
+      (v4 >>> 24) & 0xff,
+      (v4 >>> 16) & 0xff,
+      (v4 >>> 8) & 0xff,
+      v4 & 0xff,
+    ];
     ipv6Part = ip.slice(0, ip.length - ipv4Match[0].length + 1);
     if (ipv6Part.endsWith(":") && !ipv6Part.endsWith("::")) {
       ipv6Part = ipv6Part.slice(0, -1);

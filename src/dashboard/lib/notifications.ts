@@ -192,7 +192,8 @@ function sanitizeChannel(v: unknown): NotificationChannel | null {
         jsonTemplate:
           typeof c.jsonTemplate === "string" ? c.jsonTemplate : undefined,
         bodyFormat: bodyFormat === "form" ? "form" : undefined,
-        headers: headers && Object.keys(headers).length > 0 ? headers : undefined,
+        headers:
+          headers && Object.keys(headers).length > 0 ? headers : undefined,
       };
     }
     case "web-push":
@@ -224,11 +225,7 @@ export function parseManifestBody(
 
   try {
     const parsed = JSON.parse(json) as Partial<NotificationsManifest>;
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      !Array.isArray(parsed.rules)
-    ) {
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.rules)) {
       return { version: 1, rules: [] };
     }
     const rules: NotificationRule[] = [];
@@ -261,9 +258,7 @@ export function parseManifestBody(
   }
 }
 
-export function serializeManifestBody(
-  manifest: NotificationsManifest,
-): string {
+export function serializeManifestBody(manifest: NotificationsManifest): string {
   const preamble =
     "> Kody notifications manifest — the dashboard reads and writes the JSON block below.\n" +
     "> Prefer editing via the UI (`/notifications`) to avoid merge conflicts.\n" +
@@ -282,7 +277,10 @@ export function slugifyRuleName(name: string): string {
   return slug || "rule";
 }
 
-export function uniqueRuleId(base: string, existing: NotificationRule[]): string {
+export function uniqueRuleId(
+  base: string,
+  existing: NotificationRule[],
+): string {
   const taken = new Set(existing.map((r) => r.id));
   if (!taken.has(base)) return base;
   let i = 2;

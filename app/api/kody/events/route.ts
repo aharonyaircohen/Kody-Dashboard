@@ -14,7 +14,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logEvent, getEventHistory } from "@dashboard/lib/kody-store/event-log";
 import { getActionState } from "@dashboard/lib/kody-store/action-state";
-import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getUserOctokit,
+  getRequestAuth,
+} from "@dashboard/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -23,10 +27,12 @@ export async function GET(req: NextRequest) {
   if (authError) return authError;
 
   const runId = req.nextUrl.searchParams.get("runId");
-  if (!runId) return NextResponse.json({ error: "runId required" }, { status: 400 });
+  if (!runId)
+    return NextResponse.json({ error: "runId required" }, { status: 400 });
 
   const headerAuth = getRequestAuth(req);
-  const owner = headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
+  const owner =
+    headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
   const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "Kody-Dashboard";
   const octokit = await getUserOctokit(req);
 
@@ -53,16 +59,24 @@ export async function POST(req: NextRequest) {
     channel?: string;
   };
 
-  if (!event) return NextResponse.json({ error: "event required" }, { status: 400 });
+  if (!event)
+    return NextResponse.json({ error: "event required" }, { status: 400 });
 
   const headerAuth = getRequestAuth(req);
-  const owner = headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
+  const owner =
+    headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
   const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "Kody-Dashboard";
   const octokit = await getUserOctokit(req);
 
   let entry;
   try {
-    entry = await logEvent(event, payload ?? {}, actionState, channel ?? "pipeline", { owner, repo, octokit });
+    entry = await logEvent(
+      event,
+      payload ?? {},
+      actionState,
+      channel ?? "pipeline",
+      { owner, repo, octokit },
+    );
   } catch (err) {
     // GitHub API write failed (e.g. no token configured).
     // Return ok=true so the engine can continue even if logging fails.

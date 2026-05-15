@@ -942,11 +942,17 @@ export function TaskDetail({
             <p className="text-xs text-muted-foreground">
               {retryContext.trim() ? (
                 <>
-                  Posts <code className="text-orange-400">@kody</code> + context — <span className="text-orange-400">restarts flow from scratch</span>
+                  Posts <code className="text-orange-400">@kody</code> + context
+                  —{" "}
+                  <span className="text-orange-400">
+                    restarts flow from scratch
+                  </span>
                 </>
               ) : (
                 <>
-                  Empty — posts <code className="text-orange-400">@kody resume</code> (continues from last step)
+                  Empty — posts{" "}
+                  <code className="text-orange-400">@kody resume</code>{" "}
+                  (continues from last step)
                 </>
               )}
             </p>
@@ -1511,7 +1517,9 @@ export function TaskDetail({
                 currentLabels={task.labels}
                 onChange={handleGoalsChange}
                 fullWidth
-                triggerLabel={attachedGoals.length > 0 ? 'Manage goals' : 'Attach to a goal'}
+                triggerLabel={
+                  attachedGoals.length > 0 ? "Manage goals" : "Attach to a goal"
+                }
               />
             </div>
           </div>
@@ -1771,7 +1779,11 @@ export function TaskDetail({
                   currentLabels={task.labels}
                   onChange={handleGoalsChange}
                   fullWidth
-                  triggerLabel={attachedGoals.length > 0 ? 'Manage goals' : 'Attach to a goal'}
+                  triggerLabel={
+                    attachedGoals.length > 0
+                      ? "Manage goals"
+                      : "Attach to a goal"
+                  }
                 />
               </div>
             </div>

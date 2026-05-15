@@ -10,37 +10,37 @@
  */
 
 export interface TaskContext {
-  issueNumber?: number | string
-  title?: string
-  body?: string
-  state?: string
-  labels?: string[]
-  column?: string
-  pipeline?: { state?: string; currentStage?: string }
-  associatedPR?: { number?: number; state?: string; html_url?: string }
+  issueNumber?: number | string;
+  title?: string;
+  body?: string;
+  state?: string;
+  labels?: string[];
+  column?: string;
+  pipeline?: { state?: string; currentStage?: string };
+  associatedPR?: { number?: number; state?: string; html_url?: string };
 }
 
 export interface JobContext {
-  number?: number
-  title?: string
-  body?: string
-  state?: string
-  labels?: string[]
+  number?: number;
+  title?: string;
+  body?: string;
+  state?: string;
+  labels?: string[];
 }
 
 export interface GoalContext {
-  id: string
-  name: string
-  description?: string
-  dueDate?: string
+  id: string;
+  name: string;
+  description?: string;
+  dueDate?: string;
   /** Existing tasks already attached to the goal (so we don't propose duplicates). */
-  existingTasks?: Array<{ number: number; title: string; state?: string }>
+  existingTasks?: Array<{ number: number; title: string; state?: string }>;
 }
 
 export interface ReportContext {
-  slug: string
-  title: string
-  body: string
+  slug: string;
+  title: string;
+  body: string;
 }
 
 /**
@@ -50,16 +50,16 @@ export interface ReportContext {
  * Above this the agent falls back to `recall_search` (GitHub code search
  * scoped to `.kody/memory/`) and `list_memories` / `recall` tools.
  */
-const MEMORY_INDEX_MAX_LINES = 300
+const MEMORY_INDEX_MAX_LINES = 300;
 
 function truncateMemoryIndex(raw: string): string {
-  const lines = raw.split(/\r?\n/)
-  if (lines.length <= MEMORY_INDEX_MAX_LINES) return raw
-  const head = lines.slice(0, MEMORY_INDEX_MAX_LINES).join('\n')
+  const lines = raw.split(/\r?\n/);
+  if (lines.length <= MEMORY_INDEX_MAX_LINES) return raw;
+  const head = lines.slice(0, MEMORY_INDEX_MAX_LINES).join("\n");
   return (
     `${head}\n\n_Index truncated at ${MEMORY_INDEX_MAX_LINES} lines (${lines.length} total). ` +
-    'Use `list_memories` to enumerate the rest._'
-  )
+    "Use `list_memories` to enumerate the rest._"
+  );
 }
 
 export function buildSystemPrompt(
@@ -67,11 +67,11 @@ export function buildSystemPrompt(
   repo: { owner: string; repo: string } | null,
   task: TaskContext | undefined,
   opts?: {
-    jobDraft?: boolean
-    job?: JobContext
-    goalPlanner?: boolean
-    goal?: GoalContext
-    report?: ReportContext
+    jobDraft?: boolean;
+    job?: JobContext;
+    goalPlanner?: boolean;
+    goal?: GoalContext;
+    report?: ReportContext;
     /**
      * Raw body of `.kody/memory/INDEX.md` (or `null` when the file doesn't
      * exist). Injected under a `## Remembered context` heading so the agent
@@ -79,7 +79,7 @@ export function buildSystemPrompt(
      * existing one. The full body of any entry is fetched on demand via
      * the `recall` tool — only the index ships in every prompt.
      */
-    memoryIndex?: string | null
+    memoryIndex?: string | null;
     /**
      * Vibe mode. When true the chat is acting as the executor for the
      * currently-selected vibe task — drive Kody Live/Fly via the runner,
@@ -87,14 +87,14 @@ export function buildSystemPrompt(
      * block is appended at the END so it wins against the base prompt's
      * "executor handoff to @kody" framing.
      */
-    vibeMode?: boolean
+    vibeMode?: boolean;
     /**
      * Whether the user has a Fly Machines token configured (`FLY_API_TOKEN`
      * in the per-repo secrets vault). Fly is opt-in; without a token the
      * Fly runner literally cannot boot. Used by the vibe prompt to pick
      * the right runner on auto-handoff. Ignored outside vibe mode.
      */
-    flyConfigured?: boolean
+    flyConfigured?: boolean;
     /**
      * Raw body of `.kody/instructions.md` (or `null` when the file doesn't
      * exist). Appended LAST inside the system prompt so it wins against
@@ -102,14 +102,14 @@ export function buildSystemPrompt(
      * Voice overlay still wins on mic turns — voice is applied outside
      * this builder in route.ts.
      */
-    userInstructions?: string | null
+    userInstructions?: string | null;
   },
 ): string {
-  const sections: string[] = [base]
+  const sections: string[] = [base];
   if (repo) {
     sections.push(
       `## Connected repository\n\nYou are helping the user with the repository **${repo.owner}/${repo.repo}**. When the user refers to "the repo", "this repo", "the codebase", or a file path, they mean this repository. Ground your answers in the conversation context the user provides — do not invent file contents or PR numbers you haven't seen.`,
-    )
+    );
     if (opts?.memoryIndex && opts.memoryIndex.trim().length > 0) {
       sections.push(
         `## Remembered context
@@ -135,53 +135,57 @@ Rules:
   or forget the memory rather than acting on it.
 
 ${truncateMemoryIndex(opts.memoryIndex.trim())}`,
-      )
+      );
     }
   }
   if (opts?.job) {
-    const m = opts.job
-    const lines: string[] = ['## Current job']
-    if (m.number != null) lines.push(`- Job #${m.number}`)
-    if (m.title) lines.push(`- Title: ${m.title}`)
-    if (m.state) lines.push(`- State: ${m.state}`)
-    if (m.labels?.length) lines.push(`- Labels: ${m.labels.join(', ')}`)
+    const m = opts.job;
+    const lines: string[] = ["## Current job"];
+    if (m.number != null) lines.push(`- Job #${m.number}`);
+    if (m.title) lines.push(`- Title: ${m.title}`);
+    if (m.state) lines.push(`- State: ${m.state}`);
+    if (m.labels?.length) lines.push(`- Labels: ${m.labels.join(", ")}`);
     if (m.body) {
-      const bodyPreview = m.body.length > 2000 ? `${m.body.slice(0, 2000)}…` : m.body
-      lines.push(`\n### Job body\n\n${bodyPreview}`)
+      const bodyPreview =
+        m.body.length > 2000 ? `${m.body.slice(0, 2000)}…` : m.body;
+      lines.push(`\n### Job body\n\n${bodyPreview}`);
     }
     lines.push(
-      '\nThe user is chatting about **this specific job**. A Kody job is a GitHub issue (label `kody:job`) whose body describes intent, system prompt, allowed commands, and restrictions. Answer their questions grounded in the job body above — do NOT claim the job does not exist. If they want to edit the job, help them draft changes to the markdown body.',
-    )
-    sections.push(lines.join('\n'))
+      "\nThe user is chatting about **this specific job**. A Kody job is a GitHub issue (label `kody:job`) whose body describes intent, system prompt, allowed commands, and restrictions. Answer their questions grounded in the job body above — do NOT claim the job does not exist. If they want to edit the job, help them draft changes to the markdown body.",
+    );
+    sections.push(lines.join("\n"));
   }
   if (opts?.goalPlanner && opts?.goal) {
-    const g = opts.goal
-    const lines: string[] = ['## Goal planning mode']
+    const g = opts.goal;
+    const lines: string[] = ["## Goal planning mode"];
     lines.push(
       `You are planning the goal **${g.name}** (id: \`${g.id}\`). Your job is to turn ` +
-        'the goal description below into a set of concrete, well-specced GitHub issues ' +
+        "the goal description below into a set of concrete, well-specced GitHub issues " +
         `attached to this goal (label \`goal:${g.id}\`). Do not act on any other goal ` +
-        'or topic — if the user asks you something off-topic, redirect to this goal.',
-    )
-    if (g.dueDate) lines.push(`Due date: ${g.dueDate}.`)
+        "or topic — if the user asks you something off-topic, redirect to this goal.",
+    );
+    if (g.dueDate) lines.push(`Due date: ${g.dueDate}.`);
     if (g.description?.trim()) {
-      const desc = g.description.length > 4000 ? `${g.description.slice(0, 4000)}…` : g.description
-      lines.push(`\n### Goal description\n\n${desc}`)
+      const desc =
+        g.description.length > 4000
+          ? `${g.description.slice(0, 4000)}…`
+          : g.description;
+      lines.push(`\n### Goal description\n\n${desc}`);
     } else {
       lines.push(
-        '\n### Goal description\n\n_The goal has no description yet._ Ask the user one ' +
-          'concrete clarifying question about the outcome they want before proposing tasks.',
-      )
+        "\n### Goal description\n\n_The goal has no description yet._ Ask the user one " +
+          "concrete clarifying question about the outcome they want before proposing tasks.",
+      );
     }
     if (g.existingTasks && g.existingTasks.length > 0) {
-      lines.push('\n### Tasks already attached to this goal\n')
+      lines.push("\n### Tasks already attached to this goal\n");
       for (const t of g.existingTasks) {
-        lines.push(`- #${t.number} (${t.state ?? 'open'}) — ${t.title}`)
+        lines.push(`- #${t.number} (${t.state ?? "open"}) — ${t.title}`);
       }
       lines.push(
-        '\nDo not propose duplicates of these. Cover only the gaps between the goal ' +
-          'description and the tasks above.',
-      )
+        "\nDo not propose duplicates of these. Cover only the gaps between the goal " +
+          "description and the tasks above.",
+      );
     }
     lines.push(`
 ### Workflow — two passes, one chat session
@@ -212,8 +216,8 @@ If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create th
 - Every \`create_task_for_goal\` call MUST comply with the Issue creation research rules above. Generic, codebase-agnostic specs are not acceptable.
 - Never modify the goal description, never delete or relabel existing tasks, never close anything.
 - The Kody pipeline is NOT auto-triggered. The user runs \`@kody\` themselves when they want execution to start.
-`)
-    sections.push(lines.join('\n'))
+`);
+    sections.push(lines.join("\n"));
   }
   if (opts?.jobDraft) {
     sections.push(
@@ -227,14 +231,17 @@ The user is **drafting a new Kody job** — they are not asking about an existin
 - **Restrictions** — what Kody must not do
 
 Your job: **interview the user about every aspect of this job until you reach a shared understanding** — do not draft until they signal they're ready. Ask short, concrete questions one turn at a time, drilling into goal, inputs, outputs, constraints, edge cases, success criteria, allowed tools, and restrictions. Prefer one focused question per turn over multi-part checklists. When the user explicitly says they're ready (or asks you to draft), produce a clean, copy-ready markdown draft with the four sections — Intent, System prompt, Allowed commands / tools, Restrictions — so they can hit **Use as job** on your reply to turn it into a real job. Never claim a job already exists; there is no current job to look up.`,
-    )
+    );
   }
   if (opts?.report) {
-    const r = opts.report
-    const lines: string[] = ['## Current report']
-    lines.push(`The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files at \`.kody/reports/<slug>.md\` produced by Kody jobs and other engine pipelines — diagnostic output, never the source of truth for code.`)
-    const bodyPreview = r.body.length > 4000 ? `${r.body.slice(0, 4000)}…` : r.body
-    lines.push(`\n### Report body\n\n${bodyPreview}`)
+    const r = opts.report;
+    const lines: string[] = ["## Current report"];
+    lines.push(
+      `The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files at \`.kody/reports/<slug>.md\` produced by Kody jobs and other engine pipelines — diagnostic output, never the source of truth for code.`,
+    );
+    const bodyPreview =
+      r.body.length > 4000 ? `${r.body.slice(0, 4000)}…` : r.body;
+    lines.push(`\n### Report body\n\n${bodyPreview}`);
     lines.push(`\n### Your job: advise on follow-up
 
 When the user asks what to do with this report, recommend one of three paths and say which fits:
@@ -243,31 +250,32 @@ When the user asks what to do with this report, recommend one of three paths and
 2. **Attach to a goal** — if the report's findings fit an existing or proposed strategic initiative. Use \`create_task_for_goal\` with the goal id when the user has identified the parent goal.
 3. **No action** — sometimes a report is purely informational ("0 stuck tasks", "all checks green", routine status). Say so plainly and do not invent work to justify a follow-up.
 
-Pick honestly. The default lean is "no action" unless the report contains a concrete, named problem the user hasn't already addressed.`)
-    sections.push(lines.join('\n'))
+Pick honestly. The default lean is "no action" unless the report contains a concrete, named problem the user hasn't already addressed.`);
+    sections.push(lines.join("\n"));
   }
   if (task) {
-    const lines: string[] = ["## Current task"]
-    if (task.issueNumber != null) lines.push(`- Issue #${task.issueNumber}`)
-    if (task.title) lines.push(`- Title: ${task.title}`)
-    if (task.state) lines.push(`- State: ${task.state}`)
-    if (task.column) lines.push(`- Column: ${task.column}`)
-    if (task.labels?.length) lines.push(`- Labels: ${task.labels.join(", ")}`)
+    const lines: string[] = ["## Current task"];
+    if (task.issueNumber != null) lines.push(`- Issue #${task.issueNumber}`);
+    if (task.title) lines.push(`- Title: ${task.title}`);
+    if (task.state) lines.push(`- State: ${task.state}`);
+    if (task.column) lines.push(`- Column: ${task.column}`);
+    if (task.labels?.length) lines.push(`- Labels: ${task.labels.join(", ")}`);
     if (task.pipeline?.state || task.pipeline?.currentStage) {
       lines.push(
         `- Pipeline: state=${task.pipeline.state ?? "?"}, stage=${task.pipeline.currentStage ?? "?"}`,
-      )
+      );
     }
     if (task.associatedPR?.number) {
       lines.push(
         `- Associated PR: #${task.associatedPR.number} (${task.associatedPR.state ?? "?"}) ${task.associatedPR.html_url ?? ""}`.trim(),
-      )
+      );
     }
     if (task.body) {
-      const bodyPreview = task.body.length > 2000 ? `${task.body.slice(0, 2000)}…` : task.body
-      lines.push(`\n### Task body\n\n${bodyPreview}`)
+      const bodyPreview =
+        task.body.length > 2000 ? `${task.body.slice(0, 2000)}…` : task.body;
+      lines.push(`\n### Task body\n\n${bodyPreview}`);
     }
-    sections.push(lines.join("\n"))
+    sections.push(lines.join("\n"));
   }
   if (opts?.vibeMode) {
     sections.push(`## Vibe mode (OVERRIDES the executor-handoff rules above)
@@ -307,9 +315,11 @@ Everything in the base prompt about \`kody_run_issue\`, the \`@kody\` executor h
 
 ### Runner availability (read before \`switch_agent\`)
 
-${opts.flyConfigured
-  ? '- **Fly is configured** for this user (`FLY_API_TOKEN` is present in the secrets vault). On auto-handoff, use `switch_agent(\'kody-live-fly\')`.'
-  : '- **Fly is NOT configured** for this user (no `FLY_API_TOKEN` in the secrets vault). Fly cannot boot. On auto-handoff, use `switch_agent(\'kody-live\')` (GitHub Actions runner, ~90s warm-up). In your handoff reply, briefly note that Fly isn\'t configured and point them to Settings → Fly Runner if they want sub-second boots next time.'}`)
+${
+  opts.flyConfigured
+    ? "- **Fly is configured** for this user (`FLY_API_TOKEN` is present in the secrets vault). On auto-handoff, use `switch_agent('kody-live-fly')`."
+    : "- **Fly is NOT configured** for this user (no `FLY_API_TOKEN` in the secrets vault). Fly cannot boot. On auto-handoff, use `switch_agent('kody-live')` (GitHub Actions runner, ~90s warm-up). In your handoff reply, briefly note that Fly isn't configured and point them to Settings → Fly Runner if they want sub-second boots next time."
+}`);
   }
 
   // Per-repo user instructions — appended LAST so they override anything
@@ -325,8 +335,8 @@ The block below is the live contents of \`.kody/instructions.md\` for this repo 
 If a user instruction conflicts with a hard rule above (never fake tool calls, research before evaluating, issue-creation gates), the hard rule still wins — those exist to prevent footguns. Everything else, the user instruction wins.
 
 ${opts.userInstructions.trim()}`,
-    )
+    );
   }
 
-  return sections.join("\n\n")
+  return sections.join("\n\n");
 }

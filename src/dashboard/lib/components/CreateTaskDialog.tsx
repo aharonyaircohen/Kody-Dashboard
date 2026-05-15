@@ -5,31 +5,31 @@
  * @ai-summary Structured task creation dialog with category-specific fields,
  *   similar to BugReportDialog but for features, enhancements, refactors, etc.
  */
-'use client'
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-import Image from 'next/image'
-import { Button } from '@dashboard/ui/button'
+import { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
+import { Button } from "@dashboard/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@dashboard/ui/dialog'
-import { Input } from '@dashboard/ui/input'
-import { Label } from '@dashboard/ui/label'
+} from "@dashboard/ui/dialog";
+import { Input } from "@dashboard/ui/input";
+import { Label } from "@dashboard/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@dashboard/ui/select'
-import { Textarea } from '@dashboard/ui/textarea'
-import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
-import { useCreateTask, useKodyBoards, useCollaborators } from '../hooks'
-import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
+} from "@dashboard/ui/select";
+import { Textarea } from "@dashboard/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+import { useCreateTask, useKodyBoards, useCollaborators } from "../hooks";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import {
   Upload,
   X,
@@ -41,37 +41,41 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
-} from 'lucide-react'
-import { cn } from '@dashboard/lib/utils/ui'
-import { PRIORITY_LEVELS, PRIORITY_META, type PriorityLevel } from '../constants'
+} from "lucide-react";
+import { cn } from "@dashboard/lib/utils/ui";
+import {
+  PRIORITY_LEVELS,
+  PRIORITY_META,
+  type PriorityLevel,
+} from "../constants";
 
 interface CreateTaskDialogProps {
-  open: boolean
-  onClose: () => void
-  onCreated?: () => void
+  open: boolean;
+  onClose: () => void;
+  onCreated?: () => void;
   initialData?: {
-    title: string
-    body: string
-    labels?: string[]
-    assignees?: string[]
-  }
+    title: string;
+    body: string;
+    labels?: string[];
+    assignees?: string[];
+  };
   /**
    * Labels to pre-apply without triggering the duplicate flow (no "Copy of"
    * title prefix, no body/assignee prefill). Use this for goal-scoped task
    * creation — pass [`goal:<id>`] so the new task lands under that goal.
    */
-  presetLabels?: string[]
+  presetLabels?: string[];
 }
 
 interface AttachmentFile {
-  name: string
-  content: string
-  preview?: string
-  type: string
+  name: string;
+  content: string;
+  preview?: string;
+  type: string;
 }
 
-type TaskCategory = 'feature' | 'enhancement' | 'refactor' | 'docs' | 'chore'
-type TaskScope = 'frontend' | 'backend' | 'fullstack' | 'infra' | 'ci-cd'
+type TaskCategory = "feature" | "enhancement" | "refactor" | "docs" | "chore";
+type TaskScope = "frontend" | "backend" | "fullstack" | "infra" | "ci-cd";
 
 const CATEGORY_META: Record<
   TaskCategory,
@@ -79,252 +83,262 @@ const CATEGORY_META: Record<
 > = {
   feature: {
     icon: <Sparkles className="w-4 h-4" />,
-    label: 'New Feature',
-    description: 'Brand-new capability that does not exist yet',
-    color: 'text-emerald-600 dark:text-emerald-400',
+    label: "New Feature",
+    description: "Brand-new capability that does not exist yet",
+    color: "text-emerald-600 dark:text-emerald-400",
   },
   enhancement: {
     icon: <Wrench className="w-4 h-4" />,
-    label: 'Enhancement',
-    description: 'Improve an existing feature or flow',
-    color: 'text-blue-600 dark:text-blue-400',
+    label: "Enhancement",
+    description: "Improve an existing feature or flow",
+    color: "text-blue-600 dark:text-blue-400",
   },
   refactor: {
     icon: <FolderSync className="w-4 h-4" />,
-    label: 'Refactor',
-    description: 'Restructure code without changing behavior',
-    color: 'text-amber-600 dark:text-amber-400',
+    label: "Refactor",
+    description: "Restructure code without changing behavior",
+    color: "text-amber-600 dark:text-amber-400",
   },
   docs: {
     icon: <FileText className="w-4 h-4" />,
-    label: 'Documentation',
-    description: 'Add or update docs, READMEs, comments',
-    color: 'text-purple-600 dark:text-purple-400',
+    label: "Documentation",
+    description: "Add or update docs, READMEs, comments",
+    color: "text-purple-600 dark:text-purple-400",
   },
   chore: {
     icon: <Cog className="w-4 h-4" />,
-    label: 'Chore',
-    description: 'Dependencies, config, tooling, cleanup',
-    color: 'text-gray-600 dark:text-gray-400',
+    label: "Chore",
+    description: "Dependencies, config, tooling, cleanup",
+    color: "text-gray-600 dark:text-gray-400",
   },
-}
+};
 
 const SCOPE_OPTIONS: { value: TaskScope; label: string }[] = [
-  { value: 'frontend', label: 'Frontend' },
-  { value: 'backend', label: 'Backend' },
-  { value: 'fullstack', label: 'Full-stack' },
-  { value: 'infra', label: 'Infrastructure' },
-  { value: 'ci-cd', label: 'CI / CD' },
-]
+  { value: "frontend", label: "Frontend" },
+  { value: "backend", label: "Backend" },
+  { value: "fullstack", label: "Full-stack" },
+  { value: "infra", label: "Infrastructure" },
+  { value: "ci-cd", label: "CI / CD" },
+];
 
-export function CreateTaskDialog({ open, onClose, onCreated, initialData, presetLabels }: CreateTaskDialogProps) {
+export function CreateTaskDialog({
+  open,
+  onClose,
+  onCreated,
+  initialData,
+  presetLabels,
+}: CreateTaskDialogProps) {
   // --- Form state ---
-  const [title, setTitle] = useState('')
-  const [category, setCategory] = useState<TaskCategory>('feature')
-  const [scope, setScope] = useState<TaskScope>('fullstack')
-  const [priority, setPriority] = useState<PriorityLevel>('P2')
-  const [mode, setMode] = useState('full')
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState<TaskCategory>("feature");
+  const [scope, setScope] = useState<TaskScope>("fullstack");
+  const [priority, setPriority] = useState<PriorityLevel>("P2");
+  const [mode, setMode] = useState("full");
 
   // Structured description fields
-  const [summary, setSummary] = useState('')
-  const [requirements, setRequirements] = useState('')
-  const [affectedArea, setAffectedArea] = useState('')
-  const [acceptanceCriteria, setAcceptanceCriteria] = useState('')
-  const [additionalContext, setAdditionalContext] = useState('')
+  const [summary, setSummary] = useState("");
+  const [requirements, setRequirements] = useState("");
+  const [affectedArea, setAffectedArea] = useState("");
+  const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
+  const [additionalContext, setAdditionalContext] = useState("");
 
   // Labels & assignees
-  const [labels, setLabels] = useState<string[]>([])
-  const [assignees, setAssignees] = useState<string[]>([])
+  const [labels, setLabels] = useState<string[]>([]);
+  const [assignees, setAssignees] = useState<string[]>([]);
 
   // Attachments
-  const [attachments, setAttachments] = useState<AttachmentFile[]>([])
-  const [isDragging, setIsDragging] = useState(false)
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Advanced section toggle
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Hooks
-  const { data: collaborators = [] } = useCollaborators()
-  const { data: boards = [] } = useKodyBoards()
-  const { githubUser } = useGitHubIdentity()
-  const createTask = useCreateTask()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { data: collaborators = [] } = useCollaborators();
+  const { data: boards = [] } = useKodyBoards();
+  const { githubUser } = useGitHubIdentity();
+  const createTask = useCreateTask();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Extract labels from boards
   const availableLabels = boards
-    .filter((b) => b.type === 'label')
-    .flatMap((b) => (b as { labels?: Array<{ name: string; color: string }> }).labels || [])
-    .slice(0, 20)
+    .filter((b) => b.type === "label")
+    .flatMap(
+      (b) =>
+        (b as { labels?: Array<{ name: string; color: string }> }).labels || [],
+    )
+    .slice(0, 20);
 
   // --- Reset on close ---
   useEffect(() => {
     if (!open) {
-      setTitle('')
-      setCategory('feature')
-      setScope('fullstack')
-      setPriority('P2')
-      setMode('full')
-      setSummary('')
-      setRequirements('')
-      setAffectedArea('')
-      setAcceptanceCriteria('')
-      setAdditionalContext('')
-      setLabels([])
-      setAssignees([])
-      setAttachments([])
-      setShowAdvanced(false)
+      setTitle("");
+      setCategory("feature");
+      setScope("fullstack");
+      setPriority("P2");
+      setMode("full");
+      setSummary("");
+      setRequirements("");
+      setAffectedArea("");
+      setAcceptanceCriteria("");
+      setAdditionalContext("");
+      setLabels([]);
+      setAssignees([]);
+      setAttachments([]);
+      setShowAdvanced(false);
     }
-  }, [open])
+  }, [open]);
 
   // --- Handle initialData for duplication ---
   useEffect(() => {
     if (open && initialData) {
-      setTitle(`Copy of ${initialData.title}`)
+      setTitle(`Copy of ${initialData.title}`);
       // Put the raw body into summary for duplication — user can reorganize
-      setSummary(initialData.body)
-      setLabels(initialData.labels || [])
-      setAssignees(initialData.assignees || [])
+      setSummary(initialData.body);
+      setLabels(initialData.labels || []);
+      setAssignees(initialData.assignees || []);
     }
-  }, [open, initialData])
+  }, [open, initialData]);
 
   // --- Default assignee to the current user on fresh open ---
   useEffect(() => {
     if (open && !initialData && githubUser?.login) {
-      setAssignees((prev) => (prev.length === 0 ? [githubUser.login] : prev))
+      setAssignees((prev) => (prev.length === 0 ? [githubUser.login] : prev));
     }
-  }, [open, initialData, githubUser?.login])
+  }, [open, initialData, githubUser?.login]);
 
   // --- Apply presetLabels (goal-scoped create, separate from duplicate flow) ---
   useEffect(() => {
     if (open && !initialData && presetLabels && presetLabels.length > 0) {
       setLabels((prev) => {
-        const merged = new Set([...prev, ...presetLabels])
-        return Array.from(merged)
-      })
+        const merged = new Set([...prev, ...presetLabels]);
+        return Array.from(merged);
+      });
     }
-  }, [open, initialData, presetLabels])
+  }, [open, initialData, presetLabels]);
 
   // --- File handling ---
   const processFile = useCallback((file: File): Promise<AttachmentFile> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader()
+      const reader = new FileReader();
       reader.onload = () => {
-        const result = reader.result as string
+        const result = reader.result as string;
         resolve({
           name: file.name,
-          content: result.split(',')[1],
-          preview: file.type.startsWith('image/') ? result : undefined,
+          content: result.split(",")[1],
+          preview: file.type.startsWith("image/") ? result : undefined,
           type: file.type,
-        })
-      }
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
-  }, [])
+        });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }, []);
 
   const handleFileSelect = useCallback(
     async (files: FileList | null) => {
-      if (!files) return
-      const newAttachments: AttachmentFile[] = []
+      if (!files) return;
+      const newAttachments: AttachmentFile[] = [];
       for (const file of Array.from(files)) {
-        if (file.size > 10 * 1024 * 1024) continue
+        if (file.size > 10 * 1024 * 1024) continue;
         try {
-          newAttachments.push(await processFile(file))
+          newAttachments.push(await processFile(file));
         } catch {
           /* skip failed files */
         }
       }
-      setAttachments((prev) => [...prev, ...newAttachments].slice(0, 5))
+      setAttachments((prev) => [...prev, ...newAttachments].slice(0, 5));
     },
     [processFile],
-  )
+  );
 
   const removeAttachment = useCallback((index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index))
-  }, [])
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-  }, [])
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-  }, [])
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
-      e.preventDefault()
-      setIsDragging(false)
-      handleFileSelect(e.dataTransfer.files)
+      e.preventDefault();
+      setIsDragging(false);
+      handleFileSelect(e.dataTransfer.files);
     },
     [handleFileSelect],
-  )
+  );
 
   // --- Format body ---
   const formatBody = (): string => {
-    const catMeta = CATEGORY_META[category]
-    const scopeLabel = SCOPE_OPTIONS.find((s) => s.value === scope)?.label ?? scope
-    const prioMeta = PRIORITY_META[priority]
+    const catMeta = CATEGORY_META[category];
+    const scopeLabel =
+      SCOPE_OPTIONS.find((s) => s.value === scope)?.label ?? scope;
+    const prioMeta = PRIORITY_META[priority];
 
-    let body = `# ${catMeta.label}: ${title}\n\n`
+    let body = `# ${catMeta.label}: ${title}\n\n`;
 
-    body += `| | |\n|---|---|\n`
-    body += `| **Category** | ${catMeta.label} |\n`
-    body += `| **Scope** | ${scopeLabel} |\n`
-    body += `| **Priority** | ${prioMeta.badge} ${priority} — ${prioMeta.label} |\n\n`
+    body += `| | |\n|---|---|\n`;
+    body += `| **Category** | ${catMeta.label} |\n`;
+    body += `| **Scope** | ${scopeLabel} |\n`;
+    body += `| **Priority** | ${prioMeta.badge} ${priority} — ${prioMeta.label} |\n\n`;
 
-    body += '## Summary\n'
-    body += `${summary || '_No summary provided_'}\n\n`
+    body += "## Summary\n";
+    body += `${summary || "_No summary provided_"}\n\n`;
 
-    if (category === 'feature' || category === 'enhancement') {
-      body += '## Requirements\n'
-      body += `${requirements || '_No requirements specified_'}\n\n`
+    if (category === "feature" || category === "enhancement") {
+      body += "## Requirements\n";
+      body += `${requirements || "_No requirements specified_"}\n\n`;
     }
 
-    if (category === 'refactor') {
-      body += '## What to Refactor\n'
-      body += `${requirements || '_Not specified_'}\n\n`
+    if (category === "refactor") {
+      body += "## What to Refactor\n";
+      body += `${requirements || "_Not specified_"}\n\n`;
     }
 
-    if (category === 'docs') {
-      body += '## Documentation Scope\n'
-      body += `${requirements || '_Not specified_'}\n\n`
+    if (category === "docs") {
+      body += "## Documentation Scope\n";
+      body += `${requirements || "_Not specified_"}\n\n`;
     }
 
-    if (category === 'chore') {
-      body += '## What Needs to Change\n'
-      body += `${requirements || '_Not specified_'}\n\n`
+    if (category === "chore") {
+      body += "## What Needs to Change\n";
+      body += `${requirements || "_Not specified_"}\n\n`;
     }
 
     if (affectedArea) {
-      body += '## Affected Area\n'
-      body += `${affectedArea}\n\n`
+      body += "## Affected Area\n";
+      body += `${affectedArea}\n\n`;
     }
 
     if (acceptanceCriteria) {
-      body += '## Acceptance Criteria\n'
-      body += `${acceptanceCriteria}\n\n`
+      body += "## Acceptance Criteria\n";
+      body += `${acceptanceCriteria}\n\n`;
     }
 
     if (additionalContext) {
-      body += '## Additional Context\n'
-      body += `${additionalContext}\n\n`
+      body += "## Additional Context\n";
+      body += `${additionalContext}\n\n`;
     }
 
-    return body
-  }
+    return body;
+  };
 
   // --- Submit ---
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    const body = formatBody()
-    const autoLabels = [...labels, `priority:${priority}`]
+    const body = formatBody();
+    const autoLabels = [...labels, `priority:${priority}`];
     // Auto-add category label if not already present
     if (!autoLabels.includes(category)) {
-      autoLabels.push(category)
+      autoLabels.push(category);
     }
 
     createTask.mutate(
@@ -345,61 +359,66 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
       },
       {
         onSuccess: () => {
-          onCreated?.()
-          onClose()
+          onCreated?.();
+          onClose();
         },
       },
-    )
-  }
+    );
+  };
 
   const toggleLabel = (label: string) => {
-    setLabels((prev) => (prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]))
-  }
+    setLabels((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label],
+    );
+  };
 
   const toggleAssignee = (login: string) => {
     setAssignees((prev) =>
       prev.includes(login) ? prev.filter((a) => a !== login) : [...prev, login],
-    )
-  }
+    );
+  };
 
   // --- Placeholders per category ---
   const getRequirementsPlaceholder = (): string => {
     switch (category) {
-      case 'feature':
-        return '- User can …\n- System should …\n- When X happens, then Y'
-      case 'enhancement':
-        return '- Currently it works like …\n- It should instead …\n- Edge case to handle: …'
-      case 'refactor':
-        return '- Move X from … to …\n- Extract shared logic into …\n- Replace pattern A with B'
-      case 'docs':
-        return '- Add README for …\n- Update API docs for …\n- Add JSDoc to …'
-      case 'chore':
-        return '- Upgrade package X to v…\n- Update config for …\n- Remove deprecated …'
+      case "feature":
+        return "- User can …\n- System should …\n- When X happens, then Y";
+      case "enhancement":
+        return "- Currently it works like …\n- It should instead …\n- Edge case to handle: …";
+      case "refactor":
+        return "- Move X from … to …\n- Extract shared logic into …\n- Replace pattern A with B";
+      case "docs":
+        return "- Add README for …\n- Update API docs for …\n- Add JSDoc to …";
+      case "chore":
+        return "- Upgrade package X to v…\n- Update config for …\n- Remove deprecated …";
     }
-  }
+  };
 
   const getRequirementsLabel = (): string => {
     switch (category) {
-      case 'feature':
-        return 'Requirements'
-      case 'enhancement':
-        return 'What to Improve'
-      case 'refactor':
-        return 'What to Refactor'
-      case 'docs':
-        return 'Documentation Scope'
-      case 'chore':
-        return 'What Needs to Change'
+      case "feature":
+        return "Requirements";
+      case "enhancement":
+        return "What to Improve";
+      case "refactor":
+        return "What to Refactor";
+      case "docs":
+        return "Documentation Scope";
+      case "chore":
+        return "What Needs to Change";
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{initialData ? 'Duplicate Task' : 'Create New Task'}</DialogTitle>
+          <DialogTitle>
+            {initialData ? "Duplicate Task" : "Create New Task"}
+          </DialogTitle>
           <DialogDescription>
-            Fill in the structured fields below — Kody will use them to plan and implement.
+            Fill in the structured fields below — Kody will use them to plan and
+            implement.
           </DialogDescription>
         </DialogHeader>
 
@@ -417,33 +436,37 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
             </Label>
             <div className="grid grid-cols-5 gap-1.5">
               {(Object.keys(CATEGORY_META) as TaskCategory[]).map((cat) => {
-                const meta = CATEGORY_META[cat]
-                const selected = category === cat
+                const meta = CATEGORY_META[cat];
+                const selected = category === cat;
                 return (
                   <button
                     key={cat}
                     type="button"
                     onClick={() => setCategory(cat)}
                     className={cn(
-                      'flex flex-col items-center gap-1 rounded-lg border p-2 transition-all text-center',
+                      "flex flex-col items-center gap-1 rounded-lg border p-2 transition-all text-center",
                       selected
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
-                        : 'border-border hover:border-muted-foreground/50 hover:bg-muted/50',
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                        : "border-border hover:border-muted-foreground/50 hover:bg-muted/50",
                     )}
                   >
-                    <span className={cn(selected ? meta.color : 'text-muted-foreground')}>
+                    <span
+                      className={cn(
+                        selected ? meta.color : "text-muted-foreground",
+                      )}
+                    >
                       {meta.icon}
                     </span>
                     <span
                       className={cn(
-                        'text-[11px] font-medium leading-tight',
-                        selected ? 'text-foreground' : 'text-muted-foreground',
+                        "text-[11px] font-medium leading-tight",
+                        selected ? "text-foreground" : "text-muted-foreground",
                       )}
                     >
                       {meta.label}
                     </span>
                   </button>
-                )
+                );
               })}
             </div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -462,15 +485,15 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={
-                category === 'feature'
-                  ? 'e.g., Add dark mode toggle to settings page'
-                  : category === 'enhancement'
-                    ? 'e.g., Improve search results ranking'
-                    : category === 'refactor'
-                      ? 'e.g., Extract auth logic into shared middleware'
-                      : category === 'docs'
-                        ? 'e.g., Add API endpoint documentation'
-                        : 'e.g., Upgrade Next.js to v15'
+                category === "feature"
+                  ? "e.g., Add dark mode toggle to settings page"
+                  : category === "enhancement"
+                    ? "e.g., Improve search results ranking"
+                    : category === "refactor"
+                      ? "e.g., Extract auth logic into shared middleware"
+                      : category === "docs"
+                        ? "e.g., Add API endpoint documentation"
+                        : "e.g., Upgrade Next.js to v15"
               }
               required
               autoFocus
@@ -481,7 +504,10 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="task-scope">Scope</Label>
-              <Select value={scope} onValueChange={(v) => setScope(v as TaskScope)}>
+              <Select
+                value={scope}
+                onValueChange={(v) => setScope(v as TaskScope)}
+              >
                 <SelectTrigger id="task-scope">
                   <SelectValue />
                 </SelectTrigger>
@@ -496,14 +522,18 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
             </div>
             <div className="grid gap-2">
               <Label htmlFor="task-priority">Priority</Label>
-              <Select value={priority} onValueChange={(v) => setPriority(v as PriorityLevel)}>
+              <Select
+                value={priority}
+                onValueChange={(v) => setPriority(v as PriorityLevel)}
+              >
                 <SelectTrigger id="task-priority">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {PRIORITY_LEVELS.map((level) => (
                     <SelectItem key={level} value={level}>
-                      {PRIORITY_META[level].badge} {level} — {PRIORITY_META[level].label}
+                      {PRIORITY_META[level].badge} {level} —{" "}
+                      {PRIORITY_META[level].label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -562,7 +592,9 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
               id="task-ac"
               value={acceptanceCriteria}
               onChange={(e) => setAcceptanceCriteria(e.target.value)}
-              placeholder={'- [ ] Users can …\n- [ ] Tests pass for …\n- [ ] No regressions in …'}
+              placeholder={
+                "- [ ] Users can …\n- [ ] Tests pass for …\n- [ ] No regressions in …"
+              }
               rows={3}
             />
             <p className="text-xs text-muted-foreground">
@@ -620,15 +652,16 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={cn(
-                  'border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors',
+                  "border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors",
                   isDragging
-                    ? 'border-primary bg-primary/5'
-                    : 'border-muted-foreground/25 hover:border-muted-foreground/50',
+                    ? "border-primary bg-primary/5"
+                    : "border-muted-foreground/25 hover:border-muted-foreground/50",
                 )}
               >
                 <Upload className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">
-                  Drop screenshots here or <span className="text-primary">browse</span>
+                  Drop screenshots here or{" "}
+                  <span className="text-primary">browse</span>
                 </p>
               </div>
             )}
@@ -646,7 +679,9 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
               <ChevronDown className="w-3.5 h-3.5" />
             )}
             Advanced options
-            {(assignees.length > 0 || labels.length > 0 || additionalContext) && (
+            {(assignees.length > 0 ||
+              labels.length > 0 ||
+              additionalContext) && (
               <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
                 configured
               </span>
@@ -663,7 +698,9 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="full">Full (spec → implement)</SelectItem>
+                    <SelectItem value="full">
+                      Full (spec → implement)
+                    </SelectItem>
                     <SelectItem value="spec">Spec only</SelectItem>
                     <SelectItem value="impl">Implementation only</SelectItem>
                   </SelectContent>
@@ -687,13 +724,17 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
                 <Label>Labels</Label>
                 <div className="flex flex-wrap gap-1 max-h-[80px] overflow-y-auto">
                   {availableLabels.length === 0 ? (
-                    <span className="text-muted-foreground text-xs">No labels available</span>
+                    <span className="text-muted-foreground text-xs">
+                      No labels available
+                    </span>
                   ) : (
                     availableLabels.slice(0, 10).map((label) => (
                       <Button
                         key={label.name}
                         type="button"
-                        variant={labels.includes(label.name) ? 'default' : 'outline'}
+                        variant={
+                          labels.includes(label.name) ? "default" : "outline"
+                        }
                         size="sm"
                         onClick={() => toggleLabel(label.name)}
                         className="text-xs h-6"
@@ -710,20 +751,26 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
                 <Label>Assignees</Label>
                 <div className="flex flex-wrap gap-1 max-h-[80px] overflow-y-auto">
                   {collaborators.length === 0 ? (
-                    <span className="text-muted-foreground text-xs">No collaborators</span>
+                    <span className="text-muted-foreground text-xs">
+                      No collaborators
+                    </span>
                   ) : (
                     collaborators.slice(0, 10).map((user) => (
                       <Button
                         key={user.login}
                         type="button"
-                        variant={assignees.includes(user.login) ? 'default' : 'outline'}
+                        variant={
+                          assignees.includes(user.login) ? "default" : "outline"
+                        }
                         size="sm"
                         onClick={() => toggleAssignee(user.login)}
                         className="text-xs h-6 gap-1"
                       >
                         <Avatar className="h-4 w-4">
                           <AvatarImage src={user.avatar_url} alt={user.login} />
-                          <AvatarFallback>{user.login[0]?.toUpperCase()}</AvatarFallback>
+                          <AvatarFallback>
+                            {user.login[0]?.toUpperCase()}
+                          </AvatarFallback>
                         </Avatar>
                         {user.login}
                       </Button>
@@ -736,15 +783,24 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData, preset
 
           {/* ── Submit ── */}
           <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="flex-1"
+            >
               Cancel
             </Button>
-            <Button type="submit" className="flex-1" disabled={createTask.isPending}>
-              {createTask.isPending ? 'Creating...' : 'Create Task'}
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={createTask.isPending}
+            >
+              {createTask.isPending ? "Creating..." : "Create Task"}
             </Button>
           </div>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -37,12 +37,7 @@ export function GoalProgressRing({
 }: GoalProgressRingProps) {
   if (total <= 0) {
     return (
-      <span
-        className={cn(
-          "text-xs text-muted-foreground shrink-0",
-          className,
-        )}
-      >
+      <span className={cn("text-xs text-muted-foreground shrink-0", className)}>
         empty
       </span>
     );

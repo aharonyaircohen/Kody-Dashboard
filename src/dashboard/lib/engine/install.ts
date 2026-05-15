@@ -22,103 +22,109 @@
  * scoped fine-grained PAT covers this). When that fails we soft-fail and
  * surface a `nextSteps` entry so the user can set the secrets manually.
  */
-import type { Octokit } from '@octokit/rest'
-import sodium from 'libsodium-wrappers'
-import { logger } from '@dashboard/lib/logger'
-import { ensureWebhook } from '@dashboard/lib/webhooks/register'
-import { readVault } from '@dashboard/lib/vault/store'
+import type { Octokit } from "@octokit/rest";
+import sodium from "libsodium-wrappers";
+import { logger } from "@dashboard/lib/logger";
+import { ensureWebhook } from "@dashboard/lib/webhooks/register";
+import { readVault } from "@dashboard/lib/vault/store";
+import {
+  pickDefaultModel,
+  type ChatModel,
+} from "@dashboard/lib/variables/models";
 
-export const KODY_TOKEN_SECRET = 'KODY_TOKEN'
+export const KODY_TOKEN_SECRET = "KODY_TOKEN";
 
 export const TEMPLATE_URL =
-  'https://unpkg.com/@kody-ade/kody-engine@latest/templates/kody.yml'
-export const WORKFLOW_PATH = '.github/workflows/kody.yml'
+  "https://unpkg.com/@kody-ade/kody-engine@latest/templates/kody.yml";
+export const WORKFLOW_PATH = ".github/workflows/kody.yml";
+export const KODY_CONFIG_PATH = "kody.config.json";
+export const VARIABLES_PATH = ".kody/variables.json";
 
 export interface InstallEngineInput {
-  octokit: Octokit
-  owner: string
-  repo: string
-  token: string
-  hookUrl: string
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  token: string;
+  hookUrl: string;
   /**
    * Re-commit the template even if the workflow already matches.
    * Default false — when the file is current, no commit happens.
    */
-  force?: boolean
+  force?: boolean;
 }
 
-export type WorkflowAction = 'created' | 'updated' | 'unchanged'
+export type WorkflowAction = "created" | "updated" | "unchanged";
 
 export interface InstallEngineResult {
-  ok: true
+  ok: true;
   workflow: {
-    action: WorkflowAction
-    path: string
-    htmlUrl: string | null
-    commitSha: string | null
-    templateSource: string
-  }
+    action: WorkflowAction;
+    path: string;
+    htmlUrl: string | null;
+    commitSha: string | null;
+    templateSource: string;
+  };
   webhook: {
-    ok: boolean
-    created?: boolean
-    hookId?: number
-    error?: string
-  }
+    ok: boolean;
+    created?: boolean;
+    hookId?: number;
+    error?: string;
+  };
   kodyTokenSecret: {
-    ok: boolean
-    name: string
-    error?: string
-  }
+    ok: boolean;
+    name: string;
+    error?: string;
+  };
   vaultMirror: {
     /** True when the vault was read AND at least one entry mirrored, OR the vault is empty. */
-    ok: boolean
+    ok: boolean;
     /** Secret names successfully written. */
-    written: string[]
+    written: string[];
     /** Secret names that failed to write, with their error. */
-    failed: Array<{ name: string; error: string }>
+    failed: Array<{ name: string; error: string }>;
     /** Set when reading or decrypting the vault itself failed. */
-    error?: string
-  }
-  nextSteps: string[]
-  summary: string
+    error?: string;
+  };
+  nextSteps: string[];
+  summary: string;
 }
 
 export interface InstallEngineFailure {
-  ok: false
-  error: string
+  ok: false;
+  error: string;
 }
 
 async function fetchTemplate(): Promise<string> {
   const res = await fetch(TEMPLATE_URL, {
-    headers: { Accept: 'text/plain, */*' },
-    cache: 'no-store',
-  })
+    headers: { Accept: "text/plain, */*" },
+    cache: "no-store",
+  });
   if (!res.ok) {
     throw new Error(
       `Failed to fetch engine template (${res.status} ${res.statusText}) from ${TEMPLATE_URL}`,
-    )
+    );
   }
-  const body = await res.text()
-  if (!body.trim().startsWith('#') && !body.includes('name: kody')) {
+  const body = await res.text();
+  if (!body.trim().startsWith("#") && !body.includes("name: kody")) {
     throw new Error(
       `Engine template at ${TEMPLATE_URL} did not look like kody.yml (got ${body.length} chars).`,
-    )
+    );
   }
-  return body
+  return body;
 }
 
 async function encryptForRepo(
   value: string,
   base64PublicKey: string,
 ): Promise<string> {
-  await sodium.ready
-  const messageBytes = sodium.from_string(value)
+  await sodium.ready;
+  const messageBytes = sodium.from_string(value);
   const keyBytes = sodium.from_base64(
     base64PublicKey,
     sodium.base64_variants.ORIGINAL,
-  )
-  const encryptedBytes = sodium.crypto_box_seal(messageBytes, keyBytes)
-  return sodium.to_base64(encryptedBytes, sodium.base64_variants.ORIGINAL)
+  );
+  const encryptedBytes = sodium.crypto_box_seal(messageBytes, keyBytes);
+  return sodium.to_base64(encryptedBytes, sodium.base64_variants.ORIGINAL);
 }
 
 /**
@@ -138,21 +144,21 @@ async function setRepoActionsSecret(
     const { data: key } = await octokit.rest.actions.getRepoPublicKey({
       owner,
       repo,
-    })
-    const encrypted_value = await encryptForRepo(value, key.key)
+    });
+    const encrypted_value = await encryptForRepo(value, key.key);
     await octokit.rest.actions.createOrUpdateRepoSecret({
       owner,
       repo,
       secret_name: secretName,
       encrypted_value,
       key_id: key.key_id,
-    })
-    return { ok: true }
+    });
+    return { ok: true };
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : 'set_repo_secret_failed',
-    }
+      error: err instanceof Error ? err.message : "set_repo_secret_failed",
+    };
   }
 }
 
@@ -161,13 +167,13 @@ async function setRepoActionsSecret(
  * silently if the vault happens to hold one (defense-in-depth; the UI
  * shouldn't allow it).
  */
-const RESERVED_SECRET_PREFIXES = ['GITHUB_', 'ACTIONS_']
-const VALID_SECRET_NAME = /^[A-Z_][A-Z0-9_]*$/
+const RESERVED_SECRET_PREFIXES = ["GITHUB_", "ACTIONS_"];
+const VALID_SECRET_NAME = /^[A-Z_][A-Z0-9_]*$/;
 
 function isMirrorable(name: string): boolean {
-  if (!VALID_SECRET_NAME.test(name)) return false
-  if (RESERVED_SECRET_PREFIXES.some((p) => name.startsWith(p))) return false
-  return true
+  if (!VALID_SECRET_NAME.test(name)) return false;
+  if (RESERVED_SECRET_PREFIXES.some((p) => name.startsWith(p))) return false;
+  return true;
 }
 
 /**
@@ -180,11 +186,11 @@ async function mirrorVaultToActionsSecrets(
   octokit: Octokit,
   owner: string,
   repo: string,
-): Promise<InstallEngineResult['vaultMirror']> {
-  let doc: { secrets: Record<string, { value: string }> }
+): Promise<InstallEngineResult["vaultMirror"]> {
+  let doc: { secrets: Record<string, { value: string }> };
   try {
-    const result = await readVault(octokit, owner, repo)
-    doc = result.doc
+    const result = await readVault(octokit, owner, repo);
+    doc = result.doc;
   } catch (err) {
     return {
       ok: false,
@@ -193,19 +199,19 @@ async function mirrorVaultToActionsSecrets(
       error:
         err instanceof Error
           ? `vault_read_failed: ${err.message}`
-          : 'vault_read_failed',
-    }
+          : "vault_read_failed",
+    };
   }
 
   const entries = Object.entries(doc.secrets).filter(
     ([name, entry]) => entry?.value && isMirrorable(name),
-  )
+  );
   if (entries.length === 0) {
-    return { ok: true, written: [], failed: [] }
+    return { ok: true, written: [], failed: [] };
   }
 
-  const written: string[] = []
-  const failed: Array<{ name: string; error: string }> = []
+  const written: string[] = [];
+  const failed: Array<{ name: string; error: string }> = [];
   for (const [name, entry] of entries) {
     const res = await setRepoActionsSecret(
       octokit,
@@ -213,12 +219,12 @@ async function mirrorVaultToActionsSecrets(
       repo,
       name,
       entry.value,
-    )
-    if (res.ok) written.push(name)
-    else failed.push({ name, error: res.error })
+    );
+    if (res.ok) written.push(name);
+    else failed.push({ name, error: res.error });
   }
 
-  return { ok: failed.length === 0, written, failed }
+  return { ok: failed.length === 0, written, failed };
 }
 
 async function readExisting(
@@ -231,65 +237,154 @@ async function readExisting(
       owner,
       repo,
       path: WORKFLOW_PATH,
-    })
-    if (Array.isArray(data) || !('content' in data) || !data.content) return null
+    });
+    if (Array.isArray(data) || !("content" in data) || !data.content)
+      return null;
     return {
       sha: data.sha,
-      content: Buffer.from(data.content, 'base64').toString('utf-8'),
-    }
+      content: Buffer.from(data.content, "base64").toString("utf-8"),
+    };
   } catch (err: unknown) {
     if (
-      typeof err === 'object' &&
+      typeof err === "object" &&
       err &&
-      'status' in err &&
+      "status" in err &&
       (err as { status: number }).status === 404
     ) {
-      return null
+      return null;
     }
-    throw err
+    throw err;
   }
+}
+
+interface VariablesJson {
+  LLM_MODELS?: ChatModel[];
+}
+
+async function readVariablesJson(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<{ models: ChatModel[]; sha: string | null }> {
+  try {
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: VARIABLES_PATH,
+    });
+    if (Array.isArray(data) || !("content" in data) || !data.content) {
+      return { models: [], sha: null };
+    }
+    const content = Buffer.from(data.content, "base64").toString("utf-8");
+    const parsed = JSON.parse(content) as VariablesJson;
+    return {
+      models: parsed.LLM_MODELS ?? [],
+      sha: data.sha ?? null,
+    };
+  } catch (err: unknown) {
+    const status = (err as { status?: number }).status;
+    if (status === 404) {
+      return { models: [], sha: null };
+    }
+    throw err;
+  }
+}
+
+async function upsertKodyConfig(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  defaultModelId: string | null,
+): Promise<{ sha: string | null }> {
+  // Check if kody.config.json already exists
+  let existingSha: string | null = null;
+  try {
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: KODY_CONFIG_PATH,
+    });
+    if (!Array.isArray(data) && "content" in data && data.content) {
+      existingSha = data.sha ?? null;
+    }
+  } catch (err: unknown) {
+    const status = (err as { status?: number }).status;
+    if (status !== 404) throw err;
+  }
+
+  const configContent: Record<string, unknown> = {
+    executables: {
+      default: "run",
+    },
+  };
+  if (defaultModelId) {
+    configContent.model = {
+      default: defaultModelId,
+    };
+  }
+
+  const content = Buffer.from(JSON.stringify(configContent), "utf-8").toString(
+    "base64",
+  );
+  const { data } = await octokit.rest.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: KODY_CONFIG_PATH,
+    message: existingSha
+      ? "chore(kody): update engine config"
+      : "chore(kody): create engine config",
+    content,
+    ...(existingSha ? { sha: existingSha } : {}),
+  });
+  return { sha: data.commit.sha ?? null };
 }
 
 export async function installEngine(
   input: InstallEngineInput,
 ): Promise<InstallEngineResult | InstallEngineFailure> {
-  const { octokit, owner, repo, token, hookUrl, force } = input
+  const { octokit, owner, repo, token, hookUrl, force } = input;
 
   try {
-    const template = await fetchTemplate()
-    const existing = await readExisting(octokit, owner, repo)
+    const template = await fetchTemplate();
+    const existing = await readExisting(octokit, owner, repo);
 
-    let workflowAction: WorkflowAction = 'unchanged'
-    let workflowCommitSha: string | null = null
-    let workflowHtmlUrl: string | null = null
+    let workflowAction: WorkflowAction = "unchanged";
+    let workflowCommitSha: string | null = null;
+    let workflowHtmlUrl: string | null = null;
 
     if (!existing) {
       const { data } = await octokit.rest.repos.createOrUpdateFileContents({
         owner,
         repo,
         path: WORKFLOW_PATH,
-        message: 'chore(kody): install engine workflow',
-        content: Buffer.from(template, 'utf-8').toString('base64'),
-      })
-      workflowAction = 'created'
-      workflowCommitSha = data.commit.sha ?? null
-      workflowHtmlUrl = data.content?.html_url ?? null
+        message: "chore(kody): install engine workflow",
+        content: Buffer.from(template, "utf-8").toString("base64"),
+      });
+      workflowAction = "created";
+      workflowCommitSha = data.commit.sha ?? null;
+      workflowHtmlUrl = data.content?.html_url ?? null;
     } else if (existing.content === template && !force) {
-      workflowAction = 'unchanged'
-      workflowHtmlUrl = `https://github.com/${owner}/${repo}/blob/HEAD/${WORKFLOW_PATH}`
+      workflowAction = "unchanged";
+      workflowHtmlUrl = `https://github.com/${owner}/${repo}/blob/HEAD/${WORKFLOW_PATH}`;
     } else {
       const { data } = await octokit.rest.repos.createOrUpdateFileContents({
         owner,
         repo,
         path: WORKFLOW_PATH,
-        message: 'chore(kody): sync engine workflow to latest template',
-        content: Buffer.from(template, 'utf-8').toString('base64'),
+        message: "chore(kody): sync engine workflow to latest template",
+        content: Buffer.from(template, "utf-8").toString("base64"),
         sha: existing.sha,
-      })
-      workflowAction = 'updated'
-      workflowCommitSha = data.commit.sha ?? null
-      workflowHtmlUrl = data.content?.html_url ?? null
+      });
+      workflowAction = "updated";
+      workflowCommitSha = data.commit.sha ?? null;
+      workflowHtmlUrl = data.content?.html_url ?? null;
     }
+
+    // Upsert kody.config.json with default model and executable
+    const { models } = await readVariablesJson(octokit, owner, repo);
+    const defaultModel = pickDefaultModel(models);
+    const defaultModelId = defaultModel?.id ?? null;
+    await upsertKodyConfig(octokit, owner, repo, defaultModelId);
 
     const kodyTokenResult = await setRepoActionsSecret(
       octokit,
@@ -297,32 +392,32 @@ export async function installEngine(
       repo,
       KODY_TOKEN_SECRET,
       token,
-    )
-    const kodyTokenSecret: InstallEngineResult['kodyTokenSecret'] =
+    );
+    const kodyTokenSecret: InstallEngineResult["kodyTokenSecret"] =
       kodyTokenResult.ok
         ? { ok: true, name: KODY_TOKEN_SECRET }
         : {
             ok: false,
             name: KODY_TOKEN_SECRET,
             error: kodyTokenResult.error,
-          }
+          };
 
-    const vaultMirror = await mirrorVaultToActionsSecrets(octokit, owner, repo)
+    const vaultMirror = await mirrorVaultToActionsSecrets(octokit, owner, repo);
 
-    let webhook: InstallEngineResult['webhook']
+    let webhook: InstallEngineResult["webhook"];
     try {
-      const result = await ensureWebhook({ token, owner, repo, hookUrl })
+      const result = await ensureWebhook({ token, owner, repo, hookUrl });
       webhook = {
         ok: result.ok,
         created: result.created,
         hookId: result.hookId,
         error: result.error,
-      }
+      };
     } catch (err) {
       webhook = {
         ok: false,
-        error: err instanceof Error ? err.message : 'webhook_register_failed',
-      }
+        error: err instanceof Error ? err.message : "webhook_register_failed",
+      };
     }
 
     logger.info(
@@ -337,69 +432,69 @@ export async function installEngine(
         vaultMirroredCount: vaultMirror.written.length,
         vaultMirrorFailedCount: vaultMirror.failed.length,
       },
-      'installEngine: installed engine workflow',
-    )
+      "installEngine: installed engine workflow",
+    );
 
     const nextSteps = [
       'Pick "Kody Live" (or "Kody Live Fly") in the chat agent dropdown to ' +
-        'verify the workflow runs. First dispatch cold-starts in ~30s.',
-    ]
+        "verify the workflow runs. First dispatch cold-starts in ~30s.",
+    ];
     if (vaultMirror.written.length === 0 && !vaultMirror.error) {
       nextSteps.unshift(
-        'Your repo vault is empty — Kody has no LLM key to call out with. ' +
-          'Open Settings → Secrets in the dashboard and add at least one ' +
-          'provider key (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), then ' +
-          're-run /init so it gets mirrored to the consumer repo.',
-      )
+        "Your repo vault is empty — Kody has no LLM key to call out with. " +
+          "Open Settings → Secrets in the dashboard and add at least one " +
+          "provider key (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), then " +
+          "re-run /init so it gets mirrored to the consumer repo.",
+      );
     }
     if (vaultMirror.error) {
       nextSteps.unshift(
         `Couldn't read the repo vault (${vaultMirror.error}). LLM provider ` +
           `keys were not synced to the consumer repo. Open Settings → Secrets ` +
           `to repopulate the vault, then re-run /init.`,
-      )
+      );
     }
     if (vaultMirror.failed.length > 0) {
-      const list = vaultMirror.failed.map((f) => f.name).join(', ')
+      const list = vaultMirror.failed.map((f) => f.name).join(", ");
       nextSteps.unshift(
         `Some vault entries failed to write as Actions secrets (${list}). ` +
           `The PAT used here likely lacks \`repo:secrets:write\` for those. ` +
           `Either re-mint the PAT and re-run /init, or set them by hand: ` +
           `https://github.com/${owner}/${repo}/settings/secrets/actions/new`,
-      )
+      );
     }
     if (!kodyTokenSecret.ok) {
       nextSteps.unshift(
         `Couldn't auto-set the \`${KODY_TOKEN_SECRET}\` Actions secret ` +
-          `(${kodyTokenSecret.error ?? 'unknown error'}). The PAT used here ` +
-          'likely lacks `repo:secrets:write`. Without it the engine has no ' +
-          'GitHub auth at runtime — labels, comments and PR updates will fail. ' +
-          'Either re-mint the PAT with secrets write access and re-run /init, ' +
+          `(${kodyTokenSecret.error ?? "unknown error"}). The PAT used here ` +
+          "likely lacks `repo:secrets:write`. Without it the engine has no " +
+          "GitHub auth at runtime — labels, comments and PR updates will fail. " +
+          "Either re-mint the PAT with secrets write access and re-run /init, " +
           `or add the secret by hand: ` +
           `https://github.com/${owner}/${repo}/settings/secrets/actions/new`,
-      )
+      );
     }
 
     const tokenSummary = kodyTokenSecret.ok
-      ? `${KODY_TOKEN_SECRET} secret ${workflowAction === 'created' ? 'set' : 'refreshed'}.`
-      : `${KODY_TOKEN_SECRET} secret FAILED — ${kodyTokenSecret.error ?? 'unknown'}.`
+      ? `${KODY_TOKEN_SECRET} secret ${workflowAction === "created" ? "set" : "refreshed"}.`
+      : `${KODY_TOKEN_SECRET} secret FAILED — ${kodyTokenSecret.error ?? "unknown"}.`;
     const vaultSummary = vaultMirror.error
       ? `Vault sync FAILED — ${vaultMirror.error}.`
       : vaultMirror.written.length === 0
         ? `Vault sync: empty vault — nothing to mirror.`
         : vaultMirror.failed.length === 0
           ? `Vault sync: ${vaultMirror.written.length} secret(s) mirrored.`
-          : `Vault sync: ${vaultMirror.written.length} mirrored, ${vaultMirror.failed.length} failed.`
+          : `Vault sync: ${vaultMirror.written.length} mirrored, ${vaultMirror.failed.length} failed.`;
     const webhookSummary = webhook.ok
-      ? `Webhook ${workflowAction === 'created' ? 'registered' : 'refreshed'}.`
-      : `Webhook FAILED — ${webhook.error ?? 'unknown'}.`
+      ? `Webhook ${workflowAction === "created" ? "registered" : "refreshed"}.`
+      : `Webhook FAILED — ${webhook.error ?? "unknown"}.`;
     const workflowSummary =
-      workflowAction === 'created'
+      workflowAction === "created"
         ? `Engine workflow created at ${WORKFLOW_PATH}.`
-        : workflowAction === 'updated'
-          ? 'Engine workflow updated to the latest template.'
-          : 'Engine workflow already matches the latest template — no commit needed.'
-    const summary = `${workflowSummary} ${tokenSummary} ${vaultSummary} ${webhookSummary}`
+        : workflowAction === "updated"
+          ? "Engine workflow updated to the latest template."
+          : "Engine workflow already matches the latest template — no commit needed.";
+    const summary = `${workflowSummary} ${tokenSummary} ${vaultSummary} ${webhookSummary}`;
 
     return {
       ok: true,
@@ -415,12 +510,12 @@ export async function installEngine(
       vaultMirror,
       nextSteps,
       summary,
-    }
+    };
   } catch (err) {
-    logger.warn({ err, owner, repo }, 'installEngine failed')
+    logger.warn({ err, owner, repo }, "installEngine failed");
     return {
       ok: false,
-      error: err instanceof Error ? err.message : 'install_engine_failed',
-    }
+      error: err instanceof Error ? err.message : "install_engine_failed",
+    };
   }
 }

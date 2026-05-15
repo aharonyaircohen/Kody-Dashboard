@@ -4,163 +4,186 @@
  * @pattern comment-editor
  * @ai-summary Simplified comment editor with markdown preview and @mention support
  */
-'use client'
+"use client";
 
-import { useState, useEffect, useRef } from 'react'
-import { MessageSquarePlus } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import Image from 'next/image'
-import { Button } from '@dashboard/ui/button'
-import { Textarea } from '@dashboard/ui/textarea'
-import { cn } from '@dashboard/lib/utils/ui'
-import { usePostComment } from '../hooks'
-import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
-import { EMOJI_LIST, getGitHubIssueUrl } from '../constants'
-import { Bold, Italic, Code, Link2, List, Eye, Send, Play, ExternalLink } from 'lucide-react'
+import { useState, useEffect, useRef } from "react";
+import { MessageSquarePlus } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import Image from "next/image";
+import { Button } from "@dashboard/ui/button";
+import { Textarea } from "@dashboard/ui/textarea";
+import { cn } from "@dashboard/lib/utils/ui";
+import { usePostComment } from "../hooks";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { EMOJI_LIST, getGitHubIssueUrl } from "../constants";
+import {
+  Bold,
+  Italic,
+  Code,
+  Link2,
+  List,
+  Eye,
+  Send,
+  Play,
+  ExternalLink,
+} from "lucide-react";
 
 interface CommentEditorProps {
-  issueNumber: number
-  onCommentPosted?: () => void
-  placeholder?: string
+  issueNumber: number;
+  onCommentPosted?: () => void;
+  placeholder?: string;
 }
 
 interface Mention {
-  login: string
-  avatar_url: string
+  login: string;
+  avatar_url: string;
 }
 
 export function CommentEditor({
   issueNumber,
   onCommentPosted,
-  placeholder = 'Write a comment...',
+  placeholder = "Write a comment...",
 }: CommentEditorProps) {
-  const [comment, setComment] = useState('')
-  const [showPreview, setShowPreview] = useState(false)
-  const [showEditor, setShowEditor] = useState(false)
-  const [mentionQuery, setMentionQuery] = useState('')
-  const [showMentions, setShowMentions] = useState(false)
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const [mentions, setMentions] = useState<Mention[]>([])
-  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
+  const [comment, setComment] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [showMentions, setShowMentions] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [mentions, setMentions] = useState<Mention[]>([]);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const mentionsRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionsRef = useRef<HTMLDivElement>(null);
 
-  const { githubUser } = useGitHubIdentity()
+  const { githubUser } = useGitHubIdentity();
   const {
     mutate: postComment,
     isPending: isPosting,
     error,
-  } = usePostComment(issueNumber, githubUser?.login)
+  } = usePostComment(issueNumber, githubUser?.login);
 
   // Fetch collaborators for @mentions
   useEffect(() => {
-    fetch('/api/kody/collaborators')
+    fetch("/api/kody/collaborators")
       .then((res) => res.json())
       .then((data) => setMentions(data.collaborators || []))
-      .catch(console.error)
-  }, [])
+      .catch(console.error);
+  }, []);
 
   // Filter mentions based on input
   const filteredMentions = mentions
     .filter((m) => m.login.toLowerCase().includes(mentionQuery.toLowerCase()))
-    .slice(0, 5)
+    .slice(0, 5);
 
   // Handle @mention detection
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value
-    setComment(value)
+    const value = e.target.value;
+    setComment(value);
 
-    const cursorPos = e.target.selectionStart
-    const textBeforeCursor = value.slice(0, cursorPos)
-    const mentionMatch = textBeforeCursor.match(/@(\w*)$/)
+    const cursorPos = e.target.selectionStart;
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
 
     if (mentionMatch) {
-      setMentionQuery(mentionMatch[1])
-      setShowMentions(true)
-      setSelectedMentionIndex(0)
+      setMentionQuery(mentionMatch[1]);
+      setShowMentions(true);
+      setSelectedMentionIndex(0);
     } else {
-      setShowMentions(false)
-      setMentionQuery('')
+      setShowMentions(false);
+      setMentionQuery("");
     }
-  }
+  };
 
   // Handle mention selection
   const selectMention = (mention: Mention) => {
-    const cursorPos = textareaRef.current?.selectionStart || comment.length
-    const textBeforeCursor = comment.slice(0, cursorPos)
-    const textAfterCursor = comment.slice(cursorPos)
-    const newTextBefore = textBeforeCursor.replace(/@\w*$/, `@${mention.login} `)
-    setComment(newTextBefore + textAfterCursor)
-    setShowMentions(false)
-    setMentionQuery('')
-    textareaRef.current?.focus()
-  }
+    const cursorPos = textareaRef.current?.selectionStart || comment.length;
+    const textBeforeCursor = comment.slice(0, cursorPos);
+    const textAfterCursor = comment.slice(cursorPos);
+    const newTextBefore = textBeforeCursor.replace(
+      /@\w*$/,
+      `@${mention.login} `,
+    );
+    setComment(newTextBefore + textAfterCursor);
+    setShowMentions(false);
+    setMentionQuery("");
+    textareaRef.current?.focus();
+  };
 
   // Handle keyboard navigation in mentions
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showMentions) return
+    if (!showMentions) return;
 
     switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        setSelectedMentionIndex((i) => Math.min(i + 1, filteredMentions.length - 1))
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setSelectedMentionIndex((i) => Math.max(i - 1, 0))
-        break
-      case 'Enter':
-        e.preventDefault()
+      case "ArrowDown":
+        e.preventDefault();
+        setSelectedMentionIndex((i) =>
+          Math.min(i + 1, filteredMentions.length - 1),
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedMentionIndex((i) => Math.max(i - 1, 0));
+        break;
+      case "Enter":
+        e.preventDefault();
         if (filteredMentions[selectedMentionIndex]) {
-          selectMention(filteredMentions[selectedMentionIndex])
+          selectMention(filteredMentions[selectedMentionIndex]);
         }
-        break
-      case 'Escape':
-        setShowMentions(false)
-        break
+        break;
+      case "Escape":
+        setShowMentions(false);
+        break;
     }
-  }
+  };
 
   const handleSubmit = () => {
-    if (!comment.trim() || isPosting) return
+    if (!comment.trim() || isPosting) return;
 
     postComment(comment.trim(), {
       onSuccess: () => {
-        setComment('')
-        setShowPreview(false)
-        onCommentPosted?.()
+        setComment("");
+        setShowPreview(false);
+        onCommentPosted?.();
       },
-    })
-  }
+    });
+  };
 
   // Common markdown helpers
-  const insertMarkdown = (before: string, after: string = '') => {
-    const textarea = textareaRef.current
-    if (!textarea) return
+  const insertMarkdown = (before: string, after: string = "") => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
 
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selectedText = comment.slice(start, end)
-    const newComment = comment.slice(0, start) + before + selectedText + after + comment.slice(end)
-    setComment(newComment)
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = comment.slice(start, end);
+    const newComment =
+      comment.slice(0, start) +
+      before +
+      selectedText +
+      after +
+      comment.slice(end);
+    setComment(newComment);
 
     setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length)
-    }, 0)
-  }
+      textarea.focus();
+      textarea.setSelectionRange(
+        start + before.length,
+        start + before.length + selectedText.length,
+      );
+    }, 0);
+  };
 
   const insertEmoji = (emoji: string) => {
-    const textarea = textareaRef.current
-    if (!textarea) return
+    const textarea = textareaRef.current;
+    if (!textarea) return;
 
-    const start = textarea.selectionStart
-    const newComment = comment.slice(0, start) + emoji + comment.slice(start)
-    setComment(newComment)
-    setShowEmojiPicker(false)
-    textarea.focus()
-  }
+    const start = textarea.selectionStart;
+    const newComment = comment.slice(0, start) + emoji + comment.slice(start);
+    setComment(newComment);
+    setShowEmojiPicker(false);
+    textarea.focus();
+  };
 
   // If editor is not shown, show a button to open it
   if (!showEditor) {
@@ -174,7 +197,7 @@ export function CommentEditor({
         <MessageSquarePlus className="w-4 h-4 mr-2" />
         Add comment...
       </Button>
-    )
+    );
   }
 
   return (
@@ -185,7 +208,7 @@ export function CommentEditor({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => insertMarkdown('**', '**')}
+          onClick={() => insertMarkdown("**", "**")}
           className="h-6 w-6 p-0"
           title="Bold"
         >
@@ -195,7 +218,7 @@ export function CommentEditor({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => insertMarkdown('*', '*')}
+          onClick={() => insertMarkdown("*", "*")}
           className="h-6 w-6 p-0"
           title="Italic"
         >
@@ -205,7 +228,7 @@ export function CommentEditor({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => insertMarkdown('`', '`')}
+          onClick={() => insertMarkdown("`", "`")}
           className="h-6 w-6 p-0"
           title="Code"
         >
@@ -215,7 +238,7 @@ export function CommentEditor({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => insertMarkdown('[', '](url)')}
+          onClick={() => insertMarkdown("[", "](url)")}
           className="h-6 w-6 p-0"
           title="Link"
         >
@@ -225,7 +248,7 @@ export function CommentEditor({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => insertMarkdown('- ')}
+          onClick={() => insertMarkdown("- ")}
           className="h-6 w-6 p-0"
           title="List"
         >
@@ -264,11 +287,11 @@ export function CommentEditor({
 
         <Button
           type="button"
-          variant={showPreview ? 'secondary' : 'ghost'}
+          variant={showPreview ? "secondary" : "ghost"}
           size="sm"
           onClick={() => setShowPreview(!showPreview)}
           className="h-6 px-1.5 text-xs"
-          title={showPreview ? 'Edit' : 'Preview'}
+          title={showPreview ? "Edit" : "Preview"}
         >
           <Eye className="w-3 h-3" />
         </Button>
@@ -280,9 +303,9 @@ export function CommentEditor({
           variant="ghost"
           size="sm"
           onClick={() => {
-            setShowEditor(false)
-            setComment('')
-            setShowPreview(false)
+            setShowEditor(false);
+            setComment("");
+            setShowPreview(false);
           }}
           className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
           title="Close"
@@ -295,7 +318,7 @@ export function CommentEditor({
       <div className="relative">
         {showPreview ? (
           <div className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown>{comment || '*Nothing to preview*'}</ReactMarkdown>
+            <ReactMarkdown>{comment || "*Nothing to preview*"}</ReactMarkdown>
           </div>
         ) : (
           <div className="relative">
@@ -322,8 +345,8 @@ export function CommentEditor({
                     type="button"
                     onClick={() => selectMention(mention)}
                     className={cn(
-                      'w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent',
-                      index === selectedMentionIndex && 'bg-accent',
+                      "w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent",
+                      index === selectedMentionIndex && "bg-accent",
                     )}
                   >
                     <Image
@@ -344,18 +367,22 @@ export function CommentEditor({
 
       {/* Error and submit */}
       <div className="flex justify-end items-center gap-1">
-        {error && <span className="text-destructive text-xs mr-auto">{error.message}</span>}
+        {error && (
+          <span className="text-destructive text-xs mr-auto">
+            {error.message}
+          </span>
+        )}
         <Button
           onClick={() => {
             // Execute @kody command - post and trigger
-            const cmdComment = comment.trim() || '@kody'
+            const cmdComment = comment.trim() || "@kody";
             postComment(cmdComment, {
               onSuccess: () => {
-                setComment('')
-                setShowPreview(false)
-                onCommentPosted?.()
+                setComment("");
+                setShowPreview(false);
+                onCommentPosted?.();
               },
-            })
+            });
           }}
           disabled={isPosting}
           size="sm"
@@ -366,9 +393,7 @@ export function CommentEditor({
           <Play className="w-3 h-3" />
         </Button>
         <Button
-          onClick={() =>
-            window.open(getGitHubIssueUrl(issueNumber), '_blank')
-          }
+          onClick={() => window.open(getGitHubIssueUrl(issueNumber), "_blank")}
           size="sm"
           variant="outline"
           className="h-6 px-1.5 text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800"
@@ -388,5 +413,5 @@ export function CommentEditor({
         </Button>
       </div>
     </div>
-  )
+  );
 }

@@ -120,7 +120,10 @@ function fireAndForget(promise: Promise<unknown>, label: string): void {
   });
 }
 
-function dispatch(event: string, payload: unknown): { handled: boolean; detail: string } {
+function dispatch(
+  event: string,
+  payload: unknown,
+): { handled: boolean; detail: string } {
   switch (event) {
     case "ping":
       return { handled: true, detail: "ping" };
@@ -170,7 +173,11 @@ function dispatch(event: string, payload: unknown): { handled: boolean; detail: 
       // On merge, append a bullet to CHANGELOG.md under `## [Unreleased]`.
       // Idempotent on PR number; fire-and-forget so a slow GitHub write
       // never blocks the webhook ACK.
-      if (event === "pull_request" && p?.action === "closed" && p?.pull_request?.merged) {
+      if (
+        event === "pull_request" &&
+        p?.action === "closed" &&
+        p?.pull_request?.merged
+      ) {
         fireAndForget(
           handlePrMerged(payload as Record<string, unknown>),
           `changelog.append#${p.pull_request.number ?? "?"}`,
@@ -187,7 +194,10 @@ function dispatch(event: string, payload: unknown): { handled: boolean; detail: 
           `changelog.promote#${p.release?.tag_name ?? "?"}`,
         );
       }
-      return { handled: true, detail: `release:${p?.release?.tag_name ?? "?"}` };
+      return {
+        handled: true,
+        detail: `release:${p?.release?.tag_name ?? "?"}`,
+      };
     }
 
     case "check_run": {
@@ -318,5 +328,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   }
 
-  return NextResponse.json({ ok: true, handled: result.handled }, { status: 200 });
+  return NextResponse.json(
+    { ok: true, handled: result.handled },
+    { status: 200 },
+  );
 }

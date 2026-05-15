@@ -13,23 +13,23 @@
  * localStorage after the user connects a repo, and every API call passes
  * them via the three custom headers above.
  */
-import { NextRequest, NextResponse } from 'next/server'
-import { createUserOctokit } from '@dashboard/lib/github-client'
-import { logger } from '@dashboard/lib/logger'
-import type { Octokit } from '@octokit/rest'
+import { NextRequest, NextResponse } from "next/server";
+import { createUserOctokit } from "@dashboard/lib/github-client";
+import { logger } from "@dashboard/lib/logger";
+import type { Octokit } from "@octokit/rest";
 
 // ─── Header constants (must match auth-context.ts buildAuthHeaders) ─────────────
 
-const HDR_TOKEN = 'x-kody-token'
-const HDR_OWNER = 'x-kody-owner'
-const HDR_REPO = 'x-kody-repo'
+const HDR_TOKEN = "x-kody-token";
+const HDR_OWNER = "x-kody-owner";
+const HDR_REPO = "x-kody-repo";
 
 // ─── Per-request auth from headers ────────────────────────────────────────────
 
 export interface RequestAuth {
-  token: string
-  owner: string
-  repo: string
+  token: string;
+  owner: string;
+  repo: string;
 }
 
 /**
@@ -37,18 +37,23 @@ export interface RequestAuth {
  * Returns null if headers are missing or incomplete.
  */
 export function getRequestAuth(req: NextRequest): RequestAuth | null {
-  const token = req.headers.get(HDR_TOKEN)
-  const owner = req.headers.get(HDR_OWNER)
-  const repo = req.headers.get(HDR_REPO)
+  const token = req.headers.get(HDR_TOKEN);
+  const owner = req.headers.get(HDR_OWNER);
+  const repo = req.headers.get(HDR_REPO);
 
-  if (!token || !owner || !repo) return null
-  return { token, owner, repo }
+  if (!token || !owner || !repo) return null;
+  return { token, owner, repo };
 }
 
 // ─── Server-side env token (fallback for CI / token-only deployments) ────────
 
 function getEnvToken(): string | null {
-  return process.env.KODY_BOT_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_PAT || null
+  return (
+    process.env.KODY_BOT_TOKEN ||
+    process.env.GITHUB_TOKEN ||
+    process.env.GH_PAT ||
+    null
+  );
 }
 
 // ─── Require auth — 401 if neither header token nor env token present ─────────
@@ -60,17 +65,22 @@ function getEnvToken(): string | null {
  *
  * Returns null on success, or a NextResponse on failure.
  */
-export async function requireKodyAuth(req: NextRequest): Promise<null | NextResponse> {
-  const headerAuth = getRequestAuth(req)
-  const envToken = getEnvToken()
+export async function requireKodyAuth(
+  req: NextRequest,
+): Promise<null | NextResponse> {
+  const headerAuth = getRequestAuth(req);
+  const envToken = getEnvToken();
 
   if (!headerAuth && !envToken) {
     return NextResponse.json(
-      { message: 'Not authenticated. Provide x-kody-token header or set KODY_BOT_TOKEN env var.' },
+      {
+        message:
+          "Not authenticated. Provide x-kody-token header or set KODY_BOT_TOKEN env var.",
+      },
       { status: 401 },
-    )
+    );
   }
-  return null
+  return null;
 }
 
 // ─── Get Octokit instance ──────────────────────────────────────────────────────
@@ -85,20 +95,22 @@ export async function requireKodyAuth(req: NextRequest): Promise<null | NextResp
  * Callers should prefer the header token so operations are attributed
  * to the actual user rather than the bot account.
  */
-export async function getUserOctokit(req: NextRequest): Promise<Octokit | null> {
+export async function getUserOctokit(
+  req: NextRequest,
+): Promise<Octokit | null> {
   // 1. Client header token (localStorage auth)
-  const headerAuth = getRequestAuth(req)
+  const headerAuth = getRequestAuth(req);
   if (headerAuth) {
-    return createUserOctokit(headerAuth.token)
+    return createUserOctokit(headerAuth.token);
   }
 
   // 2. Env token fallback
-  const envToken = getEnvToken()
+  const envToken = getEnvToken();
   if (envToken) {
-    return createUserOctokit(envToken)
+    return createUserOctokit(envToken);
   }
 
-  return null
+  return null;
 }
 
 // ─── Actor login verification ───────────────────────────────────────────────────
@@ -115,21 +127,25 @@ export async function getUserOctokit(req: NextRequest): Promise<Octokit | null> 
 export async function verifyActorLogin(
   req: NextRequest,
   suppliedLogin: string | undefined,
-): Promise<{ identity: { login: string; avatar_url: string; githubId: number } } | NextResponse> {
-  const authError = await requireKodyAuth(req)
+): Promise<
+  | { identity: { login: string; avatar_url: string; githubId: number } }
+  | NextResponse
+> {
+  const authError = await requireKodyAuth(req);
   if (authError !== null) {
-    return authError
+    return authError;
   }
 
   logger.info(
     { actorLogin: suppliedLogin, path: req.nextUrl.pathname },
-    'Token auth: actorLogin verification skipped (no server session)',
-  )
+    "Token auth: actorLogin verification skipped (no server session)",
+  );
   return {
     identity: {
-      login: suppliedLogin || 'token-user',
-      avatar_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
+      login: suppliedLogin || "token-user",
+      avatar_url:
+        "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
       githubId: 0,
     },
-  }
+  };
 }

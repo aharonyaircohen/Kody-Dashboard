@@ -4,96 +4,111 @@
  * @pattern assignee-picker
  * @ai-summary Inline assignee management with cached collaborators, loading states, and remove buttons
  */
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Button } from '@dashboard/ui/button'
+import { useState } from "react";
+import { Button } from "@dashboard/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@dashboard/ui/dropdown-menu'
-import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
-import { Loader2, Plus, X } from 'lucide-react'
-import { useCollaborators } from '../hooks'
+} from "@dashboard/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+import { Loader2, Plus, X } from "lucide-react";
+import { useCollaborators } from "../hooks";
 
 export interface AssigneeChangeEvent {
-  action: 'assign' | 'unassign'
-  login: string
-  avatar_url: string
+  action: "assign" | "unassign";
+  login: string;
+  avatar_url: string;
 }
 
 interface AssigneePickerProps {
-  issueNumber: number
-  currentAssignees: Array<{ login: string; avatar_url: string }>
-  onChange?: (event: AssigneeChangeEvent) => void
+  issueNumber: number;
+  currentAssignees: Array<{ login: string; avatar_url: string }>;
+  onChange?: (event: AssigneeChangeEvent) => void;
 }
 
-export function AssigneePicker({ issueNumber, currentAssignees, onChange }: AssigneePickerProps) {
-  const { data: collaborators = [], isLoading: isLoadingCollaborators } = useCollaborators()
-  const [pendingAction, setPendingAction] = useState<string | null>(null)
-  const [open, setOpen] = useState(false)
+export function AssigneePicker({
+  issueNumber,
+  currentAssignees,
+  onChange,
+}: AssigneePickerProps) {
+  const { data: collaborators = [], isLoading: isLoadingCollaborators } =
+    useCollaborators();
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
 
-  const currentLogins = currentAssignees.map((a) => a.login)
-  const availableCollaborators = collaborators.filter((c) => !currentLogins.includes(c.login))
+  const currentLogins = currentAssignees.map((a) => a.login);
+  const availableCollaborators = collaborators.filter(
+    (c) => !currentLogins.includes(c.login),
+  );
 
   const handleAssign = async (login: string) => {
-    setPendingAction(`assign:${login}`)
+    setPendingAction(`assign:${login}`);
     try {
       const res = await fetch(`/api/kody/tasks/issue-${issueNumber}/actions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: 'assign',
+          action: "assign",
           assignees: [login],
         }),
-      })
+      });
 
       if (!res.ok) {
-        throw new Error('Failed to assign')
+        throw new Error("Failed to assign");
       }
 
-      const collab = collaborators.find((c) => c.login === login)
-      onChange?.({ action: 'assign', login, avatar_url: collab?.avatar_url || '' })
-      setOpen(false)
+      const collab = collaborators.find((c) => c.login === login);
+      onChange?.({
+        action: "assign",
+        login,
+        avatar_url: collab?.avatar_url || "",
+      });
+      setOpen(false);
     } catch (err) {
-      console.error('Failed to assign:', err)
+      console.error("Failed to assign:", err);
     } finally {
-      setPendingAction(null)
+      setPendingAction(null);
     }
-  }
+  };
 
   const handleUnassign = async (login: string) => {
-    setPendingAction(`unassign:${login}`)
+    setPendingAction(`unassign:${login}`);
     try {
       const res = await fetch(`/api/kody/tasks/issue-${issueNumber}/actions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: 'unassign',
+          action: "unassign",
           assignees: [login],
         }),
-      })
+      });
 
       if (!res.ok) {
-        throw new Error('Failed to unassign')
+        throw new Error("Failed to unassign");
       }
 
-      const assignee = currentAssignees.find((a) => a.login === login)
-      onChange?.({ action: 'unassign', login, avatar_url: assignee?.avatar_url || '' })
+      const assignee = currentAssignees.find((a) => a.login === login);
+      onChange?.({
+        action: "unassign",
+        login,
+        avatar_url: assignee?.avatar_url || "",
+      });
     } catch (err) {
-      console.error('Failed to unassign:', err)
+      console.error("Failed to unassign:", err);
     } finally {
-      setPendingAction(null)
+      setPendingAction(null);
     }
-  }
+  };
 
   return (
     <div className="space-y-2">
       {/* Current assignees with remove buttons */}
       {currentAssignees.map((assignee) => {
-        const isRemoving = pendingAction === `unassign:${assignee.login}`
+        const isRemoving = pendingAction === `unassign:${assignee.login}`;
         return (
           <div
             key={assignee.login}
@@ -105,7 +120,9 @@ export function AssigneePicker({ issueNumber, currentAssignees, onChange }: Assi
                 {assignee.login[0]?.toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <span className="text-xs text-foreground flex-1">{assignee.login}</span>
+            <span className="text-xs text-foreground flex-1">
+              {assignee.login}
+            </span>
             <button
               onClick={() => handleUnassign(assignee.login)}
               disabled={!!pendingAction}
@@ -119,7 +136,7 @@ export function AssigneePicker({ issueNumber, currentAssignees, onChange }: Assi
               )}
             </button>
           </div>
-        )
+        );
       })}
 
       {currentAssignees.length === 0 && (
@@ -135,7 +152,7 @@ export function AssigneePicker({ issueNumber, currentAssignees, onChange }: Assi
             className="h-7 w-full justify-start gap-1.5 text-xs text-muted-foreground hover:text-foreground"
             disabled={!!pendingAction}
           >
-            {pendingAction?.startsWith('assign:') ? (
+            {pendingAction?.startsWith("assign:") ? (
               <Loader2 className="w-3 h-3 animate-spin" />
             ) : (
               <Plus className="w-3 h-3" />
@@ -151,11 +168,13 @@ export function AssigneePicker({ issueNumber, currentAssignees, onChange }: Assi
             </DropdownMenuItem>
           ) : availableCollaborators.length === 0 ? (
             <DropdownMenuItem disabled className="text-muted-foreground">
-              {collaborators.length === 0 ? 'No collaborators' : 'All collaborators assigned'}
+              {collaborators.length === 0
+                ? "No collaborators"
+                : "All collaborators assigned"}
             </DropdownMenuItem>
           ) : (
             availableCollaborators.map((user) => {
-              const isAssigning = pendingAction === `assign:${user.login}`
+              const isAssigning = pendingAction === `assign:${user.login}`;
               return (
                 <DropdownMenuItem
                   key={user.login}
@@ -175,11 +194,11 @@ export function AssigneePicker({ issueNumber, currentAssignees, onChange }: Assi
                   )}
                   <span>{user.login}</span>
                 </DropdownMenuItem>
-              )
+              );
             })
           )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
-  )
+  );
 }

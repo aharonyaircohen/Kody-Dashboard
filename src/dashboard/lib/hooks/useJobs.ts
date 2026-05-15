@@ -6,10 +6,10 @@
  *   Backed by `.kody/jobs/<slug>.md` files in the connected repo via the
  *   contents API; jobs are no longer GitHub issues.
  */
-'use client'
+"use client";
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   kodyApi,
   type Job,
@@ -17,12 +17,12 @@ import {
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
-} from '../api'
+} from "../api";
 
 export const jobQueryKeys = {
-  list: ['kody-jobs'] as const,
-  detail: (slug: string) => ['kody-job', slug] as const,
-}
+  list: ["kody-jobs"] as const,
+  detail: (slug: string) => ["kody-job", slug] as const,
+};
 
 export function useJobs() {
   return useQuery({
@@ -31,29 +31,34 @@ export function useJobs() {
     enabled: !!getStoredAuth(),
     staleTime: 30_000,
     retry: (failureCount, error) => {
-      if (error instanceof SessionExpiredError) return false
-      if (error instanceof NoTokenError) return false
-      return failureCount < 2
+      if (error instanceof SessionExpiredError) return false;
+      if (error instanceof NoTokenError) return false;
+      return failureCount < 2;
     },
-  })
+  });
 }
 
 export function useJob(slug: string | null) {
   return useQuery({
-    queryKey: jobQueryKeys.detail(slug ?? ''),
+    queryKey: jobQueryKeys.detail(slug ?? ""),
     queryFn: () => kodyApi.jobs.get(slug!),
     enabled: !!getStoredAuth() && !!slug,
     staleTime: 30_000,
-  })
+  });
 }
 
 export function useCreateJob(actorLogin?: string) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation<
     Job,
     Error,
-    { slug?: string; title: string; body: string; schedule?: JobSchedule | null }
+    {
+      slug?: string;
+      title: string;
+      body: string;
+      schedule?: JobSchedule | null;
+    }
   >({
     mutationFn: (data) =>
       kodyApi.jobs.create({
@@ -61,17 +66,17 @@ export function useCreateJob(actorLogin?: string) {
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: jobQueryKeys.list })
-      toast.success('Job created')
+      queryClient.invalidateQueries({ queryKey: jobQueryKeys.list });
+      toast.success("Job created");
     },
     onError: (error) => {
-      toast.error('Failed to create job', { description: error.message })
+      toast.error("Failed to create job", { description: error.message });
     },
-  })
+  });
 }
 
 export function useUpdateJob(slug: string, actorLogin?: string) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation<
     Job,
@@ -84,47 +89,51 @@ export function useUpdateJob(slug: string, actorLogin?: string) {
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: (job) => {
-      queryClient.invalidateQueries({ queryKey: jobQueryKeys.list })
-      queryClient.setQueryData(jobQueryKeys.detail(slug), job)
-      toast.success('Job updated')
+      queryClient.invalidateQueries({ queryKey: jobQueryKeys.list });
+      queryClient.setQueryData(jobQueryKeys.detail(slug), job);
+      toast.success("Job updated");
     },
     onError: (error) => {
-      toast.error('Failed to update job', { description: error.message })
+      toast.error("Failed to update job", { description: error.message });
     },
-  })
+  });
 }
 
 export function useRunJob() {
   return useMutation<
-    { issueNumber: number; commentId: number; commentUrl: string; force: boolean },
+    {
+      issueNumber: number;
+      commentId: number;
+      commentUrl: string;
+      force: boolean;
+    },
     Error,
     { slug: string; force?: boolean }
   >({
     mutationFn: ({ slug, force }) => kodyApi.jobs.run({ slug }, { force }),
     onSuccess: (data) => {
-      toast.success(
-        data.force ? 'Job triggered (force)' : 'Job triggered',
-        { description: 'Engine will pick it up on the next workflow run.' },
-      )
+      toast.success(data.force ? "Job triggered (force)" : "Job triggered", {
+        description: "Engine will pick it up on the next workflow run.",
+      });
     },
     onError: (error) => {
-      toast.error('Failed to dispatch job', { description: error.message })
+      toast.error("Failed to dispatch job", { description: error.message });
     },
-  })
+  });
 }
 
 export function useDeleteJob(actorLogin?: string) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation<void, Error, string>({
     mutationFn: (slug) => kodyApi.jobs.remove(slug, actorLogin),
     onSuccess: (_, slug) => {
-      queryClient.invalidateQueries({ queryKey: jobQueryKeys.list })
-      queryClient.removeQueries({ queryKey: jobQueryKeys.detail(slug) })
-      toast.success('Job deleted')
+      queryClient.invalidateQueries({ queryKey: jobQueryKeys.list });
+      queryClient.removeQueries({ queryKey: jobQueryKeys.detail(slug) });
+      toast.success("Job deleted");
     },
     onError: (error) => {
-      toast.error('Failed to delete job', { description: error.message })
+      toast.error("Failed to delete job", { description: error.message });
     },
-  })
+  });
 }

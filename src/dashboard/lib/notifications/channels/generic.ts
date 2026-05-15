@@ -32,15 +32,15 @@ export function validateGeneric(c: Channel): string | null {
       return "Template doesn't parse as JSON after rendering";
     }
     if (c.bodyFormat === "form") {
-      if (
-        !parsed ||
-        typeof parsed !== "object" ||
-        Array.isArray(parsed)
-      ) {
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         return 'Form body requires a flat JSON object: {"key": "value", ...}';
       }
       for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-        if (typeof v !== "string" && typeof v !== "number" && typeof v !== "boolean") {
+        if (
+          typeof v !== "string" &&
+          typeof v !== "number" &&
+          typeof v !== "boolean"
+        ) {
           return `Form body key "${k}" must be a string, number, or boolean`;
         }
       }
@@ -67,10 +67,7 @@ function encodeForm(obj: Record<string, unknown>): string {
   return params.toString();
 }
 
-export async function sendGeneric(
-  c: Channel,
-  ctx: SendContext,
-): Promise<void> {
+export async function sendGeneric(c: Channel, ctx: SendContext): Promise<void> {
   const headers: Record<string, string> = { ...(c.headers ?? {}) };
   let body: string;
 

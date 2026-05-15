@@ -33,34 +33,34 @@ That scaffolds the GitHub Actions workflow, the config, and the scheduled-job wo
 
 ### Agent commands (write code)
 
-| Command | What it does |
-|---|---|
-| `kody run --issue N` | Implements an issue end-to-end. Opens a PR. |
-| `kody fix --pr N` | Applies PR review feedback. |
-| `kody fix-ci --pr N` | Diagnoses and fixes failing CI runs. |
+| Command               | What it does                                                         |
+| --------------------- | -------------------------------------------------------------------- |
+| `kody run --issue N`  | Implements an issue end-to-end. Opens a PR.                          |
+| `kody fix --pr N`     | Applies PR review feedback.                                          |
+| `kody fix-ci --pr N`  | Diagnoses and fixes failing CI runs.                                 |
 | `kody resolve --pr N` | Merges the default branch into the PR branch and resolves conflicts. |
 
 ### Agent commands (read-only)
 
-| Command | What it does |
-|---|---|
-| `kody plan --issue N` | Research + implementation plan, posted as a comment. |
-| `kody research --issue N` | Maps repo context, surfaces gaps for an issue. |
-| `kody review --pr N` | Structured diff review with severity levels. |
-| `kody ui-review --pr N` | Drives the running preview deployment via Playwright MCP, reviews UI alongside the diff. |
-| `kody qa-engineer` | **Free-form QA pass** — browses the running site, exercises happy/empty/error/loading/mobile/a11y states, opens severity-labelled bug issues. Read-only on the repo. |
-| `kody classify --issue N` | Picks a flow type (feature/bug/spec/chore) for an unlabelled issue. |
+| Command                   | What it does                                                                                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kody plan --issue N`     | Research + implementation plan, posted as a comment.                                                                                                                 |
+| `kody research --issue N` | Maps repo context, surfaces gaps for an issue.                                                                                                                       |
+| `kody review --pr N`      | Structured diff review with severity levels.                                                                                                                         |
+| `kody ui-review --pr N`   | Drives the running preview deployment via Playwright MCP, reviews UI alongside the diff.                                                                             |
+| `kody qa-engineer`        | **Free-form QA pass** — browses the running site, exercises happy/empty/error/loading/mobile/a11y states, opens severity-labelled bug issues. Read-only on the repo. |
+| `kody classify --issue N` | Picks a flow type (feature/bug/spec/chore) for an unlabelled issue.                                                                                                  |
 
 ### Flow orchestrators (declarative pipelines)
 
 Each flow is a transition table — postflight hooks dispatch the next executable based on the previous outcome. No engine changes to add a new flow; drop a new directory.
 
-| Flow | Pipeline |
-|---|---|
-| `kody feature --issue N` | research → plan → run → review → (fix loop) |
-| `kody bug --issue N` | plan → run → review → (fix loop) |
-| `kody spec --issue N` | research → plan (terminates at plan, no code) |
-| `kody chore --issue N` | run → review → (fix loop) |
+| Flow                     | Pipeline                                      |
+| ------------------------ | --------------------------------------------- |
+| `kody feature --issue N` | research → plan → run → review → (fix loop)   |
+| `kody bug --issue N`     | plan → run → review → (fix loop)              |
+| `kody spec --issue N`    | research → plan (terminates at plan, no code) |
+| `kody chore --issue N`   | run → review → (fix loop)                     |
 
 ### Jobs, watches, managers
 
@@ -88,19 +88,19 @@ This is how Kody runs **autonomously without supervision**. You file a goal as a
 
 The engine handles the agent work. The dashboard turns it into a managed platform.
 
-| Capability | Why it matters |
-|---|---|
-| **Task board** | Kanban view (inbox → spec → building → review → done) across all engine activity. Drag to change status, click to drill in. |
-| **Parallel run monitoring** | Watch 10 agents work on 10 tasks at once, live, in one view. CLI can't do this. |
-| **Job scheduler UI** | Markdown-defined jobs in `.kody/jobs/`, ticked off in the dashboard as they complete. Visual cron without leaving the app. |
-| **Live preview management** | Per-task Fly.io preview environments, with per-repo Fly tokens managed in Settings (never deployment env vars). |
-| **PR viewer** | File diffs, CI status, gate approvals — all inline, no GitHub roundtrip. |
-| **Provider-agnostic chat** | Configure any LLM (Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, custom endpoints) per model entry. Two protocols, your keys. |
-| **Multiple chat backends** | Direct provider chat for quick questions, external Brain server for advanced reasoning, engine via Actions for full-power agent tasks. One UI. |
+| Capability                           | Why it matters                                                                                                                                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task board**                       | Kanban view (inbox → spec → building → review → done) across all engine activity. Drag to change status, click to drill in.                                                                                         |
+| **Parallel run monitoring**          | Watch 10 agents work on 10 tasks at once, live, in one view. CLI can't do this.                                                                                                                                     |
+| **Job scheduler UI**                 | Markdown-defined jobs in `.kody/jobs/`, ticked off in the dashboard as they complete. Visual cron without leaving the app.                                                                                          |
+| **Live preview management**          | Per-task Fly.io preview environments, with per-repo Fly tokens managed in Settings (never deployment env vars).                                                                                                     |
+| **PR viewer**                        | File diffs, CI status, gate approvals — all inline, no GitHub roundtrip.                                                                                                                                            |
+| **Provider-agnostic chat**           | Configure any LLM (Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, custom endpoints) per model entry. Two protocols, your keys.                                                                      |
+| **Multiple chat backends**           | Direct provider chat for quick questions, external Brain server for advanced reasoning, engine via Actions for full-power agent tasks. One UI.                                                                      |
 | **Per-repo encrypted secrets vault** | AES-256-GCM blob at `.kody/secrets.enc`. One master key powers vault + session JWT + HMAC, cryptographically separated by purpose prefixes. Per-user creds (Fly tokens, API keys) live here, not in deployment env. |
-| **Real-time status** | Push-based GitHub webhooks, IP-verified against GitHub's CIDR list (no shared secret). Polling is the backstop, not the source of truth. |
-| **Changelog & report aggregation** | Readable, dated output from every autonomous run, indexed and searchable. |
-| **Notifications** | Desktop + in-app for completed tasks, blocked gates, report deliveries. |
+| **Real-time status**                 | Push-based GitHub webhooks, IP-verified against GitHub's CIDR list (no shared secret). Polling is the backstop, not the source of truth.                                                                            |
+| **Changelog & report aggregation**   | Readable, dated output from every autonomous run, indexed and searchable.                                                                                                                                           |
+| **Notifications**                    | Desktop + in-app for completed tasks, blocked gates, report deliveries.                                                                                                                                             |
 
 The dashboard never bypasses GitHub — every state change is a real issue/PR/workflow event. If the dashboard goes down, the engine keeps running. If the engine goes down, the dashboard still shows you the last known state.
 
@@ -127,7 +127,7 @@ Real use cases:
 
 Kick off 10 features at once. Get 10 PRs back with 10 live preview environments. Each task is its own GitHub Actions workflow run on its own runner — no shared sandbox, no editor lock, no queue. Every other agent platform serializes work; Kody parallelizes it natively.
 
-### Runs in *your* CI, on *your* account
+### Runs in _your_ CI, on _your_ account
 
 - **Your compute, your control.** No SaaS bill scaling with usage. Your Actions minutes, your runners (including self-hosted).
 - **Your secrets stay yours.** API keys live in your repo's encrypted vault or GitHub Actions secrets — they never touch a third-party service.
@@ -164,20 +164,20 @@ No hardcoded provider, no vendor lock-in, at any layer.
 
 ## How it compares
 
-| | Kody | Devin | Copilot Workspace | Cursor | OpenHands |
-|---|---|---|---|---|---|
-| Open source | Yes | No | No | No | Yes |
-| Self-hosted | Yes | No | No | No | Yes |
-| Scheduled / autonomous runs | Yes | No | No | No | No |
-| Parallel tasks | Yes (native) | Limited | No | No | No |
-| Runs in your CI | Yes | No | GitHub-locked | No | No |
-| `@kody`-style ChatOps in issues/PRs | Yes | No | No | No | No |
-| Free-form QA agent | Yes | No | No | No | No |
-| Goal-driven jobs (autonomous loops) | Yes | No | No | No | No |
-| Multi-model (any provider) | Yes (LiteLLM + OpenAI-compat) | No | No | Limited | Yes |
-| Visual control plane (dashboard) | Yes | Yes | Yes | n/a | Yes |
-| Per-seat pricing | No | Yes | Yes | Yes | No |
-| Audit trail in your repo | Yes | No | Partial | No | No |
+|                                     | Kody                          | Devin   | Copilot Workspace | Cursor  | OpenHands |
+| ----------------------------------- | ----------------------------- | ------- | ----------------- | ------- | --------- |
+| Open source                         | Yes                           | No      | No                | No      | Yes       |
+| Self-hosted                         | Yes                           | No      | No                | No      | Yes       |
+| Scheduled / autonomous runs         | Yes                           | No      | No                | No      | No        |
+| Parallel tasks                      | Yes (native)                  | Limited | No                | No      | No        |
+| Runs in your CI                     | Yes                           | No      | GitHub-locked     | No      | No        |
+| `@kody`-style ChatOps in issues/PRs | Yes                           | No      | No                | No      | No        |
+| Free-form QA agent                  | Yes                           | No      | No                | No      | No        |
+| Goal-driven jobs (autonomous loops) | Yes                           | No      | No                | No      | No        |
+| Multi-model (any provider)          | Yes (LiteLLM + OpenAI-compat) | No      | No                | Limited | Yes       |
+| Visual control plane (dashboard)    | Yes                           | Yes     | Yes               | n/a     | Yes       |
+| Per-seat pricing                    | No                            | Yes     | Yes               | Yes     | No        |
+| Audit trail in your repo            | Yes                           | No      | Partial           | No      | No        |
 
 ---
 

@@ -19,10 +19,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getUserOctokit,
+  getRequestAuth,
+} from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
-import { applyVibePrimerToMessages, type VibeTaskContext } from "@dashboard/lib/vibe/primer";
+import {
+  applyVibePrimerToMessages,
+  type VibeTaskContext,
+} from "@dashboard/lib/vibe/primer";
 import { Buffer } from "buffer";
 
 export const runtime = "nodejs";
@@ -112,24 +119,33 @@ export async function POST(req: NextRequest) {
   const sessionPath = `.kody/sessions/${taskId}.jsonl`;
 
   // Serialize messages as JSONL
-  const jsonlContent = messages
-    .map((m) => JSON.stringify({
-      role: m.role,
-      content: m.content,
-      timestamp: m.timestamp,
-      toolCalls: m.toolCalls ?? [],
-    }))
-    .join("\n") + "\n";
+  const jsonlContent =
+    messages
+      .map((m) =>
+        JSON.stringify({
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp,
+          toolCalls: m.toolCalls ?? [],
+        }),
+      )
+      .join("\n") + "\n";
 
   const octokit = await getUserOctokit(req);
   if (!octokit) {
-    return NextResponse.json({ error: "No GitHub token available" }, { status: 503 });
+    return NextResponse.json(
+      { error: "No GitHub token available" },
+      { status: 503 },
+    );
   }
 
   const encodedContent = Buffer.from(jsonlContent).toString("base64");
 
   try {
-    logger.info({ taskId, owner, repo, messageCount: messages.length }, "chat: writing session file");
+    logger.info(
+      { taskId, owner, repo, messageCount: messages.length },
+      "chat: writing session file",
+    );
 
     let sha: string | undefined;
     try {
@@ -145,7 +161,10 @@ export async function POST(req: NextRequest) {
     } catch (err: unknown) {
       const e = err as { status?: number };
       if (e.status !== 404) {
-        logger.warn({ err, taskId }, "chat: could not check existing session file");
+        logger.warn(
+          { err, taskId },
+          "chat: could not check existing session file",
+        );
       }
     }
 
@@ -161,7 +180,8 @@ export async function POST(req: NextRequest) {
 
     logger.info({ taskId, owner, repo }, "chat: triggering workflow");
 
-    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const lastUserMessage =
+      [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
 
     const workflowInputs: Record<string, string> = {
       sessionId: taskId,

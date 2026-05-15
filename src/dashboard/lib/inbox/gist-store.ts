@@ -32,7 +32,10 @@ const locks = new Map<string, Promise<unknown>>();
 
 async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const prev = locks.get(key) ?? Promise.resolve();
-  const run = prev.then(() => fn(), () => fn());
+  const run = prev.then(
+    () => fn(),
+    () => fn(),
+  );
   locks.set(key, run);
   try {
     return await run;
@@ -95,7 +98,8 @@ async function readInboxGist(
   repo: string,
 ): Promise<GistRef> {
   const id = await findInboxGist(octokit, owner, repo);
-  if (!id) return { id: null, manifest: { ...EMPTY_INBOX_MANIFEST, entries: [] } };
+  if (!id)
+    return { id: null, manifest: { ...EMPTY_INBOX_MANIFEST, entries: [] } };
   const manifest = await readGistManifest(octokit, id);
   return { id, manifest };
 }
@@ -224,7 +228,9 @@ export async function markAllRead(
     if (current.entries.every((e) => e.readAt)) return null;
     return {
       version: 1,
-      entries: current.entries.map((e) => (e.readAt ? e : { ...e, readAt: now })),
+      entries: current.entries.map((e) =>
+        e.readAt ? e : { ...e, readAt: now },
+      ),
     };
   });
 }

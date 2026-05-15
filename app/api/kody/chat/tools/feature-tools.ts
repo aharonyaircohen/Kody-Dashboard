@@ -6,23 +6,23 @@
  *  guessing from training data. Static feature catalog + auto-derived entries
  *  for every agent in src/dashboard/lib/agents.ts so descriptions never drift.
  */
-import { tool } from 'ai'
-import { z } from 'zod'
-import { AGENTS, type AgentConfig } from '@dashboard/lib/agents'
+import { tool } from "ai";
+import { z } from "zod";
+import { AGENTS, type AgentConfig } from "@dashboard/lib/agents";
 
 export interface FeatureEntry {
-  id: string
-  name: string
-  summary: string
-  details: string
+  id: string;
+  name: string;
+  summary: string;
+  details: string;
 }
 
 const HAND_WRITTEN_FEATURES: FeatureEntry[] = [
   {
-    id: 'secrets-vault',
-    name: 'Secrets Vault (/secrets)',
+    id: "secrets-vault",
+    name: "Secrets Vault (/secrets)",
     summary:
-      'Per-repo encrypted secrets store. Dashboard-managed alternative to Vercel env vars.',
+      "Per-repo encrypted secrets store. Dashboard-managed alternative to Vercel env vars.",
     details: `The secrets vault is a dashboard-managed alternative to Vercel env vars.
 
 - Each connected repo has its own encrypted blob at \`.kody/secrets.enc\`.
@@ -36,10 +36,10 @@ const HAND_WRITTEN_FEATURES: FeatureEntry[] = [
   Actions secrets. The vault is dashboard-runtime only.`,
   },
   {
-    id: 'webhooks',
-    name: 'GitHub Webhooks (push-based cache invalidation)',
+    id: "webhooks",
+    name: "GitHub Webhooks (push-based cache invalidation)",
     summary:
-      'Replaces polling for cache invalidation. No shared secret — verifies GitHub IP CIDR ranges.',
+      "Replaces polling for cache invalidation. No shared secret — verifies GitHub IP CIDR ranges.",
     details: `The dashboard receives GitHub webhooks to invalidate its in-memory cache when
 issues, PRs, workflow runs, branches, etc. change.
 
@@ -57,10 +57,10 @@ issues, PRs, workflow runs, branches, etc. change.
   their TTL expires (intentional, as a backstop).`,
   },
   {
-    id: 'chat-backends',
-    name: 'Chat Backends (three of them)',
+    id: "chat-backends",
+    name: "Chat Backends (three of them)",
     summary:
-      'The dashboard has three chat backends picked by selectedAgentId: in-process via Vercel AI Gateway (default), Brain, and the GH Actions engine.',
+      "The dashboard has three chat backends picked by selectedAgentId: in-process via Vercel AI Gateway (default), Brain, and the GH Actions engine.",
     details: `The chat UI routes to one of three backends based on \`selectedAgentId\`:
 
 | selectedAgentId | Endpoint                       | Backend                                            |
@@ -79,9 +79,10 @@ session ID and an inline HMAC token. The engine streams events back to
 \`KODY_MASTER_KEY\` (purpose-prefixed as \`kody-chat-token:\${KODY_MASTER_KEY}\`).`,
   },
   {
-    id: 'pipeline-stages',
-    name: 'Kody Pipeline Stages',
-    summary: 'Spec phase: taskify → spec → clarify. Impl phase: architect → plan-review → build → commit → verify → pr. Special: autofix retry loop.',
+    id: "pipeline-stages",
+    name: "Kody Pipeline Stages",
+    summary:
+      "Spec phase: taskify → spec → clarify. Impl phase: architect → plan-review → build → commit → verify → pr. Special: autofix retry loop.",
     details: `The Kody pipeline runs in GitHub Actions and has these stages:
 
 **Spec phase**
@@ -103,10 +104,10 @@ session ID and an inline HMAC token. The engine streams events back to
 Each stage's status is committed to a per-task \`status.json\` on the work branch.`,
   },
   {
-    id: 'kody-jobs',
-    name: 'Kody Jobs (scheduled markdown jobs)',
+    id: "kody-jobs",
+    name: "Kody Jobs (scheduled markdown jobs)",
     summary:
-      'Markdown files at .kody/jobs/<slug>.md that the engine job-scheduler ticks every 5 minutes.',
+      "Markdown files at .kody/jobs/<slug>.md that the engine job-scheduler ticks every 5 minutes.",
     details: `A Kody Job is a markdown file at \`.kody/jobs/<slug>.md\` that the engine's
 job-scheduler ticks every 5 minutes. Each job's own \`Cadence guard\` decides
 whether to take action on a given tick.
@@ -127,8 +128,8 @@ The chat exposes the \`create_kody_job\` tool to scaffold a new job after a
 gap-analysis conversation.`,
   },
   {
-    id: 'memory',
-    name: 'Persistent Memory System',
+    id: "memory",
+    name: "Persistent Memory System",
     summary:
       'Per-repo memory at .kody/memory/. Index injected into every chat turn under "Remembered context".',
     details: `Each connected repo has a persistent memory system at \`.kody/memory/\`.
@@ -152,9 +153,10 @@ when the user explicitly asks ("remember that…", "save this") or has just
 clearly corrected/confirmed something.`,
   },
   {
-    id: 'task-dashboard',
-    name: 'Task Dashboard (main page)',
-    summary: 'Lists Kody tasks, pipeline stage progress, and associated PRs/workflow runs.',
+    id: "task-dashboard",
+    name: "Task Dashboard (main page)",
+    summary:
+      "Lists Kody tasks, pipeline stage progress, and associated PRs/workflow runs.",
     details: `The main dashboard page lists Kody tasks driven by GitHub issues.
 
 - Each task row shows pipeline stage progress, the latest workflow run, and any
@@ -167,10 +169,10 @@ clearly corrected/confirmed something.`,
 - Polling cadence is ≥ 15s on every endpoint that touches GitHub.`,
   },
   {
-    id: 'remote-dev',
-    name: 'Remote Dev (user\'s own Mac)',
+    id: "remote-dev",
+    name: "Remote Dev (user's own Mac)",
     summary:
-      'Optional: lets Kody run shell, read, write, and ls on the user\'s remote Mac dev machine.',
+      "Optional: lets Kody run shell, read, write, and ls on the user's remote Mac dev machine.",
     details: `When a user has configured a remote dev environment, the chat exposes four
 extra tools that run against the user's own Mac:
 
@@ -183,10 +185,10 @@ Commands run with the user's local permissions. The assistant always confirms
 before destructive operations.`,
   },
   {
-    id: 'voice-modality',
-    name: 'Voice Modality',
+    id: "voice-modality",
+    name: "Voice Modality",
     summary:
-      'Speech-to-text input + text-to-speech output layered onto the regular Kody chat. Keeps whichever agent the user picked in the dropdown — only the reply shape changes.',
+      "Speech-to-text input + text-to-speech output layered onto the regular Kody chat. Keeps whichever agent the user picked in the dropdown — only the reply shape changes.",
     details: `Voice is a modality, not a separate agent dropdown. Toggling the mic in
 KodyChat:
 
@@ -202,49 +204,51 @@ KodyChat:
 If a model in /models is flagged as the speech model, voice prefers it for
 latency. Otherwise voice uses whichever model is currently selected for chat.`,
   },
-]
+];
 
 function featureFromAgent(agent: AgentConfig): FeatureEntry {
-  const id = `agent:${agent.id}`
+  const id = `agent:${agent.id}`;
   const capabilities = agent.capabilities.length
-    ? `\n\n**Capabilities**\n${agent.capabilities.map((c) => `- ${c}`).join('\n')}`
-    : ''
+    ? `\n\n**Capabilities**\n${agent.capabilities.map((c) => `- ${c}`).join("\n")}`
+    : "";
   return {
     id,
     name: `Agent: ${agent.name}`,
     summary: agent.description,
     details: `${agent.description}${capabilities}`,
-  }
+  };
 }
 
 function buildCatalog(): FeatureEntry[] {
-  const agentEntries = Object.values(AGENTS).map(featureFromAgent)
-  return [...HAND_WRITTEN_FEATURES, ...agentEntries]
+  const agentEntries = Object.values(AGENTS).map(featureFromAgent);
+  return [...HAND_WRITTEN_FEATURES, ...agentEntries];
 }
 
-const CATALOG: ReadonlyArray<FeatureEntry> = buildCatalog()
-const CATALOG_BY_ID = new Map(CATALOG.map((entry) => [entry.id.toLowerCase(), entry]))
+const CATALOG: ReadonlyArray<FeatureEntry> = buildCatalog();
+const CATALOG_BY_ID = new Map(
+  CATALOG.map((entry) => [entry.id.toLowerCase(), entry]),
+);
 
 export const listDashboardFeaturesTool = tool({
   description:
-    'List every dashboard feature, page, and agent this assistant can describe. ' +
-    'Returns id, name, and one-line summary for each entry. Call this first when ' +
+    "List every dashboard feature, page, and agent this assistant can describe. " +
+    "Returns id, name, and one-line summary for each entry. Call this first when " +
     'the user asks "what can the dashboard do" or you do not know which feature ' +
-    'id to pass to describe_feature.',
+    "id to pass to describe_feature.",
   inputSchema: z.object({}),
   execute: async () => {
     return {
       features: CATALOG.map(({ id, name, summary }) => ({ id, name, summary })),
-    }
+    };
   },
-})
+});
 
 export const describeFeatureTool = tool({
   description:
-    'Return the full description of one dashboard feature (page, agent, vault, ' +
+    "Return the full description of one dashboard feature (page, agent, vault, " +
     'webhooks, pipeline, etc.). Use when the user asks "what is X?", "how does X ' +
     'work?", or "what can <agent> do?". Call list_dashboard_features first if you ' +
-    'do not know the exact id.',
+    "do not know the exact id.",
   inputSchema: z.object({
     id: z
       .string()
@@ -255,17 +259,17 @@ export const describeFeatureTool = tool({
       ),
   }),
   execute: async ({ id }) => {
-    const entry = CATALOG_BY_ID.get(id.toLowerCase())
+    const entry = CATALOG_BY_ID.get(id.toLowerCase());
     if (!entry) {
       return {
         error: `Unknown feature id "${id}". Call list_dashboard_features to see valid ids.`,
-      }
+      };
     }
-    return entry
+    return entry;
   },
-})
+});
 
 export const featureTools = {
   list_dashboard_features: listDashboardFeaturesTool,
   describe_feature: describeFeatureTool,
-}
+};

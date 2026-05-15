@@ -14,10 +14,10 @@
  * capabilities land for every job without rewriting the prompt.
  */
 
-import type { Job } from './api'
+import type { Job } from "./api";
 
 export const KODY_ENGINE_README_URL =
-  'https://github.com/aharonyaircohen/kody-engine/blob/main/README.md'
+  "https://github.com/aharonyaircohen/kody-engine/blob/main/README.md";
 
 export const KODY_JOB_SYSTEM_PROMPT = `You are a Kody job executor. You operate on GitHub within the Kody platform.
 
@@ -48,7 +48,7 @@ Each job is a markdown document with three sections:
 4. Each response is either one Kody command invocation to issue, or a short human-readable explanation of why none applies. Never both, never neither.
 5. Never modify the job document itself.
 
-Stay within the job's scope. You are not a general-purpose assistant.`
+Stay within the job's scope. You are not a general-purpose assistant.`;
 
 /**
  * Compose the final prompt that the executor will see for a given job.
@@ -57,8 +57,10 @@ Stay within the job's scope. You are not a general-purpose assistant.`
  * it server-side: system prompt, separator, then the authored job body
  * framed by a title line so the model can tell the sections apart.
  */
-export function composeJobPrompt(job: Pick<Job, 'slug' | 'title' | 'body'>): string {
-  const body = (job.body ?? '').trim()
-  const titleLine = `# Job \`${job.slug}\`: ${job.title}`
-  return `${KODY_JOB_SYSTEM_PROMPT}\n\n---\n\n${titleLine}\n\n${body}\n`
+export function composeJobPrompt(
+  job: Pick<Job, "slug" | "title" | "body">,
+): string {
+  const body = (job.body ?? "").trim();
+  const titleLine = `# Job \`${job.slug}\`: ${job.title}`;
+  return `${KODY_JOB_SYSTEM_PROMPT}\n\n---\n\n${titleLine}\n\n${body}\n`;
 }

@@ -1,32 +1,32 @@
-'use client'
+"use client";
 /**
  * @fileType component
  * @domain kody
  * @pattern voice-ui
  * @ai-summary Voice conversation overlay scoped to the chat panel (not full-screen)
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Mic, MicOff, PhoneOff, Loader2, Volume2 } from 'lucide-react'
-import { cn } from '@dashboard/lib/utils/ui'
-import type { VoiceChatState } from '../hooks/useVoiceChat'
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Mic, MicOff, PhoneOff, Loader2, Volume2 } from "lucide-react";
+import { cn } from "@dashboard/lib/utils/ui";
+import type { VoiceChatState } from "../hooks/useVoiceChat";
 
 interface VoiceChatOverlayProps {
-  state: VoiceChatState
-  currentTranscript: string
-  turnCount: number
-  error: string | null
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>
-  agentName: string
-  onStop: () => void
-  onInterrupt?: () => void // New: interrupt AI and start listening
-  onToggleMute: () => void
-  isMuted: boolean
+  state: VoiceChatState;
+  currentTranscript: string;
+  turnCount: number;
+  error: string | null;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  agentName: string;
+  onStop: () => void;
+  onInterrupt?: () => void; // New: interrupt AI and start listening
+  onToggleMute: () => void;
+  isMuted: boolean;
 }
 
 function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 /**
@@ -36,7 +36,7 @@ function formatElapsed(seconds: number): string {
  * unclosed mid-stream tail) so the bubble shows only the spoken answer.
  */
 function stripReasoning(content: string): string {
-  return content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim()
+  return content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
 }
 
 export function VoiceChatOverlay({
@@ -51,68 +51,68 @@ export function VoiceChatOverlay({
   onToggleMute,
   isMuted,
 }: VoiceChatOverlayProps) {
-  const overlayRef = useRef<HTMLDivElement>(null)
-  const [elapsed, setElapsed] = useState(0)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Handle tap to interrupt when AI is speaking
   const handleStateIndicatorClick = useCallback(() => {
-    if (state === 'speaking' && onInterrupt) {
-      onInterrupt()
+    if (state === "speaking" && onInterrupt) {
+      onInterrupt();
     }
-  }, [state, onInterrupt])
+  }, [state, onInterrupt]);
 
   useEffect(() => {
-    setElapsed(0)
-    timerRef.current = setInterval(() => setElapsed((p) => p + 1), 1000)
+    setElapsed(0);
+    timerRef.current = setInterval(() => setElapsed((p) => p + 1), 1000);
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-    }
-  }, [])
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onStop()
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onStop();
       }
-    }
-    window.addEventListener('keydown', h)
-    return () => window.removeEventListener('keydown', h)
-  }, [onStop])
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onStop]);
 
   const handleTabTrap = useCallback((e: KeyboardEvent) => {
-    if (e.key !== 'Tab' || !overlayRef.current) return
+    if (e.key !== "Tab" || !overlayRef.current) return;
     const els = overlayRef.current.querySelectorAll<HTMLElement>(
       'button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    )
-    if (els.length === 0) return
+    );
+    if (els.length === 0) return;
     if (e.shiftKey && document.activeElement === els[0]) {
-      e.preventDefault()
-      els[els.length - 1].focus()
+      e.preventDefault();
+      els[els.length - 1].focus();
     } else if (!e.shiftKey && document.activeElement === els[els.length - 1]) {
-      e.preventDefault()
-      els[0].focus()
+      e.preventDefault();
+      els[0].focus();
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    window.addEventListener('keydown', handleTabTrap)
-    return () => window.removeEventListener('keydown', handleTabTrap)
-  }, [handleTabTrap])
+    window.addEventListener("keydown", handleTabTrap);
+    return () => window.removeEventListener("keydown", handleTabTrap);
+  }, [handleTabTrap]);
 
   useEffect(() => {
-    overlayRef.current?.focus()
-  }, [])
+    overlayRef.current?.focus();
+  }, []);
 
-  const recent = messages.slice(-4)
+  const recent = messages.slice(-4);
 
   // Handle tap to interrupt when AI is speaking - using onInterrupt prop
   const handleOverlayClick = useCallback(() => {
-    if (state === 'speaking' && onInterrupt) {
-      onInterrupt()
+    if (state === "speaking" && onInterrupt) {
+      onInterrupt();
     }
-  }, [state, onInterrupt])
+  }, [state, onInterrupt]);
 
   return (
     <div
@@ -122,8 +122,8 @@ export function VoiceChatOverlay({
       aria-label="Voice chat conversation"
       tabIndex={-1}
       className={cn(
-        'absolute inset-0 z-40 flex flex-col bg-background/95 backdrop-blur-sm overflow-hidden',
-        state === 'speaking' && 'cursor-pointer', // Show it's clickable when AI is speaking
+        "absolute inset-0 z-40 flex flex-col bg-background/95 backdrop-blur-sm overflow-hidden",
+        state === "speaking" && "cursor-pointer", // Show it's clickable when AI is speaking
       )}
       onClick={handleOverlayClick}
     >
@@ -139,17 +139,19 @@ export function VoiceChatOverlay({
           <div
             key={i}
             className={cn(
-              'mb-2 px-3 py-2 rounded-lg text-[15px] leading-relaxed max-w-[90%]',
-              msg.role === 'user'
-                ? 'ml-auto bg-primary text-primary-foreground'
-                : 'mr-auto bg-muted',
+              "mb-2 px-3 py-2 rounded-lg text-[15px] leading-relaxed max-w-[90%]",
+              msg.role === "user"
+                ? "ml-auto bg-primary text-primary-foreground"
+                : "mr-auto bg-muted",
             )}
           >
             <span className="font-medium text-xs opacity-70 block mb-0.5">
-              {msg.role === 'user' ? 'You' : 'Kody'}
+              {msg.role === "user" ? "You" : "Kody"}
             </span>
             <span className="line-clamp-3">
-              {msg.role === 'assistant' ? stripReasoning(msg.content) : msg.content}
+              {msg.role === "assistant"
+                ? stripReasoning(msg.content)
+                : msg.content}
             </span>
           </div>
         ))}
@@ -158,64 +160,66 @@ export function VoiceChatOverlay({
       {/* State indicator - clickable when AI is speaking to interrupt */}
       <div
         className={cn(
-          'flex flex-col items-center gap-2 py-4 shrink-0',
-          state === 'speaking' && 'cursor-pointer',
+          "flex flex-col items-center gap-2 py-4 shrink-0",
+          state === "speaking" && "cursor-pointer",
         )}
         onClick={handleStateIndicatorClick}
       >
         <div
           className={cn(
-            'relative flex items-center justify-center w-16 h-16 rounded-full transition-all duration-300',
-            state === 'listening' && 'bg-primary/10',
-            state === 'processing' && 'bg-amber-500/10',
-            state === 'speaking' && 'bg-green-500/10 hover:bg-green-500/20',
+            "relative flex items-center justify-center w-16 h-16 rounded-full transition-all duration-300",
+            state === "listening" && "bg-primary/10",
+            state === "processing" && "bg-amber-500/10",
+            state === "speaking" && "bg-green-500/10 hover:bg-green-500/20",
           )}
         >
-          {state === 'listening' && !isMuted && (
+          {state === "listening" && !isMuted && (
             <>
               <span className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
               <span
                 className="absolute inset-1 rounded-full bg-primary/15 animate-ping"
-                style={{ animationDelay: '0.3s' }}
+                style={{ animationDelay: "0.3s" }}
               />
             </>
           )}
-          {state === 'listening' && (
+          {state === "listening" && (
             <Mic
               className={cn(
-                'w-7 h-7 relative z-10 transition-colors',
-                isMuted ? 'text-muted-foreground' : 'text-primary',
+                "w-7 h-7 relative z-10 transition-colors",
+                isMuted ? "text-muted-foreground" : "text-primary",
               )}
             />
           )}
-          {state === 'processing' && (
+          {state === "processing" && (
             <Loader2 className="w-7 h-7 text-amber-500 animate-spin relative z-10" />
           )}
-          {state === 'speaking' && (
+          {state === "speaking" && (
             <Volume2 className="w-7 h-7 text-green-500 animate-pulse relative z-10" />
           )}
         </div>
 
         <div aria-live="polite" className="text-center">
-          {state === 'listening' && !isMuted && (
+          {state === "listening" && !isMuted && (
             <p className="text-sm font-medium text-primary">Listening...</p>
           )}
-          {state === 'listening' && isMuted && (
+          {state === "listening" && isMuted && (
             <p className="text-sm font-medium text-muted-foreground">Muted</p>
           )}
-          {state === 'processing' && (
+          {state === "processing" && (
             <p className="text-sm font-medium text-amber-500">Thinking...</p>
           )}
-          {state === 'speaking' && (
+          {state === "speaking" && (
             <p className="text-sm font-medium text-green-500">Speaking...</p>
           )}
           {/* Hint to interrupt when AI is speaking */}
-          {state === 'speaking' && (
-            <p className="text-xs text-muted-foreground animate-pulse">Tap anywhere to interrupt</p>
+          {state === "speaking" && (
+            <p className="text-xs text-muted-foreground animate-pulse">
+              Tap anywhere to interrupt
+            </p>
           )}
         </div>
 
-        {state === 'listening' && currentTranscript && (
+        {state === "listening" && currentTranscript && (
           <div className="mx-4 px-3 py-1.5 bg-muted rounded-lg text-center">
             <p className="text-xs italic text-muted-foreground">
               &ldquo;{currentTranscript}&rdquo;
@@ -236,14 +240,18 @@ export function VoiceChatOverlay({
           type="button"
           onClick={onToggleMute}
           className={cn(
-            'flex items-center justify-center w-10 h-10 rounded-full transition-colors',
+            "flex items-center justify-center w-10 h-10 rounded-full transition-colors",
             isMuted
-              ? 'bg-amber-500/20 text-amber-500 hover:bg-amber-500/30'
-              : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+              ? "bg-amber-500/20 text-amber-500 hover:bg-amber-500/30"
+              : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
           )}
-          aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+          aria-label={isMuted ? "Unmute microphone" : "Mute microphone"}
         >
-          {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          {isMuted ? (
+            <MicOff className="w-4 h-4" />
+          ) : (
+            <Mic className="w-4 h-4" />
+          )}
         </button>
 
         <button
@@ -259,10 +267,11 @@ export function VoiceChatOverlay({
       {/* Footer */}
       <div className="px-3 pb-2 text-center shrink-0">
         <p className="text-[10px] text-muted-foreground">
-          Turn {turnCount} · {formatElapsed(elapsed)} ·{' '}
-          <kbd className="px-0.5 py-px bg-muted rounded text-[9px]">Esc</kbd> to end
+          Turn {turnCount} · {formatElapsed(elapsed)} ·{" "}
+          <kbd className="px-0.5 py-px bg-muted rounded text-[9px]">Esc</kbd> to
+          end
         </p>
       </div>
     </div>
-  )
+  );
 }

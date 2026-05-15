@@ -56,24 +56,24 @@ Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where 
 
 The dashboard intentionally keeps the env surface tiny. **One** secret is required; everything else is either a non-secret config knob or lives in the dashboard's Settings page (user-scoped, not deployment-scoped).
 
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `KODY_MASTER_KEY` | Yes | 32-byte hex/base64 secret. Powers per-repo secrets vault (AES-256-GCM), session JWT signing, and chat-ingest HMAC. Each consumer purpose-prefixes the key so they're cryptographically separated. Generate with `pnpm vault:init`. |
-| `GITHUB_TOKEN` | Yes | Server-side GitHub API token for cron/webhook flows. Needs `repo` + `workflow` scope. |
-| `KODY_CHAT_WORKFLOW_REPO` | Optional | Central engine repo (default: connected repo). |
-| `KODY_CHAT_WORKFLOW_ID` | Optional | Chat workflow filename (default: `kody.yml`). |
-| `JINA_API_KEY` | Optional | Jina Reader key for the `fetch_url` tool. |
-| `NEXT_PUBLIC_SERVER_URL` | Dev only | Public URL for callbacks. |
+| Variable                  | Required | Purpose                                                                                                                                                                                                                            |
+| ------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `KODY_MASTER_KEY`         | Yes      | 32-byte hex/base64 secret. Powers per-repo secrets vault (AES-256-GCM), session JWT signing, and chat-ingest HMAC. Each consumer purpose-prefixes the key so they're cryptographically separated. Generate with `pnpm vault:init`. |
+| `GITHUB_TOKEN`            | Yes      | Server-side GitHub API token for cron/webhook flows. Needs `repo` + `workflow` scope.                                                                                                                                              |
+| `KODY_CHAT_WORKFLOW_REPO` | Optional | Central engine repo (default: connected repo).                                                                                                                                                                                     |
+| `KODY_CHAT_WORKFLOW_ID`   | Optional | Chat workflow filename (default: `kody.yml`).                                                                                                                                                                                      |
+| `JINA_API_KEY`            | Optional | Jina Reader key for the `fetch_url` tool.                                                                                                                                                                                          |
+| `NEXT_PUBLIC_SERVER_URL`  | Dev only | Public URL for callbacks.                                                                                                                                                                                                          |
 
 **Per-user credentials live in the dashboard's Settings page**, not as deployment env vars. This includes LLM API keys (configured per model entry in Models manager) and infra tokens like Fly. They're stored in the per-repo encrypted vault and sent per-request via headers. Same rule for any future per-user credential.
 
 ### GitHub token / PAT scopes
 
-| Scope | Why |
-|-------|-----|
-| `repo` | Issues, PRs, comments, and webhooks (`repo` includes `admin:repo_hook`). |
-| `workflow` | Dispatch and cancel GitHub Actions runs. |
-| `user:email` | Identify the user on OAuth login. |
+| Scope        | Why                                                                      |
+| ------------ | ------------------------------------------------------------------------ |
+| `repo`       | Issues, PRs, comments, and webhooks (`repo` includes `admin:repo_hook`). |
+| `workflow`   | Dispatch and cancel GitHub Actions runs.                                 |
+| `user:email` | Identify the user on OAuth login.                                        |
 
 A classic PAT with `repo` + `workflow` is the simplest setup. Create one at [github.com/settings/tokens](https://github.com/settings/tokens).
 

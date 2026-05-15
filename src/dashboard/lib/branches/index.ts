@@ -15,35 +15,38 @@
 export {
   isProtectedBranch,
   PROTECTED_BRANCHES,
-} from './domain/protected-branches'
+} from "./domain/protected-branches";
 
 export {
   slugifyTitle,
   buildBranchName,
   parseIssueFromBranch,
-} from './domain/branch-name'
+} from "./domain/branch-name";
 
 export type {
   BranchRepo,
   CompareStatus,
   MergeResult,
   CreateBranchResult,
-} from './infra/github-branch-repo'
+} from "./infra/github-branch-repo";
 
-export { GitHubBranchRepo } from './infra/github-branch-repo'
+export { GitHubBranchRepo } from "./infra/github-branch-repo";
 
 export type {
   GetOrCreateInput,
   SyncResult,
   PRResult,
-} from './application/branch-service'
+} from "./application/branch-service";
 
-export { BranchService } from './application/branch-service'
+export { BranchService } from "./application/branch-service";
 
-export { ForeignBranchError, LockTakenError } from './errors'
+export { ForeignBranchError, LockTakenError } from "./errors";
 
-export type { LockPort, Lease } from './domain/lock-port'
+export type { LockPort, Lease } from "./domain/lock-port";
 
-export { GitHubFileLock } from './infra/github-file-lock'
+export { GitHubFileLock } from "./infra/github-file-lock";
 
-export { isKodyMarkerCommit, isKodyOwnedBranch } from './domain/branch-ownership'
+export {
+  isKodyMarkerCommit,
+  isKodyOwnedBranch,
+} from "./domain/branch-ownership";

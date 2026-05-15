@@ -22,7 +22,11 @@ interface PublishButtonProps {
   triggerClassName?: string;
 }
 
-export function PublishButton({ actorLogin, onPublished, triggerClassName }: PublishButtonProps) {
+export function PublishButton({
+  actorLogin,
+  onPublished,
+  triggerClassName,
+}: PublishButtonProps) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [pending, setPending] = useState(false);
   const createTask = useCreateTask();

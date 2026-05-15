@@ -9,54 +9,54 @@
  *   touching code.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextRequest, NextResponse } from "next/server"
-import { z } from "zod"
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import {
   requireKodyAuth,
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth"
+} from "@dashboard/lib/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
-} from "@dashboard/lib/github-client"
+} from "@dashboard/lib/github-client";
 import {
   readInstructionsFile,
   writeInstructionsFile,
   deleteInstructionsFile,
-} from "@dashboard/lib/instructions/files"
+} from "@dashboard/lib/instructions/files";
 
 function withRepoContext(req: NextRequest): boolean {
-  const headerAuth = getRequestAuth(req)
-  if (!headerAuth) return false
-  setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
-  return true
+  const headerAuth = getRequestAuth(req);
+  if (!headerAuth) return false;
+  setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+  return true;
 }
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireKodyAuth(req)
-  if (authResult instanceof NextResponse) return authResult
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
   if (!withRepoContext(req)) {
-    return NextResponse.json({ error: "no_repo" }, { status: 400 })
+    return NextResponse.json({ error: "no_repo" }, { status: 400 });
   }
   try {
-    const file = await readInstructionsFile()
-    return NextResponse.json({ instructions: file })
+    const file = await readInstructionsFile();
+    return NextResponse.json({ instructions: file });
   } catch (error: any) {
-    console.error("[Instructions] read failed:", error)
+    console.error("[Instructions] read failed:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
         { status: 401 },
-      )
+      );
     }
     return NextResponse.json(
       { error: error?.message || "Failed to read instructions" },
       { status: 500 },
-    )
+    );
   } finally {
-    clearGitHubContext()
+    clearGitHubContext();
   }
 }
 
@@ -64,22 +64,22 @@ const writeSchema = z.object({
   body: z.string().max(20_000),
   sha: z.string().optional(),
   actorLogin: z.string().optional(),
-})
+});
 
 export async function PUT(req: NextRequest) {
-  const authResult = await requireKodyAuth(req)
-  if (authResult instanceof NextResponse) return authResult
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
   if (!withRepoContext(req)) {
-    return NextResponse.json({ error: "no_repo" }, { status: 400 })
+    return NextResponse.json({ error: "no_repo" }, { status: 400 });
   }
   try {
-    const payload = await req.json()
-    const { body, sha, actorLogin } = writeSchema.parse(payload)
+    const payload = await req.json();
+    const { body, sha, actorLogin } = writeSchema.parse(payload);
 
-    const actorResult = await verifyActorLogin(req, actorLogin)
-    if (actorResult instanceof NextResponse) return actorResult
+    const actorResult = await verifyActorLogin(req, actorLogin);
+    if (actorResult instanceof NextResponse) return actorResult;
 
-    const userOctokit = await getUserOctokit(req)
+    const userOctokit = await getUserOctokit(req);
     if (!userOctokit) {
       return NextResponse.json(
         {
@@ -88,34 +88,34 @@ export async function PUT(req: NextRequest) {
             "A signed-in GitHub token is required to commit the instructions file.",
         },
         { status: 401 },
-      )
+      );
     }
 
     if (body.trim().length === 0) {
-      await deleteInstructionsFile(userOctokit)
-      return NextResponse.json({ instructions: null })
+      await deleteInstructionsFile(userOctokit);
+      return NextResponse.json({ instructions: null });
     }
 
-    const existing = await readInstructionsFile()
+    const existing = await readInstructionsFile();
     const instructions = await writeInstructionsFile({
       octokit: userOctokit,
       body,
       sha: sha ?? existing?.sha,
-    })
-    return NextResponse.json({ instructions })
+    });
+    return NextResponse.json({ instructions });
   } catch (error: any) {
-    console.error("[Instructions] write failed:", error)
+    console.error("[Instructions] write failed:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "validation_error", details: error.issues },
         { status: 400 },
-      )
+      );
     }
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
         { status: 401 },
-      )
+      );
     }
     if (error?.status === 409) {
       return NextResponse.json(
@@ -125,42 +125,39 @@ export async function PUT(req: NextRequest) {
             "Instructions were edited from elsewhere — reload the page and try again.",
         },
         { status: 409 },
-      )
+      );
     }
     return NextResponse.json(
       { error: error?.message || "Failed to save instructions" },
       { status: 500 },
-    )
+    );
   } finally {
-    clearGitHubContext()
+    clearGitHubContext();
   }
 }
 
 export async function DELETE(req: NextRequest) {
-  const authResult = await requireKodyAuth(req)
-  if (authResult instanceof NextResponse) return authResult
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
   if (!withRepoContext(req)) {
-    return NextResponse.json({ error: "no_repo" }, { status: 400 })
+    return NextResponse.json({ error: "no_repo" }, { status: 400 });
   }
   try {
-    const actorResult = await verifyActorLogin(req, undefined)
-    if (actorResult instanceof NextResponse) return actorResult
-    const userOctokit = await getUserOctokit(req)
+    const actorResult = await verifyActorLogin(req, undefined);
+    if (actorResult instanceof NextResponse) return actorResult;
+    const userOctokit = await getUserOctokit(req);
     if (!userOctokit) {
-      return NextResponse.json(
-        { error: "no_user_token" },
-        { status: 401 },
-      )
+      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
-    await deleteInstructionsFile(userOctokit)
-    return NextResponse.json({ instructions: null })
+    await deleteInstructionsFile(userOctokit);
+    return NextResponse.json({ instructions: null });
   } catch (error: any) {
-    console.error("[Instructions] delete failed:", error)
+    console.error("[Instructions] delete failed:", error);
     return NextResponse.json(
       { error: error?.message || "Failed to delete instructions" },
       { status: 500 },
-    )
+    );
   } finally {
-    clearGitHubContext()
+    clearGitHubContext();
   }
 }

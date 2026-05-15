@@ -18,26 +18,37 @@
  *
  *   Uses per-user GitHub token when available for proper attribution.
  */
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import type { Octokit } from '@octokit/rest'
-import { requireKodyAuth, verifyActorLogin, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
-import { getOctokit, setGitHubContext, clearGitHubContext, getOwner, getRepo } from '@dashboard/lib/github-client'
-import { isProtectedBranch } from '@dashboard/lib/branches'
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import type { Octokit } from "@octokit/rest";
+import {
+  requireKodyAuth,
+  verifyActorLogin,
+  getUserOctokit,
+  getRequestAuth,
+} from "@dashboard/lib/auth";
+import {
+  getOctokit,
+  setGitHubContext,
+  clearGitHubContext,
+  getOwner,
+  getRepo,
+} from "@dashboard/lib/github-client";
+import { isProtectedBranch } from "@dashboard/lib/branches";
 
 const ApproveRequestSchema = z.object({
   issueNumber: z.number().int().positive(),
   prNumber: z.number().int().positive(),
   branchName: z.string().optional(),
   actorLogin: z.string().optional(),
-})
+});
 
 type MergeOutcome =
-  | { kind: 'merged' }
-  | { kind: 'already-merged' }
-  | { kind: 'failed-ci' }
-  | { kind: 'failed-conflict' }
-  | { kind: 'failed-other'; message: string; status?: number }
+  | { kind: "merged" }
+  | { kind: "already-merged" }
+  | { kind: "failed-ci" }
+  | { kind: "failed-conflict" }
+  | { kind: "failed-other"; message: string; status?: number };
 
 async function attemptSquashMerge(
   octokit: Octokit,
@@ -48,59 +59,59 @@ async function attemptSquashMerge(
       owner: getOwner(),
       repo: getRepo(),
       pull_number: prNumber,
-      merge_method: 'squash',
-    })
-    return { kind: 'merged' }
+      merge_method: "squash",
+    });
+    return { kind: "merged" };
   } catch (err) {
-    const e = err as { status?: number; message?: string }
-    const msg = e.message ?? ''
+    const e = err as { status?: number; message?: string };
+    const msg = e.message ?? "";
     // GitHub returns 405 for non-mergeable (CI failing, branch protection,
     // mergeable_state is "blocked" / "behind" / "dirty"). 422 for conflicts.
     // We classify so the caller (and the dashboard UI) can show the right
     // message instead of a generic 500.
-    if (msg.includes('already merged') || msg.includes('Already up to date')) {
-      return { kind: 'already-merged' }
+    if (msg.includes("already merged") || msg.includes("Already up to date")) {
+      return { kind: "already-merged" };
     }
-    if (msg.includes('not mergeable') || e.status === 405) {
-      return { kind: 'failed-ci' }
+    if (msg.includes("not mergeable") || e.status === 405) {
+      return { kind: "failed-ci" };
     }
     if (e.status === 409 || /conflict/i.test(msg)) {
-      return { kind: 'failed-conflict' }
+      return { kind: "failed-conflict" };
     }
-    return { kind: 'failed-other', message: msg, status: e.status }
+    return { kind: "failed-other", message: msg, status: e.status };
   }
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireKodyAuth(req)
-  if (authResult instanceof NextResponse) return authResult
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
 
-  const headerAuth = getRequestAuth(req)
+  const headerAuth = getRequestAuth(req);
   if (headerAuth) {
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
   }
 
   try {
-    const body = await req.json()
-    const parsed = ApproveRequestSchema.safeParse(body)
+    const body = await req.json();
+    const parsed = ApproveRequestSchema.safeParse(body);
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Invalid request', details: parsed.error.flatten() },
+        { error: "Invalid request", details: parsed.error.flatten() },
         { status: 400 },
-      )
+      );
     }
 
-    const { issueNumber, prNumber, branchName, actorLogin } = parsed.data
+    const { issueNumber, prNumber, branchName, actorLogin } = parsed.data;
 
-    const actorResult = await verifyActorLogin(req, actorLogin)
-    if (actorResult instanceof NextResponse) return actorResult
-    const { identity } = actorResult
-    const verifiedLogin = identity.login
+    const actorResult = await verifyActorLogin(req, actorLogin);
+    if (actorResult instanceof NextResponse) return actorResult;
+    const { identity } = actorResult;
+    const verifiedLogin = identity.login;
 
-    const userOctokit = await getUserOctokit(req)
-    const octokit = userOctokit ?? getOctokit()
-    const results: string[] = []
+    const userOctokit = await getUserOctokit(req);
+    const octokit = userOctokit ?? getOctokit();
+    const results: string[] = [];
 
     // 1. Approve the PR review (best-effort — failure here means already
     //    approved or insufficient permission; not a blocker for the merge
@@ -110,55 +121,55 @@ export async function POST(req: NextRequest) {
         owner: getOwner(),
         repo: getRepo(),
         pull_number: prNumber,
-        event: 'APPROVE',
+        event: "APPROVE",
         body: `✅ Gate approved by @${verifiedLogin} via Kody dashboard.`,
-      })
+      });
     } catch {
       // already approved / can't self-approve own PR / insufficient perms
     }
 
     // 2. Attempt the squash merge — this is the gate. If merge does NOT
     //    succeed, we return early and DO NOT touch the branch or issue.
-    const outcome = await attemptSquashMerge(octokit, prNumber)
-    if (outcome.kind === 'failed-ci') {
+    const outcome = await attemptSquashMerge(octokit, prNumber);
+    if (outcome.kind === "failed-ci") {
       return NextResponse.json(
         {
-          error: 'merge_blocked_ci',
+          error: "merge_blocked_ci",
           message:
             `PR #${prNumber} cannot be merged — CI checks are failing or ` +
-            'branch protection requires more reviews. Branch and issue ' +
-            'left intact.',
+            "branch protection requires more reviews. Branch and issue " +
+            "left intact.",
         },
         { status: 409 },
-      )
+      );
     }
-    if (outcome.kind === 'failed-conflict') {
+    if (outcome.kind === "failed-conflict") {
       return NextResponse.json(
         {
-          error: 'merge_blocked_conflict',
+          error: "merge_blocked_conflict",
           message:
             `PR #${prNumber} has merge conflicts with the base branch. ` +
-            'Resolve conflicts before approving again. Branch and issue ' +
-            'left intact.',
+            "Resolve conflicts before approving again. Branch and issue " +
+            "left intact.",
         },
         { status: 409 },
-      )
+      );
     }
-    if (outcome.kind === 'failed-other') {
+    if (outcome.kind === "failed-other") {
       return NextResponse.json(
         {
-          error: 'merge_failed',
+          error: "merge_failed",
           message: `PR #${prNumber} merge failed: ${outcome.message}`,
           status: outcome.status,
         },
         { status: outcome.status === 401 ? 401 : 502 },
-      )
+      );
     }
     results.push(
-      outcome.kind === 'merged'
+      outcome.kind === "merged"
         ? `Merged PR #${prNumber}`
         : `PR #${prNumber} was already merged`,
-    )
+    );
 
     // From here on: merge confirmed. Branch delete + issue close run only
     // if the merge actually happened.
@@ -171,17 +182,17 @@ export async function POST(req: NextRequest) {
           owner: getOwner(),
           repo: getRepo(),
           ref: `heads/${branchName}`,
-        })
-        results.push(`Deleted branch ${branchName}`)
+        });
+        results.push(`Deleted branch ${branchName}`);
       } catch (error: unknown) {
-        const e = error as { status?: number; message?: string }
+        const e = error as { status?: number; message?: string };
         if (e.status === 422) {
-          results.push(`Branch ${branchName} was already deleted`)
+          results.push(`Branch ${branchName} was already deleted`);
         } else {
           // Don't fail the request — branch cleanup is post-merge bookkeeping;
           // the user-visible work (merge) already succeeded.
-          const msg = e.message ?? String(error)
-          results.push(`Branch ${branchName} delete warning: ${msg}`)
+          const msg = e.message ?? String(error);
+          results.push(`Branch ${branchName} delete warning: ${msg}`);
         }
       }
     }
@@ -194,36 +205,36 @@ export async function POST(req: NextRequest) {
         owner: getOwner(),
         repo: getRepo(),
         issue_number: issueNumber,
-        state: 'closed',
-      })
-      results.push(`Closed issue #${issueNumber}`)
+        state: "closed",
+      });
+      results.push(`Closed issue #${issueNumber}`);
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error)
-      results.push(`Issue close warning: ${msg}`)
+      const msg = error instanceof Error ? error.message : String(error);
+      results.push(`Issue close warning: ${msg}`);
     }
 
-    return NextResponse.json({ success: true, results })
+    return NextResponse.json({ success: true, results });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error('[Kody] Approve error:', msg)
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[Kody] Approve error:", msg);
 
     if (
-      typeof error === 'object' &&
+      typeof error === "object" &&
       error !== null &&
-      'status' in error &&
+      "status" in error &&
       (error as { status?: number }).status === 401
     ) {
       return NextResponse.json(
         {
-          error: 'github_token_expired',
-          message: 'Your GitHub token has expired. Please log in again.',
+          error: "github_token_expired",
+          message: "Your GitHub token has expired. Please log in again.",
         },
         { status: 401 },
-      )
+      );
     }
 
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return NextResponse.json({ error: msg }, { status: 500 });
   } finally {
-    clearGitHubContext()
+    clearGitHubContext();
   }
 }

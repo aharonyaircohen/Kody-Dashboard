@@ -4,31 +4,35 @@
  * @pattern collaborators-api
  * @ai-summary API route to fetch repository collaborators for assignee picker
  */
-import { NextRequest, NextResponse } from 'next/server'
-import { requireKodyAuth, getRequestAuth } from '@dashboard/lib/auth'
+import { NextRequest, NextResponse } from "next/server";
+import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
 
-import { fetchCollaborators, setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
+import {
+  fetchCollaborators,
+  setGitHubContext,
+  clearGitHubContext,
+} from "@dashboard/lib/github-client";
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireKodyAuth(req)
-  if (authResult instanceof NextResponse) return authResult
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
 
-  const headerAuth = getRequestAuth(req)
+  const headerAuth = getRequestAuth(req);
   if (headerAuth) {
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
   }
 
   try {
-    const collaborators = await fetchCollaborators()
-    return NextResponse.json({ collaborators })
+    const collaborators = await fetchCollaborators();
+    return NextResponse.json({ collaborators });
   } catch (error) {
-    console.error('[Kody] Error fetching collaborators:', error)
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error("[Kody] Error fetching collaborators:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: 'Failed to fetch collaborators', details: message },
+      { error: "Failed to fetch collaborators", details: message },
       { status: 500 },
-    )
+    );
   } finally {
-    clearGitHubContext()
+    clearGitHubContext();
   }
 }

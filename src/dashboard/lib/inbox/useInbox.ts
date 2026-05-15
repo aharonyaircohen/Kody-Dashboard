@@ -10,11 +10,7 @@
  *   The query key is scoped to `(owner, repo)` so switching repos in the
  *   dashboard naturally swaps the inbox (each repo gets its own gist).
  */
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import type { InboxEntry } from "./types";
@@ -27,7 +23,9 @@ interface InboxResponse {
   entries: InboxEntry[];
 }
 
-async function listInbox(headers: Record<string, string>): Promise<InboxEntry[]> {
+async function listInbox(
+  headers: Record<string, string>,
+): Promise<InboxEntry[]> {
   const res = await fetch("/api/kody/inbox", { headers });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -133,7 +131,8 @@ export function useInbox(options: { enabled?: boolean } = {}): UseInboxResult {
   }, [entries]);
 
   const markReadMut = useMutation({
-    mutationFn: (id: string) => patchEntry(headers, id, new Date().toISOString()),
+    mutationFn: (id: string) =>
+      patchEntry(headers, id, new Date().toISOString()),
     onSuccess: (next) => qc.setQueryData(key, next),
   });
   const markUnreadMut = useMutation({

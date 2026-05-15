@@ -53,9 +53,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     req.headers.get("x-kody-owner")?.trim() ||
     GITHUB_OWNER;
   const repo =
-    body.repo?.trim() ||
-    req.headers.get("x-kody-repo")?.trim() ||
-    GITHUB_REPO;
+    body.repo?.trim() || req.headers.get("x-kody-repo")?.trim() || GITHUB_REPO;
   const hookUrl = `${getPublicBaseUrl(req)}/api/webhooks/github`;
 
   const result = await ensureWebhook({
@@ -69,7 +67,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!result.ok) {
     return NextResponse.json(
       { error: result.error, status: result.status },
-      { status: result.status === 403 || result.status === 404 ? result.status : 502 },
+      {
+        status:
+          result.status === 403 || result.status === 404 ? result.status : 502,
+      },
     );
   }
 

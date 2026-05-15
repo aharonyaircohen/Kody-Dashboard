@@ -15,19 +15,19 @@
  * callers. Returns only a boolean — no URL or key material.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { requireKodyAuth } from '@dashboard/lib/auth'
+import { NextRequest, NextResponse } from "next/server";
+import { requireKodyAuth } from "@dashboard/lib/auth";
 
-export const runtime = 'nodejs'
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const authError = await requireKodyAuth(req)
-  if (authError) return authError
+  const authError = await requireKodyAuth(req);
+  if (authError) return authError;
 
   const serverConfigured = Boolean(
     process.env.BRAIN_CHAT_URL?.trim() &&
-      process.env.BRAIN_CHAT_API_KEY?.trim(),
-  )
+    process.env.BRAIN_CHAT_API_KEY?.trim(),
+  );
 
-  return NextResponse.json({ serverConfigured })
+  return NextResponse.json({ serverConfigured });
 }

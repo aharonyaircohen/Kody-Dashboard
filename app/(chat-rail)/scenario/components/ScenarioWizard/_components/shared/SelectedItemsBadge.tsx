@@ -4,19 +4,25 @@
  * @pattern selected-items-badge
  * @ai-summary Shows selected prototype elements and design system components as badges
  */
-'use client'
+"use client";
 
-import { Badge } from '@dashboard/ui/badge'
-import type { PrototypeElement, DSComponent } from '@dashboard/lib/scenario-schema-stub'
+import { Badge } from "@dashboard/ui/badge";
+import type {
+  PrototypeElement,
+  DSComponent,
+} from "@dashboard/lib/scenario-schema-stub";
 
 interface SelectedItemsBadgeProps {
-  elements: PrototypeElement[]
-  components: DSComponent[]
+  elements: PrototypeElement[];
+  components: DSComponent[];
 }
 
-export function SelectedItemsBadge({ elements, components }: SelectedItemsBadgeProps) {
+export function SelectedItemsBadge({
+  elements,
+  components,
+}: SelectedItemsBadgeProps) {
   if (elements.length === 0 && components.length === 0) {
-    return null
+    return null;
   }
 
   return (
@@ -38,5 +44,5 @@ export function SelectedItemsBadge({ elements, components }: SelectedItemsBadgeP
         ))}
       </div>
     </div>
-  )
+  );
 }

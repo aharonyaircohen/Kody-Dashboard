@@ -14,54 +14,61 @@
  * preflight (`setLifecycleLabel`).
  */
 
-import { fetchIssue, postComment } from '../github-client'
-import { logger } from '../logger'
-import { UI_VERIFY_GUARD_LABELS } from './labels'
+import { fetchIssue, postComment } from "../github-client";
+import { logger } from "../logger";
+import { UI_VERIFY_GUARD_LABELS } from "./labels";
 
-const DISPATCH_COMMAND = '@kody ui-review'
+const DISPATCH_COMMAND = "@kody ui-review";
 
 export interface DispatchResult {
-  dispatched: boolean
-  reason: string
+  dispatched: boolean;
+  reason: string;
 }
 
-export async function maybeDispatchUiReview(prNumber: number): Promise<DispatchResult> {
-  let pr
+export async function maybeDispatchUiReview(
+  prNumber: number,
+): Promise<DispatchResult> {
+  let pr;
   try {
-    pr = await fetchIssue(prNumber)
+    pr = await fetchIssue(prNumber);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = err instanceof Error ? err.message : String(err);
     logger.warn(
-      { event: 'ui_verify_dispatch_fetch_failed', pr: prNumber, error: msg },
-      'ui-verify dispatch: failed to fetch PR — skipping',
-    )
-    return { dispatched: false, reason: `fetch failed: ${msg}` }
+      { event: "ui_verify_dispatch_fetch_failed", pr: prNumber, error: msg },
+      "ui-verify dispatch: failed to fetch PR — skipping",
+    );
+    return { dispatched: false, reason: `fetch failed: ${msg}` };
   }
 
   if (!pr) {
-    return { dispatched: false, reason: 'pr not found' }
+    return { dispatched: false, reason: "pr not found" };
   }
 
-  const labelNames = pr.labels.map((l) => l.name)
-  const existingGuard = UI_VERIFY_GUARD_LABELS.find((g) => labelNames.includes(g))
+  const labelNames = pr.labels.map((l) => l.name);
+  const existingGuard = UI_VERIFY_GUARD_LABELS.find((g) =>
+    labelNames.includes(g),
+  );
   if (existingGuard) {
-    return { dispatched: false, reason: `already has guard label: ${existingGuard}` }
+    return {
+      dispatched: false,
+      reason: `already has guard label: ${existingGuard}`,
+    };
   }
 
   try {
-    await postComment(prNumber, DISPATCH_COMMAND)
+    await postComment(prNumber, DISPATCH_COMMAND);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = err instanceof Error ? err.message : String(err);
     logger.error(
-      { event: 'ui_verify_dispatch_comment_failed', pr: prNumber, error: msg },
-      'ui-verify dispatch: failed to post @kody ui-review comment',
-    )
-    return { dispatched: false, reason: `comment failed: ${msg}` }
+      { event: "ui_verify_dispatch_comment_failed", pr: prNumber, error: msg },
+      "ui-verify dispatch: failed to post @kody ui-review comment",
+    );
+    return { dispatched: false, reason: `comment failed: ${msg}` };
   }
 
   logger.info(
-    { event: 'ui_verify_dispatched', pr: prNumber },
-    'Auto-dispatched @kody ui-review on Vercel preview ready',
-  )
-  return { dispatched: true, reason: 'ok' }
+    { event: "ui_verify_dispatched", pr: prNumber },
+    "Auto-dispatched @kody ui-review on Vercel preview ready",
+  );
+  return { dispatched: true, reason: "ok" };
 }

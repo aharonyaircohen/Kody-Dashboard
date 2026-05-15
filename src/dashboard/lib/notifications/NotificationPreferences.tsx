@@ -1,4 +1,4 @@
-'use client'
+"use client";
 /**
  * @fileType component
  * @domain kody
@@ -6,34 +6,34 @@
  * @ai-summary Settings panel for notification preferences (per-type toggles, sound, browser)
  */
 
-import { ArrowLeft, Volume2, VolumeX, Monitor, Bell, Play } from 'lucide-react'
-import { cn } from '@dashboard/lib/utils/ui'
-import type { UseNotificationStoreReturn } from './useNotificationStore'
-import { NOTIFICATION_META, type NotificationType } from './types'
-import { playNotificationSound } from './sounds'
-import { PushToggle } from '@dashboard/lib/push/PushToggle'
+import { ArrowLeft, Volume2, VolumeX, Monitor, Bell, Play } from "lucide-react";
+import { cn } from "@dashboard/lib/utils/ui";
+import type { UseNotificationStoreReturn } from "./useNotificationStore";
+import { NOTIFICATION_META, type NotificationType } from "./types";
+import { playNotificationSound } from "./sounds";
+import { PushToggle } from "@dashboard/lib/push/PushToggle";
 
 interface NotificationPreferencesProps {
-  store: UseNotificationStoreReturn
-  browserPermission: NotificationPermission
-  isSupported: boolean
-  onRequestPermission: () => void
-  onClose: () => void
+  store: UseNotificationStoreReturn;
+  browserPermission: NotificationPermission;
+  isSupported: boolean;
+  onRequestPermission: () => void;
+  onClose: () => void;
 }
 
 const TYPE_ORDER: NotificationType[] = [
-  'task-failed',
-  'build-error',
-  'gate-waiting',
-  'task-assigned',
-  'pr-ready',
-  'task-completed',
-  'pr-merged',
-  'chat-response',
-  'task-started',
-  'stage-change',
-  'retry-started',
-]
+  "task-failed",
+  "build-error",
+  "gate-waiting",
+  "task-assigned",
+  "pr-ready",
+  "task-completed",
+  "pr-merged",
+  "chat-response",
+  "task-started",
+  "stage-change",
+  "retry-started",
+];
 
 export function NotificationPreferences({
   store,
@@ -42,7 +42,7 @@ export function NotificationPreferences({
   onRequestPermission,
   onClose,
 }: NotificationPreferencesProps) {
-  const { prefs, updatePrefs, toggleType, isTypeEnabled } = store
+  const { prefs, updatePrefs, toggleType, isTypeEnabled } = store;
 
   return (
     <div className="max-h-[400px] overflow-y-auto">
@@ -80,11 +80,13 @@ export function NotificationPreferences({
             <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
             Browser notifications
           </span>
-          {isSupported && browserPermission === 'granted' ? (
+          {isSupported && browserPermission === "granted" ? (
             <input
               type="checkbox"
               checked={prefs.browserEnabled}
-              onChange={(e) => updatePrefs({ browserEnabled: e.target.checked })}
+              onChange={(e) =>
+                updatePrefs({ browserEnabled: e.target.checked })
+              }
               className="w-4 h-4 rounded border-border accent-primary"
             />
           ) : (
@@ -93,7 +95,7 @@ export function NotificationPreferences({
               onClick={onRequestPermission}
               className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20"
             >
-              {browserPermission === 'denied' ? 'Blocked' : 'Enable'}
+              {browserPermission === "denied" ? "Blocked" : "Enable"}
             </button>
           )}
         </label>
@@ -127,19 +129,27 @@ export function NotificationPreferences({
         </p>
         <div className="space-y-1.5">
           {TYPE_ORDER.map((type) => {
-            const meta = NOTIFICATION_META[type]
-            const enabled = isTypeEnabled(type)
+            const meta = NOTIFICATION_META[type];
+            const enabled = isTypeEnabled(type);
             return (
-              <label key={type} className="flex items-center justify-between cursor-pointer py-0.5">
+              <label
+                key={type}
+                className="flex items-center justify-between cursor-pointer py-0.5"
+              >
                 <span className="flex items-center gap-2 text-xs">
                   <span>{meta.icon}</span>
-                  <span className={cn(!enabled && 'text-muted-foreground')}>{meta.label}</span>
+                  <span className={cn(!enabled && "text-muted-foreground")}>
+                    {meta.label}
+                  </span>
                   <span
                     className={cn(
-                      'text-[9px] px-1 py-px rounded',
-                      meta.priority === 'high' && 'bg-destructive/10 text-destructive',
-                      meta.priority === 'medium' && 'bg-amber-500/10 text-amber-600',
-                      meta.priority === 'low' && 'bg-muted text-muted-foreground',
+                      "text-[9px] px-1 py-px rounded",
+                      meta.priority === "high" &&
+                        "bg-destructive/10 text-destructive",
+                      meta.priority === "medium" &&
+                        "bg-amber-500/10 text-amber-600",
+                      meta.priority === "low" &&
+                        "bg-muted text-muted-foreground",
                     )}
                   >
                     {meta.priority}
@@ -149,8 +159,8 @@ export function NotificationPreferences({
                   <button
                     type="button"
                     onClick={(e) => {
-                      e.preventDefault()
-                      playNotificationSound(type)
+                      e.preventDefault();
+                      playNotificationSound(type);
                     }}
                     title="Preview sound"
                     className="p-0.5 text-muted-foreground hover:text-foreground rounded hover:bg-accent"
@@ -165,10 +175,10 @@ export function NotificationPreferences({
                   />
                 </span>
               </label>
-            )
+            );
           })}
         </div>
       </div>
     </div>
-  )
+  );
 }

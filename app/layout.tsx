@@ -4,48 +4,57 @@
  * @pattern route-group
  * @ai-summary Root layout for Kody dashboard — reuses frontend fonts, theme, and CSS without Header/Footer/i18n
  */
-import React from 'react'
-import type { Metadata } from 'next'
-import { cn } from '@dashboard/lib/utils/ui'
-import { GeistMono } from 'geist/font/mono'
-import { GeistSans } from 'geist/font/sans'
-import { Assistant } from 'next/font/google'
+import React from "react";
+import type { Metadata } from "next";
+import { cn } from "@dashboard/lib/utils/ui";
+import { GeistMono } from "geist/font/mono";
+import { GeistSans } from "geist/font/sans";
+import { Assistant } from "next/font/google";
 
-import { KodyProviders } from './KodyProviders'
-import { ChatRailShell } from '@dashboard/lib/components/ChatRailShell'
-import { Toaster } from '@dashboard/ui/toaster'
-import { defaultTheme, themeLocalStorageKey } from '@dashboard/providers/Theme/shared'
-import '@dashboard/globals.css'
+import { KodyProviders } from "./KodyProviders";
+import { ChatRailShell } from "@dashboard/lib/components/ChatRailShell";
+import { Toaster } from "@dashboard/ui/toaster";
+import {
+  defaultTheme,
+  themeLocalStorageKey,
+} from "@dashboard/providers/Theme/shared";
+import "@dashboard/globals.css";
 
 const assistant = Assistant({
-  subsets: ['latin', 'hebrew'],
-  weight: ['300', '400', '500', '600', '700', '800'],
-  display: 'swap',
-  variable: '--font-assistant',
-})
+  subsets: ["latin", "hebrew"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-assistant",
+});
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SERVER_URL?.trim() || 'http://localhost:3333'),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SERVER_URL?.trim() || "http://localhost:3333",
+  ),
   title: {
-    default: 'Kody Operations Dashboard',
-    template: '%s | Kody Operations',
+    default: "Kody Operations Dashboard",
+    template: "%s | Kody Operations",
   },
   // PWA: lets iOS Safari treat the site as installable. Combined with
   // `apple-touch-icon` below, "Add to Home Screen" produces a real PWA icon
   // and `display: standalone` from manifest.json makes it run chromeless.
-  manifest: '/manifest.json',
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: 'Kody',
-    statusBarStyle: 'black-translucent',
+    title: "Kody",
+    statusBarStyle: "black-translucent",
   },
   icons: {
-    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
-    apple: [{ url: '/icon.svg' }],
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/icon.svg" }],
   },
-}
+};
 
-export default function KodyLayout({ children }: { children: React.ReactNode }) {
+export default function KodyLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       className={cn(GeistSans.variable, GeistMono.variable, assistant.variable)}
@@ -88,5 +97,5 @@ export default function KodyLayout({ children }: { children: React.ReactNode }) 
         </KodyProviders>
       </body>
     </html>
-  )
+  );
 }

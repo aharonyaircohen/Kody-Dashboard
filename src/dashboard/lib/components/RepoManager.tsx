@@ -106,7 +106,10 @@ export function RepoManager() {
   const [token, setToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmRemove, setConfirmRemove] = useState<{ index: number; entry: KodyRepoEntry } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<{
+    index: number;
+    entry: KodyRepoEntry;
+  } | null>(null);
 
   // Empty-state mode: when `auth` is null this is the very first repo the user
   // is adding. The list section is skipped and `addRepo` bootstraps the entire
@@ -119,7 +122,9 @@ export function RepoManager() {
 
     const parsed = parseRepoInput(repoInput);
     if (!parsed) {
-      setError("Enter a GitHub URL (https://github.com/owner/repo) or owner/repo");
+      setError(
+        "Enter a GitHub URL (https://github.com/owner/repo) or owner/repo",
+      );
       return;
     }
     const trimmedToken = token.trim();
@@ -133,7 +138,11 @@ export function RepoManager() {
       const res = await fetch("/api/kody/repos/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ owner: parsed.owner, repo: parsed.repo, token: trimmedToken }),
+        body: JSON.stringify({
+          owner: parsed.owner,
+          repo: parsed.repo,
+          token: trimmedToken,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as AddRepoResponse;
 
@@ -201,72 +210,74 @@ export function RepoManager() {
             <CardContent className="p-0">
               <div className="divide-y">
                 {auth.repos.map((entry, idx) => {
-                const isCurrent = idx === auth.currentRepoIndex;
-                return (
-                  <div
-                    key={`${entry.owner}/${entry.repo}`}
-                    className="px-4 py-3 flex items-center gap-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <a
-                          href={entry.repoUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-sm hover:underline inline-flex items-center gap-1"
-                        >
-                          {entry.owner}/{entry.repo}
-                          <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                        </a>
-                        {isCurrent && (
-                          <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Current
-                          </span>
-                        )}
-                        {entry.isLogin && (
-                          <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                            <Star className="w-3 h-3" />
-                            Login repo
-                          </span>
-                        )}
+                  const isCurrent = idx === auth.currentRepoIndex;
+                  return (
+                    <div
+                      key={`${entry.owner}/${entry.repo}`}
+                      className="px-4 py-3 flex items-center gap-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <a
+                            href={entry.repoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-sm hover:underline inline-flex items-center gap-1"
+                          >
+                            {entry.owner}/{entry.repo}
+                            <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                          </a>
+                          {isCurrent && (
+                            <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Current
+                            </span>
+                          )}
+                          {entry.isLogin && (
+                            <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                              <Star className="w-3 h-3" />
+                              Login repo
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          Added {formatRelative(entry.addedAt)}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Added {formatRelative(entry.addedAt)}
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      {!isCurrent && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        {!isCurrent && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentRepo(idx)}
+                          >
+                            Set current
+                          </Button>
+                        )}
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          onClick={() => setCurrentRepo(idx)}
+                          disabled={entry.isLogin}
+                          title={
+                            entry.isLogin
+                              ? "Login repo can't be removed — use Logout instead"
+                              : "Remove repo"
+                          }
+                          onClick={() =>
+                            setConfirmRemove({ index: idx, entry })
+                          }
+                          className="text-destructive hover:text-destructive"
                         >
-                          Set current
+                          <Trash2 className="w-4 h-4" />
                         </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={entry.isLogin}
-                        title={
-                          entry.isLogin
-                            ? "Login repo can't be removed — use Logout instead"
-                            : "Remove repo"
-                        }
-                        onClick={() => setConfirmRemove({ index: idx, entry })}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Add form */}
@@ -275,7 +286,9 @@ export function RepoManager() {
             <div className="flex items-center gap-2">
               <Plus className="w-4 h-4" />
               <h2 className="font-semibold text-sm">
-                {isBootstrap ? "Connect your first repository" : "Add a repository"}
+                {isBootstrap
+                  ? "Connect your first repository"
+                  : "Add a repository"}
               </h2>
             </div>
             <form onSubmit={handleAdd} className="space-y-3">
@@ -307,7 +320,8 @@ export function RepoManager() {
                 <p className="text-xs text-muted-foreground">
                   Needs <code className="bg-muted px-1 rounded">repo</code>,{" "}
                   <code className="bg-muted px-1 rounded">workflow</code>, and{" "}
-                  <code className="bg-muted px-1 rounded">admin:repo_hook</code> scopes.{" "}
+                  <code className="bg-muted px-1 rounded">admin:repo_hook</code>{" "}
+                  scopes.{" "}
                   <a
                     href={TOKEN_DOC_URL}
                     target="_blank"

@@ -7,9 +7,9 @@
  *   connected repo whose body describes the job's intent, allowed
  *   commands, and restrictions.
  */
-'use client'
+"use client";
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Calendar,
@@ -24,54 +24,54 @@ import {
   Target,
   Timer,
   Trash2,
-} from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import { Button } from '@dashboard/ui/button'
-import { Input } from '@dashboard/ui/input'
-import { Label } from '@dashboard/ui/label'
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { Button } from "@dashboard/ui/button";
+import { Input } from "@dashboard/ui/input";
+import { Label } from "@dashboard/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@dashboard/ui/dialog'
+} from "@dashboard/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@dashboard/ui/select'
-import { AuthGuard } from '../auth-guard'
-import { cn } from '../utils'
+} from "@dashboard/ui/select";
+import { AuthGuard } from "../auth-guard";
+import { cn } from "../utils";
 import {
   useCreateJob,
   useDeleteJob,
   useJobs,
   useRunJob,
   useUpdateJob,
-} from '../hooks/useJobs'
-import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
-import { useNow } from '../hooks/useNow'
-import { formatDuration, formatRelativePast } from '../jobs-schedule'
-import { scheduleEveryLabel } from '../jobs-frontmatter'
-import type { Job, JobSchedule } from '../api'
-import { JOB_TEMPLATE } from '../job-template'
-import { ConfirmDialog } from './ConfirmDialog'
-import { MarkdownEditor } from './MarkdownEditor'
-import { PageHeader } from './PageShell'
-import { useChatScope } from './ChatRailShell'
+} from "../hooks/useJobs";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useNow } from "../hooks/useNow";
+import { formatDuration, formatRelativePast } from "../jobs-schedule";
+import { scheduleEveryLabel } from "../jobs-frontmatter";
+import type { Job, JobSchedule } from "../api";
+import { JOB_TEMPLATE } from "../job-template";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { MarkdownEditor } from "./MarkdownEditor";
+import { PageHeader } from "./PageShell";
+import { useChatScope } from "./ChatRailShell";
 
 function newDraftId(): string {
-  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
-    : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 interface JobControlProps {
   /** Render without the built-in PageHeader (e.g. when hosted in JobsPageTabs). */
-  embedded?: boolean
+  embedded?: boolean;
 }
 
 export function JobControl({ embedded = false }: JobControlProps = {}) {
@@ -79,17 +79,17 @@ export function JobControl({ embedded = false }: JobControlProps = {}) {
     <AuthGuard>
       <JobControlInner embedded={embedded} />
     </AuthGuard>
-  )
+  );
 }
 
 export function JobControlInner({ embedded = false }: JobControlProps = {}) {
-  const { data: jobs = [], isLoading, isFetching, refetch, error } = useJobs()
+  const { data: jobs = [], isLoading, isFetching, refetch, error } = useJobs();
 
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
-  const [editingJob, setEditingJob] = useState<Job | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<Job | null>(null)
-  const [pendingRun, setPendingRun] = useState<Job | null>(null)
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingJob, setEditingJob] = useState<Job | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Job | null>(null);
+  const [pendingRun, setPendingRun] = useState<Job | null>(null);
 
   // Chat-panel state. The left rail switches between three modes:
   //  • job mode  — when a job is selected and we're not drafting
@@ -97,51 +97,51 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
   //  • disabled      — neither (e.g. no jobs yet)
   // `draftPrefill` carries an assistant reply the user picked via
   // "Use as job" into CreateJobDialog.
-  const [isDrafting, setIsDrafting] = useState(false)
-  const [draftId, setDraftId] = useState<string>(() => newDraftId())
-  const [draftPrefill, setDraftPrefill] = useState<string | null>(null)
+  const [isDrafting, setIsDrafting] = useState(false);
+  const [draftId, setDraftId] = useState<string>(() => newDraftId());
+  const [draftPrefill, setDraftPrefill] = useState<string | null>(null);
   const startNewDraft = () => {
-    setIsDrafting(true)
-    setDraftId(newDraftId())
-  }
-  const cancelDraft = () => setIsDrafting(false)
+    setIsDrafting(true);
+    setDraftId(newDraftId());
+  };
+  const cancelDraft = () => setIsDrafting(false);
 
   const selectedJob = useMemo(
     () => jobs.find((m) => m.slug === selectedSlug) ?? null,
     [jobs, selectedSlug],
-  )
+  );
 
   useEffect(() => {
     if (!selectedSlug && jobs.length > 0) {
-      setSelectedSlug(jobs[0].slug)
+      setSelectedSlug(jobs[0].slug);
     }
-  }, [jobs, selectedSlug])
+  }, [jobs, selectedSlug]);
 
-  const { githubUser } = useGitHubIdentity()
-  const deleteMutation = useDeleteJob(githubUser?.login)
-  const runMutation = useRunJob()
+  const { githubUser } = useGitHubIdentity();
+  const deleteMutation = useDeleteJob(githubUser?.login);
+  const runMutation = useRunJob();
 
   // Push chat context up to the persistent rail in the root layout.
   // The chat's context follows the user's intent: drafting a new job,
   // or chatting about the currently selected one. Clear on unmount.
-  const { setScope } = useChatScope()
+  const { setScope } = useChatScope();
   useEffect(() => {
     setScope(
       isDrafting
         ? {
-            kind: 'job-draft',
+            kind: "job-draft",
             draftId,
             onFinalize: (assistantContent) => {
-              setDraftPrefill(assistantContent)
-              setShowCreate(true)
+              setDraftPrefill(assistantContent);
+              setShowCreate(true);
             },
           }
         : selectedJob
-          ? { kind: 'job', job: selectedJob }
+          ? { kind: "job", job: selectedJob }
           : null,
-    )
-    return () => setScope(null)
-  }, [isDrafting, draftId, selectedJob, setScope])
+    );
+    return () => setScope(null);
+  }, [isDrafting, draftId, selectedJob, setScope]);
 
   return (
     <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
@@ -150,7 +150,7 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
         {embedded ? (
           <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-black/20">
             <span className="text-xs text-muted-foreground mr-auto">
-              {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}
+              {jobs.length} {jobs.length === 1 ? "job" : "jobs"}
             </span>
             <Button
               variant="outline"
@@ -159,7 +159,9 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
               disabled={isFetching}
               aria-label="Refresh jobs"
             >
-              <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
+              <RefreshCw
+                className={cn("w-4 h-4", isFetching && "animate-spin")}
+              />
             </Button>
             {isDrafting ? (
               <Button
@@ -184,58 +186,68 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
                 <span className="hidden sm:inline">Draft new</span>
               </Button>
             )}
-            <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
+            <Button
+              size="sm"
+              onClick={() => setShowCreate(true)}
+              className="gap-1"
+            >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">New job</span>
             </Button>
           </div>
         ) : (
-        <PageHeader
-          title="Job Control"
-          icon={Target}
-          iconClassName="text-emerald-400"
-          subtitle={`${jobs.length} ${jobs.length === 1 ? 'job' : 'jobs'}`}
-          actions={
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetch()}
-                disabled={isFetching}
-                aria-label="Refresh jobs"
-              >
-                <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
-              </Button>
-              {isDrafting ? (
+          <PageHeader
+            title="Job Control"
+            icon={Target}
+            iconClassName="text-emerald-400"
+            subtitle={`${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}`}
+            actions={
+              <>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={cancelDraft}
-                  className="gap-1"
-                  title="Stop drafting; chat returns to the selected job"
+                  onClick={() => refetch()}
+                  disabled={isFetching}
+                  aria-label="Refresh jobs"
                 >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span className="hidden sm:inline">Back to job</span>
+                  <RefreshCw
+                    className={cn("w-4 h-4", isFetching && "animate-spin")}
+                  />
                 </Button>
-              ) : (
+                {isDrafting ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={cancelDraft}
+                    className="gap-1"
+                    title="Stop drafting; chat returns to the selected job"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span className="hidden sm:inline">Back to job</span>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={startNewDraft}
+                    className="gap-1"
+                    title="Chat with Kody to scope a brand-new job"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span className="hidden sm:inline">Draft new</span>
+                  </Button>
+                )}
                 <Button
-                  variant="outline"
                   size="sm"
-                  onClick={startNewDraft}
+                  onClick={() => setShowCreate(true)}
                   className="gap-1"
-                  title="Chat with Kody to scope a brand-new job"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  <span className="hidden sm:inline">Draft new</span>
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">New job</span>
                 </Button>
-              )}
-              <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">New job</span>
-              </Button>
-            </>
-          }
-        />
+              </>
+            }
+          />
         )}
 
         {error ? (
@@ -245,169 +257,173 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
         ) : null}
 
         <div className="flex-1 min-h-0 flex">
+          {/* Middle: job list */}
+          <aside
+            className={cn(
+              "w-full md:w-80 md:border-r md:border-border overflow-y-auto",
+              selectedJob && "hidden md:block",
+            )}
+          >
+            {isLoading ? (
+              <EmptyState icon={<FileText />} title="Loading jobs…" />
+            ) : jobs.length === 0 ? (
+              <EmptyState
+                icon={<Target />}
+                title="No jobs yet"
+                hint="Create your first job to describe the intent, system prompt, and restrictions."
+              />
+            ) : (
+              <ul className="divide-y divide-border">
+                {jobs.map((job) => {
+                  const isActive = selectedSlug === job.slug;
+                  return (
+                    <li key={job.slug}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSlug(job.slug)}
+                        className={cn(
+                          "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
+                          isActive && "bg-accent/70",
+                        )}
+                      >
+                        {isActive ? (
+                          <span className="absolute inset-y-0 left-0 w-0.5 bg-emerald-400" />
+                        ) : null}
+                        <div className="flex items-center gap-2">
+                          <Target
+                            className={cn(
+                              "w-3.5 h-3.5 shrink-0",
+                              isActive
+                                ? "text-emerald-400"
+                                : "text-muted-foreground",
+                            )}
+                          />
+                          <span className="font-medium text-sm truncate flex-1">
+                            {job.title}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+                          <span className="font-mono opacity-80">
+                            {job.slug}
+                          </span>
+                          <span>·</span>
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(job.updatedAt).toLocaleDateString()}
+                          </span>
+                          <ScheduleInline schedule={job.schedule} />
+                          <LastTickInline lastTickAt={job.lastTickAt} />
+                          <NextRunInline
+                            nextEligibleAt={job.nextEligibleAt}
+                            schedule={job.schedule}
+                          />
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </aside>
 
-        {/* Middle: job list */}
-        <aside
-          className={cn(
-            'w-full md:w-80 md:border-r md:border-border overflow-y-auto',
-            selectedJob && 'hidden md:block',
-          )}
-        >
-          {isLoading ? (
-            <EmptyState icon={<FileText />} title="Loading jobs…" />
-          ) : jobs.length === 0 ? (
-            <EmptyState
-              icon={<Target />}
-              title="No jobs yet"
-              hint="Create your first job to describe the intent, system prompt, and restrictions."
-            />
-          ) : (
-            <ul className="divide-y divide-border">
-              {jobs.map((job) => {
-                const isActive = selectedSlug === job.slug
-                return (
-                  <li key={job.slug}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSlug(job.slug)}
-                      className={cn(
-                        'w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative',
-                        isActive && 'bg-accent/70',
-                      )}
-                    >
-                      {isActive ? (
-                        <span className="absolute inset-y-0 left-0 w-0.5 bg-emerald-400" />
-                      ) : null}
-                      <div className="flex items-center gap-2">
-                        <Target
-                          className={cn(
-                            'w-3.5 h-3.5 shrink-0',
-                            isActive ? 'text-emerald-400' : 'text-muted-foreground',
-                          )}
-                        />
-                        <span className="font-medium text-sm truncate flex-1">
-                          {job.title}
-                        </span>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-                        <span className="font-mono opacity-80">{job.slug}</span>
-                        <span>·</span>
-                        <span className="inline-flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(job.updatedAt).toLocaleDateString()}
-                        </span>
-                        <ScheduleInline schedule={job.schedule} />
-                        <LastTickInline lastTickAt={job.lastTickAt} />
-                        <NextRunInline
-                          nextEligibleAt={job.nextEligibleAt}
-                          schedule={job.schedule}
-                        />
-                      </div>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </aside>
+          {/* Right: job detail */}
+          <section
+            className={cn(
+              "flex-1 min-w-0 overflow-y-auto",
+              !selectedJob && "hidden md:block",
+            )}
+          >
+            {selectedJob ? (
+              <JobDetail
+                job={selectedJob}
+                onBack={() => setSelectedSlug(null)}
+                onEdit={() => setEditingJob(selectedJob)}
+                onDelete={() => setPendingDelete(selectedJob)}
+                onRun={() => setPendingRun(selectedJob)}
+                isRunning={
+                  runMutation.isPending &&
+                  runMutation.variables?.slug === selectedJob.slug
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={<Target />}
+                title="Select a job"
+                hint="Pick a job from the list to see its intent and system prompt."
+              />
+            )}
+          </section>
+        </div>
 
-        {/* Right: job detail */}
-        <section
-          className={cn(
-            'flex-1 min-w-0 overflow-y-auto',
-            !selectedJob && 'hidden md:block',
-          )}
-        >
-          {selectedJob ? (
-            <JobDetail
-              job={selectedJob}
-              onBack={() => setSelectedSlug(null)}
-              onEdit={() => setEditingJob(selectedJob)}
-              onDelete={() => setPendingDelete(selectedJob)}
-              onRun={() => setPendingRun(selectedJob)}
-              isRunning={
-                runMutation.isPending && runMutation.variables?.slug === selectedJob.slug
-              }
-            />
-          ) : (
-            <EmptyState
-              icon={<Target />}
-              title="Select a job"
-              hint="Pick a job from the list to see its intent and system prompt."
-            />
-          )}
-        </section>
-      </div>
-
-      {/* Create */}
-      <CreateJobDialog
-        open={showCreate}
-        initialBody={draftPrefill}
-        onClose={() => {
-          setShowCreate(false)
-          setDraftPrefill(null)
-        }}
-        onCreated={(job) => {
-          setSelectedSlug(job.slug)
-          setShowCreate(false)
-          setDraftPrefill(null)
-          // Drop out of draft mode so the chat is now scoped to the
-          // newly-created job instead of the old draft session.
-          setIsDrafting(false)
-        }}
-      />
-
-      {/* Edit */}
-      {editingJob ? (
-        <EditJobDialog
-          job={editingJob}
-          onClose={() => setEditingJob(null)}
-          onSaved={() => setEditingJob(null)}
+        {/* Create */}
+        <CreateJobDialog
+          open={showCreate}
+          initialBody={draftPrefill}
+          onClose={() => {
+            setShowCreate(false);
+            setDraftPrefill(null);
+          }}
+          onCreated={(job) => {
+            setSelectedSlug(job.slug);
+            setShowCreate(false);
+            setDraftPrefill(null);
+            // Drop out of draft mode so the chat is now scoped to the
+            // newly-created job instead of the old draft session.
+            setIsDrafting(false);
+          }}
         />
-      ) : null}
 
-      {/* Run confirm */}
-      <ConfirmDialog
-        open={!!pendingRun}
-        title="Run this job now?"
-        description={
-          pendingRun
-            ? `Triggers "${pendingRun.title}" (${pendingRun.slug}) immediately, bypassing its cadence guard. GitHub Actions minutes will be used. The job's output goes to its own report or the artifacts the body declares.`
-            : ''
-        }
-        confirmLabel="Run now"
-        onConfirm={() => {
-          if (!pendingRun) return
-          runMutation.mutate({ slug: pendingRun.slug, force: true })
-        }}
-        onClose={() => setPendingRun(null)}
-      />
+        {/* Edit */}
+        {editingJob ? (
+          <EditJobDialog
+            job={editingJob}
+            onClose={() => setEditingJob(null)}
+            onSaved={() => setEditingJob(null)}
+          />
+        ) : null}
 
-      {/* Delete confirm */}
-      <ConfirmDialog
-        open={!!pendingDelete}
-        title="Delete this job?"
-        description={
-          pendingDelete
-            ? `Job "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/jobs/ via a commit on the default branch.`
-            : ''
-        }
-        variant="destructive"
-        confirmLabel="Delete job"
-        onConfirm={() => {
-          if (!pendingDelete) return
-          const target = pendingDelete
-          deleteMutation.mutate(target.slug, {
-            onSuccess: () => {
-              if (selectedSlug === target.slug) setSelectedSlug(null)
-            },
-          })
-        }}
-        onClose={() => setPendingDelete(null)}
-      />
+        {/* Run confirm */}
+        <ConfirmDialog
+          open={!!pendingRun}
+          title="Run this job now?"
+          description={
+            pendingRun
+              ? `Triggers "${pendingRun.title}" (${pendingRun.slug}) immediately, bypassing its cadence guard. GitHub Actions minutes will be used. The job's output goes to its own report or the artifacts the body declares.`
+              : ""
+          }
+          confirmLabel="Run now"
+          onConfirm={() => {
+            if (!pendingRun) return;
+            runMutation.mutate({ slug: pendingRun.slug, force: true });
+          }}
+          onClose={() => setPendingRun(null)}
+        />
+
+        {/* Delete confirm */}
+        <ConfirmDialog
+          open={!!pendingDelete}
+          title="Delete this job?"
+          description={
+            pendingDelete
+              ? `Job "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/jobs/ via a commit on the default branch.`
+              : ""
+          }
+          variant="destructive"
+          confirmLabel="Delete job"
+          onConfirm={() => {
+            if (!pendingDelete) return;
+            const target = pendingDelete;
+            deleteMutation.mutate(target.slug, {
+              onSuccess: () => {
+                if (selectedSlug === target.slug) setSelectedSlug(null);
+              },
+            });
+          }}
+          onClose={() => setPendingDelete(null)}
+        />
       </div>
     </div>
-  )
+  );
 }
 
 function JobDetail({
@@ -418,14 +434,14 @@ function JobDetail({
   onRun,
   isRunning,
 }: {
-  job: Job
-  onBack: () => void
-  onEdit: () => void
-  onDelete: () => void
-  onRun: () => void
-  isRunning: boolean
+  job: Job;
+  onBack: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onRun: () => void;
+  isRunning: boolean;
 }) {
-  const hasBody = job.body.trim().length > 0
+  const hasBody = job.body.trim().length > 0;
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -484,10 +500,15 @@ function JobDetail({
               >
                 <Play className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">
-                  {isRunning ? 'Dispatching…' : 'Run'}
+                  {isRunning ? "Dispatching…" : "Run"}
                 </span>
               </Button>
-              <Button variant="outline" size="sm" onClick={onEdit} className="gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onEdit}
+                className="gap-1.5"
+              >
                 <Pencil className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Edit</span>
               </Button>
@@ -527,8 +548,8 @@ function JobDetail({
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Use <span className="font-medium text-foreground">Edit</span> to
-                describe the job&apos;s intent, system prompt, allowed
-                commands, and restrictions.
+                describe the job&apos;s intent, system prompt, allowed commands,
+                and restrictions.
               </p>
             </div>
             <Button
@@ -544,7 +565,7 @@ function JobDetail({
         </div>
       ) : null}
     </article>
-  )
+  );
 }
 
 function CreateJobDialog({
@@ -553,39 +574,39 @@ function CreateJobDialog({
   onClose,
   onCreated,
 }: {
-  open: boolean
+  open: boolean;
   /**
    * Optional pre-filled body (e.g. from a "Draft with Kody" chat). When
    * provided, replaces the default JOB_TEMPLATE starter.
    */
-  initialBody?: string | null
-  onClose: () => void
-  onCreated: (job: Job) => void
+  initialBody?: string | null;
+  onClose: () => void;
+  onCreated: (job: Job) => void;
 }) {
-  const { githubUser } = useGitHubIdentity()
-  const createMutation = useCreateJob(githubUser?.login)
+  const { githubUser } = useGitHubIdentity();
+  const createMutation = useCreateJob(githubUser?.login);
 
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState(JOB_TEMPLATE)
-  const [schedule, setSchedule] = useState<JobSchedule | null>(null)
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState(JOB_TEMPLATE);
+  const [schedule, setSchedule] = useState<JobSchedule | null>(null);
 
   useEffect(() => {
     if (open) {
-      setTitle('')
-      setBody(initialBody && initialBody.trim() ? initialBody : JOB_TEMPLATE)
-      setSchedule(null)
+      setTitle("");
+      setBody(initialBody && initialBody.trim() ? initialBody : JOB_TEMPLATE);
+      setSchedule(null);
     }
-  }, [open, initialBody])
+  }, [open, initialBody]);
 
   const handleSubmit = () => {
-    if (!title.trim() || createMutation.isPending) return
+    if (!title.trim() || createMutation.isPending) return;
     createMutation.mutate(
       { title: title.trim(), body, schedule },
       {
         onSuccess: (job) => onCreated(job),
       },
-    )
-  }
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
@@ -593,7 +614,8 @@ function CreateJobDialog({
         <DialogHeader>
           <DialogTitle>New job</DialogTitle>
           <DialogDescription>
-            Describe the job&apos;s intent, system prompt, allowed commands, and restrictions.
+            Describe the job&apos;s intent, system prompt, allowed commands, and
+            restrictions.
           </DialogDescription>
         </DialogHeader>
 
@@ -624,12 +646,12 @@ function CreateJobDialog({
             onClick={handleSubmit}
             disabled={!title.trim() || createMutation.isPending}
           >
-            {createMutation.isPending ? 'Creating…' : 'Create job'}
+            {createMutation.isPending ? "Creating…" : "Create job"}
           </Button>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 function EditJobDialog({
@@ -637,35 +659,39 @@ function EditJobDialog({
   onClose,
   onSaved,
 }: {
-  job: Job
-  onClose: () => void
-  onSaved: () => void
+  job: Job;
+  onClose: () => void;
+  onSaved: () => void;
 }) {
-  const { githubUser } = useGitHubIdentity()
-  const updateMutation = useUpdateJob(job.slug, githubUser?.login)
+  const { githubUser } = useGitHubIdentity();
+  const updateMutation = useUpdateJob(job.slug, githubUser?.login);
 
-  const [title, setTitle] = useState(job.title)
-  const [body, setBody] = useState(job.body || '')
-  const [schedule, setSchedule] = useState<JobSchedule | null>(job.schedule)
+  const [title, setTitle] = useState(job.title);
+  const [body, setBody] = useState(job.body || "");
+  const [schedule, setSchedule] = useState<JobSchedule | null>(job.schedule);
 
   useEffect(() => {
-    setTitle(job.title)
-    setBody(job.body || '')
-    setSchedule(job.schedule)
-  }, [job])
+    setTitle(job.title);
+    setBody(job.body || "");
+    setSchedule(job.schedule);
+  }, [job]);
 
   const handleSubmit = () => {
-    if (!title.trim() || updateMutation.isPending) return
-    const patch: { title?: string; body?: string; schedule?: JobSchedule | null } = {}
-    if (title !== job.title) patch.title = title.trim()
-    if (body !== job.body) patch.body = body
-    if (schedule !== job.schedule) patch.schedule = schedule
+    if (!title.trim() || updateMutation.isPending) return;
+    const patch: {
+      title?: string;
+      body?: string;
+      schedule?: JobSchedule | null;
+    } = {};
+    if (title !== job.title) patch.title = title.trim();
+    if (body !== job.body) patch.body = body;
+    if (schedule !== job.schedule) patch.schedule = schedule;
     if (Object.keys(patch).length === 0) {
-      onSaved()
-      return
+      onSaved();
+      return;
     }
-    updateMutation.mutate(patch, { onSuccess: () => onSaved() })
-  }
+    updateMutation.mutate(patch, { onSuccess: () => onSaved() });
+  };
 
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
@@ -673,7 +699,8 @@ function EditJobDialog({
         <DialogHeader>
           <DialogTitle>Edit job `{job.slug}`</DialogTitle>
           <DialogDescription>
-            Update the job&apos;s title or body. Saving commits the file to the default branch.
+            Update the job&apos;s title or body. Saving commits the file to the
+            default branch.
           </DialogDescription>
         </DialogHeader>
 
@@ -707,12 +734,12 @@ function EditJobDialog({
             onClick={handleSubmit}
             disabled={!title.trim() || updateMutation.isPending}
           >
-            {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+            {updateMutation.isPending ? "Saving…" : "Save changes"}
           </Button>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 /**
@@ -722,9 +749,9 @@ function EditJobDialog({
  * which the engine writes only when a tick actually acts.
  */
 function LastTickInline({ lastTickAt }: { lastTickAt: string | null }) {
-  const now = useNow(30_000)
-  if (!lastTickAt) return null
-  const date = new Date(lastTickAt)
+  const now = useNow(30_000);
+  if (!lastTickAt) return null;
+  const date = new Date(lastTickAt);
   return (
     <>
       <span>·</span>
@@ -736,7 +763,7 @@ function LastTickInline({ lastTickAt }: { lastTickAt: string | null }) {
         last run {formatRelativePast(date, now)}
       </span>
     </>
-  )
+  );
 }
 
 /**
@@ -751,18 +778,18 @@ function NextRunInline({
   nextEligibleAt,
   schedule,
 }: {
-  nextEligibleAt: string | null
-  schedule: JobSchedule | null
+  nextEligibleAt: string | null;
+  schedule: JobSchedule | null;
 }) {
-  const now = useNow(30_000)
-  if (schedule === 'manual') return null
-  if (!nextEligibleAt) return null
-  const date = new Date(nextEligibleAt)
-  const diffMs = date.getTime() - now.getTime()
-  const isFuture = diffMs > 0
+  const now = useNow(30_000);
+  if (schedule === "manual") return null;
+  if (!nextEligibleAt) return null;
+  const date = new Date(nextEligibleAt);
+  const diffMs = date.getTime() - now.getTime();
+  const isFuture = diffMs > 0;
   const label = isFuture
     ? `next run in ${formatDuration(diffMs)}`
-    : 'next run due now'
+    : "next run due now";
   return (
     <>
       <span>·</span>
@@ -774,7 +801,7 @@ function NextRunInline({
         {label}
       </span>
     </>
-  )
+  );
 }
 
 /**
@@ -786,16 +813,16 @@ function NextRunDetail({
   nextEligibleAt,
   schedule,
 }: {
-  nextEligibleAt: string | null
-  schedule: JobSchedule | null
+  nextEligibleAt: string | null;
+  schedule: JobSchedule | null;
 }) {
-  const now = useNow(30_000)
-  if (schedule === 'manual') return null
-  if (!nextEligibleAt) return null
-  const date = new Date(nextEligibleAt)
-  const diffMs = date.getTime() - now.getTime()
+  const now = useNow(30_000);
+  if (schedule === "manual") return null;
+  if (!nextEligibleAt) return null;
+  const date = new Date(nextEligibleAt);
+  const diffMs = date.getTime() - now.getTime();
   const label =
-    diffMs > 0 ? `next run in ${formatDuration(diffMs)}` : 'next run due now'
+    diffMs > 0 ? `next run in ${formatDuration(diffMs)}` : "next run due now";
   return (
     <>
       <span>·</span>
@@ -807,7 +834,7 @@ function NextRunDetail({
         {label}
       </span>
     </>
-  )
+  );
 }
 
 /**
@@ -819,9 +846,9 @@ function NextRunDetail({
  * run" misleads more than it informs.
  */
 function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
-  const now = useNow(30_000)
-  if (!lastTickAt) return null
-  const date = new Date(lastTickAt)
+  const now = useNow(30_000);
+  if (!lastTickAt) return null;
+  const date = new Date(lastTickAt);
   return (
     <>
       <span>·</span>
@@ -833,7 +860,7 @@ function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
         last run {formatRelativePast(date, now)}
       </span>
     </>
-  )
+  );
 }
 
 /**
@@ -854,18 +881,18 @@ function ScheduleSelect({
   value,
   onChange,
 }: {
-  value: JobSchedule | null
-  onChange: (next: JobSchedule | null) => void
+  value: JobSchedule | null;
+  onChange: (next: JobSchedule | null) => void;
 }) {
   // Sentinel because Radix Select.Item disallows empty-string values; we
   // can't bind `null` directly to it.
-  const AUTO = '__auto__'
+  const AUTO = "__auto__";
   return (
     <div className="space-y-1.5">
       <Label htmlFor="job-schedule">Schedule</Label>
       <Select
-        value={value === 'manual' ? 'manual' : AUTO}
-        onValueChange={(v) => onChange(v === AUTO ? null : 'manual')}
+        value={value === "manual" ? "manual" : AUTO}
+        onValueChange={(v) => onChange(v === AUTO ? null : "manual")}
       >
         <SelectTrigger id="job-schedule" className="w-full">
           <SelectValue />
@@ -876,12 +903,11 @@ function ScheduleSelect({
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        <strong>Auto</strong> — the body's cadence guard decides when to
-        run. <strong>Manual only</strong> — never auto-runs; click Run to
-        trigger.
+        <strong>Auto</strong> — the body's cadence guard decides when to run.{" "}
+        <strong>Manual only</strong> — never auto-runs; click Run to trigger.
       </p>
     </div>
-  )
+  );
 }
 
 /**
@@ -894,27 +920,32 @@ function JobTimingReadout({
   lastTickAt,
   nextEligibleAt,
 }: {
-  lastTickAt: string | null
-  nextEligibleAt: string | null
+  lastTickAt: string | null;
+  nextEligibleAt: string | null;
 }) {
-  const now = useNow(30_000)
-  const last = lastTickAt ? new Date(lastTickAt) : null
-  const next = nextEligibleAt ? new Date(nextEligibleAt) : null
+  const now = useNow(30_000);
+  const last = lastTickAt ? new Date(lastTickAt) : null;
+  const next = nextEligibleAt ? new Date(nextEligibleAt) : null;
   const nextLabel = next
     ? (() => {
-        const diff = next.getTime() - now.getTime()
-        return diff > 0 ? `next run in ${formatDuration(diff)}` : 'next run due now'
+        const diff = next.getTime() - now.getTime();
+        return diff > 0
+          ? `next run in ${formatDuration(diff)}`
+          : "next run due now";
       })()
-    : null
+    : null;
   // Both signals come from `<slug>.state.json` on GitHub, which only exists
   // for repos on the `contents-api` job-state backend. Hide the readout
   // entirely when neither is reachable — saying "never run / next run
   // unknown" on every job misleads more than it informs.
-  if (!last && !next) return null
+  if (!last && !next) return null;
   return (
     <div className="flex items-center gap-3 text-xs text-muted-foreground">
       {last ? (
-        <span className="inline-flex items-center gap-1" title={last.toLocaleString()}>
+        <span
+          className="inline-flex items-center gap-1"
+          title={last.toLocaleString()}
+        >
           <Clock className="w-3 h-3" />
           last run {formatRelativePast(last, now)}
         </span>
@@ -930,12 +961,12 @@ function JobTimingReadout({
         </span>
       ) : null}
     </div>
-  )
+  );
 }
 
 /** Inline schedule pill for list rows + detail header. */
 function ScheduleInline({ schedule }: { schedule: JobSchedule | null }) {
-  if (!schedule) return null
+  if (!schedule) return null;
   return (
     <>
       <span>·</span>
@@ -947,7 +978,7 @@ function ScheduleInline({ schedule }: { schedule: JobSchedule | null }) {
         {scheduleEveryLabel(schedule)}
       </span>
     </>
-  )
+  );
 }
 
 function EmptyState({
@@ -955,9 +986,9 @@ function EmptyState({
   title,
   hint,
 }: {
-  icon: React.ReactNode
-  title: string
-  hint?: string
+  icon: React.ReactNode;
+  title: string;
+  hint?: string;
 }) {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-6 py-16 text-muted-foreground">
@@ -965,5 +996,5 @@ function EmptyState({
       <div className="text-sm font-medium text-foreground">{title}</div>
       {hint ? <p className="text-xs mt-1 max-w-xs">{hint}</p> : null}
     </div>
-  )
+  );
 }

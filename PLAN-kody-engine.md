@@ -33,49 +33,51 @@ A generic, event-driven system that enables human-in-the-loop CI/CD workflows. K
 
 ### Core Events
 
-| Event | Payload | Fired When |
-|-------|---------|------------|
-| `pipeline.started` | `{ runId, pipeline }` | Pipeline begins |
-| `pipeline.success` | `{ runId }` | Pipeline completes successfully |
-| `pipeline.failed` | `{ runId, error }` | Pipeline fails |
-| `action.cancelled` | `{ runId }` | Action cancelled by user |
-| `step.started` | `{ runId, step }` | Step begins |
-| `step.waiting` | `{ runId, step, context }` | **Human input needed** |
-| `step.complete` | `{ runId, step, result }` | Step completes |
-| `step.failed` | `{ runId, step, error }` | Step fails |
-| `user.response` | `{ runId, actionId, instruction }` | User sends instruction |
+| Event              | Payload                            | Fired When                      |
+| ------------------ | ---------------------------------- | ------------------------------- |
+| `pipeline.started` | `{ runId, pipeline }`              | Pipeline begins                 |
+| `pipeline.success` | `{ runId }`                        | Pipeline completes successfully |
+| `pipeline.failed`  | `{ runId, error }`                 | Pipeline fails                  |
+| `action.cancelled` | `{ runId }`                        | Action cancelled by user        |
+| `step.started`     | `{ runId, step }`                  | Step begins                     |
+| `step.waiting`     | `{ runId, step, context }`         | **Human input needed**          |
+| `step.complete`    | `{ runId, step, result }`          | Step completes                  |
+| `step.failed`      | `{ runId, step, error }`           | Step fails                      |
+| `user.response`    | `{ runId, actionId, instruction }` | User sends instruction          |
 
 ### PR Events
 
-| Event | Payload | Fired When |
-|-------|---------|------------|
-| `task.pr.created` | `{ runId, taskId, prNumber, prUrl, title, body }` | Task PR created |
-| `task.pr.merged` | `{ runId, taskId, prNumber }` | Task PR merged |
-| `session.completed` | `{ runId, sessionId, tasks: TaskResult[] }` | Session ends (all tasks done) |
+| Event               | Payload                                           | Fired When                    |
+| ------------------- | ------------------------------------------------- | ----------------------------- |
+| `task.pr.created`   | `{ runId, taskId, prNumber, prUrl, title, body }` | Task PR created               |
+| `task.pr.merged`    | `{ runId, taskId, prNumber }`                     | Task PR merged                |
+| `session.completed` | `{ runId, sessionId, tasks: TaskResult[] }`       | Session ends (all tasks done) |
 
 ---
 
 ## Hook Types (v1)
 
-| Hook | Description |
-|------|-------------|
-| `github-action` | Manages action polling state (heartbeat, poll, deliver instruction) |
-| `github-label` | Adds/removes labels on the PR |
-| `github-pr` | Creates a PR for a task or session summary |
-| `github-pr-merge` | Merges a PR (auto or on approval) |
-| `dashboard` | Pushes state to dashboard (chat, pipeline view) |
-| `log` | Logs the event (dev/debug) |
+| Hook              | Description                                                         |
+| ----------------- | ------------------------------------------------------------------- |
+| `github-action`   | Manages action polling state (heartbeat, poll, deliver instruction) |
+| `github-label`    | Adds/removes labels on the PR                                       |
+| `github-pr`       | Creates a PR for a task or session summary                          |
+| `github-pr-merge` | Merges a PR (auto or on approval)                                   |
+| `dashboard`       | Pushes state to dashboard (chat, pipeline view)                     |
+| `log`             | Logs the event (dev/debug)                                          |
 
 ---
 
 ## Hook Configuration
 
 Environment variable:
+
 ```bash
 KODY_DASHBOARD_ENDPOINTS="production:https://your-app.example.com,preview:...,development:http://localhost:3333"
 ```
 
 Config file (`hooks.config.ts`):
+
 ```typescript
 export const hookConfig = {
   "pipeline.started": [
@@ -90,28 +92,32 @@ export const hookConfig = {
     { type: "github-label", labels: ["waiting"], remove: ["active"] },
     { type: "dashboard", channel: "chat" },
   ],
-  "step.complete": [
-    { type: "dashboard", channel: "chat" },
-  ],
+  "step.complete": [{ type: "dashboard", channel: "chat" }],
   "step.failed": [
     { type: "github-label", labels: ["failed"], remove: ["running"] },
     { type: "dashboard", channel: "chat" },
   ],
   "pipeline.success": [
-    { type: "github-label", labels: ["success"], remove: ["running", "waiting"] },
+    {
+      type: "github-label",
+      labels: ["success"],
+      remove: ["running", "waiting"],
+    },
     { type: "dashboard", channel: "pipeline" },
   ],
   "pipeline.failed": [
-    { type: "github-label", labels: ["failed"], remove: ["running", "waiting"] },
+    {
+      type: "github-label",
+      labels: ["failed"],
+      remove: ["running", "waiting"],
+    },
     { type: "dashboard", channel: "chat" },
   ],
   "action.cancelled": [
     { type: "github-label", remove: ["running", "waiting"] },
     { type: "dashboard", channel: "chat" },
   ],
-  "user.response": [
-    { type: "github-action" },
-  ],
+  "user.response": [{ type: "github-action" }],
 
   // PR Lifecycle
   "task.pr.created": [
@@ -136,10 +142,10 @@ export const hookConfig = {
 
 ## Authentication
 
-| Connection | Auth Method |
-|-----------|------------|
+| Connection         | Auth Method                                  |
+| ------------------ | -------------------------------------------- |
 | Action → Dashboard | `KODY_ACTION_SECRET` (Bearer token, env var) |
-| Dashboard → GitHub | GitHub App token (existing) |
+| Dashboard → GitHub | GitHub App token (existing)                  |
 
 No per-hook webhook auth in v1 (deferred to v2).
 
@@ -148,11 +154,13 @@ No per-hook webhook auth in v1 (deferred to v2).
 ## Lifecycle Management
 
 ### Ignite (Start)
+
 - **Dashboard:** `POST /repos/{owner}/{repo}/actions/workflows/kody.yml/dispatches` via `workflow_dispatch` with `sessionId` (chat mode) or `issue_number` (agent mode)
 - **Manual:** GitHub Actions UI
 - **On event:** `push`, `pull_request`, etc.
 
 ### Turn Off
+
 - **User cancels** in GitHub Actions UI → `workflow_cancel` event
 - **Dashboard cancels:** `POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel`
 - **Dashboard flag:** sets `cancel=true` in action state → action exits gracefully
@@ -219,29 +227,30 @@ app/api/kody/events/
 
 ### Action / Hook Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/kody/action/heartbeat` | Action registers/updates its state (polls this) |
-| `GET` | `/api/kody/action/poll/:runId` | Action polls — returns `{ instruction?, cancel?, actionId }` |
-| `POST` | `/api/kody/action/instruction` | Dashboard sends user instruction |
-| `GET` | `/api/kody/action/state/:runId` | Dashboard fetches current action state |
-| `POST` | `/api/kody/action/cancel/:runId` | Dashboard cancels an action |
-| `POST` | `/api/kody/events` | Dashboard emits an event |
-| `GET` | `/api/kody/events/history/:runId` | Event log for a runId |
+| Method | Path                              | Description                                                  |
+| ------ | --------------------------------- | ------------------------------------------------------------ |
+| `POST` | `/api/kody/action/heartbeat`      | Action registers/updates its state (polls this)              |
+| `GET`  | `/api/kody/action/poll/:runId`    | Action polls — returns `{ instruction?, cancel?, actionId }` |
+| `POST` | `/api/kody/action/instruction`    | Dashboard sends user instruction                             |
+| `GET`  | `/api/kody/action/state/:runId`   | Dashboard fetches current action state                       |
+| `POST` | `/api/kody/action/cancel/:runId`  | Dashboard cancels an action                                  |
+| `POST` | `/api/kody/events`                | Dashboard emits an event                                     |
+| `GET`  | `/api/kody/events/history/:runId` | Event log for a runId                                        |
 
 ### PR Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/kody/pr/create` | Create task PR or session summary PR |
-| `POST` | `/api/kody/pr/merge/:prNumber` | Merge a PR |
-| `GET` | `/api/kody/pr/state/:runId` | Get PR state for a runId |
+| Method | Path                           | Description                          |
+| ------ | ------------------------------ | ------------------------------------ |
+| `POST` | `/api/kody/pr/create`          | Create task PR or session summary PR |
+| `POST` | `/api/kody/pr/merge/:prNumber` | Merge a PR                           |
+| `GET`  | `/api/kody/pr/state/:runId`    | Get PR state for a runId             |
 
 ---
 
 ## Data Models
 
 ### ActionState (database)
+
 ```typescript
 {
   runId: string;            // GitHub run ID
@@ -258,6 +267,7 @@ app/api/kody/events/
 ```
 
 ### EventLog (database)
+
 ```typescript
 {
   id: string;
@@ -271,6 +281,7 @@ app/api/kody/events/
 ```
 
 ### TaskPRState (database)
+
 ```typescript
 {
   runId: string;
@@ -339,6 +350,7 @@ done
 ## v1 Scope
 
 **In scope:**
+
 - Event engine + emitter
 - Hook registry with per-hook failure isolation
 - Built-in hooks: github-action, github-label, dashboard, log
@@ -355,6 +367,7 @@ done
 - **PR merge hook** — `github-pr-merge` hook to merge PRs (manual or auto)
 
 **Out of scope (v2):**
+
 - Custom/webhook hook with per-hook auth (HMAC, Bearer, API key)
 - SSRF protection for custom webhooks
 - Max-wait escalation (notify after X minutes)

@@ -9,51 +9,51 @@
  *   flags. Sensitive values still belong in the encrypted vault.
  */
 
-import type { Octokit } from "@octokit/rest"
-import { logger } from "@dashboard/lib/logger"
+import type { Octokit } from "@octokit/rest";
+import { logger } from "@dashboard/lib/logger";
 
-export const VARIABLES_PATH = ".kody/variables.json"
+export const VARIABLES_PATH = ".kody/variables.json";
 
 export interface VariableMeta {
-  updatedAt: string
-  updatedBy?: string
+  updatedAt: string;
+  updatedBy?: string;
 }
 
 export interface VariableEntry extends VariableMeta {
-  value: string
+  value: string;
 }
 
 export interface VariablesDocument {
-  version: 1
-  variables: Record<string, VariableEntry>
+  version: 1;
+  variables: Record<string, VariableEntry>;
 }
 
 interface CacheEntry {
-  doc: VariablesDocument
-  sha: string | null
-  expiresAt: number
+  doc: VariablesDocument;
+  sha: string | null;
+  expiresAt: number;
 }
 
-const CACHE = new Map<string, CacheEntry>()
+const CACHE = new Map<string, CacheEntry>();
 const INFLIGHT = new Map<
   string,
   Promise<{ doc: VariablesDocument; sha: string | null }>
->()
-const TTL_MS = 60_000
+>();
+const TTL_MS = 60_000;
 
 function cacheKey(owner: string, repo: string): string {
-  return `${owner}/${repo}`
+  return `${owner}/${repo}`;
 }
 
 function emptyDoc(): VariablesDocument {
-  return { version: 1, variables: {} }
+  return { version: 1, variables: {} };
 }
 
 interface RawContentsResponse {
-  type?: string
-  encoding?: string
-  content?: string
-  sha?: string
+  type?: string;
+  encoding?: string;
+  content?: string;
+  sha?: string;
 }
 
 async function fetchRaw(
@@ -67,27 +67,27 @@ async function fetchRaw(
       repo,
       path: VARIABLES_PATH,
       headers: { "If-None-Match": "" },
-    })
-    const data = res.data as RawContentsResponse | RawContentsResponse[]
+    });
+    const data = res.data as RawContentsResponse | RawContentsResponse[];
     if (Array.isArray(data) || data.type !== "file" || !data.content) {
-      return { doc: emptyDoc(), sha: null }
+      return { doc: emptyDoc(), sha: null };
     }
     const buf = Buffer.from(
       data.content,
       (data.encoding ?? "base64") as BufferEncoding,
-    )
-    const text = buf.toString("utf8").trim()
-    const parsed = JSON.parse(text) as VariablesDocument
+    );
+    const text = buf.toString("utf8").trim();
+    const parsed = JSON.parse(text) as VariablesDocument;
     if (parsed.version !== 1 || typeof parsed.variables !== "object") {
-      throw new Error("Variables document has unexpected shape")
+      throw new Error("Variables document has unexpected shape");
     }
-    return { doc: parsed, sha: data.sha ?? null }
+    return { doc: parsed, sha: data.sha ?? null };
   } catch (err) {
-    const status = (err as { status?: number }).status
+    const status = (err as { status?: number }).status;
     if (status === 404) {
-      return { doc: emptyDoc(), sha: null }
+      return { doc: emptyDoc(), sha: null };
     }
-    throw err
+    throw err;
   }
 }
 
@@ -97,16 +97,16 @@ export async function readVariables(
   repo: string,
   options: { force?: boolean } = {},
 ): Promise<{ doc: VariablesDocument; sha: string | null }> {
-  const key = cacheKey(owner, repo)
+  const key = cacheKey(owner, repo);
   if (!options.force) {
-    const cached = CACHE.get(key)
+    const cached = CACHE.get(key);
     if (cached && cached.expiresAt > Date.now()) {
-      return { doc: cached.doc, sha: cached.sha }
+      return { doc: cached.doc, sha: cached.sha };
     }
   }
 
-  const inflight = INFLIGHT.get(key)
-  if (inflight) return inflight
+  const inflight = INFLIGHT.get(key);
+  if (inflight) return inflight;
 
   const promise = fetchRaw(octokit, owner, repo)
     .then((result) => {
@@ -114,15 +114,15 @@ export async function readVariables(
         doc: result.doc,
         sha: result.sha,
         expiresAt: Date.now() + TTL_MS,
-      })
-      return result
+      });
+      return result;
     })
     .finally(() => {
-      INFLIGHT.delete(key)
-    })
+      INFLIGHT.delete(key);
+    });
 
-  INFLIGHT.set(key, promise)
-  return promise
+  INFLIGHT.set(key, promise);
+  return promise;
 }
 
 export async function writeVariables(
@@ -135,7 +135,7 @@ export async function writeVariables(
 ): Promise<{ sha: string }> {
   const content = Buffer.from(JSON.stringify(doc, null, 2), "utf8").toString(
     "base64",
-  )
+  );
   const res = await octokit.rest.repos.createOrUpdateFileContents({
     owner,
     repo,
@@ -143,30 +143,33 @@ export async function writeVariables(
     message: commitMessage,
     content,
     ...(currentSha ? { sha: currentSha } : {}),
-  })
-  const newSha = res.data.content?.sha ?? null
+  });
+  const newSha = res.data.content?.sha ?? null;
   CACHE.set(cacheKey(owner, repo), {
     doc,
     sha: newSha,
     expiresAt: Date.now() + TTL_MS,
-  })
+  });
   if (!newSha) {
     logger.warn(
       { owner, repo },
       "variables: GitHub returned no sha after write",
-    )
-    return { sha: "" }
+    );
+    return { sha: "" };
   }
-  return { sha: newSha }
+  return { sha: newSha };
 }
 
 export function invalidateVariablesCache(owner: string, repo: string): void {
-  CACHE.delete(cacheKey(owner, repo))
+  CACHE.delete(cacheKey(owner, repo));
 }
 
-export function listVariables(
-  doc: VariablesDocument,
-): Array<{ name: string; value: string; updatedAt: string; updatedBy?: string }> {
+export function listVariables(doc: VariablesDocument): Array<{
+  name: string;
+  value: string;
+  updatedAt: string;
+  updatedBy?: string;
+}> {
   return Object.entries(doc.variables)
     .map(([name, entry]) => ({
       name,
@@ -174,5 +177,5 @@ export function listVariables(
       updatedAt: entry.updatedAt,
       updatedBy: entry.updatedBy,
     }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }

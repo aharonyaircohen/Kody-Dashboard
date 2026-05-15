@@ -17,22 +17,22 @@
  *   Both honour the same colour tokens, so a page using `<PageHeader />`
  *   on top of a custom body still matches one that uses the full shell.
  */
-"use client"
+"use client";
 
-import Link from "next/link"
-import type { LucideIcon } from "lucide-react"
-import { ArrowLeft } from "lucide-react"
-import { Button } from "@dashboard/ui/button"
-import { cn } from "../utils"
+import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@dashboard/ui/button";
+import { cn } from "../utils";
 
 interface PageHeaderProps {
-  title: string
-  icon?: LucideIcon
-  iconClassName?: string
-  subtitle?: string
-  actions?: React.ReactNode
-  backHref?: string
-  className?: string
+  title: string;
+  icon?: LucideIcon;
+  iconClassName?: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+  backHref?: string;
+  className?: string;
 }
 
 export function PageHeader({
@@ -58,31 +58,35 @@ export function PageHeader({
           </Link>
         </Button>
         {Icon && (
-          <Icon className={cn("w-5 h-5 shrink-0", iconClassName ?? "text-white/70")} />
+          <Icon
+            className={cn("w-5 h-5 shrink-0", iconClassName ?? "text-white/70")}
+          />
         )}
         <h1 className="text-base md:text-lg font-semibold truncate">{title}</h1>
         {subtitle && (
           <span className="text-[11px] text-white/40 truncate">{subtitle}</span>
         )}
       </div>
-      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+      {actions && (
+        <div className="flex items-center gap-2 shrink-0">{actions}</div>
+      )}
     </header>
-  )
+  );
 }
 
 interface PageShellProps extends PageHeaderProps {
   /** Tighten the content max-width. Use "full" to opt out. */
-  width?: "narrow" | "wide" | "full"
+  width?: "narrow" | "wide" | "full";
   /** Extra classes on the <main> wrapper. */
-  contentClassName?: string
-  children: React.ReactNode
+  contentClassName?: string;
+  children: React.ReactNode;
 }
 
 const WIDTH_CLASS: Record<NonNullable<PageShellProps["width"]>, string> = {
   narrow: "max-w-3xl",
   wide: "max-w-6xl",
   full: "",
-}
+};
 
 export function PageShell({
   width = "narrow",
@@ -90,7 +94,7 @@ export function PageShell({
   children,
   ...header
 }: PageShellProps) {
-  const widthCls = WIDTH_CLASS[width]
+  const widthCls = WIDTH_CLASS[width];
   return (
     <div className="h-full min-h-0 flex flex-col bg-black/95 text-white/90">
       <PageHeader {...header} />
@@ -104,5 +108,5 @@ export function PageShell({
         {children}
       </main>
     </div>
-  )
+  );
 }

@@ -12,11 +12,11 @@
  *   hand-rolled ~150 lines of near-identical menu JSX. Any tweak had to be
  *   made twice (and would inevitably drift).
  */
-'use client'
+"use client";
 
-import { useState, type ReactNode } from 'react'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { useState, type ReactNode } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   ChevronDown,
   FileText,
@@ -25,35 +25,35 @@ import {
   LogOut,
   ScrollText,
   Sparkles,
-} from 'lucide-react'
+} from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@dashboard/ui/sheet'
-import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
-import { cn } from '../utils'
-import { SimpleTooltip } from './SimpleTooltip'
-import { SETTINGS_NAV_SECTIONS } from './settings-nav'
-import { InboxBadge } from './InboxBadge'
+} from "@dashboard/ui/sheet";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { cn } from "../utils";
+import { SimpleTooltip } from "./SimpleTooltip";
+import { SETTINGS_NAV_SECTIONS } from "./settings-nav";
+import { InboxBadge } from "./InboxBadge";
 
 interface MobileMenuProps {
-  open: boolean
-  onOpenChange: (next: boolean) => void
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
   /** Primary action shown above the Jobs/Reports tiles (e.g. "Chat with Kody",
    *  or "Open issues" on the Vibe page). */
-  workspacePrimary?: ReactNode
+  workspacePrimary?: ReactNode;
   /** Whether the Settings group is open by default. Defaults to false. */
-  defaultSettingsOpen?: boolean
+  defaultSettingsOpen?: boolean;
   /** Extra sections rendered between Settings and the bottom CTA — Dashboard
    *  uses this for Filters + Actions. */
-  extras?: ReactNode
+  extras?: ReactNode;
   /** Sticky CTA pinned at the bottom (e.g. "New Task" on the Dashboard). */
-  bottomCta?: ReactNode
+  bottomCta?: ReactNode;
 }
 
 export function MobileMenu({
@@ -64,16 +64,16 @@ export function MobileMenu({
   extras,
   bottomCta,
 }: MobileMenuProps) {
-  const pathname = usePathname() ?? '/'
-  const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity()
-  const [settingsOpen, setSettingsOpen] = useState(defaultSettingsOpen)
+  const pathname = usePathname() ?? "/";
+  const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
+  const [settingsOpen, setSettingsOpen] = useState(defaultSettingsOpen);
 
-  const onVibe = pathname.startsWith('/vibe')
-  const vibeHref = onVibe ? '/' : '/vibe'
-  const vibeLabel = onVibe ? 'Turn off Vibe' : 'Turn on Vibe'
-  const vibeHint = onVibe ? 'Back to list' : 'Preview · Chat · Ship'
+  const onVibe = pathname.startsWith("/vibe");
+  const vibeHref = onVibe ? "/" : "/vibe";
+  const vibeLabel = onVibe ? "Turn off Vibe" : "Turn on Vibe";
+  const vibeHint = onVibe ? "Back to list" : "Preview · Chat · Ship";
 
-  const close = () => onOpenChange(false)
+  const close = () => onOpenChange(false);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -83,7 +83,9 @@ export function MobileMenu({
       >
         <SheetHeader className="sr-only">
           <SheetTitle>Menu</SheetTitle>
-          <SheetDescription>Navigation, identity, and quick actions.</SheetDescription>
+          <SheetDescription>
+            Navigation, identity, and quick actions.
+          </SheetDescription>
         </SheetHeader>
 
         {(githubUser || connectedRepo) && (
@@ -91,7 +93,10 @@ export function MobileMenu({
             <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
               {githubUser ? (
                 <Avatar className="h-9 w-9 shrink-0">
-                  <AvatarImage src={githubUser.avatar_url} alt={githubUser.login} />
+                  <AvatarImage
+                    src={githubUser.avatar_url}
+                    alt={githubUser.login}
+                  />
                   <AvatarFallback>
                     {githubUser.login[0]?.toUpperCase()}
                   </AvatarFallback>
@@ -103,7 +108,7 @@ export function MobileMenu({
               )}
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium truncate">
-                  {githubUser ? `@${githubUser.login}` : 'Connected'}
+                  {githubUser ? `@${githubUser.login}` : "Connected"}
                 </div>
                 {connectedRepo && (
                   <div className="text-[11px] text-muted-foreground truncate">
@@ -116,8 +121,8 @@ export function MobileMenu({
                   <button
                     type="button"
                     onClick={() => {
-                      clearGitHubUser()
-                      close()
+                      clearGitHubUser();
+                      close();
                     }}
                     className="shrink-0 h-8 w-8 rounded-md inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06]"
                     aria-label="Sign out"
@@ -138,30 +143,30 @@ export function MobileMenu({
             aria-checked={onVibe}
             onClick={close}
             className={cn(
-              'flex items-center gap-3 h-12 px-4 rounded-xl border transition-colors',
+              "flex items-center gap-3 h-12 px-4 rounded-xl border transition-colors",
               onVibe
-                ? 'border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-100 hover:bg-fuchsia-500/20'
-                : 'border-fuchsia-400/30 bg-gradient-to-r from-fuchsia-500/10 to-pink-500/5 text-fuchsia-100 hover:from-fuchsia-500/15 hover:to-pink-500/10',
+                ? "border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-100 hover:bg-fuchsia-500/20"
+                : "border-fuchsia-400/30 bg-gradient-to-r from-fuchsia-500/10 to-pink-500/5 text-fuchsia-100 hover:from-fuchsia-500/15 hover:to-pink-500/10",
             )}
           >
             <span
               className={cn(
-                'inline-flex h-7 w-7 items-center justify-center rounded-md',
-                onVibe ? 'bg-fuchsia-500/30' : 'bg-fuchsia-500/20',
+                "inline-flex h-7 w-7 items-center justify-center rounded-md",
+                onVibe ? "bg-fuchsia-500/30" : "bg-fuchsia-500/20",
               )}
             >
               <Sparkles
                 className={cn(
-                  'w-4 h-4',
-                  onVibe ? 'text-fuchsia-200' : 'text-fuchsia-300',
+                  "w-4 h-4",
+                  onVibe ? "text-fuchsia-200" : "text-fuchsia-300",
                 )}
               />
             </span>
             <span className="text-sm font-medium flex-1">{vibeLabel}</span>
             <span
               className={cn(
-                'text-[11px]',
-                onVibe ? 'text-fuchsia-200/70' : 'text-fuchsia-300/70',
+                "text-[11px]",
+                onVibe ? "text-fuchsia-200/70" : "text-fuchsia-300/70",
               )}
             >
               {vibeHint}
@@ -185,7 +190,9 @@ export function MobileMenu({
                 <Layers className="w-4 h-4 text-amber-300" />
               </span>
               <span className="text-sm font-medium">Jobs</span>
-              <span className="text-[11px] text-muted-foreground">Run and edit</span>
+              <span className="text-[11px] text-muted-foreground">
+                Run and edit
+              </span>
             </Link>
             <Link
               href="/jobs?tab=reports"
@@ -196,7 +203,9 @@ export function MobileMenu({
                 <FileText className="w-4 h-4 text-sky-300" />
               </span>
               <span className="text-sm font-medium">Reports</span>
-              <span className="text-[11px] text-muted-foreground">Job outputs</span>
+              <span className="text-[11px] text-muted-foreground">
+                Job outputs
+              </span>
             </Link>
             <Link
               href="/changelog"
@@ -207,7 +216,9 @@ export function MobileMenu({
                 <ScrollText className="w-4 h-4 text-emerald-300" />
               </span>
               <span className="text-sm font-medium">Changelog</span>
-              <span className="text-[11px] text-muted-foreground">What shipped</span>
+              <span className="text-[11px] text-muted-foreground">
+                What shipped
+              </span>
             </Link>
           </div>
         </div>
@@ -223,8 +234,8 @@ export function MobileMenu({
             <span className="flex-1 text-left">Settings</span>
             <ChevronDown
               className={cn(
-                'w-3.5 h-3.5 transition-transform',
-                !settingsOpen && '-rotate-90',
+                "w-3.5 h-3.5 transition-transform",
+                !settingsOpen && "-rotate-90",
               )}
             />
           </button>
@@ -237,7 +248,7 @@ export function MobileMenu({
                   </p>
                   <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.04]">
                     {section.items.map((item) => {
-                      const Icon = item.icon
+                      const Icon = item.icon;
                       return (
                         <Link
                           key={item.href}
@@ -247,7 +258,7 @@ export function MobileMenu({
                         >
                           <span
                             className={cn(
-                              'inline-flex h-7 w-7 items-center justify-center rounded-md',
+                              "inline-flex h-7 w-7 items-center justify-center rounded-md",
                               item.tint,
                             )}
                           >
@@ -255,10 +266,10 @@ export function MobileMenu({
                           </span>
                           <span className="text-sm font-medium flex-1 flex items-center gap-2">
                             {item.label}
-                            {item.href === '/inbox' && <InboxBadge />}
+                            {item.href === "/inbox" && <InboxBadge />}
                           </span>
                         </Link>
-                      )
+                      );
                     })}
                   </div>
                 </div>
@@ -276,5 +287,5 @@ export function MobileMenu({
         )}
       </SheetContent>
     </Sheet>
-  )
+  );
 }

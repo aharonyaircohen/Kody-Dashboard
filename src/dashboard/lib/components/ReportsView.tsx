@@ -7,9 +7,9 @@
  *   that mirrors JobControl: master/detail with a back button on small
  *   viewports.
  */
-'use client'
+"use client";
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Calendar,
@@ -18,22 +18,22 @@ import {
   GitPullRequest,
   RefreshCw,
   Target,
-} from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Button } from '@dashboard/ui/button'
-import { AuthGuard } from '../auth-guard'
-import { cn } from '../utils'
-import { useReports } from '../hooks/useReports'
-import type { Report } from '../api'
-import { CreateTaskDialog } from './CreateTaskDialog'
-import { CreateGoalDialog } from './GoalControl'
-import { useChatScope } from './ChatRailShell'
-import { PageHeader } from './PageShell'
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Button } from "@dashboard/ui/button";
+import { AuthGuard } from "../auth-guard";
+import { cn } from "../utils";
+import { useReports } from "../hooks/useReports";
+import type { Report } from "../api";
+import { CreateTaskDialog } from "./CreateTaskDialog";
+import { CreateGoalDialog } from "./GoalControl";
+import { useChatScope } from "./ChatRailShell";
+import { PageHeader } from "./PageShell";
 
 interface ReportsViewProps {
   /** Render without the built-in PageHeader (e.g. when hosted in JobsPageTabs). */
-  embedded?: boolean
+  embedded?: boolean;
 }
 
 export function ReportsView({ embedded = false }: ReportsViewProps = {}) {
@@ -41,64 +41,77 @@ export function ReportsView({ embedded = false }: ReportsViewProps = {}) {
     <AuthGuard>
       <ReportsViewInner embedded={embedded} />
     </AuthGuard>
-  )
+  );
 }
 
 export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
-  const { data: reports = [], isLoading, isFetching, refetch, error } = useReports()
+  const {
+    data: reports = [],
+    isLoading,
+    isFetching,
+    refetch,
+    error,
+  } = useReports();
 
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   // Resource generators — pop dialogs prefilled from the active report.
-  const [issueFromReport, setIssueFromReport] = useState<Report | null>(null)
-  const [goalFromReport, setGoalFromReport] = useState<Report | null>(null)
+  const [issueFromReport, setIssueFromReport] = useState<Report | null>(null);
+  const [goalFromReport, setGoalFromReport] = useState<Report | null>(null);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return reports
+    const q = search.trim().toLowerCase();
+    if (!q) return reports;
     return reports.filter(
       (r) =>
         r.slug.toLowerCase().includes(q) ||
         r.title.toLowerCase().includes(q) ||
         r.body.toLowerCase().includes(q),
-    )
-  }, [reports, search])
+    );
+  }, [reports, search]);
 
   const selected = useMemo(
     () => reports.find((r) => r.slug === selectedSlug) ?? null,
     [reports, selectedSlug],
-  )
+  );
 
   // Auto-select first report on desktop only (preserve mobile list view).
   useEffect(() => {
-    if (selectedSlug || filtered.length === 0) return
-    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches) {
-      setSelectedSlug(filtered[0]!.slug)
+    if (selectedSlug || filtered.length === 0) return;
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 768px)").matches
+    ) {
+      setSelectedSlug(filtered[0]!.slug);
     }
-  }, [filtered, selectedSlug])
+  }, [filtered, selectedSlug]);
 
   // Push the active report into the chat scope so KodyChat in the rail
   // knows which report the user is viewing and can advise on follow-up
   // (create issue, attach to a goal, or no action).
-  const { setScope } = useChatScope()
+  const { setScope } = useChatScope();
   useEffect(() => {
     if (selected) {
       setScope({
-        kind: 'report',
-        report: { slug: selected.slug, title: selected.title, body: selected.body },
-      })
+        kind: "report",
+        report: {
+          slug: selected.slug,
+          title: selected.title,
+          body: selected.body,
+        },
+      });
     } else {
-      setScope(null)
+      setScope(null);
     }
-    return () => setScope(null)
-  }, [selected, setScope])
+    return () => setScope(null);
+  }, [selected, setScope]);
 
   return (
     <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
       {embedded ? (
         <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-black/20">
           <span className="text-xs text-muted-foreground mr-auto">
-            {reports.length} {reports.length === 1 ? 'report' : 'reports'}
+            {reports.length} {reports.length === 1 ? "report" : "reports"}
           </span>
           <Button
             variant="outline"
@@ -107,7 +120,9 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
             disabled={isFetching}
             aria-label="Refresh reports"
           >
-            <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
+            <RefreshCw
+              className={cn("w-4 h-4", isFetching && "animate-spin")}
+            />
           </Button>
         </div>
       ) : (
@@ -115,7 +130,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
           title="Reports"
           icon={FileText}
           iconClassName="text-sky-400"
-          subtitle={`${reports.length} ${reports.length === 1 ? 'report' : 'reports'}`}
+          subtitle={`${reports.length} ${reports.length === 1 ? "report" : "reports"}`}
           actions={
             <Button
               variant="outline"
@@ -124,7 +139,9 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
               disabled={isFetching}
               aria-label="Refresh reports"
             >
-              <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
+              <RefreshCw
+                className={cn("w-4 h-4", isFetching && "animate-spin")}
+              />
             </Button>
           }
         />
@@ -141,8 +158,8 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
             on mobile when a report is selected so the detail takes over. */}
         <aside
           className={cn(
-            'w-full md:w-96 md:border-r md:border-border flex flex-col min-h-0',
-            selected && 'hidden md:flex',
+            "w-full md:w-96 md:border-r md:border-border flex flex-col min-h-0",
+            selected && "hidden md:flex",
           )}
         >
           <div className="shrink-0 px-3 md:px-4 py-2 md:py-3 border-b border-border">
@@ -152,9 +169,9 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search reports…"
               className={cn(
-                'w-full bg-background/40 border border-border rounded-md',
-                'px-3 py-2 text-sm placeholder:text-muted-foreground',
-                'focus:outline-none focus:ring-2 focus:ring-sky-500/40',
+                "w-full bg-background/40 border border-border rounded-md",
+                "px-3 py-2 text-sm placeholder:text-muted-foreground",
+                "focus:outline-none focus:ring-2 focus:ring-sky-500/40",
               )}
               aria-label="Search reports"
             />
@@ -195,8 +212,8 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
             remaining space on desktop. */}
         <section
           className={cn(
-            'flex-1 min-w-0 overflow-y-auto',
-            !selected && 'hidden md:block',
+            "flex-1 min-w-0 overflow-y-auto",
+            !selected && "hidden md:block",
           )}
         >
           {selected ? (
@@ -254,7 +271,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
         onCreated={() => setGoalFromReport(null)}
       />
     </div>
-  )
+  );
 }
 
 function ReportRow({
@@ -262,17 +279,17 @@ function ReportRow({
   isActive,
   onSelect,
 }: {
-  report: Report
-  isActive: boolean
-  onSelect: () => void
+  report: Report;
+  isActive: boolean;
+  onSelect: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
       className={cn(
-        'w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative',
-        isActive && 'bg-accent/70',
+        "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
+        isActive && "bg-accent/70",
       )}
     >
       {isActive ? (
@@ -281,11 +298,13 @@ function ReportRow({
       <div className="flex items-center gap-2">
         <FileText
           className={cn(
-            'w-3.5 h-3.5 shrink-0',
-            isActive ? 'text-sky-400' : 'text-muted-foreground',
+            "w-3.5 h-3.5 shrink-0",
+            isActive ? "text-sky-400" : "text-muted-foreground",
           )}
         />
-        <span className="font-medium text-sm truncate flex-1">{report.title}</span>
+        <span className="font-medium text-sm truncate flex-1">
+          {report.title}
+        </span>
       </div>
       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
         <span className="font-mono opacity-80 truncate">{report.slug}</span>
@@ -296,7 +315,7 @@ function ReportRow({
         </span>
       </div>
     </button>
-  )
+  );
 }
 
 function ReportDetail({
@@ -305,12 +324,12 @@ function ReportDetail({
   onCreateIssue,
   onPlanGoal,
 }: {
-  report: Report
-  onBack: () => void
-  onCreateIssue: () => void
-  onPlanGoal: () => void
+  report: Report;
+  onBack: () => void;
+  onCreateIssue: () => void;
+  onPlanGoal: () => void;
 }) {
-  const hasBody = report.body.trim().length > 0
+  const hasBody = report.body.trim().length > 0;
   return (
     <article className="h-full flex flex-col">
       <div className="shrink-0 px-3 md:px-6 py-3 md:py-4 border-b border-border bg-black/10 flex items-start gap-3">
@@ -375,20 +394,25 @@ function ReportDetail({
         <div className="max-w-4xl mx-auto p-4 md:p-8">
           {hasBody ? (
             <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.body}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {report.body}
+              </ReactMarkdown>
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] py-12 text-center space-y-2">
-              <p className="text-sm font-medium text-foreground">Empty report</p>
+              <p className="text-sm font-medium text-foreground">
+                Empty report
+              </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                The job that produces this report hasn&apos;t written content yet.
+                The job that produces this report hasn&apos;t written content
+                yet.
               </p>
             </div>
           )}
         </div>
       </div>
     </article>
-  )
+  );
 }
 
 function EmptyState({
@@ -396,9 +420,9 @@ function EmptyState({
   title,
   hint,
 }: {
-  icon: React.ReactNode
-  title: string
-  hint?: string
+  icon: React.ReactNode;
+  title: string;
+  hint?: string;
 }) {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-6 py-16 text-muted-foreground">
@@ -406,19 +430,19 @@ function EmptyState({
       <div className="text-sm font-medium text-foreground">{title}</div>
       {hint ? <p className="text-xs mt-1 max-w-xs">{hint}</p> : null}
     </div>
-  )
+  );
 }
 
 function formatRelative(iso: string): string {
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return iso
-  const diff = Date.now() - then
-  const min = Math.round(diff / 60_000)
-  if (min < 1) return 'just now'
-  if (min < 60) return `${min}m ago`
-  const hr = Math.round(min / 60)
-  if (hr < 24) return `${hr}h ago`
-  const d = Math.round(hr / 24)
-  if (d < 7) return `${d}d ago`
-  return new Date(iso).toLocaleDateString()
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return iso;
+  const diff = Date.now() - then;
+  const min = Math.round(diff / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const d = Math.round(hr / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString();
 }

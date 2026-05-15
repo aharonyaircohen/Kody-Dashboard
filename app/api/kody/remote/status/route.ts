@@ -8,64 +8,69 @@
  * Uses a 3s timeout to keep the UI responsive.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { requireKodyAuth } from '@dashboard/lib/auth'
-import { getRemoteConfig } from '@dashboard/lib/remote-config'
-import { logger } from '@dashboard/lib/logger'
+import { NextRequest, NextResponse } from "next/server";
+import { requireKodyAuth } from "@dashboard/lib/auth";
+import { getRemoteConfig } from "@dashboard/lib/remote-config";
+import { logger } from "@dashboard/lib/logger";
 
-export const runtime = 'nodejs'
+export const runtime = "nodejs";
 
-const STATUS_TIMEOUT_MS = 3_000
+const STATUS_TIMEOUT_MS = 3_000;
 
 export async function GET(req: NextRequest) {
   try {
-    const authError = await requireKodyAuth(req)
-    if (authError) return authError
+    const authError = await requireKodyAuth(req);
+    if (authError) return authError;
 
-    const { searchParams } = new URL(req.url)
-    const actorLogin = searchParams.get('actorLogin')
+    const { searchParams } = new URL(req.url);
+    const actorLogin = searchParams.get("actorLogin");
 
     if (!actorLogin) {
-      return NextResponse.json({ error: 'actorLogin query param is required' }, { status: 400 })
+      return NextResponse.json(
+        { error: "actorLogin query param is required" },
+        { status: 400 },
+      );
     }
 
-    const remoteConfig = getRemoteConfig(actorLogin)
+    const remoteConfig = getRemoteConfig(actorLogin);
     if (!remoteConfig) {
       // Return 200 with configured: false instead of 404 to avoid console errors
-      return NextResponse.json({ configured: false, online: false })
+      return NextResponse.json({ configured: false, online: false });
     }
 
-    const healthUrl = `${remoteConfig.funnelUrl.replace(/\/$/, '')}/health`
+    const healthUrl = `${remoteConfig.funnelUrl.replace(/\/$/, "")}/health`;
 
     try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS);
 
-      let online = false
+      let online = false;
       try {
-        const res = await fetch(healthUrl, { signal: controller.signal })
-        online = res.ok
+        const res = await fetch(healthUrl, { signal: controller.signal });
+        online = res.ok;
       } finally {
-        clearTimeout(timeoutId)
+        clearTimeout(timeoutId);
       }
 
       return NextResponse.json({
         configured: true,
         online,
         funnelUrl: remoteConfig.funnelUrl,
-      })
+      });
     } catch {
       return NextResponse.json({
         configured: true,
         online: false,
         funnelUrl: remoteConfig.funnelUrl,
-      })
+      });
     }
   } catch (error) {
-    logger.error({ err: error }, 'Remote status route error')
+    logger.error({ err: error }, "Remote status route error");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      {
+        error: error instanceof Error ? error.message : "Internal server error",
+      },
       { status: 500 },
-    )
+    );
   }
 }

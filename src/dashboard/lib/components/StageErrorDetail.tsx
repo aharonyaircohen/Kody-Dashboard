@@ -4,20 +4,20 @@
  * @pattern stage-error-detail
  * @ai-summary Shows detailed error information for failed pipeline stages
  */
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import type { CheckRunResult } from '../types'
-import { Button } from '@dashboard/ui/button'
-import { Badge } from '@dashboard/ui/badge'
-import { ExternalLink, ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
-import { fetchCheckRunsForRun } from '../github-client'
+import { useState, useEffect } from "react";
+import type { CheckRunResult } from "../types";
+import { Button } from "@dashboard/ui/button";
+import { Badge } from "@dashboard/ui/badge";
+import { ExternalLink, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { fetchCheckRunsForRun } from "../github-client";
 
 interface StageErrorDetailProps {
-  stageName: string
-  error?: string
-  runId?: number
-  className?: string
+  stageName: string;
+  error?: string;
+  runId?: number;
+  className?: string;
 }
 
 export function StageErrorDetail({
@@ -26,28 +26,30 @@ export function StageErrorDetail({
   runId,
   className,
 }: StageErrorDetailProps) {
-  const [expanded, setExpanded] = useState(false)
-  const [checkRuns, setCheckRuns] = useState<CheckRunResult[]>([])
-  const [loading, setLoading] = useState(false)
+  const [expanded, setExpanded] = useState(false);
+  const [checkRuns, setCheckRuns] = useState<CheckRunResult[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (expanded && runId && checkRuns.length === 0) {
-      setLoading(true)
+      setLoading(true);
       fetchCheckRunsForRun(runId)
         .then(setCheckRuns)
-        .finally(() => setLoading(false))
+        .finally(() => setLoading(false));
     }
-  }, [expanded, runId, checkRuns.length])
+  }, [expanded, runId, checkRuns.length]);
 
-  const failedChecks = checkRuns.filter((c) => c.conclusion === 'failure')
-  const passedChecks = checkRuns.filter((c) => c.conclusion === 'success')
+  const failedChecks = checkRuns.filter((c) => c.conclusion === "failure");
+  const passedChecks = checkRuns.filter((c) => c.conclusion === "success");
 
   return (
     <div className={className}>
       {/* Error message */}
       {error && (
         <div className="mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded-md">
-          <p className="text-sm text-red-400 font-medium mb-1">Failure Reason:</p>
+          <p className="text-sm text-red-400 font-medium mb-1">
+            Failure Reason:
+          </p>
           <p className="text-sm text-red-300">{error}</p>
         </div>
       )}
@@ -59,7 +61,11 @@ export function StageErrorDetail({
             onClick={() => setExpanded(!expanded)}
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
           >
-            {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            {expanded ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
             <span className="font-medium">Check Runs & Jobs</span>
             <Badge variant="outline" className="ml-2">
               {passedChecks.length} passed, {failedChecks.length} failed
@@ -83,7 +89,9 @@ export function StageErrorDetail({
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-red-500">✗</span>
-                        <span className="text-sm text-red-300">{check.name}</span>
+                        <span className="text-sm text-red-300">
+                          {check.name}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="destructive" className="text-xs">
@@ -111,7 +119,9 @@ export function StageErrorDetail({
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-green-500">✓</span>
-                        <span className="text-sm text-green-300">{check.name}</span>
+                        <span className="text-sm text-green-300">
+                          {check.name}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge
@@ -135,7 +145,9 @@ export function StageErrorDetail({
                   ))}
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">No check runs found for this run.</p>
+                <p className="text-sm text-muted-foreground">
+                  No check runs found for this run.
+                </p>
               )}
 
               {/* View logs link */}
@@ -154,5 +166,5 @@ export function StageErrorDetail({
         </div>
       )}
     </div>
-  )
+  );
 }

@@ -38,7 +38,9 @@ export function BranchBehindBanner({ prNumber }: BranchBehindBannerProps) {
       await prsApi.postComment(prNumber, "@kody sync", githubUser?.login);
       toast.success("Update requested");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to request update");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to request update",
+      );
     } finally {
       setIsSyncing(false);
     }

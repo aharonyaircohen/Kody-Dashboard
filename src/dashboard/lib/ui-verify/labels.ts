@@ -14,22 +14,22 @@
  * (set by ui-review's preflight) — no new in-flight marker needed.
  */
 
-export const UI_VERIFIED = 'kody:ui-verified'
-export const UI_FAILED = 'kody:ui-failed'
+export const UI_VERIFIED = "kody:ui-verified";
+export const UI_FAILED = "kody:ui-failed";
 
 export const UI_VERIFY_LABEL_META: Record<
   string,
   { color: string; description: string }
 > = {
   [UI_VERIFIED]: {
-    color: '0e8a16',
-    description: 'kody ui-review: passed',
+    color: "0e8a16",
+    description: "kody ui-review: passed",
   },
   [UI_FAILED]: {
-    color: 'b60205',
-    description: 'kody ui-review: failed',
+    color: "b60205",
+    description: "kody ui-review: failed",
   },
-}
+};
 
 /**
  * Labels whose presence on a PR means we should NOT auto-dispatch
@@ -39,5 +39,5 @@ export const UI_VERIFY_LABEL_META: Record<
 export const UI_VERIFY_GUARD_LABELS: readonly string[] = [
   UI_VERIFIED,
   UI_FAILED,
-  'kody:reviewing',
-] as const
+  "kody:reviewing",
+] as const;

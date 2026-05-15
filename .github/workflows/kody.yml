@@ -85,9 +85,9 @@ jobs:
           python-version: "3.12"
 
       - env:
-          ALL_SECRETS:   ${{ toJSON(secrets) }}
-          SESSION_ID:    ${{ inputs.sessionId }}
-          INIT_MESSAGE:  ${{ inputs.message }}
-          MODEL:         ${{ inputs.model }}
+          ALL_SECRETS: ${{ toJSON(secrets) }}
+          SESSION_ID: ${{ inputs.sessionId }}
+          INIT_MESSAGE: ${{ inputs.message }}
+          MODEL: ${{ inputs.model }}
           DASHBOARD_URL: ${{ inputs.dashboardUrl }}
         run: npx -y -p @kody-ade/kody-engine@0.4.79 kody-engine

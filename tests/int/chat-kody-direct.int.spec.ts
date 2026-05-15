@@ -11,9 +11,9 @@
  * doing any work.
  */
 
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
-import { NextRequest } from "next/server"
-import { POST as kodyChatPOST } from "../../app/api/kody/chat/kody/route"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+import { POST as kodyChatPOST } from "../../app/api/kody/chat/kody/route";
 
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/kody", {
@@ -25,69 +25,79 @@ function makeRequest(body: unknown): NextRequest {
       "x-kody-repo": "repo",
     },
     body: JSON.stringify(body),
-  })
+  });
 }
 
 beforeAll(() => {
   // Auth requires this even though it's not directly used for the LLM call.
-  process.env.KODY_MASTER_KEY = "kody-direct-test-secret"
-})
+  process.env.KODY_MASTER_KEY = "kody-direct-test-secret";
+});
 
 afterEach(() => {
-  vi.unstubAllEnvs()
-})
+  vi.unstubAllEnvs();
+});
 
 describe("POST /api/kody/chat/kody", () => {
   it("returns 409 with fallback:kody-live when no model can be resolved", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "")
-    vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "")
-    const res = await kodyChatPOST(makeRequest({ messages: [{ role: "user", content: "hi" }] }))
-    expect(res.status).toBe(409)
-    const data = await res.json()
-    expect(data.fallback).toBe("kody-live")
+    vi.stubEnv("GEMINI_API_KEY", "");
+    vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "");
+    const res = await kodyChatPOST(
+      makeRequest({ messages: [{ role: "user", content: "hi" }] }),
+    );
+    expect(res.status).toBe(409);
+    const data = await res.json();
+    expect(data.fallback).toBe("kody-live");
     // Surface either path: no models configured (empty LLM_MODELS) or
     // model resolved but its api-key secret is missing.
-    expect(String(data.error)).toMatch(/no_models_configured|model_api_key_missing|model_base_url_missing/)
-  })
+    expect(String(data.error)).toMatch(
+      /no_models_configured|model_api_key_missing|model_base_url_missing/,
+    );
+  });
 
   it("returns 400 when messages are missing", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "dummy-key")
-    const res = await kodyChatPOST(makeRequest({}))
-    expect(res.status).toBe(400)
-    const data = await res.json()
-    expect(String(data.error)).toMatch(/messages required/)
-  })
+    vi.stubEnv("GEMINI_API_KEY", "dummy-key");
+    const res = await kodyChatPOST(makeRequest({}));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(String(data.error)).toMatch(/messages required/);
+  });
 
   it("returns 400 when messages array is empty", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "dummy-key")
-    const res = await kodyChatPOST(makeRequest({ messages: [] }))
-    expect(res.status).toBe(400)
-  })
+    vi.stubEnv("GEMINI_API_KEY", "dummy-key");
+    const res = await kodyChatPOST(makeRequest({ messages: [] }));
+    expect(res.status).toBe(400);
+  });
 
   it("returns 400 when all messages have empty content (after filter)", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "dummy-key")
+    vi.stubEnv("GEMINI_API_KEY", "dummy-key");
     const res = await kodyChatPOST(
-      makeRequest({ messages: [{ role: "user", content: "   " }, { role: "assistant", content: "" }] }),
-    )
-    expect(res.status).toBe(400)
-  })
+      makeRequest({
+        messages: [
+          { role: "user", content: "   " },
+          { role: "assistant", content: "" },
+        ],
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
 
   it("returns 401 when kody auth is missing (no headers, no bot token)", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "dummy-key")
-    vi.stubEnv("KODY_BOT_TOKEN", "")
+    vi.stubEnv("GEMINI_API_KEY", "dummy-key");
+    vi.stubEnv("KODY_BOT_TOKEN", "");
     const req = new NextRequest("https://dash.test/api/kody/chat/kody", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
-    })
-    const res = await kodyChatPOST(req)
-    expect([401, 403]).toContain(res.status)
-  })
+    });
+    const res = await kodyChatPOST(req);
+    expect([401, 403]).toContain(res.status);
+  });
 
   it("builds a system prompt that names the connected repo + task context", async () => {
     // We can't observe the system prompt the SDK sends without mocking the
     // provider, so we unit-test buildSystemPrompt by re-importing it.
-    const { buildSystemPrompt } = await import("../../app/api/kody/chat/kody/system-prompt")
+    const { buildSystemPrompt } =
+      await import("../../app/api/kody/chat/kody/system-prompt");
     const prompt = buildSystemPrompt(
       "You are Kody.",
       { owner: "acme", repo: "widgets" },
@@ -96,38 +106,48 @@ describe("POST /api/kody/chat/kody", () => {
         title: "Add dark mode",
         state: "open",
         labels: ["ui", "good-first-issue"],
-        associatedPR: { number: 101, state: "open", html_url: "https://github.com/acme/widgets/pull/101" },
+        associatedPR: {
+          number: 101,
+          state: "open",
+          html_url: "https://github.com/acme/widgets/pull/101",
+        },
       },
-    )
-    expect(prompt).toContain("acme/widgets")
-    expect(prompt).toContain("Issue #42")
-    expect(prompt).toContain("Add dark mode")
-    expect(prompt).toContain("ui, good-first-issue")
-    expect(prompt).toContain("Associated PR: #101")
-  })
+    );
+    expect(prompt).toContain("acme/widgets");
+    expect(prompt).toContain("Issue #42");
+    expect(prompt).toContain("Add dark mode");
+    expect(prompt).toContain("ui, good-first-issue");
+    expect(prompt).toContain("Associated PR: #101");
+  });
 
   it("builds a repo-less prompt when no auth headers are present", async () => {
-    const { buildSystemPrompt } = await import("../../app/api/kody/chat/kody/system-prompt")
-    const prompt = buildSystemPrompt("base", null, undefined)
-    expect(prompt).toBe("base")
-  })
+    const { buildSystemPrompt } =
+      await import("../../app/api/kody/chat/kody/system-prompt");
+    const prompt = buildSystemPrompt("base", null, undefined);
+    expect(prompt).toBe("base");
+  });
 
   it("appends a job-drafting block when opts.jobDraft is set", async () => {
-    const { buildSystemPrompt } = await import("../../app/api/kody/chat/kody/system-prompt")
-    const prompt = buildSystemPrompt("base", null, undefined, { jobDraft: true })
-    expect(prompt).toContain("Job drafting mode")
-    expect(prompt).toContain("drafting a new Kody job")
-    expect(prompt).toContain("Use as job")
-  })
+    const { buildSystemPrompt } =
+      await import("../../app/api/kody/chat/kody/system-prompt");
+    const prompt = buildSystemPrompt("base", null, undefined, {
+      jobDraft: true,
+    });
+    expect(prompt).toContain("Job drafting mode");
+    expect(prompt).toContain("drafting a new Kody job");
+    expect(prompt).toContain("Use as job");
+  });
 
   it("omits the job-drafting block by default", async () => {
-    const { buildSystemPrompt } = await import("../../app/api/kody/chat/kody/system-prompt")
-    const prompt = buildSystemPrompt("base", null, undefined)
-    expect(prompt).not.toContain("Job drafting mode")
-  })
+    const { buildSystemPrompt } =
+      await import("../../app/api/kody/chat/kody/system-prompt");
+    const prompt = buildSystemPrompt("base", null, undefined);
+    expect(prompt).not.toContain("Job drafting mode");
+  });
 
   it("appends a current-job block when opts.job is set", async () => {
-    const { buildSystemPrompt } = await import("../../app/api/kody/chat/kody/system-prompt")
+    const { buildSystemPrompt } =
+      await import("../../app/api/kody/chat/kody/system-prompt");
     const prompt = buildSystemPrompt("base", null, undefined, {
       job: {
         number: 7,
@@ -136,11 +156,11 @@ describe("POST /api/kody/chat/kody", () => {
         state: "open",
         labels: ["kody:job"],
       },
-    })
-    expect(prompt).toContain("Current job")
-    expect(prompt).toContain("Job #7")
-    expect(prompt).toContain("Auto-triage stale issues")
-    expect(prompt).toContain("Close stale issues")
-    expect(prompt).toContain("kody:job")
-  })
-})
+    });
+    expect(prompt).toContain("Current job");
+    expect(prompt).toContain("Job #7");
+    expect(prompt).toContain("Auto-triage stale issues");
+    expect(prompt).toContain("Close stale issues");
+    expect(prompt).toContain("kody:job");
+  });
+});

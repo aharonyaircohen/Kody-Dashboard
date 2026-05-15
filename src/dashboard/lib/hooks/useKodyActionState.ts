@@ -53,7 +53,9 @@ export function useKodyActionState(
     if (notFoundRef.current) return; // Already confirmed not found — stop polling
 
     try {
-      const res = await fetch(`/api/kody/action/state/${encodeURIComponent(runId)}`);
+      const res = await fetch(
+        `/api/kody/action/state/${encodeURIComponent(runId)}`,
+      );
       // 404 = no active action for this runId — stop polling to avoid log spam
       if (res.status === 404) {
         notFoundRef.current = true;

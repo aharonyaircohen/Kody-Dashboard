@@ -8,43 +8,43 @@
  *   appends from near-simultaneous merges.
  */
 
-import { Octokit } from "@octokit/rest"
+import { Octokit } from "@octokit/rest";
 
-export const CHANGELOG_PATH = "CHANGELOG.md"
+export const CHANGELOG_PATH = "CHANGELOG.md";
 
 interface RawContents {
-  type?: string
-  encoding?: string
-  content?: string
-  sha?: string
-  html_url?: string
+  type?: string;
+  encoding?: string;
+  content?: string;
+  sha?: string;
+  html_url?: string;
 }
 
 export interface ChangelogFile {
-  content: string
-  sha: string | null
-  htmlUrl: string | null
+  content: string;
+  sha: string | null;
+  htmlUrl: string | null;
 }
 
-let _serverOctokit: Octokit | null = null
+let _serverOctokit: Octokit | null = null;
 
 /**
  * Server-only Octokit using GITHUB_TOKEN (or KODY_BOT_TOKEN/GH_PAT).
  * Used by webhook handlers — they don't have a per-user request context.
  */
 export function getServerOctokit(): Octokit {
-  if (_serverOctokit) return _serverOctokit
+  if (_serverOctokit) return _serverOctokit;
   const token =
     process.env.KODY_BOT_TOKEN ||
     process.env.GITHUB_TOKEN ||
-    process.env.GH_PAT
+    process.env.GH_PAT;
   if (!token) {
     throw new Error(
       "No GitHub token configured. Set KODY_BOT_TOKEN, GITHUB_TOKEN, or GH_PAT.",
-    )
+    );
   }
-  _serverOctokit = new Octokit({ auth: token })
-  return _serverOctokit
+  _serverOctokit = new Octokit({ auth: token });
+  return _serverOctokit;
 }
 
 export async function readChangelog(
@@ -60,24 +60,24 @@ export async function readChangelog(
       path: CHANGELOG_PATH,
       ...(ref ? { ref } : {}),
       headers: { "If-None-Match": "" },
-    })
-    const data = res.data as RawContents | RawContents[]
+    });
+    const data = res.data as RawContents | RawContents[];
     if (Array.isArray(data) || data.type !== "file" || !data.content) {
-      return { content: "", sha: null, htmlUrl: null }
+      return { content: "", sha: null, htmlUrl: null };
     }
     const buf = Buffer.from(
       data.content,
       (data.encoding ?? "base64") as BufferEncoding,
-    )
+    );
     return {
       content: buf.toString("utf8"),
       sha: data.sha ?? null,
       htmlUrl: data.html_url ?? null,
-    }
+    };
   } catch (err) {
-    const status = (err as { status?: number }).status
-    if (status === 404) return { content: "", sha: null, htmlUrl: null }
-    throw err
+    const status = (err as { status?: number }).status;
+    if (status === 404) return { content: "", sha: null, htmlUrl: null };
+    throw err;
   }
 }
 
@@ -89,7 +89,7 @@ export async function writeChangelog(
   currentSha: string | null,
   commitMessage: string,
 ): Promise<{ sha: string | null }> {
-  const encoded = Buffer.from(content, "utf8").toString("base64")
+  const encoded = Buffer.from(content, "utf8").toString("base64");
   const res = await octokit.rest.repos.createOrUpdateFileContents({
     owner,
     repo,
@@ -97,8 +97,8 @@ export async function writeChangelog(
     message: commitMessage,
     content: encoded,
     ...(currentSha ? { sha: currentSha } : {}),
-  })
-  return { sha: res.data.content?.sha ?? null }
+  });
+  return { sha: res.data.content?.sha ?? null };
 }
 
 /**
@@ -116,10 +116,10 @@ export async function updateChangelog(
   maxAttempts = 3,
 ): Promise<{ written: boolean; sha: string | null }> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const current = await readChangelog(octokit, owner, repo)
-    const next = mutate(current.content)
+    const current = await readChangelog(octokit, owner, repo);
+    const next = mutate(current.content);
     if (next === current.content) {
-      return { written: false, sha: current.sha }
+      return { written: false, sha: current.sha };
     }
     try {
       const { sha } = await writeChangelog(
@@ -129,16 +129,16 @@ export async function updateChangelog(
         next,
         current.sha,
         commitMessage,
-      )
-      return { written: true, sha }
+      );
+      return { written: true, sha };
     } catch (err) {
-      const status = (err as { status?: number }).status
+      const status = (err as { status?: number }).status;
       if (status === 409 && attempt < maxAttempts) {
-        await new Promise((r) => setTimeout(r, 150 * attempt))
-        continue
+        await new Promise((r) => setTimeout(r, 150 * attempt));
+        continue;
       }
-      throw err
+      throw err;
     }
   }
-  return { written: false, sha: null }
+  return { written: false, sha: null };
 }

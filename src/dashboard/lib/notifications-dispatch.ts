@@ -11,10 +11,7 @@
  *   quickly. A failed Slack POST should never cause GitHub to retry the
  *   whole webhook delivery.
  */
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "./github-client";
+import { setGitHubContext, clearGitHubContext } from "./github-client";
 import {
   defaultTemplateForEvent,
   renderTemplate,
@@ -60,7 +57,8 @@ function buildPrContext(
   payload: Record<string, unknown>,
   extras: { repoFullName: string; version?: string },
 ): Record<string, string> {
-  const pr = (payload.pull_request as Record<string, unknown> | undefined) ?? {};
+  const pr =
+    (payload.pull_request as Record<string, unknown> | undefined) ?? {};
   const user = (pr.user as Record<string, unknown> | undefined) ?? {};
   return {
     repo: extras.repoFullName,

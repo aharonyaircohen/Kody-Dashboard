@@ -4,21 +4,24 @@
  * @pattern prototype-step
  * @ai-summary Step 2: Select prototype and design system components
  */
-'use client'
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@dashboard/ui/card'
-import { PrototypePanel } from '../../../PrototypePanel'
-import { DesignSystemPanel } from '../../../DesignSystemPanel'
-import { SelectedItemsBadge } from '../shared/SelectedItemsBadge'
-import type { DSComponent, PrototypeElement } from '@dashboard/lib/scenario-schema-stub'
+import { Card, CardContent, CardHeader, CardTitle } from "@dashboard/ui/card";
+import { PrototypePanel } from "../../../PrototypePanel";
+import { DesignSystemPanel } from "../../../DesignSystemPanel";
+import { SelectedItemsBadge } from "../shared/SelectedItemsBadge";
+import type {
+  DSComponent,
+  PrototypeElement,
+} from "@dashboard/lib/scenario-schema-stub";
 
 interface PrototypeStepProps {
-  selectedPrototype: string | null
-  selectedElements: PrototypeElement[]
-  selectedComponents: DSComponent[]
-  onPrototypeSelect: (name: string | null) => void
-  onElementSelect: (element: PrototypeElement) => void
-  onComponentSelect: (component: DSComponent) => void
+  selectedPrototype: string | null;
+  selectedElements: PrototypeElement[];
+  selectedComponents: DSComponent[];
+  onPrototypeSelect: (name: string | null) => void;
+  onElementSelect: (element: PrototypeElement) => void;
+  onComponentSelect: (component: DSComponent) => void;
 }
 
 export function PrototypeStep({
@@ -34,7 +37,8 @@ export function PrototypeStep({
       <div>
         <h2 className="text-xl font-semibold mb-2">Select a Prototype</h2>
         <p className="text-muted-foreground">
-          Choose an HTML prototype to extract elements from, or browse design system components.
+          Choose an HTML prototype to extract elements from, or browse design
+          system components.
         </p>
       </div>
 
@@ -66,7 +70,10 @@ export function PrototypeStep({
         </Card>
       </div>
 
-      <SelectedItemsBadge elements={selectedElements} components={selectedComponents} />
+      <SelectedItemsBadge
+        elements={selectedElements}
+        components={selectedComponents}
+      />
     </div>
-  )
+  );
 }

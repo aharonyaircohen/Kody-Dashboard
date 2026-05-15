@@ -59,10 +59,8 @@ function promoteAuthFromQuery(req: NextRequest): NextRequest {
   const repo = req.nextUrl.searchParams.get("repo");
   if (!token && !owner && !repo) return req;
   const headers = new Headers(req.headers);
-  if (token && !headers.has("x-kody-token"))
-    headers.set("x-kody-token", token);
-  if (owner && !headers.has("x-kody-owner"))
-    headers.set("x-kody-owner", owner);
+  if (token && !headers.has("x-kody-token")) headers.set("x-kody-token", token);
+  if (owner && !headers.has("x-kody-owner")) headers.set("x-kody-owner", owner);
   if (repo && !headers.has("x-kody-repo")) headers.set("x-kody-repo", repo);
   return new NextRequest(req.url, { headers, method: req.method });
 }
@@ -153,10 +151,7 @@ function inferPhase(
     // The client's own `lastEventAt` disambiguates: if the dashboard
     // saw events on SSE long ago and nothing has been committed since,
     // it's case (b) — declare the runner dead.
-    if (
-      clientStaleAgeMs !== null &&
-      clientStaleAgeMs > STALE_THRESHOLD_MS
-    ) {
+    if (clientStaleAgeMs !== null && clientStaleAgeMs > STALE_THRESHOLD_MS) {
       return {
         phase: "live",
         alive: false,
@@ -215,10 +210,7 @@ export async function GET(rawReq: NextRequest, ctx: RouteContext) {
 
   const { sessionId } = await ctx.params;
   if (!sessionId) {
-    return NextResponse.json(
-      { error: "sessionId required" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "sessionId required" }, { status: 400 });
   }
 
   const headerAuth = getRequestAuth(req);

@@ -23,7 +23,7 @@
 
 export interface Lease {
   /** Release the lease. Safe to call multiple times. */
-  release(): Promise<void>
+  release(): Promise<void>;
 }
 
 export interface LockPort {
@@ -32,5 +32,5 @@ export interface LockPort {
    * `null` if another caller already holds it (and the TTL hasn't
    * expired).
    */
-  acquire(key: string, ttlMs: number): Promise<Lease | null>
+  acquire(key: string, ttlMs: number): Promise<Lease | null>;
 }

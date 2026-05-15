@@ -8,46 +8,51 @@
  * context). The route MUST call setGitHubContext before invoking
  * streamText so these tools see the user's repo + token.
  */
-import { tool } from 'ai'
-import { z } from 'zod'
+import { tool } from "ai";
+import { z } from "zod";
 import {
   findBranchByIssueNumber,
   findStatusOnBranch,
   fetchWorkflowRuns,
   fetchOpenPRs,
-} from '@dashboard/lib/github-client'
-import { logger } from '@dashboard/lib/logger'
+} from "@dashboard/lib/github-client";
+import { logger } from "@dashboard/lib/logger";
 
 interface Ctx {
-  owner: string
-  repo: string
+  owner: string;
+  repo: string;
 }
 
 export function createPipelineTools(ctx: Ctx) {
-  const { owner, repo } = ctx
+  const { owner, repo } = ctx;
 
   return {
     kody_get_pipeline_status: tool({
       description:
         `Read the Kody pipeline status (current stage, started/ended timestamps per ` +
         `stage, overall state) for a task in ${owner}/${repo} by issue number. ` +
-        'Returns null if no pipeline run has touched this issue yet.',
+        "Returns null if no pipeline run has touched this issue yet.",
       inputSchema: z.object({
         issueNumber: z
           .number()
           .int()
           .positive()
-          .describe('The GitHub issue number the pipeline was launched for'),
+          .describe("The GitHub issue number the pipeline was launched for"),
       }),
       execute: async ({ issueNumber }) => {
         try {
-          const branch = await findBranchByIssueNumber(issueNumber)
-          if (!branch) return { issueNumber, status: null, branch: null }
-          const status = await findStatusOnBranch(branch, issueNumber)
-          return { issueNumber, branch, status }
+          const branch = await findBranchByIssueNumber(issueNumber);
+          if (!branch) return { issueNumber, status: null, branch: null };
+          const status = await findStatusOnBranch(branch, issueNumber);
+          return { issueNumber, branch, status };
         } catch (err) {
-          logger.warn({ err, issueNumber }, 'kody_get_pipeline_status failed')
-          return { error: err instanceof Error ? err.message : 'Failed to read pipeline status' }
+          logger.warn({ err, issueNumber }, "kody_get_pipeline_status failed");
+          return {
+            error:
+              err instanceof Error
+                ? err.message
+                : "Failed to read pipeline status",
+          };
         }
       },
     }),
@@ -61,7 +66,7 @@ export function createPipelineTools(ctx: Ctx) {
       }),
       execute: async ({ perPage }) => {
         try {
-          const runs = await fetchWorkflowRuns({ perPage })
+          const runs = await fetchWorkflowRuns({ perPage });
           return {
             count: runs.length,
             runs: runs.map((r) => ({
@@ -74,21 +79,25 @@ export function createPipelineTools(ctx: Ctx) {
               updatedAt: r.updated_at,
               url: r.html_url,
             })),
-          }
+          };
         } catch (err) {
-          logger.warn({ err, owner, repo }, 'kody_list_workflow_runs failed')
-          return { error: err instanceof Error ? err.message : 'Failed to list workflow runs' }
+          logger.warn({ err, owner, repo }, "kody_list_workflow_runs failed");
+          return {
+            error:
+              err instanceof Error
+                ? err.message
+                : "Failed to list workflow runs",
+          };
         }
       },
     }),
 
     kody_list_open_prs: tool({
-      description:
-        `List open pull requests in ${owner}/${repo} (the dashboard's "in review" lane).`,
+      description: `List open pull requests in ${owner}/${repo} (the dashboard's "in review" lane).`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const prs = await fetchOpenPRs()
+          const prs = await fetchOpenPRs();
           return {
             count: prs.length,
             prs: prs.map((pr) => ({
@@ -101,12 +110,15 @@ export function createPipelineTools(ctx: Ctx) {
               mergeable: pr.mergeable ?? null,
               url: pr.html_url,
             })),
-          }
+          };
         } catch (err) {
-          logger.warn({ err, owner, repo }, 'kody_list_open_prs failed')
-          return { error: err instanceof Error ? err.message : 'Failed to list open PRs' }
+          logger.warn({ err, owner, repo }, "kody_list_open_prs failed");
+          return {
+            error:
+              err instanceof Error ? err.message : "Failed to list open PRs",
+          };
         }
       },
     }),
-  }
+  };
 }

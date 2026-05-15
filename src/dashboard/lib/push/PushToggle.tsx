@@ -1,4 +1,4 @@
-"use client"
+"use client";
 /**
  * @fileType component
  * @domain kody
@@ -12,61 +12,57 @@
  *   on. A small status line under the row shows actionable hints only when
  *   they apply.
  */
-import { Smartphone } from "lucide-react"
-import { usePushSubscription } from "./usePushSubscription"
+import { Smartphone } from "lucide-react";
+import { usePushSubscription } from "./usePushSubscription";
 
 interface PushToggleProps {
   /** Optional user identifier persisted with the subscription. */
-  userLogin?: string
+  userLogin?: string;
   /** Optional device label (auto-detected if omitted). */
-  label?: string
+  label?: string;
 }
 
 function defaultLabel(): string | undefined {
-  if (typeof navigator === "undefined") return undefined
-  const ua = navigator.userAgent
-  if (/iPhone/.test(ua)) return "iPhone Safari"
-  if (/iPad/.test(ua)) return "iPad Safari"
-  if (/Android/.test(ua)) return "Android Chrome"
-  if (/Mac/.test(ua)) return "Mac Safari/Chrome"
-  if (/Windows/.test(ua)) return "Windows Browser"
-  return undefined
+  if (typeof navigator === "undefined") return undefined;
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return "iPhone Safari";
+  if (/iPad/.test(ua)) return "iPad Safari";
+  if (/Android/.test(ua)) return "Android Chrome";
+  if (/Mac/.test(ua)) return "Mac Safari/Chrome";
+  if (/Windows/.test(ua)) return "Windows Browser";
+  return undefined;
 }
 
 export function PushToggle({ userLogin, label }: PushToggleProps) {
   const { status, error, enable, disable, busy } = usePushSubscription({
     userLogin,
     label: label ?? defaultLabel(),
-  })
+  });
 
   const renderAction = () => {
     switch (status) {
       case "loading":
-        return (
-          <span className="text-[10px] text-muted-foreground">…</span>
-        )
+        return <span className="text-[10px] text-muted-foreground">…</span>;
       case "unsupported":
         return (
           <span className="text-[10px] text-muted-foreground">
             Not supported
           </span>
-        )
+        );
       case "needs-pwa":
         return (
           <span className="text-[10px] text-muted-foreground">
             Add to Home Screen
           </span>
-        )
+        );
       case "not-configured":
         return (
           <span className="text-[10px] text-muted-foreground">
             Server keys missing
           </span>
-        )
+        );
       case "denied":
-        return (
-          <span className="text-[10px] text-destructive">Blocked</span>
-        )
+        return <span className="text-[10px] text-destructive">Blocked</span>;
       case "off":
         return (
           <button
@@ -77,7 +73,7 @@ export function PushToggle({ userLogin, label }: PushToggleProps) {
           >
             {busy ? "…" : "Enable"}
           </button>
-        )
+        );
       case "on":
         return (
           <button
@@ -88,25 +84,25 @@ export function PushToggle({ userLogin, label }: PushToggleProps) {
           >
             {busy ? "…" : "Disable"}
           </button>
-        )
+        );
     }
-  }
+  };
 
   const helpText = (() => {
     if (status === "needs-pwa") {
-      return "On iPhone: tap Share → \"Add to Home Screen\", then open Kody from the icon and enable here."
+      return 'On iPhone: tap Share → "Add to Home Screen", then open Kody from the icon and enable here.';
     }
     if (status === "denied") {
-      return "Notifications are blocked in your browser settings — unblock to enable."
+      return "Notifications are blocked in your browser settings — unblock to enable.";
     }
     if (status === "not-configured") {
-      return "Server admin: set VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY env vars."
+      return "Server admin: set VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY env vars.";
     }
     if (status === "unsupported") {
-      return "This browser doesn't support push notifications."
+      return "This browser doesn't support push notifications.";
     }
-    return null
-  })()
+    return null;
+  })();
 
   return (
     <div className="space-y-1">
@@ -128,5 +124,5 @@ export function PushToggle({ userLogin, label }: PushToggleProps) {
         </p>
       )}
     </div>
-  )
+  );
 }

@@ -11,38 +11,35 @@
  *
  *   This is read-only debug visibility for the /instructions page.
  */
-import { NextRequest, NextResponse } from "next/server"
-import {
-  requireKodyAuth,
-  getRequestAuth,
-} from "@dashboard/lib/auth"
+import { NextRequest, NextResponse } from "next/server";
+import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
-} from "@dashboard/lib/github-client"
-import { AGENT_KODY } from "@dashboard/lib/agents"
-import { buildSystemPrompt } from "../../chat/kody/system-prompt"
-import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files"
-import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files"
+} from "@dashboard/lib/github-client";
+import { AGENT_KODY } from "@dashboard/lib/agents";
+import { buildSystemPrompt } from "../../chat/kody/system-prompt";
+import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files";
+import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireKodyAuth(req)
-  if (authResult instanceof NextResponse) return authResult
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
 
-  const repo = getRequestAuth(req)
+  const repo = getRequestAuth(req);
   if (!repo) {
     return NextResponse.json(
       { prompt: AGENT_KODY.systemPrompt },
       { status: 200 },
-    )
+    );
   }
 
-  setGitHubContext(repo.owner, repo.repo, repo.token)
+  setGitHubContext(repo.owner, repo.repo, repo.token);
   try {
     const [memoryIndex, userInstructions] = await Promise.all([
       loadMemoryIndexForPrompt().catch(() => null),
       loadInstructionsForPrompt().catch(() => null),
-    ])
+    ]);
     const prompt = buildSystemPrompt(
       AGENT_KODY.systemPrompt,
       { owner: repo.owner, repo: repo.repo },
@@ -51,15 +48,15 @@ export async function GET(req: NextRequest) {
         memoryIndex,
         userInstructions,
       },
-    )
-    return NextResponse.json({ prompt })
+    );
+    return NextResponse.json({ prompt });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
       { error: message || "Failed to assemble prompt" },
       { status: 500 },
-    )
+    );
   } finally {
-    clearGitHubContext()
+    clearGitHubContext();
   }
 }

@@ -206,7 +206,9 @@ export function InboxList() {
           <div className="flex items-start gap-2">
             <AlertCircle className="w-4 h-4 mt-0.5 text-amber-300 shrink-0" />
             <div>
-              <p className="font-medium text-amber-200">PAT missing the `gist` scope</p>
+              <p className="font-medium text-amber-200">
+                PAT missing the `gist` scope
+              </p>
               <p className="text-xs text-amber-100/70 mt-1">
                 The inbox lives in a private gist owned by you. Re-connect this
                 repo with a PAT that includes the `gist` scope on the{" "}

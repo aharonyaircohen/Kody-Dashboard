@@ -14,7 +14,11 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getUserOctokit,
+  getRequestAuth,
+} from "@dashboard/lib/auth";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { subscribe } from "@dashboard/lib/chat-event-bus";
 import { logger } from "@dashboard/lib/logger";
@@ -136,7 +140,8 @@ async function readEventFile(
     const e = err as { status?: number };
     // 304 Not Modified — file is unchanged, reuse cached lines (this response
     // does NOT count against the GitHub rate limit).
-    if (e.status === 304 && cached) return { lines: cached.lines, exists: true };
+    if (e.status === 304 && cached)
+      return { lines: cached.lines, exists: true };
     if (e.status !== 404) throw err;
   }
   return { lines: [], exists: false };
@@ -158,7 +163,8 @@ export async function GET(rawReq: NextRequest) {
   // events (one per turn). The runner stays alive until idle/deadline and
   // emits chat.exit when it ends — that's the close signal for interactive.
   // Default (one-shot) closes on the first chat.done as before.
-  const interactiveMode = req.nextUrl.searchParams.get("mode") === "interactive";
+  const interactiveMode =
+    req.nextUrl.searchParams.get("mode") === "interactive";
 
   // Resolve owner/repo from request headers (client localStorage auth) or env
   const headerAuth = getRequestAuth(req);
@@ -168,7 +174,10 @@ export async function GET(rawReq: NextRequest) {
 
   const octokit = await getUserOctokit(req);
   if (!octokit) {
-    return NextResponse.json({ error: "No GitHub token available" }, { status: 503 });
+    return NextResponse.json(
+      { error: "No GitHub token available" },
+      { status: 503 },
+    );
   }
 
   // ?test=1 — non-streaming mode for integration tests
@@ -246,7 +255,11 @@ export async function GET(rawReq: NextRequest) {
         startedAt: event.payload?.startedAt,
         runUrl: (event.payload as Record<string, unknown> | undefined)?.runUrl,
       });
-      try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+      try {
+        ctrl.enqueue(encoder.encode(`data: ${data}\n\n`));
+      } catch {
+        /* closed */
+      }
       return;
     }
     if (event.event === "chat.exit") {
@@ -257,24 +270,45 @@ export async function GET(rawReq: NextRequest) {
         reason: event.payload?.reason,
         turnsCompleted: event.payload?.turnsCompleted,
       });
-      try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+      try {
+        ctrl.enqueue(encoder.encode(`data: ${data}\n\n`));
+      } catch {
+        /* closed */
+      }
       // chat.exit is the canonical close signal for interactive sessions.
       active = false;
-      try { ctrl.close(); } catch { /* already closed */ }
+      try {
+        ctrl.close();
+      } catch {
+        /* already closed */
+      }
       return;
     }
 
     if (event.event === "chat.done" || event.event === "chat.error") {
-      const data = event.event === "chat.done"
-        ? JSON.stringify({ type: "chat.done", sessionId, runId: event.runId })
-        : JSON.stringify({ type: "chat.error", sessionId, error: event.payload?.error });
-      try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+      const data =
+        event.event === "chat.done"
+          ? JSON.stringify({ type: "chat.done", sessionId, runId: event.runId })
+          : JSON.stringify({
+              type: "chat.error",
+              sessionId,
+              error: event.payload?.error,
+            });
+      try {
+        ctrl.enqueue(encoder.encode(`data: ${data}\n\n`));
+      } catch {
+        /* closed */
+      }
       // In one-shot mode, chat.done = end of session. In interactive mode,
       // chat.done = end of turn — keep the stream open for the next user
       // message; the runner stays alive until chat.exit.
       if (!interactiveMode) {
         active = false;
-        try { ctrl.close(); } catch { /* already closed */ }
+        try {
+          ctrl.close();
+        } catch {
+          /* already closed */
+        }
       }
       return;
     }
@@ -288,7 +322,11 @@ export async function GET(rawReq: NextRequest) {
         content: event.payload?.content,
         timestamp: event.payload?.timestamp,
       });
-      try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+      try {
+        ctrl.enqueue(encoder.encode(`data: ${data}\n\n`));
+      } catch {
+        /* closed */
+      }
       return;
     }
 
@@ -306,31 +344,40 @@ export async function GET(rawReq: NextRequest) {
         text: event.payload?.text,
         timestamp: event.emittedAt,
       });
-      try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+      try {
+        ctrl.enqueue(encoder.encode(`data: ${data}\n\n`));
+      } catch {
+        /* closed */
+      }
       return;
     }
     if (event.event === "chat.tool") {
       const phase = event.payload?.phase;
-      const data = phase === "result"
-        ? JSON.stringify({
-            type: "chat.tool_result",
-            sessionId,
-            runId: event.runId,
-            toolUseId: event.payload?.toolUseId,
-            content: event.payload?.content,
-            isError: event.payload?.isError === true,
-            timestamp: event.emittedAt,
-          })
-        : JSON.stringify({
-            type: "chat.tool_use",
-            sessionId,
-            runId: event.runId,
-            id: event.payload?.id,
-            name: event.payload?.name,
-            input: event.payload?.input,
-            timestamp: event.emittedAt,
-          });
-      try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+      const data =
+        phase === "result"
+          ? JSON.stringify({
+              type: "chat.tool_result",
+              sessionId,
+              runId: event.runId,
+              toolUseId: event.payload?.toolUseId,
+              content: event.payload?.content,
+              isError: event.payload?.isError === true,
+              timestamp: event.emittedAt,
+            })
+          : JSON.stringify({
+              type: "chat.tool_use",
+              sessionId,
+              runId: event.runId,
+              id: event.payload?.id,
+              name: event.payload?.name,
+              input: event.payload?.input,
+              timestamp: event.emittedAt,
+            });
+      try {
+        ctrl.enqueue(encoder.encode(`data: ${data}\n\n`));
+      } catch {
+        /* closed */
+      }
       return;
     }
   });
@@ -344,9 +391,15 @@ export async function GET(rawReq: NextRequest) {
   const runPollOnce = async () => {
     pollIteration += 1;
     const ctrl: ReadableStreamDefaultController | null = controllerRef;
-    logger.info({ sessionId, pollIteration, active, hasCtrl: !!ctrl }, "stream:poll: tick");
+    logger.info(
+      { sessionId, pollIteration, active, hasCtrl: !!ctrl },
+      "stream:poll: tick",
+    );
     if (!active || !ctrl) {
-      logger.info({ sessionId, pollIteration }, "stream:poll: skipping — inactive");
+      logger.info(
+        { sessionId, pollIteration },
+        "stream:poll: skipping — inactive",
+      );
       return;
     }
 
@@ -354,7 +407,10 @@ export async function GET(rawReq: NextRequest) {
     // is a fallback for cross-instance SSE; when push is delivering, it's pure
     // waste. 120s grace covers an entire engine reply burst.
     if (Date.now() - lastPushAt < PUSH_GRACE_MS) {
-      logger.info({ sessionId, lastPushAt }, "stream:poll: skipping — push grace");
+      logger.info(
+        { sessionId, lastPushAt },
+        "stream:poll: skipping — push grace",
+      );
       return;
     }
 
@@ -362,25 +418,53 @@ export async function GET(rawReq: NextRequest) {
     // polled GitHub recently, skip. Survives client reconnects via module map.
     const last = lastPolledAt.get(sessionId) ?? 0;
     if (Date.now() - last < MIN_POLL_GAP_MS) {
-      logger.info({ sessionId, gapMs: Date.now() - last }, "stream:poll: skipping — gap guard");
+      logger.info(
+        { sessionId, gapMs: Date.now() - last },
+        "stream:poll: skipping — gap guard",
+      );
       return;
     }
     lastPolledAt.set(sessionId, Date.now());
 
     let lines: string[];
     try {
-      const result = await readEventFile(octokit, owner, repo, branch, sessionId);
+      const result = await readEventFile(
+        octokit,
+        owner,
+        repo,
+        branch,
+        sessionId,
+      );
       lines = result.lines;
-      logger.info({ sessionId, owner, repo, lineCount: lines.length, exists: result.exists }, "stream:poll: read events file");
+      logger.info(
+        {
+          sessionId,
+          owner,
+          repo,
+          lineCount: lines.length,
+          exists: result.exists,
+        },
+        "stream:poll: read events file",
+      );
     } catch (err) {
-      logger.error({ err, sessionId, owner, repo }, "stream:poll: readEventFile threw");
+      logger.error(
+        { err, sessionId, owner, repo },
+        "stream:poll: readEventFile threw",
+      );
       return;
     }
 
     const startIndex = lastReadIndex.get(sessionId) ?? 0;
     const newLines = lines.slice(startIndex);
     logger.info(
-      { sessionId, pollIteration, startIndex, totalLines: lines.length, newLines: newLines.length, firstLine: newLines[0]?.slice(0, 200) },
+      {
+        sessionId,
+        pollIteration,
+        startIndex,
+        totalLines: lines.length,
+        newLines: newLines.length,
+        firstLine: newLines[0]?.slice(0, 200),
+      },
       "stream:poll: dispatching",
     );
 
@@ -391,8 +475,11 @@ export async function GET(rawReq: NextRequest) {
     for (const line of newLines) {
       if (!active) break;
       let event: ChatEventEntry | null = null;
-      try { event = JSON.parse(line) as ChatEventEntry; }
-      catch { continue; }
+      try {
+        event = JSON.parse(line) as ChatEventEntry;
+      } catch {
+        continue;
+      }
 
       const eventKey = `${event.runId ?? ""}:${event.emittedAt ?? ""}:${event.event}`;
       if (seenEventIds.has(eventKey)) continue;
@@ -409,7 +496,11 @@ export async function GET(rawReq: NextRequest) {
           startedAt: (event.payload as Record<string, unknown>).startedAt,
           runUrl: (event.payload as Record<string, unknown>).runUrl,
         });
-        try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+        try {
+          ctrl.enqueue(encoder.encode(`data: ${data}\n\n`));
+        } catch {
+          /* closed */
+        }
         continue;
       }
       if (event.event === "chat.exit") {
@@ -418,23 +509,49 @@ export async function GET(rawReq: NextRequest) {
           sessionId,
           runId: event.runId,
           reason: (event.payload as Record<string, unknown>).reason,
-          turnsCompleted: (event.payload as Record<string, unknown>).turnsCompleted,
+          turnsCompleted: (event.payload as Record<string, unknown>)
+            .turnsCompleted,
         });
-        try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+        try {
+          ctrl.enqueue(encoder.encode(`data: ${data}\n\n`));
+        } catch {
+          /* closed */
+        }
         active = false;
-        try { ctrl.close(); } catch { /* already closed */ }
+        try {
+          ctrl.close();
+        } catch {
+          /* already closed */
+        }
         return;
       }
 
       if (event.event === "chat.done" || event.event === "chat.error") {
-        const data = event.event === "chat.done"
-          ? JSON.stringify({ type: "chat.done", sessionId, runId: event.runId })
-          : JSON.stringify({ type: "chat.error", sessionId, error: event.payload.error });
-        try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+        const data =
+          event.event === "chat.done"
+            ? JSON.stringify({
+                type: "chat.done",
+                sessionId,
+                runId: event.runId,
+              })
+            : JSON.stringify({
+                type: "chat.error",
+                sessionId,
+                error: event.payload.error,
+              });
+        try {
+          ctrl.enqueue(encoder.encode(`data: ${data}\n\n`));
+        } catch {
+          /* closed */
+        }
         // See push-channel branch above for the mode rationale.
         if (!interactiveMode) {
           active = false;
-          try { ctrl.close(); } catch { /* already closed */ }
+          try {
+            ctrl.close();
+          } catch {
+            /* already closed */
+          }
           return;
         }
         continue;
@@ -449,7 +566,11 @@ export async function GET(rawReq: NextRequest) {
           content: event.payload.content,
           timestamp: event.payload.timestamp,
         });
-        try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
+        try {
+          ctrl.enqueue(encoder.encode(`data: ${data}\n\n`));
+        } catch {
+          /* closed */
+        }
       }
     }
   };
@@ -465,12 +586,17 @@ export async function GET(rawReq: NextRequest) {
   const padding = `:${" ".repeat(4096)}\n\n`;
   if (controllerRef) {
     try {
-      const ctrlInit = controllerRef as ReadableStreamDefaultController<Uint8Array>;
+      const ctrlInit =
+        controllerRef as ReadableStreamDefaultController<Uint8Array>;
       ctrlInit.enqueue(encoder.encode(padding));
-      ctrlInit.enqueue(encoder.encode(
-        `data: ${JSON.stringify({ type: "connected", sessionId })}\n\n`,
-      ));
-    } catch { /* closed */ }
+      ctrlInit.enqueue(
+        encoder.encode(
+          `data: ${JSON.stringify({ type: "connected", sessionId })}\n\n`,
+        ),
+      );
+    } catch {
+      /* closed */
+    }
   }
 
   // ─── Async loop: keeps the function ACTIVELY awaiting in the stream
@@ -499,7 +625,11 @@ export async function GET(rawReq: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ctrl = controllerRef as ReadableStreamDefaultController<any> | null;
       if (!active || !ctrl) break;
-      try { ctrl.enqueue(encoder.encode(`: ping\n\n`)); } catch { break; }
+      try {
+        ctrl.enqueue(encoder.encode(`: ping\n\n`));
+      } catch {
+        break;
+      }
     }
   })();
 
@@ -514,7 +644,7 @@ export async function GET(rawReq: NextRequest) {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
       "X-Accel-Buffering": "no",
     },
   });

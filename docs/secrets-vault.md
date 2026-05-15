@@ -55,7 +55,6 @@ the only manual step.
    ```
 
 2. **Add it to Vercel**
-
    - Vercel project → **Settings** → **Environment Variables**
    - Add `KODY_MASTER_KEY` with the value, scoped to **Production**
      and **Preview** (both).
@@ -83,6 +82,7 @@ logs into the dashboard.
 4. **Save**.
 
 The dashboard:
+
 - Encrypts the new map with `KODY_MASTER_KEY`.
 - Commits `.kody/secrets.enc` to the connected repo with a message
   like `chore(vault): upsert GEMINI_API_KEY`.
@@ -155,15 +155,15 @@ The helper:
 
 ## Threat model
 
-| Attacker has… | Can they read your secrets? |
-|---|---|
-| Public internet only | No (`.kody/secrets.enc` is in a private repo). |
-| Read access to the repo | No — they get ciphertext only. |
-| Write access to the repo | They can replace the vault file with garbage (denial of service), but cannot read existing values. |
-| `KODY_MASTER_KEY` (e.g. via Vercel env leak) | No — the key alone doesn't give them the encrypted blob. They also need repo read access. |
-| `KODY_MASTER_KEY` **and** repo read access | Yes — every secret in the vault is exposed. |
+| Attacker has…                                | Can they read your secrets?                                                                        |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Public internet only                         | No (`.kody/secrets.enc` is in a private repo).                                                     |
+| Read access to the repo                      | No — they get ciphertext only.                                                                     |
+| Write access to the repo                     | They can replace the vault file with garbage (denial of service), but cannot read existing values. |
+| `KODY_MASTER_KEY` (e.g. via Vercel env leak) | No — the key alone doesn't give them the encrypted blob. They also need repo read access.          |
+| `KODY_MASTER_KEY` **and** repo read access   | Yes — every secret in the vault is exposed.                                                        |
 
-So: the security model is "Vercel env *and* GitHub repo together". An
+So: the security model is "Vercel env _and_ GitHub repo together". An
 attacker needs both. Either alone yields nothing useful. This is
 strictly stronger than putting the same secrets in Vercel env vars
 (where Vercel access alone is enough).
@@ -224,15 +224,15 @@ Already cut over: `GEMINI_API_KEY` (read by
 
 ## File reference
 
-| File | Purpose |
-|---|---|
-| [`src/dashboard/lib/vault/crypto.ts`](../src/dashboard/lib/vault/crypto.ts) | AES-256-GCM encrypt/decrypt + key loading from `KODY_MASTER_KEY` |
-| [`src/dashboard/lib/vault/store.ts`](../src/dashboard/lib/vault/store.ts) | GitHub Contents API read/write of `.kody/secrets.enc` + per-repo cache |
-| [`src/dashboard/lib/vault/get-secret.ts`](../src/dashboard/lib/vault/get-secret.ts) | Runtime helper: `getSecret(name, { req })` |
-| [`app/api/kody/secrets/route.ts`](../app/api/kody/secrets/route.ts) | `GET` (list) and `POST` (upsert) |
-| [`app/api/kody/secrets/[name]/route.ts`](../app/api/kody/secrets/%5Bname%5D/route.ts) | `DELETE` |
-| [`src/dashboard/lib/components/SecretsManager.tsx`](../src/dashboard/lib/components/SecretsManager.tsx) | The `/secrets` page UI |
-| [`scripts/generate-vault-key.mjs`](../scripts/generate-vault-key.mjs) | `pnpm vault:init` — print a fresh key |
+| File                                                                                                    | Purpose                                                                |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [`src/dashboard/lib/vault/crypto.ts`](../src/dashboard/lib/vault/crypto.ts)                             | AES-256-GCM encrypt/decrypt + key loading from `KODY_MASTER_KEY`       |
+| [`src/dashboard/lib/vault/store.ts`](../src/dashboard/lib/vault/store.ts)                               | GitHub Contents API read/write of `.kody/secrets.enc` + per-repo cache |
+| [`src/dashboard/lib/vault/get-secret.ts`](../src/dashboard/lib/vault/get-secret.ts)                     | Runtime helper: `getSecret(name, { req })`                             |
+| [`app/api/kody/secrets/route.ts`](../app/api/kody/secrets/route.ts)                                     | `GET` (list) and `POST` (upsert)                                       |
+| [`app/api/kody/secrets/[name]/route.ts`](../app/api/kody/secrets/%5Bname%5D/route.ts)                   | `DELETE`                                                               |
+| [`src/dashboard/lib/components/SecretsManager.tsx`](../src/dashboard/lib/components/SecretsManager.tsx) | The `/secrets` page UI                                                 |
+| [`scripts/generate-vault-key.mjs`](../scripts/generate-vault-key.mjs)                                   | `pnpm vault:init` — print a fresh key                                  |
 
 ## FAQ
 

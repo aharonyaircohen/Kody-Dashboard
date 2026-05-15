@@ -20,7 +20,11 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getUserOctokit,
+  getRequestAuth,
+} from "@dashboard/lib/auth";
 import { readEventsFile } from "@dashboard/lib/chat-events-reader";
 import { logger } from "@dashboard/lib/logger";
 
@@ -55,7 +59,8 @@ export async function GET(rawReq: NextRequest) {
   if (authError) return authError;
 
   const sessionId = req.nextUrl.searchParams.get("taskId");
-  if (!sessionId) return NextResponse.json({ error: "taskId required" }, { status: 400 });
+  if (!sessionId)
+    return NextResponse.json({ error: "taskId required" }, { status: 400 });
   const since = Number(req.nextUrl.searchParams.get("since") ?? "0");
 
   const headerAuth = getRequestAuth(req);
@@ -65,7 +70,10 @@ export async function GET(rawReq: NextRequest) {
 
   const octokit = await getUserOctokit(req);
   if (!octokit) {
-    return NextResponse.json({ error: "No GitHub token available" }, { status: 503 });
+    return NextResponse.json(
+      { error: "No GitHub token available" },
+      { status: 503 },
+    );
   }
 
   let result;
@@ -86,7 +94,10 @@ export async function GET(rawReq: NextRequest) {
     {
       // No cache layer in front of a per-request session-keyed payload.
       // Within the function, etag caching is handled by chat-events-reader.
-      headers: { "Cache-Control": "no-store, no-cache, must-revalidate", Pragma: "no-cache" },
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        Pragma: "no-cache",
+      },
     },
   );
 }

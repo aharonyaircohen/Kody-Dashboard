@@ -11,10 +11,10 @@
  * IDB store keyed by `id`. Cheap to round-trip through localStorage.
  */
 export interface AttachmentRef {
-  id: string
-  name: string
-  mimeType: string
-  size: number
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
 }
 
 /**
@@ -22,27 +22,27 @@ export interface AttachmentRef {
  * Used for both dashboard chat and pipeline agent sessions.
  */
 export interface ChatMessage {
-  role: 'user' | 'assistant'
-  text: string
-  tools?: string[]
-  timestamp: string
-  model?: string
+  role: "user" | "assistant";
+  text: string;
+  tools?: string[];
+  timestamp: string;
+  model?: string;
   /** Tool calls associated with this message (for tool visibility feature) */
   toolCalls?: Array<{
-    name: string
-    arguments: Record<string, unknown>
-    result?: unknown
-    status: 'running' | 'success' | 'error'
-    durationMs?: number
-  }>
+    name: string;
+    arguments: Record<string, unknown>;
+    result?: unknown;
+    status: "running" | "success" | "error";
+    durationMs?: number;
+  }>;
   /** Attachments uploaded with this user message (blobs in IndexedDB). */
-  attachments?: AttachmentRef[]
+  attachments?: AttachmentRef[];
   /**
    * True while a reply is being streamed into this message. Persisted so the
    * UI→storage→UI round-trip preserves the in-flight marker; without this,
    * streaming updates can't find the placeholder to append chunks to.
    */
-  isLoading?: boolean
+  isLoading?: boolean;
 }
 
 /**
@@ -52,13 +52,13 @@ export interface ChatMessage {
  */
 export interface ChatSession {
   /** Session type: 'dashboard' for user conversations, or pipeline stage name */
-  stage: string
+  stage: string;
   /** OpenCode session ID (for pipeline sessions) */
-  sessionId?: string
+  sessionId?: string;
   /** When this session started */
-  startedAt: string
+  startedAt: string;
   /** Messages in this session */
-  messages: ChatMessage[]
+  messages: ChatMessage[];
 }
 
 /**
@@ -67,11 +67,11 @@ export interface ChatSession {
  */
 export interface ChatHistory {
   /** Schema version */
-  version: 1
+  version: 1;
   /** Task ID this chat belongs to */
-  taskId: string
+  taskId: string;
   /** All sessions (pipeline + dashboard) */
-  sessions: ChatSession[]
+  sessions: ChatSession[];
 }
 
 // ===========================================
@@ -84,17 +84,17 @@ export interface ChatHistory {
  */
 export interface SessionMeta {
   /** Unique session identifier */
-  id: string
+  id: string;
   /** User-editable or auto-generated title */
-  title: string
+  title: string;
   /** When this session was created */
-  createdAt: string
+  createdAt: string;
   /** Last message timestamp */
-  updatedAt: string
+  updatedAt: string;
   /** Number of messages in this session */
-  messageCount: number
+  messageCount: number;
   /** Whether this session is pinned */
-  pinned?: boolean
+  pinned?: boolean;
 }
 
 /**
@@ -103,13 +103,13 @@ export interface SessionMeta {
  */
 export interface GlobalChatStore {
   /** Schema version */
-  version: 3
+  version: 3;
   /** Session metadata list */
-  sessions: SessionMeta[]
+  sessions: SessionMeta[];
   /** Messages keyed by session ID */
-  messages: Record<string, ChatMessage[]>
+  messages: Record<string, ChatMessage[]>;
   /** Active session ID (single, not per-agent) */
-  activeSessionId: string
+  activeSessionId: string;
 }
 
 /**
@@ -120,8 +120,8 @@ export function createEmptyGlobalStore(): GlobalChatStore {
     version: 3,
     sessions: [],
     messages: {},
-    activeSessionId: '',
-  }
+    activeSessionId: "",
+  };
 }
 
 /**
@@ -130,30 +130,30 @@ export function createEmptyGlobalStore(): GlobalChatStore {
  * `null`/absent prop on KodyChat = global chat (no scoped context).
  */
 export type ChatContext =
-  | { kind: 'task'; task: import('./types').KodyTask }
+  | { kind: "task"; task: import("./types").KodyTask }
   | {
       /**
        * Chat scoped to an existing job — analogous to `task` mode.
        * The agent is given the job's title/body/labels so it can answer
        * questions about that specific job.
        */
-      kind: 'job'
-      job: import('./api').Job
+      kind: "job";
+      job: import("./api").Job;
     }
   | {
-      kind: 'job-draft'
+      kind: "job-draft";
       /**
        * Stable session id used to anchor SSE / engine sessions for this
        * draft. Generated client-side when the draft is opened; the chat
        * itself is ephemeral — nothing is persisted to disk.
        */
-      draftId: string
+      draftId: string;
       /**
        * Fired when the user picks a specific assistant response as the
        * basis for a new job. The consumer should pop its own "create
        * job" UI (e.g. pre-filled dialog) with this body.
        */
-      onFinalize?: (assistantContent: string) => void
+      onFinalize?: (assistantContent: string) => void;
     }
   | {
       /**
@@ -163,28 +163,28 @@ export type ChatContext =
        * `create_task_for_goal` (Pass 2). See system-prompt's "Goal
        * planning mode" block for the full workflow.
        */
-      kind: 'goal-planner'
-      goal: import('./api').Goal
+      kind: "goal-planner";
+      goal: import("./api").Goal;
       /** Stable id for this planner chat session (for keyed message stores). */
-      sessionId: string
+      sessionId: string;
       /**
        * Snapshot of tasks already attached to the goal — passed into the
        * system prompt so the planner doesn't propose duplicates. Optional;
        * caller may omit when no tasks exist yet.
        */
-      existingTasks?: Array<{ number: number; title: string; state?: string }>
+      existingTasks?: Array<{ number: number; title: string; state?: string }>;
       /**
        * Fired after the planner creates one or more tasks so the host page
        * can refresh its task list. Optional.
        */
-      onTasksCreated?: () => void
+      onTasksCreated?: () => void;
       /**
        * Fired when the user wants to exit planner mode (e.g. clicks the X
        * in the chat's "Planning" badge). The host should clear its
        * `planningGoal` state so the chat falls back to its normal
        * task/global context.
        */
-      onExit?: () => void
+      onExit?: () => void;
     }
   | {
       /**
@@ -195,6 +195,6 @@ export type ChatContext =
        * (b) attach it to a goal, or (c) take no action — sometimes a
        * report is informational and needs no follow-up.
        */
-      kind: 'report'
-      report: { slug: string; title: string; body: string }
-    }
+      kind: "report";
+      report: { slug: string; title: string; body: string };
+    };

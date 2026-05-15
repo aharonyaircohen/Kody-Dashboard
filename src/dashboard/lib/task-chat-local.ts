@@ -12,9 +12,9 @@
  * is canonical from then on.
  */
 
-import type { ChatMessage } from './chat-types'
+import type { ChatMessage } from "./chat-types";
 
-const KEY_PREFIX = 'kody-task-chat-'
+const KEY_PREFIX = "kody-task-chat-";
 
 /**
  * Read the connected repo from localStorage.kody_auth so cache keys are
@@ -23,51 +23,54 @@ const KEY_PREFIX = 'kody-task-chat-'
  * known (e.g. logged out / SSR).
  */
 function repoScope(): string {
-  if (typeof window === 'undefined') return ''
+  if (typeof window === "undefined") return "";
   try {
-    const raw = window.localStorage.getItem('kody_auth')
-    if (!raw) return ''
-    const auth = JSON.parse(raw) as { owner?: string; repo?: string }
-    if (!auth.owner || !auth.repo) return ''
-    return `${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}:`
+    const raw = window.localStorage.getItem("kody_auth");
+    if (!raw) return "";
+    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
+    if (!auth.owner || !auth.repo) return "";
+    return `${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}:`;
   } catch {
-    return ''
+    return "";
   }
 }
 
 function key(taskId: string): string {
-  return `${KEY_PREFIX}${repoScope()}${taskId}`
+  return `${KEY_PREFIX}${repoScope()}${taskId}`;
 }
 
 export function loadTaskChatLocal(taskId: string): ChatMessage[] {
-  if (typeof window === 'undefined') return []
+  if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(key(taskId))
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
+    const raw = localStorage.getItem(key(taskId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return []
+    return [];
   }
 }
 
-export function saveTaskChatLocal(taskId: string, messages: ChatMessage[]): void {
-  if (typeof window === 'undefined') return
+export function saveTaskChatLocal(
+  taskId: string,
+  messages: ChatMessage[],
+): void {
+  if (typeof window === "undefined") return;
   try {
     if (messages.length === 0) {
-      localStorage.removeItem(key(taskId))
-      return
+      localStorage.removeItem(key(taskId));
+      return;
     }
-    localStorage.setItem(key(taskId), JSON.stringify(messages))
+    localStorage.setItem(key(taskId), JSON.stringify(messages));
   } catch {
     // Quota or serialization error — ignore (server save still runs).
   }
 }
 
 export function clearTaskChatLocal(taskId: string): void {
-  if (typeof window === 'undefined') return
+  if (typeof window === "undefined") return;
   try {
-    localStorage.removeItem(key(taskId))
+    localStorage.removeItem(key(taskId));
   } catch {
     // ignore
   }

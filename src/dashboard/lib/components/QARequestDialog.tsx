@@ -5,45 +5,50 @@
  * @ai-summary Dialog to request a QA pass on an issue. Optional scope narrows
  *              focus; empty submit runs a broad smoke pass.
  */
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Button } from '@dashboard/ui/button'
+import { useState } from "react";
+import { Button } from "@dashboard/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@dashboard/ui/dialog'
-import { Stethoscope, Loader2 } from 'lucide-react'
+} from "@dashboard/ui/dialog";
+import { Stethoscope, Loader2 } from "lucide-react";
 
 interface QARequestDialogProps {
-  isOpen: boolean
-  onClose: () => void
+  isOpen: boolean;
+  onClose: () => void;
   /** Receives trimmed scope text, or empty string for a broad smoke pass. */
-  onSubmit: (scope: string) => Promise<void>
-  issueNumber: number
+  onSubmit: (scope: string) => Promise<void>;
+  issueNumber: number;
 }
 
-export function QARequestDialog({ isOpen, onClose, onSubmit, issueNumber }: QARequestDialogProps) {
-  const [scope, setScope] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+export function QARequestDialog({
+  isOpen,
+  onClose,
+  onSubmit,
+  issueNumber,
+}: QARequestDialogProps) {
+  const [scope, setScope] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    setSubmitting(true)
+    setSubmitting(true);
     try {
-      await onSubmit(scope.trim())
-      setScope('')
-      onClose()
+      await onSubmit(scope.trim());
+      setScope("");
+      onClose();
     } catch {
       // Error handled by caller
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
-  const hasScope = scope.trim().length > 0
+  const hasScope = scope.trim().length > 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -55,7 +60,7 @@ export function QARequestDialog({ isOpen, onClose, onSubmit, issueNumber }: QARe
           </DialogTitle>
           <DialogDescription>
             Optional: narrow what Kody should verify. Leave empty for a broad
-            smoke pass. Posts{' '}
+            smoke pass. Posts{" "}
             <code className="text-emerald-400">@kody qa-engineer</code> on the
             issue; the report comes back as a comment.
           </DialogDescription>
@@ -88,12 +93,12 @@ export function QARequestDialog({ isOpen, onClose, onSubmit, issueNumber }: QARe
             ) : (
               <>
                 <Stethoscope className="w-4 h-4 mr-2" />
-                {hasScope ? 'Run Focused QA' : 'Run Broad QA'}
+                {hasScope ? "Run Focused QA" : "Run Broad QA"}
               </>
             )}
           </Button>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

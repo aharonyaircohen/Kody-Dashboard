@@ -116,7 +116,11 @@ async function readMap(
 }
 
 /** Invalidate the read cache after a write so the next read picks up changes. */
-function invalidateReadCache(owner: string, repo: string, branch: string): void {
+function invalidateReadCache(
+  owner: string,
+  repo: string,
+  branch: string,
+): void {
   readCache.delete(cacheKey(owner, repo, branch));
 }
 
@@ -128,7 +132,9 @@ async function writeMap(
   map: Map<string, ActionState>,
   existingSha?: string,
 ): Promise<void> {
-  const content = Buffer.from(JSON.stringify([...map.values()], null, 2)).toString("base64");
+  const content = Buffer.from(
+    JSON.stringify([...map.values()], null, 2),
+  ).toString("base64");
   await octokit.rest.repos.createOrUpdateFileContents({
     owner,
     repo,
@@ -150,7 +156,12 @@ async function getSha(
   branch: string,
 ): Promise<string | undefined> {
   try {
-    const { data } = await octokit.rest.repos.getContent({ owner, repo, path: STORE_FILE, ref: branch });
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: STORE_FILE,
+      ref: branch,
+    });
     if ("sha" in data && typeof data.sha === "string") return data.sha;
   } catch (err: unknown) {
     const e = err as { status?: number };
@@ -164,10 +175,16 @@ async function getSha(
 /** Register or update an action's state. */
 export async function upsertActionState(
   update: Partial<ActionState> & { runId: string; actionId: string },
-  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+  opts: {
+    owner?: string;
+    repo?: string;
+    branch?: string;
+    octokit?: Octokit | null;
+  } = {},
 ): Promise<ActionState> {
   const octokit = getOrCreateOctokit(opts.octokit);
-  if (!octokit) throw new Error("No GitHub token available for action state store");
+  if (!octokit)
+    throw new Error("No GitHub token available for action state store");
 
   const owner = opts.owner ?? getDefaultOwner();
   const repo = opts.repo ?? getDefaultRepo();
@@ -211,7 +228,12 @@ export async function upsertActionState(
 export async function pollInstruction(
   runId: string,
   callerActionId: string,
-  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+  opts: {
+    owner?: string;
+    repo?: string;
+    branch?: string;
+    octokit?: Octokit | null;
+  } = {},
 ): Promise<{
   instruction: string | null;
   cancel: boolean;
@@ -219,7 +241,13 @@ export async function pollInstruction(
   actionId: string;
 }> {
   const octokit = getOrCreateOctokit(opts.octokit);
-  if (!octokit) return { instruction: null, cancel: false, cancelledBy: null, actionId: "" };
+  if (!octokit)
+    return {
+      instruction: null,
+      cancel: false,
+      cancelledBy: null,
+      actionId: "",
+    };
 
   const owner = opts.owner ?? getDefaultOwner();
   const repo = opts.repo ?? getDefaultRepo();
@@ -227,7 +255,13 @@ export async function pollInstruction(
 
   const map = await readMap(octokit, owner, repo, branch);
   const state = map.get(runId);
-  if (!state) return { instruction: null, cancel: false, cancelledBy: null, actionId: "" };
+  if (!state)
+    return {
+      instruction: null,
+      cancel: false,
+      cancelledBy: null,
+      actionId: "",
+    };
 
   // Dequeue first instruction
   const instruction = state.instructions.shift() ?? null;
@@ -248,7 +282,12 @@ export async function pollInstruction(
 export async function enqueueInstruction(
   runId: string,
   instruction: string,
-  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+  opts: {
+    owner?: string;
+    repo?: string;
+    branch?: string;
+    octokit?: Octokit | null;
+  } = {},
 ): Promise<boolean> {
   const octokit = getOrCreateOctokit(opts.octokit);
   if (!octokit) return false;
@@ -272,7 +311,12 @@ export async function enqueueInstruction(
 /** Get full state for a runId. */
 export async function getActionState(
   runId: string,
-  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+  opts: {
+    owner?: string;
+    repo?: string;
+    branch?: string;
+    octokit?: Octokit | null;
+  } = {},
 ): Promise<ActionState | null> {
   const octokit = getOrCreateOctokit(opts.octokit);
   if (!octokit) return null;
@@ -287,7 +331,12 @@ export async function getActionState(
 
 /** List all action states. */
 export async function listActionStates(
-  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+  opts: {
+    owner?: string;
+    repo?: string;
+    branch?: string;
+    octokit?: Octokit | null;
+  } = {},
 ): Promise<ActionState[]> {
   const octokit = getOrCreateOctokit(opts.octokit);
   if (!octokit) return [];
@@ -304,7 +353,12 @@ export async function listActionStates(
 export async function cancelAction(
   runId: string,
   cancelledBy: string,
-  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+  opts: {
+    owner?: string;
+    repo?: string;
+    branch?: string;
+    octokit?: Octokit | null;
+  } = {},
 ): Promise<ActionState | null> {
   const octokit = getOrCreateOctokit(opts.octokit);
   if (!octokit) return null;
@@ -329,7 +383,12 @@ export async function cancelAction(
 /** Delete an action state. */
 export async function deleteActionState(
   runId: string,
-  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+  opts: {
+    owner?: string;
+    repo?: string;
+    branch?: string;
+    octokit?: Octokit | null;
+  } = {},
 ): Promise<boolean> {
   const octokit = getOrCreateOctokit(opts.octokit);
   if (!octokit) return false;

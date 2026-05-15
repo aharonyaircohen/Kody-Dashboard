@@ -18,7 +18,13 @@
  */
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 
 export interface KodyRepoEntry {
   /** Original `https://github.com/owner/repo` URL the user pasted (optional). */
@@ -58,10 +64,10 @@ export interface KodyAuth {
    *   medium → performance-1x / 2GB (vibe coding, ~$0.05/30min) — default
    *   high   → performance-2x / 4GB (heavy installs/tests, ~$0.11/30min)
    */
-  flyPerf?: 'low' | 'medium' | 'high';
+  flyPerf?: "low" | "medium" | "high";
 }
 
-export type FlyPerfTier = NonNullable<KodyAuth['flyPerf']>;
+export type FlyPerfTier = NonNullable<KodyAuth["flyPerf"]>;
 
 interface AuthContextValue {
   auth: KodyAuth | null;
@@ -108,12 +114,19 @@ const AuthContext = createContext<AuthContextValue>({
  */
 function migrateAuth(raw: unknown): KodyAuth | null {
   if (!raw || typeof raw !== "object") return null;
-  const a = raw as Partial<KodyAuth> & { repos?: KodyRepoEntry[]; currentRepoIndex?: number };
+  const a = raw as Partial<KodyAuth> & {
+    repos?: KodyRepoEntry[];
+    currentRepoIndex?: number;
+  };
 
   if (!a.owner || !a.repo || !a.token || !a.user) return null;
 
   // Already migrated.
-  if (Array.isArray(a.repos) && a.repos.length > 0 && typeof a.currentRepoIndex === "number") {
+  if (
+    Array.isArray(a.repos) &&
+    a.repos.length > 0 &&
+    typeof a.currentRepoIndex === "number"
+  ) {
     const idx = Math.min(Math.max(0, a.currentRepoIndex), a.repos.length - 1);
     const cur = a.repos[idx];
     // Trust repos[idx] as source of truth — repaint flat fields if drifted.
@@ -225,12 +238,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const repoLc = entry.repo.toLowerCase();
         // Dedupe: if the same owner/repo already exists, replace its token instead.
         const existingIdx = prev.repos.findIndex(
-          (r) => r.owner.toLowerCase() === ownerLc && r.repo.toLowerCase() === repoLc,
+          (r) =>
+            r.owner.toLowerCase() === ownerLc &&
+            r.repo.toLowerCase() === repoLc,
         );
         let nextRepos: KodyRepoEntry[];
         if (existingIdx >= 0) {
           nextRepos = prev.repos.map((r, i) =>
-            i === existingIdx ? { ...r, token: entry.token, repoUrl: entry.repoUrl } : r,
+            i === existingIdx
+              ? { ...r, token: entry.token, repoUrl: entry.repoUrl }
+              : r,
           );
         } else {
           nextRepos = [
@@ -246,55 +263,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const removeRepo = useCallback(
-    (index: number) => {
-      setAuth((prev) => {
-        if (!prev) return prev;
-        if (index < 0 || index >= prev.repos.length) return prev;
+  const removeRepo = useCallback((index: number) => {
+    setAuth((prev) => {
+      if (!prev) return prev;
+      if (index < 0 || index >= prev.repos.length) return prev;
 
-        const removing = prev.repos[index];
-        if (removing.isLogin) {
-          // Removing the login repo == logout.
-          localStorage.removeItem("kody_auth");
-          window.location.href = "/";
-          return null;
-        }
+      const removing = prev.repos[index];
+      if (removing.isLogin) {
+        // Removing the login repo == logout.
+        localStorage.removeItem("kody_auth");
+        window.location.href = "/";
+        return null;
+      }
 
-        const nextRepos = prev.repos.filter((_, i) => i !== index);
-        if (nextRepos.length === 0) {
-          // Shouldn't happen (login is non-removable), but bail to logout.
-          localStorage.removeItem("kody_auth");
-          window.location.href = "/";
-          return null;
-        }
+      const nextRepos = prev.repos.filter((_, i) => i !== index);
+      if (nextRepos.length === 0) {
+        // Shouldn't happen (login is non-removable), but bail to logout.
+        localStorage.removeItem("kody_auth");
+        window.location.href = "/";
+        return null;
+      }
 
-        // Recompute current index. If we removed the current one, fall back to 0.
-        let nextIdx = prev.currentRepoIndex;
-        if (index === prev.currentRepoIndex) {
-          nextIdx = 0;
-        } else if (index < prev.currentRepoIndex) {
-          nextIdx = prev.currentRepoIndex - 1;
-        }
-        const cur = nextRepos[nextIdx];
-        const next: KodyAuth = {
-          ...prev,
-          repos: nextRepos,
-          currentRepoIndex: nextIdx,
-          repoUrl: cur.repoUrl,
-          owner: cur.owner,
-          repo: cur.repo,
-          token: cur.token,
-        };
-        persist(next);
-        // If we switched the current repo, force a reload to clear caches.
-        if (index === prev.currentRepoIndex) {
-          window.location.reload();
-        }
-        return next;
-      });
-    },
-    [],
-  );
+      // Recompute current index. If we removed the current one, fall back to 0.
+      let nextIdx = prev.currentRepoIndex;
+      if (index === prev.currentRepoIndex) {
+        nextIdx = 0;
+      } else if (index < prev.currentRepoIndex) {
+        nextIdx = prev.currentRepoIndex - 1;
+      }
+      const cur = nextRepos[nextIdx];
+      const next: KodyAuth = {
+        ...prev,
+        repos: nextRepos,
+        currentRepoIndex: nextIdx,
+        repoUrl: cur.repoUrl,
+        owner: cur.owner,
+        repo: cur.repo,
+        token: cur.token,
+      };
+      persist(next);
+      // If we switched the current repo, force a reload to clear caches.
+      if (index === prev.currentRepoIndex) {
+        window.location.reload();
+      }
+      return next;
+    });
+  }, []);
 
   const setCurrentRepo = useCallback((index: number) => {
     setAuth((prev) => {
@@ -331,7 +345,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         if (patch.vercelBypassSecret !== undefined) {
           next.vercelBypassSecret =
-            patch.vercelBypassSecret === null ? undefined : patch.vercelBypassSecret;
+            patch.vercelBypassSecret === null
+              ? undefined
+              : patch.vercelBypassSecret;
         }
         if (patch.flyPerf !== undefined) {
           next.flyPerf = patch.flyPerf === null ? undefined : patch.flyPerf;
@@ -368,7 +384,9 @@ export function useAuth(): AuthContextValue {
  * Build authorization headers from localStorage auth.
  * Use this in API route client-side calls.
  */
-export function buildAuthHeaders(auth: KodyAuth | null): Record<string, string> {
+export function buildAuthHeaders(
+  auth: KodyAuth | null,
+): Record<string, string> {
   if (!auth) return {};
   return {
     "x-kody-token": auth.token,

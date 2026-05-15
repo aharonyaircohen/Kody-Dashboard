@@ -1,4 +1,4 @@
-"use client"
+"use client";
 /**
  * @fileType hook
  * @domain kody
@@ -16,9 +16,9 @@
  *
  *   `disable()` reverses 4+5 (unsubscribe locally + DELETE server-side).
  */
-import { useCallback, useEffect, useState } from "react"
-import { urlBase64ToUint8Array } from "../push"
-import { getStoredAuth } from "../api"
+import { useCallback, useEffect, useState } from "react";
+import { urlBase64ToUint8Array } from "../push";
+import { getStoredAuth } from "../api";
 
 /**
  * Build the dashboard's standard repo-auth headers (`x-kody-token / -owner /
@@ -28,14 +28,14 @@ import { getStoredAuth } from "../api"
  * helper isn't exported; duplicating the three header names here is cheap.
  */
 function authHeaders(): Record<string, string> {
-  const auth = getStoredAuth()
-  if (!auth) return { "Content-Type": "application/json" }
+  const auth = getStoredAuth();
+  if (!auth) return { "Content-Type": "application/json" };
   return {
     "Content-Type": "application/json",
     "x-kody-token": auth.token,
     "x-kody-owner": auth.owner,
     "x-kody-repo": auth.repo,
-  }
+  };
 }
 
 export type PushStatus =
@@ -45,27 +45,27 @@ export type PushStatus =
   | "not-configured" // server has no VAPID keys
   | "denied" // user blocked notifications
   | "off"
-  | "on"
+  | "on";
 
 interface UsePushSubscriptionResult {
-  status: PushStatus
-  error: string | null
-  enable: () => Promise<void>
-  disable: () => Promise<void>
+  status: PushStatus;
+  error: string | null;
+  enable: () => Promise<void>;
+  disable: () => Promise<void>;
   /** Send a one-shot push to *this* device only. Returns the server's
    *  reported HTTP status from the push service (201 = accepted) or
    *  throws. Used by the "Send test push" button. */
-  sendTest: () => Promise<number>
-  busy: boolean
+  sendTest: () => Promise<number>;
+  busy: boolean;
 }
 
 function browserSupportsPush(): boolean {
-  if (typeof window === "undefined") return false
+  if (typeof window === "undefined") return false;
   return (
     "serviceWorker" in navigator &&
     "PushManager" in window &&
     "Notification" in window
-  )
+  );
 }
 
 /**
@@ -74,99 +74,98 @@ function browserSupportsPush(): boolean {
  * tell the user to "Add to Home Screen" first.
  */
 function isIosNotStandalone(): boolean {
-  if (typeof window === "undefined") return false
-  const ua = window.navigator.userAgent
-  const isIos = /iPad|iPhone|iPod/.test(ua)
-  if (!isIos) return false
+  if (typeof window === "undefined") return false;
+  const ua = window.navigator.userAgent;
+  const isIos = /iPad|iPhone|iPod/.test(ua);
+  if (!isIos) return false;
   const standalone =
     // iOS Safari sets this proprietary property when launched from home
     (window.navigator as unknown as { standalone?: boolean }).standalone ===
-      true ||
-    window.matchMedia("(display-mode: standalone)").matches
-  return !standalone
+      true || window.matchMedia("(display-mode: standalone)").matches;
+  return !standalone;
 }
 
 export function usePushSubscription(
   options: { userLogin?: string; label?: string } = {},
 ): UsePushSubscriptionResult {
-  const [status, setStatus] = useState<PushStatus>("loading")
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState<PushStatus>("loading");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!browserSupportsPush()) {
-      setStatus(isIosNotStandalone() ? "needs-pwa" : "unsupported")
-      return
+      setStatus(isIosNotStandalone() ? "needs-pwa" : "unsupported");
+      return;
     }
     try {
-      const perm = Notification.permission
+      const perm = Notification.permission;
       if (perm === "denied") {
-        setStatus("denied")
-        return
+        setStatus("denied");
+        return;
       }
-      const reg = await navigator.serviceWorker.ready
-      const existing = await reg.pushManager.getSubscription()
-      setStatus(existing ? "on" : "off")
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      setStatus(existing ? "on" : "off");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-      setStatus("off")
+      setError(err instanceof Error ? err.message : String(err));
+      setStatus("off");
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    void refresh();
+  }, [refresh]);
 
   const enable = useCallback(async () => {
-    setError(null)
-    setBusy(true)
+    setError(null);
+    setBusy(true);
     try {
       if (!browserSupportsPush()) {
-        setStatus(isIosNotStandalone() ? "needs-pwa" : "unsupported")
-        return
+        setStatus(isIosNotStandalone() ? "needs-pwa" : "unsupported");
+        return;
       }
 
       // 1) Public key
-      const keyRes = await fetch("/api/push/public-key", { cache: "no-store" })
+      const keyRes = await fetch("/api/push/public-key", { cache: "no-store" });
       if (keyRes.status === 503) {
-        setStatus("not-configured")
-        return
+        setStatus("not-configured");
+        return;
       }
       if (!keyRes.ok) {
-        throw new Error(`public-key request failed: ${keyRes.status}`)
+        throw new Error(`public-key request failed: ${keyRes.status}`);
       }
-      const { publicKey } = (await keyRes.json()) as { publicKey: string }
+      const { publicKey } = (await keyRes.json()) as { publicKey: string };
 
       // 2) SW ready
-      const reg = await navigator.serviceWorker.ready
+      const reg = await navigator.serviceWorker.ready;
 
       // 3) Permission — pushManager.subscribe will also prompt, but asking
       //    first lets us short-circuit on denial without a half-baked sub.
-      const perm = await Notification.requestPermission()
+      const perm = await Notification.requestPermission();
       if (perm !== "granted") {
-        setStatus(perm === "denied" ? "denied" : "off")
-        return
+        setStatus(perm === "denied" ? "denied" : "off");
+        return;
       }
 
       // 4) Subscribe (browser → push service → returns endpoint + keys).
       //    `applicationServerKey` expects a BufferSource — we hand it a
       //    fresh ArrayBuffer copy of the Uint8Array so TS doesn't complain
       //    about the SharedArrayBuffer-vs-ArrayBuffer narrowing.
-      const keyBytes = urlBase64ToUint8Array(publicKey)
+      const keyBytes = urlBase64ToUint8Array(publicKey);
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: keyBytes.buffer.slice(
           keyBytes.byteOffset,
           keyBytes.byteOffset + keyBytes.byteLength,
         ) as ArrayBuffer,
-      })
+      });
 
       const json = sub.toJSON() as {
-        endpoint?: string
-        keys?: { p256dh?: string; auth?: string }
-      }
+        endpoint?: string;
+        keys?: { p256dh?: string; auth?: string };
+      };
       if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
-        throw new Error("Browser returned an incomplete PushSubscription")
+        throw new Error("Browser returned an incomplete PushSubscription");
       }
 
       // 5) Register with the dashboard server (needs repo-auth headers)
@@ -179,36 +178,36 @@ export function usePushSubscription(
           label: options.label,
           userLogin: options.userLogin,
         }),
-      })
+      });
       if (!subRes.ok) {
-        const text = await subRes.text().catch(() => "")
+        const text = await subRes.text().catch(() => "");
         // Roll back the browser subscription so a retry starts fresh —
         // otherwise the user is in a "subscribed locally, server doesn't
         // know" zombie state.
-        await sub.unsubscribe().catch(() => {})
+        await sub.unsubscribe().catch(() => {});
         throw new Error(
           `subscribe request failed: ${subRes.status} ${text.slice(0, 200)}`,
-        )
+        );
       }
 
-      setStatus("on")
+      setStatus("on");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
-  }, [options.label, options.userLogin])
+  }, [options.label, options.userLogin]);
 
   const disable = useCallback(async () => {
-    setError(null)
-    setBusy(true)
+    setError(null);
+    setBusy(true);
     try {
-      if (!browserSupportsPush()) return
-      const reg = await navigator.serviceWorker.ready
-      const sub = await reg.pushManager.getSubscription()
+      if (!browserSupportsPush()) return;
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
       if (!sub) {
-        setStatus("off")
-        return
+        setStatus("off");
+        return;
       }
       // Remove server-side first so a retry doesn't leave a stale row when
       // unsubscribe() on the browser fails.
@@ -216,49 +215,49 @@ export function usePushSubscription(
         method: "DELETE",
         headers: authHeaders(),
         body: JSON.stringify({ endpoint: sub.endpoint }),
-      }).catch(() => {})
-      await sub.unsubscribe()
-      setStatus("off")
+      }).catch(() => {});
+      await sub.unsubscribe();
+      setStatus("off");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
-  }, [])
+  }, []);
 
   const sendTest = useCallback(async (): Promise<number> => {
-    setError(null)
-    setBusy(true)
+    setError(null);
+    setBusy(true);
     try {
       if (!browserSupportsPush()) {
-        throw new Error("Browser doesn't support push")
+        throw new Error("Browser doesn't support push");
       }
-      const reg = await navigator.serviceWorker.ready
-      const sub = await reg.pushManager.getSubscription()
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
       if (!sub) {
-        throw new Error("No active subscription — enable push first")
+        throw new Error("No active subscription — enable push first");
       }
       const res = await fetch("/api/push/test", {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ endpoint: sub.endpoint }),
-      })
+      });
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
+        const text = await res.text().catch(() => "");
         throw new Error(
           `test send failed: ${res.status} ${text.slice(0, 200)}`,
-        )
+        );
       }
-      const data = (await res.json()) as { statusCode?: number }
-      return data.statusCode ?? res.status
+      const data = (await res.json()) as { statusCode?: number };
+      return data.statusCode ?? res.status;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setError(msg)
-      throw err
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      throw err;
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
-  }, [])
+  }, []);
 
-  return { status, error, enable, disable, sendTest, busy }
+  return { status, error, enable, disable, sendTest, busy };
 }

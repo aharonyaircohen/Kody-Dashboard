@@ -4,47 +4,52 @@
  * @pattern fix-request-dialog
  * @ai-summary Dialog with markdown editor to request fixes on a PR via @kody fix
  */
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Button } from '@dashboard/ui/button'
+import { useState } from "react";
+import { Button } from "@dashboard/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@dashboard/ui/dialog'
-import { Wrench, Loader2, Eye, Edit } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+} from "@dashboard/ui/dialog";
+import { Wrench, Loader2, Eye, Edit } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface FixRequestDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  onSubmit: (description: string) => Promise<void>
-  prNumber: number
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (description: string) => Promise<void>;
+  prNumber: number;
 }
 
-export function FixRequestDialog({ isOpen, onClose, onSubmit, prNumber }: FixRequestDialogProps) {
-  const [description, setDescription] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
+export function FixRequestDialog({
+  isOpen,
+  onClose,
+  onSubmit,
+  prNumber,
+}: FixRequestDialogProps) {
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const handleSubmit = async () => {
-    if (!description.trim()) return
-    setSubmitting(true)
+    if (!description.trim()) return;
+    setSubmitting(true);
     try {
-      await onSubmit(description.trim())
-      setDescription('')
-      setShowPreview(false)
-      onClose()
+      await onSubmit(description.trim());
+      setDescription("");
+      setShowPreview(false);
+      onClose();
     } catch {
       // Error handled by caller
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -55,7 +60,7 @@ export function FixRequestDialog({ isOpen, onClose, onSubmit, prNumber }: FixReq
             Request Fix on PR #{prNumber}
           </DialogTitle>
           <DialogDescription>
-            Describe what needs to be fixed. This will post{' '}
+            Describe what needs to be fixed. This will post{" "}
             <code className="text-orange-400">@kody fix</code> on the PR.
           </DialogDescription>
         </DialogHeader>
@@ -66,7 +71,9 @@ export function FixRequestDialog({ isOpen, onClose, onSubmit, prNumber }: FixReq
             <button
               onClick={() => setShowPreview(false)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                !showPreview ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'
+                !showPreview
+                  ? "bg-zinc-800 text-white"
+                  : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
               <Edit className="w-3 h-3" /> Write
@@ -74,7 +81,9 @@ export function FixRequestDialog({ isOpen, onClose, onSubmit, prNumber }: FixReq
             <button
               onClick={() => setShowPreview(true)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                showPreview ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'
+                showPreview
+                  ? "bg-zinc-800 text-white"
+                  : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
               <Eye className="w-3 h-3" /> Preview
@@ -94,10 +103,14 @@ export function FixRequestDialog({ isOpen, onClose, onSubmit, prNumber }: FixReq
             <div className="min-h-[160px] px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg overflow-y-auto">
               {description.trim() ? (
                 <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {description}
+                  </ReactMarkdown>
                 </div>
               ) : (
-                <p className="text-zinc-600 text-sm italic">Nothing to preview</p>
+                <p className="text-zinc-600 text-sm italic">
+                  Nothing to preview
+                </p>
               )}
             </div>
           )}
@@ -127,5 +140,5 @@ export function FixRequestDialog({ isOpen, onClose, onSubmit, prNumber }: FixReq
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

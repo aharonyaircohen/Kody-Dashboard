@@ -4,17 +4,17 @@
  * @pattern preview-actions
  * @ai-summary Sticky action bar for Preview: Approve UI, Approve PR, Merge, Fix, Cancel PR
  */
-'use client'
+"use client";
 
-import { useState } from 'react'
-import type { KodyTask } from '../types'
-import { Button } from '@dashboard/ui/button'
-import { MergeButton } from './MergeButton'
-import { FixRequestDialog } from './FixRequestDialog'
-import { ReportIssueDialog } from './ReportIssueDialog'
-import { QARequestDialog } from './QARequestDialog'
-import { ConfirmDialog } from './ConfirmDialog'
-import { SimpleTooltip } from './SimpleTooltip'
+import { useState } from "react";
+import type { KodyTask } from "../types";
+import { Button } from "@dashboard/ui/button";
+import { MergeButton } from "./MergeButton";
+import { FixRequestDialog } from "./FixRequestDialog";
+import { ReportIssueDialog } from "./ReportIssueDialog";
+import { QARequestDialog } from "./QARequestDialog";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { SimpleTooltip } from "./SimpleTooltip";
 import {
   XCircle,
   Wrench,
@@ -25,13 +25,13 @@ import {
   Camera,
   AlertTriangle,
   Stethoscope,
-} from 'lucide-react'
-import { tasksApi, prsApi } from '../api'
-import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
-import { usePRCIStatus } from '../hooks/usePRCIStatus'
-import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { cn } from '../utils'
+} from "lucide-react";
+import { tasksApi, prsApi } from "../api";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { usePRCIStatus } from "../hooks/usePRCIStatus";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { cn } from "../utils";
 
 /**
  * Optimistically add a label to this task in every cached tasks list, so the
@@ -43,13 +43,13 @@ function applyOptimisticLabel(
   issueNumber: number,
   label: string,
 ): void {
-  queryClient.setQueriesData<KodyTask[]>({ queryKey: ['kody-tasks'] }, (old) =>
+  queryClient.setQueriesData<KodyTask[]>({ queryKey: ["kody-tasks"] }, (old) =>
     old?.map((t) =>
       t.issueNumber === issueNumber && !t.labels?.includes(label)
         ? { ...t, labels: [...(t.labels ?? []), label] }
         : t,
     ),
-  )
+  );
 }
 
 /**
@@ -61,21 +61,21 @@ function removeOptimisticLabel(
   issueNumber: number,
   label: string,
 ): void {
-  queryClient.setQueriesData<KodyTask[]>({ queryKey: ['kody-tasks'] }, (old) =>
+  queryClient.setQueriesData<KodyTask[]>({ queryKey: ["kody-tasks"] }, (old) =>
     old?.map((t) =>
       t.issueNumber === issueNumber && t.labels?.includes(label)
         ? { ...t, labels: t.labels.filter((l) => l !== label) }
         : t,
     ),
-  )
+  );
 }
 
 interface PreviewActionsProps {
-  task: KodyTask
-  onMerge: () => Promise<void>
-  isMerging: boolean
-  onCancelPR: () => void
-  className?: string
+  task: KodyTask;
+  onMerge: () => Promise<void>;
+  isMerging: boolean;
+  onCancelPR: () => void;
+  className?: string;
 }
 
 export function PreviewActions({
@@ -85,109 +85,113 @@ export function PreviewActions({
   onCancelPR,
   className,
 }: PreviewActionsProps) {
-  const [showFixDialog, setShowFixDialog] = useState(false)
-  const [showReportDialog, setShowReportDialog] = useState(false)
-  const [showQADialog, setShowQADialog] = useState(false)
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
-  const [isCancelling, setIsCancelling] = useState(false)
-  const [isApprovingUI, setIsApprovingUI] = useState(false)
-  const [isApprovingPR, setIsApprovingPR] = useState(false)
-  const { githubUser } = useGitHubIdentity()
-  const queryClient = useQueryClient()
+  const [showFixDialog, setShowFixDialog] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showQADialog, setShowQADialog] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isApprovingUI, setIsApprovingUI] = useState(false);
+  const [isApprovingPR, setIsApprovingPR] = useState(false);
+  const { githubUser } = useGitHubIdentity();
+  const queryClient = useQueryClient();
 
-  const actorLogin = githubUser?.login
+  const actorLogin = githubUser?.login;
 
   // Check if UI / PR are already approved (label-driven, mirrors backend)
-  const isUIApproved = task.labels?.includes('ui-approved')
-  const isPRApproved = task.labels?.includes('pr-approved')
-  const hasNeedsFix = task.labels?.includes('kody:needs-fix')
+  const isUIApproved = task.labels?.includes("ui-approved");
+  const isPRApproved = task.labels?.includes("pr-approved");
+  const hasNeedsFix = task.labels?.includes("kody:needs-fix");
 
-  const pr = task.associatedPR
-  const { data: ciData } = usePRCIStatus(pr?.number)
-  const hasConflicts = ciData?.hasConflicts ?? false
-  const ciFailed = ciData?.ciStatus === 'failure'
-  if (!pr) return null
+  const pr = task.associatedPR;
+  const { data: ciData } = usePRCIStatus(pr?.number);
+  const hasConflicts = ciData?.hasConflicts ?? false;
+  const ciFailed = ciData?.ciStatus === "failure";
+  if (!pr) return null;
 
   const handleCancelPR = async () => {
-    setIsCancelling(true)
+    setIsCancelling(true);
     try {
-      await tasksApi.closePR(task.issueNumber, actorLogin)
-      toast.success('PR closed')
-      onCancelPR()
+      await tasksApi.closePR(task.issueNumber, actorLogin);
+      toast.success("PR closed");
+      onCancelPR();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to close PR')
+      toast.error(err instanceof Error ? err.message : "Failed to close PR");
     } finally {
-      setIsCancelling(false)
+      setIsCancelling(false);
     }
-  }
+  };
 
   const handleFixSubmit = async (description: string) => {
     try {
-      await tasksApi.fixRequest(task.issueNumber, description, actorLogin)
+      await tasksApi.fixRequest(task.issueNumber, description, actorLogin);
       // Mirror the backend, which also clears terminal lifecycle labels so the
       // task immediately leaves the "completed" column while we wait for the
       // engine to dispatch the fix workflow.
-      removeOptimisticLabel(queryClient, task.issueNumber, 'kody:done')
-      removeOptimisticLabel(queryClient, task.issueNumber, 'kody:failed')
-      toast.success('Fix requested — Kody will work on it')
+      removeOptimisticLabel(queryClient, task.issueNumber, "kody:done");
+      removeOptimisticLabel(queryClient, task.issueNumber, "kody:failed");
+      toast.success("Fix requested — Kody will work on it");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to request fix')
-      throw err // re-throw so dialog keeps open
+      toast.error(err instanceof Error ? err.message : "Failed to request fix");
+      throw err; // re-throw so dialog keeps open
     }
-  }
+  };
 
   const handleApproveUI = async () => {
-    setIsApprovingUI(true)
+    setIsApprovingUI(true);
     try {
-      await tasksApi.approveUI(task.issueNumber, actorLogin)
-      applyOptimisticLabel(queryClient, task.issueNumber, 'ui-approved')
+      await tasksApi.approveUI(task.issueNumber, actorLogin);
+      applyOptimisticLabel(queryClient, task.issueNumber, "ui-approved");
       // Backend also clears kody:needs-fix — mirror that locally so the
       // task list flips to the approved icon immediately.
-      removeOptimisticLabel(queryClient, task.issueNumber, 'kody:needs-fix')
-      toast.success('Preview UI approved')
+      removeOptimisticLabel(queryClient, task.issueNumber, "kody:needs-fix");
+      toast.success("Preview UI approved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to approve UI')
+      toast.error(err instanceof Error ? err.message : "Failed to approve UI");
     } finally {
-      setIsApprovingUI(false)
+      setIsApprovingUI(false);
     }
-  }
+  };
 
   const handleReportIssue = async (notes: string) => {
     try {
-      await tasksApi.reportIssue(task.issueNumber, notes, actorLogin)
-      applyOptimisticLabel(queryClient, task.issueNumber, 'kody:needs-fix')
+      await tasksApi.reportIssue(task.issueNumber, notes, actorLogin);
+      applyOptimisticLabel(queryClient, task.issueNumber, "kody:needs-fix");
       // Mirror the backend, which also clears terminal lifecycle labels so the
       // task immediately leaves the "completed" column.
-      removeOptimisticLabel(queryClient, task.issueNumber, 'kody:done')
-      removeOptimisticLabel(queryClient, task.issueNumber, 'kody:failed')
-      toast.success('Issue reported')
+      removeOptimisticLabel(queryClient, task.issueNumber, "kody:done");
+      removeOptimisticLabel(queryClient, task.issueNumber, "kody:failed");
+      toast.success("Issue reported");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to report issue')
-      throw err // re-throw so dialog keeps open
+      toast.error(
+        err instanceof Error ? err.message : "Failed to report issue",
+      );
+      throw err; // re-throw so dialog keeps open
     }
-  }
+  };
 
   const handleApprovePR = async () => {
-    setIsApprovingPR(true)
+    setIsApprovingPR(true);
     try {
-      await tasksApi.approvePR(task.issueNumber, actorLogin)
-      applyOptimisticLabel(queryClient, task.issueNumber, 'pr-approved')
-      toast.success('PR approved')
+      await tasksApi.approvePR(task.issueNumber, actorLogin);
+      applyOptimisticLabel(queryClient, task.issueNumber, "pr-approved");
+      toast.success("PR approved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to approve PR')
+      toast.error(err instanceof Error ? err.message : "Failed to approve PR");
     } finally {
-      setIsApprovingPR(false)
+      setIsApprovingPR(false);
     }
-  }
+  };
 
   const postKodyCommand = async (command: string, successMessage: string) => {
     try {
-      await prsApi.postComment(pr.number, command, actorLogin)
-      toast.success(successMessage)
+      await prsApi.postComment(pr.number, command, actorLogin);
+      toast.success(successMessage);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : `Failed to post ${command}`)
+      toast.error(
+        err instanceof Error ? err.message : `Failed to post ${command}`,
+      );
     }
-  }
+  };
 
   /**
    * QA the completed task: post `@kody qa-engineer` on the *issue* (not the
@@ -200,29 +204,32 @@ export function PreviewActions({
    */
   const handleRunQA = async (scope: string) => {
     // Escape any double quotes the user typed so the shell-style flag stays valid.
-    const safeScope = scope.replace(/"/g, '\\"')
+    const safeScope = scope.replace(/"/g, '\\"');
     const command = safeScope
       ? `@kody qa-engineer --scope "${safeScope}"`
-      : '@kody qa-engineer'
+      : "@kody qa-engineer";
     try {
-      await tasksApi.comment(task.issueNumber, command, actorLogin)
-      toast.success('QA requested — report will appear as a comment')
+      await tasksApi.comment(task.issueNumber, command, actorLogin);
+      toast.success("QA requested — report will appear as a comment");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to request QA')
-      throw err // re-throw so dialog keeps open on failure
+      toast.error(err instanceof Error ? err.message : "Failed to request QA");
+      throw err; // re-throw so dialog keeps open on failure
     }
-  }
+  };
 
   return (
     <>
       <div
         className={cn(
-          'flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 border-t border-zinc-800 bg-zinc-950/80 backdrop-blur-sm max-h-[40vh] overflow-y-auto',
+          "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 border-t border-zinc-800 bg-zinc-950/80 backdrop-blur-sm max-h-[40vh] overflow-y-auto",
           className,
         )}
       >
         {/* ── Approval row: horizontal, progressive disclosure ── */}
-        <div className="flex flex-row items-center gap-1.5" aria-label="Approve and merge">
+        <div
+          className="flex flex-row items-center gap-1.5"
+          aria-label="Approve and merge"
+        >
           {/* Step 1: Approve UI — visible until done */}
           {isUIApproved ? (
             <Button
@@ -247,7 +254,7 @@ export function PreviewActions({
               ) : (
                 <CheckCircle className="w-3.5 h-3.5" />
               )}
-              <span>{isApprovingUI ? 'Approving…' : 'Approve UI'}</span>
+              <span>{isApprovingUI ? "Approving…" : "Approve UI"}</span>
             </Button>
           )}
 
@@ -259,14 +266,14 @@ export function PreviewActions({
               size="sm"
               onClick={() => setShowReportDialog(true)}
               className={cn(
-                'gap-1.5 cursor-pointer bg-transparent transition-all active:scale-[0.97]',
+                "gap-1.5 cursor-pointer bg-transparent transition-all active:scale-[0.97]",
                 hasNeedsFix
-                  ? 'text-red-300 border-red-900/60 hover:bg-red-500/10 hover:border-red-700'
-                  : 'text-zinc-200 border-zinc-700 hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50',
+                  ? "text-red-300 border-red-900/60 hover:bg-red-500/10 hover:border-red-700"
+                  : "text-zinc-200 border-zinc-700 hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50",
               )}
             >
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>{hasNeedsFix ? 'Issue reported' : 'Report Issue'}</span>
+              <span>{hasNeedsFix ? "Issue reported" : "Report Issue"}</span>
             </Button>
           )}
 
@@ -295,7 +302,7 @@ export function PreviewActions({
                 ) : (
                   <GitPullRequest className="w-3.5 h-3.5" />
                 )}
-                <span>{isApprovingPR ? 'Approving…' : 'Approve PR'}</span>
+                <span>{isApprovingPR ? "Approving…" : "Approve PR"}</span>
               </Button>
             ))}
 
@@ -321,7 +328,9 @@ export function PreviewActions({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => postKodyCommand('@kody review', 'Review requested')}
+              onClick={() =>
+                postKodyCommand("@kody review", "Review requested")
+              }
               className="h-8 w-8 cursor-pointer text-zinc-300 hover:bg-zinc-800/60 hover:text-zinc-100 active:scale-[0.97]"
               aria-label="Review"
             >
@@ -333,7 +342,9 @@ export function PreviewActions({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => postKodyCommand('@kody ui-review', 'UI review requested')}
+              onClick={() =>
+                postKodyCommand("@kody ui-review", "UI review requested")
+              }
               className="h-8 w-8 cursor-pointer text-zinc-300 hover:bg-zinc-800/60 hover:text-zinc-100 active:scale-[0.97]"
               aria-label="UI Review"
             >
@@ -418,5 +429,5 @@ export function PreviewActions({
         onClose={() => setShowCancelConfirm(false)}
       />
     </>
-  )
+  );
 }

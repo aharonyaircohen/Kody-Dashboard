@@ -117,7 +117,10 @@ async function fetchSubjectDetails(
   }
 }
 
-function buildEntryId(n: GitHubNotification, latestCommentUrl: string | null): string {
+function buildEntryId(
+  n: GitHubNotification,
+  latestCommentUrl: string | null,
+): string {
   // GitHub thread id changes when the reason changes; tack on the latest
   // comment URL (or updated_at) so a new comment surfaces as a new entry.
   const suffix = latestCommentUrl ?? n.updated_at;
@@ -132,7 +135,8 @@ async function runOnce(opts: {
   setLastModified: (value: string | null) => void;
   appendEntries: (entries: InboxEntry[]) => Promise<void>;
 }): Promise<void> {
-  const { owner, repo, token, lastModified, setLastModified, appendEntries } = opts;
+  const { owner, repo, token, lastModified, setLastModified, appendEntries } =
+    opts;
   const url = `https://api.github.com/repos/${owner}/${repo}/notifications?all=false&participating=false`;
   const headers: Record<string, string> = {
     Authorization: `token ${token}`,
@@ -152,7 +156,9 @@ async function runOnce(opts: {
   const nextLastModified = res.headers.get("last-modified");
   if (nextLastModified) setLastModified(nextLastModified);
 
-  const list = (await res.json().catch(() => null)) as GitHubNotification[] | null;
+  const list = (await res.json().catch(() => null)) as
+    | GitHubNotification[]
+    | null;
   if (!Array.isArray(list) || list.length === 0) return;
 
   const seen = readSeen(owner, repo);

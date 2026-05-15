@@ -4,43 +4,43 @@
  * @pattern session-sidebar
  * @ai-summary Session list sidebar for Kody global chat - displays, creates, switches, and deletes sessions
  */
-'use client'
+"use client";
 
-import { useState, useRef, useEffect } from 'react'
-import { cn } from '@dashboard/lib/utils/ui'
-import { ConfirmDialog } from './ConfirmDialog'
-import type { SessionMeta } from '../chat-types'
+import { useState, useRef, useEffect } from "react";
+import { cn } from "@dashboard/lib/utils/ui";
+import { ConfirmDialog } from "./ConfirmDialog";
+import type { SessionMeta } from "../chat-types";
 
 interface SessionSidebarProps {
-  sessions: SessionMeta[]
-  activeSessionId: string | null
-  onSwitchSession: (sessionId: string) => void
-  onCreateSession: () => void
-  onDeleteSession: (sessionId: string) => void
-  onRenameSession: (sessionId: string, title: string) => void
-  onPinSession: (sessionId: string) => void
-  onClose?: () => void
-  className?: string
+  sessions: SessionMeta[];
+  activeSessionId: string | null;
+  onSwitchSession: (sessionId: string) => void;
+  onCreateSession: () => void;
+  onDeleteSession: (sessionId: string) => void;
+  onRenameSession: (sessionId: string, title: string) => void;
+  onPinSession: (sessionId: string) => void;
+  onClose?: () => void;
+  className?: string;
 }
 
 /**
  * Format a date as relative time (e.g., "2h ago", "Yesterday")
  */
 function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMins = Math.floor(diffMs / (1000 * 60))
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffMins < 1) return 'Just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays}d ago`
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
 
-  return date.toLocaleDateString()
+  return date.toLocaleDateString();
 }
 
 export function SessionSidebar({
@@ -54,53 +54,57 @@ export function SessionSidebar({
   onClose,
   className,
 }: SessionSidebarProps) {
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editTitle, setEditTitle] = useState('')
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
-  const editInputRef = useRef<HTMLInputElement>(null)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   // Focus input when editing starts
   useEffect(() => {
     if (editingId && editInputRef.current) {
-      editInputRef.current.focus()
-      editInputRef.current.select()
+      editInputRef.current.focus();
+      editInputRef.current.select();
     }
-  }, [editingId])
+  }, [editingId]);
 
   const handleStartEdit = (session: SessionMeta) => {
-    setEditingId(session.id)
-    setEditTitle(session.title)
-  }
+    setEditingId(session.id);
+    setEditTitle(session.title);
+  };
 
   const handleSaveEdit = () => {
     if (editingId && editTitle.trim()) {
-      onRenameSession(editingId, editTitle.trim())
+      onRenameSession(editingId, editTitle.trim());
     }
-    setEditingId(null)
-    setEditTitle('')
-  }
+    setEditingId(null);
+    setEditTitle("");
+  };
 
   const handleCancelEdit = () => {
-    setEditingId(null)
-    setEditTitle('')
-  }
+    setEditingId(null);
+    setEditTitle("");
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSaveEdit()
-    } else if (e.key === 'Escape') {
-      handleCancelEdit()
+    if (e.key === "Enter") {
+      handleSaveEdit();
+    } else if (e.key === "Escape") {
+      handleCancelEdit();
     }
-  }
+  };
 
   return (
-    <div className={cn('flex flex-col h-full bg-background border-r', className)}>
+    <div
+      className={cn("flex flex-col h-full bg-background border-r", className)}
+    >
       {/* Header */}
       <div className="p-3 border-b">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-sm">Conversations</h3>
-            <span className="text-xs text-muted-foreground">{sessions.length}</span>
+            <span className="text-xs text-muted-foreground">
+              {sessions.length}
+            </span>
           </div>
           {onClose && (
             <button
@@ -150,10 +154,12 @@ export function SessionSidebar({
               <li
                 key={session.id}
                 className={cn(
-                  'group relative cursor-pointer hover:bg-muted/50 transition-colors',
-                  session.id === activeSessionId && 'bg-muted',
+                  "group relative cursor-pointer hover:bg-muted/50 transition-colors",
+                  session.id === activeSessionId && "bg-muted",
                 )}
-                onClick={() => session.id !== activeSessionId && onSwitchSession(session.id)}
+                onClick={() =>
+                  session.id !== activeSessionId && onSwitchSession(session.id)
+                }
               >
                 <div className="p-3">
                   {/* Title */}
@@ -171,11 +177,13 @@ export function SessionSidebar({
                   ) : (
                     <p
                       className={cn(
-                        'text-sm font-medium truncate pr-32 md:pr-16',
-                        session.id === activeSessionId && 'text-primary',
+                        "text-sm font-medium truncate pr-32 md:pr-16",
+                        session.id === activeSessionId && "text-primary",
                       )}
                     >
-                      {session.pinned && <span className="mr-1 text-amber-500">📌</span>}
+                      {session.pinned && (
+                        <span className="mr-1 text-amber-500">📌</span>
+                      )}
                       {session.title}
                     </p>
                   )}
@@ -193,21 +201,23 @@ export function SessionSidebar({
                   {/* Pin button */}
                   <button
                     onClick={(e) => {
-                      e.stopPropagation()
-                      onPinSession(session.id)
+                      e.stopPropagation();
+                      onPinSession(session.id);
                     }}
                     className="p-2 rounded hover:bg-muted text-base leading-none"
-                    title={session.pinned ? 'Unpin' : 'Pin'}
-                    aria-label={session.pinned ? 'Unpin conversation' : 'Pin conversation'}
+                    title={session.pinned ? "Unpin" : "Pin"}
+                    aria-label={
+                      session.pinned ? "Unpin conversation" : "Pin conversation"
+                    }
                   >
-                    {session.pinned ? '📌' : '📍'}
+                    {session.pinned ? "📌" : "📍"}
                   </button>
 
                   {/* Edit button */}
                   <button
                     onClick={(e) => {
-                      e.stopPropagation()
-                      handleStartEdit(session)
+                      e.stopPropagation();
+                      handleStartEdit(session);
                     }}
                     className="p-2 rounded hover:bg-muted text-base leading-none"
                     title="Rename"
@@ -219,8 +229,8 @@ export function SessionSidebar({
                   {/* Delete button */}
                   <button
                     onClick={(e) => {
-                      e.stopPropagation()
-                      setDeleteConfirmId(session.id)
+                      e.stopPropagation();
+                      setDeleteConfirmId(session.id);
                     }}
                     className="p-2 rounded hover:bg-muted text-destructive text-base leading-none"
                     title="Delete"
@@ -241,8 +251,8 @@ export function SessionSidebar({
         onClose={() => setDeleteConfirmId(null)}
         onConfirm={() => {
           if (deleteConfirmId) {
-            onDeleteSession(deleteConfirmId)
-            setDeleteConfirmId(null)
+            onDeleteSession(deleteConfirmId);
+            setDeleteConfirmId(null);
           }
         }}
         title="Delete conversation?"
@@ -251,5 +261,5 @@ export function SessionSidebar({
         variant="destructive"
       />
     </div>
-  )
+  );
 }

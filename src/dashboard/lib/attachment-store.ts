@@ -11,118 +11,126 @@
  * and for re-sending in a multimodal request.
  */
 
-const DB_NAME = 'kody-attachments'
-const DB_VERSION = 1
-const STORE = 'attachments'
+const DB_NAME = "kody-attachments";
+const DB_VERSION = 1;
+const STORE = "attachments";
 
 export interface AttachmentRef {
-  id: string
-  name: string
-  mimeType: string
-  size: number
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
 }
 
 export interface AttachmentRecord extends AttachmentRef {
-  blob: Blob
-  createdAt: string
+  blob: Blob;
+  createdAt: string;
 }
 
 function isBrowser(): boolean {
-  return typeof window !== 'undefined' && typeof indexedDB !== 'undefined'
+  return typeof window !== "undefined" && typeof indexedDB !== "undefined";
 }
 
 function generateId(): string {
-  return `att-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  return `att-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (!isBrowser()) {
-      reject(new Error('IndexedDB unavailable (server-side)'))
-      return
+      reject(new Error("IndexedDB unavailable (server-side)"));
+      return;
     }
-    const req = indexedDB.open(DB_NAME, DB_VERSION)
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
-      const db = req.result
+      const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: 'id' })
+        db.createObjectStore(STORE, { keyPath: "id" });
       }
-    }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error ?? new Error('IDB open failed'))
-  })
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error ?? new Error("IDB open failed"));
+  });
 }
 
 async function withStore<T>(
   mode: IDBTransactionMode,
   fn: (store: IDBObjectStore) => IDBRequest<T> | Promise<T>,
 ): Promise<T> {
-  const db = await openDb()
+  const db = await openDb();
   return new Promise<T>((resolve, reject) => {
-    const tx = db.transaction(STORE, mode)
-    const store = tx.objectStore(STORE)
-    let result: T
-    let resolved = false
+    const tx = db.transaction(STORE, mode);
+    const store = tx.objectStore(STORE);
+    let result: T;
+    let resolved = false;
     Promise.resolve(fn(store))
       .then((r) => {
-        if (r && typeof r === 'object' && 'onsuccess' in r) {
-          const req = r as IDBRequest<T>
+        if (r && typeof r === "object" && "onsuccess" in r) {
+          const req = r as IDBRequest<T>;
           req.onsuccess = () => {
-            result = req.result
-            resolved = true
-          }
-          req.onerror = () => reject(req.error ?? new Error('IDB op failed'))
+            result = req.result;
+            resolved = true;
+          };
+          req.onerror = () => reject(req.error ?? new Error("IDB op failed"));
         } else {
-          result = r as T
-          resolved = true
+          result = r as T;
+          resolved = true;
         }
       })
-      .catch(reject)
+      .catch(reject);
     tx.oncomplete = () => {
-      if (resolved) resolve(result)
-      else reject(new Error('IDB tx completed without result'))
-      db.close()
-    }
-    tx.onerror = () => reject(tx.error ?? new Error('IDB tx failed'))
-    tx.onabort = () => reject(tx.error ?? new Error('IDB tx aborted'))
-  })
+      if (resolved) resolve(result);
+      else reject(new Error("IDB tx completed without result"));
+      db.close();
+    };
+    tx.onerror = () => reject(tx.error ?? new Error("IDB tx failed"));
+    tx.onabort = () => reject(tx.error ?? new Error("IDB tx aborted"));
+  });
 }
 
-export async function putAttachment(
-  data: { name: string; mimeType: string; size: number; blob: Blob },
-): Promise<AttachmentRef> {
+export async function putAttachment(data: {
+  name: string;
+  mimeType: string;
+  size: number;
+  blob: Blob;
+}): Promise<AttachmentRef> {
   const ref: AttachmentRef = {
     id: generateId(),
     name: data.name,
     mimeType: data.mimeType,
     size: data.size,
-  }
+  };
   const record: AttachmentRecord = {
     ...ref,
     blob: data.blob,
     createdAt: new Date().toISOString(),
-  }
-  await withStore('readwrite', (store) => store.put(record))
-  return ref
+  };
+  await withStore("readwrite", (store) => store.put(record));
+  return ref;
 }
 
-export async function getAttachment(id: string): Promise<AttachmentRecord | null> {
+export async function getAttachment(
+  id: string,
+): Promise<AttachmentRecord | null> {
   try {
-    const rec = await withStore<AttachmentRecord | undefined>('readonly', (store) => store.get(id))
-    return rec ?? null
+    const rec = await withStore<AttachmentRecord | undefined>(
+      "readonly",
+      (store) => store.get(id),
+    );
+    return rec ?? null;
   } catch {
-    return null
+    return null;
   }
 }
 
 export async function getAttachmentDataUrl(id: string): Promise<string | null> {
-  const rec = await getAttachment(id)
-  if (!rec) return null
-  return blobToDataUrl(rec.blob)
+  const rec = await getAttachment(id);
+  if (!rec) return null;
+  return blobToDataUrl(rec.blob);
 }
 
 export async function deleteAttachment(id: string): Promise<void> {
-  await withStore('readwrite', (store) => store.delete(id))
+  await withStore("readwrite", (store) => store.delete(id));
 }
 
 /**
@@ -138,40 +146,41 @@ export async function purgeOrphans(
   keepIds: Set<string>,
   options: { minAgeMs?: number } = {},
 ): Promise<void> {
-  if (!isBrowser()) return
-  const minAgeMs = options.minAgeMs ?? 5 * 60 * 1000
-  const cutoff = Date.now() - minAgeMs
-  const db = await openDb()
+  if (!isBrowser()) return;
+  const minAgeMs = options.minAgeMs ?? 5 * 60 * 1000;
+  const cutoff = Date.now() - minAgeMs;
+  const db = await openDb();
   await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite')
-    const store = tx.objectStore(STORE)
-    const req = store.openCursor()
+    const tx = db.transaction(STORE, "readwrite");
+    const store = tx.objectStore(STORE);
+    const req = store.openCursor();
     req.onsuccess = () => {
-      const cursor = req.result
-      if (!cursor) return
-      const rec = cursor.value as AttachmentRecord
+      const cursor = req.result;
+      if (!cursor) return;
+      const rec = cursor.value as AttachmentRecord;
       if (!keepIds.has(rec.id)) {
-        const createdMs = rec.createdAt ? Date.parse(rec.createdAt) : 0
+        const createdMs = rec.createdAt ? Date.parse(rec.createdAt) : 0;
         if (!Number.isFinite(createdMs) || createdMs < cutoff) {
-          cursor.delete()
+          cursor.delete();
         }
       }
-      cursor.continue()
-    }
-    req.onerror = () => reject(req.error ?? new Error('IDB cursor failed'))
+      cursor.continue();
+    };
+    req.onerror = () => reject(req.error ?? new Error("IDB cursor failed"));
     tx.oncomplete = () => {
-      db.close()
-      resolve()
-    }
-    tx.onerror = () => reject(tx.error ?? new Error('IDB purge tx failed'))
-  })
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => reject(tx.error ?? new Error("IDB purge tx failed"));
+  });
 }
 
 export function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'))
-    reader.readAsDataURL(blob)
-  })
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("FileReader failed"));
+    reader.readAsDataURL(blob);
+  });
 }

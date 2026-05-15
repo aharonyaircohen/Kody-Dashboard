@@ -87,7 +87,11 @@ export function parsePushManifestBody(
 
   try {
     const parsed = JSON.parse(json) as Partial<PushSubscriptionsManifest>;
-    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.subscriptions)) {
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      !Array.isArray(parsed.subscriptions)
+    ) {
       return { ...EMPTY_PUSH_MANIFEST, subscriptions: [] };
     }
     const subs: PushSubscriptionRecord[] = [];
@@ -98,7 +102,10 @@ export function parsePushManifestBody(
         keys: { p256dh: s.keys.p256dh, auth: s.keys.auth },
         label: typeof s.label === "string" ? s.label : undefined,
         userLogin: typeof s.userLogin === "string" ? s.userLogin : undefined,
-        createdAt: typeof s.createdAt === "string" ? s.createdAt : new Date().toISOString(),
+        createdAt:
+          typeof s.createdAt === "string"
+            ? s.createdAt
+            : new Date().toISOString(),
         lastSeenAt: typeof s.lastSeenAt === "string" ? s.lastSeenAt : undefined,
       });
     }

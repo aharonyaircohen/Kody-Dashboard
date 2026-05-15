@@ -8,38 +8,38 @@
  *   itself once any work has started (column !== 'open') so the same
  *   execution doesn't get fired twice.
  */
-'use client'
+"use client";
 
-import { useCallback, useState } from 'react'
-import { toast } from 'sonner'
-import { Loader2, Play } from 'lucide-react'
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
+import { Loader2, Play } from "lucide-react";
 
-import { vibeApi } from '../api'
-import type { KodyTask } from '../types'
+import { vibeApi } from "../api";
+import type { KodyTask } from "../types";
 
 interface VibeRunButtonProps {
-  task: KodyTask
+  task: KodyTask;
 }
 
 export function VibeRunButton({ task }: VibeRunButtonProps) {
-  const [running, setRunning] = useState(false)
+  const [running, setRunning] = useState(false);
 
   const handleClick = useCallback(async () => {
-    setRunning(true)
+    setRunning(true);
     try {
-      await vibeApi.execute(task.issueNumber)
-      toast.success(`Kody dispatched on #${task.issueNumber}`)
+      await vibeApi.execute(task.issueNumber);
+      toast.success(`Kody dispatched on #${task.issueNumber}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to run Kody')
+      toast.error(err instanceof Error ? err.message : "Failed to run Kody");
     } finally {
-      setRunning(false)
+      setRunning(false);
     }
-  }, [task.issueNumber])
+  }, [task.issueNumber]);
 
   // Once any lifecycle has started, the engine's run executable has set
   // a label that moves the task off `open`. Hide the button — repeat
   // execution would just stomp on an existing branch / PR.
-  if (task.column !== 'open') return null
+  if (task.column !== "open") return null;
 
   return (
     <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-fuchsia-500/30 bg-fuchsia-500/10 px-2 py-1.5">
@@ -59,8 +59,8 @@ export function VibeRunButton({ task }: VibeRunButtonProps) {
         ) : (
           <Play className="w-3 h-3" />
         )}
-        {running ? 'Dispatching…' : `Run Kody on #${task.issueNumber}`}
+        {running ? "Dispatching…" : `Run Kody on #${task.issueNumber}`}
       </button>
     </div>
-  )
+  );
 }

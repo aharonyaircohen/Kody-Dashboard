@@ -17,10 +17,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getUserOctokit,
+  getRequestAuth,
+} from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import { appendUserTurn } from "@dashboard/lib/interactive-session";
-import { applyVibePrimerToContent, type VibeTaskContext } from "@dashboard/lib/vibe/primer";
+import {
+  applyVibePrimerToContent,
+  type VibeTaskContext,
+} from "@dashboard/lib/vibe/primer";
 
 export const runtime = "nodejs";
 
@@ -57,7 +64,8 @@ export async function POST(req: NextRequest) {
   }
 
   const { taskId, content, timestamp, vibeMode, taskContext } = body;
-  if (!taskId) return NextResponse.json({ error: "taskId required" }, { status: 400 });
+  if (!taskId)
+    return NextResponse.json({ error: "taskId required" }, { status: 400 });
   if (!content || typeof content !== "string") {
     return NextResponse.json({ error: "content required" }, { status: 400 });
   }
@@ -65,7 +73,10 @@ export async function POST(req: NextRequest) {
   const { owner, repo } = getEngineRepo(req);
   const octokit = await getUserOctokit(req);
   if (!octokit) {
-    return NextResponse.json({ error: "No GitHub token available" }, { status: 503 });
+    return NextResponse.json(
+      { error: "No GitHub token available" },
+      { status: 503 },
+    );
   }
 
   // Vibe primer is server-only — the dashboard never shows it. The
@@ -83,7 +94,10 @@ export async function POST(req: NextRequest) {
       timestamp: turnTimestamp,
     });
 
-    logger.info({ taskId, turnCount: result.turnCount }, "interactive: appended user turn");
+    logger.info(
+      { taskId, turnCount: result.turnCount },
+      "interactive: appended user turn",
+    );
     return NextResponse.json({ ok: true, taskId, turnCount: result.turnCount });
   } catch (err) {
     logger.error({ err, taskId }, "interactive: append failed");

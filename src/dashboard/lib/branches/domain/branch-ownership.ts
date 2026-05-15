@@ -20,12 +20,15 @@
  *   branch carries the signature.
  */
 
-const MARKER_PATTERN = /^vibe:\s*start session for\s*#?(\d+)\s*$/im
+const MARKER_PATTERN = /^vibe:\s*start session for\s*#?(\d+)\s*$/im;
 
-export function isKodyMarkerCommit(message: string, issueNumber: number): boolean {
-  const match = message.match(MARKER_PATTERN)
-  if (!match) return false
-  return Number(match[1]) === issueNumber
+export function isKodyMarkerCommit(
+  message: string,
+  issueNumber: number,
+): boolean {
+  const match = message.match(MARKER_PATTERN);
+  if (!match) return false;
+  return Number(match[1]) === issueNumber;
 }
 
 /**
@@ -42,5 +45,5 @@ export function isKodyOwnedBranch(
   uniqueCommitMessages: readonly string[],
   issueNumber: number,
 ): boolean {
-  return uniqueCommitMessages.some((m) => isKodyMarkerCommit(m, issueNumber))
+  return uniqueCommitMessages.some((m) => isKodyMarkerCommit(m, issueNumber));
 }

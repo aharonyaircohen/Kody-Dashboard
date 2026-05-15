@@ -4,81 +4,88 @@
  * @pattern merge-button
  * @ai-summary Merge button that opens approval dialog with CI status and file changes
  */
-'use client'
+"use client";
 
-import React, { useState } from 'react'
-import { Button } from '@dashboard/ui/button'
-import { GitPullRequest, Loader2, CheckCircle2, XCircle, Clock, AlertTriangle } from 'lucide-react'
-import { usePRCIStatus } from '../hooks/usePRCIStatus'
-import { MergeApprovalDialog } from './MergeApprovalDialog'
-import { SimpleTooltip } from './SimpleTooltip'
-import { MergeTooltipContent } from './tooltip-content'
-import { cn } from '../utils'
-import { toast } from 'sonner'
+import React, { useState } from "react";
+import { Button } from "@dashboard/ui/button";
+import {
+  GitPullRequest,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertTriangle,
+} from "lucide-react";
+import { usePRCIStatus } from "../hooks/usePRCIStatus";
+import { MergeApprovalDialog } from "./MergeApprovalDialog";
+import { SimpleTooltip } from "./SimpleTooltip";
+import { MergeTooltipContent } from "./tooltip-content";
+import { cn } from "../utils";
+import { toast } from "sonner";
 
 interface MergeButtonProps {
-  prNumber: number
-  prTitle?: string
-  branchName?: string
-  isMerging: boolean
-  onMerge: () => Promise<void>
-  labels?: string[]
+  prNumber: number;
+  prTitle?: string;
+  branchName?: string;
+  isMerging: boolean;
+  onMerge: () => Promise<void>;
+  labels?: string[];
 }
 
 const ciIcons = {
-  pending: { icon: Clock, color: 'text-yellow-400', spin: false },
-  running: { icon: Loader2, color: 'text-blue-400', spin: true },
+  pending: { icon: Clock, color: "text-yellow-400", spin: false },
+  running: { icon: Loader2, color: "text-blue-400", spin: true },
   success: {
     icon: CheckCircle2,
-    color: 'text-emerald-400',
+    color: "text-emerald-400",
     spin: false,
   },
-  failure: { icon: XCircle, color: 'text-red-400', spin: false },
-} as const
+  failure: { icon: XCircle, color: "text-red-400", spin: false },
+} as const;
 
 export function MergeButton({
   prNumber,
-  prTitle = '',
+  prTitle = "",
   branchName,
   isMerging: externalIsMerging,
   onMerge,
   labels = [],
 }: MergeButtonProps) {
-  const [showDialog, setShowDialog] = useState(false)
-  const { data, isLoading, isError } = usePRCIStatus(prNumber)
+  const [showDialog, setShowDialog] = useState(false);
+  const { data, isLoading, isError } = usePRCIStatus(prNumber);
 
-  const isMerging = externalIsMerging
-  const ciStatus = isError ? 'failure' : (data?.ciStatus ?? 'pending')
-  const canMerge = data?.mergeable ?? false
-  const hasConflicts = data?.hasConflicts ?? false
-  const config = ciIcons[ciStatus]
+  const isMerging = externalIsMerging;
+  const ciStatus = isError ? "failure" : (data?.ciStatus ?? "pending");
+  const canMerge = data?.mergeable ?? false;
+  const hasConflicts = data?.hasConflicts ?? false;
+  const config = ciIcons[ciStatus];
   // Show warning triangle for conflicts instead of the CI status X icon
-  const CIIcon = hasConflicts ? AlertTriangle : config.icon
+  const CIIcon = hasConflicts ? AlertTriangle : config.icon;
 
   // Check approval status
-  const isUIApproved = labels.includes('ui-approved')
-  const isPRApproved = labels.includes('pr-approved')
-  const isApproved = isUIApproved && isPRApproved
+  const isUIApproved = labels.includes("ui-approved");
+  const isPRApproved = labels.includes("pr-approved");
+  const isApproved = isUIApproved && isPRApproved;
 
   const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!canMerge || isMerging || isLoading || !isApproved) return
-    setShowDialog(true)
-  }
+    e.stopPropagation();
+    if (!canMerge || isMerging || isLoading || !isApproved) return;
+    setShowDialog(true);
+  };
 
   // Prevent click from propagating to task row even when disabled
   const handleMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation()
-  }
+    e.stopPropagation();
+  };
 
   const handleMerged = async () => {
     try {
-      await onMerge()
+      await onMerge();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Merge failed'
-      toast.error(`Merge failed: ${msg}`)
+      const msg = error instanceof Error ? error.message : "Merge failed";
+      toast.error(`Merge failed: ${msg}`);
     }
-  }
+  };
 
   return (
     <>
@@ -103,10 +110,10 @@ export function MergeButton({
             onClick={handleClick}
             onMouseDown={handleMouseDown}
             className={cn(
-              'h-8 text-sm px-2.5 gap-1.5 border transition-all disabled:opacity-50',
+              "h-8 text-sm px-2.5 gap-1.5 border transition-all disabled:opacity-50",
               isApproved && canMerge
-                ? 'text-white bg-emerald-600 border-emerald-500 shadow-md shadow-emerald-500/30 hover:bg-emerald-500 hover:border-emerald-400 hover:shadow-emerald-500/50 active:scale-[0.97] cursor-pointer'
-                : 'text-muted-foreground bg-muted/30 border-transparent cursor-not-allowed',
+                ? "text-white bg-emerald-600 border-emerald-500 shadow-md shadow-emerald-500/30 hover:bg-emerald-500 hover:border-emerald-400 hover:shadow-emerald-500/50 active:scale-[0.97] cursor-pointer"
+                : "text-muted-foreground bg-muted/30 border-transparent cursor-not-allowed",
             )}
           >
             {isMerging ? (
@@ -115,9 +122,9 @@ export function MergeButton({
               <>
                 <CIIcon
                   className={cn(
-                    'w-3.5 h-3.5',
-                    hasConflicts ? 'text-orange-400' : config.color,
-                    config.spin && !hasConflicts && 'animate-spin',
+                    "w-3.5 h-3.5",
+                    hasConflicts ? "text-orange-400" : config.color,
+                    config.spin && !hasConflicts && "animate-spin",
                   )}
                 />
                 <GitPullRequest className="w-4 h-4" />
@@ -136,5 +143,5 @@ export function MergeButton({
         onMerged={handleMerged}
       />
     </>
-  )
+  );
 }

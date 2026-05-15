@@ -6,9 +6,14 @@
  *   All PRs (feature and publish) use standard squash merge.
  *   Uses per-user GitHub token when available for proper attribution.
  */
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { requireKodyAuth, verifyActorLogin, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import {
+  requireKodyAuth,
+  verifyActorLogin,
+  getUserOctokit,
+  getRequestAuth,
+} from "@dashboard/lib/auth";
 import {
   getOctokit,
   setGitHubContext,
@@ -18,22 +23,22 @@ import {
   updateIssue,
   invalidateIssueCache,
   invalidateTaskCache,
-} from '@dashboard/lib/github-client'
-import { isProtectedBranch } from '@dashboard/lib/branches'
+} from "@dashboard/lib/github-client";
+import { isProtectedBranch } from "@dashboard/lib/branches";
 
 // Release-flow markers (dev → main is the publish PR). These are NOT the
 // same as the protected-from-deletion list — keep separate from
 // `isProtectedBranch` so the two concerns stay decoupled.
-const DEV_BRANCH = 'dev'
-const PROD_BRANCH = 'main'
+const DEV_BRANCH = "dev";
+const PROD_BRANCH = "main";
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireKodyAuth(req)
-  if (authResult instanceof NextResponse) return authResult
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
 
-  const headerAuth = getRequestAuth(req)
+  const headerAuth = getRequestAuth(req);
   if (headerAuth) {
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
   }
 
   // Zod validation schema
@@ -41,33 +46,34 @@ export async function POST(req: NextRequest) {
     prNumber: z.number().int().positive(),
     actorLogin: z.string().optional(),
     issueNumber: z.number().int().positive().optional(),
-  })
+  });
 
   try {
-    const body = await req.json()
-    const validated = bodySchema.parse(body)
-    const { prNumber, actorLogin, issueNumber } = validated
+    const body = await req.json();
+    const validated = bodySchema.parse(body);
+    const { prNumber, actorLogin, issueNumber } = validated;
 
     // Verify actorLogin matches the authenticated session (prevents impersonation)
-    const actorResult = await verifyActorLogin(req, actorLogin)
-    if (actorResult instanceof NextResponse) return actorResult
-    const { identity } = actorResult
+    const actorResult = await verifyActorLogin(req, actorLogin);
+    if (actorResult instanceof NextResponse) return actorResult;
+    const { identity } = actorResult;
 
-    const verifiedLogin = identity.login
+    const verifiedLogin = identity.login;
 
     // Use user's Octokit for proper attribution (reviews, merges appear under user's identity)
-    const userOctokit = await getUserOctokit(req)
-    const octokit = userOctokit ?? getOctokit()
-    const results: string[] = []
+    const userOctokit = await getUserOctokit(req);
+    const octokit = userOctokit ?? getOctokit();
+    const results: string[] = [];
 
     // Fetch PR data once, reuse throughout
     const { data: prData } = await octokit.pulls.get({
       owner: getOwner(),
       repo: getRepo(),
       pull_number: Number(prNumber),
-    })
+    });
 
-    const isPublishPR = prData.head.ref === DEV_BRANCH && prData.base.ref === PROD_BRANCH
+    const isPublishPR =
+      prData.head.ref === DEV_BRANCH && prData.base.ref === PROD_BRANCH;
 
     // 1. Approve the PR review
     try {
@@ -75,55 +81,55 @@ export async function POST(req: NextRequest) {
         owner: getOwner(),
         repo: getRepo(),
         pull_number: Number(prNumber),
-        event: 'APPROVE',
+        event: "APPROVE",
         body: `✅ Approved by @${verifiedLogin} via Kody dashboard.`,
-      })
-      results.push(`Approved PR #${prNumber}`)
+      });
+      results.push(`Approved PR #${prNumber}`);
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error)
-      results.push(`Review note: ${msg}`)
+      const msg = error instanceof Error ? error.message : String(error);
+      results.push(`Review note: ${msg}`);
     }
 
     // 2. Merge the PR (squash merge for all PRs)
     try {
-      const mergeMethod = isPublishPR ? 'merge' : 'squash'
+      const mergeMethod = isPublishPR ? "merge" : "squash";
       await octokit.pulls.merge({
         owner: getOwner(),
         repo: getRepo(),
         pull_number: Number(prNumber),
         merge_method: mergeMethod,
-      })
-      results.push(`Merged PR #${prNumber} (${mergeMethod})`)
+      });
+      results.push(`Merged PR #${prNumber} (${mergeMethod})`);
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error)
-      if (msg.includes('not mergeable') || msg.includes('405')) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes("not mergeable") || msg.includes("405")) {
         return NextResponse.json(
           {
             error:
-              'PR is not mergeable — CI may still be running, checks have failed, or there are merge conflicts',
+              "PR is not mergeable — CI may still be running, checks have failed, or there are merge conflicts",
             results,
           },
           { status: 409 },
-        )
+        );
       }
-      throw error
+      throw error;
     }
 
     // 3. Delete the branch (only for feature branches, not dev or main)
     if (!isPublishPR) {
       try {
-        const branchRef = prData.head.ref
+        const branchRef = prData.head.ref;
         if (!isProtectedBranch(branchRef)) {
           await octokit.git.deleteRef({
             owner: getOwner(),
             repo: getRepo(),
             ref: `heads/${branchRef}`,
-          })
-          results.push(`Deleted branch ${branchRef}`)
+          });
+          results.push(`Deleted branch ${branchRef}`);
         }
       } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error)
-        results.push(`Branch cleanup note: ${msg}`)
+        const msg = error instanceof Error ? error.message : String(error);
+        results.push(`Branch cleanup note: ${msg}`);
       }
     }
 
@@ -132,51 +138,57 @@ export async function POST(req: NextRequest) {
     //    state is deterministic and the user returns to a clean dashboard).
     if (issueNumber) {
       try {
-        await updateIssue(issueNumber, { state: 'closed' }, userOctokit ?? undefined)
-        invalidateIssueCache(issueNumber)
-        invalidateTaskCache()
-        results.push(`Closed issue #${issueNumber}`)
+        await updateIssue(
+          issueNumber,
+          { state: "closed" },
+          userOctokit ?? undefined,
+        );
+        invalidateIssueCache(issueNumber);
+        invalidateTaskCache();
+        results.push(`Closed issue #${issueNumber}`);
       } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error)
-        results.push(`Issue close note: ${msg}`)
+        const msg = error instanceof Error ? error.message : String(error);
+        results.push(`Issue close note: ${msg}`);
       }
     }
 
-    return NextResponse.json({ success: true, results })
+    return NextResponse.json({ success: true, results });
   } catch (error: unknown) {
     // Handle ZodError specifically
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Validation error', details: error.issues },
+        { error: "Validation error", details: error.issues },
         { status: 400 },
-      )
+      );
     }
 
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error('[Kody] Merge error:', msg)
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[Kody] Merge error:", msg);
 
     // Capture to Sentry
-    const Sentry = await import('@sentry/nextjs')
-    Sentry.captureException(error, { tags: { route: '/api/kody/tasks/approve-review' } })
+    const Sentry = await import("@sentry/nextjs");
+    Sentry.captureException(error, {
+      tags: { route: "/api/kody/tasks/approve-review" },
+    });
 
     // User's GitHub token expired/revoked
     if (
-      typeof error === 'object' &&
+      typeof error === "object" &&
       error !== null &&
-      'status' in error &&
+      "status" in error &&
       (error as { status?: number }).status === 401
     ) {
       return NextResponse.json(
         {
-          error: 'github_token_expired',
-          message: 'Your GitHub token has expired. Please log in again.',
+          error: "github_token_expired",
+          message: "Your GitHub token has expired. Please log in again.",
         },
         { status: 401 },
-      )
+      );
     }
 
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return NextResponse.json({ error: msg }, { status: 500 });
   } finally {
-    clearGitHubContext()
+    clearGitHubContext();
   }
 }

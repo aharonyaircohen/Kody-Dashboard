@@ -8,7 +8,11 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireKodyAuth, getRequestAuth, getUserOctokit } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getRequestAuth,
+  getUserOctokit,
+} from "@dashboard/lib/auth";
 import { deleteEntry, markEntryRead } from "@dashboard/lib/inbox/gist-store";
 
 const patchSchema = z.object({

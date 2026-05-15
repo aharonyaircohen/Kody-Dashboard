@@ -6,12 +6,12 @@
  *   Goals are JSON entries stored inside a manifest GitHub issue labelled
  *   `kody:goals-manifest`. Task linkage (via `goal:<slug>` labels) is a later phase.
  */
-'use client'
+"use client";
 
-import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Calendar,
@@ -26,7 +26,7 @@ import {
   Search,
   Sparkles,
   Trash2,
-} from 'lucide-react'
+} from "lucide-react";
 import {
   DndContext,
   type DragEndEvent,
@@ -36,101 +36,115 @@ import {
   closestCenter,
   useSensor,
   useSensors,
-} from '@dnd-kit/core'
+} from "@dnd-kit/core";
 import {
   SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import ReactMarkdown from 'react-markdown'
-import { useQueryClient } from '@tanstack/react-query'
-import { Button } from '@dashboard/ui/button'
-import { Input } from '@dashboard/ui/input'
-import { Label } from '@dashboard/ui/label'
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import ReactMarkdown from "react-markdown";
+import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@dashboard/ui/button";
+import { Input } from "@dashboard/ui/input";
+import { Label } from "@dashboard/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@dashboard/ui/dialog'
-import { AuthGuard } from '../auth-guard'
-import { cn } from '../utils'
+} from "@dashboard/ui/dialog";
+import { AuthGuard } from "../auth-guard";
+import { cn } from "../utils";
 import {
   useCreateGoal,
   useDeleteGoal,
   useGoals,
   useReorderGoals,
   useUpdateGoal,
-} from '../hooks/useGoals'
-import { useKodyTasks } from '../hooks'
-import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
-import { tasksApi, type Goal } from '../api'
-import type { KodyTask } from '../types'
-import { GOAL_LABEL_PREFIX } from '../goals'
-import { getGitHubIssueUrl } from '../constants'
-import { ConfirmDialog } from './ConfirmDialog'
-import { MarkdownEditor } from './MarkdownEditor'
-import { TaskList } from './TaskList'
-import { GoalDiscussion } from './GoalDiscussion'
-import { GoalAssigneePicker } from './GoalAssigneePicker'
-import { KodyChat } from './KodyChat'
+} from "../hooks/useGoals";
+import { useKodyTasks } from "../hooks";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { tasksApi, type Goal } from "../api";
+import type { KodyTask } from "../types";
+import { GOAL_LABEL_PREFIX } from "../goals";
+import { getGitHubIssueUrl } from "../constants";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { MarkdownEditor } from "./MarkdownEditor";
+import { TaskList } from "./TaskList";
+import { GoalDiscussion } from "./GoalDiscussion";
+import { GoalAssigneePicker } from "./GoalAssigneePicker";
+import { KodyChat } from "./KodyChat";
 
 interface GoalProgress {
-  total: number
-  done: number
-  tasks: KodyTask[]
+  total: number;
+  done: number;
+  tasks: KodyTask[];
 }
 
 function computeProgress(tasks: KodyTask[]): GoalProgress {
-  const done = tasks.filter((t) => t.state === 'closed' || t.column === 'done').length
-  return { total: tasks.length, done, tasks }
+  const done = tasks.filter(
+    (t) => t.state === "closed" || t.column === "done",
+  ).length;
+  return { total: tasks.length, done, tasks };
 }
 
-export function GoalControl({ titleSlot }: { titleSlot?: React.ReactNode } = {}) {
+export function GoalControl({
+  titleSlot,
+}: { titleSlot?: React.ReactNode } = {}) {
   return (
     <AuthGuard>
       <GoalControlInner titleSlot={titleSlot} />
     </AuthGuard>
-  )
+  );
 }
 
-export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode }) {
-  const { data: goals = [], isLoading, isFetching, refetch, error } = useGoals()
-  const { data: tasks = [] } = useKodyTasks()
+export function GoalControlInner({
+  titleSlot,
+}: {
+  titleSlot?: React.ReactNode;
+}) {
+  const {
+    data: goals = [],
+    isLoading,
+    isFetching,
+    refetch,
+    error,
+  } = useGoals();
+  const { data: tasks = [] } = useKodyTasks();
 
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
-  const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<Goal | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Goal | null>(null);
 
   const selectedGoal = useMemo(
     () => goals.find((g) => g.id === selectedId) ?? null,
     [goals, selectedId],
-  )
+  );
 
   const progressByGoal = useMemo(() => {
-    const map = new Map<string, GoalProgress>()
+    const map = new Map<string, GoalProgress>();
     for (const goal of goals) {
-      const label = `${GOAL_LABEL_PREFIX}${goal.id}`
-      const attached = tasks.filter((t) => t.labels.includes(label))
-      map.set(goal.id, computeProgress(attached))
+      const label = `${GOAL_LABEL_PREFIX}${goal.id}`;
+      const attached = tasks.filter((t) => t.labels.includes(label));
+      map.set(goal.id, computeProgress(attached));
     }
-    return map
-  }, [goals, tasks])
+    return map;
+  }, [goals, tasks]);
 
   useEffect(() => {
     if (!selectedId && goals.length > 0) {
-      setSelectedId(goals[0].id)
+      setSelectedId(goals[0].id);
     }
-  }, [goals, selectedId])
+  }, [goals, selectedId]);
 
-  const { githubUser } = useGitHubIdentity()
-  const deleteMutation = useDeleteGoal(githubUser?.login)
-  const reorderMutation = useReorderGoals(githubUser?.login)
+  const { githubUser } = useGitHubIdentity();
+  const deleteMutation = useDeleteGoal(githubUser?.login);
+  const reorderMutation = useReorderGoals(githubUser?.login);
 
   const sensors = useSensors(
     // Pointer (mouse): require small movement so a click still selects.
@@ -142,17 +156,17 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
-  )
+  );
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIndex = goals.findIndex((g) => g.id === active.id)
-    const newIndex = goals.findIndex((g) => g.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-    const next = arrayMove(goals, oldIndex, newIndex)
-    reorderMutation.mutate(next.map((g) => g.id))
-  }
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = goals.findIndex((g) => g.id === active.id);
+    const newIndex = goals.findIndex((g) => g.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const next = arrayMove(goals, oldIndex, newIndex);
+    reorderMutation.mutate(next.map((g) => g.id));
+  };
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
@@ -174,7 +188,7 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
             </h1>
           )}
           <span className="hidden md:inline text-xs text-muted-foreground">
-            {goals.length} {goals.length === 1 ? 'goal' : 'goals'}
+            {goals.length} {goals.length === 1 ? "goal" : "goals"}
           </span>
         </div>
 
@@ -186,9 +200,15 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
             disabled={isFetching}
             aria-label="Refresh goals"
           >
-            <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
+            <RefreshCw
+              className={cn("w-4 h-4", isFetching && "animate-spin")}
+            />
           </Button>
-          <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
+          <Button
+            size="sm"
+            onClick={() => setShowCreate(true)}
+            className="gap-1"
+          >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">New goal</span>
           </Button>
@@ -204,8 +224,8 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
       <div className="flex-1 min-h-0 flex">
         <aside
           className={cn(
-            'w-full md:w-80 md:border-r md:border-border overflow-y-auto',
-            selectedGoal && 'hidden md:block',
+            "w-full md:w-80 md:border-r md:border-border overflow-y-auto",
+            selectedGoal && "hidden md:block",
           )}
         >
           {isLoading ? (
@@ -232,7 +252,7 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
                       total: 0,
                       done: 0,
                       tasks: [],
-                    }
+                    };
                     return (
                       <SortableGoalItem
                         key={goal.id}
@@ -241,7 +261,7 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
                         selected={selectedId === goal.id}
                         onSelect={() => setSelectedId(goal.id)}
                       />
-                    )
+                    );
                   })}
                 </ul>
               </SortableContext>
@@ -251,8 +271,8 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
 
         <section
           className={cn(
-            'flex-1 min-w-0 overflow-y-auto',
-            !selectedGoal && 'hidden md:block',
+            "flex-1 min-w-0 overflow-y-auto",
+            !selectedGoal && "hidden md:block",
           )}
         >
           {selectedGoal ? (
@@ -284,8 +304,8 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
         open={showCreate}
         onClose={() => setShowCreate(false)}
         onCreated={(goal) => {
-          setSelectedId(goal.id)
-          setShowCreate(false)
+          setSelectedId(goal.id);
+          setShowCreate(false);
         }}
       />
 
@@ -303,23 +323,23 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
         description={
           pendingDelete
             ? `Goal "${pendingDelete.name}" will be removed from the manifest. Tasks labelled with this goal keep their labels (you can clean them up on GitHub).`
-            : ''
+            : ""
         }
         variant="destructive"
         confirmLabel="Remove goal"
         onConfirm={() => {
-          if (!pendingDelete) return
-          const target = pendingDelete
+          if (!pendingDelete) return;
+          const target = pendingDelete;
           deleteMutation.mutate(target.id, {
             onSuccess: () => {
-              if (selectedId === target.id) setSelectedId(null)
+              if (selectedId === target.id) setSelectedId(null);
             },
-          })
+          });
         }}
         onClose={() => setPendingDelete(null)}
       />
     </div>
-  )
+  );
 }
 
 function GoalDetail({
@@ -330,30 +350,30 @@ function GoalDetail({
   onEdit,
   onDelete,
 }: {
-  goal: Goal
-  allTasks: KodyTask[]
-  progress: GoalProgress
-  onBack: () => void
-  onEdit: () => void
-  onDelete: () => void
+  goal: Goal;
+  allTasks: KodyTask[];
+  progress: GoalProgress;
+  onBack: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
-  const router = useRouter()
-  const queryClient = useQueryClient()
-  const [showAttach, setShowAttach] = useState(false)
-  const [showPlanner, setShowPlanner] = useState(false)
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [showAttach, setShowAttach] = useState(false);
+  const [showPlanner, setShowPlanner] = useState(false);
   // Stable session id per "Plan this goal" launch — KodyChat keys its
   // ephemeral planner messages on this. New id each open = fresh thread.
-  const [plannerSessionId, setPlannerSessionId] = useState<string | null>(null)
-  const { githubUser } = useGitHubIdentity()
-  const assigneeMutation = useUpdateGoal(goal.id, githubUser?.login)
-  const pct = progress.total > 0 ? (progress.done / progress.total) * 100 : 0
+  const [plannerSessionId, setPlannerSessionId] = useState<string | null>(null);
+  const { githubUser } = useGitHubIdentity();
+  const assigneeMutation = useUpdateGoal(goal.id, githubUser?.login);
+  const pct = progress.total > 0 ? (progress.done / progress.total) * 100 : 0;
   const inProgressTasks = progress.tasks.filter(
-    (t) => !(t.state === 'closed' || t.column === 'done'),
-  )
+    (t) => !(t.state === "closed" || t.column === "done"),
+  );
   const doneTasks = progress.tasks.filter(
-    (t) => t.state === 'closed' || t.column === 'done',
-  )
-  const attachedIds = new Set(progress.tasks.map((t) => t.issueNumber))
+    (t) => t.state === "closed" || t.column === "done",
+  );
+  const attachedIds = new Set(progress.tasks.map((t) => t.issueNumber));
 
   return (
     <article className="min-h-full">
@@ -381,7 +401,9 @@ function GoalDetail({
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span className="font-mono opacity-80">{goal.id}</span>
                 <span>·</span>
-                <span>created {new Date(goal.createdAt).toLocaleDateString()}</span>
+                <span>
+                  created {new Date(goal.createdAt).toLocaleDateString()}
+                </span>
                 {goal.dueDate ? (
                   <>
                     <span>·</span>
@@ -403,7 +425,12 @@ function GoalDetail({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="sm" onClick={onEdit} className="gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onEdit}
+                className="gap-1.5"
+              >
                 <Pencil className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Edit</span>
               </Button>
@@ -488,11 +515,11 @@ function GoalDetail({
               variant="outline"
               onClick={() => {
                 setPlannerSessionId(
-                  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                  typeof crypto !== "undefined" && "randomUUID" in crypto
                     ? crypto.randomUUID()
                     : `planner-${Date.now()}`,
-                )
-                setShowPlanner(true)
+                );
+                setShowPlanner(true);
               }}
               className="gap-1.5"
               title="Open the planner chat: it proposes tasks from this goal's description and creates them on approval."
@@ -500,7 +527,11 @@ function GoalDetail({
               <Sparkles className="w-3.5 h-3.5 text-sky-400" />
               Plan with chat
             </Button>
-            <Button size="sm" onClick={() => setShowAttach(true)} className="gap-1.5">
+            <Button
+              size="sm"
+              onClick={() => setShowAttach(true)}
+              className="gap-1.5"
+            >
               <Plus className="w-3.5 h-3.5" />
               Attach tasks
             </Button>
@@ -517,7 +548,10 @@ function GoalDetail({
                 No tasks attached yet
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                Use <span className="font-medium text-foreground">Attach tasks</span>{' '}
+                Use{" "}
+                <span className="font-medium text-foreground">
+                  Attach tasks
+                </span>{" "}
                 to link open issues to this goal and start tracking progress.
               </p>
             </div>
@@ -552,7 +586,7 @@ function GoalDetail({
         open={showAttach}
         goal={goal}
         availableTasks={allTasks.filter(
-          (t) => !attachedIds.has(t.issueNumber) && t.state === 'open',
+          (t) => !attachedIds.has(t.issueNumber) && t.state === "open",
         )}
         onClose={() => setShowAttach(false)}
       />
@@ -560,7 +594,7 @@ function GoalDetail({
       <PlanGoalDialog
         open={showPlanner && plannerSessionId != null}
         goal={goal}
-        sessionId={plannerSessionId ?? ''}
+        sessionId={plannerSessionId ?? ""}
         existingTasks={progress.tasks.map((t) => ({
           number: t.issueNumber,
           title: t.title,
@@ -571,13 +605,13 @@ function GoalDetail({
           // Refresh task list + goals on every successful planner turn —
           // Pass 2 typically issues several `create_task_for_goal` calls in
           // one round, so a single invalidation per stream is enough.
-          queryClient.invalidateQueries({ queryKey: ['kody-tasks'] })
-          queryClient.invalidateQueries({ queryKey: ['goals'] })
+          queryClient.invalidateQueries({ queryKey: ["kody-tasks"] });
+          queryClient.invalidateQueries({ queryKey: ["goals"] });
         }}
         onClose={() => setShowPlanner(false)}
       />
     </article>
-  )
+  );
 }
 
 export function PlanGoalDialog({
@@ -589,13 +623,13 @@ export function PlanGoalDialog({
   onTasksCreated,
   onClose,
 }: {
-  open: boolean
-  goal: Goal
-  sessionId: string
-  existingTasks: Array<{ number: number; title: string; state?: string }>
-  actorLogin: string | null
-  onTasksCreated: () => void
-  onClose: () => void
+  open: boolean;
+  goal: Goal;
+  sessionId: string;
+  existingTasks: Array<{ number: number; title: string; state?: string }>;
+  actorLogin: string | null;
+  onTasksCreated: () => void;
+  onClose: () => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
@@ -606,15 +640,15 @@ export function PlanGoalDialog({
             Plan tasks for &ldquo;{goal.name}&rdquo;
           </DialogTitle>
           <DialogDescription>
-            Pass 1: I propose a task list from the goal description.
-            Pass 2 (after you approve): I deepen each spec from the codebase
-            and open the issues attached to this goal.
+            Pass 1: I propose a task list from the goal description. Pass 2
+            (after you approve): I deepen each spec from the codebase and open
+            the issues attached to this goal.
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 min-h-0">
           <KodyChat
             context={{
-              kind: 'goal-planner',
+              kind: "goal-planner",
               goal,
               sessionId,
               existingTasks,
@@ -625,7 +659,7 @@ export function PlanGoalDialog({
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 function TaskSection({
@@ -634,10 +668,10 @@ function TaskSection({
   tasks,
   onTaskSelect,
 }: {
-  heading: string
-  count: number
-  tasks: KodyTask[]
-  onTaskSelect: (task: KodyTask | null) => void
+  heading: string;
+  count: number;
+  tasks: KodyTask[];
+  onTaskSelect: (task: KodyTask | null) => void;
 }) {
   return (
     <section className="space-y-2">
@@ -649,7 +683,7 @@ function TaskSection({
         <TaskList tasks={tasks} onTaskSelect={onTaskSelect} />
       </div>
     </section>
-  )
+  );
 }
 
 export function AttachTasksDialog({
@@ -658,66 +692,67 @@ export function AttachTasksDialog({
   availableTasks,
   onClose,
 }: {
-  open: boolean
-  goal: Goal
-  availableTasks: KodyTask[]
-  onClose: () => void
+  open: boolean;
+  goal: Goal;
+  availableTasks: KodyTask[];
+  onClose: () => void;
 }) {
-  const queryClient = useQueryClient()
-  const { githubUser } = useGitHubIdentity()
-  const [query, setQuery] = useState('')
-  const [selected, setSelected] = useState<Set<number>>(new Set())
-  const [pending, setPending] = useState(false)
+  const queryClient = useQueryClient();
+  const { githubUser } = useGitHubIdentity();
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setQuery('')
-      setSelected(new Set())
+      setQuery("");
+      setSelected(new Set());
     }
-  }, [open])
+  }, [open]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return availableTasks
+    const q = query.trim().toLowerCase();
+    if (!q) return availableTasks;
     return availableTasks.filter(
       (t) =>
-        t.title.toLowerCase().includes(q) ||
-        String(t.issueNumber).includes(q),
-    )
-  }, [availableTasks, query])
+        t.title.toLowerCase().includes(q) || String(t.issueNumber).includes(q),
+    );
+  }, [availableTasks, query]);
 
   const toggle = (issueNumber: number) => {
     setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(issueNumber)) next.delete(issueNumber)
-      else next.add(issueNumber)
-      return next
-    })
-  }
+      const next = new Set(prev);
+      if (next.has(issueNumber)) next.delete(issueNumber);
+      else next.add(issueNumber);
+      return next;
+    });
+  };
 
   const handleSubmit = async () => {
-    if (selected.size === 0 || pending) return
-    setPending(true)
-    const label = `${GOAL_LABEL_PREFIX}${goal.id}`
-    const ids = Array.from(selected)
+    if (selected.size === 0 || pending) return;
+    setPending(true);
+    const label = `${GOAL_LABEL_PREFIX}${goal.id}`;
+    const ids = Array.from(selected);
     const results = await Promise.allSettled(
       ids.map((issueNumber) =>
         tasksApi.addLabel(issueNumber, label, githubUser?.login),
       ),
-    )
-    const ok = results.filter((r) => r.status === 'fulfilled').length
-    const failed = results.length - ok
-    setPending(false)
+    );
+    const ok = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - ok;
+    setPending(false);
 
     if (ok > 0) {
-      queryClient.invalidateQueries({ queryKey: ['kody-tasks'] })
-      toast.success(`Attached ${ok} ${ok === 1 ? 'task' : 'tasks'} to ${goal.name}`)
+      queryClient.invalidateQueries({ queryKey: ["kody-tasks"] });
+      toast.success(
+        `Attached ${ok} ${ok === 1 ? "task" : "tasks"} to ${goal.name}`,
+      );
     }
     if (failed > 0) {
-      toast.error(`${failed} ${failed === 1 ? 'attach' : 'attaches'} failed`)
+      toast.error(`${failed} ${failed === 1 ? "attach" : "attaches"} failed`);
     }
-    if (failed === 0) onClose()
-  }
+    if (failed === 0) onClose();
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
@@ -725,9 +760,10 @@ export function AttachTasksDialog({
         <DialogHeader>
           <DialogTitle>Attach tasks to {goal.name}</DialogTitle>
           <DialogDescription>
-            Selected tasks get the <code className="font-mono text-xs">
+            Selected tasks get the{" "}
+            <code className="font-mono text-xs">
               {`${GOAL_LABEL_PREFIX}${goal.id}`}
-            </code>{' '}
+            </code>{" "}
             label so they show up under this goal.
           </DialogDescription>
         </DialogHeader>
@@ -746,20 +782,20 @@ export function AttachTasksDialog({
           {filtered.length === 0 ? (
             <div className="px-3 py-6 text-center text-xs text-muted-foreground">
               {availableTasks.length === 0
-                ? 'No unattached open tasks.'
-                : 'No tasks match that search.'}
+                ? "No unattached open tasks."
+                : "No tasks match that search."}
             </div>
           ) : (
             filtered.map((task) => {
-              const isSelected = selected.has(task.issueNumber)
+              const isSelected = selected.has(task.issueNumber);
               return (
                 <button
                   key={task.issueNumber}
                   type="button"
                   onClick={() => toggle(task.issueNumber)}
                   className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-accent/30 transition-colors',
-                    isSelected && 'bg-sky-500/10',
+                    "w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-accent/30 transition-colors",
+                    isSelected && "bg-sky-500/10",
                   )}
                 >
                   <input
@@ -773,7 +809,7 @@ export function AttachTasksDialog({
                   </span>
                   <span className="text-sm truncate flex-1">{task.title}</span>
                 </button>
-              )
+              );
             })
           )}
         </div>
@@ -783,7 +819,12 @@ export function AttachTasksDialog({
             {selected.size} selected
           </span>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onClose} disabled={pending}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              disabled={pending}
+            >
               Cancel
             </Button>
             <Button
@@ -792,23 +833,17 @@ export function AttachTasksDialog({
               disabled={selected.size === 0 || pending}
             >
               {pending
-                ? 'Attaching…'
-                : `Attach ${selected.size || ''} ${selected.size === 1 ? 'task' : 'tasks'}`.trim()}
+                ? "Attaching…"
+                : `Attach ${selected.size || ""} ${selected.size === 1 ? "task" : "tasks"}`.trim()}
             </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
-function TaskGroup({
-  heading,
-  tasks,
-}: {
-  heading: string
-  tasks: KodyTask[]
-}) {
+function TaskGroup({ heading, tasks }: { heading: string; tasks: KodyTask[] }) {
   return (
     <div className="space-y-1.5">
       <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -816,7 +851,7 @@ function TaskGroup({
       </div>
       <ul className="divide-y divide-white/[0.04] rounded-lg border border-white/[0.06] bg-white/[0.02]">
         {tasks.map((task) => {
-          const isDone = task.state === 'closed' || task.column === 'done'
+          const isDone = task.state === "closed" || task.column === "done";
           return (
             <li
               key={task.issueNumber}
@@ -847,11 +882,11 @@ function TaskGroup({
                 <ExternalLink className="w-3 h-3" />
               </a>
             </li>
-          )
+          );
         })}
       </ul>
     </div>
-  )
+  );
 }
 
 export function CreateGoalDialog({
@@ -860,31 +895,31 @@ export function CreateGoalDialog({
   onCreated,
   initial,
 }: {
-  open: boolean
-  onClose: () => void
-  onCreated: (goal: Goal) => void
+  open: boolean;
+  onClose: () => void;
+  onCreated: (goal: Goal) => void;
   /** Optional pre-fill for callers that seed the dialog from another resource (e.g. a report). */
-  initial?: { name?: string; description?: string; dueDate?: string }
+  initial?: { name?: string; description?: string; dueDate?: string };
 }) {
-  const { githubUser } = useGitHubIdentity()
-  const createMutation = useCreateGoal(githubUser?.login)
+  const { githubUser } = useGitHubIdentity();
+  const createMutation = useCreateGoal(githubUser?.login);
 
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [dueDate, setDueDate] = useState('')
-  const [assignee, setAssignee] = useState<string | null>(null)
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [assignee, setAssignee] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      setName(initial?.name ?? '')
-      setDescription(initial?.description ?? '')
-      setDueDate(initial?.dueDate ?? '')
-      setAssignee(null)
+      setName(initial?.name ?? "");
+      setDescription(initial?.description ?? "");
+      setDueDate(initial?.dueDate ?? "");
+      setAssignee(null);
     }
-  }, [open, initial?.name, initial?.description, initial?.dueDate])
+  }, [open, initial?.name, initial?.description, initial?.dueDate]);
 
   const handleSubmit = () => {
-    if (!name.trim() || createMutation.isPending) return
+    if (!name.trim() || createMutation.isPending) return;
     createMutation.mutate(
       {
         name: name.trim(),
@@ -895,8 +930,8 @@ export function CreateGoalDialog({
       {
         onSuccess: (goal) => onCreated(goal),
       },
-    )
-  }
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
@@ -904,7 +939,8 @@ export function CreateGoalDialog({
         <DialogHeader>
           <DialogTitle>New goal</DialogTitle>
           <DialogDescription>
-            Describe the outcome. Tasks can later be attached to this goal via a label.
+            Describe the outcome. Tasks can later be attached to this goal via a
+            label.
           </DialogDescription>
         </DialogHeader>
 
@@ -934,7 +970,11 @@ export function CreateGoalDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Description (optional)</Label>
-            <MarkdownEditor value={description} onChange={setDescription} rows={10} />
+            <MarkdownEditor
+              value={description}
+              onChange={setDescription}
+              rows={10}
+            />
           </div>
         </div>
 
@@ -947,12 +987,12 @@ export function CreateGoalDialog({
             onClick={handleSubmit}
             disabled={!name.trim() || createMutation.isPending}
           >
-            {createMutation.isPending ? 'Creating…' : 'Create goal'}
+            {createMutation.isPending ? "Creating…" : "Create goal"}
           </Button>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 export function EditGoalDialog({
@@ -960,49 +1000,51 @@ export function EditGoalDialog({
   onClose,
   onSaved,
 }: {
-  goal: Goal
-  onClose: () => void
-  onSaved: () => void
+  goal: Goal;
+  onClose: () => void;
+  onSaved: () => void;
 }) {
-  const { githubUser } = useGitHubIdentity()
-  const updateMutation = useUpdateGoal(goal.id, githubUser?.login)
+  const { githubUser } = useGitHubIdentity();
+  const updateMutation = useUpdateGoal(goal.id, githubUser?.login);
 
-  const [name, setName] = useState(goal.name)
-  const [description, setDescription] = useState(goal.description ?? '')
-  const [dueDate, setDueDate] = useState(goal.dueDate ?? '')
-  const [assignee, setAssignee] = useState<string | null>(goal.assignee ?? null)
+  const [name, setName] = useState(goal.name);
+  const [description, setDescription] = useState(goal.description ?? "");
+  const [dueDate, setDueDate] = useState(goal.dueDate ?? "");
+  const [assignee, setAssignee] = useState<string | null>(
+    goal.assignee ?? null,
+  );
 
   useEffect(() => {
-    setName(goal.name)
-    setDescription(goal.description ?? '')
-    setDueDate(goal.dueDate ?? '')
-    setAssignee(goal.assignee ?? null)
-  }, [goal])
+    setName(goal.name);
+    setDescription(goal.description ?? "");
+    setDueDate(goal.dueDate ?? "");
+    setAssignee(goal.assignee ?? null);
+  }, [goal]);
 
   const handleSubmit = () => {
-    if (!name.trim() || updateMutation.isPending) return
+    if (!name.trim() || updateMutation.isPending) return;
     const patch: {
-      name?: string
-      description?: string | null
-      dueDate?: string | null
-      assignee?: string | null
-    } = {}
-    if (name.trim() !== goal.name) patch.name = name.trim()
-    if ((description ?? '') !== (goal.description ?? '')) {
-      patch.description = description.trim() ? description.trim() : null
+      name?: string;
+      description?: string | null;
+      dueDate?: string | null;
+      assignee?: string | null;
+    } = {};
+    if (name.trim() !== goal.name) patch.name = name.trim();
+    if ((description ?? "") !== (goal.description ?? "")) {
+      patch.description = description.trim() ? description.trim() : null;
     }
-    if ((dueDate ?? '') !== (goal.dueDate ?? '')) {
-      patch.dueDate = dueDate.trim() ? dueDate.trim() : null
+    if ((dueDate ?? "") !== (goal.dueDate ?? "")) {
+      patch.dueDate = dueDate.trim() ? dueDate.trim() : null;
     }
     if ((assignee ?? null) !== (goal.assignee ?? null)) {
-      patch.assignee = assignee && assignee.trim() ? assignee.trim() : null
+      patch.assignee = assignee && assignee.trim() ? assignee.trim() : null;
     }
     if (Object.keys(patch).length === 0) {
-      onSaved()
-      return
+      onSaved();
+      return;
     }
-    updateMutation.mutate(patch, { onSuccess: () => onSaved() })
-  }
+    updateMutation.mutate(patch, { onSuccess: () => onSaved() });
+  };
 
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
@@ -1010,7 +1052,8 @@ export function EditGoalDialog({
         <DialogHeader>
           <DialogTitle>Edit goal</DialogTitle>
           <DialogDescription>
-            Update the goal name, due date, or description. Changes are written back to the manifest issue.
+            Update the goal name, due date, or description. Changes are written
+            back to the manifest issue.
           </DialogDescription>
         </DialogHeader>
 
@@ -1039,7 +1082,11 @@ export function EditGoalDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Description</Label>
-            <MarkdownEditor value={description} onChange={setDescription} rows={10} />
+            <MarkdownEditor
+              value={description}
+              onChange={setDescription}
+              rows={10}
+            />
           </div>
         </div>
 
@@ -1052,12 +1099,12 @@ export function EditGoalDialog({
             onClick={handleSubmit}
             disabled={!name.trim() || updateMutation.isPending}
           >
-            {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+            {updateMutation.isPending ? "Saving…" : "Save changes"}
           </Button>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 function SortableGoalItem({
@@ -1066,10 +1113,10 @@ function SortableGoalItem({
   selected,
   onSelect,
 }: {
-  goal: Goal
-  progress: GoalProgress
-  selected: boolean
-  onSelect: () => void
+  goal: Goal;
+  progress: GoalProgress;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   const {
     attributes,
@@ -1078,27 +1125,27 @@ function SortableGoalItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: goal.id })
+  } = useSortable({ id: goal.id });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : undefined,
     zIndex: isDragging ? 10 : undefined,
-  }
+  };
 
-  const pct = progress.total > 0 ? (progress.done / progress.total) * 100 : 0
+  const pct = progress.total > 0 ? (progress.done / progress.total) * 100 : 0;
 
   return (
     <li
       ref={setNodeRef}
       style={style}
-      className={cn('relative bg-background', isDragging && 'shadow-lg')}
+      className={cn("relative bg-background", isDragging && "shadow-lg")}
     >
       <div
         className={cn(
-          'flex items-stretch hover:bg-accent/50 transition-colors',
-          selected && 'bg-accent/70',
+          "flex items-stretch hover:bg-accent/50 transition-colors",
+          selected && "bg-accent/70",
         )}
       >
         <button
@@ -1139,7 +1186,7 @@ function SortableGoalItem({
         </button>
       </div>
     </li>
-  )
+  );
 }
 
 function EmptyState({
@@ -1147,9 +1194,9 @@ function EmptyState({
   title,
   hint,
 }: {
-  icon: React.ReactNode
-  title: string
-  hint?: string
+  icon: React.ReactNode;
+  title: string;
+  hint?: string;
 }) {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-6 py-16 text-muted-foreground">
@@ -1157,11 +1204,11 @@ function EmptyState({
       <div className="text-sm font-medium text-foreground">{title}</div>
       {hint ? <p className="text-xs mt-1 max-w-xs">{hint}</p> : null}
     </div>
-  )
+  );
 }
 
 function formatDueDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString()
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString();
 }

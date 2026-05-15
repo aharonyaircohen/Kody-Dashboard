@@ -1,14 +1,14 @@
-import { z } from 'zod'
+import { z } from "zod";
 
 // Task ID format: YYMMDD-description (e.g., 260221-test)
-const TASK_ID_REGEX = /^[0-9]{6}-[a-zA-Z0-9-]+$/
+const TASK_ID_REGEX = /^[0-9]{6}-[a-zA-Z0-9-]+$/;
 
 /**
  * Task ID schema - validates format like "260221-test"
  */
 export const taskIdSchema = z
   .string()
-  .regex(TASK_ID_REGEX, 'Invalid taskId format (e.g., 260221-test)')
+  .regex(TASK_ID_REGEX, "Invalid taskId format (e.g., 260221-test)");
 
 /**
  * Schema for /api/kody/prs query params
@@ -17,7 +17,7 @@ export const prsQuerySchema = z
   .object({
     taskId: taskIdSchema,
   })
-  .strict()
+  .strict();
 
 /**
  * Schema for /api/kody/prs/files query params
@@ -27,11 +27,11 @@ export const prFilesQuerySchema = z
   .object({
     prNumber: z
       .string()
-      .regex(/^\d+$/, 'prNumber must be a numeric string')
+      .regex(/^\d+$/, "prNumber must be a numeric string")
       .transform(Number)
-      .pipe(z.number().int().positive('prNumber must be a positive integer')),
+      .pipe(z.number().int().positive("prNumber must be a positive integer")),
   })
-  .strict()
+  .strict();
 
 /**
  * Schema for /api/kody/workflows query params
@@ -39,9 +39,9 @@ export const prFilesQuerySchema = z
  */
 export const workflowsQuerySchema = z
   .object({
-    status: z.enum(['queued', 'in_progress', 'completed']).optional(),
+    status: z.enum(["queued", "in_progress", "completed"]).optional(),
   })
-  .strict()
+  .strict();
 
 /**
  * Schema for /api/kody/pipeline/[taskId] path params
@@ -50,4 +50,4 @@ export const pipelineParamsSchema = z
   .object({
     taskId: taskIdSchema,
   })
-  .strict()
+  .strict();

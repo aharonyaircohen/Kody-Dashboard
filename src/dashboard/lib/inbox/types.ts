@@ -71,12 +71,17 @@ export function inboxGistDescription(owner: string, repo: string): string {
 }
 
 /** Tolerant parser — never throws, returns the empty manifest on bad input. */
-export function parseInboxManifest(raw: string | null | undefined): InboxManifest {
+export function parseInboxManifest(
+  raw: string | null | undefined,
+): InboxManifest {
   if (!raw) return { ...EMPTY_INBOX_MANIFEST, entries: [] };
   try {
     const obj = JSON.parse(raw) as Partial<InboxManifest> | null;
-    if (!obj || typeof obj !== "object") return { ...EMPTY_INBOX_MANIFEST, entries: [] };
-    const entries = Array.isArray(obj.entries) ? obj.entries.filter(isValidEntry) : [];
+    if (!obj || typeof obj !== "object")
+      return { ...EMPTY_INBOX_MANIFEST, entries: [] };
+    const entries = Array.isArray(obj.entries)
+      ? obj.entries.filter(isValidEntry)
+      : [];
     return { version: INBOX_MANIFEST_VERSION, entries };
   } catch {
     return { ...EMPTY_INBOX_MANIFEST, entries: [] };
@@ -84,7 +89,11 @@ export function parseInboxManifest(raw: string | null | undefined): InboxManifes
 }
 
 export function serializeInboxManifest(m: InboxManifest): string {
-  return JSON.stringify({ version: INBOX_MANIFEST_VERSION, entries: m.entries }, null, 2);
+  return JSON.stringify(
+    { version: INBOX_MANIFEST_VERSION, entries: m.entries },
+    null,
+    2,
+  );
 }
 
 function isValidEntry(x: unknown): x is InboxEntry {
@@ -102,7 +111,10 @@ function isValidEntry(x: unknown): x is InboxEntry {
 }
 
 /** Strip code fences + collapse whitespace for the inbox preview. */
-export function buildSnippet(body: string | null | undefined, max = 240): string {
+export function buildSnippet(
+  body: string | null | undefined,
+  max = 240,
+): string {
   if (!body) return "";
   return body
     .replace(/```[\s\S]*?```/g, "[code]")

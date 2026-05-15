@@ -7,76 +7,72 @@
  *   in the UI — variables hold non-sensitive config (model lists, feature
  *   flags, etc) that the dashboard reads at runtime.
  */
-"use client"
+"use client";
 
-import Link from "next/link"
-import { useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
-import {
-  Loader2,
-  Pencil,
-  Plus,
-  Settings2,
-  Trash2,
-} from "lucide-react"
-import { PageShell } from "./PageShell"
-import { Button } from "@dashboard/ui/button"
-import { Card, CardContent } from "@dashboard/ui/card"
-import { Input } from "@dashboard/ui/input"
-import { Label } from "@dashboard/ui/label"
-import { Textarea } from "@dashboard/ui/textarea"
+import Link from "next/link";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Loader2, Pencil, Plus, Settings2, Trash2 } from "lucide-react";
+import { PageShell } from "./PageShell";
+import { Button } from "@dashboard/ui/button";
+import { Card, CardContent } from "@dashboard/ui/card";
+import { Input } from "@dashboard/ui/input";
+import { Label } from "@dashboard/ui/label";
+import { Textarea } from "@dashboard/ui/textarea";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog"
-import { ConfirmDialog } from "./ConfirmDialog"
-import { AuthGuard } from "../auth-guard"
-import { useAuth, buildAuthHeaders } from "../auth-context"
+} from "@dashboard/ui/dialog";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { AuthGuard } from "../auth-guard";
+import { useAuth, buildAuthHeaders } from "../auth-context";
 
 interface VariableRow {
-  name: string
-  value: string
-  updatedAt: string
-  updatedBy?: string
+  name: string;
+  value: string;
+  updatedAt: string;
+  updatedBy?: string;
 }
 
-const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/
+const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
 
-const variablesQueryKey = ["kody-variables"] as const
+const variablesQueryKey = ["kody-variables"] as const;
 
 function formatRelative(iso: string): string {
   try {
-    const d = new Date(iso)
-    const ms = Date.now() - d.getTime()
-    const sec = Math.floor(ms / 1000)
-    if (sec < 60) return "just now"
-    const min = Math.floor(sec / 60)
-    if (min < 60) return `${min}m ago`
-    const hr = Math.floor(min / 60)
-    if (hr < 24) return `${hr}h ago`
-    const day = Math.floor(hr / 24)
-    if (day < 30) return `${day}d ago`
-    return d.toLocaleDateString()
+    const d = new Date(iso);
+    const ms = Date.now() - d.getTime();
+    const sec = Math.floor(ms / 1000);
+    if (sec < 60) return "just now";
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const day = Math.floor(hr / 24);
+    if (day < 30) return `${day}d ago`;
+    return d.toLocaleDateString();
   } catch {
-    return iso
+    return iso;
   }
 }
 
-async function listVariables(headers: Record<string, string>): Promise<VariableRow[]> {
-  const res = await fetch("/api/kody/variables", { headers })
+async function listVariables(
+  headers: Record<string, string>,
+): Promise<VariableRow[]> {
+  const res = await fetch("/api/kody/variables", { headers });
   const json = (await res.json().catch(() => ({}))) as {
-    variables?: VariableRow[]
-    error?: string
-    message?: string
-  }
+    variables?: VariableRow[];
+    error?: string;
+    message?: string;
+  };
   if (!res.ok) {
-    throw new Error(json.message || json.error || `HTTP ${res.status}`)
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
-  return json.variables ?? []
+  return json.variables ?? [];
 }
 
 async function upsertVariable(
@@ -89,13 +85,13 @@ async function upsertVariable(
     method: "POST",
     headers,
     body: JSON.stringify({ name, value, actorLogin }),
-  })
+  });
   const json = (await res.json().catch(() => ({}))) as {
-    error?: string
-    message?: string
-  }
+    error?: string;
+    message?: string;
+  };
   if (!res.ok) {
-    throw new Error(json.message || json.error || `HTTP ${res.status}`)
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
 }
 
@@ -106,13 +102,13 @@ async function deleteVariable(
   const res = await fetch(`/api/kody/variables/${encodeURIComponent(name)}`, {
     method: "DELETE",
     headers,
-  })
+  });
   const json = (await res.json().catch(() => ({}))) as {
-    error?: string
-    message?: string
-  }
+    error?: string;
+    message?: string;
+  };
   if (!res.ok) {
-    throw new Error(json.message || json.error || `HTTP ${res.status}`)
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
 }
 
@@ -121,53 +117,53 @@ export function VariablesManager() {
     <AuthGuard>
       <VariablesManagerInner />
     </AuthGuard>
-  )
+  );
 }
 
 function VariablesManagerInner() {
-  const { auth } = useAuth()
+  const { auth } = useAuth();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...buildAuthHeaders(auth),
-  }
-  const actorLogin = auth?.user.login
+  };
+  const actorLogin = auth?.user.login;
 
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery<VariableRow[]>({
     queryKey: variablesQueryKey,
     queryFn: () => listVariables(headers),
     enabled: !!auth,
     staleTime: 30_000,
-  })
-  const variables = data ?? []
+  });
+  const variables = data ?? [];
 
   const upsert = useMutation({
     mutationFn: (input: { name: string; value: string }) =>
       upsertVariable(headers, input.name, input.value, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: variablesQueryKey })
-      toast.success("Variable saved")
+      queryClient.invalidateQueries({ queryKey: variablesQueryKey });
+      toast.success("Variable saved");
     },
     onError: (err: Error) =>
       toast.error(err.message || "Failed to save variable"),
-  })
+  });
 
   const remove = useMutation({
     mutationFn: (name: string) => deleteVariable(headers, name),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: variablesQueryKey })
-      toast.success("Variable deleted")
+      queryClient.invalidateQueries({ queryKey: variablesQueryKey });
+      toast.success("Variable deleted");
     },
     onError: (err: Error) =>
       toast.error(err.message || "Failed to delete variable"),
-  })
+  });
 
   const [editing, setEditing] = useState<{
-    name: string
-    value: string
-    existing: boolean
-  } | null>(null)
-  const [deleting, setDeleting] = useState<string | null>(null)
+    name: string;
+    value: string;
+    existing: boolean;
+  } | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   return (
     <PageShell
@@ -292,7 +288,10 @@ function VariablesManagerInner() {
           Stored in plaintext at{" "}
           <code className="text-white/50">.kody/variables.json</code>. For
           sensitive values, use{" "}
-          <Link href="/secrets" className="text-white/60 hover:text-white/80 underline">
+          <Link
+            href="/secrets"
+            className="text-white/60 hover:text-white/80 underline"
+          >
             /secrets
           </Link>{" "}
           instead.
@@ -319,21 +318,21 @@ function VariablesManagerInner() {
         confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
         onConfirm={() => {
-          if (deleting) remove.mutate(deleting)
+          if (deleting) remove.mutate(deleting);
         }}
         onClose={() => setDeleting(null)}
       />
     </PageShell>
-  )
+  );
 }
 
 interface VariableEditorProps {
-  initialName: string
-  initialValue: string
-  isUpdate: boolean
-  saving: boolean
-  onClose: () => void
-  onSave: (name: string, value: string) => Promise<void>
+  initialName: string;
+  initialValue: string;
+  isUpdate: boolean;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (name: string, value: string) => Promise<void>;
 }
 
 function VariableEditor({
@@ -344,34 +343,36 @@ function VariableEditor({
   onClose,
   onSave,
 }: VariableEditorProps) {
-  const [name, setName] = useState(initialName)
-  const [value, setValue] = useState(initialValue)
-  const [touchedName, setTouchedName] = useState(false)
+  const [name, setName] = useState(initialName);
+  const [value, setValue] = useState(initialValue);
+  const [touchedName, setTouchedName] = useState(false);
 
   const nameError = (() => {
-    if (!touchedName && !isUpdate) return null
-    if (!name) return "Required"
+    if (!touchedName && !isUpdate) return null;
+    if (!name) return "Required";
     if (!NAME_RE.test(name))
-      return "Use uppercase letters, digits, underscores. Start with a letter."
-    return null
-  })()
+      return "Use uppercase letters, digits, underscores. Start with a letter.";
+    return null;
+  })();
 
-  const valueError = value.length === 0 ? "Required" : null
-  const canSave = !saving && !nameError && !valueError
+  const valueError = value.length === 0 ? "Required" : null;
+  const canSave = !saving && !nameError && !valueError;
 
   return (
     <Dialog
       open
       onOpenChange={(o) => {
-        if (!o) onClose()
+        if (!o) onClose();
       }}
     >
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{isUpdate ? `Edit ${initialName}` : "New variable"}</DialogTitle>
+          <DialogTitle>
+            {isUpdate ? `Edit ${initialName}` : "New variable"}
+          </DialogTitle>
           <DialogDescription>
-            Stored plaintext in <code>.kody/variables.json</code>. Use this
-            page for non-sensitive config only.
+            Stored plaintext in <code>.kody/variables.json</code>. Use this page
+            for non-sensitive config only.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 mt-2">
@@ -415,7 +416,7 @@ function VariableEditor({
             size="sm"
             disabled={!canSave}
             onClick={() => {
-              if (canSave) onSave(name, value)
+              if (canSave) onSave(name, value);
             }}
           >
             {saving ? (
@@ -432,5 +433,5 @@ function VariableEditor({
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

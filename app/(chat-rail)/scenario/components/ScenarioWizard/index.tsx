@@ -4,74 +4,74 @@
  * @pattern scenario-wizard-orchestrator
  * @ai-summary Main orchestrator for ScenarioWizard - renders steps and manages navigation
  */
-'use client'
+"use client";
 
-import { useCallback, useState } from 'react'
-import { toast } from 'sonner'
-import { useScenarioWizard } from './_hooks/useScenarioWizard'
-import { StepIndicator } from './_components/StepIndicator'
-import { WizardNavigation } from './_components/WizardNavigation'
-import { WizardDialog } from './_components/WizardDialog'
-import { NameStep } from './_components/steps/NameStep'
-import { PrototypeStep } from './_components/steps/PrototypeStep'
-import { StepsStep } from './_components/steps/StepsStep'
-import { SaveStep } from './_components/steps/SaveStep'
-import { STEPS } from './_constants/wizard'
-import type { ScenarioWizardProps, WizardStep } from './_types/wizard'
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
+import { useScenarioWizard } from "./_hooks/useScenarioWizard";
+import { StepIndicator } from "./_components/StepIndicator";
+import { WizardNavigation } from "./_components/WizardNavigation";
+import { WizardDialog } from "./_components/WizardDialog";
+import { NameStep } from "./_components/steps/NameStep";
+import { PrototypeStep } from "./_components/steps/PrototypeStep";
+import { StepsStep } from "./_components/steps/StepsStep";
+import { SaveStep } from "./_components/steps/SaveStep";
+import { STEPS } from "./_constants/wizard";
+import type { ScenarioWizardProps, WizardStep } from "./_types/wizard";
 
 export function ScenarioWizard({ initialScenario }: ScenarioWizardProps) {
   // Wizard state and actions
-  const wizard = useScenarioWizard({ initialScenario })
+  const wizard = useScenarioWizard({ initialScenario });
 
   // Local navigation state
-  const [currentStep, setCurrentStep] = useState<WizardStep>('name')
+  const [currentStep, setCurrentStep] = useState<WizardStep>("name");
 
   // Navigation helpers
-  const stepIndex = STEPS.findIndex((s) => s.id === currentStep)
-  const canGoBack = stepIndex > 0
-  const canGoForward = stepIndex < STEPS.length - 1
+  const stepIndex = STEPS.findIndex((s) => s.id === currentStep);
+  const canGoBack = stepIndex > 0;
+  const canGoForward = stepIndex < STEPS.length - 1;
 
   const goNext = useCallback(() => {
-    if (currentStep === 'name' && !wizard.scenario.name) {
-      toast.error('Please enter a scenario name')
-      return
+    if (currentStep === "name" && !wizard.scenario.name) {
+      toast.error("Please enter a scenario name");
+      return;
     }
     if (canGoForward) {
-      setCurrentStep(STEPS[stepIndex + 1].id)
+      setCurrentStep(STEPS[stepIndex + 1].id);
     }
-  }, [currentStep, wizard.scenario.name, canGoForward, stepIndex])
+  }, [currentStep, wizard.scenario.name, canGoForward, stepIndex]);
 
   const goBack = useCallback(() => {
     if (canGoBack) {
-      setCurrentStep(STEPS[stepIndex - 1].id)
+      setCurrentStep(STEPS[stepIndex - 1].id);
     }
-  }, [canGoBack, stepIndex])
+  }, [canGoBack, stepIndex]);
 
   const goToStep = useCallback(
     (step: WizardStep) => {
-      const targetIndex = STEPS.findIndex((s) => s.id === step)
+      const targetIndex = STEPS.findIndex((s) => s.id === step);
       if (targetIndex <= stepIndex) {
-        setCurrentStep(step)
+        setCurrentStep(step);
       } else if (wizard.scenario.name) {
-        setCurrentStep(step)
+        setCurrentStep(step);
       }
     },
     [stepIndex, wizard.scenario.name],
-  )
+  );
 
   // Render step content
   const renderStepContent = () => {
     switch (currentStep) {
-      case 'name':
+      case "name":
         return (
           <NameStep
             scenario={wizard.scenario}
             onNameChange={wizard.handleNameChange}
             onTypeChange={wizard.handleTypeChange}
           />
-        )
+        );
 
-      case 'prototype':
+      case "prototype":
         return (
           <PrototypeStep
             selectedPrototype={wizard.selectedPrototype}
@@ -81,9 +81,9 @@ export function ScenarioWizard({ initialScenario }: ScenarioWizardProps) {
             onElementSelect={wizard.handleElementSelect}
             onComponentSelect={wizard.handleComponentSelect}
           />
-        )
+        );
 
-      case 'steps':
+      case "steps":
         return (
           <StepsStep
             scenario={wizard.scenario}
@@ -92,9 +92,9 @@ export function ScenarioWizard({ initialScenario }: ScenarioWizardProps) {
             onAddStep={wizard.handleAddStep}
             onRemoveStep={wizard.handleRemoveStep}
           />
-        )
+        );
 
-      case 'save':
+      case "save":
         return (
           <SaveStep
             scenario={wizard.scenario}
@@ -104,12 +104,12 @@ export function ScenarioWizard({ initialScenario }: ScenarioWizardProps) {
             onCreateGitHubIssue={() => wizard.setShowPRDDialog(true)}
             onExport={wizard.handleExport}
           />
-        )
+        );
 
       default:
-        return null
+        return null;
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -121,7 +121,11 @@ export function ScenarioWizard({ initialScenario }: ScenarioWizardProps) {
       </header>
 
       {/* Step Indicator */}
-      <StepIndicator steps={STEPS} currentStep={currentStep} onStepClick={goToStep} />
+      <StepIndicator
+        steps={STEPS}
+        currentStep={currentStep}
+        onStepClick={goToStep}
+      />
 
       {/* Content */}
       <div className="container py-8">
@@ -145,7 +149,7 @@ export function ScenarioWizard({ initialScenario }: ScenarioWizardProps) {
         onCreateGitHubIssue={wizard.handleCreateGitHubIssue}
       />
     </div>
-  )
+  );
 }
 
-export type { ScenarioWizardProps }
+export type { ScenarioWizardProps };

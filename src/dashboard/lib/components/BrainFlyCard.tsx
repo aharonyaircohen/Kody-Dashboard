@@ -21,192 +21,207 @@
  * its vault (same gate as the existing Fly Runner card). Without that
  * token the toggle would just fail at provision time.
  */
-'use client'
+"use client";
 
-import { useCallback, useEffect, useState } from 'react'
-import { toast } from 'sonner'
-import { Brain, Loader2, Pause, Play, Power, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Brain, Loader2, Pause, Play, Power, RefreshCw } from "lucide-react";
 
-import { Button } from '@dashboard/ui/button'
-import { Card, CardContent } from '@dashboard/ui/card'
-import { ConfirmDialog } from './ConfirmDialog'
+import { Button } from "@dashboard/ui/button";
+import { Card, CardContent } from "@dashboard/ui/card";
+import { ConfirmDialog } from "./ConfirmDialog";
 
-export type BrainFlyState = 'off' | 'running' | 'suspended' | 'stopped' | 'unknown'
+export type BrainFlyState =
+  | "off"
+  | "running"
+  | "suspended"
+  | "stopped"
+  | "unknown";
 
 interface BrainFlyCardProps {
   /** Authenticated request headers (x-kody-token / -owner / -repo). */
-  headers: Record<string, string>
+  headers: Record<string, string>;
   /** True only when FLY_API_TOKEN is configured in the repo vault. */
-  flyTokenConfigured: boolean
+  flyTokenConfigured: boolean;
 }
 
 interface StatusResponse {
-  state?: BrainFlyState
-  app?: string
-  url?: string
-  machineId?: string
-  error?: string
+  state?: BrainFlyState;
+  app?: string;
+  url?: string;
+  machineId?: string;
+  error?: string;
 }
 
 interface ProvisionResponse {
-  app?: string
-  url?: string
-  apiKey?: string
-  machineId?: string
-  error?: string
+  app?: string;
+  url?: string;
+  apiKey?: string;
+  machineId?: string;
+  error?: string;
 }
 
 function pillClasses(state: BrainFlyState): string {
   switch (state) {
-    case 'running':
-      return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-    case 'suspended':
-      return 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-    case 'stopped':
-      return 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-    case 'off':
-      return 'bg-white/5 text-white/60 border-white/10'
+    case "running":
+      return "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
+    case "suspended":
+      return "bg-amber-500/15 text-amber-300 border-amber-500/30";
+    case "stopped":
+      return "bg-rose-500/15 text-rose-300 border-rose-500/30";
+    case "off":
+      return "bg-white/5 text-white/60 border-white/10";
     default:
-      return 'bg-white/5 text-white/40 border-white/10'
+      return "bg-white/5 text-white/40 border-white/10";
   }
 }
 
 function pillLabel(state: BrainFlyState): string {
   switch (state) {
-    case 'off':
-      return 'Off'
-    case 'running':
-      return 'Running'
-    case 'suspended':
-      return 'Suspended'
-    case 'stopped':
-      return 'Stopped'
+    case "off":
+      return "Off";
+    case "running":
+      return "Running";
+    case "suspended":
+      return "Suspended";
+    case "stopped":
+      return "Stopped";
     default:
-      return 'Unknown'
+      return "Unknown";
   }
 }
 
-export function BrainFlyCard({ headers, flyTokenConfigured }: BrainFlyCardProps) {
-  const [state, setState] = useState<BrainFlyState>('unknown')
-  const [app, setApp] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+export function BrainFlyCard({
+  headers,
+  flyTokenConfigured,
+}: BrainFlyCardProps) {
+  const [state, setState] = useState<BrainFlyState>("unknown");
+  const [app, setApp] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<
-    'idle' | 'provisioning' | 'destroying' | 'suspending' | 'resuming'
-  >('idle')
-  const [confirmOpen, setConfirmOpen] = useState(false)
+    "idle" | "provisioning" | "destroying" | "suspending" | "resuming"
+  >("idle");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!flyTokenConfigured || Object.keys(headers).length === 0) {
-      setState('off')
-      setApp(null)
-      return
+      setState("off");
+      setApp(null);
+      return;
     }
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await fetch('/api/kody/brain/status', { headers })
+      const res = await fetch("/api/kody/brain/status", { headers });
       if (!res.ok) {
-        setState('unknown')
-        return
+        setState("unknown");
+        return;
       }
-      const body = (await res.json()) as StatusResponse
-      setState(body.state ?? 'unknown')
-      setApp(body.app ?? null)
+      const body = (await res.json()) as StatusResponse;
+      setState(body.state ?? "unknown");
+      setApp(body.app ?? null);
     } catch {
-      setState('unknown')
+      setState("unknown");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [headers, flyTokenConfigured])
+  }, [headers, flyTokenConfigured]);
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    void refresh();
+  }, [refresh]);
 
   async function turnOn() {
-    setBusy('provisioning')
+    setBusy("provisioning");
     try {
-      const res = await fetch('/api/kody/brain/provision', {
-        method: 'POST',
+      const res = await fetch("/api/kody/brain/provision", {
+        method: "POST",
         headers,
-      })
-      const body = (await res.json().catch(() => ({}))) as ProvisionResponse
+      });
+      const body = (await res.json().catch(() => ({}))) as ProvisionResponse;
       if (!res.ok) {
-        toast.error(body.error ?? `Provision failed (HTTP ${res.status})`)
-        return
+        toast.error(body.error ?? `Provision failed (HTTP ${res.status})`);
+        return;
       }
-      toast.success('Brain on Fly is on — first chat may take ~30s to warm up')
+      toast.success("Brain on Fly is on — first chat may take ~30s to warm up");
       // Refresh shows running/starting; subsequent polls will pick up
       // suspended state if the user doesn't chat for a while.
-      await refresh()
+      await refresh();
     } catch (err) {
-      toast.error(`Provision failed: ${(err as Error).message}`)
+      toast.error(`Provision failed: ${(err as Error).message}`);
     } finally {
-      setBusy('idle')
+      setBusy("idle");
     }
   }
 
   async function suspend() {
-    setBusy('suspending')
+    setBusy("suspending");
     try {
-      const res = await fetch('/api/kody/brain/suspend', { method: 'POST', headers })
+      const res = await fetch("/api/kody/brain/suspend", {
+        method: "POST",
+        headers,
+      });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        toast.error(body.error ?? `Suspend failed (HTTP ${res.status})`)
-        return
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(body.error ?? `Suspend failed (HTTP ${res.status})`);
+        return;
       }
-      toast.success('Brain suspended — resumes on next chat or Resume click')
-      await refresh()
+      toast.success("Brain suspended — resumes on next chat or Resume click");
+      await refresh();
     } catch (err) {
-      toast.error(`Suspend failed: ${(err as Error).message}`)
+      toast.error(`Suspend failed: ${(err as Error).message}`);
     } finally {
-      setBusy('idle')
+      setBusy("idle");
     }
   }
 
   async function resume() {
-    setBusy('resuming')
+    setBusy("resuming");
     try {
-      const res = await fetch('/api/kody/brain/resume', { method: 'POST', headers })
+      const res = await fetch("/api/kody/brain/resume", {
+        method: "POST",
+        headers,
+      });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        toast.error(body.error ?? `Resume failed (HTTP ${res.status})`)
-        return
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(body.error ?? `Resume failed (HTTP ${res.status})`);
+        return;
       }
-      toast.success('Brain resumed')
-      await refresh()
+      toast.success("Brain resumed");
+      await refresh();
     } catch (err) {
-      toast.error(`Resume failed: ${(err as Error).message}`)
+      toast.error(`Resume failed: ${(err as Error).message}`);
     } finally {
-      setBusy('idle')
+      setBusy("idle");
     }
   }
 
   async function turnOff() {
-    setBusy('destroying')
+    setBusy("destroying");
     try {
-      const res = await fetch('/api/kody/brain/destroy', {
-        method: 'POST',
+      const res = await fetch("/api/kody/brain/destroy", {
+        method: "POST",
         headers,
-      })
+      });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        toast.error(body.error ?? `Destroy failed (HTTP ${res.status})`)
-        return
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(body.error ?? `Destroy failed (HTTP ${res.status})`);
+        return;
       }
-      toast.success('Brain on Fly is off')
-      setState('off')
-      setApp(null)
+      toast.success("Brain on Fly is off");
+      setState("off");
+      setApp(null);
     } catch (err) {
-      toast.error(`Destroy failed: ${(err as Error).message}`)
+      toast.error(`Destroy failed: ${(err as Error).message}`);
     } finally {
-      setBusy('idle')
-      setConfirmOpen(false)
+      setBusy("idle");
+      setConfirmOpen(false);
     }
   }
 
   // "On" means the Fly app exists in any of the live states. Suspended
   // is still "on" — it just means no traffic for a while.
-  const isOn = state === 'running' || state === 'suspended' || state === 'stopped'
+  const isOn =
+    state === "running" || state === "suspended" || state === "stopped";
 
   return (
     <>
@@ -238,10 +253,9 @@ export function BrainFlyCard({ headers, flyTokenConfigured }: BrainFlyCardProps)
             </Button>
           </div>
           <p className="text-xs text-white/50 -mt-2">
-            Per-user Brain server on your Fly account. When on, the
-            &ldquo;Kody Brain (Fly)&rdquo; agent appears in the chat picker.
-            Suspends when idle (resumes in ~1s on the next chat) — no
-            manual wake-up required.
+            Per-user Brain server on your Fly account. When on, the &ldquo;Kody
+            Brain (Fly)&rdquo; agent appears in the chat picker. Suspends when
+            idle (resumes in ~1s on the next chat) — no manual wake-up required.
           </p>
           {!flyTokenConfigured && (
             <p className="text-[11px] text-amber-300/80 italic">
@@ -256,51 +270,51 @@ export function BrainFlyCard({ headers, flyTokenConfigured }: BrainFlyCardProps)
           <div className="flex items-center gap-2 pt-1 flex-wrap">
             {isOn ? (
               <>
-                {state === 'running' && (
+                {state === "running" && (
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={suspend}
-                    disabled={busy !== 'idle' || !flyTokenConfigured}
+                    disabled={busy !== "idle" || !flyTokenConfigured}
                     className="text-amber-300 hover:text-amber-200"
                     title="Pause the machine now (auto-resumes on next chat)"
                   >
                     <Pause className="w-3 h-3 mr-1" />
-                    {busy === 'suspending' ? 'Suspending…' : 'Suspend'}
+                    {busy === "suspending" ? "Suspending…" : "Suspend"}
                   </Button>
                 )}
-                {(state === 'suspended' || state === 'stopped') && (
+                {(state === "suspended" || state === "stopped") && (
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={resume}
-                    disabled={busy !== 'idle' || !flyTokenConfigured}
+                    disabled={busy !== "idle" || !flyTokenConfigured}
                     className="text-emerald-300 hover:text-emerald-200"
                     title="Wake the machine without sending a chat"
                   >
                     <Play className="w-3 h-3 mr-1" />
-                    {busy === 'resuming' ? 'Resuming…' : 'Resume'}
+                    {busy === "resuming" ? "Resuming…" : "Resume"}
                   </Button>
                 )}
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => setConfirmOpen(true)}
-                  disabled={busy !== 'idle' || !flyTokenConfigured}
+                  disabled={busy !== "idle" || !flyTokenConfigured}
                   className="text-rose-300 hover:text-rose-200 ml-auto"
                 >
                   <Power className="w-3 h-3 mr-1" />
-                  {busy === 'destroying' ? 'Turning off…' : 'Turn off'}
+                  {busy === "destroying" ? "Turning off…" : "Turn off"}
                 </Button>
               </>
             ) : (
               <Button
                 size="sm"
                 onClick={turnOn}
-                disabled={busy !== 'idle' || !flyTokenConfigured}
+                disabled={busy !== "idle" || !flyTokenConfigured}
               >
                 <Power className="w-3 h-3 mr-1" />
-                {busy === 'provisioning' ? 'Turning on…' : 'Turn on'}
+                {busy === "provisioning" ? "Turning on…" : "Turn on"}
               </Button>
             )}
           </div>
@@ -310,11 +324,11 @@ export function BrainFlyCard({ headers, flyTokenConfigured }: BrainFlyCardProps)
         open={confirmOpen}
         title="Turn off Brain on Fly?"
         description="Tears down the Fly app and any sessions stored on its filesystem. The agent disappears from the chat picker until you turn it back on. Re-enabling takes ~30s."
-        confirmLabel={busy === 'destroying' ? 'Turning off…' : 'Turn off'}
+        confirmLabel={busy === "destroying" ? "Turning off…" : "Turn off"}
         variant="destructive"
         onConfirm={turnOff}
         onClose={() => setConfirmOpen(false)}
       />
     </>
-  )
+  );
 }
