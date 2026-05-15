@@ -33,6 +33,7 @@ import {
   DialogTitle,
 } from "@dashboard/ui/dialog"
 import { Label } from "@dashboard/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs"
 import { Textarea } from "@dashboard/ui/textarea"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { AuthGuard } from "../auth-guard"
@@ -47,6 +48,9 @@ interface InstructionsResource {
 
 const instructionsQueryKey = ["kody-instructions"] as const
 const basePromptQueryKey = ["kody-instructions-base"] as const
+const fullPromptQueryKey = ["kody-instructions-full"] as const
+
+type PromptView = "base" | "full"
 
 async function fetchInstructions(
   headers: Record<string, string>,
@@ -63,8 +67,11 @@ async function fetchInstructions(
   return json.instructions ?? null
 }
 
-async function fetchBasePrompt(headers: Record<string, string>): Promise<string> {
-  const res = await fetch("/api/kody/instructions/base", { headers })
+async function fetchPrompt(
+  headers: Record<string, string>,
+  variant: PromptView,
+): Promise<string> {
+  const res = await fetch(`/api/kody/instructions/${variant}`, { headers })
   const json = (await res.json().catch(() => ({}))) as {
     prompt?: string
     error?: string
@@ -158,13 +165,21 @@ function InstructionsManagerInner() {
 
   const [draft, setDraft] = useState<string>("")
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [showBase, setShowBase] = useState(false)
+  const [promptDialog, setPromptDialog] = useState<PromptView | null>(null)
+  const dialogOpen = promptDialog !== null
 
   const basePromptQuery = useQuery<string>({
     queryKey: basePromptQueryKey,
-    queryFn: () => fetchBasePrompt(headers),
-    enabled: showBase && !!auth,
+    queryFn: () => fetchPrompt(headers, "base"),
+    enabled: dialogOpen && !!auth,
     staleTime: 5 * 60_000,
+  })
+
+  const fullPromptQuery = useQuery<string>({
+    queryKey: fullPromptQueryKey,
+    queryFn: () => fetchPrompt(headers, "full"),
+    enabled: dialogOpen && !!auth,
+    staleTime: 60_000,
   })
 
   useEffect(() => {
@@ -207,10 +222,10 @@ function InstructionsManagerInner() {
             size="sm"
             variant="ghost"
             className="gap-1"
-            onClick={() => setShowBase(true)}
+            onClick={() => setPromptDialog("base")}
           >
             <Eye className="w-4 h-4" />
-            View base prompt
+            View prompt
           </Button>
           {data?.htmlUrl && (
             <Button asChild variant="ghost" size="sm" className="gap-1">
@@ -327,39 +342,82 @@ function InstructionsManagerInner() {
         onClose={() => setConfirmDelete(false)}
       />
 
-      <Dialog open={showBase} onOpenChange={setShowBase}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => setPromptDialog(open ? (promptDialog ?? "base") : null)}
+      >
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Eye className="w-4 h-4" />
-              Base agent prompt
+              System prompt
             </DialogTitle>
             <DialogDescription>
-              Read-only. Your instructions above are appended after this prompt
-              when the chat runs. Use it as a reference for what to override.
+              Read-only. <strong>Base</strong> is the static agent prompt your
+              instructions are layered on top of. <strong>Full</strong> is what
+              actually gets sent to the model on a neutral turn — base + repo
+              block + memory index + your instructions (no task / job / vibe /
+              voice overlay; those only exist mid-chat).
             </DialogDescription>
           </DialogHeader>
-          <div className="mt-2">
-            {basePromptQuery.isLoading && (
-              <p className="text-sm text-white/50 flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> Loading…
-              </p>
-            )}
-            {basePromptQuery.error && (
-              <p className="text-sm text-rose-300">
-                {basePromptQuery.error instanceof Error
-                  ? basePromptQuery.error.message
-                  : "Failed to load base prompt"}
-              </p>
-            )}
-            {basePromptQuery.data && (
-              <pre className="text-xs text-white/80 bg-black/30 border border-white/10 rounded p-3 max-h-[60vh] overflow-auto whitespace-pre-wrap font-mono">
-                {basePromptQuery.data}
-              </pre>
-            )}
-          </div>
+          <Tabs
+            value={promptDialog ?? "base"}
+            onValueChange={(v) => setPromptDialog(v as PromptView)}
+            className="mt-2"
+          >
+            <TabsList>
+              <TabsTrigger value="base">Base</TabsTrigger>
+              <TabsTrigger value="full">Full assembled</TabsTrigger>
+            </TabsList>
+            <TabsContent value="base" className="mt-3">
+              <PromptPane
+                isLoading={basePromptQuery.isLoading}
+                error={basePromptQuery.error}
+                data={basePromptQuery.data}
+                fallbackError="Failed to load base prompt"
+              />
+            </TabsContent>
+            <TabsContent value="full" className="mt-3">
+              <PromptPane
+                isLoading={fullPromptQuery.isLoading}
+                error={fullPromptQuery.error}
+                data={fullPromptQuery.data}
+                fallbackError="Failed to load full prompt"
+              />
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </PageShell>
+  )
+}
+
+interface PromptPaneProps {
+  isLoading: boolean
+  error: unknown
+  data: string | undefined
+  fallbackError: string
+}
+
+function PromptPane({ isLoading, error, data, fallbackError }: PromptPaneProps) {
+  if (isLoading) {
+    return (
+      <p className="text-sm text-white/50 flex items-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+      </p>
+    )
+  }
+  if (error) {
+    return (
+      <p className="text-sm text-rose-300">
+        {error instanceof Error ? error.message : fallbackError}
+      </p>
+    )
+  }
+  if (!data) return null
+  return (
+    <pre className="text-xs text-white/80 bg-black/30 border border-white/10 rounded p-3 max-h-[60vh] overflow-auto whitespace-pre-wrap font-mono">
+      {data}
+    </pre>
   )
 }
