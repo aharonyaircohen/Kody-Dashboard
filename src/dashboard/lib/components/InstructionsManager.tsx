@@ -4,20 +4,34 @@
  * @pattern instructions-manager
  * @ai-summary Editor for `.kody/instructions.md` — the per-repo user
  *   instructions appended to every kody-direct chat turn. Single
- *   textarea + quick-toggle checkboxes for the three most common
- *   knobs (terse, no markdown, no preambles).
+ *   textarea + a "View base prompt" button that opens a read-only
+ *   dialog showing the base agent prompt the overlay sits on top of.
  */
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ExternalLink, Loader2, RotateCcw, Save, ScrollText, Trash2 } from "lucide-react"
+import {
+  Eye,
+  ExternalLink,
+  Loader2,
+  RotateCcw,
+  Save,
+  ScrollText,
+  Trash2,
+} from "lucide-react"
 import Link from "next/link"
 import { PageShell } from "./PageShell"
 import { Button } from "@dashboard/ui/button"
 import { Card, CardContent } from "@dashboard/ui/card"
-import { Checkbox } from "@dashboard/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@dashboard/ui/dialog"
 import { Label } from "@dashboard/ui/label"
 import { Textarea } from "@dashboard/ui/textarea"
 import { ConfirmDialog } from "./ConfirmDialog"
@@ -31,36 +45,8 @@ interface InstructionsResource {
   htmlUrl: string
 }
 
-interface QuickToggleDef {
-  id: string
-  label: string
-  description: string
-  line: string
-}
-
-const QUICK_TOGGLES: readonly QuickToggleDef[] = [
-  {
-    id: "terse",
-    label: "Terse answers",
-    description:
-      "One-sentence answers by default. Expand only if I ask 'why' / 'how' / 'show me'.",
-    line: "Be terse. Default to one-sentence answers; expand only when I ask for more detail.",
-  },
-  {
-    id: "no-markdown",
-    label: "No markdown formatting",
-    description: "Plain prose only — no headings, bullets, or bold.",
-    line: "Reply in plain prose. No headings, no bullet lists, no bold or italic.",
-  },
-  {
-    id: "no-preamble",
-    label: "No preambles or trailing summaries",
-    description: "Just the answer — no 'Of course!', no 'In summary…'.",
-    line: "Skip preambles and trailing summaries. Answer directly.",
-  },
-] as const
-
 const instructionsQueryKey = ["kody-instructions"] as const
+const basePromptQueryKey = ["kody-instructions-base"] as const
 
 async function fetchInstructions(
   headers: Record<string, string>,
@@ -75,6 +61,19 @@ async function fetchInstructions(
     throw new Error(json.message || json.error || `HTTP ${res.status}`)
   }
   return json.instructions ?? null
+}
+
+async function fetchBasePrompt(headers: Record<string, string>): Promise<string> {
+  const res = await fetch("/api/kody/instructions/base", { headers })
+  const json = (await res.json().catch(() => ({}))) as {
+    prompt?: string
+    error?: string
+    message?: string
+  }
+  if (!res.ok) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`)
+  }
+  return json.prompt ?? ""
 }
 
 async function saveInstructions(
@@ -159,6 +158,14 @@ function InstructionsManagerInner() {
 
   const [draft, setDraft] = useState<string>("")
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showBase, setShowBase] = useState(false)
+
+  const basePromptQuery = useQuery<string>({
+    queryKey: basePromptQueryKey,
+    queryFn: () => fetchBasePrompt(headers),
+    enabled: showBase && !!auth,
+    staleTime: 5 * 60_000,
+  })
 
   useEffect(() => {
     if (data) setDraft(data.body)
@@ -188,31 +195,6 @@ function InstructionsManagerInner() {
       toast.error(err.message || "Failed to delete instructions"),
   })
 
-  const toggleLines = useMemo(() => {
-    const present = new Set<string>()
-    for (const t of QUICK_TOGGLES) {
-      if (draft.includes(t.line)) present.add(t.id)
-    }
-    return present
-  }, [draft])
-
-  function applyToggle(id: string, on: boolean) {
-    const toggle = QUICK_TOGGLES.find((t) => t.id === id)
-    if (!toggle) return
-    const line = toggle.line
-    if (on) {
-      if (draft.includes(line)) return
-      const prefix = draft.trim().length > 0 ? `${draft.trimEnd()}\n` : ""
-      setDraft(`${prefix}${line}\n`)
-    } else {
-      const without = draft
-        .split(/\r?\n/)
-        .filter((row) => row !== line)
-        .join("\n")
-      setDraft(without)
-    }
-  }
-
   return (
     <PageShell
       title="Instructions"
@@ -221,6 +203,15 @@ function InstructionsManagerInner() {
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
       actions={
         <>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="gap-1"
+            onClick={() => setShowBase(true)}
+          >
+            <Eye className="w-4 h-4" />
+            View base prompt
+          </Button>
           {data?.htmlUrl && (
             <Button asChild variant="ghost" size="sm" className="gap-1">
               <Link
@@ -298,68 +289,28 @@ function InstructionsManagerInner() {
         )}
 
         {!isLoading && !error && (
-          <>
-            <Card className="border-white/[0.08] bg-white/[0.03]">
-              <CardContent className="p-4 space-y-3">
-                <p className="text-xs uppercase tracking-wide text-white/40">
-                  Quick toggles
-                </p>
-                <ul className="space-y-2">
-                  {QUICK_TOGGLES.map((t) => {
-                    const checked = toggleLines.has(t.id)
-                    return (
-                      <li key={t.id} className="flex items-start gap-3">
-                        <Checkbox
-                          id={`toggle-${t.id}`}
-                          checked={checked}
-                          onCheckedChange={(v) => applyToggle(t.id, v === true)}
-                          className="mt-0.5"
-                        />
-                        <div className="min-w-0">
-                          <Label
-                            htmlFor={`toggle-${t.id}`}
-                            className="text-sm text-white/85 cursor-pointer"
-                          >
-                            {t.label}
-                          </Label>
-                          <p className="text-xs text-white/50 mt-0.5">
-                            {t.description}
-                          </p>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-                <p className="text-[11px] text-white/30">
-                  Toggles just append or remove canned lines in the textarea
-                  below — edit freely.
-                </p>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-2">
-              <Label
-                htmlFor="instructions-body"
-                className="text-sm text-white/70"
-              >
-                Instructions
-              </Label>
-              <Textarea
-                id="instructions-body"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="e.g. Default to one-sentence answers. Always cite file paths when referencing code. Prefer Tailwind over inline styles."
-                className="min-h-[280px] font-mono text-sm"
-              />
-              <p className="text-[11px] text-white/30">
-                {data?.updatedAt
-                  ? `Last saved ${formatRelative(data.updatedAt)}.`
-                  : "Not saved yet."}{" "}
-                Hard rules in the base agent prompt (never fake tool calls,
-                research before evaluating) still win over your instructions.
-              </p>
-            </div>
-          </>
+          <div className="space-y-2">
+            <Label
+              htmlFor="instructions-body"
+              className="text-sm text-white/70"
+            >
+              Instructions
+            </Label>
+            <Textarea
+              id="instructions-body"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="e.g. Default to one-sentence answers. Always cite file paths when referencing code. Prefer Tailwind over inline styles."
+              className="min-h-[320px] font-mono text-sm"
+            />
+            <p className="text-[11px] text-white/30">
+              {data?.updatedAt
+                ? `Last saved ${formatRelative(data.updatedAt)}.`
+                : "Not saved yet."}{" "}
+              Hard rules in the base agent prompt (never fake tool calls,
+              research before evaluating) still win over your instructions.
+            </p>
+          </div>
         )}
       </div>
 
@@ -375,6 +326,40 @@ function InstructionsManagerInner() {
         }}
         onClose={() => setConfirmDelete(false)}
       />
+
+      <Dialog open={showBase} onOpenChange={setShowBase}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-4 h-4" />
+              Base agent prompt
+            </DialogTitle>
+            <DialogDescription>
+              Read-only. Your instructions above are appended after this prompt
+              when the chat runs. Use it as a reference for what to override.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2">
+            {basePromptQuery.isLoading && (
+              <p className="text-sm text-white/50 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+              </p>
+            )}
+            {basePromptQuery.error && (
+              <p className="text-sm text-rose-300">
+                {basePromptQuery.error instanceof Error
+                  ? basePromptQuery.error.message
+                  : "Failed to load base prompt"}
+              </p>
+            )}
+            {basePromptQuery.data && (
+              <pre className="text-xs text-white/80 bg-black/30 border border-white/10 rounded p-3 max-h-[60vh] overflow-auto whitespace-pre-wrap font-mono">
+                {basePromptQuery.data}
+              </pre>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   )
 }
