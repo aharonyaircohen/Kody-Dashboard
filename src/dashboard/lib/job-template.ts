@@ -16,4 +16,4 @@ export const JOB_TEMPLATE = `## Job
 
 ## Restrictions
 
-`
+`;

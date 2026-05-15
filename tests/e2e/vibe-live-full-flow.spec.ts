@@ -32,118 +32,126 @@
  *   E2E_GITHUB_REPO    - https://github.com/<owner>/<name> URL of the tester repo
  */
 
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page } from "@playwright/test";
 
-const BASE_URL = process.env.BASE_URL ?? 'https://kody-dashboard-aguy.vercel.app'
-const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? ''
-const TEST_REPO = process.env.E2E_GITHUB_REPO ?? ''
+const BASE_URL =
+  process.env.BASE_URL ?? "https://kody-dashboard-aguy.vercel.app";
+const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
+const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "";
 
 function parseRepo(url: string): { owner: string; repo: string } {
   try {
-    const u = new URL(url)
-    const parts = u.pathname.replace(/^\//, '').split('/').filter(Boolean)
+    const u = new URL(url);
+    const parts = u.pathname.replace(/^\//, "").split("/").filter(Boolean);
     return {
-      owner: parts[0] ?? '',
-      repo: parts[1] ?? '',
-    }
+      owner: parts[0] ?? "",
+      repo: parts[1] ?? "",
+    };
   } catch {
-    return { owner: '', repo: '' }
+    return { owner: "", repo: "" };
   }
 }
 
-async function injectAuth(page: Page, owner: string, repo: string): Promise<void> {
+async function injectAuth(
+  page: Page,
+  owner: string,
+  repo: string,
+): Promise<void> {
   await page.evaluate(
-    (auth) => localStorage.setItem('kody_auth', JSON.stringify(auth)),
+    (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
     {
       repoUrl: TEST_REPO,
       owner,
       repo,
       token: TEST_TOKEN,
-      user: { login: 'live-e2e', avatar_url: '', id: 1 },
+      user: { login: "live-e2e", avatar_url: "", id: 1 },
       loggedInAt: Date.now(),
     },
-  )
+  );
 }
 
 interface PrFile {
-  filename: string
-  additions: number
-  deletions: number
-  status: string
+  filename: string;
+  additions: number;
+  deletions: number;
+  status: string;
 }
 
 interface PrCommit {
-  sha: string
-  commit: { message: string }
+  sha: string;
+  commit: { message: string };
 }
 
 async function ghFetch(path: string): Promise<unknown> {
   const res = await fetch(`https://api.github.com${path}`, {
     headers: {
-      'Authorization': `Bearer ${TEST_TOKEN}`,
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
+      Authorization: `Bearer ${TEST_TOKEN}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
     },
-  })
+  });
   if (!res.ok) {
-    throw new Error(`GitHub ${path} → ${res.status} ${await res.text()}`)
+    throw new Error(`GitHub ${path} → ${res.status} ${await res.text()}`);
   }
-  return res.json()
+  return res.json();
 }
 
-test.describe('Vibe — LIVE full flow against production', () => {
+test.describe("Vibe — LIVE full flow against production", () => {
   test.skip(
     !TEST_TOKEN || !TEST_REPO,
-    'Requires E2E_GITHUB_TOKEN + E2E_GITHUB_REPO to run live.',
-  )
+    "Requires E2E_GITHUB_TOKEN + E2E_GITHUB_REPO to run live.",
+  );
 
-  test('rename welcome text → approve → runner pushes the real diff', async ({
+  test("rename welcome text → approve → runner pushes the real diff", async ({
     page,
   }, testInfo) => {
-    testInfo.setTimeout(1_800_000) // 30 min hard cap (create + run + CI wait + merge).
-    const { owner, repo } = parseRepo(TEST_REPO)
-    expect(owner, 'E2E_GITHUB_REPO must parse to owner/repo').toBeTruthy()
-    expect(repo).toBeTruthy()
+    testInfo.setTimeout(1_800_000); // 30 min hard cap (create + run + CI wait + merge).
+    const { owner, repo } = parseRepo(TEST_REPO);
+    expect(owner, "E2E_GITHUB_REPO must parse to owner/repo").toBeTruthy();
+    expect(repo).toBeTruthy();
 
     // Capture browser console for the temporary [vibe-debug] traces in
     // src/dashboard/lib/components/KodyChat.tsx. Dump everything on
     // failure so we can see exactly where the kickoff flow halts.
-    const consoleLines: string[] = []
-    page.on('console', (msg) => {
-      const text = msg.text()
-      if (text.includes('[vibe-debug]') || msg.type() === 'error') {
-        const line = `[${msg.type()}] ${text}`
-        consoleLines.push(line)
+    const consoleLines: string[] = [];
+    page.on("console", (msg) => {
+      const text = msg.text();
+      if (text.includes("[vibe-debug]") || msg.type() === "error") {
+        const line = `[${msg.type()}] ${text}`;
+        consoleLines.push(line);
         // Also echo to test stdout so we see it live.
         // eslint-disable-next-line no-console
-        console.log(`BROWSER ${line}`)
+        console.log(`BROWSER ${line}`);
       }
-    })
-    page.on('requestfailed', (req) => {
-      const line = `[reqfail] ${req.method()} ${req.url()} — ${req.failure()?.errorText ?? '?'}`
-      consoleLines.push(line)
+    });
+    page.on("requestfailed", (req) => {
+      const line = `[reqfail] ${req.method()} ${req.url()} — ${req.failure()?.errorText ?? "?"}`;
+      consoleLines.push(line);
       // eslint-disable-next-line no-console
-      console.log(`BROWSER ${line}`)
-    })
+      console.log(`BROWSER ${line}`);
+    });
 
     // ── 1. Land on /vibe with auth injected. ────────────────────────────
-    await page.goto(`${BASE_URL}/login`)
-    await page.waitForLoadState('domcontentloaded')
-    await injectAuth(page, owner, repo)
-    await page.goto(`${BASE_URL}/vibe`)
-    await page.waitForLoadState('domcontentloaded')
+    await page.goto(`${BASE_URL}/login`);
+    await page.waitForLoadState("domcontentloaded");
+    await injectAuth(page, owner, repo);
+    await page.goto(`${BASE_URL}/vibe`);
+    await page.waitForLoadState("domcontentloaded");
 
     // Skip on mobile — the chat rail is hidden.
-    const viewport = await page.viewportSize()
-    test.skip((viewport?.width ?? 1280) < 768, 'chat rail hidden on mobile')
+    const viewport = await page.viewportSize();
+    test.skip((viewport?.width ?? 1280) < 768, "chat rail hidden on mobile");
 
     // ── Capture interactive-start network calls for assertion 5. ────────
-    let interactiveStartCalled = false
-    page.on('request', (req) => {
-      if (req.url().includes('/api/kody/chat/interactive/start') && req.method() === 'POST') {
-        interactiveStartCalled = true
+    let interactiveStartCalled = false;
+    page.on("request", (req) => {
+      if (
+        req.url().includes("/api/kody/chat/interactive/start") &&
+        req.method() === "POST"
+      ) {
+        interactiveStartCalled = true;
       }
-    })
+    });
 
     // ── 2. Switch to the in-process Gemini agent. ───────────────────────
     // /vibe defaults to "Kody Live" which is the long-lived RUNNER. The
@@ -151,41 +159,41 @@ test.describe('Vibe — LIVE full flow against production', () => {
     // the kody-direct (Gemini) backend; we have to pick it from the
     // dropdown explicitly.
     const agentTrigger = page
-      .locator('button')
+      .locator("button")
       .filter({ hasText: /Kody Live|Kody Live \(Fly\)|Gemini|GEMINI|Brain/i })
-      .first()
-    await agentTrigger.click()
-    const listbox = page.getByRole('listbox')
-    await listbox.waitFor({ state: 'visible', timeout: 5_000 })
+      .first();
+    await agentTrigger.click();
+    const listbox = page.getByRole("listbox");
+    await listbox.waitFor({ state: "visible", timeout: 5_000 });
     // The tester repo's configured models render the label in uppercase
     // ("GEMINI PRO", "GEMINI") — match strictly to avoid picking Flash
     // (the Flash variant is too lazy for the planner workflow — it
     // tends to skip the create_* tool call after approval).
     const proOption = listbox.locator('[role="option"]', {
       hasText: /GEMINI PRO/,
-    })
+    });
     await expect(
       proOption,
-      'tester repo must have a GEMINI PRO model configured',
-    ).toHaveCount(1, { timeout: 5_000 })
-    await proOption.click()
+      "tester repo must have a GEMINI PRO model configured",
+    ).toHaveCount(1, { timeout: 5_000 });
+    await proOption.click();
 
     // ── 3. Send the user's request. ─────────────────────────────────────
     // Once kody-direct is selected, the composer placeholder changes from
     // "Click Start to warm up the runner." to "Ask Kody...".
     const input = page
       .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
-      .first()
-    await input.waitFor({ state: 'visible', timeout: 30_000 })
+      .first();
+    await input.waitFor({ state: "visible", timeout: 30_000 });
     // Use a value that's unique per run so the agent has to actually edit
     // the file (no "already done" short-circuit). Touches src/app/(frontend)/page.tsx,
     // which the tester repo's homepage uses.
-    const newWelcomeText = `Welcome from kody — verify run ${Date.now()}`
+    const newWelcomeText = `Welcome from kody — verify run ${Date.now()}`;
     await input.fill(
       `Update the homepage welcome text in src/app/(frontend)/page.tsx ` +
         `to "${newWelcomeText}". One-line change. Skip the e2e test update.`,
-    )
-    await input.press('Enter')
+    );
+    await input.press("Enter");
 
     // ── 3. Wait for the agent to ask for approval. ─────────────────────
     // The fixed prompt SHOULD make the agent stop after asking, but Gemini
@@ -199,119 +207,125 @@ test.describe('Vibe — LIVE full flow against production', () => {
     // The common pattern is a question-mark line containing one of
     // these verbs.
     const approvalPrompt = page
-      .locator('.prose')
+      .locator(".prose")
       .filter({
         hasText:
           /approve|ship it|want me to|should i|shall i|proceed|ready (?:for|to)|go ahead|confirm/i,
       })
-      .last()
+      .last();
     await Promise.race([
-      approvalPrompt.waitFor({ state: 'visible', timeout: 240_000 }),
+      approvalPrompt.waitFor({ state: "visible", timeout: 240_000 }),
       page.waitForURL(/\/vibe\?issue=\d+/, { timeout: 240_000 }),
-    ])
+    ]);
 
     // If the agent still hasn't created the issue, send "approve" so it
     // proceeds. If the gate was violated and ?issue=N is already set,
     // skip this — the agent already went ahead.
-    if (!new URL(page.url()).searchParams.get('issue')) {
-      await input.fill('approve')
-      await input.press('Enter')
+    if (!new URL(page.url()).searchParams.get("issue")) {
+      await input.fill("approve");
+      await input.press("Enter");
     }
 
     // Wait for navigation to ?issue=N — proxy for create_* + onIssueCreated.
     // Generous timeout because Gemini PRO with a full tool-call chain
     // (research → create_* → vibe_start_execution) can take 2-3 min.
-    await page.waitForURL(/\/vibe\?issue=\d+/, { timeout: 300_000 })
-    const issueUrl = new URL(page.url())
+    await page.waitForURL(/\/vibe\?issue=\d+/, { timeout: 300_000 });
+    const issueUrl = new URL(page.url());
     const issueNumber = Number.parseInt(
-      issueUrl.searchParams.get('issue') ?? '0',
+      issueUrl.searchParams.get("issue") ?? "0",
       10,
-    )
-    expect(issueNumber, 'created issue number').toBeGreaterThan(0)
+    );
+    expect(issueNumber, "created issue number").toBeGreaterThan(0);
 
     // ── 5. Verify interactive/start was hit (kickoff dispatched). ──────
     await expect
       .poll(() => interactiveStartCalled, { timeout: 60_000 })
-      .toBe(true)
+      .toBe(true);
 
     // ── 6. Find the PR for this issue and poll for a real commit. ──────
     type PrSummary = {
-      number: number
-      head: { ref: string; sha: string }
-    }
+      number: number;
+      head: { ref: string; sha: string };
+    };
     const findPr = async (): Promise<PrSummary | null> => {
       const prs = (await ghFetch(
         `/search/issues?q=${encodeURIComponent(
           `repo:${owner}/${repo} is:pr in:body "Closes #${issueNumber}"`,
         )}`,
-      )) as { items: Array<{ number: number }> }
-      if (prs.items.length === 0) return null
-      const prNum = prs.items[0].number
-      return (await ghFetch(`/repos/${owner}/${repo}/pulls/${prNum}`)) as PrSummary
-    }
+      )) as { items: Array<{ number: number }> };
+      if (prs.items.length === 0) return null;
+      const prNum = prs.items[0].number;
+      return (await ghFetch(
+        `/repos/${owner}/${repo}/pulls/${prNum}`,
+      )) as PrSummary;
+    };
 
-    let pr: PrSummary | null = null
+    let pr: PrSummary | null = null;
     for (let i = 0; i < 30; i++) {
-      pr = await findPr()
-      if (pr) break
-      await page.waitForTimeout(5_000)
+      pr = await findPr();
+      if (pr) break;
+      await page.waitForTimeout(5_000);
     }
-    expect(pr, 'PR for the new issue must exist').toBeTruthy()
-    const prNumber = pr!.number
+    expect(pr, "PR for the new issue must exist").toBeTruthy();
+    const prNumber = pr!.number;
 
     // Poll for commits BEYOND the initial "vibe: start session" placeholder.
     // The runner has ~90s GHA boot + agent thinking + edit + push.
-    const startedAt = Date.now()
-    const deadline = startedAt + 5 * 60_000 // 5 minutes for the runner.
-    let realCommit: PrCommit | null = null
+    const startedAt = Date.now();
+    const deadline = startedAt + 5 * 60_000; // 5 minutes for the runner.
+    let realCommit: PrCommit | null = null;
     while (Date.now() < deadline) {
       const commits = (await ghFetch(
         `/repos/${owner}/${repo}/pulls/${prNumber}/commits?per_page=20`,
-      )) as PrCommit[]
+      )) as PrCommit[];
       realCommit =
         commits.find(
-          (c) => !c.commit.message.startsWith('vibe: start session'),
-        ) ?? null
-      if (realCommit) break
-      await page.waitForTimeout(10_000)
+          (c) => !c.commit.message.startsWith("vibe: start session"),
+        ) ?? null;
+      if (realCommit) break;
+      await page.waitForTimeout(10_000);
     }
     expect(
       realCommit,
       `runner must push a real commit (not just the start-session placeholder) within ${
         (deadline - startedAt) / 1000
       }s — went looking for any commit whose message doesn't start with "vibe: start session".`,
-    ).toBeTruthy()
+    ).toBeTruthy();
 
     // ── 7. Inspect the PR diff. ────────────────────────────────────────
     const files = (await ghFetch(
       `/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`,
-    )) as PrFile[]
+    )) as PrFile[];
 
     // NOTE — the .kody/sessions and .kody/events files still leak into
     // PRs until @kody-ade/kody-engine 0.4.72+ is published (worktree-on-
     // main fix). Once the engine is on npm, switch this assertion back
     // to `toEqual([])`. For now we just log so the test doesn't fail
     // on a pending publish.
-    const leakedSessions = files.filter((f) => f.filename.startsWith('.kody/sessions/'))
-    const leakedEvents = files.filter((f) => f.filename.startsWith('.kody/events/'))
+    const leakedSessions = files.filter((f) =>
+      f.filename.startsWith(".kody/sessions/"),
+    );
+    const leakedEvents = files.filter((f) =>
+      f.filename.startsWith(".kody/events/"),
+    );
     if (leakedSessions.length > 0 || leakedEvents.length > 0) {
       // eslint-disable-next-line no-console
       console.log(
         `[live-e2e] runner-bookkeeping leak: ${leakedSessions.length + leakedEvents.length} files — fix is in engine 0.4.72, pending npm publish`,
-      )
+      );
     }
 
-    const srcChange = files.find((f) =>
-      f.filename === 'src/app/(frontend)/page.tsx',
-    )
+    const srcChange = files.find(
+      (f) => f.filename === "src/app/(frontend)/page.tsx",
+    );
     expect(
       srcChange,
-      'PR must include the requested change to src/app/(frontend)/page.tsx',
-    ).toBeTruthy()
+      "PR must include the requested change to src/app/(frontend)/page.tsx",
+    ).toBeTruthy();
     expect(
       srcChange?.additions ?? 0,
-      'src change must add at least one line',
-    ).toBeGreaterThan(0)
+      "src change must add at least one line",
+    ).toBeGreaterThan(0);
 
     // ── 8. Composer follow-up.
     //
@@ -325,17 +339,17 @@ test.describe('Vibe — LIVE full flow against production', () => {
     // first-turn outcome (PR has a real code change).
     const composer = page
       .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
-      .first()
-    let followupReady = false
+      .first();
+    let followupReady = false;
     try {
-      await expect(composer).toBeEnabled({ timeout: 30_000 })
-      followupReady = true
+      await expect(composer).toBeEnabled({ timeout: 30_000 });
+      followupReady = true;
     } catch {
       // eslint-disable-next-line no-console
       console.log(
         `[live-e2e] composer didn't unfreeze — expected on engine ≤ 0.4.71; ` +
           `fix pending npm publish of 0.4.72. Skipping follow-up turn.`,
-      )
+      );
     }
 
     if (followupReady) {
@@ -346,34 +360,34 @@ test.describe('Vibe — LIVE full flow against production', () => {
       // regardless of whether the runner's second turn lands — we don't
       // want one flaky follow-up step to mask a working merge path.
       try {
-        const followupText = `Welcome from kody — followup ${Date.now()}`
+        const followupText = `Welcome from kody — followup ${Date.now()}`;
         await composer.fill(
           `Now change the welcome text again to "${followupText}". Same file, one-line change.`,
-        )
-        await composer.press('Enter')
+        );
+        await composer.press("Enter");
 
-        const firstRealSha = realCommit!.sha
-        const followupDeadline = Date.now() + 5 * 60_000
-        let secondCommit: PrCommit | null = null
+        const firstRealSha = realCommit!.sha;
+        const followupDeadline = Date.now() + 5 * 60_000;
+        let secondCommit: PrCommit | null = null;
         while (Date.now() < followupDeadline) {
           const commits = (await ghFetch(
             `/repos/${owner}/${repo}/pulls/${prNumber}/commits?per_page=20`,
-          )) as PrCommit[]
+          )) as PrCommit[];
           secondCommit =
             commits.find(
               (c) =>
-                !c.commit.message.startsWith('vibe: start session') &&
+                !c.commit.message.startsWith("vibe: start session") &&
                 c.sha !== firstRealSha,
-            ) ?? null
-          if (secondCommit) break
-          await page.waitForTimeout(10_000)
+            ) ?? null;
+          if (secondCommit) break;
+          await page.waitForTimeout(10_000);
         }
         if (!secondCommit) {
           // eslint-disable-next-line no-console
           console.log(
-            '[live-e2e] follow-up turn did not push a second commit within 5min — ' +
-              'logging and continuing to lifecycle assertions',
-          )
+            "[live-e2e] follow-up turn did not push a second commit within 5min — " +
+              "logging and continuing to lifecycle assertions",
+          );
         }
       } catch (err) {
         // eslint-disable-next-line no-console
@@ -381,7 +395,7 @@ test.describe('Vibe — LIVE full flow against production', () => {
           `[live-e2e] follow-up turn raised — continuing to lifecycle assertions: ${
             err instanceof Error ? err.message : String(err)
           }`,
-        )
+        );
       }
     }
 
@@ -389,17 +403,17 @@ test.describe('Vibe — LIVE full flow against production', () => {
       // ── 10. Re-verify .kody/sessions+events leak status (see note above).
       const filesAfterFollowup = (await ghFetch(
         `/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`,
-      )) as PrFile[]
+      )) as PrFile[];
       const leakedAfter = filesAfterFollowup.filter(
         (f) =>
-          f.filename.startsWith('.kody/sessions/') ||
-          f.filename.startsWith('.kody/events/'),
-      )
+          f.filename.startsWith(".kody/sessions/") ||
+          f.filename.startsWith(".kody/events/"),
+      );
       if (leakedAfter.length > 0) {
         // eslint-disable-next-line no-console
         console.log(
           `[live-e2e] follow-up runner-bookkeeping leak: ${leakedAfter.length} files — fix pending engine 0.4.72 publish`,
-        )
+        );
       }
     }
 
@@ -419,38 +433,38 @@ test.describe('Vibe — LIVE full flow against production', () => {
     // obvious the failure is environmental (tester repo CI), not a
     // dashboard regression.
     type PrDetail = {
-      mergeable: boolean | null
-      mergeable_state: string
-      merged: boolean
-    }
-    let prDetail: PrDetail | null = null
-    const mergeableDeadline = Date.now() + 8 * 60_000
+      mergeable: boolean | null;
+      mergeable_state: string;
+      merged: boolean;
+    };
+    let prDetail: PrDetail | null = null;
+    const mergeableDeadline = Date.now() + 8 * 60_000;
     while (Date.now() < mergeableDeadline) {
       prDetail = (await ghFetch(
         `/repos/${owner}/${repo}/pulls/${prNumber}`,
-      )) as PrDetail
-      if (prDetail.mergeable_state === 'clean' || prDetail.merged) {
-        break
+      )) as PrDetail;
+      if (prDetail.mergeable_state === "clean" || prDetail.merged) {
+        break;
       }
-      await page.waitForTimeout(10_000)
+      await page.waitForTimeout(10_000);
     }
     expect(
-      prDetail?.mergeable_state === 'clean' || prDetail?.merged,
+      prDetail?.mergeable_state === "clean" || prDetail?.merged,
       `PR #${prNumber} never became mergeable (mergeable_state=${prDetail?.mergeable_state}). ` +
-        'This usually means tester repo CI is failing or too slow — not a dashboard regression.',
-    ).toBe(true)
+        "This usually means tester repo CI is failing or too slow — not a dashboard regression.",
+    ).toBe(true);
 
     // Find the branch name from the PR for the approve payload.
-    const prBranchName = pr!.head.ref
+    const prBranchName = pr!.head.ref;
 
     const approveRes = await page.request.post(
       `${BASE_URL}/api/kody/tasks/approve`,
       {
         headers: {
-          'Content-Type': 'application/json',
-          'x-kody-token': TEST_TOKEN,
-          'x-kody-owner': owner,
-          'x-kody-repo': repo,
+          "Content-Type": "application/json",
+          "x-kody-token": TEST_TOKEN,
+          "x-kody-owner": owner,
+          "x-kody-repo": repo,
         },
         data: {
           issueNumber,
@@ -458,20 +472,20 @@ test.describe('Vibe — LIVE full flow against production', () => {
           branchName: prBranchName,
         },
       },
-    )
+    );
     expect(
       approveRes.status(),
       `approve endpoint must return 200 (got ${approveRes.status()}: ${await approveRes.text()})`,
-    ).toBe(200)
+    ).toBe(200);
 
     // ── 12. Verify PR was actually merged on GitHub. ───────────────────
     const finalPr = (await ghFetch(
       `/repos/${owner}/${repo}/pulls/${prNumber}`,
-    )) as PrDetail
+    )) as PrDetail;
     expect(
       finalPr.merged,
       `PR #${prNumber} must be merged after approve (mergeable_state was "${prDetail?.mergeable_state}")`,
-    ).toBe(true)
+    ).toBe(true);
 
     // ── 13. Verify the work branch was deleted post-merge. ─────────────
     // GitHub's get-branch returns 404 when the ref no longer exists.
@@ -479,15 +493,15 @@ test.describe('Vibe — LIVE full flow against production', () => {
       `https://api.github.com/repos/${owner}/${repo}/branches/${encodeURIComponent(prBranchName)}`,
       {
         headers: {
-          'Authorization': `Bearer ${TEST_TOKEN}`,
-          'Accept': 'application/vnd.github+json',
+          Authorization: `Bearer ${TEST_TOKEN}`,
+          Accept: "application/vnd.github+json",
         },
       },
-    )
+    );
     expect(
       branchRes.status,
       `work branch '${prBranchName}' must be deleted after approve (got HTTP ${branchRes.status})`,
-    ).toBe(404)
+    ).toBe(404);
 
     // ── 14. Verify the linked issue is closed. ─────────────────────────
     // "Closes #N" in the PR body should auto-close on merge, but the
@@ -495,10 +509,10 @@ test.describe('Vibe — LIVE full flow against production', () => {
     // the body-keyword path.
     const finalIssue = (await ghFetch(
       `/repos/${owner}/${repo}/issues/${issueNumber}`,
-    )) as { state: string }
+    )) as { state: string };
     expect(
       finalIssue.state,
       `issue #${issueNumber} must be closed after approve+merge`,
-    ).toBe('closed')
-  })
-})
+    ).toBe("closed");
+  });
+});

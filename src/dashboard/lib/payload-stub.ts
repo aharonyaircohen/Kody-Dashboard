@@ -3,8 +3,8 @@
 
 export function getPayload(): never {
   throw new Error(
-    'Payload CMS is not available in standalone Kody. Use per-request PAT auth via x-kody-token headers.',
-  )
+    "Payload CMS is not available in standalone Kody. Use per-request PAT auth via x-kody-token headers.",
+  );
 }
 
-export default getPayload
+export default getPayload;

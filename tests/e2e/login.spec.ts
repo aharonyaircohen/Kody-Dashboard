@@ -16,7 +16,9 @@ import { test, expect, type Page } from "@playwright/test";
 // localhost → HTTPS, so the localhost default only works once HTTPS is supported).
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
-const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "https://github.com/aharonyaircohen/Kody-Dashboard";
+const TEST_REPO =
+  process.env.E2E_GITHUB_REPO ??
+  "https://github.com/aharonyaircohen/Kody-Dashboard";
 
 test.describe("Login Page", () => {
   test.beforeEach(async ({ page }) => {
@@ -31,8 +33,12 @@ test.describe("Login Page", () => {
 
   test("renders login form", async ({ page }) => {
     await expect(page.getByLabel(/repository url/i)).toBeVisible();
-    await expect(page.getByLabel(/github personal access token/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /connect to github/i })).toBeVisible();
+    await expect(
+      page.getByLabel(/github personal access token/i),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /connect to github/i }),
+    ).toBeVisible();
   });
 
   test("shows validation error on empty submit", async ({ page }) => {
@@ -61,11 +67,17 @@ test.describe("Login Page", () => {
     await page.evaluate(() => localStorage.removeItem("kody_auth"));
     await page.reload();
     await page.waitForLoadState("domcontentloaded");
-    await page.getByLabel(/repository url/i).fill("https://github.com/aharonyaircohen/Kody-Dashboard");
-    await page.getByLabel(/github personal access token/i).fill("invalid-token");
+    await page
+      .getByLabel(/repository url/i)
+      .fill("https://github.com/aharonyaircohen/Kody-Dashboard");
+    await page
+      .getByLabel(/github personal access token/i)
+      .fill("invalid-token");
     await page.getByRole("button", { name: /connect to github/i }).click();
     // After API returns 401, button should be back to enabled
-    await expect(page.getByRole("button", { name: /connect to github/i })).toBeEnabled({ timeout: 15_000 });
+    await expect(
+      page.getByRole("button", { name: /connect to github/i }),
+    ).toBeEnabled({ timeout: 15_000 });
   });
 
   test("redirects to dashboard on valid credentials", async ({ page }) => {
@@ -96,7 +108,9 @@ test.describe("Login Page", () => {
     expect(parsed.repo).toBeTruthy();
 
     // No JS errors
-    const jsErrors = errors.filter((e) => !e.includes("radix-") && !e.includes("hydration"));
+    const jsErrors = errors.filter(
+      (e) => !e.includes("radix-") && !e.includes("hydration"),
+    );
     expect(jsErrors).toHaveLength(0);
   });
 });

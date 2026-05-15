@@ -25,7 +25,10 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { mutatePushManifest, readPushManifest } from "@dashboard/lib/push-server";
+import {
+  mutatePushManifest,
+  readPushManifest,
+} from "@dashboard/lib/push-server";
 import type { PushSubscriptionRecord } from "@dashboard/lib/push";
 
 const subscribeSchema = z.object({
@@ -163,7 +166,10 @@ export async function POST(req: NextRequest) {
       );
     }
     return NextResponse.json(
-      { error: "subscribe_failed", message: error?.message ?? "subscribe failed" },
+      {
+        error: "subscribe_failed",
+        message: error?.message ?? "subscribe failed",
+      },
       { status: 500 },
     );
   } finally {
@@ -214,7 +220,10 @@ export async function DELETE(req: NextRequest) {
       );
     }
     return NextResponse.json(
-      { error: "unsubscribe_failed", message: error?.message ?? "unsubscribe failed" },
+      {
+        error: "unsubscribe_failed",
+        message: error?.message ?? "unsubscribe failed",
+      },
       { status: 500 },
     );
   } finally {

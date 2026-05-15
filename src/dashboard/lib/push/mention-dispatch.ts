@@ -18,10 +18,7 @@ import webpush, {
   type PushSubscription as WebPushSubscription,
   WebPushError,
 } from "web-push";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github-client";
+import { setGitHubContext, clearGitHubContext } from "../github-client";
 import { readPushManifest, mutatePushManifest } from "../push-server";
 import type { PushSubscriptionRecord } from "../push";
 import { logger } from "../logger";
@@ -171,7 +168,8 @@ function extractEvent(
       if (action && action !== "created") return null;
       const comment = payload.comment as Record<string, unknown> | undefined;
       const body = typeof comment?.body === "string" ? comment.body : "";
-      const author = (comment?.user as Record<string, unknown> | undefined)?.login;
+      const author = (comment?.user as Record<string, unknown> | undefined)
+        ?.login;
       const url = typeof comment?.html_url === "string" ? comment.html_url : "";
       const disc = payload.discussion as Record<string, unknown> | undefined;
       const title = typeof disc?.title === "string" ? disc.title : "";
@@ -210,8 +208,10 @@ function toSubscription(r: PushSubscriptionRecord): WebPushSubscription {
 }
 
 function isExpired(err: unknown): boolean {
-  return err instanceof WebPushError &&
-    (err.statusCode === 404 || err.statusCode === 410);
+  return (
+    err instanceof WebPushError &&
+    (err.statusCode === 404 || err.statusCode === 410)
+  );
 }
 
 function buildPayload(

@@ -22,7 +22,7 @@
  *   match what we wrote). For a stronger guarantee we'd need a real
  *   distributed lock or move the manifest off a GitHub issue body.
  */
-import type { Octokit } from '@octokit/rest'
+import type { Octokit } from "@octokit/rest";
 import {
   fetchIssues,
   fetchIssue,
@@ -31,7 +31,7 @@ import {
   invalidateIssueCache,
   getOwner,
   getRepo,
-} from './github-client'
+} from "./github-client";
 import {
   EMPTY_MANIFEST,
   GOALS_MANIFEST_LABEL,
@@ -39,24 +39,27 @@ import {
   parseManifestBody,
   serializeManifestBody,
   type GoalsManifest,
-} from './goals'
+} from "./goals";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-repo mutex
 // ─────────────────────────────────────────────────────────────────────────────
 
-const locks = new Map<string, Promise<unknown>>()
+const locks = new Map<string, Promise<unknown>>();
 
 async function withRepoLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  const previous = locks.get(key) ?? Promise.resolve()
+  const previous = locks.get(key) ?? Promise.resolve();
   // Chain ourselves onto the tail so the next caller waits on us. We don't
   // care about the previous result — only that it has settled.
-  const run = previous.then(() => fn(), () => fn())
-  locks.set(key, run)
+  const run = previous.then(
+    () => fn(),
+    () => fn(),
+  );
+  locks.set(key, run);
   try {
-    return await run
+    return await run;
   } finally {
-    if (locks.get(key) === run) locks.delete(key)
+    if (locks.get(key) === run) locks.delete(key);
   }
 }
 
@@ -65,25 +68,28 @@ async function withRepoLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ManifestRef {
-  number: number | null
-  manifest: GoalsManifest
+  number: number | null;
+  manifest: GoalsManifest;
 }
 
 async function readManifestFresh(): Promise<ManifestRef> {
   // Bypass the 15s cache: this is the *write* path's read, not the polled
   // GET path. The GET handler still uses the cache + ETag/304 for budget.
   const issues = await fetchIssues({
-    state: 'open',
+    state: "open",
     labels: GOALS_MANIFEST_LABEL,
     perPage: 5,
     noCache: true,
-  })
+  });
   if (!issues.length) {
-    return { number: null, manifest: { ...EMPTY_MANIFEST, goals: [] } }
+    return { number: null, manifest: { ...EMPTY_MANIFEST, goals: [] } };
   }
-  const first = [...issues].sort((a, b) => a.number - b.number)[0]
-  const full = await fetchIssue(first.number, { noCache: true })
-  return { number: first.number, manifest: parseManifestBody(full?.body ?? '') }
+  const first = [...issues].sort((a, b) => a.number - b.number)[0];
+  const full = await fetchIssue(first.number, { noCache: true });
+  return {
+    number: first.number,
+    manifest: parseManifestBody(full?.body ?? ""),
+  };
 }
 
 async function writeManifest(
@@ -91,10 +97,10 @@ async function writeManifest(
   existingNumber: number | null,
   userOctokit?: Octokit,
 ): Promise<number> {
-  const body = serializeManifestBody(next)
+  const body = serializeManifestBody(next);
   if (existingNumber !== null) {
-    await updateIssue(existingNumber, { body }, userOctokit)
-    return existingNumber
+    await updateIssue(existingNumber, { body }, userOctokit);
+    return existingNumber;
   }
   const created = await createIssue(
     {
@@ -103,8 +109,8 @@ async function writeManifest(
       labels: [GOALS_MANIFEST_LABEL],
     },
     userOctokit,
-  )
-  return created.number
+  );
+  return created.number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -112,10 +118,10 @@ async function writeManifest(
 // ─────────────────────────────────────────────────────────────────────────────
 
 function manifestsEqual(a: GoalsManifest, b: GoalsManifest): boolean {
-  if (a.goals.length !== b.goals.length) return false
+  if (a.goals.length !== b.goals.length) return false;
   for (let i = 0; i < a.goals.length; i++) {
-    const ga = a.goals[i]
-    const gb = b.goals[i]
+    const ga = a.goals[i];
+    const gb = b.goals[i];
     if (
       ga.id !== gb.id ||
       ga.name !== gb.name ||
@@ -127,40 +133,40 @@ function manifestsEqual(a: GoalsManifest, b: GoalsManifest): boolean {
       (ga.discussionNumber ?? null) !== (gb.discussionNumber ?? null) ||
       (ga.assignee ?? null) !== (gb.assignee ?? null)
     ) {
-      return false
+      return false;
     }
   }
-  return true
+  return true;
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface MutateOptions {
-  userOctokit?: Octokit
+  userOctokit?: Octokit;
   /** Max attempts on cross-instance write conflict. Default 3. */
-  maxAttempts?: number
+  maxAttempts?: number;
 }
 
 export interface MutationOutcome<T> {
   /** The mutator's chosen response value (the new goal, the updated goal, etc.). */
-  result: T
+  result: T;
   /** The manifest we just wrote. */
-  manifest: GoalsManifest
+  manifest: GoalsManifest;
   /** The manifest issue number we wrote to (created or existing). */
-  issueNumber: number
+  issueNumber: number;
 }
 
 export type MutatorReturn<T> =
   | { next: GoalsManifest; result: T }
-  | { kind: 'noop'; result: T }
+  | { kind: "noop"; result: T };
 
 export type Mutator<T> = (
   current: GoalsManifest,
-) => MutatorReturn<T> | Promise<MutatorReturn<T>>
+) => MutatorReturn<T> | Promise<MutatorReturn<T>>;
 
 /**
  * Read the manifest fresh, run the mutator to compute the next state, write
@@ -175,51 +181,57 @@ export type Mutator<T> = (
 export async function mutateGoalsManifest<T>(
   mutator: Mutator<T>,
   options: MutateOptions = {},
-): Promise<MutationOutcome<T> | { kind: 'noop'; result: T }> {
-  const lockKey = `${getOwner()}/${getRepo()}`
-  const maxAttempts = options.maxAttempts ?? 3
+): Promise<MutationOutcome<T> | { kind: "noop"; result: T }> {
+  const lockKey = `${getOwner()}/${getRepo()}`;
+  const maxAttempts = options.maxAttempts ?? 3;
 
   return withRepoLock(lockKey, async () => {
-    let lastError: Error | null = null
+    let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const ref = await readManifestFresh()
-      const mutation = await mutator(ref.manifest)
+      const ref = await readManifestFresh();
+      const mutation = await mutator(ref.manifest);
 
-      if ('kind' in mutation && mutation.kind === 'noop') {
-        return { kind: 'noop' as const, result: mutation.result }
+      if ("kind" in mutation && mutation.kind === "noop") {
+        return { kind: "noop" as const, result: mutation.result };
       }
 
-      const written = mutation as { next: GoalsManifest; result: T }
-      const issueNumber = await writeManifest(written.next, ref.number, options.userOctokit)
-      invalidateIssueCache(issueNumber)
+      const written = mutation as { next: GoalsManifest; result: T };
+      const issueNumber = await writeManifest(
+        written.next,
+        ref.number,
+        options.userOctokit,
+      );
+      invalidateIssueCache(issueNumber);
 
       // Verify: re-read with noCache; if the body doesn't match what we
       // wrote, a concurrent writer landed after us and our changes were
       // overwritten — retry from a fresh read.
-      const verify = await fetchIssue(issueNumber, { noCache: true })
-      const verifyManifest = parseManifestBody(verify?.body ?? '')
+      const verify = await fetchIssue(issueNumber, { noCache: true });
+      const verifyManifest = parseManifestBody(verify?.body ?? "");
 
       if (manifestsEqual(verifyManifest, written.next)) {
         return {
           result: written.result,
           manifest: written.next,
           issueNumber,
-        }
+        };
       }
 
       lastError = new Error(
         `goals manifest write conflict on issue #${issueNumber} (attempt ${attempt}/${maxAttempts})`,
-      )
+      );
       // Small jittered backoff before re-reading + re-mutating.
-      await sleep(50 * attempt + Math.floor(Math.random() * 50))
+      await sleep(50 * attempt + Math.floor(Math.random() * 50));
     }
 
     throw (
       lastError ??
-      new Error(`goals manifest write conflict: failed after ${maxAttempts} attempts`)
-    )
-  })
+      new Error(
+        `goals manifest write conflict: failed after ${maxAttempts} attempts`,
+      )
+    );
+  });
 }
 
 /**
@@ -228,5 +240,5 @@ export async function mutateGoalsManifest<T>(
  * the cache. The polled GET path should keep using its own cached read.
  */
 export async function readGoalsManifestFresh(): Promise<ManifestRef> {
-  return readManifestFresh()
+  return readManifestFresh();
 }

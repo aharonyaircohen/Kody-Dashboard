@@ -13,7 +13,9 @@ const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 
 // Auth data injected via localStorage — requires E2E_GITHUB_TOKEN and E2E_GITHUB_REPO.
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
-const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "https://github.com/aharonyaircohen/Kody-Dashboard";
+const TEST_REPO =
+  process.env.E2E_GITHUB_REPO ??
+  "https://github.com/aharonyaircohen/Kody-Dashboard";
 
 function parseRepo(url: string): { owner: string; repo: string } {
   try {
@@ -38,7 +40,11 @@ async function injectAuth(page: Page): Promise<void> {
       owner,
       repo,
       token: TEST_TOKEN,
-      user: { login: "e2e-test", avatar_url: "https://github.com/github-mark.png", id: 1 },
+      user: {
+        login: "e2e-test",
+        avatar_url: "https://github.com/github-mark.png",
+        id: 1,
+      },
       loggedInAt: Date.now(),
     },
   );
@@ -73,10 +79,15 @@ test.describe("Dashboard Smoke", () => {
         !e.includes("Extension context invalidated") &&
         !e.includes("chrome-extension") &&
         !e.includes("Failed to load resource") &&
-        !e.includes("Hydration failed because the server rendered HTML didn't match the client") &&
+        !e.includes(
+          "Hydration failed because the server rendered HTML didn't match the client",
+        ) &&
         !e.includes("Minified React error #418"),
     );
-    expect(criticalErrors, `Console errors: ${criticalErrors.join("\n")}`).toHaveLength(0);
+    expect(
+      criticalErrors,
+      `Console errors: ${criticalErrors.join("\n")}`,
+    ).toHaveLength(0);
   });
 });
 
@@ -87,8 +98,13 @@ test.describe("Dashboard — authenticated", () => {
     const body = page.locator("body");
     await expect(body).toBeVisible();
 
-    const errorAlert = page.getByRole("alert").filter({ hasText: /error/i }).first();
-    await expect(errorAlert).not.toBeVisible({ timeout: 5_000 }).catch(() => {});
+    const errorAlert = page
+      .getByRole("alert")
+      .filter({ hasText: /error/i })
+      .first();
+    await expect(errorAlert)
+      .not.toBeVisible({ timeout: 5_000 })
+      .catch(() => {});
   });
 
   test("chat panel is present", async ({ page }) => {
@@ -100,7 +116,9 @@ test.describe("Dashboard — authenticated", () => {
       test.skip(true, "Chat panel is hidden at mobile viewport widths");
     }
 
-    const chatInput = page.getByPlaceholder(/ask kody|kody is waiting/i).first();
+    const chatInput = page
+      .getByPlaceholder(/ask kody|kody is waiting/i)
+      .first();
     const chatButton = page.locator('[title="Chat"]').first();
 
     const inputVisible = await chatInput.isVisible().catch(() => false);
@@ -119,7 +137,9 @@ test.describe("Dashboard — authenticated", () => {
     page.on("pageerror", (err) => errors.push(err.message));
 
     await page.mouse.move(400, 300);
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
+    await page.evaluate(() =>
+      window.scrollTo(0, document.body.scrollHeight / 2),
+    );
     await page.waitForTimeout(500);
     await page.mouse.move(600, 400);
     await page.waitForTimeout(500);
@@ -132,7 +152,10 @@ test.describe("Dashboard — authenticated", () => {
         !e.includes("502") &&
         !e.includes("Bad Gateway"),
     );
-    expect(criticalErrors, `Interaction errors: ${criticalErrors.join("\n")}`).toHaveLength(0);
+    expect(
+      criticalErrors,
+      `Interaction errors: ${criticalErrors.join("\n")}`,
+    ).toHaveLength(0);
   });
 });
 

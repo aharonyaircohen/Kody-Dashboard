@@ -8,11 +8,11 @@
  *   "Goals" category is missing), renders the {@link DiscussionsDisabledBadge}
  *   in place of the thread.
  */
-'use client'
+"use client";
 
-import { useEffect, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Bold,
   Code,
@@ -25,34 +25,32 @@ import {
   MessageSquare,
   MessageSquarePlus,
   Send,
-} from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
-import { Button } from '@dashboard/ui/button'
-import { Textarea } from '@dashboard/ui/textarea'
-import { cn } from '@dashboard/lib/utils/ui'
-import { formatRelativeTime } from '../utils'
+} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+import { Button } from "@dashboard/ui/button";
+import { Textarea } from "@dashboard/ui/textarea";
+import { cn } from "@dashboard/lib/utils/ui";
+import { formatRelativeTime } from "../utils";
 import {
   useGoalDiscussion,
   usePostGoalDiscussionComment,
-} from '../hooks/useGoals'
-import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
-import { kodyApi } from '../api'
-import type {
-  DiscussionDisabledReason,
-  GoalDiscussionComment,
-} from '../api'
+} from "../hooks/useGoals";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { kodyApi } from "../api";
+import type { DiscussionDisabledReason, GoalDiscussionComment } from "../api";
 
 interface Mention {
-  login: string
-  avatar_url: string
+  login: string;
+  avatar_url: string;
 }
 
 interface GoalDiscussionProps {
-  goalId: string
+  goalId: string;
 }
 
 export function GoalDiscussion({ goalId }: GoalDiscussionProps) {
-  const { data, isLoading, error, refetch, isFetching } = useGoalDiscussion(goalId)
+  const { data, isLoading, error, refetch, isFetching } =
+    useGoalDiscussion(goalId);
 
   if (isLoading) {
     return (
@@ -70,7 +68,7 @@ export function GoalDiscussion({ goalId }: GoalDiscussionProps) {
           </div>
         ))}
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -86,13 +84,15 @@ export function GoalDiscussion({ goalId }: GoalDiscussionProps) {
           Retry
         </Button>
       </div>
-    )
+    );
   }
 
-  if (!data) return null
+  if (!data) return null;
 
   if (!data.enabled) {
-    return <DiscussionsDisabledBadge reason={data.reason} message={data.message} />
+    return (
+      <DiscussionsDisabledBadge reason={data.reason} message={data.message} />
+    );
   }
 
   return (
@@ -101,8 +101,8 @@ export function GoalDiscussion({ goalId }: GoalDiscussionProps) {
         <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
           <MessageSquare className="w-3.5 h-3.5" />
           <span>
-            {data.comments.length}{' '}
-            {data.comments.length === 1 ? 'comment' : 'comments'}
+            {data.comments.length}{" "}
+            {data.comments.length === 1 ? "comment" : "comments"}
           </span>
           {isFetching ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
         </div>
@@ -122,48 +122,55 @@ export function GoalDiscussion({ goalId }: GoalDiscussionProps) {
 
       <DiscussionCommentEditor goalId={goalId} />
     </div>
-  )
+  );
 }
 
 function DiscussionCommentList({
   comments,
 }: {
-  comments: GoalDiscussionComment[]
+  comments: GoalDiscussionComment[];
 }) {
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [comments])
+  }, [comments]);
 
   if (comments.length === 0) {
     return (
       <div className="text-center py-6 text-muted-foreground text-sm">
         No comments yet — kick off the discussion below.
       </div>
-    )
+    );
   }
 
   return (
-    <div ref={containerRef} className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+    <div
+      ref={containerRef}
+      className="space-y-3 max-h-[480px] overflow-y-auto pr-1"
+    >
       {comments.map((c) => (
         <DiscussionCommentItem key={c.id} comment={c} />
       ))}
     </div>
-  )
+  );
 }
 
-function DiscussionCommentItem({ comment }: { comment: GoalDiscussionComment }) {
-  const author = comment.author
-  const isBot = author?.login.endsWith('[bot]') ?? false
+function DiscussionCommentItem({
+  comment,
+}: {
+  comment: GoalDiscussionComment;
+}) {
+  const author = comment.author;
+  const isBot = author?.login.endsWith("[bot]") ?? false;
 
   return (
     <div
       className={cn(
-        'p-3 rounded-lg border text-sm',
-        isBot ? 'bg-muted/30 border-muted' : 'bg-background border-border',
+        "p-3 rounded-lg border text-sm",
+        isBot ? "bg-muted/30 border-muted" : "bg-background border-border",
       )}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -173,18 +180,20 @@ function DiscussionCommentItem({ comment }: { comment: GoalDiscussionComment }) 
               <AvatarImage src={author.avatarUrl} alt={author.login} />
             ) : null}
             <AvatarFallback className="text-xs">
-              {author?.login[0]?.toUpperCase() || '?'}
+              {author?.login[0]?.toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
           <span
             className={cn(
-              'text-sm font-medium',
-              isBot ? 'text-muted-foreground' : 'text-foreground',
+              "text-sm font-medium",
+              isBot ? "text-muted-foreground" : "text-foreground",
             )}
           >
-            {author?.login ?? 'unknown'}
+            {author?.login ?? "unknown"}
             {isBot ? (
-              <span className="ml-1 text-xs bg-muted px-1.5 py-0.5 rounded">BOT</span>
+              <span className="ml-1 text-xs bg-muted px-1.5 py-0.5 rounded">
+                BOT
+              </span>
             ) : null}
           </span>
         </div>
@@ -204,14 +213,17 @@ function DiscussionCommentItem({ comment }: { comment: GoalDiscussionComment }) 
           remarkPlugins={[remarkGfm]}
           components={{
             code({ className, children, ...props }) {
-              const match = /language-(\w+)/.exec(className || '')
-              const isInline = !match
+              const match = /language-(\w+)/.exec(className || "");
+              const isInline = !match;
               if (isInline) {
                 return (
-                  <code className="bg-muted px-1 py-0.5 rounded text-xs" {...props}>
+                  <code
+                    className="bg-muted px-1 py-0.5 rounded text-xs"
+                    {...props}
+                  >
                     {children}
                   </code>
-                )
+                );
               }
               return (
                 <pre className="bg-muted p-2 rounded-md overflow-x-auto">
@@ -219,7 +231,7 @@ function DiscussionCommentItem({ comment }: { comment: GoalDiscussionComment }) 
                     {children}
                   </code>
                 </pre>
-              )
+              );
             },
             a({ href, children, ...props }) {
               return (
@@ -232,7 +244,7 @@ function DiscussionCommentItem({ comment }: { comment: GoalDiscussionComment }) 
                 >
                   {children}
                 </a>
-              )
+              );
             },
           }}
         >
@@ -240,153 +252,151 @@ function DiscussionCommentItem({ comment }: { comment: GoalDiscussionComment }) 
         </ReactMarkdown>
       </div>
     </div>
-  )
+  );
 }
 
 function DiscussionCommentEditor({ goalId }: { goalId: string }) {
-  const [body, setBody] = useState('')
-  const [showPreview, setShowPreview] = useState(false)
-  const [showEditor, setShowEditor] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { githubUser } = useGitHubIdentity()
+  const [body, setBody] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { githubUser } = useGitHubIdentity();
 
   // @mention autofill — uses the typed kodyApi client (which forwards the
   // localStorage auth headers). Plain `fetch` falls back to the bot token,
   // which isn't a collaborator on per-user repos and gets 403 → empty list.
-  const [mentions, setMentions] = useState<Mention[]>([])
-  const [mentionQuery, setMentionQuery] = useState('')
-  const [showMentions, setShowMentions] = useState(false)
-  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
+  const [mentions, setMentions] = useState<Mention[]>([]);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [showMentions, setShowMentions] = useState(false);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
     kodyApi.collaborators
       .list()
       .then((collabs) => {
-        if (cancelled) return
+        if (cancelled) return;
         // Always include the signed-in user so they can self-mention even
         // if the collaborators list is empty (private repos / bot-only token).
-        const merged: Mention[] = [...collabs]
+        const merged: Mention[] = [...collabs];
         if (
           githubUser?.login &&
           !merged.some((m) => m.login === githubUser.login)
         ) {
           merged.unshift({
             login: githubUser.login,
-            avatar_url: githubUser.avatar_url ?? '',
-          })
+            avatar_url: githubUser.avatar_url ?? "",
+          });
         }
-        setMentions(merged)
+        setMentions(merged);
       })
       .catch((err) => {
-        console.warn('[GoalDiscussion] collaborators load failed', err)
+        console.warn("[GoalDiscussion] collaborators load failed", err);
         // Still allow self-mention.
         if (githubUser?.login) {
           setMentions([
             {
               login: githubUser.login,
-              avatar_url: githubUser.avatar_url ?? '',
+              avatar_url: githubUser.avatar_url ?? "",
             },
-          ])
+          ]);
         }
-      })
+      });
     return () => {
-      cancelled = true
-    }
-  }, [githubUser?.login, githubUser?.avatar_url])
+      cancelled = true;
+    };
+  }, [githubUser?.login, githubUser?.avatar_url]);
 
   const filteredMentions = mentions
-    .filter((m) =>
-      m.login.toLowerCase().includes(mentionQuery.toLowerCase()),
-    )
-    .slice(0, 5)
+    .filter((m) => m.login.toLowerCase().includes(mentionQuery.toLowerCase()))
+    .slice(0, 5);
 
   const {
     mutate: postComment,
     isPending,
     error,
-  } = usePostGoalDiscussionComment(goalId, githubUser?.login)
+  } = usePostGoalDiscussionComment(goalId, githubUser?.login);
 
   const handleSubmit = () => {
-    if (!body.trim() || isPending) return
+    if (!body.trim() || isPending) return;
     postComment(body.trim(), {
       onSuccess: () => {
-        setBody('')
-        setShowPreview(false)
+        setBody("");
+        setShowPreview(false);
       },
-    })
-  }
+    });
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value
-    setBody(value)
-    const cursorPos = e.target.selectionStart
-    const textBeforeCursor = value.slice(0, cursorPos)
-    const m = textBeforeCursor.match(/@(\w*)$/)
+    const value = e.target.value;
+    setBody(value);
+    const cursorPos = e.target.selectionStart;
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const m = textBeforeCursor.match(/@(\w*)$/);
     if (m) {
-      setMentionQuery(m[1])
-      setShowMentions(true)
-      setSelectedMentionIndex(0)
+      setMentionQuery(m[1]);
+      setShowMentions(true);
+      setSelectedMentionIndex(0);
     } else {
-      setShowMentions(false)
-      setMentionQuery('')
+      setShowMentions(false);
+      setMentionQuery("");
     }
-  }
+  };
 
   const selectMention = (mention: Mention) => {
-    const ta = textareaRef.current
-    const cursorPos = ta?.selectionStart ?? body.length
-    const textBeforeCursor = body.slice(0, cursorPos)
-    const textAfterCursor = body.slice(cursorPos)
-    const newBefore = textBeforeCursor.replace(/@\w*$/, `@${mention.login} `)
-    setBody(newBefore + textAfterCursor)
-    setShowMentions(false)
-    setMentionQuery('')
-    ta?.focus()
-  }
+    const ta = textareaRef.current;
+    const cursorPos = ta?.selectionStart ?? body.length;
+    const textBeforeCursor = body.slice(0, cursorPos);
+    const textAfterCursor = body.slice(cursorPos);
+    const newBefore = textBeforeCursor.replace(/@\w*$/, `@${mention.login} `);
+    setBody(newBefore + textAfterCursor);
+    setShowMentions(false);
+    setMentionQuery("");
+    ta?.focus();
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!showMentions) return
+    if (!showMentions) return;
     switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
+      case "ArrowDown":
+        e.preventDefault();
         setSelectedMentionIndex((i) =>
           Math.min(i + 1, filteredMentions.length - 1),
-        )
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setSelectedMentionIndex((i) => Math.max(i - 1, 0))
-        break
-      case 'Enter':
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedMentionIndex((i) => Math.max(i - 1, 0));
+        break;
+      case "Enter":
         if (filteredMentions[selectedMentionIndex]) {
-          e.preventDefault()
-          selectMention(filteredMentions[selectedMentionIndex])
+          e.preventDefault();
+          selectMention(filteredMentions[selectedMentionIndex]);
         }
-        break
-      case 'Escape':
-        setShowMentions(false)
-        break
+        break;
+      case "Escape":
+        setShowMentions(false);
+        break;
     }
-  }
+  };
 
-  const insertMarkdown = (before: string, after: string = '') => {
-    const ta = textareaRef.current
-    if (!ta) return
-    const start = ta.selectionStart
-    const end = ta.selectionEnd
-    const selected = body.slice(start, end)
+  const insertMarkdown = (before: string, after: string = "") => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = body.slice(start, end);
     const next =
-      body.slice(0, start) + before + selected + after + body.slice(end)
-    setBody(next)
+      body.slice(0, start) + before + selected + after + body.slice(end);
+    setBody(next);
     setTimeout(() => {
-      ta.focus()
+      ta.focus();
       ta.setSelectionRange(
         start + before.length,
         start + before.length + selected.length,
-      )
-    }, 0)
-  }
+      );
+    }, 0);
+  };
 
   if (!showEditor) {
     return (
@@ -399,7 +409,7 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
         <MessageSquarePlus className="w-4 h-4 mr-2" />
         Add comment...
       </Button>
-    )
+    );
   }
 
   return (
@@ -409,7 +419,7 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => insertMarkdown('**', '**')}
+          onClick={() => insertMarkdown("**", "**")}
           className="h-6 w-6 p-0"
           title="Bold"
         >
@@ -419,7 +429,7 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => insertMarkdown('*', '*')}
+          onClick={() => insertMarkdown("*", "*")}
           className="h-6 w-6 p-0"
           title="Italic"
         >
@@ -429,7 +439,7 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => insertMarkdown('`', '`')}
+          onClick={() => insertMarkdown("`", "`")}
           className="h-6 w-6 p-0"
           title="Code"
         >
@@ -439,7 +449,7 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => insertMarkdown('[', '](url)')}
+          onClick={() => insertMarkdown("[", "](url)")}
           className="h-6 w-6 p-0"
           title="Link"
         >
@@ -449,7 +459,7 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => insertMarkdown('- ')}
+          onClick={() => insertMarkdown("- ")}
           className="h-6 w-6 p-0"
           title="List"
         >
@@ -460,11 +470,11 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
 
         <Button
           type="button"
-          variant={showPreview ? 'secondary' : 'ghost'}
+          variant={showPreview ? "secondary" : "ghost"}
           size="sm"
           onClick={() => setShowPreview(!showPreview)}
           className="h-6 px-1.5 text-xs"
-          title={showPreview ? 'Edit' : 'Preview'}
+          title={showPreview ? "Edit" : "Preview"}
         >
           <Eye className="w-3 h-3" />
         </Button>
@@ -476,9 +486,9 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
           variant="ghost"
           size="sm"
           onClick={() => {
-            setShowEditor(false)
-            setBody('')
-            setShowPreview(false)
+            setShowEditor(false);
+            setBody("");
+            setShowPreview(false);
           }}
           className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
           title="Close"
@@ -491,7 +501,7 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
         {showPreview ? (
           <div className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {body || '*Nothing to preview*'}
+              {body || "*Nothing to preview*"}
             </ReactMarkdown>
           </div>
         ) : (
@@ -519,8 +529,8 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
                       type="button"
                       onClick={() => selectMention(mention)}
                       className={cn(
-                        'w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent',
-                        index === selectedMentionIndex && 'bg-accent',
+                        "w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent",
+                        index === selectedMentionIndex && "bg-accent",
                       )}
                     >
                       <Avatar className="h-6 w-6">
@@ -531,7 +541,7 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
                           />
                         ) : null}
                         <AvatarFallback className="text-xs">
-                          {mention.login[0]?.toUpperCase() || '?'}
+                          {mention.login[0]?.toUpperCase() || "?"}
                         </AvatarFallback>
                       </Avatar>
                       <span className="text-sm">{mention.login}</span>
@@ -540,7 +550,7 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
                 ) : (
                   <div className="px-3 py-3 text-xs text-muted-foreground space-y-1">
                     <div>
-                      No matches for{' '}
+                      No matches for{" "}
                       <code className="font-mono bg-muted px-1 rounded">
                         @{mentionQuery}
                       </code>
@@ -559,12 +569,12 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
 
       <div className="flex justify-between items-center gap-2">
         <p className="text-[11px] text-muted-foreground leading-snug">
-          Tip: type{' '}
+          Tip: type{" "}
           <code className="px-1 py-0.5 rounded bg-muted text-foreground/80 font-mono text-[10px]">
             @
-          </code>{' '}
-          to mention a teammate — they&apos;ll get a GitHub notification and
-          can join the thread.
+          </code>{" "}
+          to mention a teammate — they&apos;ll get a GitHub notification and can
+          join the thread.
         </p>
         <div className="flex items-center gap-1 shrink-0">
           {error ? (
@@ -585,12 +595,12 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
             ) : (
               <Send className="w-3 h-3" />
             )}
-            <span>{isPending ? 'Posting…' : 'Comment'}</span>
+            <span>{isPending ? "Posting…" : "Comment"}</span>
           </Button>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -604,29 +614,29 @@ export function DiscussionsDisabledBadge({
   owner,
   repo,
 }: {
-  reason: DiscussionDisabledReason
-  message?: string
-  owner?: string
-  repo?: string
+  reason: DiscussionDisabledReason;
+  message?: string;
+  owner?: string;
+  repo?: string;
 }) {
   const settingsUrl =
     owner && repo
       ? `https://github.com/${owner}/${repo}/settings#features`
-      : null
+      : null;
 
   const detail = (() => {
-    if (message) return message
+    if (message) return message;
     switch (reason) {
-      case 'discussions_disabled':
-        return 'The dashboard tried to enable Discussions for this repo but does not have admin permission. Ask a repo admin to flip it on.'
-      case 'category_missing':
-        return 'No discussion categories exist in this repo. Recreate at least one in the Discussions tab.'
-      case 'provision_failed':
-        return 'Could not create the discussion thread. Check that you have permission to post in this repo.'
+      case "discussions_disabled":
+        return "The dashboard tried to enable Discussions for this repo but does not have admin permission. Ask a repo admin to flip it on.";
+      case "category_missing":
+        return "No discussion categories exist in this repo. Recreate at least one in the Discussions tab.";
+      case "provision_failed":
+        return "Could not create the discussion thread. Check that you have permission to post in this repo.";
       default:
-        return 'Discussions are unavailable.'
+        return "Discussions are unavailable.";
     }
-  })()
+  })();
 
   return (
     <div className="inline-flex items-start gap-2 rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground">
@@ -647,5 +657,5 @@ export function DiscussionsDisabledBadge({
         ) : null}
       </div>
     </div>
-  )
+  );
 }

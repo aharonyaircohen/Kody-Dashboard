@@ -68,7 +68,14 @@ export async function POST(req: NextRequest) {
       const headerAuth = getRequestAuth(req);
       await sendNotification(parsed.channel, {
         text: parsed.text,
-        vars: { repo: "test", prUrl: "", prTitle: "", prBody: "", author: "", version: "" },
+        vars: {
+          repo: "test",
+          prUrl: "",
+          prTitle: "",
+          prBody: "",
+          author: "",
+          version: "",
+        },
         github: headerAuth
           ? {
               owner: headerAuth.owner,

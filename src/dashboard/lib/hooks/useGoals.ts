@@ -5,10 +5,10 @@
  * @ai-summary React Query hooks for the Goals feature. Mirrors useJobs:
  *   list query + create/update/delete mutations.
  */
-'use client'
+"use client";
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   kodyApi,
   type Goal,
@@ -17,13 +17,13 @@ import {
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
-} from '../api'
+} from "../api";
 
 export const goalQueryKeys = {
-  list: ['kody-goals'] as const,
-  capabilities: ['kody-goals', 'capabilities'] as const,
-  discussion: (id: string) => ['kody-goals', 'discussion', id] as const,
-}
+  list: ["kody-goals"] as const,
+  capabilities: ["kody-goals", "capabilities"] as const,
+  discussion: (id: string) => ["kody-goals", "discussion", id] as const,
+};
 
 export function useGoals() {
   return useQuery({
@@ -40,11 +40,11 @@ export function useGoals() {
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     retry: (failureCount, error) => {
-      if (error instanceof SessionExpiredError) return false
-      if (error instanceof NoTokenError) return false
-      return failureCount < 2
+      if (error instanceof SessionExpiredError) return false;
+      if (error instanceof NoTokenError) return false;
+      return failureCount < 2;
     },
-  })
+  });
 }
 
 /**
@@ -59,11 +59,11 @@ export function useGoalsCapabilities() {
     enabled: !!getStoredAuth(),
     staleTime: 5 * 60_000,
     retry: (failureCount, error) => {
-      if (error instanceof SessionExpiredError) return false
-      if (error instanceof NoTokenError) return false
-      return failureCount < 2
+      if (error instanceof SessionExpiredError) return false;
+      if (error instanceof NoTokenError) return false;
+      return failureCount < 2;
     },
-  })
+  });
 }
 
 /**
@@ -73,25 +73,27 @@ export function useGoalsCapabilities() {
  */
 export function useGoalDiscussion(goalId: string | null) {
   return useQuery<GoalDiscussionPayload>({
-    queryKey: goalId ? goalQueryKeys.discussion(goalId) : ['kody-goals', 'discussion', '__none__'],
+    queryKey: goalId
+      ? goalQueryKeys.discussion(goalId)
+      : ["kody-goals", "discussion", "__none__"],
     queryFn: () => kodyApi.goals.fetchDiscussion(goalId!),
     enabled: !!goalId && !!getStoredAuth(),
     // Comments cache 60s on the server too — match here so stale UI doesn't
     // pile on extra GraphQL hits.
     staleTime: 60_000,
     retry: (failureCount, error) => {
-      if (error instanceof SessionExpiredError) return false
-      if (error instanceof NoTokenError) return false
-      return failureCount < 2
+      if (error instanceof SessionExpiredError) return false;
+      if (error instanceof NoTokenError) return false;
+      return failureCount < 2;
     },
-  })
+  });
 }
 
 export function usePostGoalDiscussionComment(
   goalId: string,
   actorLogin?: string,
 ) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
   return useMutation<GoalDiscussionComment, Error, string>({
     mutationFn: (body) =>
       kodyApi.goals.postDiscussionComment(goalId, body, actorLogin),
@@ -99,22 +101,24 @@ export function usePostGoalDiscussionComment(
       queryClient.setQueryData<GoalDiscussionPayload>(
         goalQueryKeys.discussion(goalId),
         (prev) => {
-          if (!prev) return prev
-          if (!prev.enabled) return prev
-          if (prev.comments.some((c) => c.id === created.id)) return prev
-          return { ...prev, comments: [...prev.comments, created] }
+          if (!prev) return prev;
+          if (!prev.enabled) return prev;
+          if (prev.comments.some((c) => c.id === created.id)) return prev;
+          return { ...prev, comments: [...prev.comments, created] };
         },
-      )
-      queryClient.invalidateQueries({ queryKey: goalQueryKeys.discussion(goalId) })
+      );
+      queryClient.invalidateQueries({
+        queryKey: goalQueryKeys.discussion(goalId),
+      });
     },
     onError: (error) => {
-      toast.error('Failed to post comment', { description: error.message })
+      toast.error("Failed to post comment", { description: error.message });
     },
-  })
+  });
 }
 
 export function useCreateGoal(actorLogin?: string) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation<
     Goal,
@@ -131,30 +135,30 @@ export function useCreateGoal(actorLogin?: string) {
       // GitHub eventual consistency or any downstream cache. The invalidation
       // below schedules a background refetch to reconcile.
       queryClient.setQueryData<Goal[]>(goalQueryKeys.list, (prev) => {
-        if (!prev) return [created]
-        if (prev.some((g) => g.id === created.id)) return prev
-        return [...prev, created]
-      })
-      queryClient.invalidateQueries({ queryKey: goalQueryKeys.list })
-      toast.success('Goal created')
+        if (!prev) return [created];
+        if (prev.some((g) => g.id === created.id)) return prev;
+        return [...prev, created];
+      });
+      queryClient.invalidateQueries({ queryKey: goalQueryKeys.list });
+      toast.success("Goal created");
     },
     onError: (error) => {
-      toast.error('Failed to create goal', { description: error.message })
+      toast.error("Failed to create goal", { description: error.message });
     },
-  })
+  });
 }
 
 export function useUpdateGoal(id: string, actorLogin?: string) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation<
     Goal,
     Error,
     {
-      name?: string
-      description?: string | null
-      dueDate?: string | null
-      assignee?: string | null
+      name?: string;
+      description?: string | null;
+      dueDate?: string | null;
+      assignee?: string | null;
     }
   >({
     mutationFn: (data) =>
@@ -165,74 +169,73 @@ export function useUpdateGoal(id: string, actorLogin?: string) {
     onSuccess: (updated) => {
       queryClient.setQueryData<Goal[]>(goalQueryKeys.list, (prev) =>
         prev ? prev.map((g) => (g.id === updated.id ? updated : g)) : prev,
-      )
-      queryClient.invalidateQueries({ queryKey: goalQueryKeys.list })
-      toast.success('Goal updated')
+      );
+      queryClient.invalidateQueries({ queryKey: goalQueryKeys.list });
+      toast.success("Goal updated");
     },
     onError: (error) => {
-      toast.error('Failed to update goal', { description: error.message })
+      toast.error("Failed to update goal", { description: error.message });
     },
-  })
+  });
 }
 
 export function useReorderGoals(actorLogin?: string) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation<Goal[], Error, string[], { previous: Goal[] | undefined }>(
     {
-      mutationFn: (orderedIds) =>
-        kodyApi.goals.reorder(orderedIds, actorLogin),
+      mutationFn: (orderedIds) => kodyApi.goals.reorder(orderedIds, actorLogin),
       onMutate: async (orderedIds) => {
-        await queryClient.cancelQueries({ queryKey: goalQueryKeys.list })
-        const previous = queryClient.getQueryData<Goal[]>(goalQueryKeys.list)
+        await queryClient.cancelQueries({ queryKey: goalQueryKeys.list });
+        const previous = queryClient.getQueryData<Goal[]>(goalQueryKeys.list);
         if (previous) {
-          const byId = new Map(previous.map((g) => [g.id, g]))
-          const next: Goal[] = []
-          const seen = new Set<string>()
+          const byId = new Map(previous.map((g) => [g.id, g]));
+          const next: Goal[] = [];
+          const seen = new Set<string>();
           for (const id of orderedIds) {
-            const g = byId.get(id)
+            const g = byId.get(id);
             if (g && !seen.has(id)) {
-              next.push(g)
-              seen.add(id)
+              next.push(g);
+              seen.add(id);
             }
           }
           for (const g of previous) {
-            if (!seen.has(g.id)) next.push(g)
+            if (!seen.has(g.id)) next.push(g);
           }
-          queryClient.setQueryData<Goal[]>(goalQueryKeys.list, next)
+          queryClient.setQueryData<Goal[]>(goalQueryKeys.list, next);
         }
-        return { previous }
+        return { previous };
       },
       onError: (error, _ids, context) => {
         if (context?.previous) {
-          queryClient.setQueryData(goalQueryKeys.list, context.previous)
+          queryClient.setQueryData(goalQueryKeys.list, context.previous);
         }
-        toast.error('Failed to reorder goals', { description: error.message })
+        toast.error("Failed to reorder goals", { description: error.message });
       },
       onSuccess: (goals) => {
-        queryClient.setQueryData<Goal[]>(goalQueryKeys.list, goals)
+        queryClient.setQueryData<Goal[]>(goalQueryKeys.list, goals);
       },
       onSettled: () => {
-        queryClient.invalidateQueries({ queryKey: goalQueryKeys.list })
+        queryClient.invalidateQueries({ queryKey: goalQueryKeys.list });
       },
     },
-  )
+  );
 }
 
 export function useDeleteGoal(actorLogin?: string) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation<void, Error, string>({
     mutationFn: (id) => kodyApi.goals.remove(id, actorLogin),
     onSuccess: (_, removedId) => {
       queryClient.setQueryData<Goal[]>(goalQueryKeys.list, (prev) =>
         prev ? prev.filter((g) => g.id !== removedId) : prev,
-      )
-      queryClient.invalidateQueries({ queryKey: goalQueryKeys.list })
-      toast.success('Goal removed')
+      );
+      queryClient.invalidateQueries({ queryKey: goalQueryKeys.list });
+      toast.success("Goal removed");
     },
     onError: (error) => {
-      toast.error('Failed to remove goal', { description: error.message })
+      toast.error("Failed to remove goal", { description: error.message });
     },
-  })
+  });
 }

@@ -52,7 +52,10 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         /* Disable HTTPS upgrade for localhost — needed for local dev against HTTP server */
         launchOptions: {
-          args: ["--host-rules=MAP localhost 127.0.0.1", "--disable-extensions"],
+          args: [
+            "--host-rules=MAP localhost 127.0.0.1",
+            "--disable-extensions",
+          ],
         },
         /* Use the bot token cookie for auth — enables real dashboard interactions */
         extraHTTPHeaders: {

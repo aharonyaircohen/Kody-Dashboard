@@ -4,24 +4,24 @@
  * @pattern message-actions
  * @ai-summary Per-message action buttons (copy, retry, edit, delete) with hover reveal
  */
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Check, Copy, Pencil, RotateCw, Trash2 } from 'lucide-react'
-import { cn } from '@dashboard/lib/utils/ui'
-import { ConfirmDialog } from './ConfirmDialog'
+import { useState } from "react";
+import { Check, Copy, Pencil, RotateCw, Trash2 } from "lucide-react";
+import { cn } from "@dashboard/lib/utils/ui";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 interface MessageActionsProps {
-  role: 'user' | 'assistant'
-  content: string
-  isLast: boolean
-  isLoading: boolean
-  hasToolCalls?: boolean
-  onCopy: () => string
-  onRetry?: () => void
-  onEdit?: (content: string) => void
-  onDelete: () => void
-  className?: string
+  role: "user" | "assistant";
+  content: string;
+  isLast: boolean;
+  isLoading: boolean;
+  hasToolCalls?: boolean;
+  onCopy: () => string;
+  onRetry?: () => void;
+  onEdit?: (content: string) => void;
+  onDelete: () => void;
+  className?: string;
 }
 
 export function MessageActions({
@@ -35,49 +35,49 @@ export function MessageActions({
   onDelete,
   className,
 }: MessageActionsProps) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [editContent, setEditContent] = useState('')
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  if (isLoading) return null
+  if (isLoading) return null;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(onCopy() || '')
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
+    await navigator.clipboard.writeText(onCopy() || "");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleStartEdit = () => {
-    setEditContent(onCopy() || '')
-    setIsEditing(true)
-  }
+    setEditContent(onCopy() || "");
+    setIsEditing(true);
+  };
 
   const handleSaveEdit = () => {
     if (editContent.trim() && onEdit) {
-      onEdit(editContent.trim())
+      onEdit(editContent.trim());
     }
-    setIsEditing(false)
-    setEditContent('')
-  }
+    setIsEditing(false);
+    setEditContent("");
+  };
 
   const handleCancelEdit = () => {
-    setIsEditing(false)
-    setEditContent('')
-  }
+    setIsEditing(false);
+    setEditContent("");
+  };
 
-  const canRetry = role === 'assistant' && isLast && onRetry
-  const canEdit = role === 'user' && onEdit
-  const canDelete = true
+  const canRetry = role === "assistant" && isLast && onRetry;
+  const canEdit = role === "user" && onEdit;
+  const canDelete = true;
 
   // No actions for loading messages
-  if (!canRetry && !canEdit && !canDelete) return null
+  if (!canRetry && !canEdit && !canDelete) return null;
 
   return (
     <>
       <div
         className={cn(
-          'absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 z-10',
+          "absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 z-10",
           className,
         )}
       >
@@ -85,7 +85,7 @@ export function MessageActions({
         <button
           onClick={handleCopy}
           className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-          title={copied ? 'Copied!' : 'Copy'}
+          title={copied ? "Copied!" : "Copy"}
         >
           {copied ? (
             <Check className="w-3.5 h-3.5" />
@@ -161,18 +161,18 @@ export function MessageActions({
         open={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
         onConfirm={() => {
-          onDelete()
-          setShowDeleteConfirm(false)
+          onDelete();
+          setShowDeleteConfirm(false);
         }}
         title="Delete message?"
         description={
           hasToolCalls
-            ? 'This message has tool calls. Deleting it will also remove the tool results. This cannot be undone.'
-            : 'This will remove the message from the conversation. This cannot be undone.'
+            ? "This message has tool calls. Deleting it will also remove the tool results. This cannot be undone."
+            : "This will remove the message from the conversation. This cannot be undone."
         }
         confirmLabel="Delete"
         variant="destructive"
       />
     </>
-  )
+  );
 }

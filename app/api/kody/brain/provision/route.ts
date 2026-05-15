@@ -17,31 +17,31 @@
  * the user-initiated path from Settings.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth } from '@dashboard/lib/auth'
-import { logger } from '@dashboard/lib/logger'
-import { provisionBrain } from '@dashboard/lib/runners/brain-fly'
-import { resolveFlyContext } from '@dashboard/lib/runners/fly-context'
+import { requireKodyAuth } from "@dashboard/lib/auth";
+import { logger } from "@dashboard/lib/logger";
+import { provisionBrain } from "@dashboard/lib/runners/brain-fly";
+import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 
-export const runtime = 'nodejs'
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req)
-  if (authError) return authError
+  const authError = await requireKodyAuth(req);
+  if (authError) return authError;
 
-  const ctx = await resolveFlyContext(req)
+  const ctx = await resolveFlyContext(req);
   if (!ctx.ok) {
-    return NextResponse.json({ error: ctx.error }, { status: ctx.status })
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
   if (!ctx.context.flyToken) {
     return NextResponse.json(
       {
         error:
-          'Brain on Fly needs a Fly Machines token — add FLY_API_TOKEN to the repo Secrets vault.',
+          "Brain on Fly needs a Fly Machines token — add FLY_API_TOKEN to the repo Secrets vault.",
       },
       { status: 400 },
-    )
+    );
   }
 
   try {
@@ -53,11 +53,11 @@ export async function POST(req: NextRequest) {
       allSecrets: ctx.context.allSecrets,
       perfTier: ctx.context.perfTier,
       litellmUrl: ctx.context.litellmUrl,
-    })
-    return NextResponse.json(result)
+    });
+    return NextResponse.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    logger.error({ err, owner: ctx.context.owner }, 'brain provision failed')
-    return NextResponse.json({ error: message }, { status: 502 })
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error({ err, owner: ctx.context.owner }, "brain provision failed");
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 }

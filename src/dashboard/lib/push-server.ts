@@ -36,7 +36,10 @@ const locks = new Map<string, Promise<unknown>>();
 
 async function withRepoLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const previous = locks.get(key) ?? Promise.resolve();
-  const run = previous.then(() => fn(), () => fn());
+  const run = previous.then(
+    () => fn(),
+    () => fn(),
+  );
   locks.set(key, run);
   try {
     return await run;
@@ -58,7 +61,10 @@ async function readPushManifestFresh(): Promise<ManifestRef> {
     noCache: true,
   });
   if (!issues.length) {
-    return { number: null, manifest: { ...EMPTY_PUSH_MANIFEST, subscriptions: [] } };
+    return {
+      number: null,
+      manifest: { ...EMPTY_PUSH_MANIFEST, subscriptions: [] },
+    };
   }
   const first = [...issues].sort((a, b) => a.number - b.number)[0];
   const full = await fetchIssue(first.number, { noCache: true });
@@ -110,7 +116,8 @@ function manifestsEqual(
 ): boolean {
   if (a.subscriptions.length !== b.subscriptions.length) return false;
   for (let i = 0; i < a.subscriptions.length; i++) {
-    if (!subscriptionsEqual(a.subscriptions[i], b.subscriptions[i])) return false;
+    if (!subscriptionsEqual(a.subscriptions[i], b.subscriptions[i]))
+      return false;
   }
   return true;
 }
@@ -151,7 +158,10 @@ export async function mutatePushManifest<T>(
       if ("kind" in mutation && mutation.kind === "noop") {
         return { kind: "noop" as const, result: mutation.result };
       }
-      const written = mutation as { next: PushSubscriptionsManifest; result: T };
+      const written = mutation as {
+        next: PushSubscriptionsManifest;
+        result: T;
+      };
       const issueNumber = await writeManifest(
         written.next,
         ref.number,
@@ -175,7 +185,9 @@ export async function mutatePushManifest<T>(
     }
     throw (
       lastError ??
-      new Error(`push manifest write conflict: failed after ${maxAttempts} attempts`)
+      new Error(
+        `push manifest write conflict: failed after ${maxAttempts} attempts`,
+      )
     );
   });
 }

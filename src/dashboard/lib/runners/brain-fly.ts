@@ -24,98 +24,101 @@
  * Reference: https://docs.machines.dev/swagger/index.html
  */
 
-import { randomBytes } from 'node:crypto'
+import { randomBytes } from "node:crypto";
 
-import { logger } from '@dashboard/lib/logger'
+import { logger } from "@dashboard/lib/logger";
 
-const FLY_API_BASE = 'https://api.machines.dev/v1'
+const FLY_API_BASE = "https://api.machines.dev/v1";
 
 const DEFAULT_IMAGE =
-  process.env.FLY_BRAIN_IMAGE ?? 'registry.fly.io/kody-brain:latest'
-const DEFAULT_REGION = process.env.FLY_REGION ?? 'fra'
-const ORGANIZATION = process.env.FLY_BRAIN_ORG ?? 'personal'
+  process.env.FLY_BRAIN_IMAGE ?? "registry.fly.io/kody-brain:latest";
+const DEFAULT_REGION = process.env.FLY_REGION ?? "fra";
+const ORGANIZATION = process.env.FLY_BRAIN_ORG ?? "personal";
 
-export type PerfTier = 'low' | 'medium' | 'high'
+export type PerfTier = "low" | "medium" | "high";
 
-const PERF_GUEST: Record<PerfTier, {
-  cpu_kind: 'shared' | 'performance'
-  cpus: number
-  memory_mb: number
-}> = {
-  low: { cpu_kind: 'shared', cpus: 2, memory_mb: 2048 },
-  medium: { cpu_kind: 'performance', cpus: 1, memory_mb: 2048 },
-  high: { cpu_kind: 'performance', cpus: 2, memory_mb: 4096 },
-}
+const PERF_GUEST: Record<
+  PerfTier,
+  {
+    cpu_kind: "shared" | "performance";
+    cpus: number;
+    memory_mb: number;
+  }
+> = {
+  low: { cpu_kind: "shared", cpus: 2, memory_mb: 2048 },
+  medium: { cpu_kind: "performance", cpus: 1, memory_mb: 2048 },
+  high: { cpu_kind: "performance", cpus: 2, memory_mb: 4096 },
+};
 
-const DEFAULT_PERF_TIER: PerfTier = 'medium'
+const DEFAULT_PERF_TIER: PerfTier = "medium";
 
 export interface ProvisionBrainInput {
-  flyToken: string
+  flyToken: string;
   /** GitHub login the Brain belongs to. Used to derive the app name. */
-  owner: string
+  owner: string;
   /** owner/name of the repo the Brain will clone on boot. */
-  repo: string
+  repo: string;
   /** GitHub token the Brain uses to clone (the user's PAT). */
-  githubToken: string
+  githubToken: string;
   /** Provider keys etc. (mirrors GH Actions toJSON(secrets)). */
-  allSecrets?: Record<string, string>
+  allSecrets?: Record<string, string>;
   /** Optional model override (e.g. anthropic/claude-sonnet-4-6). */
-  model?: string
+  model?: string;
   /** Performance tier — maps to a fixed Fly guest shape. */
-  perfTier?: PerfTier
+  perfTier?: PerfTier;
   /** Optional always-on LiteLLM proxy URL. */
-  litellmUrl?: string
+  litellmUrl?: string;
   /** Default branch to clone. */
-  ref?: string
+  ref?: string;
   /** Override the generated app name (tests). */
-  appNameOverride?: string
+  appNameOverride?: string;
   /** Override the generated API key (tests). */
-  apiKeyOverride?: string
+  apiKeyOverride?: string;
 }
 
 export interface ProvisionBrainResult {
   /** Fly app name (kody-brain-<owner>). */
-  app: string
+  app: string;
   /** Public URL the dashboard's Brain proxy points at. */
-  url: string
+  url: string;
   /** Bearer key — return ONCE to the caller. Never read again. */
-  apiKey: string
+  apiKey: string;
   /** Created machine id. */
-  machineId: string
+  machineId: string;
   /** Fly region. */
-  region: string
+  region: string;
 }
 
 export interface DestroyBrainInput {
-  flyToken: string
-  owner: string
-  appNameOverride?: string
+  flyToken: string;
+  owner: string;
+  appNameOverride?: string;
 }
 
 export interface BrainStatusInput {
-  flyToken: string
-  owner: string
-  appNameOverride?: string
+  flyToken: string;
+  owner: string;
+  appNameOverride?: string;
 }
 
 export interface SuspendBrainInput {
-  flyToken: string
-  owner: string
-  appNameOverride?: string
+  flyToken: string;
+  owner: string;
+  appNameOverride?: string;
 }
 
 export interface ResumeBrainInput {
-  flyToken: string
-  owner: string
-  appNameOverride?: string
+  flyToken: string;
+  owner: string;
+  appNameOverride?: string;
 }
 
 export interface BrainStatusResult {
-  app: string
+  app: string;
   /** "running" | "suspended" | "stopped" | "off" (= no app/machine yet) */
-  state: 'running' | 'suspended' | 'stopped' | 'off'
-  url?: string
-  machineId?: string
+  state: "running" | "suspended" | "stopped" | "off";
+  url?: string;
+  machineId?: string;
 }
 
 /**
@@ -132,27 +135,27 @@ export async function waitForBrainHealth(
   url: string,
   timeoutMs = 120_000,
 ): Promise<void> {
-  const start = Date.now()
-  const healthUrl = `${url.replace(/\/+$/, '')}/healthz`
-  let lastErr: unknown = null
+  const start = Date.now();
+  const healthUrl = `${url.replace(/\/+$/, "")}/healthz`;
+  let lastErr: unknown = null;
   while (Date.now() - start < timeoutMs) {
     try {
       const res = await fetch(healthUrl, {
         // The Fly edge proxy returns quickly when no instance is listening,
         // so a short per-attempt timeout keeps the polling cadence tight.
         signal: AbortSignal.timeout(5_000),
-      })
-      if (res.ok) return
-      lastErr = `status ${res.status}`
+      });
+      if (res.ok) return;
+      lastErr = `status ${res.status}`;
     } catch (err) {
-      lastErr = err
+      lastErr = err;
     }
-    await new Promise((r) => setTimeout(r, 2_000))
+    await new Promise((r) => setTimeout(r, 2_000));
   }
-  const detail = lastErr instanceof Error ? lastErr.message : String(lastErr)
+  const detail = lastErr instanceof Error ? lastErr.message : String(lastErr);
   throw new Error(
     `brain-fly: ${healthUrl} not ready after ${Math.round(timeoutMs / 1000)}s (${detail})`,
-  )
+  );
 }
 
 /**
@@ -164,42 +167,45 @@ export async function waitForBrainHealth(
 export function brainAppName(owner: string): string {
   const slug = owner
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   if (!slug) {
-    throw new Error('brainAppName: owner is empty after slugify')
+    throw new Error("brainAppName: owner is empty after slugify");
   }
-  return `kody-brain-${slug}`
+  return `kody-brain-${slug}`;
 }
 
 function generateApiKey(): string {
-  return randomBytes(32).toString('hex')
+  return randomBytes(32).toString("hex");
 }
 
 function brainAppUrl(app: string): string {
-  return `https://${app}.fly.dev`
+  return `https://${app}.fly.dev`;
 }
 
-function buildMachineEnv(input: ProvisionBrainInput, apiKey: string): Record<string, string> {
+function buildMachineEnv(
+  input: ProvisionBrainInput,
+  apiKey: string,
+): Record<string, string> {
   const env: Record<string, string> = {
     REPO: input.repo,
     GITHUB_TOKEN: input.githubToken,
     BRAIN_API_KEY: apiKey,
-    PORT: '8080',
-  }
-  if (input.model) env.MODEL = input.model
-  if (input.ref) env.REF = input.ref
-  if (input.litellmUrl) env.KODY_LITELLM_URL = input.litellmUrl
-  if (input.allSecrets) env.ALL_SECRETS = JSON.stringify(input.allSecrets)
-  return env
+    PORT: "8080",
+  };
+  if (input.model) env.MODEL = input.model;
+  if (input.ref) env.REF = input.ref;
+  if (input.litellmUrl) env.KODY_LITELLM_URL = input.litellmUrl;
+  if (input.allSecrets) env.ALL_SECRETS = JSON.stringify(input.allSecrets);
+  return env;
 }
 
 interface FlyFetchOpts {
-  method?: 'GET' | 'POST' | 'DELETE' | 'PATCH'
-  token: string
-  body?: unknown
+  method?: "GET" | "POST" | "DELETE" | "PATCH";
+  token: string;
+  body?: unknown;
   /** Treat 404 as a soft miss (resolves to null). */
-  allow404?: boolean
+  allow404?: boolean;
 }
 
 /**
@@ -210,57 +216,57 @@ export async function flyFetch<T>(
   path: string,
   opts: FlyFetchOpts,
 ): Promise<T | null> {
-  const url = `${FLY_API_BASE}${path}`
+  const url = `${FLY_API_BASE}${path}`;
   const res = await fetch(url, {
-    method: opts.method ?? 'GET',
+    method: opts.method ?? "GET",
     headers: {
       Authorization: `Bearer ${opts.token}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-  })
-  if (res.status === 404 && opts.allow404) return null
+  });
+  if (res.status === 404 && opts.allow404) return null;
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
+    const text = await res.text().catch(() => "");
     logger.error(
       { status: res.status, body: text.slice(0, 500), path },
-      'brain-fly: Fly API error',
-    )
+      "brain-fly: Fly API error",
+    );
     throw new Error(
       `Fly Machines API ${res.status} on ${path}: ${text.slice(0, 200) || res.statusText}`,
-    )
+    );
   }
-  if (res.status === 204) return null
+  if (res.status === 204) return null;
   // Fly returns 200/202 with an empty body on some mutating calls (e.g.
   // DELETE /apps/{name}). Parsing an empty string as JSON throws — guard
   // by reading text first.
-  const raw = await res.text()
-  if (!raw.trim()) return null
+  const raw = await res.text();
+  if (!raw.trim()) return null;
   try {
-    return JSON.parse(raw) as T
+    return JSON.parse(raw) as T;
   } catch (err) {
     logger.error(
       { status: res.status, body: raw.slice(0, 500), path },
-      'brain-fly: Fly API returned non-JSON body',
-    )
+      "brain-fly: Fly API returned non-JSON body",
+    );
     throw new Error(
       `Fly Machines API on ${path}: response was not JSON (status ${res.status})`,
-    )
+    );
   }
 }
 
 interface FlyApp {
-  id?: string
-  name: string
-  status?: string
-  organization?: { slug: string }
+  id?: string;
+  name: string;
+  status?: string;
+  organization?: { slug: string };
 }
 
 interface FlyMachine {
-  id: string
-  state?: string
-  config?: { image?: string; env?: Record<string, string> }
-  region?: string
+  id: string;
+  state?: string;
+  config?: { image?: string; env?: Record<string, string> };
+  region?: string;
 }
 
 /**
@@ -272,21 +278,21 @@ async function ensureApp(flyToken: string, appName: string): Promise<FlyApp> {
   const existing = await flyFetch<FlyApp>(
     `/apps/${encodeURIComponent(appName)}`,
     { token: flyToken, allow404: true },
-  )
+  );
   if (existing) {
     // Existing apps may already have IPs (or not, on a half-finished
     // provision). allocateIpsIfMissing is idempotent.
-    await allocateIpsIfMissing(flyToken, appName)
-    return existing
+    await allocateIpsIfMissing(flyToken, appName);
+    return existing;
   }
-  const created = await flyFetch<FlyApp>('/apps', {
-    method: 'POST',
+  const created = await flyFetch<FlyApp>("/apps", {
+    method: "POST",
     token: flyToken,
     body: { app_name: appName, org_slug: ORGANIZATION },
-  })
-  if (!created) throw new Error('brain-fly: create app returned empty')
-  await allocateIpsIfMissing(flyToken, appName)
-  return created
+  });
+  if (!created) throw new Error("brain-fly: create app returned empty");
+  await allocateIpsIfMissing(flyToken, appName);
+  return created;
 }
 
 /**
@@ -305,41 +311,44 @@ export async function allocateIpsIfMissing(
   const existing = await flyFetch<unknown[]>(
     `/apps/${encodeURIComponent(appName)}/ips`,
     { token: flyToken, allow404: true },
-  )
-  if (Array.isArray(existing) && existing.length > 0) return
+  );
+  if (Array.isArray(existing) && existing.length > 0) return;
 
   const query = `mutation($appId: ID!, $type: IPAddressType!) {
     allocateIpAddress(input: { appId: $appId, type: $type }) {
       ipAddress { id address type }
     }
-  }`
+  }`;
 
-  const allocate = async (type: 'shared_v4' | 'v6') => {
-    const res = await fetch('https://api.fly.io/graphql', {
-      method: 'POST',
+  const allocate = async (type: "shared_v4" | "v6") => {
+    const res = await fetch("https://api.fly.io/graphql", {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${flyToken}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ query, variables: { appId: appName, type } }),
-    })
+    });
     if (!res.ok) {
-      const text = await res.text().catch(() => '')
+      const text = await res.text().catch(() => "");
       throw new Error(
         `brain-fly: allocate IP (${type}) failed ${res.status}: ${text.slice(0, 200)}`,
-      )
+      );
     }
-    const body = (await res.json()) as { errors?: Array<{ message: string }> }
+    const body = (await res.json()) as { errors?: Array<{ message: string }> };
     if (body.errors && body.errors.length > 0) {
       throw new Error(
         `brain-fly: allocate IP (${type}) graphql error: ${body.errors[0]!.message}`,
-      )
+      );
     }
-  }
+  };
 
-  await allocate('shared_v4')
-  await allocate('v6')
-  logger.info({ app: appName }, 'brain-fly: IPs allocated (shared v4 + dedicated v6)')
+  await allocate("shared_v4");
+  await allocate("v6");
+  logger.info(
+    { app: appName },
+    "brain-fly: IPs allocated (shared v4 + dedicated v6)",
+  );
 }
 
 async function findExistingMachine(
@@ -349,11 +358,13 @@ async function findExistingMachine(
   const list = await flyFetch<FlyMachine[]>(
     `/apps/${encodeURIComponent(appName)}/machines`,
     { token: flyToken, allow404: true },
-  )
-  if (!list || list.length === 0) return null
+  );
+  if (!list || list.length === 0) return null;
   // Prefer non-destroyed machines.
-  const live = list.find((m) => m.state !== 'destroyed' && m.state !== 'destroying')
-  return live ?? null
+  const live = list.find(
+    (m) => m.state !== "destroyed" && m.state !== "destroying",
+  );
+  return live ?? null;
 }
 
 /**
@@ -370,9 +381,9 @@ async function createMachine(
   input: ProvisionBrainInput,
   apiKey: string,
 ): Promise<FlyMachine> {
-  const tier: PerfTier = input.perfTier ?? DEFAULT_PERF_TIER
-  const guest = PERF_GUEST[tier]
-  const region = DEFAULT_REGION
+  const tier: PerfTier = input.perfTier ?? DEFAULT_PERF_TIER;
+  const guest = PERF_GUEST[tier];
+  const region = DEFAULT_REGION;
 
   const body = {
     name: `brain-${region}`,
@@ -381,7 +392,7 @@ async function createMachine(
       image: DEFAULT_IMAGE,
       env: buildMachineEnv(input, apiKey),
       auto_destroy: false,
-      restart: { policy: 'on-failure', max_retries: 3 },
+      restart: { policy: "on-failure", max_retries: 3 },
       guest,
       services: [
         {
@@ -389,37 +400,37 @@ async function createMachine(
           // 443); Fly rejects it on a TLS-handled port. The :443 listener
           // does both TLS termination and HTTP/2 upgrade.
           ports: [
-            { port: 443, handlers: ['tls', 'http'] },
-            { port: 80, handlers: ['http'], force_https: true },
+            { port: 443, handlers: ["tls", "http"] },
+            { port: 80, handlers: ["http"], force_https: true },
           ],
-          protocol: 'tcp',
+          protocol: "tcp",
           internal_port: 8080,
-          autostop: 'suspend',
+          autostop: "suspend",
           autostart: true,
           min_machines_running: 0,
-          concurrency: { type: 'requests', soft_limit: 50, hard_limit: 100 },
+          concurrency: { type: "requests", soft_limit: 50, hard_limit: 100 },
         },
       ],
       checks: {
         healthz: {
-          type: 'http',
+          type: "http",
           port: 8080,
-          method: 'GET',
-          path: '/healthz',
-          interval: '15s',
-          timeout: '5s',
-          grace_period: '30s',
+          method: "GET",
+          path: "/healthz",
+          interval: "15s",
+          timeout: "5s",
+          grace_period: "30s",
         },
       },
     },
-  }
+  };
 
   const created = await flyFetch<FlyMachine>(
     `/apps/${encodeURIComponent(appName)}/machines`,
-    { method: 'POST', token: flyToken, body },
-  )
-  if (!created) throw new Error('brain-fly: create machine returned empty')
-  return created
+    { method: "POST", token: flyToken, body },
+  );
+  if (!created) throw new Error("brain-fly: create machine returned empty");
+  return created;
 }
 
 /**
@@ -434,39 +445,42 @@ export async function provisionBrain(
 ): Promise<ProvisionBrainResult> {
   if (!input.flyToken?.trim()) {
     throw new Error(
-      'brain-fly: flyToken required (set FLY_API_TOKEN in the repo secrets vault)',
-    )
+      "brain-fly: flyToken required (set FLY_API_TOKEN in the repo secrets vault)",
+    );
   }
-  const app = input.appNameOverride ?? brainAppName(input.owner)
-  const url = brainAppUrl(app)
+  const app = input.appNameOverride ?? brainAppName(input.owner);
+  const url = brainAppUrl(app);
 
-  await ensureApp(input.flyToken, app)
+  await ensureApp(input.flyToken, app);
 
-  const existing = await findExistingMachine(input.flyToken, app)
+  const existing = await findExistingMachine(input.flyToken, app);
   if (existing) {
-    const existingKey = existing.config?.env?.BRAIN_API_KEY ?? ''
+    const existingKey = existing.config?.env?.BRAIN_API_KEY ?? "";
     if (!existingKey) {
       throw new Error(
         `brain-fly: app ${app} has a machine without BRAIN_API_KEY env — destroy first, then re-provision`,
-      )
+      );
     }
-    logger.info({ app, machineId: existing.id }, 'brain-fly: reusing existing machine')
+    logger.info(
+      { app, machineId: existing.id },
+      "brain-fly: reusing existing machine",
+    );
     return {
       app,
       url,
       apiKey: existingKey,
       machineId: existing.id,
       region: existing.region ?? DEFAULT_REGION,
-    }
+    };
   }
 
-  const apiKey = input.apiKeyOverride ?? generateApiKey()
-  const machine = await createMachine(input.flyToken, app, input, apiKey)
+  const apiKey = input.apiKeyOverride ?? generateApiKey();
+  const machine = await createMachine(input.flyToken, app, input, apiKey);
 
   logger.info(
     { app, machineId: machine.id, region: machine.region ?? DEFAULT_REGION },
-    'brain-fly: machine provisioned',
-  )
+    "brain-fly: machine provisioned",
+  );
 
   return {
     app,
@@ -474,7 +488,7 @@ export async function provisionBrain(
     apiKey,
     machineId: machine.id,
     region: machine.region ?? DEFAULT_REGION,
-  }
+  };
 }
 
 /**
@@ -483,27 +497,28 @@ export async function provisionBrain(
  */
 export async function destroyBrain(input: DestroyBrainInput): Promise<void> {
   if (!input.flyToken?.trim()) {
-    throw new Error('brain-fly: flyToken required')
+    throw new Error("brain-fly: flyToken required");
   }
-  const app = input.appNameOverride ?? brainAppName(input.owner)
+  const app = input.appNameOverride ?? brainAppName(input.owner);
 
-  const existing = await flyFetch<FlyApp>(
-    `/apps/${encodeURIComponent(app)}`,
-    { token: input.flyToken, allow404: true },
-  )
+  const existing = await flyFetch<FlyApp>(`/apps/${encodeURIComponent(app)}`, {
+    token: input.flyToken,
+    allow404: true,
+  });
   if (!existing) {
-    logger.info({ app }, 'brain-fly: destroy — app already absent')
-    return
+    logger.info({ app }, "brain-fly: destroy — app already absent");
+    return;
   }
 
   // Deleting the app removes all machines under it. Pass `force=true` to
   // skip the "drain in-flight requests" wait — brain machines don't carry
   // critical state beyond the session JSONLs on the volume.
-  await flyFetch<unknown>(
-    `/apps/${encodeURIComponent(app)}?force=true`,
-    { method: 'DELETE', token: input.flyToken, allow404: true },
-  )
-  logger.info({ app }, 'brain-fly: app destroyed')
+  await flyFetch<unknown>(`/apps/${encodeURIComponent(app)}?force=true`, {
+    method: "DELETE",
+    token: input.flyToken,
+    allow404: true,
+  });
+  logger.info({ app }, "brain-fly: app destroyed");
 }
 
 /**
@@ -515,25 +530,25 @@ export async function destroyBrain(input: DestroyBrainInput): Promise<void> {
  */
 export async function suspendBrain(input: SuspendBrainInput): Promise<void> {
   if (!input.flyToken?.trim()) {
-    throw new Error('brain-fly: flyToken required')
+    throw new Error("brain-fly: flyToken required");
   }
-  const app = input.appNameOverride ?? brainAppName(input.owner)
+  const app = input.appNameOverride ?? brainAppName(input.owner);
 
-  const machine = await findExistingMachine(input.flyToken, app)
+  const machine = await findExistingMachine(input.flyToken, app);
   if (!machine) {
-    logger.info({ app }, 'brain-fly: suspend — no machine to suspend')
-    return
+    logger.info({ app }, "brain-fly: suspend — no machine to suspend");
+    return;
   }
-  if (machine.state === 'suspended' || machine.state === 'suspending') {
-    logger.info({ app, machineId: machine.id }, 'brain-fly: already suspended')
-    return
+  if (machine.state === "suspended" || machine.state === "suspending") {
+    logger.info({ app, machineId: machine.id }, "brain-fly: already suspended");
+    return;
   }
 
   await flyFetch<unknown>(
     `/apps/${encodeURIComponent(app)}/machines/${encodeURIComponent(machine.id)}/suspend`,
-    { method: 'POST', token: input.flyToken },
-  )
-  logger.info({ app, machineId: machine.id }, 'brain-fly: machine suspended')
+    { method: "POST", token: input.flyToken },
+  );
+  logger.info({ app, machineId: machine.id }, "brain-fly: machine suspended");
 }
 
 /**
@@ -551,22 +566,25 @@ export async function suspendBrain(input: SuspendBrainInput): Promise<void> {
  */
 export async function resumeBrain(input: ResumeBrainInput): Promise<void> {
   if (!input.flyToken?.trim()) {
-    throw new Error('brain-fly: flyToken required')
+    throw new Error("brain-fly: flyToken required");
   }
-  const app = input.appNameOverride ?? brainAppName(input.owner)
+  const app = input.appNameOverride ?? brainAppName(input.owner);
 
-  const machine = await findExistingMachine(input.flyToken, app)
+  const machine = await findExistingMachine(input.flyToken, app);
   if (!machine) {
-    logger.info({ app }, 'brain-fly: resume — no machine to resume')
-    return
+    logger.info({ app }, "brain-fly: resume — no machine to resume");
+    return;
   }
-  if (machine.state === 'started' || machine.state === 'starting') {
-    logger.info({ app, machineId: machine.id }, 'brain-fly: already running')
-    return
+  if (machine.state === "started" || machine.state === "starting") {
+    logger.info({ app, machineId: machine.id }, "brain-fly: already running");
+    return;
   }
 
-  await waitForBrainHealth(brainAppUrl(app), 60_000)
-  logger.info({ app, machineId: machine.id }, 'brain-fly: machine resumed via edge proxy')
+  await waitForBrainHealth(brainAppUrl(app), 60_000);
+  logger.info(
+    { app, machineId: machine.id },
+    "brain-fly: machine resumed via edge proxy",
+  );
 }
 
 /**
@@ -577,41 +595,41 @@ export async function brainStatus(
   input: BrainStatusInput,
 ): Promise<BrainStatusResult> {
   if (!input.flyToken?.trim()) {
-    throw new Error('brain-fly: flyToken required')
+    throw new Error("brain-fly: flyToken required");
   }
-  const app = input.appNameOverride ?? brainAppName(input.owner)
+  const app = input.appNameOverride ?? brainAppName(input.owner);
 
-  const existing = await flyFetch<FlyApp>(
-    `/apps/${encodeURIComponent(app)}`,
-    { token: input.flyToken, allow404: true },
-  )
+  const existing = await flyFetch<FlyApp>(`/apps/${encodeURIComponent(app)}`, {
+    token: input.flyToken,
+    allow404: true,
+  });
   if (!existing) {
-    return { app, state: 'off' }
+    return { app, state: "off" };
   }
 
-  const machine = await findExistingMachine(input.flyToken, app)
+  const machine = await findExistingMachine(input.flyToken, app);
   if (!machine) {
-    return { app, state: 'off', url: brainAppUrl(app) }
+    return { app, state: "off", url: brainAppUrl(app) };
   }
 
   // Fly machine states we care about: started/starting/created/replacing
   // are all "the machine is or is about to be live" → running. Suspended
   // is its own bucket (idle, resumes on next request). Everything else
   // (stopped, stopping, destroying) renders as stopped.
-  const state: BrainStatusResult['state'] =
-    machine.state === 'started' ||
-    machine.state === 'starting' ||
-    machine.state === 'created' ||
-    machine.state === 'replacing'
-      ? 'running'
-      : machine.state === 'suspended' || machine.state === 'suspending'
-        ? 'suspended'
-        : 'stopped'
+  const state: BrainStatusResult["state"] =
+    machine.state === "started" ||
+    machine.state === "starting" ||
+    machine.state === "created" ||
+    machine.state === "replacing"
+      ? "running"
+      : machine.state === "suspended" || machine.state === "suspending"
+        ? "suspended"
+        : "stopped";
 
   return {
     app,
     state,
     url: brainAppUrl(app),
     machineId: machine.id,
-  }
+  };
 }

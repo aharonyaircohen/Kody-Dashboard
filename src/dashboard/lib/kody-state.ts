@@ -10,37 +10,37 @@
  * the canonical JSON so the dashboard never needs to derive status from those.
  */
 
-export const STATE_BEGIN = '<!-- kody:state:v1:begin -->'
-export const STATE_END = '<!-- kody:state:v1:end -->'
+export const STATE_BEGIN = "<!-- kody:state:v1:begin -->";
+export const STATE_END = "<!-- kody:state:v1:end -->";
 
 export type KodyPhase =
-  | 'idle'
-  | 'research'
-  | 'planning'
-  | 'implementing'
-  | 'reviewing'
-  | 'shipped'
-  | 'failed'
+  | "idle"
+  | "research"
+  | "planning"
+  | "implementing"
+  | "reviewing"
+  | "shipped"
+  | "failed";
 
-export type KodyStatus = 'pending' | 'running' | 'succeeded' | 'failed'
+export type KodyStatus = "pending" | "running" | "succeeded" | "failed";
 
 export interface KodyAction {
-  type: string
-  payload: Record<string, unknown>
-  timestamp: string
+  type: string;
+  payload: Record<string, unknown>;
+  timestamp: string;
 }
 
 export interface KodyTaskState {
-  schemaVersion: 1
+  schemaVersion: 1;
   core: {
-    phase: KodyPhase
-    status: KodyStatus
-    currentExecutable: string | null
-    lastOutcome: KodyAction | null
-    attempts: Record<string, number>
-    prUrl?: string
-    runUrl?: string
-  }
+    phase: KodyPhase;
+    status: KodyStatus;
+    currentExecutable: string | null;
+    lastOutcome: KodyAction | null;
+    attempts: Record<string, number>;
+    prUrl?: string;
+    runUrl?: string;
+  };
 }
 
 /**
@@ -49,36 +49,38 @@ export interface KodyTaskState {
  * agent's own progress comments, etc.).
  */
 export function parseKodyStateComment(body: string): KodyTaskState | null {
-  if (!body || !body.includes(STATE_BEGIN)) return null
+  if (!body || !body.includes(STATE_BEGIN)) return null;
 
-  const beginIdx = body.indexOf(STATE_BEGIN)
-  const endIdx = body.lastIndexOf(STATE_END)
-  if (beginIdx < 0 || endIdx < 0 || endIdx <= beginIdx) return null
+  const beginIdx = body.indexOf(STATE_BEGIN);
+  const endIdx = body.lastIndexOf(STATE_END);
+  if (beginIdx < 0 || endIdx < 0 || endIdx <= beginIdx) return null;
 
-  const between = body.slice(beginIdx + STATE_BEGIN.length, endIdx).trim()
-  const OPEN = '```json'
-  const CLOSE = '```'
-  if (!between.startsWith(OPEN) || !between.endsWith(CLOSE)) return null
-  const jsonStr = between.slice(OPEN.length, between.length - CLOSE.length).trim()
+  const between = body.slice(beginIdx + STATE_BEGIN.length, endIdx).trim();
+  const OPEN = "```json";
+  const CLOSE = "```";
+  if (!between.startsWith(OPEN) || !between.endsWith(CLOSE)) return null;
+  const jsonStr = between
+    .slice(OPEN.length, between.length - CLOSE.length)
+    .trim();
 
   try {
-    const parsed = JSON.parse(jsonStr) as Partial<KodyTaskState>
-    if (parsed?.schemaVersion !== 1) return null
-    if (!parsed.core) return null
+    const parsed = JSON.parse(jsonStr) as Partial<KodyTaskState>;
+    if (parsed?.schemaVersion !== 1) return null;
+    if (!parsed.core) return null;
     return {
       schemaVersion: 1,
       core: {
-        phase: parsed.core.phase ?? 'idle',
-        status: parsed.core.status ?? 'pending',
+        phase: parsed.core.phase ?? "idle",
+        status: parsed.core.status ?? "pending",
         currentExecutable: parsed.core.currentExecutable ?? null,
         lastOutcome: parsed.core.lastOutcome ?? null,
         attempts: parsed.core.attempts ?? {},
         prUrl: parsed.core.prUrl,
         runUrl: parsed.core.runUrl,
       },
-    }
+    };
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -91,8 +93,8 @@ export function findKodyStateInComments(
   comments: Array<{ body: string }>,
 ): KodyTaskState | null {
   for (let i = comments.length - 1; i >= 0; i--) {
-    const state = parseKodyStateComment(comments[i].body)
-    if (state) return state
+    const state = parseKodyStateComment(comments[i].body);
+    if (state) return state;
   }
-  return null
+  return null;
 }

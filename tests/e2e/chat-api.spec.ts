@@ -24,7 +24,9 @@ function authHeaders(): Record<string, string> {
     : {};
 }
 
-async function apiGet(path: string): Promise<{ status: number; body: unknown }> {
+async function apiGet(
+  path: string,
+): Promise<{ status: number; body: unknown }> {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { ...authHeaders() },
   });
@@ -149,7 +151,9 @@ test.describe("Events API — SSE endpoint", () => {
     // The SSE stream is infinite, so we can't consume its body in a test.
     // The endpoint supports ?test=1 which returns headers-only (no streaming body)
     // so we can assert Content-Type without hanging.
-    const res = await fetch(`${BASE_URL}/api/kody/events/stream?taskId=${TEST_SESSION_ID}&test=1`);
+    const res = await fetch(
+      `${BASE_URL}/api/kody/events/stream?taskId=${TEST_SESSION_ID}&test=1`,
+    );
 
     expect(res.status, `Expected 200, got ${res.status}`).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/event-stream");

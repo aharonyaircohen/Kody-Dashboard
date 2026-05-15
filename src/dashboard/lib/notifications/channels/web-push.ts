@@ -96,7 +96,10 @@ function isExpiredSubscription(err: unknown): boolean {
   return false;
 }
 
-export async function sendWebPush(_c: Channel, ctx: SendContext): Promise<void> {
+export async function sendWebPush(
+  _c: Channel,
+  ctx: SendContext,
+): Promise<void> {
   const gh = ctx.github;
   if (!gh) {
     throw new Error(
@@ -153,7 +156,8 @@ export async function sendWebPush(_c: Channel, ctx: SendContext): Promise<void> 
         {
           event: "web_push_send_failed",
           endpoint: subs[i].endpoint.slice(0, 60),
-          error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+          error:
+            r.reason instanceof Error ? r.reason.message : String(r.reason),
         },
         "web-push send failed (non-expiry)",
       );

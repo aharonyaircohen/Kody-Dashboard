@@ -6,7 +6,11 @@
  *   read, stamping `readAt` with `now`. No-op if everything is already read.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getRequestAuth, getUserOctokit } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getRequestAuth,
+  getUserOctokit,
+} from "@dashboard/lib/auth";
 import { markAllRead } from "@dashboard/lib/inbox/gist-store";
 
 export async function POST(req: NextRequest) {

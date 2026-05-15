@@ -9,9 +9,13 @@
  *   /jobs, which sit outside this group. Kept as an auth boundary so
  *   pages don't each re-wrap themselves.
  */
-import type { ReactNode } from "react"
-import { AuthGuard } from "@dashboard/lib/auth-guard"
+import type { ReactNode } from "react";
+import { AuthGuard } from "@dashboard/lib/auth-guard";
 
-export default function ChatRailGroupLayout({ children }: { children: ReactNode }) {
-  return <AuthGuard>{children}</AuthGuard>
+export default function ChatRailGroupLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return <AuthGuard>{children}</AuthGuard>;
 }

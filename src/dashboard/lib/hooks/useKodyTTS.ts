@@ -1,88 +1,92 @@
-'use client'
+"use client";
 /**
  * @fileType hook
  * @domain kody
  * @pattern browser-speech-api
  * @ai-summary Kody-specific TTS hook with onEnd callback for conversation loop
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { stripMarkdown, detectLanguage } from '@dashboard/lib/speech-helpers'
+import { useCallback, useEffect, useRef, useState } from "react";
+import { stripMarkdown, detectLanguage } from "@dashboard/lib/speech-helpers";
 
 export interface UseKodyTTSOptions {
-  onEnd?: () => void
-  onError?: () => void
+  onEnd?: () => void;
+  onError?: () => void;
 }
 export interface UseKodyTTSReturn {
-  speak: (text: string) => void
-  cancel: () => void
-  isSpeaking: boolean
-  isSupported: boolean
+  speak: (text: string) => void;
+  cancel: () => void;
+  isSpeaking: boolean;
+  isSupported: boolean;
 }
 
 export function useKodyTTS(options: UseKodyTTSOptions = {}): UseKodyTTSReturn {
-  const { onEnd, onError } = options
-  const [isSpeaking, setIsSpeaking] = useState(false)
-  const uttRef = useRef<SpeechSynthesisUtterance | null>(null)
-  const onEndRef = useRef(onEnd)
-  const onErrorRef = useRef(onError)
+  const { onEnd, onError } = options;
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const uttRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const onEndRef = useRef(onEnd);
+  const onErrorRef = useRef(onError);
 
   useEffect(() => {
-    onEndRef.current = onEnd
-  }, [onEnd])
+    onEndRef.current = onEnd;
+  }, [onEnd]);
   useEffect(() => {
-    onErrorRef.current = onError
-  }, [onError])
+    onErrorRef.current = onError;
+  }, [onError]);
 
   // isSupported must be stateful to avoid SSR/hydration mismatch (same fix as useSpeechRecognition)
-  const [isSupported, setIsSupported] = useState(false)
+  const [isSupported, setIsSupported] = useState(false);
   useEffect(() => {
-    setIsSupported(typeof window !== 'undefined' && 'speechSynthesis' in window)
-  }, [])
+    setIsSupported(
+      typeof window !== "undefined" && "speechSynthesis" in window,
+    );
+  }, []);
 
   const cancel = useCallback(() => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
-    uttRef.current = null
-    setIsSpeaking(false)
-  }, [])
+    if (typeof window !== "undefined" && window.speechSynthesis)
+      window.speechSynthesis.cancel();
+    uttRef.current = null;
+    setIsSpeaking(false);
+  }, []);
 
   const speak = useCallback(
     (text: string) => {
-      if (typeof window === 'undefined' || !window.speechSynthesis) {
-        onEndRef.current?.()
-        return
+      if (typeof window === "undefined" || !window.speechSynthesis) {
+        onEndRef.current?.();
+        return;
       }
-      cancel()
-      const clean = stripMarkdown(text)
+      cancel();
+      const clean = stripMarkdown(text);
       if (!clean) {
-        onEndRef.current?.()
-        return
+        onEndRef.current?.();
+        return;
       }
-      const utt = new SpeechSynthesisUtterance(clean)
-      utt.lang = detectLanguage(clean)
+      const utt = new SpeechSynthesisUtterance(clean);
+      utt.lang = detectLanguage(clean);
       utt.onend = () => {
-        setIsSpeaking(false)
-        uttRef.current = null
-        onEndRef.current?.()
-      }
+        setIsSpeaking(false);
+        uttRef.current = null;
+        onEndRef.current?.();
+      };
       utt.onerror = () => {
-        setIsSpeaking(false)
-        uttRef.current = null
-        onErrorRef.current?.()
-        onEndRef.current?.()
-      }
-      uttRef.current = utt
-      setIsSpeaking(true)
-      window.speechSynthesis.speak(utt)
+        setIsSpeaking(false);
+        uttRef.current = null;
+        onErrorRef.current?.();
+        onEndRef.current?.();
+      };
+      uttRef.current = utt;
+      setIsSpeaking(true);
+      window.speechSynthesis.speak(utt);
     },
     [cancel],
-  )
+  );
 
   useEffect(
     () => () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
+      if (typeof window !== "undefined" && window.speechSynthesis)
+        window.speechSynthesis.cancel();
     },
     [],
-  )
+  );
 
-  return { speak, cancel, isSpeaking, isSupported }
+  return { speak, cancel, isSpeaking, isSupported };
 }

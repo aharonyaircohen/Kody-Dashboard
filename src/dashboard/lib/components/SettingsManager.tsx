@@ -8,44 +8,54 @@
  *   Persistence flows through useAuth().updateIntegrations so this component
  *   never touches localStorage directly.
  */
-"use client"
+"use client";
 
-import Link from "next/link"
-import { useCallback, useEffect, useState } from "react"
-import { toast } from "sonner"
-import { Bot, Brain, Cpu, Github, KeyRound, LogOut, MessageSquare, Rocket, ShieldCheck } from "lucide-react"
-import { Button } from "@dashboard/ui/button"
-import { Card, CardContent } from "@dashboard/ui/card"
-import { Input } from "@dashboard/ui/input"
-import { Label } from "@dashboard/ui/label"
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+import {
+  Bot,
+  Brain,
+  Cpu,
+  Github,
+  KeyRound,
+  LogOut,
+  MessageSquare,
+  Rocket,
+  ShieldCheck,
+} from "lucide-react";
+import { Button } from "@dashboard/ui/button";
+import { Card, CardContent } from "@dashboard/ui/card";
+import { Input } from "@dashboard/ui/input";
+import { Label } from "@dashboard/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select"
-import { BrainFlyCard } from "./BrainFlyCard"
-import { ConfirmDialog } from "./ConfirmDialog"
-import { PageShell } from "./PageShell"
-import { useAuth, type FlyPerfTier } from "../auth-context"
-import { getStoredAuth } from "../api"
+} from "@dashboard/ui/select";
+import { BrainFlyCard } from "./BrainFlyCard";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { PageShell } from "./PageShell";
+import { useAuth, type FlyPerfTier } from "../auth-context";
+import { getStoredAuth } from "../api";
 
 /** Vault key under which the project-scoped Fly Machines token is stored. */
-const FLY_VAULT_KEY = "FLY_API_TOKEN"
+const FLY_VAULT_KEY = "FLY_API_TOKEN";
 
 function vaultHeaders(): Record<string, string> {
-  const auth = getStoredAuth()
+  const auth = getStoredAuth();
   return auth
     ? {
         "x-kody-token": auth.token,
         "x-kody-owner": auth.owner,
         "x-kody-repo": auth.repo,
       }
-    : {}
+    : {};
 }
 
-const FLY_PERF_DEFAULT: FlyPerfTier = "medium"
+const FLY_PERF_DEFAULT: FlyPerfTier = "medium";
 
 const FLY_PERF_LABELS: Record<FlyPerfTier, { label: string; hint: string }> = {
   low: {
@@ -60,68 +70,67 @@ const FLY_PERF_LABELS: Record<FlyPerfTier, { label: string; hint: string }> = {
     label: "High — performance-2x, 4GB",
     hint: "Fastest. For heavy installs, parallel tests, or large repos. Costlier.",
   },
-}
+};
 
 export function SettingsManager() {
-  const { auth, logout, updateIntegrations } = useAuth()
+  const { auth, logout, updateIntegrations } = useAuth();
 
   // ─── Brain config (local form state, seeded from auth) ──────────────────
-  const [brainUrl, setBrainUrl] = useState("")
-  const [brainKey, setBrainKey] = useState("")
+  const [brainUrl, setBrainUrl] = useState("");
+  const [brainKey, setBrainKey] = useState("");
 
   // ─── Vercel bypass secret ───────────────────────────────────────────────
-  const [vercelSecret, setVercelSecret] = useState("")
+  const [vercelSecret, setVercelSecret] = useState("");
 
   // ─── Fly Machines API token + perf tier ─────────────────────────────────
   // Token lives in the repo vault (.kody/secrets.enc → FLY_API_TOKEN) so it
   // is project-scoped instead of per-browser. Perf tier stays per-user in
   // localStorage via auth-context, so the card behaves as before: edits to
   // either are committed together when Save is clicked.
-  const [flyToken, setFlyToken] = useState("")
-  const [savedFlyToken, setSavedFlyToken] = useState("")
-  const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT)
+  const [flyToken, setFlyToken] = useState("");
+  const [savedFlyToken, setSavedFlyToken] = useState("");
+  const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT);
 
-  const [confirmLogout, setConfirmLogout] = useState(false)
-  const [confirmClearBrain, setConfirmClearBrain] = useState(false)
-  const [confirmClearVercel, setConfirmClearVercel] = useState(false)
-  const [confirmClearFly, setConfirmClearFly] = useState(false)
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [confirmClearBrain, setConfirmClearBrain] = useState(false);
+  const [confirmClearVercel, setConfirmClearVercel] = useState(false);
+  const [confirmClearFly, setConfirmClearFly] = useState(false);
 
   // Load FLY_API_TOKEN from the per-repo vault. Re-runs whenever auth (and
   // therefore the connected repo) changes.
   const loadFlyToken = useCallback(async () => {
-    const headers = vaultHeaders()
+    const headers = vaultHeaders();
     if (Object.keys(headers).length === 0) {
-      setSavedFlyToken("")
-      setFlyToken("")
-      return
+      setSavedFlyToken("");
+      setFlyToken("");
+      return;
     }
     try {
-      const res = await fetch(
-        `/api/kody/secrets/${FLY_VAULT_KEY}/value`,
-        { headers },
-      )
+      const res = await fetch(`/api/kody/secrets/${FLY_VAULT_KEY}/value`, {
+        headers,
+      });
       if (res.status === 404) {
-        setSavedFlyToken("")
-        setFlyToken("")
-        return
+        setSavedFlyToken("");
+        setFlyToken("");
+        return;
       }
-      if (!res.ok) return
-      const body = (await res.json()) as { value?: string }
-      const v = body.value ?? ""
-      setSavedFlyToken(v)
-      setFlyToken(v)
+      if (!res.ok) return;
+      const body = (await res.json()) as { value?: string };
+      const v = body.value ?? "";
+      setSavedFlyToken(v);
+      setFlyToken(v);
     } catch {
       // Network/vault errors leave the field empty — same UX as no token.
     }
-  }, [])
+  }, []);
 
   // Seed form state once auth loads (or repo switches).
   useEffect(() => {
-    setBrainUrl(auth?.brain?.url ?? "")
-    setBrainKey(auth?.brain?.apiKey ?? "")
-    setVercelSecret(auth?.vercelBypassSecret ?? "")
-    setFlyPerf(auth?.flyPerf ?? FLY_PERF_DEFAULT)
-    void loadFlyToken()
+    setBrainUrl(auth?.brain?.url ?? "");
+    setBrainKey(auth?.brain?.apiKey ?? "");
+    setVercelSecret(auth?.vercelBypassSecret ?? "");
+    setFlyPerf(auth?.flyPerf ?? FLY_PERF_DEFAULT);
+    void loadFlyToken();
   }, [
     auth?.brain?.url,
     auth?.brain?.apiKey,
@@ -130,67 +139,67 @@ export function SettingsManager() {
     auth?.owner,
     auth?.repo,
     loadFlyToken,
-  ])
-
+  ]);
 
   const brainHasChanges =
     brainUrl.trim() !== (auth?.brain?.url ?? "") ||
-    brainKey.trim() !== (auth?.brain?.apiKey ?? "")
-  const vercelHasChanges = vercelSecret.trim() !== (auth?.vercelBypassSecret ?? "")
+    brainKey.trim() !== (auth?.brain?.apiKey ?? "");
+  const vercelHasChanges =
+    vercelSecret.trim() !== (auth?.vercelBypassSecret ?? "");
   const flyHasChanges =
     flyToken.trim() !== savedFlyToken ||
-    flyPerf !== (auth?.flyPerf ?? FLY_PERF_DEFAULT)
+    flyPerf !== (auth?.flyPerf ?? FLY_PERF_DEFAULT);
 
   function saveBrain() {
-    const url = brainUrl.trim()
-    const key = brainKey.trim()
+    const url = brainUrl.trim();
+    const key = brainKey.trim();
     if (!url || !key) {
-      toast.error("Brain URL and API key are both required")
-      return
+      toast.error("Brain URL and API key are both required");
+      return;
     }
-    updateIntegrations({ brain: { url, apiKey: key } })
-    toast.success("Brain config saved")
+    updateIntegrations({ brain: { url, apiKey: key } });
+    toast.success("Brain config saved");
   }
 
   function clearBrain() {
-    updateIntegrations({ brain: null })
-    setBrainUrl("")
-    setBrainKey("")
-    setConfirmClearBrain(false)
-    toast.success("Brain config cleared")
+    updateIntegrations({ brain: null });
+    setBrainUrl("");
+    setBrainKey("");
+    setConfirmClearBrain(false);
+    toast.success("Brain config cleared");
   }
 
   function saveVercel() {
-    const secret = vercelSecret.trim()
+    const secret = vercelSecret.trim();
     if (!secret) {
-      toast.error("Bypass secret cannot be empty — use Clear to remove it")
-      return
+      toast.error("Bypass secret cannot be empty — use Clear to remove it");
+      return;
     }
-    updateIntegrations({ vercelBypassSecret: secret })
-    toast.success("Vercel bypass secret saved")
+    updateIntegrations({ vercelBypassSecret: secret });
+    toast.success("Vercel bypass secret saved");
   }
 
   function clearVercel() {
-    updateIntegrations({ vercelBypassSecret: null })
-    setVercelSecret("")
-    setConfirmClearVercel(false)
-    toast.success("Vercel bypass secret cleared")
+    updateIntegrations({ vercelBypassSecret: null });
+    setVercelSecret("");
+    setConfirmClearVercel(false);
+    toast.success("Vercel bypass secret cleared");
   }
 
   async function saveFly() {
-    const tok = flyToken.trim()
+    const tok = flyToken.trim();
     if (!tok) {
-      toast.error("Fly token cannot be empty — use Clear to remove it")
-      return
+      toast.error("Fly token cannot be empty — use Clear to remove it");
+      return;
     }
-    const headers = vaultHeaders()
+    const headers = vaultHeaders();
     if (Object.keys(headers).length === 0) {
-      toast.error("Sign in to a repo before saving Fly settings")
-      return
+      toast.error("Sign in to a repo before saving Fly settings");
+      return;
     }
     // Token → repo vault; perf tier stays per-user in localStorage. Save
     // both in one click so the card behaves as before.
-    const tokenChanged = tok !== savedFlyToken
+    const tokenChanged = tok !== savedFlyToken;
     try {
       if (tokenChanged) {
         const res = await fetch("/api/kody/secrets", {
@@ -201,47 +210,51 @@ export function SettingsManager() {
             value: tok,
             actorLogin: auth?.user?.login,
           }),
-        })
+        });
         if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string }
-          toast.error(body.message ?? `Save failed (HTTP ${res.status})`)
-          return
+          const body = (await res.json().catch(() => ({}))) as {
+            message?: string;
+          };
+          toast.error(body.message ?? `Save failed (HTTP ${res.status})`);
+          return;
         }
-        setSavedFlyToken(tok)
+        setSavedFlyToken(tok);
       }
       updateIntegrations({
         flyPerf: flyPerf === FLY_PERF_DEFAULT ? null : flyPerf,
-      })
-      toast.success("Fly settings saved")
+      });
+      toast.success("Fly settings saved");
     } catch (err) {
-      toast.error(`Save failed: ${(err as Error).message}`)
+      toast.error(`Save failed: ${(err as Error).message}`);
     }
   }
 
   async function clearFly() {
-    const headers = vaultHeaders()
+    const headers = vaultHeaders();
     if (savedFlyToken && Object.keys(headers).length > 0) {
       try {
         const res = await fetch(`/api/kody/secrets/${FLY_VAULT_KEY}`, {
           method: "DELETE",
           headers,
-        })
+        });
         if (!res.ok && res.status !== 404) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string }
-          toast.error(body.message ?? `Clear failed (HTTP ${res.status})`)
-          return
+          const body = (await res.json().catch(() => ({}))) as {
+            message?: string;
+          };
+          toast.error(body.message ?? `Clear failed (HTTP ${res.status})`);
+          return;
         }
       } catch (err) {
-        toast.error(`Clear failed: ${(err as Error).message}`)
-        return
+        toast.error(`Clear failed: ${(err as Error).message}`);
+        return;
       }
     }
-    updateIntegrations({ flyPerf: null })
-    setFlyToken("")
-    setSavedFlyToken("")
-    setFlyPerf(FLY_PERF_DEFAULT)
-    setConfirmClearFly(false)
-    toast.success("Fly settings cleared")
+    updateIntegrations({ flyPerf: null });
+    setFlyToken("");
+    setSavedFlyToken("");
+    setFlyPerf(FLY_PERF_DEFAULT);
+    setConfirmClearFly(false);
+    toast.success("Fly settings cleared");
   }
 
   return (
@@ -314,8 +327,8 @@ export function SettingsManager() {
               <h2 className="text-sm font-semibold">Vercel preview bypass</h2>
             </div>
             <p className="text-xs text-white/50 -mt-2">
-              Vercel &quot;Protection Bypass for Automation&quot; secret. Lets the
-              dashboard embed protected preview deployments in the iframe.
+              Vercel &quot;Protection Bypass for Automation&quot; secret. Lets
+              the dashboard embed protected preview deployments in the iframe.
             </p>
             <div className="space-y-2">
               <Label htmlFor="vercel-secret" className="text-xs text-white/70">
@@ -331,7 +344,11 @@ export function SettingsManager() {
               />
             </div>
             <div className="flex items-center gap-2 pt-1">
-              <Button size="sm" onClick={saveVercel} disabled={!vercelHasChanges}>
+              <Button
+                size="sm"
+                onClick={saveVercel}
+                disabled={!vercelHasChanges}
+              >
                 Save
               </Button>
               {auth?.vercelBypassSecret && (
@@ -388,9 +405,15 @@ export function SettingsManager() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">{FLY_PERF_LABELS.low.label}</SelectItem>
-                  <SelectItem value="medium">{FLY_PERF_LABELS.medium.label}</SelectItem>
-                  <SelectItem value="high">{FLY_PERF_LABELS.high.label}</SelectItem>
+                  <SelectItem value="low">
+                    {FLY_PERF_LABELS.low.label}
+                  </SelectItem>
+                  <SelectItem value="medium">
+                    {FLY_PERF_LABELS.medium.label}
+                  </SelectItem>
+                  <SelectItem value="high">
+                    {FLY_PERF_LABELS.high.label}
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-white/45 leading-snug">
@@ -549,5 +572,5 @@ export function SettingsManager() {
         onConfirm={clearFly}
       />
     </PageShell>
-  )
+  );
 }

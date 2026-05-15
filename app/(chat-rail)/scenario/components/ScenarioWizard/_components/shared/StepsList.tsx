@@ -4,15 +4,15 @@
  * @pattern steps-list
  * @ai-summary Renders a list of scenario steps with remove functionality
  */
-'use client'
+"use client";
 
-import { Button } from '@dashboard/ui/button'
-import { Badge } from '@dashboard/ui/badge'
-import type { Scenario } from '@dashboard/lib/scenario-schema-stub'
+import { Button } from "@dashboard/ui/button";
+import { Badge } from "@dashboard/ui/badge";
+import type { Scenario } from "@dashboard/lib/scenario-schema-stub";
 
 interface StepsListProps {
-  steps?: Scenario['steps']
-  onRemove: (index: number) => void
+  steps?: Scenario["steps"];
+  onRemove: (index: number) => void;
 }
 
 export function StepsList({ steps, onRemove }: StepsListProps) {
@@ -21,13 +21,16 @@ export function StepsList({ steps, onRemove }: StepsListProps) {
       <p className="text-sm text-muted-foreground p-4 bg-muted rounded-lg">
         No steps yet. Use the builder above to add steps.
       </p>
-    )
+    );
   }
 
   return (
     <div className="space-y-2">
       {steps.map((step, index) => (
-        <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted">
+        <div
+          key={index}
+          className="flex items-center justify-between p-3 rounded-lg bg-muted"
+        >
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono opacity-60">{index + 1}.</span>
             <Badge variant="outline" className="font-normal">
@@ -47,5 +50,5 @@ export function StepsList({ steps, onRemove }: StepsListProps) {
         </div>
       ))}
     </div>
-  )
+  );
 }

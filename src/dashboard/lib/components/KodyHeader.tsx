@@ -13,40 +13,34 @@
  *   query/mutation lifecycle. Hooks that are safe to call per-instance
  *   (theme, GitHub identity) are read directly inside the header.
  */
-'use client'
+"use client";
 
-import { useState, type ReactNode } from 'react'
-import {
-  Github,
-  Menu,
-  Moon,
-  RefreshCw,
-  Sun,
-} from 'lucide-react'
+import { useState, type ReactNode } from "react";
+import { Github, Menu, Moon, RefreshCw, Sun } from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
-import { Button } from '@dashboard/ui/button'
-import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
-import { useTheme } from '@dashboard/providers/Theme'
-import { NotificationCenter } from '../notifications/NotificationCenter'
-import { useNotifications } from '../notifications/NotificationsProvider'
-import { cn } from '../utils'
-import { SettingsDrawerTrigger } from './SettingsDrawer'
-import { SimpleTooltip } from './SimpleTooltip'
-import { VibeToggle } from './VibeToggle'
+import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+import { Button } from "@dashboard/ui/button";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useTheme } from "@dashboard/providers/Theme";
+import { NotificationCenter } from "../notifications/NotificationCenter";
+import { useNotifications } from "../notifications/NotificationsProvider";
+import { cn } from "../utils";
+import { SettingsDrawerTrigger } from "./SettingsDrawer";
+import { SimpleTooltip } from "./SimpleTooltip";
+import { VibeToggle } from "./VibeToggle";
 
 interface KodyHeaderProps {
   /** Opens the page-specific mobile menu (host renders the Sheet). */
-  onOpenMobileMenu: () => void
+  onOpenMobileMenu: () => void;
 
   /** Refetch hook for the Refresh button; host decides what gets re-fetched. */
-  onRefresh: () => void
-  isFetching: boolean
+  onRefresh: () => void;
+  isFetching: boolean;
 
   /** Optional slot rendered inline with desktop controls (e.g. PR badge in Vibe). */
-  desktopExtras?: ReactNode
+  desktopExtras?: ReactNode;
   /** Optional slot rendered before the mobile hamburger (e.g. Issues button in Vibe). */
-  mobileExtras?: ReactNode
+  mobileExtras?: ReactNode;
 }
 
 export function KodyHeader({
@@ -56,22 +50,22 @@ export function KodyHeader({
   desktopExtras,
   mobileExtras,
 }: KodyHeaderProps) {
-  const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity()
-  const { theme, setTheme } = useTheme()
+  const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
+  const { theme, setTheme } = useTheme();
   const {
     store: notificationStore,
     permission: notificationPermission,
     isSupported: notificationsSupported,
     requestPermission,
-  } = useNotifications()
-  const [showUserDropdown, setShowUserDropdown] = useState(false)
+  } = useNotifications();
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   return (
     <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/20">
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex items-baseline gap-2 min-w-0">
           <h1 className="text-lg md:text-xl font-semibold text-foreground truncate">
-            {connectedRepo?.split('/').pop() || 'Kody Operations'}
+            {connectedRepo?.split("/").pop() || "Kody Operations"}
           </h1>
           {process.env.NEXT_PUBLIC_APP_VERSION ? (
             <span className="text-xs text-muted-foreground font-mono">
@@ -96,7 +90,10 @@ export function KodyHeader({
             >
               {githubUser ? (
                 <Avatar className="h-5 w-5 shrink-0">
-                  <AvatarImage src={githubUser.avatar_url} alt={githubUser.login} />
+                  <AvatarImage
+                    src={githubUser.avatar_url}
+                    alt={githubUser.login}
+                  />
                   <AvatarFallback>
                     {githubUser.login[0]?.toUpperCase()}
                   </AvatarFallback>
@@ -107,9 +104,12 @@ export function KodyHeader({
                 </div>
               )}
               <span className="text-xs text-muted-foreground truncate">
-                {githubUser ? `@${githubUser.login}` : 'Connected'}
+                {githubUser ? `@${githubUser.login}` : "Connected"}
                 {connectedRepo && (
-                  <span className="text-muted-foreground/60"> · {connectedRepo}</span>
+                  <span className="text-muted-foreground/60">
+                    {" "}
+                    · {connectedRepo}
+                  </span>
                 )}
               </span>
             </button>
@@ -117,15 +117,15 @@ export function KodyHeader({
               <div className="absolute top-full right-0 mt-1 w-56 py-1 bg-popover border rounded-md shadow-lg z-50">
                 {connectedRepo && (
                   <div className="px-3 py-1.5 text-xs text-muted-foreground border-b mb-1">
-                    <span className="font-medium text-foreground">Repo:</span>{' '}
+                    <span className="font-medium text-foreground">Repo:</span>{" "}
                     {connectedRepo}
                   </div>
                 )}
                 <button
                   type="button"
                   onClick={() => {
-                    clearGitHubUser()
-                    setShowUserDropdown(false)
+                    clearGitHubUser();
+                    setShowUserDropdown(false);
                   }}
                   className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
                 >
@@ -144,19 +144,21 @@ export function KodyHeader({
         />
 
         <SimpleTooltip
-          content={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          content={
+            theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+          }
           side="bottom"
         >
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             aria-label={
-              theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
+              theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
             }
             className="text-muted-foreground"
           >
-            {theme === 'dark' ? (
+            {theme === "dark" ? (
               <Sun className="w-4 h-4" />
             ) : (
               <Moon className="w-4 h-4" />
@@ -175,7 +177,9 @@ export function KodyHeader({
             aria-label="Refresh"
             className="gap-1"
           >
-            <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
+            <RefreshCw
+              className={cn("w-4 h-4", isFetching && "animate-spin")}
+            />
           </Button>
         </SimpleTooltip>
 
@@ -195,5 +199,5 @@ export function KodyHeader({
         </Button>
       </div>
     </div>
-  )
+  );
 }

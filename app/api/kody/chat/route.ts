@@ -6,27 +6,29 @@
  * Chat is now routed through GitHub Actions + Kody Engine.
  * This endpoint is deprecated — see POST /api/kody/chat/trigger.
  */
-import { NextRequest, NextResponse } from 'next/server'
-import { requireKodyAuth } from '@dashboard/lib/auth'
-import { logger } from '@dashboard/lib/logger'
+import { NextRequest, NextResponse } from "next/server";
+import { requireKodyAuth } from "@dashboard/lib/auth";
+import { logger } from "@dashboard/lib/logger";
 
-export const runtime = 'nodejs'
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    const authError = await requireKodyAuth(req)
-    if (authError) return authError
+    const authError = await requireKodyAuth(req);
+    if (authError) return authError;
 
     return NextResponse.json({
-      status: 'Chat endpoint deprecated. Use POST /api/kody/chat/trigger.',
+      status: "Chat endpoint deprecated. Use POST /api/kody/chat/trigger.",
       deprecated: true,
-    })
+    });
   } catch (error) {
-    logger.error({ err: error }, 'Chat GET error')
+    logger.error({ err: error }, "Chat GET error");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      {
+        error: error instanceof Error ? error.message : "Internal server error",
+      },
       { status: 500 },
-    )
+    );
   }
 }
 
@@ -35,9 +37,10 @@ export async function POST(_req: NextRequest) {
   // This endpoint is deprecated and will be removed in a future release.
   return NextResponse.json(
     {
-      error: 'Direct chat is deprecated. Use POST /api/kody/chat/trigger instead.',
+      error:
+        "Direct chat is deprecated. Use POST /api/kody/chat/trigger instead.",
       deprecated: true,
     },
     { status: 410 },
-  )
+  );
 }

@@ -7,17 +7,17 @@
  *   `.kody/dashboard.json` via `/api/kody/dashboard-config` (PUT). The
  *   parent owns the value + save mutation; this component is presentation.
  */
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { Button } from '@dashboard/ui/button'
-import { Input } from '@dashboard/ui/input'
-import { Loader2, Save } from 'lucide-react'
+import { useEffect, useState } from "react";
+import { Button } from "@dashboard/ui/button";
+import { Input } from "@dashboard/ui/input";
+import { Loader2, Save } from "lucide-react";
 
 interface VibeDefaultPreviewFieldProps {
-  value: string
-  onSave: (next: string) => Promise<void>
-  isSaving: boolean
+  value: string;
+  onSave: (next: string) => Promise<void>;
+  isSaving: boolean;
 }
 
 export function VibeDefaultPreviewField({
@@ -25,36 +25,36 @@ export function VibeDefaultPreviewField({
   onSave,
   isSaving,
 }: VibeDefaultPreviewFieldProps) {
-  const [draft, setDraft] = useState(value)
-  const [error, setError] = useState<string | null>(null)
+  const [draft, setDraft] = useState(value);
+  const [error, setError] = useState<string | null>(null);
 
   // Re-sync local draft when the upstream value resolves (initial load,
   // refetch after save). Stops the input from looking empty while the
   // GET is in flight.
   useEffect(() => {
-    setDraft(value)
-  }, [value])
+    setDraft(value);
+  }, [value]);
 
-  const trimmed = draft.trim()
-  const dirty = trimmed !== value.trim()
+  const trimmed = draft.trim();
+  const dirty = trimmed !== value.trim();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
+    e.preventDefault();
+    setError(null);
     if (trimmed) {
       try {
-        new URL(trimmed)
+        new URL(trimmed);
       } catch {
-        setError('Must be a valid URL (https://...)')
-        return
+        setError("Must be a valid URL (https://...)");
+        return;
       }
     }
     try {
-      await onSave(trimmed)
+      await onSave(trimmed);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save')
+      setError(err instanceof Error ? err.message : "Failed to save");
     }
-  }
+  };
 
   return (
     <form
@@ -69,7 +69,7 @@ export function VibeDefaultPreviewField({
           Default preview URL
         </label>
         <p className="text-[11px] text-zinc-500">
-          Shown when no issue is selected. Stored per repo at{' '}
+          Shown when no issue is selected. Stored per repo at{" "}
           <code className="text-zinc-400">.kody/dashboard.json</code>.
         </p>
       </div>
@@ -94,10 +94,10 @@ export function VibeDefaultPreviewField({
           ) : (
             <Save className="w-3.5 h-3.5" />
           )}
-          {isSaving ? 'Saving…' : 'Save'}
+          {isSaving ? "Saving…" : "Save"}
         </Button>
       </div>
       {error && <p className="text-xs text-red-400">{error}</p>}
     </form>
-  )
+  );
 }

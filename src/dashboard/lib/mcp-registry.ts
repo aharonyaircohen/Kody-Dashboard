@@ -14,38 +14,43 @@
 
 /** MCP transport configuration */
 export type MCPTransportConfig =
-  | { type: 'http'; url: string; headers?: Record<string, string> }
-  | { type: 'stdio'; command: string; args?: string[]; env?: Record<string, string> }
-  | undefined
+  | { type: "http"; url: string; headers?: Record<string, string> }
+  | {
+      type: "stdio";
+      command: string;
+      args?: string[];
+      env?: Record<string, string>;
+    }
+  | undefined;
 
 /** Configuration for a single MCP provider */
 export interface MCPConfig {
   /** Unique identifier for this MCP */
-  id: string
+  id: string;
   /** Human-readable name */
-  name: string
+  name: string;
   /** What this MCP provides */
-  description: string
+  description: string;
   /** Lazy transport config - called at init time (may depend on env vars) */
-  transport: () => MCPTransportConfig
+  transport: () => MCPTransportConfig;
   /** Whether this MCP should be initialized */
-  enabled: () => boolean
+  enabled: () => boolean;
   /** Optional prefix to namespace tool names (prevents collisions) */
-  toolPrefix?: string
+  toolPrefix?: string;
   /** Init timeout in ms (default: 5000) */
-  timeoutMs?: number
+  timeoutMs?: number;
   /** Additional prompt text when this MCP is active */
-  systemPromptExtension?: string
+  systemPromptExtension?: string;
 }
 
 /** Health status for a single MCP */
 export interface MCPHealthStatus {
-  id: string
-  name: string
-  enabled: boolean
-  connected: boolean
-  toolCount: number
-  lastError?: string
+  id: string;
+  name: string;
+  enabled: boolean;
+  connected: boolean;
+  toolCount: number;
+  lastError?: string;
 }
 
 // ===========================================
@@ -54,22 +59,22 @@ export interface MCPHealthStatus {
 
 /** Build HTTP transport config for GitHub MCP */
 function buildGitHubTransport(): MCPTransportConfig {
-  const token = process.env.GH_PAT || process.env.GITHUB_TOKEN
+  const token = process.env.GH_PAT || process.env.GITHUB_TOKEN;
   return {
-    type: 'http',
-    url: 'https://api.githubcopilot.com/mcp/',
+    type: "http",
+    url: "https://api.githubcopilot.com/mcp/",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  }
+  };
 }
 
 /** Build HTTP transport config for Figma MCP (via local stdio server) */
 function buildFigmaTransport(): MCPTransportConfig | undefined {
-  if (!process.env.FIGMA_API_KEY) return undefined
+  if (!process.env.FIGMA_API_KEY) return undefined;
   // Port will be selected at runtime by the MCP manager
   return {
-    type: 'http',
-    url: 'http://127.0.0.1:0/mcp', // Port 0 = let OS pick
-  }
+    type: "http",
+    url: "http://127.0.0.1:0/mcp", // Port 0 = let OS pick
+  };
 }
 
 // ===========================================
@@ -78,12 +83,12 @@ function buildFigmaTransport(): MCPTransportConfig | undefined {
 
 /** Check if GitHub MCP is enabled */
 function isGitHubEnabled(): boolean {
-  return !!(process.env.GH_PAT || process.env.GITHUB_TOKEN)
+  return !!(process.env.GH_PAT || process.env.GITHUB_TOKEN);
 }
 
 /** Check if Figma MCP is enabled */
 function isFigmaEnabled(): boolean {
-  return !!process.env.FIGMA_API_KEY
+  return !!process.env.FIGMA_API_KEY;
 }
 
 // ===========================================
@@ -96,17 +101,18 @@ function isFigmaEnabled(): boolean {
  */
 export const MCP_REGISTRY: MCPConfig[] = [
   {
-    id: 'github',
-    name: 'GitHub',
-    description: 'Repository browsing, code search, issues, PRs, and GitHub Actions',
+    id: "github",
+    name: "GitHub",
+    description:
+      "Repository browsing, code search, issues, PRs, and GitHub Actions",
     transport: buildGitHubTransport,
     enabled: isGitHubEnabled,
     timeoutMs: 5000,
   },
   {
-    id: 'figma',
-    name: 'Figma',
-    description: 'Figma design file analysis and component extraction',
+    id: "figma",
+    name: "Figma",
+    description: "Figma design file analysis and component extraction",
     transport: buildFigmaTransport,
     enabled: isFigmaEnabled,
     timeoutMs: 15000, // Longer timeout for Figma MCP startup
@@ -121,7 +127,7 @@ Available Figma tools:
 - figma_download_figma_images: Download images from Figma files
 `,
   },
-]
+];
 
 // ===========================================
 // HELPERS
@@ -129,10 +135,10 @@ Available Figma tools:
 
 /** Get all enabled MCPs from the registry */
 export function getEnabledMCPs(): MCPConfig[] {
-  return MCP_REGISTRY.filter((mcp) => mcp.enabled())
+  return MCP_REGISTRY.filter((mcp) => mcp.enabled());
 }
 
 /** Get MCP config by ID */
 export function getMCPById(id: string): MCPConfig | undefined {
-  return MCP_REGISTRY.find((mcp) => mcp.id === id)
+  return MCP_REGISTRY.find((mcp) => mcp.id === id);
 }

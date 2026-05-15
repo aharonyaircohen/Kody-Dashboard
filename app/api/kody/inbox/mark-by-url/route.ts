@@ -9,7 +9,11 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireKodyAuth, getRequestAuth, getUserOctokit } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getRequestAuth,
+  getUserOctokit,
+} from "@dashboard/lib/auth";
 import { markByUrl } from "@dashboard/lib/inbox/gist-store";
 
 const schema = z.object({ url: z.string().url().max(1024) });

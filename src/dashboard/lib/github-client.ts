@@ -5,8 +5,8 @@
  * @ai-summary GitHub API client with caching and manual rate limit handling
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { throttling } from '@octokit/plugin-throttling'
-import { Octokit } from '@octokit/rest'
+import { throttling } from "@octokit/plugin-throttling";
+import { Octokit } from "@octokit/rest";
 import {
   GITHUB_OWNER,
   GITHUB_REPO,
@@ -16,8 +16,8 @@ import {
   BRANCH_CACHE_TTL,
   TASK_ID_REGEX,
   ALL_STAGES,
-} from './constants'
-import { isProtectedBranch } from './branches'
+} from "./constants";
+import { isProtectedBranch } from "./branches";
 import type {
   KodyPipelineStatus,
   GitHubIssue,
@@ -29,29 +29,29 @@ import type {
   PRComment,
   FileChange,
   TaskDocument,
-} from './types'
+} from "./types";
 
 // ============ Types ============
 
 interface CacheEntry<T> {
-  data: T
-  expires: number
-  etag?: string // ETag from GitHub for conditional requests
-  lastModified?: string // Last-Modified header
+  data: T;
+  expires: number;
+  etag?: string; // ETag from GitHub for conditional requests
+  lastModified?: string; // Last-Modified header
 }
 
 // ============ Cache ============
 
-const cache = new Map<string, CacheEntry<unknown>>()
+const cache = new Map<string, CacheEntry<unknown>>();
 
 function getCached<T>(key: string): T | null {
-  const entry = cache.get(key)
+  const entry = cache.get(key);
   if (entry && entry.expires > Date.now()) {
-    return entry.data as T
+    return entry.data as T;
   }
   // Keep expired entries so their ETag survives for conditional GETs.
   // The next setCache (or invalidateCache) will overwrite / evict them.
-  return null
+  return null;
 }
 
 /**
@@ -61,8 +61,8 @@ function getCached<T>(key: string): T | null {
  * data without re-downloading it.
  */
 function getStale<T>(key: string): { data: T; etag?: string } | null {
-  const entry = cache.get(key)
-  return entry ? { data: entry.data as T, etag: entry.etag } : null
+  const entry = cache.get(key);
+  return entry ? { data: entry.data as T, etag: entry.etag } : null;
 }
 
 /**
@@ -79,7 +79,7 @@ function setCache<T>(
     expires: Date.now() + ttl,
     etag: options?.etag,
     lastModified: options?.lastModified,
-  })
+  });
 }
 
 /**
@@ -89,7 +89,7 @@ function setCache<T>(
 function invalidateCache(prefix: string): void {
   for (const key of cache.keys()) {
     if (key.startsWith(prefix)) {
-      cache.delete(key)
+      cache.delete(key);
     }
   }
 }
@@ -99,28 +99,28 @@ function invalidateCache(prefix: string): void {
  * Instead of clearing everything, only clear relevant caches
  */
 export function invalidateTaskCache(): void {
-  invalidateCache('issues:')
-  invalidateCache('issue:')
-  invalidateCache('workflows:')
+  invalidateCache("issues:");
+  invalidateCache("issue:");
+  invalidateCache("workflows:");
 }
 
 export function invalidatePRCache(): void {
-  invalidateCache('pr:')
-  invalidateCache('pr-')
-  invalidateCache('open-prs:')
-  invalidateCache('previews:')
+  invalidateCache("pr:");
+  invalidateCache("pr-");
+  invalidateCache("open-prs:");
+  invalidateCache("previews:");
 }
 
 export function invalidateBoardCache(): void {
-  invalidateCache('boards:')
-  invalidateCache('labels:')
-  invalidateCache('milestones:')
+  invalidateCache("boards:");
+  invalidateCache("labels:");
+  invalidateCache("milestones:");
 }
 
 export function invalidateBranchCache(): void {
-  invalidateCache('branch:')
-  invalidateCache('branches:')
-  invalidateCache('refs:')
+  invalidateCache("branch:");
+  invalidateCache("branches:");
+  invalidateCache("refs:");
 }
 
 /**
@@ -129,7 +129,7 @@ export function invalidateBranchCache(): void {
  * base branch leaves every open PR potentially out of date.
  */
 export function invalidatePRBehindCache(): void {
-  invalidateCache('prbehind:')
+  invalidateCache("prbehind:");
 }
 
 /**
@@ -139,17 +139,17 @@ export function invalidatePRBehindCache(): void {
  * waiting for the TTL.
  */
 export function invalidateIssueCache(issueNumber?: number): void {
-  if (typeof issueNumber === 'number') {
+  if (typeof issueNumber === "number") {
     // Cache keys are repo-scoped (`issue:owner:repo:N`, `comments:owner:repo:N`).
     // Webhooks don't carry repo context, so wipe across all repos via prefix.
-    invalidateCache('issue:')
-    invalidateCache('comments:')
+    invalidateCache("issue:");
+    invalidateCache("comments:");
     // PRs are issues in the GitHub API — `issue_comment` events fire for PR
     // conversation comments too. The PreviewModal comment list reads from
     // `pr-comments:` (separate prefix from `comments:`), so clear that too.
-    invalidateCache('pr-comments:')
+    invalidateCache("pr-comments:");
   }
-  invalidateCache('issues:')
+  invalidateCache("issues:");
 }
 
 /**
@@ -157,11 +157,11 @@ export function invalidateIssueCache(issueNumber?: number): void {
  * job, or omit to clear the listing cache (e.g. on bulk changes).
  */
 export function invalidateJobsCache(slug?: string): void {
-  if (typeof slug === 'string' && slug.length > 0) {
+  if (typeof slug === "string" && slug.length > 0) {
     // Repo-scoped key shape: `job:owner:repo:slug`. Wipe across repos.
-    invalidateCache('job:')
+    invalidateCache("job:");
   }
-  invalidateCache('jobs:')
+  invalidateCache("jobs:");
 }
 
 /**
@@ -171,11 +171,11 @@ export function invalidateJobsCache(slug?: string): void {
  * command menu.
  */
 export function invalidatePromptsCache(slug?: string): void {
-  if (typeof slug === 'string' && slug.length > 0) {
+  if (typeof slug === "string" && slug.length > 0) {
     // Repo-scoped key shape: `prompt:owner:repo:slug`. Wipe across repos.
-    invalidateCache('prompt:')
+    invalidateCache("prompt:");
   }
-  invalidateCache('prompts:')
+  invalidateCache("prompts:");
 }
 
 /**
@@ -183,12 +183,12 @@ export function invalidatePromptsCache(slug?: string): void {
  * memory, or omit to clear the listing/index cache (e.g. on bulk changes).
  */
 export function invalidateMemoryCache(id?: string): void {
-  if (typeof id === 'string' && id.length > 0) {
+  if (typeof id === "string" && id.length > 0) {
     // Repo-scoped key shape: `memory:owner:repo:id`. Wipe across repos.
-    invalidateCache('memory:')
+    invalidateCache("memory:");
   }
-  invalidateCache('memory-index:')
-  invalidateCache('memories:')
+  invalidateCache("memory-index:");
+  invalidateCache("memories:");
 }
 
 /**
@@ -196,9 +196,9 @@ export function invalidateMemoryCache(id?: string): void {
  * Use after a webhook arrives signaling a run/job state change.
  */
 export function invalidateWorkflowCache(): void {
-  invalidateCache('workflows:')
-  invalidateCache('checks:')
-  invalidateCache('runs:')
+  invalidateCache("workflows:");
+  invalidateCache("checks:");
+  invalidateCache("runs:");
 }
 
 // ============ Per-Request Repo Context ============
@@ -208,16 +208,16 @@ export function invalidateWorkflowCache(): void {
 // In Vercel serverless (Fluid Compute), each request is processed sequentially,
 // so this module-level state is safe as long as routes clear it after use.
 
-let _owner: string = GITHUB_OWNER
-let _repo: string = GITHUB_REPO
-let _octokit: Octokit | null = null
+let _owner: string = GITHUB_OWNER;
+let _repo: string = GITHUB_REPO;
+let _octokit: Octokit | null = null;
 
 export function getOwner(): string {
-  return _owner
+  return _owner;
 }
 
 export function getRepo(): string {
-  return _repo
+  return _repo;
 }
 
 /**
@@ -228,95 +228,115 @@ export function getRepo(): string {
  * @param repo  - GitHub repo name (e.g. "Kody-ADE-Engine")
  * @param token - GitHub token (user's PAT). Falls back to env token if omitted.
  */
-export function setGitHubContext(owner: string, repo: string, token?: string): void {
-  _owner = owner
-  _repo = repo
+export function setGitHubContext(
+  owner: string,
+  repo: string,
+  token?: string,
+): void {
+  _owner = owner;
+  _repo = repo;
 
-  const authToken = token ?? process.env.KODY_BOT_TOKEN ?? process.env.GITHUB_TOKEN ?? process.env.GH_PAT ?? null
+  const authToken =
+    token ??
+    process.env.KODY_BOT_TOKEN ??
+    process.env.GITHUB_TOKEN ??
+    process.env.GH_PAT ??
+    null;
   if (!authToken) {
-    throw new Error('No GitHub token configured. Set KODY_BOT_TOKEN, GITHUB_TOKEN, or GH_PAT.')
+    throw new Error(
+      "No GitHub token configured. Set KODY_BOT_TOKEN, GITHUB_TOKEN, or GH_PAT.",
+    );
   }
 
-  const MyOctokit = Octokit.plugin(throttling)
+  const MyOctokit = Octokit.plugin(throttling);
   _octokit = new MyOctokit({
     auth: authToken,
     throttle: {
       onRateLimit: (retryAfter, _options, _octokit) => {
-        if (_options.request?.headers?.['x-octokit-retry-count'] === 0) {
-          console.warn(`[Kody] Rate limited, retrying after ${retryAfter}s`)
-          return true
+        if (_options.request?.headers?.["x-octokit-retry-count"] === 0) {
+          console.warn(`[Kody] Rate limited, retrying after ${retryAfter}s`);
+          return true;
         }
-        console.error(`[Kody] Rate limit hit twice, giving up`)
-        return false
+        console.error(`[Kody] Rate limit hit twice, giving up`);
+        return false;
       },
       onSecondaryRateLimit: (retryAfter, _options, _octokit) => {
-        const retryCount = (_options.request?.retryCount as number) ?? 0
+        const retryCount = (_options.request?.retryCount as number) ?? 0;
         if (retryCount < 2) {
-          console.warn(`[Kody] Secondary rate limit, retrying after ${retryAfter}s (attempt ${retryCount + 1}/2)`)
-          return true
+          console.warn(
+            `[Kody] Secondary rate limit, retrying after ${retryAfter}s (attempt ${retryCount + 1}/2)`,
+          );
+          return true;
         }
-        console.error(`[Kody] Secondary rate limit hit ${retryCount + 1} times, giving up`)
-        return false
+        console.error(
+          `[Kody] Secondary rate limit hit ${retryCount + 1} times, giving up`,
+        );
+        return false;
       },
     },
-  })
+  });
 }
 
 export function clearGitHubContext(): void {
-  _owner = getOwner()
-  _repo = getRepo()
-  _octokit = null
+  _owner = getOwner();
+  _repo = getRepo();
+  _octokit = null;
 }
 
 // ============ Octokit Singleton ============
 
-let octokitInstance: Octokit | null = null
+let octokitInstance: Octokit | null = null;
 
-type ThrottledOctokit = Octokit & ReturnType<typeof throttling>
+type ThrottledOctokit = Octokit & ReturnType<typeof throttling>;
 
 export function getOctokit(): Octokit {
   // Use the per-request context Octokit when set (via setGitHubContext)
-  if (_octokit) return _octokit as ThrottledOctokit
-  if (octokitInstance) return octokitInstance as ThrottledOctokit
+  if (_octokit) return _octokit as ThrottledOctokit;
+  if (octokitInstance) return octokitInstance as ThrottledOctokit;
 
   // Prefer KODY_BOT_TOKEN if set (for bot attribution), otherwise fall back to GITHUB_TOKEN / GH_PAT
-  const token = process.env.KODY_BOT_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_PAT
+  const token =
+    process.env.KODY_BOT_TOKEN ||
+    process.env.GITHUB_TOKEN ||
+    process.env.GH_PAT;
   if (!token) {
-    throw new Error('No GitHub token configured. Set KODY_BOT_TOKEN, GITHUB_TOKEN, or GH_PAT.')
+    throw new Error(
+      "No GitHub token configured. Set KODY_BOT_TOKEN, GITHUB_TOKEN, or GH_PAT.",
+    );
   }
 
   // Create Octokit with throttling plugin - auto-retries on rate limits
-  const MyOctokit = Octokit.plugin(throttling)
+  const MyOctokit = Octokit.plugin(throttling);
   octokitInstance = new MyOctokit({
     auth: token,
     throttle: {
       onRateLimit: (retryAfter, _options, _octokit) => {
         // Retry once after rate limit, then stop
-        if (_options.request?.headers?.['x-octokit-retry-count'] === 0) {
-          console.warn(`[Kody] Rate limited, retrying after ${retryAfter}s`)
-          return true
+        if (_options.request?.headers?.["x-octokit-retry-count"] === 0) {
+          console.warn(`[Kody] Rate limited, retrying after ${retryAfter}s`);
+          return true;
         }
-        console.error(`[Kody] Rate limit hit twice, giving up`)
-        return false
+        console.error(`[Kody] Rate limit hit twice, giving up`);
+        return false;
       },
       onSecondaryRateLimit: (retryAfter, _options, _octokit) => {
         // Secondary rate limit (abuse detection) — retry up to 2 times, then stop to avoid token ban
-        const retryCount = (_options.request?.retryCount as number) ?? 0
+        const retryCount = (_options.request?.retryCount as number) ?? 0;
         if (retryCount < 2) {
           console.warn(
             `[Kody] Secondary rate limit, retrying after ${retryAfter}s (attempt ${retryCount + 1}/2)`,
-          )
-          return true
+          );
+          return true;
         }
         console.error(
           `[Kody] Secondary rate limit hit ${retryCount + 1} times, giving up to avoid token ban`,
-        )
-        return false
+        );
+        return false;
       },
     },
-  })
+  });
 
-  return octokitInstance as ThrottledOctokit
+  return octokitInstance as ThrottledOctokit;
 }
 
 /**
@@ -325,24 +345,28 @@ export function getOctokit(): Octokit {
  * Does NOT cache — each call creates a fresh instance.
  */
 export function createUserOctokit(token: string): Octokit {
-  const MyOctokit = Octokit.plugin(throttling)
+  const MyOctokit = Octokit.plugin(throttling);
   return new MyOctokit({
     auth: token,
     throttle: {
       onRateLimit: (retryAfter, _options, _octokit) => {
-        if (_options.request?.headers?.['x-octokit-retry-count'] === 0) {
-          console.warn(`[Kody/User] Rate limited, retrying after ${retryAfter}s`)
-          return true
+        if (_options.request?.headers?.["x-octokit-retry-count"] === 0) {
+          console.warn(
+            `[Kody/User] Rate limited, retrying after ${retryAfter}s`,
+          );
+          return true;
         }
-        console.error(`[Kody/User] Rate limit hit twice, giving up`)
-        return false
+        console.error(`[Kody/User] Rate limit hit twice, giving up`);
+        return false;
       },
       onSecondaryRateLimit: (retryAfter, _options, _octokit) => {
-        console.warn(`[Kody/User] Secondary rate limit, retrying after ${retryAfter}s`)
-        return true
+        console.warn(
+          `[Kody/User] Secondary rate limit, retrying after ${retryAfter}s`,
+        );
+        return true;
       },
     },
-  })
+  });
 }
 
 // ============ Branch Discovery ============
@@ -353,22 +377,22 @@ export function createUserOctokit(token: string): Octokit {
  * Shared by findTaskBranch and findBranchesByIssueNumbers.
  */
 async function getBranchesForPrefix(prefix: string): Promise<string[]> {
-  const cacheKey = `branches:${getOwner()}:${getRepo()}:prefix:${prefix}`
-  const cached = getCached<string[]>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `branches:${getOwner()}:${getRepo()}:prefix:${prefix}`;
+  const cached = getCached<string[]>(cacheKey);
+  if (cached) return cached;
 
-  const octokit = getOctokit()
+  const octokit = getOctokit();
   try {
     const { data } = await octokit.git.listMatchingRefs({
       owner: getOwner(),
       repo: getRepo(),
       ref: `heads/${prefix}/`,
-    })
-    const branches = data.map((ref: any) => ref.ref.replace('refs/heads/', ''))
-    setCache(cacheKey, BRANCH_CACHE_TTL, branches)
-    return branches
+    });
+    const branches = data.map((ref: any) => ref.ref.replace("refs/heads/", ""));
+    setCache(cacheKey, BRANCH_CACHE_TTL, branches);
+    return branches;
   } catch {
-    return []
+    return [];
   }
 }
 
@@ -378,27 +402,27 @@ async function getBranchesForPrefix(prefix: string): Promise<string[]> {
  */
 export async function findTaskBranch(taskId: string): Promise<string | null> {
   if (!TASK_ID_REGEX.test(taskId)) {
-    return null
+    return null;
   }
 
-  const cacheKey = `branch:${getOwner()}:${getRepo()}:task:${taskId}`
-  const cached = getCached<string | null>(cacheKey)
-  if (cached !== null) return cached
+  const cacheKey = `branch:${getOwner()}:${getRepo()}:task:${taskId}`;
+  const cached = getCached<string | null>(cacheKey);
+  if (cached !== null) return cached;
 
   const results = await Promise.all(
     BRANCH_PREFIXES.map(async (prefix) => {
-      const branches = await getBranchesForPrefix(prefix)
-      const exact = `${prefix}/${taskId}`
-      const withSuffix = `${prefix}/${taskId}-`
+      const branches = await getBranchesForPrefix(prefix);
+      const exact = `${prefix}/${taskId}`;
+      const withSuffix = `${prefix}/${taskId}-`;
       return (
         branches.find((b) => b === exact || b.startsWith(withSuffix)) ?? null
-      )
+      );
     }),
-  )
+  );
 
-  const found = results.find((r) => r !== null) ?? null
-  setCache(cacheKey, BRANCH_CACHE_TTL, found)
-  return found
+  const found = results.find((r) => r !== null) ?? null;
+  setCache(cacheKey, BRANCH_CACHE_TTL, found);
+  return found;
 }
 
 /**
@@ -410,24 +434,24 @@ export async function findTaskBranch(taskId: string): Promise<string | null> {
 export async function findBranchByIssueNumber(
   issueNumber: string | number,
 ): Promise<string | null> {
-  const cacheKey = `branch:${getOwner()}:${getRepo()}:issue:${issueNumber}`
-  const cached = getCached<string>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `branch:${getOwner()}:${getRepo()}:issue:${issueNumber}`;
+  const cached = getCached<string>(cacheKey);
+  if (cached) return cached;
 
-  const issueStr = String(issueNumber)
-  const pattern = new RegExp(`-${issueStr}-`)
+  const issueStr = String(issueNumber);
+  const pattern = new RegExp(`-${issueStr}-`);
 
   // Reuse the shared prefix-branch cache
   const results = await Promise.all(
     BRANCH_PREFIXES.map(async (prefix) => {
-      const branches = await getBranchesForPrefix(prefix)
-      return branches.find((b) => pattern.test(b)) ?? null
+      const branches = await getBranchesForPrefix(prefix);
+      return branches.find((b) => pattern.test(b)) ?? null;
     }),
-  )
+  );
 
-  const found = results.find((r) => r !== null) ?? null
-  if (found) setCache(cacheKey, BRANCH_CACHE_TTL, found)
-  return found
+  const found = results.find((r) => r !== null) ?? null;
+  if (found) setCache(cacheKey, BRANCH_CACHE_TTL, found);
+  return found;
 }
 
 /**
@@ -440,32 +464,32 @@ export async function findBranchByIssueNumber(
 export async function findBranchesByIssueNumbers(
   issueNumbers: (string | number)[],
 ): Promise<Map<number, string>> {
-  if (issueNumbers.length === 0) return new Map()
+  if (issueNumbers.length === 0) return new Map();
 
-  const result = new Map<number, string>()
-  const issueStrs = issueNumbers.map((n) => String(n))
+  const result = new Map<number, string>();
+  const issueStrs = issueNumbers.map((n) => String(n));
 
   // Fetch (or hit cache for) each prefix's branch list in parallel
   void (await Promise.allSettled(
     BRANCH_PREFIXES.map(async (prefix) => {
-      const branches = await getBranchesForPrefix(prefix)
+      const branches = await getBranchesForPrefix(prefix);
 
       for (const issueStr of issueStrs) {
-        const pattern = new RegExp(`-${issueStr}-`)
-        const match = branches.find((branchName) => pattern.test(branchName))
+        const pattern = new RegExp(`-${issueStr}-`);
+        const match = branches.find((branchName) => pattern.test(branchName));
         if (match) {
-          const issueNum = parseInt(issueStr, 10)
+          const issueNum = parseInt(issueStr, 10);
           if (!result.has(issueNum)) {
-            result.set(issueNum, match)
-            const individualCacheKey = `branch:issue:${issueStr}`
-            setCache(individualCacheKey, BRANCH_CACHE_TTL, match)
+            result.set(issueNum, match);
+            const individualCacheKey = `branch:issue:${issueStr}`;
+            setCache(individualCacheKey, BRANCH_CACHE_TTL, match);
           }
         }
       }
     }),
-  ))
+  ));
 
-  return result
+  return result;
 }
 
 // ============ Status JSON Access ============
@@ -475,24 +499,30 @@ export async function findBranchesByIssueNumbers(
  * - Derives `currentStage` from stages data if not set (finds the running stage)
  * - Maps `cursor` field to `currentStage` as fallback
  */
-export function normalizePipelineStatus(status: KodyPipelineStatus): KodyPipelineStatus {
-  let currentStage = status.currentStage
+export function normalizePipelineStatus(
+  status: KodyPipelineStatus,
+): KodyPipelineStatus {
+  let currentStage = status.currentStage;
 
   // If currentStage is not set, derive it from stages data
   if (!currentStage && status.stages) {
-    const stageEntries = Object.entries(status.stages)
+    const stageEntries = Object.entries(status.stages);
 
     // 1. Find a stage that is currently running
-    const runningEntry = stageEntries.find(([, data]) => data.state === 'running')
+    const runningEntry = stageEntries.find(
+      ([, data]) => data.state === "running",
+    );
     if (runningEntry) {
-      currentStage = runningEntry[0]
+      currentStage = runningEntry[0];
     }
 
     // 2. Find a paused stage (pipeline gated)
     if (!currentStage) {
-      const pausedEntry = stageEntries.find(([, data]) => data.state === 'paused')
+      const pausedEntry = stageEntries.find(
+        ([, data]) => data.state === "paused",
+      );
       if (pausedEntry) {
-        currentStage = pausedEntry[0]
+        currentStage = pausedEntry[0];
       }
     }
 
@@ -501,27 +531,27 @@ export function normalizePipelineStatus(status: KodyPipelineStatus): KodyPipelin
     //    Stages without data entries are skipped (they may not be tracked).
     if (!currentStage) {
       for (const stage of ALL_STAGES) {
-        const data = status.stages[stage]
-        if (!data) continue // Stage not tracked — skip
-        if (data.state !== 'completed' && data.state !== 'skipped') {
+        const data = status.stages[stage];
+        if (!data) continue; // Stage not tracked — skip
+        if (data.state !== "completed" && data.state !== "skipped") {
           // This stage hasn't finished — it's the current position
-          currentStage = stage
-          break
+          currentStage = stage;
+          break;
         }
       }
     }
 
     // 4. If ALL known stages are completed/skipped, use the last completed stage
     if (!currentStage && stageEntries.length > 0) {
-      let lastCompleted: string | null = null
+      let lastCompleted: string | null = null;
       for (const stage of ALL_STAGES) {
-        const data = status.stages[stage]
-        if (data && (data.state === 'completed' || data.state === 'skipped')) {
-          lastCompleted = stage
+        const data = status.stages[stage];
+        if (data && (data.state === "completed" || data.state === "skipped")) {
+          lastCompleted = stage;
         }
       }
       if (lastCompleted) {
-        currentStage = lastCompleted
+        currentStage = lastCompleted;
       }
     }
   }
@@ -529,7 +559,7 @@ export function normalizePipelineStatus(status: KodyPipelineStatus): KodyPipelin
   return {
     ...status,
     currentStage,
-  }
+  };
 }
 
 /**
@@ -543,12 +573,12 @@ export async function getStatusFromBranch(
   taskId: string,
   branch: string,
 ): Promise<KodyPipelineStatus | null> {
-  const cacheKey = `status:branch:${getOwner()}:${getRepo()}:${taskId}:${branch}`
-  const cached = getCached<KodyPipelineStatus>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `status:branch:${getOwner()}:${getRepo()}:${taskId}:${branch}`;
+  const cached = getCached<KodyPipelineStatus>(cacheKey);
+  if (cached) return cached;
 
-  const stale = getStale<KodyPipelineStatus>(cacheKey)
-  const octokit = getOctokit()
+  const stale = getStale<KodyPipelineStatus>(cacheKey);
+  const octokit = getOctokit();
 
   try {
     const response = await octokit.repos.getContent({
@@ -556,31 +586,32 @@ export async function getStatusFromBranch(
       repo: getRepo(),
       path: `.tasks/${taskId}/status.json`,
       ref: branch,
-      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
-    })
+      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+    });
 
-    const data = response.data
-    const newEtag = (response.headers as Record<string, string | undefined>)?.etag
+    const data = response.data;
+    const newEtag = (response.headers as Record<string, string | undefined>)
+      ?.etag;
 
-    if ('content' in data && data.content) {
-      const content = Buffer.from(data.content, 'base64').toString('utf-8')
-      const raw = JSON.parse(content) as KodyPipelineStatus
-      const status = normalizePipelineStatus(raw)
-      setCache(cacheKey, CACHE_TTL.pipeline, status, { etag: newEtag })
-      return status
+    if ("content" in data && data.content) {
+      const content = Buffer.from(data.content, "base64").toString("utf-8");
+      const raw = JSON.parse(content) as KodyPipelineStatus;
+      const status = normalizePipelineStatus(raw);
+      setCache(cacheKey, CACHE_TTL.pipeline, status, { etag: newEtag });
+      return status;
     }
   } catch (error: any) {
     // 304 Not Modified — file unchanged. Refresh TTL on stale data, no rate cost.
     if (error.status === 304 && stale) {
-      setCache(cacheKey, CACHE_TTL.pipeline, stale.data, { etag: stale.etag })
-      return stale.data
+      setCache(cacheKey, CACHE_TTL.pipeline, stale.data, { etag: stale.etag });
+      return stale.data;
     }
     if (error.status !== 404) {
-      console.error('[Kody] Error fetching status from branch:', error)
+      console.error("[Kody] Error fetching status from branch:", error);
     }
   }
 
-  return null
+  return null;
 }
 
 /**
@@ -596,63 +627,73 @@ export async function findStatusOnBranch(
   // Cache the .tasks/ directory listing separately from the resolved status,
   // so the listing call can revalidate via ETag while different issueNumber
   // queries still get distinct resolved-status caching.
-  const listingKey = `status:tasks-listing:${getOwner()}:${getRepo()}:${branch}`
-  const cacheKey = `status:discover:${getOwner()}:${getRepo()}:${branch}:${issueNumber ?? 'any'}`
-  const cached = getCached<KodyPipelineStatus>(cacheKey)
-  if (cached) return cached
+  const listingKey = `status:tasks-listing:${getOwner()}:${getRepo()}:${branch}`;
+  const cacheKey = `status:discover:${getOwner()}:${getRepo()}:${branch}:${issueNumber ?? "any"}`;
+  const cached = getCached<KodyPipelineStatus>(cacheKey);
+  if (cached) return cached;
 
-  const octokit = getOctokit()
+  const octokit = getOctokit();
 
   // Fetch (or revalidate) the .tasks/ listing with ETag/304.
-  let taskDirs: string[] | null = getCached<string[]>(listingKey)
+  let taskDirs: string[] | null = getCached<string[]>(listingKey);
   if (!taskDirs) {
-    const stale = getStale<string[]>(listingKey)
+    const stale = getStale<string[]>(listingKey);
     try {
       const response = await octokit.repos.getContent({
         owner: getOwner(),
         repo: getRepo(),
-        path: '.tasks',
+        path: ".tasks",
         ref: branch,
-        headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
-      })
+        headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+      });
 
-      const data = response.data
-      const newEtag = (response.headers as Record<string, string | undefined>)?.etag
+      const data = response.data;
+      const newEtag = (response.headers as Record<string, string | undefined>)
+        ?.etag;
 
       if (Array.isArray(data)) {
         taskDirs = data
-          .filter((item: any) => item.type === 'dir' && TASK_ID_REGEX.test(item.name))
+          .filter(
+            (item: any) => item.type === "dir" && TASK_ID_REGEX.test(item.name),
+          )
           .map((item: any) => item.name as string)
           .sort()
-          .reverse() // Newest first (YYMMDD sorts chronologically)
-        setCache(listingKey, CACHE_TTL.pipeline, taskDirs, { etag: newEtag })
+          .reverse(); // Newest first (YYMMDD sorts chronologically)
+        setCache(listingKey, CACHE_TTL.pipeline, taskDirs, { etag: newEtag });
       }
     } catch (error: any) {
       // 304 Not Modified — directory unchanged. Reuse the stale listing.
       if (error.status === 304 && stale) {
-        setCache(listingKey, CACHE_TTL.pipeline, stale.data, { etag: stale.etag })
-        taskDirs = stale.data
+        setCache(listingKey, CACHE_TTL.pipeline, stale.data, {
+          etag: stale.etag,
+        });
+        taskDirs = stale.data;
       } else if (error.status !== 404) {
-        console.error('[Kody] Error listing .tasks/ on branch:', error)
+        console.error("[Kody] Error listing .tasks/ on branch:", error);
       }
     }
   }
 
-  if (!taskDirs || taskDirs.length === 0) return null
+  if (!taskDirs || taskDirs.length === 0) return null;
 
   // Try the newest task directory first (check up to 3).
   // When issueNumber is provided, skip status files belonging to different issues
   // (branches can accumulate status.json files from multiple pipeline runs).
   for (const taskDir of taskDirs.slice(0, 3)) {
-    const status = await getStatusFromBranch(taskDir, branch)
+    const status = await getStatusFromBranch(taskDir, branch);
     if (status) {
-      if (issueNumber && status.issueNumber && status.issueNumber !== issueNumber) continue
-      setCache(cacheKey, CACHE_TTL.pipeline, status)
-      return status
+      if (
+        issueNumber &&
+        status.issueNumber &&
+        status.issueNumber !== issueNumber
+      )
+        continue;
+      setCache(cacheKey, CACHE_TTL.pipeline, status);
+      return status;
     }
   }
 
-  return null
+  return null;
 }
 
 /**
@@ -665,67 +706,76 @@ export async function findStatusOnBranch(
  * multiply the rate-limit cost. The state file lives on default branch and
  * is engine-readable, so the polling token is sufficient.
  */
-export async function fetchGoalStateFromRepo(
-  goalId: string,
-): Promise<{
-  goalIssueNumber?: number
-  goalPrUrl?: string
+export async function fetchGoalStateFromRepo(goalId: string): Promise<{
+  goalIssueNumber?: number;
+  goalPrUrl?: string;
 } | null> {
-  if (!goalId || /[\\/]|\.\./.test(goalId)) return null
-  const path = `.kody/goals/${goalId}/state.json`
-  const cacheKey = `goal-state:${getOwner()}:${getRepo()}:${goalId}`
-  const cached = getCached<{ goalIssueNumber?: number; goalPrUrl?: string } | null>(
-    cacheKey,
-  )
-  if (cached !== null) return cached
+  if (!goalId || /[\\/]|\.\./.test(goalId)) return null;
+  const path = `.kody/goals/${goalId}/state.json`;
+  const cacheKey = `goal-state:${getOwner()}:${getRepo()}:${goalId}`;
+  const cached = getCached<{
+    goalIssueNumber?: number;
+    goalPrUrl?: string;
+  } | null>(cacheKey);
+  if (cached !== null) return cached;
 
-  const stale = getStale<{ goalIssueNumber?: number; goalPrUrl?: string } | null>(
-    cacheKey,
-  )
-  const octokit = getOctokit()
+  const stale = getStale<{
+    goalIssueNumber?: number;
+    goalPrUrl?: string;
+  } | null>(cacheKey);
+  const octokit = getOctokit();
 
   try {
     const response = await octokit.repos.getContent({
       owner: getOwner(),
       repo: getRepo(),
       path,
-      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
-    })
-    const data = response.data as { type?: string; encoding?: string; content?: string }
-    const newEtag = (response.headers as Record<string, string | undefined>)?.etag
-    if (Array.isArray(data) || data.type !== 'file' || !data.content) {
-      setCache(cacheKey, CACHE_TTL.tasks, null, { etag: newEtag })
-      return null
+      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+    });
+    const data = response.data as {
+      type?: string;
+      encoding?: string;
+      content?: string;
+    };
+    const newEtag = (response.headers as Record<string, string | undefined>)
+      ?.etag;
+    if (Array.isArray(data) || data.type !== "file" || !data.content) {
+      setCache(cacheKey, CACHE_TTL.tasks, null, { etag: newEtag });
+      return null;
     }
-    const raw = Buffer.from(data.content, (data.encoding ?? 'base64') as BufferEncoding)
-      .toString('utf8')
-    let parsed: Record<string, unknown>
+    const raw = Buffer.from(
+      data.content,
+      (data.encoding ?? "base64") as BufferEncoding,
+    ).toString("utf8");
+    let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(raw) as Record<string, unknown>
+      parsed = JSON.parse(raw) as Record<string, unknown>;
     } catch {
-      setCache(cacheKey, CACHE_TTL.tasks, null, { etag: newEtag })
-      return null
+      setCache(cacheKey, CACHE_TTL.tasks, null, { etag: newEtag });
+      return null;
     }
     const goalIssueNumber =
-      typeof parsed.goalIssueNumber === 'number' ? parsed.goalIssueNumber : undefined
+      typeof parsed.goalIssueNumber === "number"
+        ? parsed.goalIssueNumber
+        : undefined;
     const goalPrUrl =
-      typeof parsed.goalPrUrl === 'string' && parsed.goalPrUrl.length > 0
+      typeof parsed.goalPrUrl === "string" && parsed.goalPrUrl.length > 0
         ? parsed.goalPrUrl
-        : undefined
-    const result = { goalIssueNumber, goalPrUrl }
-    setCache(cacheKey, CACHE_TTL.tasks, result, { etag: newEtag })
-    return result
+        : undefined;
+    const result = { goalIssueNumber, goalPrUrl };
+    setCache(cacheKey, CACHE_TTL.tasks, result, { etag: newEtag });
+    return result;
   } catch (error: any) {
     if (error.status === 304 && stale) {
-      setCache(cacheKey, CACHE_TTL.tasks, stale.data, { etag: stale.etag })
-      return stale.data
+      setCache(cacheKey, CACHE_TTL.tasks, stale.data, { etag: stale.etag });
+      return stale.data;
     }
     if (error.status === 404) {
-      setCache(cacheKey, CACHE_TTL.tasks, null)
-      return null
+      setCache(cacheKey, CACHE_TTL.tasks, null);
+      return null;
     }
-    console.error(`[Kody] Error reading goal state for ${goalId}:`, error)
-    return null
+    console.error(`[Kody] Error reading goal state for ${goalId}:`, error);
+    return null;
   }
 }
 
@@ -736,11 +786,11 @@ export async function getStatusFromArtifact(
   taskId: string,
   runId: string,
 ): Promise<KodyPipelineStatus | null> {
-  const cacheKey = `status:artifact:${getOwner()}:${getRepo()}:${taskId}:${runId}`
-  const cached = getCached<KodyPipelineStatus>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `status:artifact:${getOwner()}:${getRepo()}:${taskId}:${runId}`;
+  const cached = getCached<KodyPipelineStatus>(cacheKey);
+  if (cached) return cached;
 
-  const octokit = getOctokit()
+  const octokit = getOctokit();
 
   try {
     // Find artifact
@@ -748,14 +798,14 @@ export async function getStatusFromArtifact(
       owner: getOwner(),
       repo: getRepo(),
       run_id: parseInt(runId),
-    })
+    });
 
     const artifact = artifacts.artifacts.find(
       (a: { name: string }) => a.name === `kody-${taskId}-${runId}`,
-    )
+    );
 
     if (!artifact) {
-      return null
+      return null;
     }
 
     // Download artifact
@@ -763,20 +813,20 @@ export async function getStatusFromArtifact(
       owner: getOwner(),
       repo: getRepo(),
       artifact_id: artifact.id,
-      archive_format: 'zipball',
-    })
+      archive_format: "zipball",
+    });
 
     // Note: In a real implementation, we'd need to extract the zip and parse status.json
     // For now, return null as this requires additional handling
-    console.log('[Kody] Artifact download not fully implemented')
-    return null
+    console.log("[Kody] Artifact download not fully implemented");
+    return null;
   } catch (error: any) {
     if (error.status !== 404) {
-      console.error('[Kody] Error fetching status from artifact:', error)
+      console.error("[Kody] Error fetching status from artifact:", error);
     }
   }
 
-  return null
+  return null;
 }
 
 // ============ Issue & Comment Fetching ============
@@ -796,71 +846,74 @@ export async function fetchIssue(
   issueNumber: number,
   options?: { noCache?: boolean; ttl?: number },
 ): Promise<GitHubIssue | null> {
-  const cacheKey = `issue:${getOwner()}:${getRepo()}:${issueNumber}`
-  const ttl = options?.ttl ?? CACHE_TTL.tasks
+  const cacheKey = `issue:${getOwner()}:${getRepo()}:${issueNumber}`;
+  const ttl = options?.ttl ?? CACHE_TTL.tasks;
 
   if (!options?.noCache) {
-    const cached = getCached<GitHubIssue>(cacheKey)
-    if (cached) return cached
+    const cached = getCached<GitHubIssue>(cacheKey);
+    if (cached) return cached;
   }
 
-  const stale = options?.noCache ? null : getStale<GitHubIssue>(cacheKey)
-  const octokit = getOctokit()
+  const stale = options?.noCache ? null : getStale<GitHubIssue>(cacheKey);
+  const octokit = getOctokit();
 
-  let response
+  let response;
   try {
     response = await octokit.issues.get({
       owner: getOwner(),
       repo: getRepo(),
       issue_number: issueNumber,
-      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
-    })
+      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+    });
   } catch (error: any) {
     if (error.status === 304 && stale) {
-      setCache(cacheKey, ttl, stale.data, { etag: stale.etag })
-      return stale.data
+      setCache(cacheKey, ttl, stale.data, { etag: stale.etag });
+      return stale.data;
     }
     if (error.status === 404) {
-      return null
+      return null;
     }
-    throw error
+    throw error;
   }
 
-  const data = response.data
-  const newEtag = (response.headers as Record<string, string | undefined>)?.etag
+  const data = response.data;
+  const newEtag = (response.headers as Record<string, string | undefined>)
+    ?.etag;
 
   const issue: GitHubIssue = {
     id: data.id,
     number: data.number,
     title: data.title,
     body: data.body ?? null,
-    state: data.state as 'open' | 'closed',
+    state: data.state as "open" | "closed",
     labels: data.labels.map((l: any) =>
-      typeof l === 'string'
-        ? { name: l, color: '000000' }
-        : { name: l.name ?? '', color: l.color ?? '000000' },
+      typeof l === "string"
+        ? { name: l, color: "000000" }
+        : { name: l.name ?? "", color: l.color ?? "000000" },
     ),
-    milestone: data.milestone ? { title: data.milestone.title ?? '' } : null,
+    milestone: data.milestone ? { title: data.milestone.title ?? "" } : null,
     assignees:
       data.assignees?.map((a: any) => ({
-        login: a.login ?? '',
-        avatar_url: a.avatar_url ?? '',
+        login: a.login ?? "",
+        avatar_url: a.avatar_url ?? "",
       })) ?? [],
-    created_at: data.created_at ?? '',
-    updated_at: data.updated_at ?? '',
+    created_at: data.created_at ?? "",
+    updated_at: data.updated_at ?? "",
     closed_at: data.closed_at ?? null,
-    html_url: data.html_url ?? '',
+    html_url: data.html_url ?? "",
     isKodyAssigned:
       data.assignees?.some(
         (a: any) =>
-          a.login === 'github-actions[bot]' || a.login === 'Copilot' || (a as any).type === 'Bot',
+          a.login === "github-actions[bot]" ||
+          a.login === "Copilot" ||
+          (a as any).type === "Bot",
       ) ?? false,
-  }
+  };
 
   if (!options?.noCache) {
-    setCache(cacheKey, ttl, issue, { etag: newEtag })
+    setCache(cacheKey, ttl, issue, { etag: newEtag });
   }
-  return issue
+  return issue;
 }
 
 /**
@@ -875,54 +928,57 @@ export async function fetchIssue(
  * - `noCache` skips the cache entirely (rarely needed; prefer `ttl`).
  */
 export async function fetchIssues(options?: {
-  state?: 'open' | 'closed' | 'all'
-  labels?: string
-  excludeLabels?: string[]
-  milestone?: number
-  perPage?: number
-  since?: string // ISO 8601 date string - only returns issues updated after this date
-  ttl?: number
-  noCache?: boolean
+  state?: "open" | "closed" | "all";
+  labels?: string;
+  excludeLabels?: string[];
+  milestone?: number;
+  perPage?: number;
+  since?: string; // ISO 8601 date string - only returns issues updated after this date
+  ttl?: number;
+  noCache?: boolean;
 }): Promise<GitHubIssue[]> {
-  const { noCache, ttl: ttlOpt, ...rest } = options ?? {}
-  const cacheKey = `issues:${getOwner()}:${getRepo()}:${JSON.stringify(rest)}`
-  const ttl = ttlOpt ?? CACHE_TTL.tasks
+  const { noCache, ttl: ttlOpt, ...rest } = options ?? {};
+  const cacheKey = `issues:${getOwner()}:${getRepo()}:${JSON.stringify(rest)}`;
+  const ttl = ttlOpt ?? CACHE_TTL.tasks;
 
   if (!noCache) {
-    const cached = getCached<GitHubIssue[]>(cacheKey)
-    if (cached) return cached
+    const cached = getCached<GitHubIssue[]>(cacheKey);
+    if (cached) return cached;
   }
 
-  const stale = noCache ? null : getStale<GitHubIssue[]>(cacheKey)
-  const octokit = getOctokit()
+  const stale = noCache ? null : getStale<GitHubIssue[]>(cacheKey);
+  const octokit = getOctokit();
 
-  let response
+  let response;
   try {
     response = await octokit.issues.listForRepo({
       owner: getOwner(),
       repo: getRepo(),
-      state: options?.state || 'open',
+      state: options?.state || "open",
       labels: options?.labels,
       milestone: options?.milestone ? String(options.milestone) : undefined,
       per_page: options?.perPage || 50,
-      sort: 'updated',
-      direction: 'desc',
+      sort: "updated",
+      direction: "desc",
       since: options?.since as any, // Octokit accepts ISO string
-      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
-    })
+      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+    });
   } catch (err: any) {
     // 304 Not Modified — reuse stale data, refresh TTL, no rate cost
     if (err.status === 304 && stale) {
-      setCache(cacheKey, ttl, stale.data, { etag: stale.etag })
-      return stale.data
+      setCache(cacheKey, ttl, stale.data, { etag: stale.etag });
+      return stale.data;
     }
-    throw err
+    throw err;
   }
 
-  const data = response.data
-  const newEtag = (response.headers as Record<string, string | undefined>)?.etag
+  const data = response.data;
+  const newEtag = (response.headers as Record<string, string | undefined>)
+    ?.etag;
 
-  const excludeSet = new Set((options?.excludeLabels ?? []).map((l) => l.toLowerCase()))
+  const excludeSet = new Set(
+    (options?.excludeLabels ?? []).map((l) => l.toLowerCase()),
+  );
 
   // Filter out pull requests — GitHub issues API returns both issues and PRs
   // Also drop issues that carry any of the excluded labels (post-fetch because
@@ -930,56 +986,60 @@ export async function fetchIssues(options?: {
   const issues: GitHubIssue[] = data
     .filter((issue: any) => !issue.pull_request)
     .filter((issue: any) => {
-      if (excludeSet.size === 0) return true
+      if (excludeSet.size === 0) return true;
       const names: string[] = (issue.labels ?? []).map((l: any) =>
-        (typeof l === 'string' ? l : (l.name ?? '')).toLowerCase(),
-      )
-      return !names.some((n) => excludeSet.has(n))
+        (typeof l === "string" ? l : (l.name ?? "")).toLowerCase(),
+      );
+      return !names.some((n) => excludeSet.has(n));
     })
     .map((issue: any) => ({
       id: issue.id,
       number: issue.number,
       title: issue.title,
       body: issue.body ?? null,
-      state: issue.state as 'open' | 'closed',
+      state: issue.state as "open" | "closed",
       labels: issue.labels.map((l: any) =>
-        typeof l === 'string'
-          ? { name: l, color: '000000' }
-          : { name: l.name ?? '', color: l.color ?? '000000' },
+        typeof l === "string"
+          ? { name: l, color: "000000" }
+          : { name: l.name ?? "", color: l.color ?? "000000" },
       ),
-      milestone: issue.milestone ? { title: issue.milestone.title ?? '' } : null,
+      milestone: issue.milestone
+        ? { title: issue.milestone.title ?? "" }
+        : null,
       assignees:
         issue.assignees?.map((a: any) => ({
-          login: a.login ?? '',
-          avatar_url: a.avatar_url ?? '',
+          login: a.login ?? "",
+          avatar_url: a.avatar_url ?? "",
         })) ?? [],
-      created_at: issue.created_at ?? '',
-      updated_at: issue.updated_at ?? '',
+      created_at: issue.created_at ?? "",
+      updated_at: issue.updated_at ?? "",
       closed_at: issue.closed_at ?? null,
-      html_url: issue.html_url ?? '',
+      html_url: issue.html_url ?? "",
       isKodyAssigned:
         issue.assignees?.some(
           (a: any) =>
-            a.login === 'github-actions[bot]' || a.login === 'Copilot' || a.type === 'Bot',
+            a.login === "github-actions[bot]" ||
+            a.login === "Copilot" ||
+            a.type === "Bot",
         ) ?? false,
-    }))
+    }));
 
   // Fallback: GitHub's REST `/repos/{owner}/{repo}/issues` listing has gone
   // wrong globally before (returns `[]` for repos with open issues). When the
   // REST listing is empty, retry once via GraphQL — which uses a separate
   // backend and stays up. We only do this on the empty path so genuinely
   // empty repos still take the cheap REST path.
-  let finalIssues = issues
+  let finalIssues = issues;
   if (issues.length === 0) {
     try {
       const gql = await fetchIssuesViaGraphQL({
-        state: options?.state ?? 'open',
+        state: options?.state ?? "open",
         labels: options?.labels,
         excludeLabels: options?.excludeLabels,
         perPage: options?.perPage ?? 50,
-      })
+      });
       if (gql.length > 0) {
-        finalIssues = gql
+        finalIssues = gql;
       }
     } catch {
       // Fall through to the empty REST result; never let the fallback fail loud.
@@ -991,33 +1051,33 @@ export async function fetchIssues(options?: {
     // GraphQL fallback path has no ETag, so we cache without one and let
     // the TTL drive the next refresh.
     if (finalIssues === issues) {
-      setCache(cacheKey, ttl, finalIssues, { etag: newEtag })
+      setCache(cacheKey, ttl, finalIssues, { etag: newEtag });
     } else {
-      setCache(cacheKey, ttl, finalIssues)
+      setCache(cacheKey, ttl, finalIssues);
     }
   }
-  return finalIssues
+  return finalIssues;
 }
 
 interface GraphQLIssuesResponse {
   repository: {
     issues: {
       nodes: Array<{
-        databaseId: number
-        number: number
-        title: string
-        body: string | null
-        state: 'OPEN' | 'CLOSED'
-        url: string
-        createdAt: string
-        updatedAt: string
-        closedAt: string | null
-        labels: { nodes: Array<{ name: string; color: string }> }
-        milestone: { title: string } | null
-        assignees: { nodes: Array<{ login: string; avatarUrl: string }> }
-      }>
-    }
-  }
+        databaseId: number;
+        number: number;
+        title: string;
+        body: string | null;
+        state: "OPEN" | "CLOSED";
+        url: string;
+        createdAt: string;
+        updatedAt: string;
+        closedAt: string | null;
+        labels: { nodes: Array<{ name: string; color: string }> };
+        milestone: { title: string } | null;
+        assignees: { nodes: Array<{ login: string; avatarUrl: string }> };
+      }>;
+    };
+  };
 }
 
 /**
@@ -1026,26 +1086,30 @@ interface GraphQLIssuesResponse {
  * bucket. No ETag/304 (GraphQL doesn't expose them).
  */
 async function fetchIssuesViaGraphQL(opts: {
-  state: 'open' | 'closed' | 'all'
-  labels?: string
-  excludeLabels?: string[]
-  perPage: number
+  state: "open" | "closed" | "all";
+  labels?: string;
+  excludeLabels?: string[];
+  perPage: number;
 }): Promise<GitHubIssue[]> {
   const states =
-    opts.state === 'all' ? '[OPEN, CLOSED]' : opts.state === 'closed' ? '[CLOSED]' : '[OPEN]'
-  const first = Math.min(opts.perPage, 100)
+    opts.state === "all"
+      ? "[OPEN, CLOSED]"
+      : opts.state === "closed"
+        ? "[CLOSED]"
+        : "[OPEN]";
+  const first = Math.min(opts.perPage, 100);
 
   // GraphQL accepts a `labels: [String!]` filter on issues(). Mirror REST's
   // comma-separated `labels=a,b` semantics: results match all listed labels.
   const labelList = opts.labels
     ? opts.labels
-        .split(',')
+        .split(",")
         .map((l) => l.trim())
         .filter(Boolean)
-    : []
+    : [];
   const labelsArg = labelList.length
-    ? `, labels: [${labelList.map((l) => JSON.stringify(l)).join(', ')}]`
-    : ''
+    ? `, labels: [${labelList.map((l) => JSON.stringify(l)).join(", ")}]`
+    : "";
 
   const query = `
     query Issues($owner: String!, $repo: String!) {
@@ -1068,101 +1132,106 @@ async function fetchIssuesViaGraphQL(opts: {
         }
       }
     }
-  `
+  `;
 
-  const octokit = getOctokit()
+  const octokit = getOctokit();
   const data = await octokit.graphql<GraphQLIssuesResponse>(query, {
     owner: getOwner(),
     repo: getRepo(),
-  })
+  });
 
-  const excludeSet = new Set((opts.excludeLabels ?? []).map((l) => l.toLowerCase()))
+  const excludeSet = new Set(
+    (opts.excludeLabels ?? []).map((l) => l.toLowerCase()),
+  );
 
   return data.repository.issues.nodes
     .filter((node) => {
-      if (excludeSet.size === 0) return true
-      const names = node.labels.nodes.map((l) => (l.name ?? '').toLowerCase())
-      return !names.some((n) => excludeSet.has(n))
+      if (excludeSet.size === 0) return true;
+      const names = node.labels.nodes.map((l) => (l.name ?? "").toLowerCase());
+      return !names.some((n) => excludeSet.has(n));
     })
     .map((node): GitHubIssue => {
       const assigneeLogins = node.assignees.nodes.map((a) => ({
-        login: a.login ?? '',
-        avatar_url: a.avatarUrl ?? '',
-      }))
+        login: a.login ?? "",
+        avatar_url: a.avatarUrl ?? "",
+      }));
       return {
         id: node.databaseId,
         number: node.number,
         title: node.title,
         body: node.body ?? null,
-        state: node.state.toLowerCase() as 'open' | 'closed',
+        state: node.state.toLowerCase() as "open" | "closed",
         labels: node.labels.nodes.map((l) => ({
-          name: l.name ?? '',
-          color: l.color ?? '000000',
+          name: l.name ?? "",
+          color: l.color ?? "000000",
         })),
         milestone: node.milestone ? { title: node.milestone.title } : null,
         assignees: assigneeLogins,
-        created_at: node.createdAt ?? '',
-        updated_at: node.updatedAt ?? '',
+        created_at: node.createdAt ?? "",
+        updated_at: node.updatedAt ?? "",
         closed_at: node.closedAt,
-        html_url: node.url ?? '',
+        html_url: node.url ?? "",
         isKodyAssigned: assigneeLogins.some(
-          (a) => a.login === 'github-actions[bot]' || a.login === 'Copilot',
+          (a) => a.login === "github-actions[bot]" || a.login === "Copilot",
         ),
-      }
-    })
+      };
+    });
 }
 
 /**
  * Fetch comments for an issue
  */
-export async function fetchComments(issueNumber: number): Promise<GitHubComment[]> {
-  const cacheKey = `comments:${getOwner()}:${getRepo()}:${issueNumber}`
-  const ttl = CACHE_TTL.tasks * 2
-  const cached = getCached<GitHubComment[]>(cacheKey)
-  if (cached) return cached
+export async function fetchComments(
+  issueNumber: number,
+): Promise<GitHubComment[]> {
+  const cacheKey = `comments:${getOwner()}:${getRepo()}:${issueNumber}`;
+  const ttl = CACHE_TTL.tasks * 2;
+  const cached = getCached<GitHubComment[]>(cacheKey);
+  if (cached) return cached;
 
   // Stale-with-ETag path: post-TTL revalidation replays the cached ETag via
   // `If-None-Match`. GitHub returns 304 (free, no rate cost) when comments
   // haven't changed, and we refresh TTL on the existing payload. This was a
   // hot rate-limit drain when the fallback task lookup batched dozens of
   // comment fetches per request.
-  const stale = getStale<GitHubComment[]>(cacheKey)
-  const octokit = getOctokit()
+  const stale = getStale<GitHubComment[]>(cacheKey);
+  const octokit = getOctokit();
 
-  let response
+  let response;
   try {
     response = await octokit.issues.listComments({
       owner: getOwner(),
       repo: getRepo(),
       issue_number: issueNumber,
       per_page: 100,
-      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
-    })
+      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+    });
   } catch (err: any) {
     if (err.status === 304 && stale) {
-      setCache(cacheKey, ttl, stale.data, { etag: stale.etag })
-      return stale.data
+      setCache(cacheKey, ttl, stale.data, { etag: stale.etag });
+      return stale.data;
     }
-    throw err
+    throw err;
   }
 
-  const data = response.data
-  const newEtag = (response.headers as Record<string, string | undefined>)?.etag
+  const data = response.data;
+  const newEtag = (response.headers as Record<string, string | undefined>)
+    ?.etag;
 
   const comments: GitHubComment[] = data.map((comment: any) => ({
     id: comment.id,
-    body: comment.body ?? '',
-    created_at: comment.created_at ?? '',
+    body: comment.body ?? "",
+    created_at: comment.created_at ?? "",
     user: {
-      login: comment.user?.login ?? 'unknown',
-      type: comment.user?.type ?? 'User',
-      avatar_url: comment.user?.avatar_url ?? '',
+      login: comment.user?.login ?? "unknown",
+      type: comment.user?.type ?? "User",
+      avatar_url: comment.user?.avatar_url ?? "",
     },
-  }))
+  }));
 
   // Comments are less likely to change, cache longer
-  setCache(cacheKey, ttl, comments, { etag: newEtag })
-  return comments
+  setCache(cacheKey, ttl, comments, { etag: newEtag });
+  return comments;
 }
 
 /**
@@ -1176,15 +1245,15 @@ export async function fetchComments(issueNumber: number): Promise<GitHubComment[
  */
 export async function fetchKodyState(
   issueNumber: number,
-): Promise<import('./kody-state').KodyTaskState | null> {
+): Promise<import("./kody-state").KodyTaskState | null> {
   try {
-    const { findKodyStateInComments } = await import('./kody-state')
-    const comments = await fetchComments(issueNumber)
-    return findKodyStateInComments(comments)
+    const { findKodyStateInComments } = await import("./kody-state");
+    const comments = await fetchComments(issueNumber);
+    return findKodyStateInComments(comments);
   } catch (err) {
     // Best effort — falling back to label/run derivation is acceptable.
-    console.warn(`[fetchKodyState] failed for #${issueNumber}:`, err)
-    return null
+    console.warn(`[fetchKodyState] failed for #${issueNumber}:`, err);
+    return null;
   }
 }
 
@@ -1194,17 +1263,17 @@ export async function fetchKodyState(
  * Fetch workflow runs for the Kody workflow
  */
 export async function fetchWorkflowRuns(options?: {
-  status?: 'queued' | 'in_progress' | 'completed'
-  perPage?: number
+  status?: "queued" | "in_progress" | "completed";
+  perPage?: number;
 }): Promise<WorkflowRun[]> {
-  const cacheKey = `workflows:${getOwner()}:${getRepo()}:${JSON.stringify(options)}`
-  const cached = getCached<WorkflowRun[]>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `workflows:${getOwner()}:${getRepo()}:${JSON.stringify(options)}`;
+  const cached = getCached<WorkflowRun[]>(cacheKey);
+  if (cached) return cached;
 
-  const stale = getStale<WorkflowRun[]>(cacheKey)
-  const octokit = getOctokit()
+  const stale = getStale<WorkflowRun[]>(cacheKey);
+  const octokit = getOctokit();
 
-  let response
+  let response;
   try {
     response = await octokit.actions.listWorkflowRuns({
       owner: getOwner(),
@@ -1212,32 +1281,33 @@ export async function fetchWorkflowRuns(options?: {
       workflow_id: WORKFLOW_ID,
       status: options?.status,
       per_page: options?.perPage || 20,
-      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
-    })
+      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+    });
   } catch (err: any) {
     if (err.status === 304 && stale) {
-      setCache(cacheKey, CACHE_TTL.pipeline, stale.data, { etag: stale.etag })
-      return stale.data
+      setCache(cacheKey, CACHE_TTL.pipeline, stale.data, { etag: stale.etag });
+      return stale.data;
     }
-    throw err
+    throw err;
   }
 
-  const data = response.data
-  const newEtag = (response.headers as Record<string, string | undefined>)?.etag
+  const data = response.data;
+  const newEtag = (response.headers as Record<string, string | undefined>)
+    ?.etag;
 
   const runs: WorkflowRun[] = data.workflow_runs.map((run) => ({
     id: run.id,
-    status: run.status as 'queued' | 'in_progress' | 'completed',
+    status: run.status as "queued" | "in_progress" | "completed",
     conclusion: run.conclusion,
     created_at: run.created_at,
     updated_at: run.updated_at,
     html_url: run.html_url,
-    display_title: (run as any).display_title ?? '',
+    display_title: (run as any).display_title ?? "",
     head_branch: (run as any).head_branch ?? undefined,
-  }))
+  }));
 
-  setCache(cacheKey, CACHE_TTL.pipeline, runs, { etag: newEtag })
-  return runs
+  setCache(cacheKey, CACHE_TTL.pipeline, runs, { etag: newEtag });
+  return runs;
 }
 
 // ============ Default-branch CI roll-up ============
@@ -1252,87 +1322,101 @@ export async function fetchWorkflowRuns(options?: {
 
 export interface DefaultBranchCI {
   /** Aggregate state across the latest run of each distinct workflow on main. */
-  state: 'success' | 'failure' | 'pending' | 'unknown'
+  state: "success" | "failure" | "pending" | "unknown";
   /** Default branch name (usually 'main'). */
-  branch: string
+  branch: string;
   /** Latest commit SHA on the default branch (when known). */
-  sha?: string
+  sha?: string;
   /** Latest workflow run on main, regardless of conclusion. */
   latestRun?: {
-    id: number
-    name: string
-    status: 'queued' | 'in_progress' | 'completed'
-    conclusion: string | null
-    html_url: string
-    updated_at: string
-  }
+    id: number;
+    name: string;
+    status: "queued" | "in_progress" | "completed";
+    conclusion: string | null;
+    html_url: string;
+    updated_at: string;
+  };
   /** All currently-failing latest-runs on main. Empty when state !== 'failure'. */
   failingRuns: Array<{
-    id: number
-    name: string
-    conclusion: string
-    html_url: string
-    updated_at: string
-  }>
+    id: number;
+    name: string;
+    conclusion: string;
+    html_url: string;
+    updated_at: string;
+  }>;
   /** When data was sampled (ISO). */
-  fetchedAt: string
+  fetchedAt: string;
 }
 
-const DEFAULT_BRANCH_CI_TTL = 30_000
+const DEFAULT_BRANCH_CI_TTL = 30_000;
 
 async function getDefaultBranch(): Promise<string> {
-  const cacheKey = `branch:default:${getOwner()}:${getRepo()}`
-  const cached = getCached<string>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `branch:default:${getOwner()}:${getRepo()}`;
+  const cached = getCached<string>(cacheKey);
+  if (cached) return cached;
 
-  const { data } = await getOctokit().repos.get({ owner: getOwner(), repo: getRepo() })
-  const branch = data.default_branch
-  setCache(cacheKey, BRANCH_CACHE_TTL, branch)
-  return branch
+  const { data } = await getOctokit().repos.get({
+    owner: getOwner(),
+    repo: getRepo(),
+  });
+  const branch = data.default_branch;
+  setCache(cacheKey, BRANCH_CACHE_TTL, branch);
+  return branch;
 }
 
 interface DefaultBranchCIGraphQL {
   repository: {
     defaultBranchRef: {
-      name: string
+      name: string;
       target: {
-        oid: string
+        oid: string;
         statusCheckRollup: {
-          state: 'EXPECTED' | 'ERROR' | 'FAILURE' | 'PENDING' | 'SUCCESS'
+          state: "EXPECTED" | "ERROR" | "FAILURE" | "PENDING" | "SUCCESS";
           contexts: {
             nodes: Array<
               | {
-                  __typename: 'CheckRun'
-                  name: string
-                  status: 'QUEUED' | 'IN_PROGRESS' | 'COMPLETED' | 'WAITING' | 'PENDING' | 'REQUESTED'
+                  __typename: "CheckRun";
+                  name: string;
+                  status:
+                    | "QUEUED"
+                    | "IN_PROGRESS"
+                    | "COMPLETED"
+                    | "WAITING"
+                    | "PENDING"
+                    | "REQUESTED";
                   conclusion:
-                    | 'ACTION_REQUIRED'
-                    | 'TIMED_OUT'
-                    | 'CANCELLED'
-                    | 'FAILURE'
-                    | 'SUCCESS'
-                    | 'NEUTRAL'
-                    | 'SKIPPED'
-                    | 'STARTUP_FAILURE'
-                    | 'STALE'
-                    | null
-                  permalink: string
-                  startedAt: string | null
-                  completedAt: string | null
+                    | "ACTION_REQUIRED"
+                    | "TIMED_OUT"
+                    | "CANCELLED"
+                    | "FAILURE"
+                    | "SUCCESS"
+                    | "NEUTRAL"
+                    | "SKIPPED"
+                    | "STARTUP_FAILURE"
+                    | "STALE"
+                    | null;
+                  permalink: string;
+                  startedAt: string | null;
+                  completedAt: string | null;
                 }
               | {
-                  __typename: 'StatusContext'
-                  context: string
-                  state: 'EXPECTED' | 'ERROR' | 'FAILURE' | 'PENDING' | 'SUCCESS'
-                  targetUrl: string | null
-                  createdAt: string
+                  __typename: "StatusContext";
+                  context: string;
+                  state:
+                    | "EXPECTED"
+                    | "ERROR"
+                    | "FAILURE"
+                    | "PENDING"
+                    | "SUCCESS";
+                  targetUrl: string | null;
+                  createdAt: string;
                 }
-            >
-          }
-        } | null
-      } | null
-    } | null
-  }
+            >;
+          };
+        } | null;
+      } | null;
+    } | null;
+  };
 }
 
 /**
@@ -1350,13 +1434,13 @@ interface DefaultBranchCIGraphQL {
  * was actually green.
  */
 export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
-  const branch = await getDefaultBranch()
-  const cacheKey = `workflows:main-ci:${getOwner()}:${getRepo()}:${branch}`
-  const cached = getCached<DefaultBranchCI>(cacheKey)
-  if (cached) return cached
+  const branch = await getDefaultBranch();
+  const cacheKey = `workflows:main-ci:${getOwner()}:${getRepo()}:${branch}`;
+  const cached = getCached<DefaultBranchCI>(cacheKey);
+  if (cached) return cached;
 
-  const stale = getStale<DefaultBranchCI>(cacheKey)
-  const octokit = getOctokit()
+  const stale = getStale<DefaultBranchCI>(cacheKey);
+  const octokit = getOctokit();
 
   const query = `
     query DefaultBranchCI($owner: String!, $repo: String!) {
@@ -1393,78 +1477,85 @@ export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
         }
       }
     }
-  `
+  `;
 
-  let data: DefaultBranchCIGraphQL
+  let data: DefaultBranchCIGraphQL;
   try {
     data = await octokit.graphql<DefaultBranchCIGraphQL>(query, {
       owner: getOwner(),
       repo: getRepo(),
-    })
+    });
   } catch {
     // Refresh TTL on the stale entry so GraphQL throttling doesn't compound
     // (CLAUDE.md rule 3 — GraphQL has its own bucket and no 304 escape hatch).
     if (stale) {
-      setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, stale.data)
-      return stale.data
+      setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, stale.data);
+      return stale.data;
     }
-    throw new Error('Failed to fetch default-branch CI rollup')
+    throw new Error("Failed to fetch default-branch CI rollup");
   }
 
-  const ref = data.repository.defaultBranchRef
-  const target = ref?.target
-  const rollup = target?.statusCheckRollup
+  const ref = data.repository.defaultBranchRef;
+  const target = ref?.target;
+  const rollup = target?.statusCheckRollup;
 
   if (!ref || !target || !rollup) {
     // No commit on default branch yet, or the commit has no checks/statuses.
     // Treat as 'unknown' so the banner reads cleanly.
     const result: DefaultBranchCI = {
-      state: 'unknown',
+      state: "unknown",
       branch: ref?.name ?? branch,
       sha: target?.oid,
       failingRuns: [],
       fetchedAt: new Date().toISOString(),
-    }
-    setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, result)
-    return result
+    };
+    setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, result);
+    return result;
   }
 
-  let state: DefaultBranchCI['state']
+  let state: DefaultBranchCI["state"];
   switch (rollup.state) {
-    case 'SUCCESS':
-      state = 'success'
-      break
-    case 'FAILURE':
-    case 'ERROR':
-      state = 'failure'
-      break
-    case 'PENDING':
-    case 'EXPECTED':
-      state = 'pending'
-      break
+    case "SUCCESS":
+      state = "success";
+      break;
+    case "FAILURE":
+    case "ERROR":
+      state = "failure";
+      break;
+    case "PENDING":
+    case "EXPECTED":
+      state = "pending";
+      break;
     default:
-      state = 'unknown'
+      state = "unknown";
   }
 
-  const failingRuns: DefaultBranchCI['failingRuns'] = []
+  const failingRuns: DefaultBranchCI["failingRuns"] = [];
   let mostRecent:
-    | { id: number; name: string; status: 'queued' | 'in_progress' | 'completed'; conclusion: string | null; html_url: string; updated_at: string }
-    | undefined
+    | {
+        id: number;
+        name: string;
+        status: "queued" | "in_progress" | "completed";
+        conclusion: string | null;
+        html_url: string;
+        updated_at: string;
+      }
+    | undefined;
 
   for (const node of rollup.contexts.nodes) {
-    if (node.__typename === 'CheckRun') {
-      const ts = node.completedAt ?? node.startedAt ?? new Date().toISOString()
+    if (node.__typename === "CheckRun") {
+      const ts = node.completedAt ?? node.startedAt ?? new Date().toISOString();
       const checkStatus =
-        node.status === 'COMPLETED'
-          ? 'completed'
-          : node.status === 'IN_PROGRESS'
-            ? 'in_progress'
-            : 'queued'
+        node.status === "COMPLETED"
+          ? "completed"
+          : node.status === "IN_PROGRESS"
+            ? "in_progress"
+            : "queued";
       const isFailure =
-        node.conclusion === 'FAILURE' ||
-        node.conclusion === 'TIMED_OUT' ||
-        node.conclusion === 'ACTION_REQUIRED' ||
-        node.conclusion === 'STARTUP_FAILURE'
+        node.conclusion === "FAILURE" ||
+        node.conclusion === "TIMED_OUT" ||
+        node.conclusion === "ACTION_REQUIRED" ||
+        node.conclusion === "STARTUP_FAILURE";
       if (isFailure && node.conclusion) {
         failingRuns.push({
           id: 0,
@@ -1472,7 +1563,7 @@ export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
           conclusion: node.conclusion.toLowerCase(),
           html_url: node.permalink,
           updated_at: ts,
-        })
+        });
       }
       if (!mostRecent || ts > mostRecent.updated_at) {
         mostRecent = {
@@ -1482,20 +1573,21 @@ export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
           conclusion: node.conclusion ? node.conclusion.toLowerCase() : null,
           html_url: node.permalink,
           updated_at: ts,
-        }
+        };
       }
     } else {
       // StatusContext — legacy commit-status API (e.g. external CI integrations).
-      const isFailure = node.state === 'FAILURE' || node.state === 'ERROR'
-      const checkStatus = node.state === 'PENDING' ? 'in_progress' : 'completed'
+      const isFailure = node.state === "FAILURE" || node.state === "ERROR";
+      const checkStatus =
+        node.state === "PENDING" ? "in_progress" : "completed";
       if (isFailure) {
         failingRuns.push({
           id: 0,
           name: node.context,
           conclusion: node.state.toLowerCase(),
-          html_url: node.targetUrl ?? '',
+          html_url: node.targetUrl ?? "",
           updated_at: node.createdAt,
-        })
+        });
       }
       if (!mostRecent || node.createdAt > mostRecent.updated_at) {
         mostRecent = {
@@ -1503,9 +1595,9 @@ export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
           name: node.context,
           status: checkStatus,
           conclusion: node.state.toLowerCase(),
-          html_url: node.targetUrl ?? '',
+          html_url: node.targetUrl ?? "",
           updated_at: node.createdAt,
-        }
+        };
       }
     }
   }
@@ -1514,7 +1606,7 @@ export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
   // 'failing'. statusCheckRollup is authoritative — individual contexts may be
   // marked failure but ignored by GitHub's rollup (e.g. soft-failure required
   // checks, contexts superseded by a later run).
-  const reconciledFailingRuns = state === 'success' ? [] : failingRuns
+  const reconciledFailingRuns = state === "success" ? [] : failingRuns;
 
   const result: DefaultBranchCI = {
     state,
@@ -1523,32 +1615,39 @@ export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
     latestRun: mostRecent,
     failingRuns: reconciledFailingRuns,
     fetchedAt: new Date().toISOString(),
-  }
+  };
 
-  setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, result)
-  return result
+  setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, result);
+  return result;
 }
 
 /**
  * Get workflow run for a specific task
  */
-export async function getWorkflowRunForTask(taskId: string): Promise<WorkflowRun | null> {
-  const runs = await fetchWorkflowRuns({ perPage: 50 })
+export async function getWorkflowRunForTask(
+  taskId: string,
+): Promise<WorkflowRun | null> {
+  const runs = await fetchWorkflowRuns({ perPage: 50 });
   // Look for run with the task ID in the head_branch or workflow run name
   return (
-    runs.find((run) => run.html_url.includes(taskId) || taskId.includes(run.id.toString())) || null
-  )
+    runs.find(
+      (run) =>
+        run.html_url.includes(taskId) || taskId.includes(run.id.toString()),
+    ) || null
+  );
 }
 
 /**
  * Fetch check runs (lint, test, typecheck, etc.) for a workflow run
  */
-export async function fetchCheckRunsForRun(runId: number): Promise<CheckRunResult[]> {
-  const cacheKey = `check-runs:${getOwner()}:${getRepo()}:${runId}`
-  const cached = getCached<CheckRunResult[]>(cacheKey)
-  if (cached) return cached
+export async function fetchCheckRunsForRun(
+  runId: number,
+): Promise<CheckRunResult[]> {
+  const cacheKey = `check-runs:${getOwner()}:${getRepo()}:${runId}`;
+  const cached = getCached<CheckRunResult[]>(cacheKey);
+  if (cached) return cached;
 
-  const octokit = getOctokit()
+  const octokit = getOctokit();
 
   try {
     // Get jobs for the workflow run - these contain lint, test, typecheck results
@@ -1557,12 +1656,12 @@ export async function fetchCheckRunsForRun(runId: number): Promise<CheckRunResul
       repo: getRepo(),
       run_id: runId,
       per_page: 50,
-    })
+    });
 
     const checkRuns: CheckRunResult[] = (data.jobs as any[]).map((job) => ({
       name: job.name,
-      status: job.status as 'queued' | 'in_progress' | 'completed',
-      conclusion: job.conclusion as CheckRunResult['conclusion'],
+      status: job.status as "queued" | "in_progress" | "completed",
+      conclusion: job.conclusion as CheckRunResult["conclusion"],
       output: job.steps
         ? {
             summary: `${job.steps.length} steps`,
@@ -1576,74 +1675,74 @@ export async function fetchCheckRunsForRun(runId: number): Promise<CheckRunResul
           }
         : undefined,
       html_url: job.html_url || undefined,
-    }))
+    }));
 
-    setCache(cacheKey, CACHE_TTL.pipeline, checkRuns)
-    return checkRuns
+    setCache(cacheKey, CACHE_TTL.pipeline, checkRuns);
+    return checkRuns;
   } catch (error) {
-    console.error('[Kody] Error fetching check runs:', error)
-    return []
+    console.error("[Kody] Error fetching check runs:", error);
+    return [];
   }
 }
 
 // ============ Bulk PR Fetch ============
 
-type CIStatus = 'pending' | 'success' | 'failure' | 'running'
+type CIStatus = "pending" | "success" | "failure" | "running";
 
 type MergeStateStatus =
-  | 'CLEAN'
-  | 'DIRTY'
-  | 'BLOCKED'
-  | 'BEHIND'
-  | 'UNKNOWN'
-  | 'UNSTABLE'
-  | 'HAS_HOOKS'
+  | "CLEAN"
+  | "DIRTY"
+  | "BLOCKED"
+  | "BEHIND"
+  | "UNKNOWN"
+  | "UNSTABLE"
+  | "HAS_HOOKS";
 
-type RollupState = 'SUCCESS' | 'FAILURE' | 'PENDING' | 'ERROR' | 'EXPECTED'
+type RollupState = "SUCCESS" | "FAILURE" | "PENDING" | "ERROR" | "EXPECTED";
 
 interface OpenPRsGraphQL {
   repository: {
     pullRequests: {
       nodes: Array<{
-        databaseId: number
-        number: number
-        title: string
-        state: 'OPEN' | 'CLOSED' | 'MERGED'
-        url: string
-        mergedAt: string | null
-        headRefName: string
-        headRefOid: string
-        baseRefName: string
-        body: string | null
-        mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN'
-        mergeStateStatus: MergeStateStatus
-        labels: { nodes: Array<{ name: string }> }
-        closingIssuesReferences: { nodes: Array<{ number: number }> }
+        databaseId: number;
+        number: number;
+        title: string;
+        state: "OPEN" | "CLOSED" | "MERGED";
+        url: string;
+        mergedAt: string | null;
+        headRefName: string;
+        headRefOid: string;
+        baseRefName: string;
+        body: string | null;
+        mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
+        mergeStateStatus: MergeStateStatus;
+        labels: { nodes: Array<{ name: string }> };
+        closingIssuesReferences: { nodes: Array<{ number: number }> };
         commits: {
           nodes: Array<{
             commit: {
-              statusCheckRollup: { state: RollupState } | null
-            }
-          }>
-        }
-      }>
-    }
-  }
+              statusCheckRollup: { state: RollupState } | null;
+            };
+          }>;
+        };
+      }>;
+    };
+  };
 }
 
 function mapRollupState(state: RollupState | null | undefined): CIStatus {
-  if (!state) return 'success' // no checks configured — nothing to wait for
+  if (!state) return "success"; // no checks configured — nothing to wait for
   switch (state) {
-    case 'SUCCESS':
-      return 'success'
-    case 'FAILURE':
-    case 'ERROR':
-      return 'failure'
-    case 'PENDING':
-      return 'running'
-    case 'EXPECTED':
+    case "SUCCESS":
+      return "success";
+    case "FAILURE":
+    case "ERROR":
+      return "failure";
+    case "PENDING":
+      return "running";
+    case "EXPECTED":
     default:
-      return 'pending'
+      return "pending";
   }
 }
 
@@ -1653,48 +1752,48 @@ function mapRollupState(state: RollupState | null | undefined): CIStatus {
  * single source of truth for the CI badge / merge-button state.
  */
 function derivePRCi(input: {
-  mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN'
-  mergeStateStatus: MergeStateStatus
-  rollupState: RollupState | null
+  mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
+  mergeStateStatus: MergeStateStatus;
+  rollupState: RollupState | null;
 }): { ciStatus: CIStatus; mergeable: boolean; hasConflicts: boolean } {
-  const noConflicts = input.mergeable === 'MERGEABLE'
-  let ciStatus: CIStatus
-  let hasConflicts = false
+  const noConflicts = input.mergeable === "MERGEABLE";
+  let ciStatus: CIStatus;
+  let hasConflicts = false;
 
   switch (input.mergeStateStatus) {
-    case 'CLEAN':
-      ciStatus = 'success'
-      break
-    case 'UNSTABLE':
+    case "CLEAN":
+      ciStatus = "success";
+      break;
+    case "UNSTABLE":
       // Mergeable, non-required check failed — surface real CI status.
-      ciStatus = mapRollupState(input.rollupState)
-      break
-    case 'BLOCKED':
+      ciStatus = mapRollupState(input.rollupState);
+      break;
+    case "BLOCKED":
       // Steady state for repos without branch protection — fall back to rollup.
-      ciStatus = noConflicts ? mapRollupState(input.rollupState) : 'running'
-      break
-    case 'BEHIND':
-    case 'HAS_HOOKS':
-      ciStatus = 'running'
-      break
-    case 'DIRTY':
-      ciStatus = 'failure'
-      hasConflicts = true
-      break
-    case 'UNKNOWN':
+      ciStatus = noConflicts ? mapRollupState(input.rollupState) : "running";
+      break;
+    case "BEHIND":
+    case "HAS_HOOKS":
+      ciStatus = "running";
+      break;
+    case "DIRTY":
+      ciStatus = "failure";
+      hasConflicts = true;
+      break;
+    case "UNKNOWN":
     default:
-      ciStatus = 'pending'
+      ciStatus = "pending";
   }
 
   const mergeable =
     noConflicts &&
-    ciStatus !== 'pending' &&
-    ciStatus !== 'running' &&
-    (ciStatus === 'success' ||
-      input.mergeStateStatus === 'CLEAN' ||
-      input.mergeStateStatus === 'UNSTABLE')
+    ciStatus !== "pending" &&
+    ciStatus !== "running" &&
+    (ciStatus === "success" ||
+      input.mergeStateStatus === "CLEAN" ||
+      input.mergeStateStatus === "UNSTABLE");
 
-  return { ciStatus, mergeable, hasConflicts }
+  return { ciStatus, mergeable, hasConflicts };
 }
 
 // Non-closing issue references in PR bodies. Currently:
@@ -1702,16 +1801,16 @@ function derivePRCi(input: {
 // The release-prepare script writes this so the dashboard can preview the
 // release PR on the originating issue's task without auto-closing the issue
 // on merge (see kody2/src/executables/release-prepare/prepare.sh).
-const TRACKING_ISSUE_RE = /(?:^|\n)\s*Tracking-Issue\s*:\s*#(\d+)\b/gi
+const TRACKING_ISSUE_RE = /(?:^|\n)\s*Tracking-Issue\s*:\s*#(\d+)\b/gi;
 
 function parseTrackingIssueRefs(body: string | null | undefined): number[] {
-  if (!body) return []
-  const out = new Set<number>()
+  if (!body) return [];
+  const out = new Set<number>();
   for (const m of body.matchAll(TRACKING_ISSUE_RE)) {
-    const n = parseInt(m[1]!, 10)
-    if (Number.isFinite(n) && n > 0) out.add(n)
+    const n = parseInt(m[1]!, 10);
+    if (Number.isFinite(n) && n > 0) out.add(n);
   }
-  return [...out]
+  return [...out];
 }
 
 /**
@@ -1726,18 +1825,18 @@ function parseTrackingIssueRefs(body: string | null | undefined): number[] {
  * - A stale fallback: if GitHub throttles or errors, return the previous list
  *   instead of bubbling the failure (and instead of retrying immediately).
  */
-const inflightOpenPRs = new Map<string, Promise<GitHubPR[]>>()
+const inflightOpenPRs = new Map<string, Promise<GitHubPR[]>>();
 
 export async function fetchOpenPRs(): Promise<GitHubPR[]> {
-  const cacheKey = `open-prs:${getOwner()}:${getRepo()}`
-  const cached = getCached<GitHubPR[]>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `open-prs:${getOwner()}:${getRepo()}`;
+  const cached = getCached<GitHubPR[]>(cacheKey);
+  if (cached) return cached;
 
-  const existing = inflightOpenPRs.get(cacheKey)
-  if (existing) return existing
+  const existing = inflightOpenPRs.get(cacheKey);
+  if (existing) return existing;
 
-  const stale = getStale<GitHubPR[]>(cacheKey)
-  const octokit = getOctokit()
+  const stale = getStale<GitHubPR[]>(cacheKey);
+  const octokit = getOctokit();
 
   const query = `
     query OpenPRs($owner: String!, $repo: String!) {
@@ -1769,22 +1868,23 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
         }
       }
     }
-  `
+  `;
 
   const promise = (async () => {
     try {
       const data = await octokit.graphql<OpenPRsGraphQL>(query, {
         owner: getOwner(),
         repo: getRepo(),
-      })
+      });
 
       const prs: GitHubPR[] = data.repository.pullRequests.nodes.map((pr) => {
-        const rollupState = pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null
+        const rollupState =
+          pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null;
         const ci = derivePRCi({
           mergeable: pr.mergeable,
           mergeStateStatus: pr.mergeStateStatus,
           rollupState,
-        })
+        });
         return {
           id: pr.databaseId,
           number: pr.number,
@@ -1795,31 +1895,33 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
           merged_at: pr.mergedAt,
           html_url: pr.url,
           labels: pr.labels.nodes.map((l) => l.name).filter(Boolean),
-          closingIssueNumbers: pr.closingIssuesReferences.nodes.map((n) => n.number),
+          closingIssueNumbers: pr.closingIssuesReferences.nodes.map(
+            (n) => n.number,
+          ),
           trackingIssueNumbers: parseTrackingIssueRefs(pr.body),
           ciStatus: ci.ciStatus,
           mergeable: ci.mergeable,
           hasConflicts: ci.hasConflicts,
-        }
-      })
+        };
+      });
 
-      setCache(cacheKey, CACHE_TTL.prs, prs)
-      return prs
+      setCache(cacheKey, CACHE_TTL.prs, prs);
+      return prs;
     } catch (err) {
       if (stale) {
         // Refresh the TTL on stale data so we don't hammer GraphQL on every
         // subsequent poll while we're being throttled.
-        setCache(cacheKey, Math.min(CACHE_TTL.prs, 60_000), stale.data)
-        return stale.data
+        setCache(cacheKey, Math.min(CACHE_TTL.prs, 60_000), stale.data);
+        return stale.data;
       }
-      throw err
+      throw err;
     } finally {
-      inflightOpenPRs.delete(cacheKey)
+      inflightOpenPRs.delete(cacheKey);
     }
-  })()
+  })();
 
-  inflightOpenPRs.set(cacheKey, promise)
-  return promise
+  inflightOpenPRs.set(cacheKey, promise);
+  return promise;
 }
 
 /**
@@ -1832,51 +1934,55 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
  * soft to 0 (treat as up-to-date) on transient errors so we don't surface
  * a stale Sync button.
  */
-const PR_BEHIND_TTL = 60_000
+const PR_BEHIND_TTL = 60_000;
 
-export async function fetchPRBehind(base: string, head: string): Promise<number> {
-  const cacheKey = `prbehind:${getOwner()}:${getRepo()}:${base}...${head}`
-  const cached = getCached<number>(cacheKey)
-  if (cached !== null) return cached
+export async function fetchPRBehind(
+  base: string,
+  head: string,
+): Promise<number> {
+  const cacheKey = `prbehind:${getOwner()}:${getRepo()}:${base}...${head}`;
+  const cached = getCached<number>(cacheKey);
+  if (cached !== null) return cached;
 
-  const stale = getStale<number>(cacheKey)
-  const octokit = getOctokit()
+  const stale = getStale<number>(cacheKey);
+  const octokit = getOctokit();
 
   try {
     const response = await octokit.repos.compareCommitsWithBasehead({
       owner: getOwner(),
       repo: getRepo(),
       basehead: `${base}...${head}`,
-      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
-    })
-    const behindBy = response.data.behind_by ?? 0
-    const newEtag = (response.headers as Record<string, string | undefined>)?.etag
-    setCache(cacheKey, PR_BEHIND_TTL, behindBy, { etag: newEtag })
-    return behindBy
+      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+    });
+    const behindBy = response.data.behind_by ?? 0;
+    const newEtag = (response.headers as Record<string, string | undefined>)
+      ?.etag;
+    setCache(cacheKey, PR_BEHIND_TTL, behindBy, { etag: newEtag });
+    return behindBy;
   } catch (err) {
-    const status = (err as { status?: number })?.status
+    const status = (err as { status?: number })?.status;
     if (status === 304 && stale) {
-      setCache(cacheKey, PR_BEHIND_TTL, stale.data, { etag: stale.etag })
-      return stale.data
+      setCache(cacheKey, PR_BEHIND_TTL, stale.data, { etag: stale.etag });
+      return stale.data;
     }
     if (stale) {
-      setCache(cacheKey, PR_BEHIND_TTL, stale.data)
-      return stale.data
+      setCache(cacheKey, PR_BEHIND_TTL, stale.data);
+      return stale.data;
     }
-    throw err
+    throw err;
   }
 }
 
 // ============ Vercel Preview URLs ============
 
-type DeploymentSummary = { id: number; sha: string }
+type DeploymentSummary = { id: number; sha: string };
 
 // Short TTL for the deployments list and per-deployment status: a new PR
 // commit creates a new deployment within seconds, and we want the dashboard
 // to surface its preview URL on the next /tasks poll. With ETag/304 the
 // short TTL is essentially free — unchanged data revalidates without
 // counting against the rate limit.
-const PREVIEW_REVALIDATE_TTL = 30_000
+const PREVIEW_REVALIDATE_TTL = 30_000;
 
 /**
  * Fetch (or revalidate via ETag) the most recent 100 Preview deployments.
@@ -1886,34 +1992,40 @@ const PREVIEW_REVALIDATE_TTL = 30_000
  */
 async function getRecentPreviewDeployments(): Promise<DeploymentSummary[]> {
   // Prefix with `previews:` so invalidatePRCache() catches this key.
-  const cacheKey = `previews:list:${getOwner()}:${getRepo()}`
-  const cached = getCached<DeploymentSummary[]>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `previews:list:${getOwner()}:${getRepo()}`;
+  const cached = getCached<DeploymentSummary[]>(cacheKey);
+  if (cached) return cached;
 
-  const stale = getStale<DeploymentSummary[]>(cacheKey)
-  const octokit = getOctokit()
+  const stale = getStale<DeploymentSummary[]>(cacheKey);
+  const octokit = getOctokit();
 
   try {
     const response = await octokit.repos.listDeployments({
       owner: getOwner(),
       repo: getRepo(),
-      environment: 'Preview',
+      environment: "Preview",
       per_page: 100,
-      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
-    })
+      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+    });
 
-    const newEtag = (response.headers as Record<string, string | undefined>)?.etag
-    const summaries: DeploymentSummary[] = response.data.map((d) => ({ id: d.id, sha: d.sha }))
-    setCache(cacheKey, PREVIEW_REVALIDATE_TTL, summaries, { etag: newEtag })
-    return summaries
+    const newEtag = (response.headers as Record<string, string | undefined>)
+      ?.etag;
+    const summaries: DeploymentSummary[] = response.data.map((d) => ({
+      id: d.id,
+      sha: d.sha,
+    }));
+    setCache(cacheKey, PREVIEW_REVALIDATE_TTL, summaries, { etag: newEtag });
+    return summaries;
   } catch (error: any) {
     // 304 Not Modified — deployments list unchanged. Reuse stale, no rate cost.
     if (error.status === 304 && stale) {
-      setCache(cacheKey, PREVIEW_REVALIDATE_TTL, stale.data, { etag: stale.etag })
-      return stale.data
+      setCache(cacheKey, PREVIEW_REVALIDATE_TTL, stale.data, {
+        etag: stale.etag,
+      });
+      return stale.data;
     }
-    console.error('[Kody] Error fetching deployment list:', error)
-    return stale?.data ?? []
+    console.error("[Kody] Error fetching deployment list:", error);
+    return stale?.data ?? [];
   }
 }
 
@@ -1928,14 +2040,16 @@ async function getRecentPreviewDeployments(): Promise<DeploymentSummary[]> {
  * revalidates via ETag. We use a presence sentinel inside `data` so a
  * cache hit on a null URL is distinguishable from a cache miss.
  */
-async function getDeploymentStatusUrl(deploymentId: number): Promise<string | null> {
+async function getDeploymentStatusUrl(
+  deploymentId: number,
+): Promise<string | null> {
   // Prefix with `previews:` so invalidatePRCache() catches this key.
-  const cacheKey = `previews:status:${getOwner()}:${getRepo()}:${deploymentId}`
-  const cached = getCached<{ url: string | null }>(cacheKey)
-  if (cached) return cached.url
+  const cacheKey = `previews:status:${getOwner()}:${getRepo()}:${deploymentId}`;
+  const cached = getCached<{ url: string | null }>(cacheKey);
+  if (cached) return cached.url;
 
-  const stale = getStale<{ url: string | null }>(cacheKey)
-  const octokit = getOctokit()
+  const stale = getStale<{ url: string | null }>(cacheKey);
+  const octokit = getOctokit();
 
   try {
     const response = await octokit.repos.listDeploymentStatuses({
@@ -1943,19 +2057,22 @@ async function getDeploymentStatusUrl(deploymentId: number): Promise<string | nu
       repo: getRepo(),
       deployment_id: deploymentId,
       per_page: 1,
-      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
-    })
+      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+    });
 
-    const newEtag = (response.headers as Record<string, string | undefined>)?.etag
-    const url = response.data[0]?.environment_url ?? null
-    setCache(cacheKey, PREVIEW_REVALIDATE_TTL, { url }, { etag: newEtag })
-    return url
+    const newEtag = (response.headers as Record<string, string | undefined>)
+      ?.etag;
+    const url = response.data[0]?.environment_url ?? null;
+    setCache(cacheKey, PREVIEW_REVALIDATE_TTL, { url }, { etag: newEtag });
+    return url;
   } catch (error: any) {
     if (error.status === 304 && stale) {
-      setCache(cacheKey, PREVIEW_REVALIDATE_TTL, stale.data, { etag: stale.etag })
-      return stale.data.url
+      setCache(cacheKey, PREVIEW_REVALIDATE_TTL, stale.data, {
+        etag: stale.etag,
+      });
+      return stale.data.url;
     }
-    return null
+    return null;
   }
 }
 
@@ -1974,22 +2091,24 @@ async function getDeploymentStatusUrl(deploymentId: number): Promise<string | nu
  * recomputing the SHA → URL map on each call avoids stale results when a PR
  * pushes a new commit.
  */
-export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<string, string>> {
-  if (prShas.length === 0) return new Map()
+export async function fetchDeploymentPreviews(
+  prShas: string[],
+): Promise<Map<string, string>> {
+  if (prShas.length === 0) return new Map();
 
-  const result = new Map<string, string>()
-  const deployments = await getRecentPreviewDeployments()
-  const shaSet = new Set(prShas)
-  const matched = deployments.filter((d) => shaSet.has(d.sha))
+  const result = new Map<string, string>();
+  const deployments = await getRecentPreviewDeployments();
+  const shaSet = new Set(prShas);
+  const matched = deployments.filter((d) => shaSet.has(d.sha));
 
   await Promise.all(
     matched.map(async (deployment) => {
-      const url = await getDeploymentStatusUrl(deployment.id)
-      if (url) result.set(deployment.sha, url)
+      const url = await getDeploymentStatusUrl(deployment.id);
+      if (url) result.set(deployment.sha, url);
     }),
-  )
+  );
 
-  return result
+  return result;
 }
 
 // ============ PR Discovery ============
@@ -1997,15 +2116,17 @@ export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<str
 /**
  * Find PR associated with a task by branch name
  */
-export async function findAssociatedPR(taskId: string): Promise<GitHubPR | null> {
-  const cacheKey = `pr:${getOwner()}:${getRepo()}:${taskId}`
-  const cached = getCached<GitHubPR | null>(cacheKey)
-  if (cached !== null) return cached
+export async function findAssociatedPR(
+  taskId: string,
+): Promise<GitHubPR | null> {
+  const cacheKey = `pr:${getOwner()}:${getRepo()}:${taskId}`;
+  const cached = getCached<GitHubPR | null>(cacheKey);
+  if (cached !== null) return cached;
 
-  const octokit = getOctokit()
+  const octokit = getOctokit();
 
   // Try all branch prefixes
-  const branchNames = BRANCH_PREFIXES.map((prefix) => `${prefix}/${taskId}`)
+  const branchNames = BRANCH_PREFIXES.map((prefix) => `${prefix}/${taskId}`);
 
   for (const branchName of branchNames) {
     try {
@@ -2013,8 +2134,8 @@ export async function findAssociatedPR(taskId: string): Promise<GitHubPR | null>
         owner: getOwner(),
         repo: getRepo(),
         head: `${getOwner()}:${branchName}`,
-        state: 'open',
-      })
+        state: "open",
+      });
 
       if (data.length > 0) {
         const pr: GitHubPR = {
@@ -2028,9 +2149,9 @@ export async function findAssociatedPR(taskId: string): Promise<GitHubPR | null>
           },
           merged_at: data[0].merged_at,
           html_url: data[0].html_url,
-        }
-        setCache(cacheKey, CACHE_TTL.prs, pr)
-        return pr
+        };
+        setCache(cacheKey, CACHE_TTL.prs, pr);
+        return pr;
       }
     } catch {
       // Try next prefix
@@ -2038,8 +2159,8 @@ export async function findAssociatedPR(taskId: string): Promise<GitHubPR | null>
   }
 
   // Cache null as well
-  setCache(cacheKey, CACHE_TTL.prs, null)
-  return null
+  setCache(cacheKey, CACHE_TTL.prs, null);
+  return null;
 }
 
 /**
@@ -2049,32 +2170,36 @@ export async function findAssociatedPR(taskId: string): Promise<GitHubPR | null>
  * for branches named exactly {prefix}/{taskId}, which fails for
  * Kody-generated branches like fix/260312-auto-781-title.
  */
-export async function findAssociatedPRByIssueNumber(issueNumber: number): Promise<GitHubPR | null> {
-  const cacheKey = `pr:issue:${getOwner()}:${getRepo()}:${issueNumber}`
-  const cached = getCached<GitHubPR | null>(cacheKey)
-  if (cached !== null) return cached
+export async function findAssociatedPRByIssueNumber(
+  issueNumber: number,
+): Promise<GitHubPR | null> {
+  const cacheKey = `pr:issue:${getOwner()}:${getRepo()}:${issueNumber}`;
+  const cached = getCached<GitHubPR | null>(cacheKey);
+  if (cached !== null) return cached;
 
   // 1. Check open PRs (fast, uses cached bulk list).
   // Matching precedence MUST stay in sync with app/api/kody/tasks/route.ts —
   // if the task list shows an associatedPR via one path and this function
   // misses that path, dashboard buttons (approve-pr, close-pr, fix) 404
   // even though the badge is visible.
-  const openPRs = await fetchOpenPRs()
-  const issueStr = String(issueNumber)
+  const openPRs = await fetchOpenPRs();
+  const issueStr = String(issueNumber);
 
   // Highest priority: engine-written `<!-- kody-release-pr: #N -->` marker
   // in the issue body. Persisted by release-prepare/release-deploy so the
   // link survives @kody fix overwrites of the PR body. Mirrors the bulk
   // task list's primary lookup in app/api/kody/tasks/route.ts.
   try {
-    const issue = await fetchIssue(issueNumber, { ttl: CACHE_TTL.tasks })
-    const marker = issue?.body?.match(/<!--\s*kody-release-pr:\s*#?(\d+)\s*-->/i)
+    const issue = await fetchIssue(issueNumber, { ttl: CACHE_TTL.tasks });
+    const marker = issue?.body?.match(
+      /<!--\s*kody-release-pr:\s*#?(\d+)\s*-->/i,
+    );
     if (marker) {
-      const target = parseInt(marker[1]!, 10)
-      const matched = openPRs.find((p) => p.number === target)
+      const target = parseInt(marker[1]!, 10);
+      const matched = openPRs.find((p) => p.number === target);
       if (matched) {
-        setCache(cacheKey, CACHE_TTL.prs, matched)
-        return matched
+        setCache(cacheKey, CACHE_TTL.prs, matched);
+        return matched;
       }
     }
   } catch {
@@ -2084,54 +2209,54 @@ export async function findAssociatedPRByIssueNumber(issueNumber: number): Promis
   for (const pr of openPRs) {
     // Strongest signal: GraphQL "Closes/Fixes/Resolves #N" links from the PR body.
     if (pr.closingIssueNumbers?.includes(issueNumber)) {
-      setCache(cacheKey, CACHE_TTL.prs, pr)
-      return pr
+      setCache(cacheKey, CACHE_TTL.prs, pr);
+      return pr;
     }
     // Non-closing tracker (e.g. release-prepare's `Tracking-Issue: #N` —
     // can't use a closing keyword because the orchestrator needs the
     // issue to stay open through publish + deploy after PR merge).
     if (pr.trackingIssueNumbers?.includes(issueNumber)) {
-      setCache(cacheKey, CACHE_TTL.prs, pr)
-      return pr
+      setCache(cacheKey, CACHE_TTL.prs, pr);
+      return pr;
     }
     // Kody-auto branches put the issue number after "-auto-", so check that
     // before the generic first-digits pattern (which would capture YYMMDD).
-    const autoMatch = pr.head.ref.match(/-auto-(\d+)-/)
+    const autoMatch = pr.head.ref.match(/-auto-(\d+)-/);
     if (autoMatch && autoMatch[1] === issueStr) {
-      setCache(cacheKey, CACHE_TTL.prs, pr)
-      return pr
+      setCache(cacheKey, CACHE_TTL.prs, pr);
+      return pr;
     }
     // Traditional: {prefix}/{issueNumber}-{title}
-    const branchMatch = pr.head.ref.match(/\/(\d{3,})-/)
+    const branchMatch = pr.head.ref.match(/\/(\d{3,})-/);
     if (!autoMatch && branchMatch && branchMatch[1] === issueStr) {
-      setCache(cacheKey, CACHE_TTL.prs, pr)
-      return pr
+      setCache(cacheKey, CACHE_TTL.prs, pr);
+      return pr;
     }
     // Flat: {issueNumber}-{title} (no prefix)
-    const flatMatch = pr.head.ref.match(/^(\d{3,})-/)
+    const flatMatch = pr.head.ref.match(/^(\d{3,})-/);
     if (flatMatch && flatMatch[1] === issueStr) {
-      setCache(cacheKey, CACHE_TTL.prs, pr)
-      return pr
+      setCache(cacheKey, CACHE_TTL.prs, pr);
+      return pr;
     }
     // Match by PR title "Closes #NNN"
-    const closesMatch = pr.title.match(/(?:closes|fixes|resolves)\s+#(\d+)/i)
+    const closesMatch = pr.title.match(/(?:closes|fixes|resolves)\s+#(\d+)/i);
     if (closesMatch && closesMatch[1] === issueStr) {
-      setCache(cacheKey, CACHE_TTL.prs, pr)
-      return pr
+      setCache(cacheKey, CACHE_TTL.prs, pr);
+      return pr;
     }
   }
 
   // 2. Fallback: find branch by issue number and look up PR by head ref
-  const branch = await findBranchByIssueNumber(issueNumber)
+  const branch = await findBranchByIssueNumber(issueNumber);
   if (branch) {
-    const octokit = getOctokit()
+    const octokit = getOctokit();
     try {
       const { data } = await octokit.pulls.list({
         owner: getOwner(),
         repo: getRepo(),
         head: `${getOwner()}:${branch}`,
-        state: 'open',
-      })
+        state: "open",
+      });
       if (data.length > 0) {
         const pr: GitHubPR = {
           id: data[0].id,
@@ -2141,28 +2266,28 @@ export async function findAssociatedPRByIssueNumber(issueNumber: number): Promis
           head: { ref: data[0].head.ref, sha: data[0].head.sha },
           merged_at: data[0].merged_at,
           html_url: data[0].html_url,
-        }
-        setCache(cacheKey, CACHE_TTL.prs, pr)
-        return pr
+        };
+        setCache(cacheKey, CACHE_TTL.prs, pr);
+        return pr;
       }
     } catch {
       // Fall through
     }
   }
 
-  setCache(cacheKey, CACHE_TTL.prs, null)
-  return null
+  setCache(cacheKey, CACHE_TTL.prs, null);
+  return null;
 }
 
 /**
  * Fetch comments for a PR
  */
 export async function fetchPRComments(prNumber: number): Promise<PRComment[]> {
-  const cacheKey = `pr-comments:${getOwner()}:${getRepo()}:${prNumber}`
-  const cached = getCached<PRComment[]>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `pr-comments:${getOwner()}:${getRepo()}:${prNumber}`;
+  const cached = getCached<PRComment[]>(cacheKey);
+  if (cached) return cached;
 
-  const octokit = getOctokit()
+  const octokit = getOctokit();
 
   try {
     // Paginate to get the full thread. GitHub returns comments ascending by
@@ -2174,35 +2299,37 @@ export async function fetchPRComments(prNumber: number): Promise<PRComment[]> {
       repo: getRepo(),
       issue_number: prNumber,
       per_page: 100,
-    })
+    });
 
     const comments: PRComment[] = data.map((comment) => ({
       id: comment.id,
-      body: comment.body || '',
+      body: comment.body || "",
       created_at: comment.created_at,
       user: {
-        login: comment.user?.login || '',
-        avatar_url: comment.user?.avatar_url || '',
+        login: comment.user?.login || "",
+        avatar_url: comment.user?.avatar_url || "",
       },
-    }))
+    }));
 
-    setCache(cacheKey, CACHE_TTL.tasks, comments)
-    return comments
+    setCache(cacheKey, CACHE_TTL.tasks, comments);
+    return comments;
   } catch (error) {
-    console.error('[Kody] Error fetching PR comments:', error)
-    return []
+    console.error("[Kody] Error fetching PR comments:", error);
+    return [];
   }
 }
 
 /**
  * Fetch file changes for a PR
  */
-export async function fetchPRFileChanges(prNumber: number): Promise<FileChange[]> {
-  const cacheKey = `pr-files:${getOwner()}:${getRepo()}:${prNumber}`
-  const cached = getCached<FileChange[]>(cacheKey)
-  if (cached) return cached
+export async function fetchPRFileChanges(
+  prNumber: number,
+): Promise<FileChange[]> {
+  const cacheKey = `pr-files:${getOwner()}:${getRepo()}:${prNumber}`;
+  const cached = getCached<FileChange[]>(cacheKey);
+  if (cached) return cached;
 
-  const octokit = getOctokit()
+  const octokit = getOctokit();
 
   try {
     const { data } = await octokit.pulls.listFiles({
@@ -2210,83 +2337,95 @@ export async function fetchPRFileChanges(prNumber: number): Promise<FileChange[]
       repo: getRepo(),
       pull_number: prNumber,
       per_page: 100,
-    })
+    });
 
     const changes: FileChange[] = data.map((file) => ({
       filename: file.filename,
-      status: file.status as FileChange['status'],
+      status: file.status as FileChange["status"],
       additions: file.additions,
       deletions: file.deletions,
       patch: file.patch ?? null,
       previousFilename: file.previous_filename,
-    }))
+    }));
 
-    setCache(cacheKey, CACHE_TTL.tasks, changes)
-    return changes
+    setCache(cacheKey, CACHE_TTL.tasks, changes);
+    return changes;
   } catch (error) {
-    console.error('[Kody] Error fetching PR files:', error)
-    return []
+    console.error("[Kody] Error fetching PR files:", error);
+    return [];
   }
 }
 
 /**
  * Close a PR (without merging)
  */
-export async function closePR(prNumber: number, userOctokit?: Octokit): Promise<void> {
-  const octokit = userOctokit ?? getOctokit()
+export async function closePR(
+  prNumber: number,
+  userOctokit?: Octokit,
+): Promise<void> {
+  const octokit = userOctokit ?? getOctokit();
 
   await octokit.pulls.update({
     owner: getOwner(),
     repo: getRepo(),
     pull_number: prNumber,
-    state: 'closed',
-  })
+    state: "closed",
+  });
 
   // Invalidate PR cache only
-  invalidatePRCache()
+  invalidatePRCache();
 }
 
 /**
  * Delete a branch
  */
-export async function deleteBranch(branchName: string, userOctokit?: Octokit): Promise<void> {
+export async function deleteBranch(
+  branchName: string,
+  userOctokit?: Octokit,
+): Promise<void> {
   // Don't delete protected branches (single source of truth in
   // src/dashboard/lib/branches/protected-branches.ts)
   if (isProtectedBranch(branchName)) {
-    console.log(`[Kody] Skipping deletion of protected branch: ${branchName}`)
-    return
+    console.log(`[Kody] Skipping deletion of protected branch: ${branchName}`);
+    return;
   }
 
-  const octokit = userOctokit ?? getOctokit()
+  const octokit = userOctokit ?? getOctokit();
 
   try {
     await octokit.git.deleteRef({
       owner: getOwner(),
       repo: getRepo(),
       ref: `heads/${branchName}`,
-    })
-    console.log(`[Kody] Deleted branch: ${branchName}`)
+    });
+    console.log(`[Kody] Deleted branch: ${branchName}`);
   } catch (error: any) {
     // Ignore if branch doesn't exist
-    if (error.status === 422 && error.message?.includes('Reference does not exist')) {
-      console.log(`[Kody] Branch already deleted: ${branchName}`)
-      return
+    if (
+      error.status === 422 &&
+      error.message?.includes("Reference does not exist")
+    ) {
+      console.log(`[Kody] Branch already deleted: ${branchName}`);
+      return;
     }
-    throw error
+    throw error;
   }
 
   // Invalidate branch and task caches
-  invalidateBranchCache()
-  invalidateTaskCache()
+  invalidateBranchCache();
+  invalidateTaskCache();
 }
 
 /**
  * Fetch all task documents from branch by listing the task directory.
  * Discovers files dynamically instead of using a hardcoded list.
  */
-export async function fetchTaskDocuments(taskId: string, branch: string): Promise<TaskDocument[]> {
-  const octokit = getOctokit()
-  const taskPath = `.tasks/${taskId}`
+export async function fetchTaskDocuments(
+  taskId: string,
+  branch: string,
+): Promise<TaskDocument[]> {
+  const octokit = getOctokit();
+  const taskPath = `.tasks/${taskId}`;
 
   try {
     // List all files in the task directory
@@ -2295,12 +2434,12 @@ export async function fetchTaskDocuments(taskId: string, branch: string): Promis
       repo: getRepo(),
       path: taskPath,
       ref: branch,
-    })
+    });
 
-    if (!Array.isArray(data)) return []
+    if (!Array.isArray(data)) return [];
 
     // Filter to files only (skip subdirectories), fetch content in parallel
-    const files = data.filter((item: any) => item.type === 'file')
+    const files = data.filter((item: any) => item.type === "file");
 
     const results = await Promise.allSettled(
       files.map(async (file: any) => {
@@ -2310,34 +2449,36 @@ export async function fetchTaskDocuments(taskId: string, branch: string): Promis
             repo: getRepo(),
             path: file.path,
             ref: branch,
-          })
+          });
 
-          if ('content' in fileData && fileData.content) {
-            const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
+          if ("content" in fileData && fileData.content) {
+            const content = Buffer.from(fileData.content, "base64").toString(
+              "utf-8",
+            );
             return {
               name: file.name as string,
               content,
               path: file.path as string,
-            }
+            };
           }
         } catch {
           // File content couldn't be fetched
         }
-        return null
+        return null;
       }),
-    )
+    );
 
-    const documents: TaskDocument[] = []
+    const documents: TaskDocument[] = [];
     for (const result of results) {
-      if (result.status === 'fulfilled' && result.value) {
-        documents.push(result.value)
+      if (result.status === "fulfilled" && result.value) {
+        documents.push(result.value);
       }
     }
 
-    return documents
+    return documents;
   } catch {
     // Task directory doesn't exist on this branch
-    return []
+    return [];
   }
 }
 
@@ -2346,39 +2487,41 @@ export async function fetchTaskDocuments(taskId: string, branch: string): Promis
  * Lists .tasks/ dir, finds dirs matching YYMMDD- pattern, picks the newest,
  * then fetches known doc files from it.
  */
-export async function fetchBranchDocuments(branch: string): Promise<TaskDocument[]> {
-  const octokit = getOctokit()
+export async function fetchBranchDocuments(
+  branch: string,
+): Promise<TaskDocument[]> {
+  const octokit = getOctokit();
 
   try {
     // 1. List .tasks/ directory on the branch
     const { data } = await octokit.repos.getContent({
       owner: getOwner(),
       repo: getRepo(),
-      path: '.tasks',
+      path: ".tasks",
       ref: branch,
-    })
+    });
 
-    if (!Array.isArray(data)) return []
+    if (!Array.isArray(data)) return [];
 
     // 2. Find directories matching YYMMDD- pattern (e.g., 260228-auto-74)
     const taskDirs = data
-      .filter((item: any) => item.type === 'dir' && /^\d{6}-/.test(item.name))
+      .filter((item: any) => item.type === "dir" && /^\d{6}-/.test(item.name))
       .map((item: any) => item.name)
       .sort()
-      .reverse() // newest first by date prefix
+      .reverse(); // newest first by date prefix
 
-    if (taskDirs.length === 0) return []
+    if (taskDirs.length === 0) return [];
 
     // 3. Use the newest task dir
-    const taskId = taskDirs[0]
+    const taskId = taskDirs[0];
 
     // 4. Fetch known doc files from it
-    return fetchTaskDocuments(taskId, branch)
+    return fetchTaskDocuments(taskId, branch);
   } catch (error: any) {
     if (error.status !== 404) {
-      console.error('[Kody] Error listing branch task dirs:', error)
+      console.error("[Kody] Error listing branch task dirs:", error);
     }
-    return []
+    return [];
   }
 }
 
@@ -2387,26 +2530,28 @@ export async function fetchBranchDocuments(branch: string): Promise<TaskDocument
 /**
  * Fetch all labels
  */
-export async function fetchLabels(): Promise<Array<{ name: string; color: string }>> {
-  const cacheKey = `labels:${getOwner()}:${getRepo()}`
-  const cached = getCached<Array<{ name: string; color: string }>>(cacheKey)
-  if (cached) return cached
+export async function fetchLabels(): Promise<
+  Array<{ name: string; color: string }>
+> {
+  const cacheKey = `labels:${getOwner()}:${getRepo()}`;
+  const cached = getCached<Array<{ name: string; color: string }>>(cacheKey);
+  if (cached) return cached;
 
-  const octokit = getOctokit()
+  const octokit = getOctokit();
 
   const { data } = await octokit.issues.listLabelsForRepo({
     owner: getOwner(),
     repo: getRepo(),
     per_page: 100,
-  })
+  });
 
   const labels = data.map((label) => ({
     name: label.name,
     color: label.color,
-  }))
+  }));
 
-  setCache(cacheKey, CACHE_TTL.boards, labels)
-  return labels
+  setCache(cacheKey, CACHE_TTL.boards, labels);
+  return labels;
 }
 
 /**
@@ -2415,27 +2560,28 @@ export async function fetchLabels(): Promise<Array<{ name: string; color: string
 export async function fetchMilestones(): Promise<
   Array<{ id: number; title: string; number: number }>
 > {
-  const cacheKey = `milestones:${getOwner()}:${getRepo()}`
-  const cached = getCached<Array<{ id: number; title: string; number: number }>>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `milestones:${getOwner()}:${getRepo()}`;
+  const cached =
+    getCached<Array<{ id: number; title: string; number: number }>>(cacheKey);
+  if (cached) return cached;
 
-  const octokit = getOctokit()
+  const octokit = getOctokit();
 
   const { data } = await octokit.issues.listMilestones({
     owner: getOwner(),
     repo: getRepo(),
-    state: 'open',
+    state: "open",
     per_page: 50,
-  })
+  });
 
   const milestones = data.map((milestone) => ({
     id: milestone.id,
     title: milestone.title,
     number: milestone.number,
-  }))
+  }));
 
-  setCache(cacheKey, CACHE_TTL.boards, milestones)
-  return milestones
+  setCache(cacheKey, CACHE_TTL.boards, milestones);
+  return milestones;
 }
 
 // ============ Actions ============
@@ -2448,21 +2594,21 @@ export async function postComment(
   body: string,
   userOctokit?: Octokit,
 ): Promise<void> {
-  const octokit = userOctokit ?? getOctokit()
+  const octokit = userOctokit ?? getOctokit();
 
   await octokit.issues.createComment({
     owner: getOwner(),
     repo: getRepo(),
     issue_number: issueNumber,
     body,
-  })
+  });
 
   // Invalidate both comment caches — issue conversation and PR conversation
   // share GitHub's issue-comments endpoint, but the dashboard caches them
   // under separate keys (`comments:` for the issue panel, `pr-comments:` for
   // PreviewModal). Clear both so neither view shows stale data.
-  cache.delete(`comments:${getOwner()}:${getRepo()}:${issueNumber}`)
-  cache.delete(`pr-comments:${getOwner()}:${getRepo()}:${issueNumber}`)
+  cache.delete(`comments:${getOwner()}:${getRepo()}:${issueNumber}`);
+  cache.delete(`pr-comments:${getOwner()}:${getRepo()}:${issueNumber}`);
 }
 
 /**
@@ -2470,40 +2616,43 @@ export async function postComment(
  */
 export async function triggerWorkflow(
   options: {
-    taskId: string
-    mode?: string
-    fromStage?: string
-    feedback?: string
+    taskId: string;
+    mode?: string;
+    fromStage?: string;
+    feedback?: string;
   },
   userOctokit?: Octokit,
 ): Promise<void> {
-  const octokit = userOctokit ?? getOctokit()
+  const octokit = userOctokit ?? getOctokit();
 
   await octokit.actions.createWorkflowDispatch({
     owner: getOwner(),
     repo: getRepo(),
     workflow_id: WORKFLOW_ID,
-    ref: 'main',
+    ref: "main",
     inputs: {
       task_id: options.taskId,
-      mode: options.mode || 'full',
-      from_stage: options.fromStage || '',
-      feedback: options.feedback || '',
+      mode: options.mode || "full",
+      from_stage: options.fromStage || "",
+      feedback: options.feedback || "",
     },
-  })
+  });
 }
 
 /**
  * Cancel a workflow run
  */
-export async function cancelWorkflowRun(runId: number, userOctokit?: Octokit): Promise<void> {
-  const octokit = userOctokit ?? getOctokit()
+export async function cancelWorkflowRun(
+  runId: number,
+  userOctokit?: Octokit,
+): Promise<void> {
+  const octokit = userOctokit ?? getOctokit();
 
   await octokit.actions.cancelWorkflowRun({
     owner: getOwner(),
     repo: getRepo(),
     run_id: runId,
-  })
+  });
 }
 
 // ============ Issue CRUD Operations ============
@@ -2513,49 +2662,49 @@ export async function cancelWorkflowRun(runId: number, userOctokit?: Octokit): P
  */
 export async function createIssue(
   options: {
-    title: string
-    body?: string
-    labels?: string[]
-    assignees?: string[]
+    title: string;
+    body?: string;
+    labels?: string[];
+    assignees?: string[];
   },
   userOctokit?: Octokit,
 ): Promise<GitHubIssue> {
-  const octokit = userOctokit ?? getOctokit()
+  const octokit = userOctokit ?? getOctokit();
 
   const { data } = await octokit.issues.create({
     owner: getOwner(),
     repo: getRepo(),
     title: options.title,
-    body: options.body ?? '',
+    body: options.body ?? "",
     labels: options.labels,
     assignees: options.assignees,
-  })
+  });
 
   // Invalidate task-related caches only (not PRs, boards, etc.)
-  invalidateTaskCache()
+  invalidateTaskCache();
 
   return {
     id: data.id,
     number: data.number,
     title: data.title,
     body: data.body ?? null,
-    state: data.state as 'open' | 'closed',
+    state: data.state as "open" | "closed",
     labels:
       data.labels?.map((l: any) => ({
-        name: l.name ?? '',
-        color: l.color ?? '000000',
+        name: l.name ?? "",
+        color: l.color ?? "000000",
       })) ?? [],
-    milestone: data.milestone ? { title: data.milestone.title ?? '' } : null,
+    milestone: data.milestone ? { title: data.milestone.title ?? "" } : null,
     assignees:
       data.assignees?.map((a: any) => ({
-        login: a.login ?? '',
-        avatar_url: a.avatar_url ?? '',
+        login: a.login ?? "",
+        avatar_url: a.avatar_url ?? "",
       })) ?? [],
-    created_at: data.created_at ?? '',
-    updated_at: data.updated_at ?? '',
+    created_at: data.created_at ?? "",
+    updated_at: data.updated_at ?? "",
     closed_at: data.closed_at ?? null,
-    html_url: data.html_url ?? '',
-  }
+    html_url: data.html_url ?? "",
+  };
 }
 
 /**
@@ -2566,12 +2715,12 @@ export async function uploadIssueAttachment(
   file: { name: string; content: string },
   userOctokit?: Octokit,
 ): Promise<{ attachment_url: string; name: string }> {
-  const octokit = (userOctokit ?? getOctokit()) as any
+  const octokit = (userOctokit ?? getOctokit()) as any;
 
-  const buffer = Buffer.from(file.content, 'base64')
+  const buffer = Buffer.from(file.content, "base64");
 
   const response = await octokit.request(
-    'POST /repos/{owner}/{repo}/issues/{issue_number}/attachments',
+    "POST /repos/{owner}/{repo}/issues/{issue_number}/attachments",
     {
       owner: getOwner(),
       repo: getRepo(),
@@ -2579,12 +2728,12 @@ export async function uploadIssueAttachment(
       name: file.name,
       file: buffer,
     },
-  )
+  );
 
   return {
     attachment_url: response.data.asset_url,
     name: response.data.name,
-  }
+  };
 }
 
 /**
@@ -2593,15 +2742,15 @@ export async function uploadIssueAttachment(
 export async function updateIssue(
   issueNumber: number,
   options: {
-    title?: string
-    body?: string
-    state?: 'open' | 'closed'
-    labels?: string[]
-    assignees?: string[]
+    title?: string;
+    body?: string;
+    state?: "open" | "closed";
+    labels?: string[];
+    assignees?: string[];
   },
   userOctokit?: Octokit,
 ): Promise<void> {
-  const octokit = userOctokit ?? getOctokit()
+  const octokit = userOctokit ?? getOctokit();
 
   await octokit.issues.update({
     owner: getOwner(),
@@ -2612,11 +2761,11 @@ export async function updateIssue(
     state: options.state,
     labels: options.labels,
     assignees: options.assignees,
-  })
+  });
 
   // Invalidate task cache
-  invalidateTaskCache()
-  cache.delete(`comments:${getOwner()}:${getRepo()}:${issueNumber}`)
+  invalidateTaskCache();
+  cache.delete(`comments:${getOwner()}:${getRepo()}:${issueNumber}`);
 }
 
 /**
@@ -2627,17 +2776,17 @@ export async function addAssignees(
   assignees: string[],
   userOctokit?: Octokit,
 ): Promise<void> {
-  const octokit = userOctokit ?? getOctokit()
+  const octokit = userOctokit ?? getOctokit();
 
   await octokit.issues.addAssignees({
     owner: getOwner(),
     repo: getRepo(),
     issue_number: issueNumber,
     assignees,
-  })
+  });
 
   // Invalidate task cache
-  invalidateTaskCache()
+  invalidateTaskCache();
 }
 
 /**
@@ -2648,17 +2797,17 @@ export async function removeAssignees(
   assignees: string[],
   userOctokit?: Octokit,
 ): Promise<void> {
-  const octokit = userOctokit ?? getOctokit()
+  const octokit = userOctokit ?? getOctokit();
 
   await octokit.issues.removeAssignees({
     owner: getOwner(),
     repo: getRepo(),
     issue_number: issueNumber,
     assignees,
-  })
+  });
 
   // Invalidate task cache
-  invalidateTaskCache()
+  invalidateTaskCache();
 }
 
 /**
@@ -2669,17 +2818,17 @@ export async function addLabels(
   labels: string[],
   userOctokit?: Octokit,
 ): Promise<void> {
-  const octokit = userOctokit ?? getOctokit()
+  const octokit = userOctokit ?? getOctokit();
 
   await octokit.issues.addLabels({
     owner: getOwner(),
     repo: getRepo(),
     issue_number: issueNumber,
     labels,
-  })
+  });
 
   // Invalidate task cache
-  invalidateTaskCache()
+  invalidateTaskCache();
 }
 
 /**
@@ -2693,18 +2842,18 @@ export async function ensureLabel(
   options: { color?: string; description?: string } = {},
   userOctokit?: Octokit,
 ): Promise<void> {
-  const octokit = userOctokit ?? getOctokit()
+  const octokit = userOctokit ?? getOctokit();
   try {
     await octokit.issues.createLabel({
       owner: getOwner(),
       repo: getRepo(),
       name,
-      color: (options.color ?? 'cccccc').replace(/^#/, ''),
+      color: (options.color ?? "cccccc").replace(/^#/, ""),
       description: options.description,
-    })
+    });
   } catch (err: unknown) {
-    const status = (err as { status?: number })?.status
-    if (status !== 422) throw err
+    const status = (err as { status?: number })?.status;
+    if (status !== 422) throw err;
   }
 }
 
@@ -2716,17 +2865,17 @@ export async function removeLabel(
   label: string,
   userOctokit?: Octokit,
 ): Promise<void> {
-  const octokit = userOctokit ?? getOctokit()
+  const octokit = userOctokit ?? getOctokit();
 
   await octokit.issues.removeLabel({
     owner: getOwner(),
     repo: getRepo(),
     issue_number: issueNumber,
     name: label,
-  })
+  });
 
   // Invalidate task cache
-  invalidateTaskCache()
+  invalidateTaskCache();
 }
 
 /**
@@ -2735,34 +2884,36 @@ export async function removeLabel(
  * where user is not an explicit collaborator, or insufficient scopes).
  */
 export async function fetchCollaborators(): Promise<GitHubCollaborator[]> {
-  const cacheKey = `collaborators:${getOwner()}:${getRepo()}`
-  const cached = getCached<GitHubCollaborator[]>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `collaborators:${getOwner()}:${getRepo()}`;
+  const cached = getCached<GitHubCollaborator[]>(cacheKey);
+  if (cached) return cached;
 
-  const octokit = getOctokit()
+  const octokit = getOctokit();
 
   try {
     const { data } = await octokit.repos.listCollaborators({
       owner: getOwner(),
       repo: getRepo(),
       per_page: 100,
-    })
+    });
 
     const collaborators: GitHubCollaborator[] = data.map((user) => ({
-      login: user.login ?? '',
-      avatar_url: user.avatar_url ?? '',
-    }))
+      login: user.login ?? "",
+      avatar_url: user.avatar_url ?? "",
+    }));
 
-    setCache(cacheKey, CACHE_TTL.boards, collaborators)
-    return collaborators
+    setCache(cacheKey, CACHE_TTL.boards, collaborators);
+    return collaborators;
   } catch (error: unknown) {
     // Permission denied (403) or not found (404) — user is not a collaborator or token lacks scope
-    const status = (error as { status?: number })?.status
+    const status = (error as { status?: number })?.status;
     if (status === 403 || status === 404) {
-      console.warn(`[Kody] Cannot list collaborators (${status}), returning empty list`)
-      return []
+      console.warn(
+        `[Kody] Cannot list collaborators (${status}), returning empty list`,
+      );
+      return [];
     }
-    throw error
+    throw error;
   }
 }
 
@@ -2772,31 +2923,31 @@ export async function fetchCollaborators(): Promise<GitHubCollaborator[]> {
  * Clear all cache (for testing or manual refresh)
  */
 export function clearCache(): void {
-  cache.clear()
+  cache.clear();
 }
 
 /**
  * Clear specific cache categories
  */
 export function clearCacheByCategory(
-  category: 'all' | 'tasks' | 'prs' | 'boards' | 'branches',
+  category: "all" | "tasks" | "prs" | "boards" | "branches",
 ): void {
   switch (category) {
-    case 'all':
-      cache.clear()
-      break
-    case 'tasks':
-      invalidateTaskCache()
-      break
-    case 'prs':
-      invalidatePRCache()
-      break
-    case 'boards':
-      invalidateBoardCache()
-      break
-    case 'branches':
-      invalidateBranchCache()
-      break
+    case "all":
+      cache.clear();
+      break;
+    case "tasks":
+      invalidateTaskCache();
+      break;
+    case "prs":
+      invalidatePRCache();
+      break;
+    case "boards":
+      invalidateBoardCache();
+      break;
+    case "branches":
+      invalidateBranchCache();
+      break;
   }
 }
 
@@ -2807,7 +2958,7 @@ export function getCacheStats(): { size: number; keys: string[] } {
   return {
     size: cache.size,
     keys: Array.from(cache.keys()),
-  }
+  };
 }
 
 // CI status now lives on each GitHubPR returned by `fetchOpenPRs` — no separate
@@ -2824,26 +2975,26 @@ export function getCacheStats(): { size: number; keys: string[] } {
 // + stale-on-error refresh.
 
 export interface GoalDiscussionComment {
-  id: string
-  databaseId: number
-  body: string
-  createdAt: string
-  updatedAt: string
-  url: string
-  author: { login: string; avatarUrl?: string } | null
+  id: string;
+  databaseId: number;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+  author: { login: string; avatarUrl?: string } | null;
 }
 
 export interface GoalDiscussionRef {
   /** GraphQL node ID (used for comment mutations). */
-  id: string
+  id: string;
   /** Numeric discussion number, for the github.com URL. */
-  number: number
-  url: string
-  commentsCount: number
+  number: number;
+  url: string;
+  commentsCount: number;
 }
 
 interface RepoDiscussionMeta {
-  enabled: boolean
+  enabled: boolean;
   /**
    * GraphQL node ID for the discussion category goal threads will be filed
    * under. Picks (in order of preference): a category named "Goals" if the
@@ -2852,13 +3003,13 @@ interface RepoDiscussionMeta {
    * announcements category, then any. Null only if no categories exist
    * (Discussions disabled, or all categories deleted manually).
    */
-  categoryId: string | null
+  categoryId: string | null;
   /** Display name of the chosen category, for diagnostics. */
-  categoryName: string | null
+  categoryName: string | null;
 }
 
-const DISCUSSIONS_META_TTL = 10 * 60_000 // 10min — flips rarely, webhook invalidates
-const DISCUSSION_COMMENTS_TTL = 60_000 // 1min — UI-driven re-reads
+const DISCUSSIONS_META_TTL = 10 * 60_000; // 10min — flips rarely, webhook invalidates
+const DISCUSSION_COMMENTS_TTL = 60_000; // 1min — UI-driven re-reads
 
 /**
  * Names tried in order when picking the discussion category to file goal
@@ -2869,10 +3020,13 @@ const DISCUSSION_COMMENTS_TTL = 60_000 // 1min — UI-driven re-reads
  * Power users can opt into a dedicated bucket by creating one named "Goals"
  * (or any preferred-list name) on github.com.
  */
-const PREFERRED_CATEGORY_NAMES = ['Goals', 'General', 'Ideas', 'Show and tell']
+const PREFERRED_CATEGORY_NAMES = ["Goals", "General", "Ideas", "Show and tell"];
 
-const inflightDiscussionsMeta = new Map<string, Promise<RepoDiscussionMeta>>()
-const inflightDiscussionComments = new Map<string, Promise<GoalDiscussionComment[]>>()
+const inflightDiscussionsMeta = new Map<string, Promise<RepoDiscussionMeta>>();
+const inflightDiscussionComments = new Map<
+  string,
+  Promise<GoalDiscussionComment[]>
+>();
 
 /**
  * Pick the best discussion category to file goal threads under, given the
@@ -2882,17 +3036,17 @@ const inflightDiscussionComments = new Map<string, Promise<GoalDiscussionComment
 function pickCategory(
   cats: { id: string; name: string }[],
 ): { id: string; name: string } | null {
-  if (cats.length === 0) return null
+  if (cats.length === 0) return null;
   for (const preferred of PREFERRED_CATEGORY_NAMES) {
     const hit = cats.find(
       (c) => c.name.toLowerCase() === preferred.toLowerCase(),
-    )
-    if (hit) return hit
+    );
+    if (hit) return hit;
   }
   const nonAnnouncements = cats.find(
-    (c) => !c.name.toLowerCase().includes('announce'),
-  )
-  return nonAnnouncements ?? cats[0]
+    (c) => !c.name.toLowerCase().includes("announce"),
+  );
+  return nonAnnouncements ?? cats[0];
 }
 
 /**
@@ -2900,8 +3054,8 @@ function pickCategory(
  * `discussion_comment`, and `repository` events.
  */
 export function invalidateDiscussionCache(): void {
-  invalidateCache('discussions-meta:')
-  invalidateCache('discussion-comments:')
+  invalidateCache("discussions-meta:");
+  invalidateCache("discussion-comments:");
 }
 
 /**
@@ -2912,15 +3066,15 @@ export function invalidateDiscussionCache(): void {
  * because the value flips at most once per repo lifecycle.
  */
 export async function fetchRepoDiscussionMeta(): Promise<RepoDiscussionMeta> {
-  const cacheKey = `discussions-meta:${getOwner()}:${getRepo()}`
-  const cached = getCached<RepoDiscussionMeta>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `discussions-meta:${getOwner()}:${getRepo()}`;
+  const cached = getCached<RepoDiscussionMeta>(cacheKey);
+  if (cached) return cached;
 
-  const existing = inflightDiscussionsMeta.get(cacheKey)
-  if (existing) return existing
+  const existing = inflightDiscussionsMeta.get(cacheKey);
+  if (existing) return existing;
 
-  const stale = getStale<RepoDiscussionMeta>(cacheKey)
-  const octokit = getOctokit()
+  const stale = getStale<RepoDiscussionMeta>(cacheKey);
+  const octokit = getOctokit();
 
   const query = `
     query RepoDiscussionMeta($owner: String!, $repo: String!) {
@@ -2931,42 +3085,44 @@ export async function fetchRepoDiscussionMeta(): Promise<RepoDiscussionMeta> {
         }
       }
     }
-  `
+  `;
 
   const promise = (async () => {
     try {
       const data = await octokit.graphql<{
         repository: {
-          hasDiscussionsEnabled: boolean
-          discussionCategories: { nodes: { id: string; name: string }[] } | null
-        }
-      }>(query, { owner: getOwner(), repo: getRepo() })
+          hasDiscussionsEnabled: boolean;
+          discussionCategories: {
+            nodes: { id: string; name: string }[];
+          } | null;
+        };
+      }>(query, { owner: getOwner(), repo: getRepo() });
 
-      const enabled = !!data.repository.hasDiscussionsEnabled
-      const cats = data.repository.discussionCategories?.nodes ?? []
-      const chosen = pickCategory(cats)
+      const enabled = !!data.repository.hasDiscussionsEnabled;
+      const cats = data.repository.discussionCategories?.nodes ?? [];
+      const chosen = pickCategory(cats);
 
       const meta: RepoDiscussionMeta = {
         enabled,
         categoryId: enabled && chosen ? chosen.id : null,
         categoryName: enabled && chosen ? chosen.name : null,
-      }
-      setCache(cacheKey, DISCUSSIONS_META_TTL, meta)
-      return meta
+      };
+      setCache(cacheKey, DISCUSSIONS_META_TTL, meta);
+      return meta;
     } catch (err) {
       if (stale) {
         // Refresh TTL on stale to dampen GraphQL throttling under load.
-        setCache(cacheKey, Math.min(DISCUSSIONS_META_TTL, 60_000), stale.data)
-        return stale.data
+        setCache(cacheKey, Math.min(DISCUSSIONS_META_TTL, 60_000), stale.data);
+        return stale.data;
       }
-      throw err
+      throw err;
     } finally {
-      inflightDiscussionsMeta.delete(cacheKey)
+      inflightDiscussionsMeta.delete(cacheKey);
     }
-  })()
+  })();
 
-  inflightDiscussionsMeta.set(cacheKey, promise)
-  return promise
+  inflightDiscussionsMeta.set(cacheKey, promise);
+  return promise;
 }
 
 /**
@@ -2975,7 +3131,12 @@ export async function fetchRepoDiscussionMeta(): Promise<RepoDiscussionMeta> {
  */
 export type EnableDiscussionsOutcome =
   | { ok: true; alreadyEnabled: boolean }
-  | { ok: false; reason: 'forbidden' | 'unknown'; status?: number; message?: string }
+  | {
+      ok: false;
+      reason: "forbidden" | "unknown";
+      status?: number;
+      message?: string;
+    };
 
 /**
  * Idempotently turn on Discussions for the current repo. Uses the user PAT
@@ -2995,37 +3156,37 @@ export async function enableRepoDiscussions(
   // Cheap pre-check: if cached meta already says enabled, skip the PATCH.
   const cached = getCached<RepoDiscussionMeta>(
     `discussions-meta:${getOwner()}:${getRepo()}`,
-  )
+  );
   if (cached?.enabled) {
-    return { ok: true, alreadyEnabled: true }
+    return { ok: true, alreadyEnabled: true };
   }
 
   try {
-    await userOctokit.request('PATCH /repos/{owner}/{repo}', {
+    await userOctokit.request("PATCH /repos/{owner}/{repo}", {
       owner: getOwner(),
       repo: getRepo(),
       has_discussions: true,
-    })
-    invalidateDiscussionCache()
-    return { ok: true, alreadyEnabled: false }
+    });
+    invalidateDiscussionCache();
+    return { ok: true, alreadyEnabled: false };
   } catch (err: unknown) {
-    const e = err as { status?: number; message?: string }
+    const e = err as { status?: number; message?: string };
     if (e.status === 403 || e.status === 401 || e.status === 404) {
       // 404 from PATCH typically means "you don't have admin rights to see
       // this endpoint on this repo" — treat as forbidden for UX purposes.
       return {
         ok: false,
-        reason: 'forbidden',
+        reason: "forbidden",
         status: e.status,
         message: e.message,
-      }
+      };
     }
     return {
       ok: false,
-      reason: 'unknown',
+      reason: "unknown",
       status: e.status,
       message: e.message,
-    }
+    };
   }
 }
 
@@ -3033,18 +3194,18 @@ export async function enableRepoDiscussions(
  * Look up the GraphQL repository ID. Cached forever per (owner,repo) — IDs
  * never change.
  */
-const repoIdCache = new Map<string, string>()
+const repoIdCache = new Map<string, string>();
 export async function fetchRepositoryId(): Promise<string> {
-  const key = `${getOwner()}/${getRepo()}`
-  const hit = repoIdCache.get(key)
-  if (hit) return hit
-  const octokit = getOctokit()
+  const key = `${getOwner()}/${getRepo()}`;
+  const hit = repoIdCache.get(key);
+  if (hit) return hit;
+  const octokit = getOctokit();
   const data = await octokit.graphql<{ repository: { id: string } }>(
     `query RepoId($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) { id } }`,
     { owner: getOwner(), repo: getRepo() },
-  )
-  repoIdCache.set(key, data.repository.id)
-  return data.repository.id
+  );
+  repoIdCache.set(key, data.repository.id);
+  return data.repository.id;
 }
 
 /**
@@ -3055,24 +3216,24 @@ export async function fetchRepositoryId(): Promise<string> {
  */
 export async function createGoalDiscussion(
   args: {
-    title: string
-    body: string
-    categoryId: string
+    title: string;
+    body: string;
+    categoryId: string;
   },
   userOctokit?: Octokit,
 ): Promise<GoalDiscussionRef> {
-  const octokit = userOctokit ?? getOctokit()
-  const repoId = await fetchRepositoryId()
+  const octokit = userOctokit ?? getOctokit();
+  const repoId = await fetchRepositoryId();
 
   const data = await octokit.graphql<{
     createDiscussion: {
       discussion: {
-        id: string
-        number: number
-        url: string
-        comments: { totalCount: number }
-      }
-    }
+        id: string;
+        number: number;
+        url: string;
+        comments: { totalCount: number };
+      };
+    };
   }>(
     `mutation CreateGoalDiscussion(
        $repoId: ID!,
@@ -3100,10 +3261,15 @@ export async function createGoalDiscussion(
       title: args.title,
       body: args.body,
     },
-  )
-  const d = data.createDiscussion.discussion
-  invalidateDiscussionCache()
-  return { id: d.id, number: d.number, url: d.url, commentsCount: d.comments.totalCount }
+  );
+  const d = data.createDiscussion.discussion;
+  invalidateDiscussionCache();
+  return {
+    id: d.id,
+    number: d.number,
+    url: d.url,
+    commentsCount: d.comments.totalCount,
+  };
 }
 
 /**
@@ -3114,11 +3280,11 @@ export async function updateGoalDiscussion(
   args: { discussionId: string; title?: string; body?: string },
   userOctokit?: Octokit,
 ): Promise<void> {
-  const octokit = userOctokit ?? getOctokit()
-  const updates: Record<string, unknown> = { discussionId: args.discussionId }
-  if (typeof args.title === 'string') updates.title = args.title
-  if (typeof args.body === 'string') updates.body = args.body
-  if (Object.keys(updates).length === 1) return // nothing to change
+  const octokit = userOctokit ?? getOctokit();
+  const updates: Record<string, unknown> = { discussionId: args.discussionId };
+  if (typeof args.title === "string") updates.title = args.title;
+  if (typeof args.body === "string") updates.body = args.body;
+  if (Object.keys(updates).length === 1) return; // nothing to change
 
   await octokit.graphql(
     `mutation UpdateGoalDiscussion($discussionId: ID!, $title: String, $body: String) {
@@ -3127,8 +3293,8 @@ export async function updateGoalDiscussion(
        }
      }`,
     updates,
-  )
-  invalidateDiscussionCache()
+  );
+  invalidateDiscussionCache();
 }
 
 /**
@@ -3139,7 +3305,7 @@ export async function closeGoalDiscussion(
   discussionId: string,
   userOctokit?: Octokit,
 ): Promise<void> {
-  const octokit = userOctokit ?? getOctokit()
+  const octokit = userOctokit ?? getOctokit();
   try {
     await octokit.graphql(
       `mutation CloseGoalDiscussion($discussionId: ID!) {
@@ -3148,11 +3314,11 @@ export async function closeGoalDiscussion(
          }
        }`,
       { discussionId },
-    )
+    );
   } catch {
     // Older repos / permission limits — non-fatal.
   }
-  invalidateDiscussionCache()
+  invalidateDiscussionCache();
 }
 
 /**
@@ -3162,15 +3328,15 @@ export async function closeGoalDiscussion(
 export async function fetchGoalDiscussionComments(
   discussionNumber: number,
 ): Promise<GoalDiscussionComment[]> {
-  const cacheKey = `discussion-comments:${getOwner()}:${getRepo()}:${discussionNumber}`
-  const cached = getCached<GoalDiscussionComment[]>(cacheKey)
-  if (cached) return cached
+  const cacheKey = `discussion-comments:${getOwner()}:${getRepo()}:${discussionNumber}`;
+  const cached = getCached<GoalDiscussionComment[]>(cacheKey);
+  if (cached) return cached;
 
-  const existing = inflightDiscussionComments.get(cacheKey)
-  if (existing) return existing
+  const existing = inflightDiscussionComments.get(cacheKey);
+  if (existing) return existing;
 
-  const stale = getStale<GoalDiscussionComment[]>(cacheKey)
-  const octokit = getOctokit()
+  const stale = getStale<GoalDiscussionComment[]>(cacheKey);
+  const octokit = getOctokit();
 
   const query = `
     query DiscussionComments($owner: String!, $repo: String!, $number: Int!) {
@@ -3190,7 +3356,7 @@ export async function fetchGoalDiscussionComments(
         }
       }
     }
-  `
+  `;
 
   const promise = (async () => {
     try {
@@ -3199,46 +3365,54 @@ export async function fetchGoalDiscussionComments(
           discussion: {
             comments: {
               nodes: {
-                id: string
-                databaseId: number
-                body: string
-                createdAt: string
-                updatedAt: string
-                url: string
-                author: { login: string; avatarUrl?: string } | null
-              }[]
-            }
-          } | null
-        }
-      }>(query, { owner: getOwner(), repo: getRepo(), number: discussionNumber })
+                id: string;
+                databaseId: number;
+                body: string;
+                createdAt: string;
+                updatedAt: string;
+                url: string;
+                author: { login: string; avatarUrl?: string } | null;
+              }[];
+            };
+          } | null;
+        };
+      }>(query, {
+        owner: getOwner(),
+        repo: getRepo(),
+        number: discussionNumber,
+      });
 
-      const nodes = data.repository.discussion?.comments.nodes ?? []
+      const nodes = data.repository.discussion?.comments.nodes ?? [];
       const comments: GoalDiscussionComment[] = nodes.map((n) => ({
         id: n.id,
         databaseId: n.databaseId,
-        body: n.body ?? '',
+        body: n.body ?? "",
         createdAt: n.createdAt,
         updatedAt: n.updatedAt,
         url: n.url,
         author: n.author
           ? { login: n.author.login, avatarUrl: n.author.avatarUrl }
           : null,
-      }))
-      setCache(cacheKey, DISCUSSION_COMMENTS_TTL, comments)
-      return comments
+      }));
+      setCache(cacheKey, DISCUSSION_COMMENTS_TTL, comments);
+      return comments;
     } catch (err) {
       if (stale) {
-        setCache(cacheKey, Math.min(DISCUSSION_COMMENTS_TTL, 30_000), stale.data)
-        return stale.data
+        setCache(
+          cacheKey,
+          Math.min(DISCUSSION_COMMENTS_TTL, 30_000),
+          stale.data,
+        );
+        return stale.data;
       }
-      throw err
+      throw err;
     } finally {
-      inflightDiscussionComments.delete(cacheKey)
+      inflightDiscussionComments.delete(cacheKey);
     }
-  })()
+  })();
 
-  inflightDiscussionComments.set(cacheKey, promise)
-  return promise
+  inflightDiscussionComments.set(cacheKey, promise);
+  return promise;
 }
 
 /**
@@ -3249,19 +3423,19 @@ export async function postGoalDiscussionComment(
   args: { discussionId: string; body: string; discussionNumber?: number },
   userOctokit?: Octokit,
 ): Promise<GoalDiscussionComment> {
-  const octokit = userOctokit ?? getOctokit()
+  const octokit = userOctokit ?? getOctokit();
   const data = await octokit.graphql<{
     addDiscussionComment: {
       comment: {
-        id: string
-        databaseId: number
-        body: string
-        createdAt: string
-        updatedAt: string
-        url: string
-        author: { login: string; avatarUrl?: string } | null
-      }
-    }
+        id: string;
+        databaseId: number;
+        body: string;
+        createdAt: string;
+        updatedAt: string;
+        url: string;
+        author: { login: string; avatarUrl?: string } | null;
+      };
+    };
   }>(
     `mutation PostGoalDiscussionComment($discussionId: ID!, $body: String!) {
        addDiscussionComment(input: { discussionId: $discussionId, body: $body }) {
@@ -3277,23 +3451,24 @@ export async function postGoalDiscussionComment(
        }
      }`,
     { discussionId: args.discussionId, body: args.body },
-  )
-  if (typeof args.discussionNumber === 'number') {
+  );
+  if (typeof args.discussionNumber === "number") {
     invalidateCache(
       `discussion-comments:${getOwner()}:${getRepo()}:${args.discussionNumber}`,
-    )
+    );
   } else {
-    invalidateDiscussionCache()
+    invalidateDiscussionCache();
   }
-  const c = data.addDiscussionComment.comment
+  const c = data.addDiscussionComment.comment;
   return {
     id: c.id,
     databaseId: c.databaseId,
-    body: c.body ?? '',
+    body: c.body ?? "",
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
     url: c.url,
-    author: c.author ? { login: c.author.login, avatarUrl: c.author.avatarUrl } : null,
-  }
+    author: c.author
+      ? { login: c.author.login, avatarUrl: c.author.avatarUrl }
+      : null,
+  };
 }
-

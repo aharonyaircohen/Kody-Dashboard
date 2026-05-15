@@ -16,10 +16,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import webpush from "web-push";
-import {
-  requireKodyAuth,
-  getRequestAuth,
-} from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -37,10 +34,7 @@ export async function POST(req: NextRequest) {
 
   const headerAuth = getRequestAuth(req);
   if (!headerAuth) {
-    return NextResponse.json(
-      { error: "auth_required" },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "auth_required" }, { status: 401 });
   }
   setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
@@ -52,7 +46,9 @@ export async function POST(req: NextRequest) {
     // this gate, the repo-auth token would also be a write-to-arbitrary-
     // endpoint primitive — small surface but trivial to close.
     const { manifest } = await readPushManifest();
-    const sub = manifest.subscriptions.find((s) => s.endpoint === parsed.endpoint);
+    const sub = manifest.subscriptions.find(
+      (s) => s.endpoint === parsed.endpoint,
+    );
     if (!sub) {
       return NextResponse.json(
         { error: "endpoint_not_registered" },

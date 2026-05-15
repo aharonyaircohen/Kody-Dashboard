@@ -9,17 +9,30 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { upsertActionState, getActionState } from "@dashboard/lib/kody-store/action-state";
-import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
+import {
+  upsertActionState,
+  getActionState,
+} from "@dashboard/lib/kody-store/action-state";
+import {
+  requireKodyAuth,
+  getUserOctokit,
+  getRequestAuth,
+} from "@dashboard/lib/auth";
 
 export const runtime = "nodejs";
 
 function authCheck(req: NextRequest): NextResponse | null {
   const secret = process.env.KODY_ACTION_SECRET;
-  if (!secret) return NextResponse.json({ error: "KODY_ACTION_SECRET not configured" }, { status: 500 });
+  if (!secret)
+    return NextResponse.json(
+      { error: "KODY_ACTION_SECRET not configured" },
+      { status: 500 },
+    );
   const auth = req.headers.get("authorization") ?? "";
-  if (!auth.startsWith("Bearer ")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (auth.slice(7) !== secret) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+  if (!auth.startsWith("Bearer "))
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth.slice(7) !== secret)
+    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   return null;
 }
 
@@ -43,13 +56,16 @@ export async function POST(req: NextRequest) {
     taskId?: string;
   };
 
-  if (!runId) return NextResponse.json({ error: "runId required" }, { status: 400 });
-  if (!actionId) return NextResponse.json({ error: "actionId required" }, { status: 400 });
+  if (!runId)
+    return NextResponse.json({ error: "runId required" }, { status: 400 });
+  if (!actionId)
+    return NextResponse.json({ error: "actionId required" }, { status: 400 });
 
   // Determine repo from request auth headers (set by client from localStorage).
   // Falls back to env vars (GITHUB_OWNER/GITHUB_REPO) if not present.
   const headerAuth = getRequestAuth(req);
-  const owner = headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
+  const owner =
+    headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
   const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "Kody-Dashboard";
 
   const octokit = await getUserOctokit(req);
@@ -59,7 +75,10 @@ export async function POST(req: NextRequest) {
     {
       runId,
       actionId,
-      status: (status as "running" | "waiting" | "complete" | "cancelled") ?? (existing?.status ?? "running"),
+      status:
+        (status as "running" | "waiting" | "complete" | "cancelled") ??
+        existing?.status ??
+        "running",
       step: step ?? existing?.step ?? "",
       sessionId: sessionId ?? existing?.sessionId,
       taskId: taskId ?? existing?.taskId,

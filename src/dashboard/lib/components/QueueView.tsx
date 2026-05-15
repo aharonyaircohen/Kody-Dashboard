@@ -4,28 +4,36 @@
  * @pattern queue-view
  * @ai-summary Queue-specific task list showing queued, active, and failed queue tasks
  */
-'use client'
+"use client";
 
-import { cn } from '../utils'
-import { MiniPipelineProgress } from './MiniPipelineProgress'
-import type { KodyTask } from '../types'
-import { Button } from '@dashboard/ui/button'
-import { Loader2, ListMinus, RotateCcw, Inbox, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { cn } from "../utils";
+import { MiniPipelineProgress } from "./MiniPipelineProgress";
+import type { KodyTask } from "../types";
+import { Button } from "@dashboard/ui/button";
+import {
+  Loader2,
+  ListMinus,
+  RotateCcw,
+  Inbox,
+  CheckCircle2,
+  XCircle,
+  Clock,
+} from "lucide-react";
 
 interface QueueViewProps {
-  tasks: KodyTask[]
-  onTaskSelect?: (task: KodyTask) => void
-  onRemoveFromQueue?: (issueNumber: number) => void
-  onRetry?: (taskId: string) => void
-  selectedTask?: KodyTask | null
+  tasks: KodyTask[];
+  onTaskSelect?: (task: KodyTask) => void;
+  onRemoveFromQueue?: (issueNumber: number) => void;
+  onRetry?: (taskId: string) => void;
+  selectedTask?: KodyTask | null;
 }
 
-type QueueStatus = 'active' | 'waiting' | 'failed'
+type QueueStatus = "active" | "waiting" | "failed";
 
 function getQueueStatus(task: KodyTask): QueueStatus {
-  if (task.labels.includes('kody:queue-active')) return 'active'
-  if (task.labels.includes('kody:queue-failed')) return 'failed'
-  return 'waiting'
+  if (task.labels.includes("kody:queue-active")) return "active";
+  if (task.labels.includes("kody:queue-failed")) return "failed";
+  return "waiting";
 }
 
 const statusConfig: Record<
@@ -33,24 +41,24 @@ const statusConfig: Record<
   { label: string; bg: string; text: string; icon: React.ElementType }
 > = {
   active: {
-    label: 'Active',
-    bg: 'bg-green-500/15',
-    text: 'text-green-400',
+    label: "Active",
+    bg: "bg-green-500/15",
+    text: "text-green-400",
     icon: Loader2,
   },
   waiting: {
-    label: 'Waiting',
-    bg: 'bg-blue-500/15',
-    text: 'text-blue-400',
+    label: "Waiting",
+    bg: "bg-blue-500/15",
+    text: "text-blue-400",
     icon: Clock,
   },
   failed: {
-    label: 'Failed',
-    bg: 'bg-red-500/15',
-    text: 'text-red-400',
+    label: "Failed",
+    bg: "bg-red-500/15",
+    text: "text-red-400",
     icon: XCircle,
   },
-}
+};
 
 export function QueueView({
   tasks,
@@ -61,19 +69,29 @@ export function QueueView({
 }: QueueViewProps) {
   // Sort: active first, then waiting (FIFO), then failed
   const sortedTasks = [...tasks].sort((a, b) => {
-    const statusOrder: Record<QueueStatus, number> = { active: 0, waiting: 1, failed: 2 }
-    const aStatus = getQueueStatus(a)
-    const bStatus = getQueueStatus(b)
+    const statusOrder: Record<QueueStatus, number> = {
+      active: 0,
+      waiting: 1,
+      failed: 2,
+    };
+    const aStatus = getQueueStatus(a);
+    const bStatus = getQueueStatus(b);
     if (statusOrder[aStatus] !== statusOrder[bStatus]) {
-      return statusOrder[aStatus] - statusOrder[bStatus]
+      return statusOrder[aStatus] - statusOrder[bStatus];
     }
-    return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-  })
+    return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+  });
 
   // Summary counts
-  const activeCount = tasks.filter((t) => t.labels.includes('kody:queue-active')).length
-  const waitingCount = tasks.filter((t) => t.labels.includes('kody:queued')).length
-  const failedCount = tasks.filter((t) => t.labels.includes('kody:queue-failed')).length
+  const activeCount = tasks.filter((t) =>
+    t.labels.includes("kody:queue-active"),
+  ).length;
+  const waitingCount = tasks.filter((t) =>
+    t.labels.includes("kody:queued"),
+  ).length;
+  const failedCount = tasks.filter((t) =>
+    t.labels.includes("kody:queue-failed"),
+  ).length;
 
   if (tasks.length === 0) {
     return (
@@ -87,7 +105,7 @@ export function QueueView({
           Add tasks from the backlog using the &quot;Add to Queue&quot; action.
         </p>
       </div>
-    )
+    );
   }
 
   return (
@@ -95,52 +113,56 @@ export function QueueView({
       {/* Summary bar */}
       <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/[0.06] text-xs">
         <span className="text-muted-foreground">
-          <span className="font-semibold text-foreground">{waitingCount}</span> queued
+          <span className="font-semibold text-foreground">{waitingCount}</span>{" "}
+          queued
         </span>
         <span className="text-white/20">·</span>
         <span className="text-muted-foreground">
-          <span className="font-semibold text-green-400">{activeCount}</span> active
+          <span className="font-semibold text-green-400">{activeCount}</span>{" "}
+          active
         </span>
         <span className="text-white/20">·</span>
         <span className="text-muted-foreground">
-          <span className="font-semibold text-red-400">{failedCount}</span> failed
+          <span className="font-semibold text-red-400">{failedCount}</span>{" "}
+          failed
         </span>
       </div>
 
       {/* Queue list */}
       <div className="flex-1 overflow-y-auto">
         {sortedTasks.map((task, index) => {
-          const status = getQueueStatus(task)
-          const config = statusConfig[status]
-          const StatusIcon = config.icon
-          const isSelected = selectedTask?.id === task.id
+          const status = getQueueStatus(task);
+          const config = statusConfig[status];
+          const StatusIcon = config.icon;
+          const isSelected = selectedTask?.id === task.id;
 
           // Position number for waiting tasks
           const position =
-            status === 'waiting'
-              ? sortedTasks.filter((t, i) => i < index && getQueueStatus(t) === 'waiting').length +
-                1
-              : null
+            status === "waiting"
+              ? sortedTasks.filter(
+                  (t, i) => i < index && getQueueStatus(t) === "waiting",
+                ).length + 1
+              : null;
 
           return (
             <div
               key={task.id}
               onClick={() => onTaskSelect?.(task)}
               className={cn(
-                'flex items-center gap-3 px-4 py-3 border-b border-white/[0.04] cursor-pointer transition-colors',
-                'hover:bg-white/[0.03]',
-                isSelected && 'bg-blue-500/[0.08] border-l-2 border-l-blue-500',
+                "flex items-center gap-3 px-4 py-3 border-b border-white/[0.04] cursor-pointer transition-colors",
+                "hover:bg-white/[0.03]",
+                isSelected && "bg-blue-500/[0.08] border-l-2 border-l-blue-500",
               )}
             >
               {/* Position / Status indicator */}
               <div
                 className={cn(
-                  'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold',
+                  "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold",
                   config.bg,
                   config.text,
                 )}
               >
-                {status === 'active' ? (
+                {status === "active" ? (
                   <StatusIcon className="w-4 h-4 animate-spin" />
                 ) : position ? (
                   position
@@ -152,7 +174,9 @@ export function QueueView({
               {/* Task info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground truncate">{task.title}</span>
+                  <span className="text-sm font-medium text-foreground truncate">
+                    {task.title}
+                  </span>
                   <span className="text-xs text-muted-foreground/50 shrink-0">
                     #{task.issueNumber}
                   </span>
@@ -162,7 +186,7 @@ export function QueueView({
                 <div className="flex items-center gap-2 mt-1">
                   <span
                     className={cn(
-                      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider',
+                      "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider",
                       config.bg,
                       config.text,
                     )}
@@ -170,54 +194,58 @@ export function QueueView({
                     {config.label}
                   </span>
 
-                  {status === 'active' && task.pipeline && (
+                  {status === "active" && task.pipeline && (
                     <div className="flex-1 min-w-0">
                       <MiniPipelineProgress task={task} variant="inline" />
                     </div>
                   )}
 
-                  {status === 'failed' && (
-                    <span className="text-[10px] text-red-400/70">Needs manual review</span>
+                  {status === "failed" && (
+                    <span className="text-[10px] text-red-400/70">
+                      Needs manual review
+                    </span>
                   )}
                 </div>
               </div>
 
               {/* Actions */}
               <div className="flex items-center gap-1 shrink-0">
-                {status === 'waiting' && onRemoveFromQueue && (
+                {status === "waiting" && onRemoveFromQueue && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-7 w-7 p-0 text-muted-foreground/50 hover:text-red-400"
                     onClick={(e) => {
-                      e.stopPropagation()
-                      onRemoveFromQueue(task.issueNumber)
+                      e.stopPropagation();
+                      onRemoveFromQueue(task.issueNumber);
                     }}
                     title="Remove from queue"
                   >
                     <ListMinus className="w-3.5 h-3.5" />
                   </Button>
                 )}
-                {status === 'failed' && onRetry && (
+                {status === "failed" && onRetry && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-7 w-7 p-0 text-muted-foreground/50 hover:text-orange-400"
                     onClick={(e) => {
-                      e.stopPropagation()
-                      onRetry(task.id)
+                      e.stopPropagation();
+                      onRetry(task.id);
                     }}
                     title="Retry task"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                   </Button>
                 )}
-                {status === 'active' && <CheckCircle2 className="w-4 h-4 text-green-500/50" />}
+                {status === "active" && (
+                  <CheckCircle2 className="w-4 h-4 text-green-500/50" />
+                )}
               </div>
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }

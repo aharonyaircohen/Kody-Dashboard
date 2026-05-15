@@ -16,65 +16,67 @@
  * Auth: requireKodyAuth.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { getRequestAuth, requireKodyAuth } from '@dashboard/lib/auth'
+import { NextRequest, NextResponse } from "next/server";
+import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
 import {
   streamBrainChat,
   type BrainAttachment,
   type BrainJobContext,
   type BrainTaskContext,
-} from '@dashboard/lib/brain-proxy'
+} from "@dashboard/lib/brain-proxy";
 
-export const runtime = 'nodejs'
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req)
-  if (authError) return authError
+  const authError = await requireKodyAuth(req);
+  if (authError) return authError;
 
   // Per-user Brain config from headers (preferred) → server-wide env fallback.
   const brainUrl =
-    req.headers.get('x-brain-url')?.trim() || process.env.BRAIN_CHAT_URL
+    req.headers.get("x-brain-url")?.trim() || process.env.BRAIN_CHAT_URL;
   const brainKey =
-    req.headers.get('x-brain-key')?.trim() || process.env.BRAIN_CHAT_API_KEY
+    req.headers.get("x-brain-key")?.trim() || process.env.BRAIN_CHAT_API_KEY;
 
   if (!brainUrl || !brainKey) {
     return NextResponse.json(
       {
         error:
-          'Brain is not configured for this session. Add a Brain server URL and API key on the login page.',
+          "Brain is not configured for this session. Add a Brain server URL and API key on the login page.",
       },
       { status: 503 },
-    )
+    );
   }
 
   let body: {
-    chatId?: string
-    message?: string
-    taskContext?: BrainTaskContext
-    attachments?: BrainAttachment[]
-    jobDraft?: boolean
-    jobContext?: BrainJobContext
-    voiceMode?: boolean
-  }
+    chatId?: string;
+    message?: string;
+    taskContext?: BrainTaskContext;
+    attachments?: BrainAttachment[];
+    jobDraft?: boolean;
+    jobContext?: BrainJobContext;
+    voiceMode?: boolean;
+  };
   try {
-    body = await req.json()
+    body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const chatId = body.chatId?.trim()
-  const message = body.message
+  const chatId = body.chatId?.trim();
+  const message = body.message;
   if (!chatId) {
-    return NextResponse.json({ error: 'chatId required' }, { status: 400 })
+    return NextResponse.json({ error: "chatId required" }, { status: 400 });
   }
-  if (!message || typeof message !== 'string') {
-    return NextResponse.json({ error: 'message required' }, { status: 400 })
+  if (!message || typeof message !== "string") {
+    return NextResponse.json({ error: "message required" }, { status: 400 });
   }
 
   // Forward the user's connected repo so Brain can clone it into a worktree
   // and enable code-context tools. Locked on first turn by Brain.
-  const headerAuth = getRequestAuth(req)
-  const repo = headerAuth ? `${headerAuth.owner}/${headerAuth.repo}` : undefined
+  const headerAuth = getRequestAuth(req);
+  const repo = headerAuth
+    ? `${headerAuth.owner}/${headerAuth.repo}`
+    : undefined;
 
   return streamBrainChat({
     brainUrl,
@@ -87,5 +89,5 @@ export async function POST(req: NextRequest) {
     jobContext: body.jobContext,
     repo,
     voiceMode: body.voiceMode === true,
-  })
+  });
 }

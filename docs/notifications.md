@@ -11,13 +11,13 @@ The dashboard's `/notifications` page configures rules that fire messages to ext
 
 ## Events
 
-| Event ID | Fires when |
-|---|---|
-| `deploy_pr_merged` | A kody-managed deploy PR (`deploy: <a> → <b> (vX.Y.Z)`) is merged |
-| `release_failed` | *(declared, not yet wired)* A kody release flow ends `release-failed` |
-| `task_completed` | *(declared, not yet wired)* A kody task PR is approved + merged |
-| `task_failed` | *(declared, not yet wired)* A kody task ends with errors |
-| `ci_failed` | *(declared, not yet wired)* A PR's CI fails |
+| Event ID           | Fires when                                                            |
+| ------------------ | --------------------------------------------------------------------- |
+| `deploy_pr_merged` | A kody-managed deploy PR (`deploy: <a> → <b> (vX.Y.Z)`) is merged     |
+| `release_failed`   | _(declared, not yet wired)_ A kody release flow ends `release-failed` |
+| `task_completed`   | _(declared, not yet wired)_ A kody task PR is approved + merged       |
+| `task_failed`      | _(declared, not yet wired)_ A kody task ends with errors              |
+| `ci_failed`        | _(declared, not yet wired)_ A PR's CI fails                           |
 
 Adding a new event source: add the case in [`notifications-dispatch.ts`](../src/dashboard/lib/notifications-dispatch.ts) and a corresponding entry in `NOTIFICATION_EVENTS` in [`notifications.ts`](../src/dashboard/lib/notifications.ts).
 
@@ -25,13 +25,13 @@ Adding a new event source: add the case in [`notifications-dispatch.ts`](../src/
 
 Available in any rule's `template` and in generic-webhook `jsonTemplate`:
 
-| Token | Source |
-|---|---|
-| `{{repo}}` | `<owner>/<name>` from the webhook payload |
-| `{{prUrl}}` | `pull_request.html_url` |
-| `{{prTitle}}` | `pull_request.title` |
-| `{{prBody}}` | `pull_request.body` (the full PR description) |
-| `{{author}}` | `pull_request.user.login` |
+| Token         | Source                                                               |
+| ------------- | -------------------------------------------------------------------- |
+| `{{repo}}`    | `<owner>/<name>` from the webhook payload                            |
+| `{{prUrl}}`   | `pull_request.html_url`                                              |
+| `{{prTitle}}` | `pull_request.title`                                                 |
+| `{{prBody}}`  | `pull_request.body` (the full PR description)                        |
+| `{{author}}`  | `pull_request.user.login`                                            |
 | `{{version}}` | The `vX.Y.Z` parsed from the deploy PR title (deploy_pr_merged only) |
 
 Unknown tokens stay as-is (`{{foo}}` → `{{foo}}`) so a typo doesn't blank the message.
@@ -71,7 +71,7 @@ Fields:
 - **URL** — `https://...` only (http rejected).
 - **Body format** — `JSON` (default) or `Form-encoded`.
 - **JSON body template** — text rendered with `{{var}}` substitution, must parse as JSON after rendering. When omitted (and format=JSON), the body is `{"text":"<rendered top-level template>"}`.
-- **Headers** *(via API only currently)* — extra request headers, e.g. `Authorization: Basic ...`.
+- **Headers** _(via API only currently)_ — extra request headers, e.g. `Authorization: Basic ...`.
 
 #### When to use JSON vs Form-encoded
 
@@ -94,7 +94,7 @@ Fields:
        "Body": "{{repo}} {{version}} deployed — {{prUrl}}"
      }
      ```
-   - **Headers** *(API)*: `{ "Authorization": "Basic <base64>" }`
+   - **Headers** _(API)_: `{ "Authorization": "Basic <base64>" }`
 
 Twilio's WhatsApp messages outside an active session window must use a pre-approved template — the body content above won't be delivered for fresh contacts unless it matches a registered template.
 

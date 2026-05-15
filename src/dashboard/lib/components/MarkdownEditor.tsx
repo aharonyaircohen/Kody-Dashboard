@@ -6,25 +6,34 @@
  *   emoji picker, and preview toggle. Extracted so Job Control and future
  *   issue-body edits share one implementation.
  */
-'use client'
+"use client";
 
-import { useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import { Bold, Italic, Code, Link2, List, Heading, Quote, Eye } from 'lucide-react'
-import { Button } from '@dashboard/ui/button'
-import { Textarea } from '@dashboard/ui/textarea'
-import { cn } from '@dashboard/lib/utils/ui'
-import { EMOJI_LIST } from '../constants'
+import { useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import {
+  Bold,
+  Italic,
+  Code,
+  Link2,
+  List,
+  Heading,
+  Quote,
+  Eye,
+} from "lucide-react";
+import { Button } from "@dashboard/ui/button";
+import { Textarea } from "@dashboard/ui/textarea";
+import { cn } from "@dashboard/lib/utils/ui";
+import { EMOJI_LIST } from "../constants";
 
 interface MarkdownEditorProps {
-  value: string
-  onChange: (next: string) => void
-  placeholder?: string
-  rows?: number
-  disabled?: boolean
-  className?: string
+  value: string;
+  onChange: (next: string) => void;
+  placeholder?: string;
+  rows?: number;
+  disabled?: boolean;
+  className?: string;
   /** Optional override for the preview empty-state message */
-  emptyPreview?: string
+  emptyPreview?: string;
 }
 
 export function MarkdownEditor({
@@ -34,64 +43,71 @@ export function MarkdownEditor({
   rows = 8,
   disabled,
   className,
-  emptyPreview = '*Nothing to preview*',
+  emptyPreview = "*Nothing to preview*",
 }: MarkdownEditorProps) {
-  const [showPreview, setShowPreview] = useState(false)
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [showPreview, setShowPreview] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const insertMarkdown = (before: string, after: string = '') => {
-    const textarea = textareaRef.current
-    if (!textarea) return
+  const insertMarkdown = (before: string, after: string = "") => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
 
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selected = value.slice(start, end)
-    const next = value.slice(0, start) + before + selected + after + value.slice(end)
-    onChange(next)
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = value.slice(start, end);
+    const next =
+      value.slice(0, start) + before + selected + after + value.slice(end);
+    onChange(next);
 
     setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start + before.length, start + before.length + selected.length)
-    }, 0)
-  }
+      textarea.focus();
+      textarea.setSelectionRange(
+        start + before.length,
+        start + before.length + selected.length,
+      );
+    }, 0);
+  };
 
   const insertEmoji = (emoji: string) => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    const start = textarea.selectionStart
-    const next = value.slice(0, start) + emoji + value.slice(start)
-    onChange(next)
-    setShowEmojiPicker(false)
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const next = value.slice(0, start) + emoji + value.slice(start);
+    onChange(next);
+    setShowEmojiPicker(false);
     setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start + emoji.length, start + emoji.length)
-    }, 0)
-  }
+      textarea.focus();
+      textarea.setSelectionRange(start + emoji.length, start + emoji.length);
+    }, 0);
+  };
 
   return (
-    <div className={cn('space-y-2', className)}>
+    <div className={cn("space-y-2", className)}>
       {/* Toolbar */}
       <div className="flex items-center flex-wrap gap-0.5 border border-border rounded-md p-1 bg-muted/30">
-        <ToolbarButton title="Bold" onClick={() => insertMarkdown('**', '**')}>
+        <ToolbarButton title="Bold" onClick={() => insertMarkdown("**", "**")}>
           <Bold className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton title="Italic" onClick={() => insertMarkdown('*', '*')}>
+        <ToolbarButton title="Italic" onClick={() => insertMarkdown("*", "*")}>
           <Italic className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton title="Code" onClick={() => insertMarkdown('`', '`')}>
+        <ToolbarButton title="Code" onClick={() => insertMarkdown("`", "`")}>
           <Code className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton title="Link" onClick={() => insertMarkdown('[', '](url)')}>
+        <ToolbarButton
+          title="Link"
+          onClick={() => insertMarkdown("[", "](url)")}
+        >
           <Link2 className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton title="Heading" onClick={() => insertMarkdown('## ')}>
+        <ToolbarButton title="Heading" onClick={() => insertMarkdown("## ")}>
           <Heading className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton title="Quote" onClick={() => insertMarkdown('> ')}>
+        <ToolbarButton title="Quote" onClick={() => insertMarkdown("> ")}>
           <Quote className="w-3.5 h-3.5" />
         </ToolbarButton>
-        <ToolbarButton title="List" onClick={() => insertMarkdown('- ')}>
+        <ToolbarButton title="List" onClick={() => insertMarkdown("- ")}>
           <List className="w-3.5 h-3.5" />
         </ToolbarButton>
 
@@ -126,14 +142,14 @@ export function MarkdownEditor({
 
         <Button
           type="button"
-          variant={showPreview ? 'secondary' : 'ghost'}
+          variant={showPreview ? "secondary" : "ghost"}
           size="sm"
           onClick={() => setShowPreview((prev) => !prev)}
           className="h-7 px-2 text-xs"
-          title={showPreview ? 'Edit' : 'Preview'}
+          title={showPreview ? "Edit" : "Preview"}
         >
           <Eye className="w-3.5 h-3.5 mr-1" />
-          {showPreview ? 'Edit' : 'Preview'}
+          {showPreview ? "Edit" : "Preview"}
         </Button>
       </div>
 
@@ -154,7 +170,7 @@ export function MarkdownEditor({
         />
       )}
     </div>
-  )
+  );
 }
 
 function ToolbarButton({
@@ -162,9 +178,9 @@ function ToolbarButton({
   onClick,
   children,
 }: {
-  title: string
-  onClick: () => void
-  children: React.ReactNode
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
 }) {
   return (
     <Button
@@ -177,5 +193,5 @@ function ToolbarButton({
     >
       {children}
     </Button>
-  )
+  );
 }

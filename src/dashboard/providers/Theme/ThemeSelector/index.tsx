@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 import {
   Select,
@@ -6,32 +6,32 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@dashboard/ui/select'
-import React, { useState } from 'react'
+} from "@dashboard/ui/select";
+import React, { useState } from "react";
 
-import type { Theme } from './types'
+import type { Theme } from "./types";
 
-import { useTheme } from '..'
-import { themeLocalStorageKey } from '../shared'
+import { useTheme } from "..";
+import { themeLocalStorageKey } from "../shared";
 
 export const ThemeSelector: React.FC = () => {
-  const { setTheme } = useTheme()
-  const [value, setValue] = useState('')
+  const { setTheme } = useTheme();
+  const [value, setValue] = useState("");
 
-  const onThemeChange = (themeToSet: Theme & 'auto') => {
-    if (themeToSet === 'auto') {
-      setTheme(null)
-      setValue('auto')
+  const onThemeChange = (themeToSet: Theme & "auto") => {
+    if (themeToSet === "auto") {
+      setTheme(null);
+      setValue("auto");
     } else {
-      setTheme(themeToSet)
-      setValue(themeToSet)
+      setTheme(themeToSet);
+      setValue(themeToSet);
     }
-  }
+  };
 
   React.useEffect(() => {
-    const preference = window.localStorage.getItem(themeLocalStorageKey)
-    setValue(preference ?? 'auto')
-  }, [])
+    const preference = window.localStorage.getItem(themeLocalStorageKey);
+    setValue(preference ?? "auto");
+  }, []);
 
   return (
     <Select onValueChange={onThemeChange} value={value}>
@@ -47,5 +47,5 @@ export const ThemeSelector: React.FC = () => {
         <SelectItem value="dark">Dark</SelectItem>
       </SelectContent>
     </Select>
-  )
-}
+  );
+};

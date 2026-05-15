@@ -7,22 +7,22 @@
  *  `switch_agent` tool returns a `SwitchAgentDirective`; the client detects
  *  it via `isSwitchAgentDirective` in the tool-output-available stream chunk.
  */
-import type { AgentId } from './agents'
+import type { AgentId } from "./agents";
 
-export const SWITCH_AGENT_DIRECTIVE = 'switch_agent' as const
+export const SWITCH_AGENT_DIRECTIVE = "switch_agent" as const;
 
 /**
  * Voice is a modality, not an agent — every agent in the registry is a
  * legitimate switch target. Alias kept so the codebase can document intent
  * (and so callers don't have to import AgentId just to type a directive).
  */
-export type SwitchAgentTargetId = AgentId
+export type SwitchAgentTargetId = AgentId;
 
 export interface SwitchAgentDirective {
-  action: typeof SWITCH_AGENT_DIRECTIVE
-  agentId: SwitchAgentTargetId
-  agentName: string
-  reason: string
+  action: typeof SWITCH_AGENT_DIRECTIVE;
+  agentId: SwitchAgentTargetId;
+  agentName: string;
+  reason: string;
   /**
    * Optional kickoff message. When set, the client auto-sends this string
    * as the first user message under the new agent after the switch. Used
@@ -30,7 +30,7 @@ export interface SwitchAgentDirective {
    * the issue — without it the runner just idles after the agent flip,
    * waiting for the user to type something, and the draft PR stays empty.
    */
-  autoKickoff?: string
+  autoKickoff?: string;
   /**
    * Issue number the kickoff targets. The client gates the auto-kickoff
    * useEffect on `context.task.issueNumber === autoKickoffIssueNumber`
@@ -39,21 +39,23 @@ export interface SwitchAgentDirective {
    * tasks list hasn't refetched the NEW one yet), and the runner gets
    * dispatched against the wrong sessionId.
    */
-  autoKickoffIssueNumber?: number
+  autoKickoffIssueNumber?: number;
 }
 
-export function isSwitchAgentDirective(value: unknown): value is SwitchAgentDirective {
-  if (!value || typeof value !== 'object') return false
-  const v = value as Record<string, unknown>
+export function isSwitchAgentDirective(
+  value: unknown,
+): value is SwitchAgentDirective {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
   return (
     v.action === SWITCH_AGENT_DIRECTIVE &&
-    typeof v.agentId === 'string' &&
-    typeof v.agentName === 'string' &&
-    typeof v.reason === 'string' &&
-    (v.autoKickoff === undefined || typeof v.autoKickoff === 'string') &&
+    typeof v.agentId === "string" &&
+    typeof v.agentName === "string" &&
+    typeof v.reason === "string" &&
+    (v.autoKickoff === undefined || typeof v.autoKickoff === "string") &&
     (v.autoKickoffIssueNumber === undefined ||
-      (typeof v.autoKickoffIssueNumber === 'number' &&
+      (typeof v.autoKickoffIssueNumber === "number" &&
         Number.isInteger(v.autoKickoffIssueNumber) &&
         v.autoKickoffIssueNumber > 0))
-  )
+  );
 }

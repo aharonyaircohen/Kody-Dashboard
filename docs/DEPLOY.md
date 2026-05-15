@@ -214,10 +214,10 @@ GitHub → Settings → Developer settings → OAuth Apps → <your-app> → Cal
 
 ## Project URLs
 
-| Environment | URL format |
-|-------------|------------|
-| Production | `https://<slug>.vercel.app` |
-| Preview | `https://<slug>-<branch>-<hash>.vercel.app` |
+| Environment | URL format                                  |
+| ----------- | ------------------------------------------- |
+| Production  | `https://<slug>.vercel.app`                 |
+| Preview     | `https://<slug>-<branch>-<hash>.vercel.app` |
 
 Get your project slug from `.vercel/project.json`:
 

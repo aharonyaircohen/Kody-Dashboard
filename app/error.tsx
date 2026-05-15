@@ -4,30 +4,32 @@
  * @pattern next-error-boundary
  * @ai-summary Error boundary for the Kody dashboard — catches runtime errors and lets the user retry
  */
-'use client'
+"use client";
 
-import { useEffect } from 'react'
-import { Button } from '@dashboard/ui/button'
-import { AlertTriangle } from 'lucide-react'
+import { useEffect } from "react";
+import { Button } from "@dashboard/ui/button";
+import { AlertTriangle } from "lucide-react";
 
 export default function KodyError({
   error,
   reset,
 }: {
-  error: Error & { digest?: string }
-  reset: () => void
+  error: Error & { digest?: string };
+  reset: () => void;
 }) {
   useEffect(() => {
-    console.error('[KodyDashboard] Unhandled error:', error)
-  }, [error])
+    console.error("[KodyDashboard] Unhandled error:", error);
+  }, [error]);
 
-  const isDev = process.env.NODE_ENV !== 'production'
+  const isDev = process.env.NODE_ENV !== "production";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center max-w-md p-6">
         <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-foreground mb-2">Something went wrong</h2>
+        <h2 className="text-xl font-semibold text-foreground mb-2">
+          Something went wrong
+        </h2>
         <p className="text-muted-foreground mb-4">
           The Kody dashboard encountered an error. This is usually temporary.
         </p>
@@ -39,7 +41,7 @@ export default function KodyError({
         {error.message && (
           <pre className="text-xs text-left bg-muted p-3 rounded-md mb-4 overflow-auto max-h-40">
             {error.message}
-            {isDev && error.stack ? `\n\n${error.stack}` : ''}
+            {isDev && error.stack ? `\n\n${error.stack}` : ""}
           </pre>
         )}
         <div className="flex gap-3 justify-center">
@@ -52,5 +54,5 @@ export default function KodyError({
         </div>
       </div>
     </div>
-  )
+  );
 }

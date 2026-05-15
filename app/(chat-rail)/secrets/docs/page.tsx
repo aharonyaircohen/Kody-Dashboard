@@ -5,34 +5,34 @@
  * @ai-summary Renders docs/secrets-vault.md inside the dashboard so users can
  *   read setup, threat model, and rotation guidance without leaving the UI.
  */
-import { promises as fs } from "node:fs"
-import path from "node:path"
-import Link from "next/link"
-import { ArrowLeft, ExternalLink } from "lucide-react"
-import { MarkdownViewer } from "@dashboard/lib/components/MarkdownViewer"
-import { buildKodyMetadata } from "../../../metadata"
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import Link from "next/link";
+import { ArrowLeft, ExternalLink } from "lucide-react";
+import { MarkdownViewer } from "@dashboard/lib/components/MarkdownViewer";
+import { buildKodyMetadata } from "../../../metadata";
 
-export const dynamic = "force-static"
-export const revalidate = false
+export const dynamic = "force-static";
+export const revalidate = false;
 
 export const metadata = buildKodyMetadata({
   title: "Secrets vault docs — Kody Operations Dashboard",
   description:
     "How the .kody/secrets.enc vault works, how to set it up, and how to rotate keys.",
   path: "/secrets/docs",
-})
+});
 
 async function readDocs(): Promise<string> {
   try {
-    const file = path.join(process.cwd(), "docs", "secrets-vault.md")
-    return await fs.readFile(file, "utf8")
+    const file = path.join(process.cwd(), "docs", "secrets-vault.md");
+    return await fs.readFile(file, "utf8");
   } catch {
-    return "# Secrets vault docs\n\nDocs file (`docs/secrets-vault.md`) not found in this build."
+    return "# Secrets vault docs\n\nDocs file (`docs/secrets-vault.md`) not found in this build.";
   }
 }
 
 export default async function SecretsDocsPage() {
-  const content = await readDocs()
+  const content = await readDocs();
   return (
     <div className="min-h-screen bg-black/95 text-white/90">
       <header className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/30">
@@ -59,5 +59,5 @@ export default async function SecretsDocsPage() {
         <MarkdownViewer content={content} title="docs/secrets-vault.md" />
       </main>
     </div>
-  )
+  );
 }

@@ -19,55 +19,64 @@
  * protocol — client accumulates chunks into the assistant bubble).
  */
 
-import { randomBytes } from "node:crypto"
-import { NextRequest, NextResponse } from "next/server"
-import { streamText, stepCountIs, type ModelMessage, type LanguageModel } from "ai"
-import { createAnthropic } from "@ai-sdk/anthropic"
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
+import { randomBytes } from "node:crypto";
+import { NextRequest, NextResponse } from "next/server";
+import {
+  streamText,
+  stepCountIs,
+  type ModelMessage,
+  type LanguageModel,
+} from "ai";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
   AGENT_KODY,
   getAgent,
   isValidAgentId,
   type AgentConfig,
   type AgentId,
-} from "@dashboard/lib/agents"
-import { applyVoiceOverlay } from "@dashboard/lib/voice/overlay"
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
-import { createUserOctokit, setGitHubContext, clearGitHubContext } from "@dashboard/lib/github-client"
-import { getSecret } from "@dashboard/lib/vault/get-secret"
+} from "@dashboard/lib/agents";
+import { applyVoiceOverlay } from "@dashboard/lib/voice/overlay";
+import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import {
+  createUserOctokit,
+  setGitHubContext,
+  clearGitHubContext,
+} from "@dashboard/lib/github-client";
+import { getSecret } from "@dashboard/lib/vault/get-secret";
 import {
   loadChatModels,
   pickDefaultModel,
   pickModelById,
-} from "@dashboard/lib/variables/models"
+} from "@dashboard/lib/variables/models";
 import {
   buildSystemPrompt,
   type GoalContext,
   type JobContext,
   type TaskContext,
-} from "./system-prompt"
-import { createGitHubTools } from "../tools/github-tools"
-import { createPipelineTools } from "../tools/pipeline-tools"
-import { createRemoteTools } from "../tools/remote-tools"
-import { createBugTools } from "../tools/bug-tools"
-import { createTaskTools } from "../tools/task-tools"
-import { createJobTools } from "../tools/job-tools"
-import { createMemoryTools } from "../tools/memory-tools"
-import { createPlannerTools } from "../tools/planner-tools"
-import { createReleaseTools } from "../tools/release-tools"
-import { createKodyTools } from "../tools/kody-tools"
-import { createVibeTools } from "../tools/vibe-tools"
-import { fetchUrlTool } from "../tools/fetch-url"
-import { featureTools } from "../tools/feature-tools"
-import { uiTools } from "../tools/ui-tools"
-import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files"
-import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files"
+} from "./system-prompt";
+import { createGitHubTools } from "../tools/github-tools";
+import { createPipelineTools } from "../tools/pipeline-tools";
+import { createRemoteTools } from "../tools/remote-tools";
+import { createBugTools } from "../tools/bug-tools";
+import { createTaskTools } from "../tools/task-tools";
+import { createJobTools } from "../tools/job-tools";
+import { createMemoryTools } from "../tools/memory-tools";
+import { createPlannerTools } from "../tools/planner-tools";
+import { createReleaseTools } from "../tools/release-tools";
+import { createKodyTools } from "../tools/kody-tools";
+import { createVibeTools } from "../tools/vibe-tools";
+import { fetchUrlTool } from "../tools/fetch-url";
+import { featureTools } from "../tools/feature-tools";
+import { uiTools } from "../tools/ui-tools";
+import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files";
+import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
 
-export const runtime = "nodejs"
+export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
 // each with its own LLM round-trip. 60s would cut us off mid-stream and the
 // UI would hang. 300s is the Vercel Pro ceiling and gives plenty of slack.
-export const maxDuration = 300
+export const maxDuration = 300;
 
 // Provider/model are managed entirely from the dashboard. The
 // `LLM_MODELS` variable lists user-curated models; each entry binds a
@@ -83,30 +92,33 @@ export const maxDuration = 300
 // through the GitHub Actions engine.
 
 interface IncomingTextPart {
-  type: "text"
-  text: string
+  type: "text";
+  text: string;
 }
 interface IncomingImagePart {
-  type: "image"
+  type: "image";
   /** base64 data URL (data:<mime>;base64,<...>) or raw http(s) URL */
-  image: string
-  mimeType?: string
+  image: string;
+  mimeType?: string;
 }
 interface IncomingFilePart {
-  type: "file"
-  data: string
-  mediaType: string
-  filename?: string
+  type: "file";
+  data: string;
+  mediaType: string;
+  filename?: string;
 }
-type IncomingPart = IncomingTextPart | IncomingImagePart | IncomingFilePart
+type IncomingPart = IncomingTextPart | IncomingImagePart | IncomingFilePart;
 
 interface IncomingMessage {
-  role: "user" | "assistant" | "system"
-  content: string | IncomingPart[]
+  role: "user" | "assistant" | "system";
+  content: string | IncomingPart[];
 }
 
 function isPartsArray(c: unknown): c is IncomingPart[] {
-  return Array.isArray(c) && c.every((p) => p && typeof p === "object" && "type" in p)
+  return (
+    Array.isArray(c) &&
+    c.every((p) => p && typeof p === "object" && "type" in p)
+  );
 }
 
 /**
@@ -119,18 +131,18 @@ function parseImageData(
   image: string,
   fallbackMime?: string,
 ): { data: string; mediaType?: string } {
-  const m = /^data:([^;,]+);base64,(.*)$/s.exec(image)
-  if (m) return { data: m[2], mediaType: m[1] || fallbackMime }
-  return { data: image, mediaType: fallbackMime }
+  const m = /^data:([^;,]+);base64,(.*)$/s.exec(image);
+  if (m) return { data: m[2], mediaType: m[1] || fallbackMime };
+  return { data: image, mediaType: fallbackMime };
 }
 
 function parseFileData(
   data: string,
   fallbackMime: string,
 ): { data: string; mediaType: string } {
-  const m = /^data:([^;,]+);base64,(.*)$/s.exec(data)
-  if (m) return { data: m[2], mediaType: m[1] || fallbackMime }
-  return { data, mediaType: fallbackMime }
+  const m = /^data:([^;,]+);base64,(.*)$/s.exec(data);
+  if (m) return { data: m[2], mediaType: m[1] || fallbackMime };
+  return { data, mediaType: fallbackMime };
 }
 
 // Cap on the number of prior turns we resend to Gemini. Long histories
@@ -138,20 +150,20 @@ function parseFileData(
 // enabled and 20+ tool schemas), and older messages rarely change the
 // next answer. The user-visible chat keeps its full transcript — only
 // the request to the model is trimmed.
-const MAX_HISTORY_MESSAGES = 16
+const MAX_HISTORY_MESSAGES = 16;
 
 // Stream tracing uses console.* (not the pino `logger`) on purpose: pino
 // buffers writes asynchronously, and Vercel functions can be killed or
 // suspended mid-stream — losing the trail. console.* is line-flushed on
 // Vercel's runtime so we always see the events that fired before death.
 function traceLog(data: object, msg: string): void {
-  console.log(JSON.stringify({ level: "info", msg, ...data }))
+  console.log(JSON.stringify({ level: "info", msg, ...data }));
 }
 function traceWarn(data: object, msg: string): void {
-  console.warn(JSON.stringify({ level: "warn", msg, ...data }))
+  console.warn(JSON.stringify({ level: "warn", msg, ...data }));
 }
 function traceError(data: object, msg: string): void {
-  console.error(JSON.stringify({ level: "error", msg, ...data }))
+  console.error(JSON.stringify({ level: "error", msg, ...data }));
 }
 
 /**
@@ -162,29 +174,29 @@ function traceError(data: object, msg: string): void {
  * specific validation message ("tools[7].function.parameters: ...").
  */
 interface ProviderErrorLike {
-  message?: string
-  name?: string
-  statusCode?: number
-  responseBody?: string
-  url?: string
-  data?: unknown
-  cause?: unknown
+  message?: string;
+  name?: string;
+  statusCode?: number;
+  responseBody?: string;
+  url?: string;
+  data?: unknown;
+  cause?: unknown;
 }
 
 function asProviderErrorLike(e: unknown): ProviderErrorLike | null {
-  if (!e || typeof e !== "object") return null
-  return e as ProviderErrorLike
+  if (!e || typeof e !== "object") return null;
+  return e as ProviderErrorLike;
 }
 
 function formatProviderError(error: unknown): string {
-  const e = asProviderErrorLike(error)
-  if (!e) return String(error)
+  const e = asProviderErrorLike(error);
+  if (!e) return String(error);
   // Prefer a parsed Google/OpenAI-style { error: { message } } payload.
-  const data = e.data as { error?: { message?: string } } | undefined
+  const data = e.data as { error?: { message?: string } } | undefined;
   if (data && typeof data === "object") {
-    const inner = data.error?.message
+    const inner = data.error?.message;
     if (typeof inner === "string" && inner.length > 0) {
-      return e.statusCode ? `[${e.statusCode}] ${inner}` : inner
+      return e.statusCode ? `[${e.statusCode}] ${inner}` : inner;
     }
   }
   // Fall back to the raw response body — clipped so a giant HTML page
@@ -193,104 +205,110 @@ function formatProviderError(error: unknown): string {
     const clipped =
       e.responseBody.length > 600
         ? `${e.responseBody.slice(0, 600)}…`
-        : e.responseBody
-    return e.statusCode ? `[${e.statusCode}] ${clipped}` : clipped
+        : e.responseBody;
+    return e.statusCode ? `[${e.statusCode}] ${clipped}` : clipped;
   }
-  if (typeof e.message === "string" && e.message.length > 0) return e.message
-  return String(error)
+  if (typeof e.message === "string" && e.message.length > 0) return e.message;
+  return String(error);
 }
 
 function extractProviderErrorMeta(error: unknown): Record<string, unknown> {
-  const e = asProviderErrorLike(error)
-  if (!e) return {}
-  const meta: Record<string, unknown> = {}
-  if (typeof e.name === "string") meta.errName = e.name
-  if (typeof e.statusCode === "number") meta.statusCode = e.statusCode
-  if (typeof e.url === "string") meta.url = e.url
+  const e = asProviderErrorLike(error);
+  if (!e) return {};
+  const meta: Record<string, unknown> = {};
+  if (typeof e.name === "string") meta.errName = e.name;
+  if (typeof e.statusCode === "number") meta.statusCode = e.statusCode;
+  if (typeof e.url === "string") meta.url = e.url;
   if (typeof e.responseBody === "string") {
     meta.responseBody =
       e.responseBody.length > 1200
         ? `${e.responseBody.slice(0, 1200)}…`
-        : e.responseBody
+        : e.responseBody;
   }
-  return meta
+  return meta;
 }
 
 function trimToRecent(messages: ModelMessage[]): ModelMessage[] {
-  if (messages.length <= MAX_HISTORY_MESSAGES) return messages
-  const trimmed = messages.slice(-MAX_HISTORY_MESSAGES)
+  if (messages.length <= MAX_HISTORY_MESSAGES) return messages;
+  const trimmed = messages.slice(-MAX_HISTORY_MESSAGES);
   // Gemini rejects histories that don't start with a user message. Skip
   // any leading assistant/system messages in the trimmed slice.
-  const firstUserIdx = trimmed.findIndex((m) => m.role === "user")
-  return firstUserIdx <= 0 ? trimmed : trimmed.slice(firstUserIdx)
+  const firstUserIdx = trimmed.findIndex((m) => m.role === "user");
+  return firstUserIdx <= 0 ? trimmed : trimmed.slice(firstUserIdx);
 }
 
 function normalizeMessages(raw: IncomingMessage[]): ModelMessage[] {
-  const out: ModelMessage[] = []
+  const out: ModelMessage[] = [];
   for (const m of raw) {
-    if (!m || (m.role !== "user" && m.role !== "assistant" && m.role !== "system")) continue
+    if (
+      !m ||
+      (m.role !== "user" && m.role !== "assistant" && m.role !== "system")
+    )
+      continue;
 
     if (typeof m.content === "string") {
-      if (m.content.trim() === "") continue
-      out.push({ role: m.role, content: m.content } as ModelMessage)
-      continue
+      if (m.content.trim() === "") continue;
+      out.push({ role: m.role, content: m.content } as ModelMessage);
+      continue;
     }
 
-    if (!isPartsArray(m.content)) continue
+    if (!isPartsArray(m.content)) continue;
 
     // Multimodal parts are only valid on a user message in the SDK shape.
     // Strip empty text parts; drop the message if nothing remains.
     const parts = m.content
       .map((p) => {
         if (p.type === "text") {
-          return p.text.trim() === "" ? null : { type: "text" as const, text: p.text }
+          return p.text.trim() === ""
+            ? null
+            : { type: "text" as const, text: p.text };
         }
         if (p.type === "image") {
-          const parsed = parseImageData(p.image, p.mimeType)
+          const parsed = parseImageData(p.image, p.mimeType);
           return {
             type: "image" as const,
             image: parsed.data,
             ...(parsed.mediaType ? { mediaType: parsed.mediaType } : {}),
-          }
+          };
         }
         if (p.type === "file") {
-          const parsed = parseFileData(p.data, p.mediaType)
+          const parsed = parseFileData(p.data, p.mediaType);
           return {
             type: "file" as const,
             data: parsed.data,
             mediaType: parsed.mediaType,
             ...(p.filename ? { filename: p.filename } : {}),
-          }
+          };
         }
-        return null
+        return null;
       })
-      .filter((p): p is NonNullable<typeof p> => p !== null)
+      .filter((p): p is NonNullable<typeof p> => p !== null);
 
-    if (parts.length === 0) continue
+    if (parts.length === 0) continue;
     if (m.role === "user") {
-      out.push({ role: "user", content: parts })
+      out.push({ role: "user", content: parts });
     } else {
       // assistant/system can't carry image parts — collapse to text only.
       const text = parts
         .filter((p): p is { type: "text"; text: string } => p.type === "text")
         .map((p) => p.text)
-        .join("\n")
-      if (text.trim() === "") continue
-      out.push({ role: m.role, content: text } as ModelMessage)
+        .join("\n");
+      if (text.trim() === "") continue;
+      out.push({ role: m.role, content: text } as ModelMessage);
     }
   }
-  return out
+  return out;
 }
 
 export async function POST(req: NextRequest) {
   // Short trace ID lets us follow a single chat request through every log
   // line (start, per-tool start/finish, per-step finish, errors, finish).
   // Grep `vercel logs` for the ID to see one session's full trace.
-  const traceId = randomBytes(4).toString("hex")
-  const reqStartedAt = Date.now()
+  const traceId = randomBytes(4).toString("hex");
+  const reqStartedAt = Date.now();
 
-  const authError = await requireKodyAuth(req)
-  if (authError) return authError
+  const authError = await requireKodyAuth(req);
+  if (authError) return authError;
 
   // Key resolution is per-model: each LLM_MODELS entry names which secret
   // to read at request time. We defer the actual lookup until after we
@@ -298,24 +316,24 @@ export async function POST(req: NextRequest) {
   // model Y.
 
   let body: {
-    messages?: IncomingMessage[]
-    model?: string
-    task?: TaskContext
+    messages?: IncomingMessage[];
+    model?: string;
+    task?: TaskContext;
     /** GitHub login of the requester — gates remote_* tools. Optional. */
-    actorLogin?: string
+    actorLogin?: string;
     /** When true, append a job-drafting block to the system prompt. */
-    jobDraft?: boolean
+    jobDraft?: boolean;
     /** Current job context — scopes the chat to a specific job issue. */
-    job?: JobContext
+    job?: JobContext;
     /**
      * When true, append the goal-planning block to the system prompt and
      * wire the planner tools (`create_task_for_goal`). `goal` must be set.
      */
-    goalPlanner?: boolean
+    goalPlanner?: boolean;
     /** The goal this planner session is scoped to. */
-    goal?: GoalContext
+    goal?: GoalContext;
     /** Currently-viewed report on /reports — scopes the chat to advise on it. */
-    report?: { slug: string; title: string; body: string }
+    report?: { slug: string; title: string; body: string };
     /**
      * Which agent persona to use for the system prompt. Defaults to `kody`.
      * Any agent whose backend is `kody-direct` is served natively here;
@@ -325,7 +343,7 @@ export async function POST(req: NextRequest) {
      * voice mode regardless of selected agent — voice is a modality, not a
      * backend swap).
      */
-    agentId?: AgentId
+    agentId?: AgentId;
     /**
      * Voice modality. When true the server appends `VOICE_OVERLAY_PROMPT`
      * to the resolved agent's base prompt (no markdown, short sentences,
@@ -334,38 +352,41 @@ export async function POST(req: NextRequest) {
      * client hasn't pinned a model explicitly. The chosen agent's brain
      * and tools stay in charge — only the output shape changes.
      */
-    voiceMode?: boolean
+    voiceMode?: boolean;
     /**
      * Vibe mode. When true the chat is scoped to the selected vibe task and
      * the prompt flips to "you ARE the executor — drive Kody Live/Fly, open
      * PRs directly, never dispatch @kody". The Kody-dispatch tools are
      * stripped from the tool set so the model can't trigger the pipeline.
      */
-    vibeMode?: boolean
-  }
+    vibeMode?: boolean;
+  };
   try {
-    body = (await req.json()) as typeof body
+    body = (await req.json()) as typeof body;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const allMessages = normalizeMessages(body.messages ?? [])
+  const allMessages = normalizeMessages(body.messages ?? []);
   if (allMessages.length === 0) {
-    return NextResponse.json({ error: "messages required (non-empty)" }, { status: 400 })
+    return NextResponse.json(
+      { error: "messages required (non-empty)" },
+      { status: 400 },
+    );
   }
-  const messages = trimToRecent(allMessages)
-  const trimmedCount = allMessages.length - messages.length
+  const messages = trimToRecent(allMessages);
+  const trimmedCount = allMessages.length - messages.length;
 
   // Resolve the model from the user-managed list in .kody/variables.json.
   // The client can override per-request via `body.model`, but it must
   // match an enabled entry — we never trust arbitrary ids from the wire.
   // Voice mode does not affect model selection; it's a per-turn prompt
   // overlay only (see system-prompt builder).
-  const availableModels = await loadChatModels(req)
-  const voiceMode = body.voiceMode === true
+  const availableModels = await loadChatModels(req);
+  const voiceMode = body.voiceMode === true;
   const resolvedModel =
     pickModelById(availableModels, body.model) ??
-    pickDefaultModel(availableModels)
+    pickDefaultModel(availableModels);
   if (!resolvedModel) {
     return NextResponse.json(
       {
@@ -375,14 +396,14 @@ export async function POST(req: NextRequest) {
           "No chat models configured. Add one at /models, or fall back to Kody Live.",
       },
       { status: 409 },
-    )
+    );
   }
-  const modelId = resolvedModel.id
+  const modelId = resolvedModel.id;
 
   // Pull the per-model API key from the vault (or env fallback). When
   // the secret is missing we fall back to Kody Live so the user isn't
   // dropped into a 5xx loop because they forgot to fill one entry.
-  const apiKey = await getSecret(resolvedModel.apiKeySecret, { req })
+  const apiKey = await getSecret(resolvedModel.apiKeySecret, { req });
   if (!apiKey) {
     return NextResponse.json(
       {
@@ -391,19 +412,19 @@ export async function POST(req: NextRequest) {
         message: `${resolvedModel.apiKeySecret} is not set. Add it under /secrets, or fall back to Kody Live.`,
       },
       { status: 409 },
-    )
+    );
   }
 
   // Pick the SDK by wire protocol. `anthropic` keeps Claude's native
   // features (prompt caching, full thinking control). `openai` covers
   // every OpenAI-compatible endpoint (Gemini compat, GPT, Groq, etc).
-  let model: LanguageModel
+  let model: LanguageModel;
   if (resolvedModel.protocol === "anthropic") {
     const anthropic = createAnthropic({
       apiKey,
       ...(resolvedModel.baseURL ? { baseURL: resolvedModel.baseURL } : {}),
-    })
-    model = anthropic(resolvedModel.modelName)
+    });
+    model = anthropic(resolvedModel.modelName);
   } else {
     if (!resolvedModel.baseURL) {
       return NextResponse.json(
@@ -413,44 +434,44 @@ export async function POST(req: NextRequest) {
           message: `Model ${modelId} has no baseURL. Edit it under /models.`,
         },
         { status: 409 },
-      )
+      );
     }
     const openai = createOpenAICompatible({
       name: resolvedModel.provider,
       apiKey,
       baseURL: resolvedModel.baseURL,
-    })
-    model = openai(resolvedModel.modelName)
+    });
+    model = openai(resolvedModel.modelName);
   }
-  const repo = getRequestAuth(req)
-  const goalPlannerActive = body.goalPlanner === true && !!body.goal
+  const repo = getRequestAuth(req);
+  const goalPlannerActive = body.goalPlanner === true && !!body.goal;
 
   // Memory index injection requires the github-client module-level context
   // (the cached loader uses `getOctokit()` / `getOwner()` / `getRepo()`).
   // Set the context here, before buildSystemPrompt, and rely on the
   // existing onFinish / catch paths to clear it. Per-request octokits
   // for GitHub tools are still created separately below to avoid races.
-  let memoryIndex: string | null = null
-  let userInstructions: string | null = null
+  let memoryIndex: string | null = null;
+  let userInstructions: string | null = null;
   if (repo) {
-    setGitHubContext(repo.owner, repo.repo, repo.token)
+    setGitHubContext(repo.owner, repo.repo, repo.token);
     try {
-      memoryIndex = await loadMemoryIndexForPrompt()
+      memoryIndex = await loadMemoryIndexForPrompt();
     } catch (err) {
       // Memory is best-effort; never block the chat. Log and continue.
       traceWarn(
         { traceId, err: err instanceof Error ? err.message : String(err) },
         "kody-direct: memory index load failed (continuing without it)",
-      )
+      );
     }
     try {
-      userInstructions = await loadInstructionsForPrompt()
+      userInstructions = await loadInstructionsForPrompt();
     } catch (err) {
       // Instructions are best-effort; never block the chat. Log and continue.
       traceWarn(
         { traceId, err: err instanceof Error ? err.message : String(err) },
         "kody-direct: user instructions load failed (continuing without them)",
-      )
+      );
     }
   }
 
@@ -470,35 +491,34 @@ export async function POST(req: NextRequest) {
   // stale client or someone calling the API directly — neither should
   // be answered as Kody.
   const requestedAgentId =
-    body.agentId && isValidAgentId(body.agentId) ? body.agentId : "kody"
-  const requestedAgent: AgentConfig = getAgent(requestedAgentId)
+    body.agentId && isValidAgentId(body.agentId) ? body.agentId : "kody";
+  const requestedAgent: AgentConfig = getAgent(requestedAgentId);
   if (voiceMode && requestedAgent.backend !== "kody-direct") {
     return NextResponse.json(
       {
         error: "voice_not_supported_for_agent",
-        message:
-          `Voice mode requires a kody-direct agent. "${requestedAgent.name}" runs on ${requestedAgent.backend}; the voice overlay can't be applied there. Switch to a Kody (in-process) agent in the dropdown to use the mic.`,
+        message: `Voice mode requires a kody-direct agent. "${requestedAgent.name}" runs on ${requestedAgent.backend}; the voice overlay can't be applied there. Switch to a Kody (in-process) agent in the dropdown to use the mic.`,
       },
       { status: 400 },
-    )
+    );
   }
   const agent: AgentConfig =
-    requestedAgent.backend === "kody-direct" ? requestedAgent : AGENT_KODY
+    requestedAgent.backend === "kody-direct" ? requestedAgent : AGENT_KODY;
 
-  const vibeMode = body.vibeMode === true
+  const vibeMode = body.vibeMode === true;
 
   // In vibe mode the agent decides Fly vs. Live without asking. Probe
   // the vault for FLY_API_TOKEN so the prompt can tell the agent which
   // runner is actually configured for THIS user — Fly is opt-in, not
   // default. Outside vibe mode this signal isn't used, so skip the
   // vault read on the hot path.
-  let flyConfigured = false
+  let flyConfigured = false;
   if (vibeMode) {
     try {
-      const flyToken = await getSecret('FLY_API_TOKEN', { req })
-      flyConfigured = Boolean(flyToken && flyToken.trim().length > 0)
+      const flyToken = await getSecret("FLY_API_TOKEN", { req });
+      flyConfigured = Boolean(flyToken && flyToken.trim().length > 0);
     } catch {
-      flyConfigured = false
+      flyConfigured = false;
     }
   }
 
@@ -517,7 +537,7 @@ export async function POST(req: NextRequest) {
       flyConfigured,
       userInstructions,
     },
-  )
+  );
 
   // Voice modality is layered onto the FULLY-ASSEMBLED prompt, appended
   // LAST so its rules ("no markdown, short sentences, symbols-as-words")
@@ -525,7 +545,7 @@ export async function POST(req: NextRequest) {
   // which otherwise teach the model to reply in bullet-heavy markdown.
   // The agent's brain and tools are untouched — the user picks the brain
   // in the dropdown; only the output shape changes.
-  const systemPrompt = applyVoiceOverlay(assembledPrompt, voiceMode)
+  const systemPrompt = applyVoiceOverlay(assembledPrompt, voiceMode);
 
   // Build the per-request tool set. GitHub + pipeline tools require a
   // resolved repo; remote tools require a configured actorLogin. The
@@ -539,12 +559,12 @@ export async function POST(req: NextRequest) {
     fetch_url: fetchUrlTool,
     ...featureTools,
     ...uiTools,
-  }
-  let extraTools: Record<string, unknown> = {}
+  };
+  let extraTools: Record<string, unknown> = {};
   if (repo) {
     // Per-request Octokit (no shared singleton) so the GitHub tools
     // don't race other concurrent /api/kody/chat/kody requests.
-    const octokit = createUserOctokit(repo.token)
+    const octokit = createUserOctokit(repo.token);
     extraTools = {
       ...extraTools,
       ...createGitHubTools({ octokit, owner: repo.owner, repo: repo.repo }),
@@ -592,7 +612,7 @@ export async function POST(req: NextRequest) {
             goalId: body.goal.id,
           })
         : {}),
-    }
+    };
     // Pipeline tools currently use github-client's module-level context
     // (already set above for the memory index loader) — they do *not* take
     // the per-request octokit. Concurrent requests can race that state;
@@ -600,12 +620,12 @@ export async function POST(req: NextRequest) {
     extraTools = {
       ...extraTools,
       ...createPipelineTools({ owner: repo.owner, repo: repo.repo }),
-    }
+    };
   }
   extraTools = {
     ...extraTools,
     ...createRemoteTools(body.actorLogin ?? null),
-  }
+  };
   // Vibe mode: strip every tool that posts an `@kody ...` comment on an
   // issue or PR. In vibe the chat IS the executor — it drives the Live/Fly
   // runner directly and opens PRs without going through the Kody pipeline.
@@ -620,24 +640,24 @@ export async function POST(req: NextRequest) {
     "kody_revert_pr",
     "kody_sync_pr",
     "request_release",
-  ])
-  const mergedTools = { ...baseTools, ...extraTools }
+  ]);
+  const mergedTools = { ...baseTools, ...extraTools };
   if (vibeMode) {
-    for (const name of VIBE_DISALLOWED_TOOLS) delete mergedTools[name]
+    for (const name of VIBE_DISALLOWED_TOOLS) delete mergedTools[name];
   } else {
     // Outside vibe, the chat doesn't pre-create branches/PRs — that's
     // strictly a vibe-mode parallelism trick.
-    delete mergedTools.vibe_start_execution
+    delete mergedTools.vibe_start_execution;
   }
-  const tools = mergedTools as Parameters<typeof streamText>[0]["tools"]
+  const tools = mergedTools as Parameters<typeof streamText>[0]["tools"];
 
-  let stepNum = 0
+  let stepNum = 0;
 
   // Heartbeat warnings. If no step has finished by T+30s/T+60s, log a
   // warning so we can spot first-step stalls (Gemini taking forever before
   // any tokens / tool calls). Cleared at first step finish, completion, or
   // any error path. Declared outside the try so the catch can clear them.
-  const heartbeats: NodeJS.Timeout[] = []
+  const heartbeats: NodeJS.Timeout[] = [];
   const armHeartbeat = (ms: number) => {
     heartbeats.push(
       setTimeout(() => {
@@ -645,15 +665,15 @@ export async function POST(req: NextRequest) {
           traceWarn(
             { traceId, elapsedMs: ms, messageCount: messages.length, modelId },
             "kody-direct: no step finished yet (model may be stuck before first token)",
-          )
+          );
         }
       }, ms),
-    )
-  }
+    );
+  };
   const clearHeartbeats = () => {
-    for (const h of heartbeats) clearTimeout(h)
-    heartbeats.length = 0
-  }
+    for (const h of heartbeats) clearTimeout(h);
+    heartbeats.length = 0;
+  };
 
   try {
     traceLog(
@@ -667,9 +687,9 @@ export async function POST(req: NextRequest) {
         toolCount: Object.keys(tools ?? {}).length,
       },
       "kody-direct: streaming",
-    )
-    armHeartbeat(30_000)
-    armHeartbeat(60_000)
+    );
+    armHeartbeat(30_000);
+    armHeartbeat(60_000);
     const result = streamText({
       model,
       system: systemPrompt,
@@ -727,7 +747,7 @@ export async function POST(req: NextRequest) {
             toolCallId: toolCall.toolCallId,
           },
           "kody-direct: tool start",
-        )
+        );
       },
       experimental_onToolCallFinish: (event) => {
         const base = {
@@ -735,19 +755,25 @@ export async function POST(req: NextRequest) {
           tool: event.toolCall.toolName,
           toolCallId: event.toolCall.toolCallId,
           durationMs: event.durationMs,
-        }
+        };
         if (event.success) {
-          traceLog(base, "kody-direct: tool ok")
+          traceLog(base, "kody-direct: tool ok");
         } else {
           traceWarn(
-            { ...base, err: event.error instanceof Error ? event.error.message : String(event.error) },
+            {
+              ...base,
+              err:
+                event.error instanceof Error
+                  ? event.error.message
+                  : String(event.error),
+            },
             "kody-direct: tool error",
-          )
+          );
         }
       },
       onStepFinish: (step) => {
-        stepNum++
-        if (stepNum === 1) clearHeartbeats()
+        stepNum++;
+        if (stepNum === 1) clearHeartbeats();
         traceLog(
           {
             traceId,
@@ -757,10 +783,10 @@ export async function POST(req: NextRequest) {
             usage: step.usage,
           },
           "kody-direct: step finish",
-        )
+        );
       },
       onError: ({ error }) => {
-        clearHeartbeats()
+        clearHeartbeats();
         // Server-side log of stream errors. We *also* surface the message
         // to the UI via the `onError` arg to toUIMessageStreamResponse
         // below, so the user sees what happened instead of a silent hang.
@@ -772,11 +798,11 @@ export async function POST(req: NextRequest) {
             ...extractProviderErrorMeta(error),
           },
           "kody-direct: stream onError",
-        )
+        );
       },
       onFinish: (event) => {
-        clearHeartbeats()
-        clearGitHubContext()
+        clearHeartbeats();
+        clearGitHubContext();
         traceLog(
           {
             traceId,
@@ -786,9 +812,9 @@ export async function POST(req: NextRequest) {
             usage: event.usage,
           },
           "kody-direct: finish",
-        )
+        );
       },
-    })
+    });
     return result.toUIMessageStreamResponse({
       sendReasoning: true,
       // Without this the SDK ships a generic "An error occurred." string.
@@ -796,23 +822,23 @@ export async function POST(req: NextRequest) {
       // (rate limits, quota, bad tool args, etc.) — both for the user and
       // for support sessions where they paste the message back to us.
       onError: (error) => {
-        clearHeartbeats()
-        const msg = formatProviderError(error)
+        clearHeartbeats();
+        const msg = formatProviderError(error);
         traceError(
           { traceId, err: msg, ...extractProviderErrorMeta(error) },
           "kody-direct: ui-stream onError",
-        )
-        return `[trace ${traceId}] ${msg}`
+        );
+        return `[trace ${traceId}] ${msg}`;
       },
-    })
+    });
   } catch (err) {
-    clearHeartbeats()
-    clearGitHubContext()
-    const msg = formatProviderError(err)
+    clearHeartbeats();
+    clearGitHubContext();
+    const msg = formatProviderError(err);
     traceError(
       { traceId, err: msg, ...extractProviderErrorMeta(err) },
       "kody-direct: stream failed",
-    )
-    return NextResponse.json({ error: msg, traceId }, { status: 500 })
+    );
+    return NextResponse.json({ error: msg, traceId }, { status: 500 });
   }
 }

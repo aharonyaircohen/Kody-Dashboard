@@ -16,10 +16,7 @@ export function validateDiscord(c: Channel): string | null {
   return null;
 }
 
-export async function sendDiscord(
-  c: Channel,
-  ctx: SendContext,
-): Promise<void> {
+export async function sendDiscord(c: Channel, ctx: SendContext): Promise<void> {
   // Discord caps content at 2000 chars; truncate with an ellipsis so a
   // long PR body never causes a 400.
   const content =

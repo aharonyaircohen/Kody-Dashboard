@@ -60,9 +60,17 @@ async function getFileContent(
   branch: string,
 ): Promise<{ content: string; sha?: string } | null> {
   try {
-    const { data } = await octokit.rest.repos.getContent({ owner, repo, path: STORE_FILE, ref: branch });
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: STORE_FILE,
+      ref: branch,
+    });
     if ("content" in data && data.content) {
-      return { content: Buffer.from(data.content, "base64").toString("utf-8"), sha: data.sha as string };
+      return {
+        content: Buffer.from(data.content, "base64").toString("utf-8"),
+        sha: data.sha as string,
+      };
     }
   } catch (err: unknown) {
     const e = err as { status?: number };
@@ -99,10 +107,16 @@ export async function logEvent(
   payload: Record<string, unknown>,
   actionState?: EventLogEntry["actionState"],
   channel = "pipeline",
-  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+  opts: {
+    owner?: string;
+    repo?: string;
+    branch?: string;
+    octokit?: Octokit | null;
+  } = {},
 ): Promise<EventLogEntry> {
   const octokit = getOrCreateOctokit(opts.octokit);
-  if (!octokit) throw new Error("No GitHub token available for event log store");
+  if (!octokit)
+    throw new Error("No GitHub token available for event log store");
 
   const owner = opts.owner ?? getDefaultOwner();
   const repo = opts.repo ?? getDefaultRepo();
@@ -128,7 +142,8 @@ export async function logEvent(
     if (lines.length >= MAX_ENTRIES) {
       lines.splice(0, lines.length - MAX_ENTRIES + 1);
     }
-    finalContent = [...lines, entry].map((e) => JSON.stringify(e)).join("\n") + "\n";
+    finalContent =
+      [...lines, entry].map((e) => JSON.stringify(e)).join("\n") + "\n";
   } else {
     finalContent = newLine;
   }
@@ -140,7 +155,12 @@ export async function logEvent(
 /** Get all events for a runId. */
 export async function getEventHistory(
   runId: string,
-  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+  opts: {
+    owner?: string;
+    repo?: string;
+    branch?: string;
+    octokit?: Octokit | null;
+  } = {},
 ): Promise<EventLogEntry[]> {
   const octokit = getOrCreateOctokit(opts.octokit);
   if (!octokit) return [];
@@ -157,15 +177,23 @@ export async function getEventHistory(
     .split("\n")
     .filter(Boolean)
     .map((line) => {
-      try { return JSON.parse(line) as EventLogEntry; }
-      catch { return null; }
+      try {
+        return JSON.parse(line) as EventLogEntry;
+      } catch {
+        return null;
+      }
     })
     .filter((e): e is EventLogEntry => e !== null && e.runId === runId);
 }
 
 /** Get all events (no filter). */
 export async function getAllEvents(
-  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+  opts: {
+    owner?: string;
+    repo?: string;
+    branch?: string;
+    octokit?: Octokit | null;
+  } = {},
 ): Promise<EventLogEntry[]> {
   const octokit = getOrCreateOctokit(opts.octokit);
   if (!octokit) return [];
@@ -182,8 +210,11 @@ export async function getAllEvents(
     .split("\n")
     .filter(Boolean)
     .map((line) => {
-      try { return JSON.parse(line) as EventLogEntry; }
-      catch { return null; }
+      try {
+        return JSON.parse(line) as EventLogEntry;
+      } catch {
+        return null;
+      }
     })
     .filter((e): e is EventLogEntry => e !== null);
 }
@@ -191,7 +222,12 @@ export async function getAllEvents(
 /** Get the most recent event for a runId. */
 export async function getLastEvent(
   runId: string,
-  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+  opts: {
+    owner?: string;
+    repo?: string;
+    branch?: string;
+    octokit?: Octokit | null;
+  } = {},
 ): Promise<EventLogEntry | null> {
   const history = await getEventHistory(runId, opts);
   return history.at(-1) ?? null;

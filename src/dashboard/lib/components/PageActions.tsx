@@ -7,19 +7,19 @@
  *   the dashboard and inside `desktopExtras` on the Vibe page so both surfaces
  *   keep the same actions while the global header stays minimal.
  */
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { GitBranch, Layers, ScrollText } from 'lucide-react'
+import Link from "next/link";
+import { GitBranch, Layers, ScrollText } from "lucide-react";
 
-import { Button } from '@dashboard/ui/button'
-import { PublishButton } from './PublishButton'
-import { SimpleTooltip } from './SimpleTooltip'
+import { Button } from "@dashboard/ui/button";
+import { PublishButton } from "./PublishButton";
+import { SimpleTooltip } from "./SimpleTooltip";
 
 interface PageActionsProps {
-  onOpenBranchCleanup: () => void
-  onPublished?: (issueNumber: number) => void
-  actorLogin?: string
+  onOpenBranchCleanup: () => void;
+  onPublished?: (issueNumber: number) => void;
+  actorLogin?: string;
 }
 
 export function PageActions({
@@ -58,5 +58,5 @@ export function PageActions({
 
       <PublishButton actorLogin={actorLogin} onPublished={onPublished} />
     </div>
-  )
+  );
 }

@@ -23,67 +23,70 @@
  * for that case, but the server still guards against direct calls.
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from "next/server";
 
-import { getRequestAuth, requireKodyAuth } from '@dashboard/lib/auth'
-import { logger } from '@dashboard/lib/logger'
+import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
+import { logger } from "@dashboard/lib/logger";
 import {
   streamBrainChat,
   type BrainAttachment,
   type BrainJobContext,
   type BrainTaskContext,
-} from '@dashboard/lib/brain-proxy'
-import { provisionBrain, waitForBrainHealth } from '@dashboard/lib/runners/brain-fly'
-import { resolveFlyContext } from '@dashboard/lib/runners/fly-context'
+} from "@dashboard/lib/brain-proxy";
+import {
+  provisionBrain,
+  waitForBrainHealth,
+} from "@dashboard/lib/runners/brain-fly";
+import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 
-export const runtime = 'nodejs'
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req)
-  if (authError) return authError
+  const authError = await requireKodyAuth(req);
+  if (authError) return authError;
 
-  const ctx = await resolveFlyContext(req)
+  const ctx = await resolveFlyContext(req);
   if (!ctx.ok) {
-    return NextResponse.json({ error: ctx.error }, { status: ctx.status })
+    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
   if (!ctx.context.flyToken) {
     return NextResponse.json(
       {
         error:
-          'Brain on Fly needs a Fly Machines token — add FLY_API_TOKEN to the repo Secrets vault.',
+          "Brain on Fly needs a Fly Machines token — add FLY_API_TOKEN to the repo Secrets vault.",
       },
       { status: 400 },
-    )
+    );
   }
 
   let body: {
-    chatId?: string
-    message?: string
-    taskContext?: BrainTaskContext
-    attachments?: BrainAttachment[]
-    jobDraft?: boolean
-    jobContext?: BrainJobContext
-    voiceMode?: boolean
-  }
+    chatId?: string;
+    message?: string;
+    taskContext?: BrainTaskContext;
+    attachments?: BrainAttachment[];
+    jobDraft?: boolean;
+    jobContext?: BrainJobContext;
+    voiceMode?: boolean;
+  };
   try {
-    body = await req.json()
+    body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const chatId = body.chatId?.trim()
-  const message = body.message
+  const chatId = body.chatId?.trim();
+  const message = body.message;
   if (!chatId) {
-    return NextResponse.json({ error: 'chatId required' }, { status: 400 })
+    return NextResponse.json({ error: "chatId required" }, { status: 400 });
   }
-  if (!message || typeof message !== 'string') {
-    return NextResponse.json({ error: 'message required' }, { status: 400 })
+  if (!message || typeof message !== "string") {
+    return NextResponse.json({ error: "message required" }, { status: 400 });
   }
 
   // Provision (or reuse) the user's brain machine. Idempotent: returns the
   // existing apiKey when a live machine exists, otherwise creates one and
   // returns a fresh key.
-  let provisioned: { url: string; apiKey: string }
+  let provisioned: { url: string; apiKey: string };
   try {
     const result = await provisionBrain({
       flyToken: ctx.context.flyToken,
@@ -93,15 +96,18 @@ export async function POST(req: NextRequest) {
       allSecrets: ctx.context.allSecrets,
       perfTier: ctx.context.perfTier,
       litellmUrl: ctx.context.litellmUrl,
-    })
-    provisioned = { url: result.url, apiKey: result.apiKey }
+    });
+    provisioned = { url: result.url, apiKey: result.apiKey };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = err instanceof Error ? err.message : String(err);
     logger.error(
       { err, owner: ctx.context.owner },
-      'chat/brain-fly: provisionBrain failed',
-    )
-    return NextResponse.json({ error: `Brain provision failed: ${message}` }, { status: 502 })
+      "chat/brain-fly: provisionBrain failed",
+    );
+    return NextResponse.json(
+      { error: `Brain provision failed: ${message}` },
+      { status: 502 },
+    );
   }
 
   // Provision returns when the Fly Machine API has accepted the create
@@ -110,21 +116,23 @@ export async function POST(req: NextRequest) {
   // (~30-60s on a cold provision). On reuse the server is already up and
   // this returns on the first poll.
   try {
-    await waitForBrainHealth(provisioned.url)
+    await waitForBrainHealth(provisioned.url);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = err instanceof Error ? err.message : String(err);
     logger.error(
       { err, owner: ctx.context.owner, url: provisioned.url },
-      'chat/brain-fly: brain server did not become healthy',
-    )
+      "chat/brain-fly: brain server did not become healthy",
+    );
     return NextResponse.json(
       { error: `Brain server did not become healthy: ${message}` },
       { status: 504 },
-    )
+    );
   }
 
-  const headerAuth = getRequestAuth(req)
-  const repo = headerAuth ? `${headerAuth.owner}/${headerAuth.repo}` : undefined
+  const headerAuth = getRequestAuth(req);
+  const repo = headerAuth
+    ? `${headerAuth.owner}/${headerAuth.repo}`
+    : undefined;
 
   return streamBrainChat({
     brainUrl: provisioned.url,
@@ -137,5 +145,5 @@ export async function POST(req: NextRequest) {
     jobContext: body.jobContext,
     repo,
     voiceMode: body.voiceMode === true,
-  })
+  });
 }

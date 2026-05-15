@@ -6,24 +6,24 @@
  *   thrown by pages inside this group (and the group layout) without losing
  *   the chat rail chrome rendered by the root layout's ChatRailShell.
  */
-'use client'
+"use client";
 
-import { useEffect } from 'react'
-import { Button } from '@dashboard/ui/button'
-import { AlertTriangle } from 'lucide-react'
+import { useEffect } from "react";
+import { Button } from "@dashboard/ui/button";
+import { AlertTriangle } from "lucide-react";
 
 export default function ChatRailGroupError({
   error,
   reset,
 }: {
-  error: Error & { digest?: string }
-  reset: () => void
+  error: Error & { digest?: string };
+  reset: () => void;
 }) {
   useEffect(() => {
-    console.error('[KodyDashboard] (chat-rail) error:', error)
-  }, [error])
+    console.error("[KodyDashboard] (chat-rail) error:", error);
+  }, [error]);
 
-  const isDev = process.env.NODE_ENV !== 'production'
+  const isDev = process.env.NODE_ENV !== "production";
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center p-6">
@@ -44,7 +44,7 @@ export default function ChatRailGroupError({
         {isDev && error.message && (
           <pre className="text-xs text-left bg-muted p-3 rounded-md mb-4 overflow-auto max-h-40">
             {error.message}
-            {error.stack ? `\n\n${error.stack}` : ''}
+            {error.stack ? `\n\n${error.stack}` : ""}
           </pre>
         )}
         <div className="flex gap-2 justify-center">
@@ -61,5 +61,5 @@ export default function ChatRailGroupError({
         </div>
       </div>
     </div>
-  )
+  );
 }

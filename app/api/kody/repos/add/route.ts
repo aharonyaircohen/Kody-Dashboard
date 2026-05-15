@@ -80,7 +80,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (!owner || !repo || !token) {
     return NextResponse.json(
-      { error: "missing_fields", message: "owner, repo, and token are required" },
+      {
+        error: "missing_fields",
+        message: "owner, repo, and token are required",
+      },
       { status: 400 },
     );
   }
@@ -110,7 +113,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (ghRes.status === 401) {
       return NextResponse.json(
-        { error: "invalid_token", message: "GitHub rejected the token (401). Check the PAT and try again." },
+        {
+          error: "invalid_token",
+          message:
+            "GitHub rejected the token (401). Check the PAT and try again.",
+        },
         { status: 401 },
       );
     }
@@ -126,7 +133,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
     if (ghRes.status === 403) {
       return NextResponse.json(
-        { error: "forbidden", message: "GitHub returned 403. The token may be missing required scopes." },
+        {
+          error: "forbidden",
+          message:
+            "GitHub returned 403. The token may be missing required scopes.",
+        },
         { status: 403 },
       );
     }
@@ -143,10 +154,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { event: "repo_validate_network_error", owner, repo, err: String(err) },
       "Network error validating repo",
     );
-    return NextResponse.json(
-      { error: "network_error" },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: "network_error" }, { status: 502 });
   }
 
   // 1b) Fetch the token owner's basic identity. Needed so the client can
@@ -172,10 +180,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { event: "user_lookup_network_error", owner, repo, err: String(err) },
       "Network error fetching token owner",
     );
-    return NextResponse.json(
-      { error: "network_error" },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: "network_error" }, { status: 502 });
   }
 
   // 2) Best-effort webhook registration. Failure is non-fatal — polling still works.
@@ -198,7 +203,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     } else {
       webhook = { ok: false, error: result.error };
       logger.info(
-        { event: "webhook_register_failed_added_repo", owner, repo, status: result.status, error: result.error },
+        {
+          event: "webhook_register_failed_added_repo",
+          owner,
+          repo,
+          status: result.status,
+          error: result.error,
+        },
         "Webhook registration failed for added repo (non-fatal)",
       );
     }

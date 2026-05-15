@@ -10,44 +10,47 @@
  *   `app/api/kody/chat/tools/vibe-tools.ts`. Callers are now routes/tools
  *   that compose `BranchService` calls — the god-function is gone.
  */
-import { isProtectedBranch } from '../domain/protected-branches'
-import { buildBranchName, slugifyTitle } from '../domain/branch-name'
-import { isKodyOwnedBranch } from '../domain/branch-ownership'
-import type { LockPort } from '../domain/lock-port'
-import { ForeignBranchError, LockTakenError } from '../errors'
-import type { BranchRepo, MergeResult } from '../infra/github-branch-repo'
+import { isProtectedBranch } from "../domain/protected-branches";
+import { buildBranchName, slugifyTitle } from "../domain/branch-name";
+import { isKodyOwnedBranch } from "../domain/branch-ownership";
+import type { LockPort } from "../domain/lock-port";
+import { ForeignBranchError, LockTakenError } from "../errors";
+import type { BranchRepo, MergeResult } from "../infra/github-branch-repo";
 
 /** Default lease TTL for `getOrCreate` — 5 minutes covers branch
  *  create + sync + PR creation comfortably, and any crashed holder
  *  gets unblocked within that window. */
-const GET_OR_CREATE_LOCK_TTL_MS = 5 * 60_000
+const GET_OR_CREATE_LOCK_TTL_MS = 5 * 60_000;
 
 export interface GetOrCreateInput {
-  issueNumber: number
+  issueNumber: number;
   /** Optional caller-supplied slug. If omitted, derived from issue title. */
-  slug?: string
+  slug?: string;
   /** Optional base branch override. Defaults to the repo's default branch. */
-  baseRef?: string
+  baseRef?: string;
 }
 
 export interface GetOrCreateResult {
-  branchName: string
-  sha: string
-  existed: boolean
-  baseRef: string
+  branchName: string;
+  sha: string;
+  existed: boolean;
+  baseRef: string;
   /** Issue title at the time of creation — useful for downstream PR titles. */
-  issueTitle: string
+  issueTitle: string;
 }
 
 export type SyncResult =
-  | { status: 'identical' | 'ahead' | 'fast-forwarded' | 'merged'; headSha: string }
-  | { status: 'conflict'; message: string }
+  | {
+      status: "identical" | "ahead" | "fast-forwarded" | "merged";
+      headSha: string;
+    }
+  | { status: "conflict"; message: string };
 
 export interface PRResult {
-  number: number
-  url: string
+  number: number;
+  url: string;
   /** True when a new PR was opened; false when an existing one was reused. */
-  created: boolean
+  created: boolean;
 }
 
 export class BranchService {
@@ -75,31 +78,31 @@ export class BranchService {
    * - `LockTakenError` if another session is in progress on this issue
    */
   async getOrCreate(input: GetOrCreateInput): Promise<GetOrCreateResult> {
-    const lockKey = `issue-${input.issueNumber}`
+    const lockKey = `issue-${input.issueNumber}`;
     const lease = this.lock
       ? await this.lock.acquire(lockKey, GET_OR_CREATE_LOCK_TTL_MS)
-      : null
+      : null;
     if (this.lock && !lease) {
-      throw new LockTakenError(lockKey)
+      throw new LockTakenError(lockKey);
     }
 
     try {
-      const issue = await this.repo.getIssue(input.issueNumber)
+      const issue = await this.repo.getIssue(input.issueNumber);
       if (issue.isPullRequest) {
         throw new Error(
           `#${input.issueNumber} is a pull request, not an issue.`,
-        )
+        );
       }
 
-      const slug = slugifyTitle(input.slug ?? issue.title)
-      const branchName = buildBranchName(input.issueNumber, slug)
-      const baseRef = input.baseRef ?? (await this.repo.getDefaultBranch())
+      const slug = slugifyTitle(input.slug ?? issue.title);
+      const branchName = buildBranchName(input.issueNumber, slug);
+      const baseRef = input.baseRef ?? (await this.repo.getDefaultBranch());
 
       const result = await this.repo.createBranchWithMarker({
         branchName,
         baseRef,
         markerMessage: `vibe: start session for #${input.issueNumber}`,
-      })
+      });
 
       // Foreign-branch guard: if the branch already existed, verify it
       // was actually created by Kody for THIS issue before reusing it.
@@ -110,9 +113,9 @@ export class BranchService {
         const messages = await this.repo.listBranchCommitMessages({
           branchName,
           baseRef,
-        })
+        });
         if (!isKodyOwnedBranch(messages, input.issueNumber)) {
-          throw new ForeignBranchError(branchName, input.issueNumber)
+          throw new ForeignBranchError(branchName, input.issueNumber);
         }
       }
 
@@ -122,11 +125,11 @@ export class BranchService {
         existed: result.existed,
         baseRef,
         issueTitle: issue.title,
-      }
+      };
     } finally {
       if (lease) {
         try {
-          await lease.release()
+          await lease.release();
         } catch {
           // Best-effort: lease will TTL-expire anyway. Don't mask the
           // primary error (if any) with a release failure.
@@ -147,18 +150,27 @@ export class BranchService {
    *
    * Other GitHub errors propagate.
    */
-  async syncWithBase(branchName: string, baseRef?: string): Promise<SyncResult> {
-    const base = baseRef ?? (await this.repo.getDefaultBranch())
-    const cmp = await this.repo.compareCommits({ base: branchName, head: base })
+  async syncWithBase(
+    branchName: string,
+    baseRef?: string,
+  ): Promise<SyncResult> {
+    const base = baseRef ?? (await this.repo.getDefaultBranch());
+    const cmp = await this.repo.compareCommits({
+      base: branchName,
+      head: base,
+    });
 
-    if (cmp.status === 'identical' || cmp.status === 'ahead') {
-      return { status: cmp.status === 'identical' ? 'identical' : 'ahead', headSha: cmp.mergeBaseSha }
+    if (cmp.status === "identical" || cmp.status === "ahead") {
+      return {
+        status: cmp.status === "identical" ? "identical" : "ahead",
+        headSha: cmp.mergeBaseSha,
+      };
     }
 
-    if (cmp.status === 'behind') {
-      const targetSha = await this.repo.getRefSha(base)
-      await this.repo.fastForward({ branchName, targetSha })
-      return { status: 'fast-forwarded', headSha: targetSha }
+    if (cmp.status === "behind") {
+      const targetSha = await this.repo.getRefSha(base);
+      await this.repo.fastForward({ branchName, targetSha });
+      return { status: "fast-forwarded", headSha: targetSha };
     }
 
     // diverged → merge base into branch
@@ -166,11 +178,11 @@ export class BranchService {
       base: branchName,
       head: base,
       commitMessage: `Merge ${base} into ${branchName}`,
-    })
-    if (merge.kind === 'conflict') {
-      return { status: 'conflict', message: merge.message }
+    });
+    if (merge.kind === "conflict") {
+      return { status: "conflict", message: merge.message };
     }
-    return { status: 'merged', headSha: merge.sha }
+    return { status: "merged", headSha: merge.sha };
   }
 
   /**
@@ -178,45 +190,47 @@ export class BranchService {
    * already exists, otherwise opens a draft PR.
    */
   async findOrCreateDraftPR(input: {
-    branchName: string
-    baseRef: string
-    title: string
-    body: string
+    branchName: string;
+    baseRef: string;
+    title: string;
+    body: string;
   }): Promise<PRResult> {
-    const existing = await this.repo.listOpenPRsForBranch(input.branchName)
+    const existing = await this.repo.listOpenPRsForBranch(input.branchName);
     if (existing.length > 0) {
       return {
         number: existing[0].number,
         url: existing[0].htmlUrl,
         created: false,
-      }
+      };
     }
     const pr = await this.repo.createDraftPR({
       head: input.branchName,
       base: input.baseRef,
       title: input.title,
       body: input.body,
-    })
-    return { number: pr.number, url: pr.htmlUrl, created: true }
+    });
+    return { number: pr.number, url: pr.htmlUrl, created: true };
   }
 
   /**
    * Delete a branch, refusing protected names. Idempotent: deletion of a
    * branch that no longer exists is a no-op.
    */
-  async delete(branchName: string): Promise<{ deleted: boolean; reason?: string }> {
+  async delete(
+    branchName: string,
+  ): Promise<{ deleted: boolean; reason?: string }> {
     if (isProtectedBranch(branchName)) {
-      return { deleted: false, reason: 'protected' }
+      return { deleted: false, reason: "protected" };
     }
     try {
-      await this.repo.deleteBranch(branchName)
-      return { deleted: true }
+      await this.repo.deleteBranch(branchName);
+      return { deleted: true };
     } catch (err) {
-      const e = err as { status?: number; message?: string }
+      const e = err as { status?: number; message?: string };
       if (e.status === 422) {
-        return { deleted: false, reason: 'not-found' }
+        return { deleted: false, reason: "not-found" };
       }
-      throw err
+      throw err;
     }
   }
 }

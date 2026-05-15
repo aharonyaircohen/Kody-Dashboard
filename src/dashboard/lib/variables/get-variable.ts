@@ -8,37 +8,37 @@
  *   while we migrate config off env vars.
  */
 
-import type { NextRequest } from "next/server"
-import { getRequestAuth } from "@dashboard/lib/auth"
-import { createUserOctokit } from "@dashboard/lib/github-client"
-import { logger } from "@dashboard/lib/logger"
-import { readVariables } from "./store"
+import type { NextRequest } from "next/server";
+import { getRequestAuth } from "@dashboard/lib/auth";
+import { createUserOctokit } from "@dashboard/lib/github-client";
+import { logger } from "@dashboard/lib/logger";
+import { readVariables } from "./store";
 
 interface GetVariableOptions {
-  req: NextRequest
+  req: NextRequest;
   /** When true, skip the process.env fallback. Default false. */
-  variablesOnly?: boolean
+  variablesOnly?: boolean;
 }
 
 export async function getVariable(
   name: string,
   options: GetVariableOptions,
 ): Promise<string | null> {
-  const auth = getRequestAuth(options.req)
+  const auth = getRequestAuth(options.req);
   if (auth) {
     try {
-      const octokit = createUserOctokit(auth.token)
-      const { doc } = await readVariables(octokit, auth.owner, auth.repo)
-      const entry = doc.variables[name]
-      if (entry?.value) return entry.value
+      const octokit = createUserOctokit(auth.token);
+      const { doc } = await readVariables(octokit, auth.owner, auth.repo);
+      const entry = doc.variables[name];
+      if (entry?.value) return entry.value;
     } catch (err) {
       logger.warn(
         { err, name, owner: auth.owner, repo: auth.repo },
         "variables: read failed; falling back to env",
-      )
+      );
     }
   }
 
-  if (options.variablesOnly) return null
-  return process.env[name] ?? null
+  if (options.variablesOnly) return null;
+  return process.env[name] ?? null;
 }

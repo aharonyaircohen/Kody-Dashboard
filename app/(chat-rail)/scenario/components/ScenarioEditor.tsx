@@ -4,184 +4,204 @@
  * @pattern scenario-editor
  * @ai-summary Main scenario editor component with prototype, design system, and scenario builder panels
  */
-'use client'
+"use client";
 
-import { useState, useCallback } from 'react'
-import { Button } from '@dashboard/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@dashboard/ui/card'
-import { Input } from '@dashboard/ui/input'
-import { Label } from '@dashboard/ui/label'
+import { useState, useCallback } from "react";
+import { Button } from "@dashboard/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@dashboard/ui/card";
+import { Input } from "@dashboard/ui/input";
+import { Label } from "@dashboard/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@dashboard/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@dashboard/ui/tabs'
-import { Badge } from '@dashboard/ui/badge'
+} from "@dashboard/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
+import { Badge } from "@dashboard/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@dashboard/ui/dialog'
-import { PrototypePanel } from './PrototypePanel'
-import { DesignSystemPanel } from './DesignSystemPanel'
-import { ScenarioBuilder } from './ScenarioBuilder'
-import { PRDCard } from './PRDCard'
-import { Scenario, DSComponent, PrototypeElement } from '@dashboard/lib/scenario-schema-stub'
-import { toast } from 'sonner'
+} from "@dashboard/ui/dialog";
+import { PrototypePanel } from "./PrototypePanel";
+import { DesignSystemPanel } from "./DesignSystemPanel";
+import { ScenarioBuilder } from "./ScenarioBuilder";
+import { PRDCard } from "./PRDCard";
+import {
+  Scenario,
+  DSComponent,
+  PrototypeElement,
+} from "@dashboard/lib/scenario-schema-stub";
+import { toast } from "sonner";
 
-type ScenarioEditorProps = object
+type ScenarioEditorProps = object;
 
 export function ScenarioEditor({}: ScenarioEditorProps) {
   // State
   const [scenario, setScenario] = useState<Partial<Scenario>>({
-    id: '',
-    name: '',
-    type: 'feature',
+    id: "",
+    name: "",
+    type: "feature",
     steps: [],
-    status: 'draft',
-  })
-  const [selectedPrototype, setSelectedPrototype] = useState<string | null>(null)
-  const [selectedElements, setSelectedElements] = useState<PrototypeElement[]>([])
-  const [selectedComponents, setSelectedComponents] = useState<DSComponent[]>([])
-  const [showPRDDialog, setShowPRDDialog] = useState(false)
+    status: "draft",
+  });
+  const [selectedPrototype, setSelectedPrototype] = useState<string | null>(
+    null,
+  );
+  const [selectedElements, setSelectedElements] = useState<PrototypeElement[]>(
+    [],
+  );
+  const [selectedComponents, setSelectedComponents] = useState<DSComponent[]>(
+    [],
+  );
+  const [showPRDDialog, setShowPRDDialog] = useState(false);
 
   // Handlers
   const handleScenarioNameChange = useCallback((name: string) => {
     setScenario((prev) => ({
       ...prev,
-      id: name.toLowerCase().replace(/\s+/g, '-'),
+      id: name.toLowerCase().replace(/\s+/g, "-"),
       name,
-    }))
-  }, [])
+    }));
+  }, []);
 
-  const handleScenarioTypeChange = useCallback((type: 'core' | 'feature' | 'edge') => {
-    setScenario((prev) => ({ ...prev, type }))
-  }, [])
+  const handleScenarioTypeChange = useCallback(
+    (type: "core" | "feature" | "edge") => {
+      setScenario((prev) => ({ ...prev, type }));
+    },
+    [],
+  );
 
   const handleElementSelect = useCallback((element: PrototypeElement) => {
     setSelectedElements((prev) => {
-      const exists = prev.some((e) => e.id === element.id)
+      const exists = prev.some((e) => e.id === element.id);
       if (exists) {
-        return prev.filter((e) => e.id !== element.id)
+        return prev.filter((e) => e.id !== element.id);
       }
-      return [...prev, element]
-    })
-  }, [])
+      return [...prev, element];
+    });
+  }, []);
 
   const handleComponentSelect = useCallback((component: DSComponent) => {
     setSelectedComponents((prev) => {
-      const exists = prev.some((c) => c.name === component.name)
+      const exists = prev.some((c) => c.name === component.name);
       if (exists) {
-        return prev.filter((c) => c.name !== component.name)
+        return prev.filter((c) => c.name !== component.name);
       }
-      return [...prev, component]
-    })
-  }, [])
+      return [...prev, component];
+    });
+  }, []);
 
   const handleAddStep = useCallback(
-    (step: { type: string; action: string; target: string; component?: string }) => {
+    (step: {
+      type: string;
+      action: string;
+      target: string;
+      component?: string;
+    }) => {
       setScenario((prev) => ({
         ...prev,
         steps: [
           ...(prev.steps || []),
           {
-            type: step.type as 'given' | 'when' | 'then' | 'and' | 'but',
+            type: step.type as "given" | "when" | "then" | "and" | "but",
             action: step.action,
             target: step.target,
             component: step.component,
           },
         ],
-      }))
+      }));
     },
     [],
-  )
+  );
 
   const handleRemoveStep = useCallback((index: number) => {
     setScenario((prev) => ({
       ...prev,
       steps: prev.steps?.filter((_, i) => i !== index),
-    }))
-  }, [])
+    }));
+  }, []);
 
   const handleGeneratePRD = useCallback(() => {
     if (!scenario.name || !scenario.steps?.length) {
-      toast.error('Please fill in scenario name and add at least one step')
-      return
+      toast.error("Please fill in scenario name and add at least one step");
+      return;
     }
-    setShowPRDDialog(true)
-  }, [scenario])
+    setShowPRDDialog(true);
+  }, [scenario]);
 
   const handleSaveScenario = useCallback(async () => {
     if (!scenario.id || !scenario.name) {
-      toast.error('Please enter a scenario name')
-      return
+      toast.error("Please enter a scenario name");
+      return;
     }
 
     try {
       // Save to file system
-      const response = await fetch('/api/kody/scenario/scenarios', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/kody/scenario/scenarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           scenario: {
             ...scenario,
-            status: 'draft',
+            status: "draft",
             createdAt: new Date().toISOString(),
           },
-          category: scenario.type || 'feature',
+          category: scenario.type || "feature",
         }),
-      })
+      });
 
       if (!response.ok) {
-        throw new Error('Failed to save')
+        throw new Error("Failed to save");
       }
 
-      toast.success(`Scenario "${scenario.name}" saved`)
+      toast.success(`Scenario "${scenario.name}" saved`);
     } catch (error) {
-      toast.error('Failed to save scenario')
-      console.error(error)
+      toast.error("Failed to save scenario");
+      console.error(error);
     }
-  }, [scenario])
+  }, [scenario]);
 
   const handleCreateGitHubIssue = useCallback(async () => {
     if (!scenario.name || !scenario.steps?.length) {
-      toast.error('Please add name and steps first')
-      return
+      toast.error("Please add name and steps first");
+      return;
     }
 
     try {
-      const response = await fetch('/api/kody/scenario/github', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/kody/scenario/github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: scenario.name,
-          category: scenario.type || 'feature',
+          category: scenario.type || "feature",
           area: scenario.area,
-          scenario: scenario.steps.map((s) => `${s.type}: ${s.action} ${s.target}`).join('\n'),
+          scenario: scenario.steps
+            .map((s) => `${s.type}: ${s.action} ${s.target}`)
+            .join("\n"),
           prototype: selectedPrototype,
           fixture: scenario.fixture,
           behaviors: scenario.siteBehaviors,
           dsComponents: selectedComponents.map((c) => c.name),
         }),
-      })
+      });
 
       if (!response.ok) {
-        throw new Error('Failed to create issue')
+        throw new Error("Failed to create issue");
       }
 
-      const data = await response.json()
-      toast.success(`GitHub issue #${data.number} created`)
-      setShowPRDDialog(false)
+      const data = await response.json();
+      toast.success(`GitHub issue #${data.number} created`);
+      setShowPRDDialog(false);
     } catch (error) {
-      toast.error('Failed to create GitHub issue')
-      console.error(error)
+      toast.error("Failed to create GitHub issue");
+      console.error(error);
     }
-  }, [scenario, selectedPrototype, selectedComponents])
+  }, [scenario, selectedPrototype, selectedComponents]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -218,7 +238,7 @@ export function ScenarioEditor({}: ScenarioEditorProps) {
                   <Input
                     id="name"
                     placeholder="e.g., Student solves MCQ"
-                    value={scenario.name || ''}
+                    value={scenario.name || ""}
                     onChange={(e) => handleScenarioNameChange(e.target.value)}
                   />
                 </div>
@@ -228,7 +248,7 @@ export function ScenarioEditor({}: ScenarioEditorProps) {
                   <Select
                     value={scenario.type}
                     onValueChange={(v) =>
-                      handleScenarioTypeChange(v as 'core' | 'feature' | 'edge')
+                      handleScenarioTypeChange(v as "core" | "feature" | "edge")
                     }
                   >
                     <SelectTrigger>
@@ -244,8 +264,12 @@ export function ScenarioEditor({}: ScenarioEditorProps) {
 
                 <div className="space-y-2">
                   <Label>Status</Label>
-                  <Badge variant={scenario.status === 'draft' ? 'secondary' : 'default'}>
-                    {scenario.status || 'draft'}
+                  <Badge
+                    variant={
+                      scenario.status === "draft" ? "secondary" : "default"
+                    }
+                  >
+                    {scenario.status || "draft"}
                   </Badge>
                 </div>
               </CardContent>
@@ -254,7 +278,9 @@ export function ScenarioEditor({}: ScenarioEditorProps) {
             {/* Steps List */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Steps ({scenario.steps?.length || 0})</CardTitle>
+                <CardTitle className="text-lg">
+                  Steps ({scenario.steps?.length || 0})
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 {scenario.steps && scenario.steps.length > 0 ? (
@@ -268,7 +294,9 @@ export function ScenarioEditor({}: ScenarioEditorProps) {
                           <Badge variant="outline" className="mr-2 mb-1">
                             {step.type}
                           </Badge>
-                          <span className="font-medium truncate block">{step.action}</span>
+                          <span className="font-medium truncate block">
+                            {step.action}
+                          </span>
                           <span className="text-xs text-muted-foreground truncate block">
                             {step.target}
                           </span>
@@ -285,7 +313,9 @@ export function ScenarioEditor({}: ScenarioEditorProps) {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No steps added yet</p>
+                  <p className="text-sm text-muted-foreground">
+                    No steps added yet
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -373,10 +403,12 @@ export function ScenarioEditor({}: ScenarioEditorProps) {
             <Button variant="outline" onClick={() => setShowPRDDialog(false)}>
               Close
             </Button>
-            <Button onClick={handleCreateGitHubIssue}>Create GitHub Issue</Button>
+            <Button onClick={handleCreateGitHubIssue}>
+              Create GitHub Issue
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

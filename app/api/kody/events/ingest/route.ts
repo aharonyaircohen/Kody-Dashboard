@@ -28,7 +28,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { publish, recordIngest } from "@dashboard/lib/chat-event-bus";
-import { isFromGitHubActions, getClientIp } from "@dashboard/lib/webhooks/github-ip";
+import {
+  isFromGitHubActions,
+  getClientIp,
+} from "@dashboard/lib/webhooks/github-ip";
 import { verifySessionToken } from "@dashboard/lib/chat-token";
 import { logger } from "@dashboard/lib/logger";
 
@@ -88,7 +91,10 @@ export async function POST(req: NextRequest) {
   const events = Array.isArray(body) ? body : [body];
   for (const event of events) {
     if (!event || typeof event.event !== "string") {
-      return NextResponse.json({ error: "event field required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "event field required" },
+        { status: 400 },
+      );
     }
     publish(sessionId, {
       event: event.event,
@@ -99,6 +105,9 @@ export async function POST(req: NextRequest) {
     recordIngest(sessionId, event.event);
   }
 
-  logger.debug({ sessionId, count: events.length, authMode }, "chat: ingested events");
+  logger.debug(
+    { sessionId, count: events.length, authMode },
+    "chat: ingested events",
+  );
   return new NextResponse(null, { status: 204 });
 }

@@ -13,7 +13,11 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireKodyAuth, getRequestAuth, getUserOctokit } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getRequestAuth,
+  getUserOctokit,
+} from "@dashboard/lib/auth";
 import { appendInboxEntries, readInbox } from "@dashboard/lib/inbox/gist-store";
 import type { InboxEntry, InboxSource } from "@dashboard/lib/inbox/types";
 

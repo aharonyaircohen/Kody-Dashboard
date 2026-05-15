@@ -7,28 +7,28 @@
  *   conservative (60s stale) since states change rarely. The mutation
  *   invalidates only the affected goal's state, not the goal list.
  */
-'use client'
+"use client";
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   goalsApi,
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
-} from '../api'
-import type { GoalRunState } from '../goal-state'
+} from "../api";
+import type { GoalRunState } from "../goal-state";
 
 export const goalStateQueryKeys = {
-  one: (id: string) => ['kody-goals', 'state', id] as const,
-}
+  one: (id: string) => ["kody-goals", "state", id] as const,
+};
 
 export function useGoalState(goalId: string | null | undefined) {
   return useQuery({
-    queryKey: goalStateQueryKeys.one(goalId ?? '__missing__'),
+    queryKey: goalStateQueryKeys.one(goalId ?? "__missing__"),
     queryFn: () => {
-      if (!goalId) throw new Error('goalId is required')
-      return goalsApi.getState(goalId)
+      if (!goalId) throw new Error("goalId is required");
+      return goalsApi.getState(goalId);
     },
     enabled: !!goalId && !!getStoredAuth(),
     staleTime: 60_000,
@@ -36,45 +36,41 @@ export function useGoalState(goalId: string | null | undefined) {
     // indicator stays honest. Most polls hit GitHub's ETag cache (304 → free).
     // Don't poll when state is null/done/paused — nothing changes there.
     refetchInterval: (query) => {
-      const data = query.state.data
-      return data && data.state === 'active' ? 60_000 : false
+      const data = query.state.data;
+      return data && data.state === "active" ? 60_000 : false;
     },
     retry: (failureCount, error) => {
-      if (error instanceof SessionExpiredError) return false
-      if (error instanceof NoTokenError) return false
-      return failureCount < 2
+      if (error instanceof SessionExpiredError) return false;
+      if (error instanceof NoTokenError) return false;
+      return failureCount < 2;
     },
-  })
+  });
 }
 
-export function useSetGoalState(
-  goalId: string,
-  actorLogin?: string | null,
-) {
-  const queryClient = useQueryClient()
+export function useSetGoalState(goalId: string, actorLogin?: string | null) {
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (input: {
-      state: 'active' | 'paused'
-      pausedReason?: string
+      state: "active" | "paused";
+      pausedReason?: string;
     }): Promise<GoalRunState> => {
       return goalsApi.setState(goalId, {
         state: input.state,
         pausedReason: input.pausedReason,
         ...(actorLogin ? { actorLogin } : {}),
-      })
+      });
     },
     onSuccess: (next) => {
-      queryClient.setQueryData(goalStateQueryKeys.one(goalId), next)
+      queryClient.setQueryData(goalStateQueryKeys.one(goalId), next);
       toast.success(
-        next.state === 'active'
-          ? 'Goal runner started'
-          : 'Goal runner paused',
-      )
+        next.state === "active" ? "Goal runner started" : "Goal runner paused",
+      );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'Failed to update goal state'
-      toast.error(msg)
+      const msg =
+        err instanceof Error ? err.message : "Failed to update goal state";
+      toast.error(msg);
     },
-  })
+  });
 }

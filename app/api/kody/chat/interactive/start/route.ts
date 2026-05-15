@@ -21,9 +21,16 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getUserOctokit,
+  getRequestAuth,
+} from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
-import { buildMetaLine, writeSessionMeta } from "@dashboard/lib/interactive-session";
+import {
+  buildMetaLine,
+  writeSessionMeta,
+} from "@dashboard/lib/interactive-session";
 
 export const runtime = "nodejs";
 
@@ -65,11 +72,17 @@ export async function POST(req: NextRequest) {
   const { owner, repo } = getEngineRepo(req);
   const octokit = await getUserOctokit(req);
   if (!octokit) {
-    return NextResponse.json({ error: "No GitHub token available" }, { status: 503 });
+    return NextResponse.json(
+      { error: "No GitHub token available" },
+      { status: 503 },
+    );
   }
 
   try {
-    logger.info({ taskId, owner, repo, idleExitMs, hardCapMs }, "interactive: starting session");
+    logger.info(
+      { taskId, owner, repo, idleExitMs, hardCapMs },
+      "interactive: starting session",
+    );
 
     const meta = buildMetaLine({ idleExitMs, hardCapMs });
     await writeSessionMeta(octokit, owner, repo, taskId, meta);
@@ -88,7 +101,10 @@ export async function POST(req: NextRequest) {
       inputs: workflowInputs,
     });
 
-    logger.info({ taskId, workflowId: "kody.yml", owner, repo }, "interactive: workflow dispatched");
+    logger.info(
+      { taskId, workflowId: "kody.yml", owner, repo },
+      "interactive: workflow dispatched",
+    );
     return NextResponse.json({
       ok: true,
       taskId,

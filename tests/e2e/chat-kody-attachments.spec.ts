@@ -9,29 +9,30 @@
  * @domain e2e-mocked
  */
 
-import { test, expect, type Page } from "@playwright/test"
+import { test, expect, type Page } from "@playwright/test";
 
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:3399"
-const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "ghp_placeholder"
-const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "https://github.com/test-owner/test-repo"
+const BASE_URL = process.env.BASE_URL ?? "http://localhost:3399";
+const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "ghp_placeholder";
+const TEST_REPO =
+  process.env.E2E_GITHUB_REPO ?? "https://github.com/test-owner/test-repo";
 
 // 1×1 transparent PNG.
 const PNG_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-const PNG_BUFFER = Buffer.from(PNG_BASE64, "base64")
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+const PNG_BUFFER = Buffer.from(PNG_BASE64, "base64");
 
 function parseRepo(url: string): { owner: string; repo: string } {
   try {
-    const u = new URL(url)
-    const parts = u.pathname.replace(/^\//, "").split("/").filter(Boolean)
-    return { owner: parts[0] ?? "test-owner", repo: parts[1] ?? "test-repo" }
+    const u = new URL(url);
+    const parts = u.pathname.replace(/^\//, "").split("/").filter(Boolean);
+    return { owner: parts[0] ?? "test-owner", repo: parts[1] ?? "test-repo" };
   } catch {
-    return { owner: "test-owner", repo: "test-repo" }
+    return { owner: "test-owner", repo: "test-repo" };
   }
 }
 
 async function injectAuth(page: Page): Promise<void> {
-  const { owner, repo } = parseRepo(TEST_REPO)
+  const { owner, repo } = parseRepo(TEST_REPO);
   await page.evaluate(
     (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
     {
@@ -42,15 +43,18 @@ async function injectAuth(page: Page): Promise<void> {
       user: { login: "idb-e2e", avatar_url: "", id: 1 },
       loggedInAt: Date.now(),
     },
-  )
+  );
 }
 
 async function selectKodyAgent(page: Page): Promise<void> {
-  const trigger = page.locator("button").filter({ hasText: /Gemini|Kody(\s|$)|Brain/ }).first()
-  await trigger.click()
-  const listbox = page.getByRole("listbox")
-  await listbox.waitFor({ state: "visible", timeout: 5_000 })
-  await listbox.getByRole("option", { name: /^Kody\b/ }).click()
+  const trigger = page
+    .locator("button")
+    .filter({ hasText: /Gemini|Kody(\s|$)|Brain/ })
+    .first();
+  await trigger.click();
+  const listbox = page.getByRole("listbox");
+  await listbox.waitFor({ state: "visible", timeout: 5_000 });
+  await listbox.getByRole("option", { name: /^Kody\b/ }).click();
 }
 
 /** Read the count of records in the IDB attachment store from the page. */
@@ -58,47 +62,47 @@ async function idbCount(page: Page): Promise<number> {
   return page.evaluate(
     () =>
       new Promise<number>((resolve, reject) => {
-        const req = indexedDB.open("kody-attachments", 1)
+        const req = indexedDB.open("kody-attachments", 1);
         req.onsuccess = () => {
-          const db = req.result
+          const db = req.result;
           if (!db.objectStoreNames.contains("attachments")) {
-            db.close()
-            resolve(0)
-            return
+            db.close();
+            resolve(0);
+            return;
           }
-          const tx = db.transaction("attachments", "readonly")
-          const store = tx.objectStore("attachments")
-          const cnt = store.count()
+          const tx = db.transaction("attachments", "readonly");
+          const store = tx.objectStore("attachments");
+          const cnt = store.count();
           cnt.onsuccess = () => {
-            resolve(cnt.result)
-            db.close()
-          }
+            resolve(cnt.result);
+            db.close();
+          };
           cnt.onerror = () => {
-            reject(cnt.error)
-            db.close()
-          }
-        }
-        req.onerror = () => reject(req.error)
+            reject(cnt.error);
+            db.close();
+          };
+        };
+        req.onerror = () => reject(req.error);
       }),
-  )
+  );
 }
 
 test.describe("Kody direct — IDB persistence + multimodal", () => {
   test.beforeEach(async ({ page }) => {
     // Start clean so prior runs don't contaminate IDB or localStorage.
-    await page.goto(`${BASE_URL}/login`)
-    await page.waitForLoadState("domcontentloaded")
+    await page.goto(`${BASE_URL}/login`);
+    await page.waitForLoadState("domcontentloaded");
     await page.evaluate(() => {
-      localStorage.clear()
+      localStorage.clear();
       return new Promise<void>((resolve) => {
-        const req = indexedDB.deleteDatabase("kody-attachments")
-        req.onsuccess = () => resolve()
-        req.onerror = () => resolve()
-        req.onblocked = () => resolve()
-      })
-    })
-    await injectAuth(page)
-  })
+        const req = indexedDB.deleteDatabase("kody-attachments");
+        req.onsuccess = () => resolve();
+        req.onerror = () => resolve();
+        req.onblocked = () => resolve();
+      });
+    });
+    await injectAuth(page);
+  });
 
   test("uploads image, sends multimodal payload, persists across reload via IDB", async ({
     page,
@@ -106,10 +110,10 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
     // Capture the outgoing /api/kody/chat/kody body and reply with a
     // simple text stream. We *don't* rely on Gemini here — we want to
     // verify the client wire shape.
-    let captured: unknown = null
+    let captured: unknown = null;
     await page.route("**/api/kody/chat/kody", async (route, req) => {
       try {
-        captured = JSON.parse(req.postData() ?? "null")
+        captured = JSON.parse(req.postData() ?? "null");
       } catch {
         /* ignore */
       }
@@ -117,30 +121,31 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
         status: 200,
         headers: { "content-type": "text/plain; charset=utf-8" },
         body: "I see your image.",
-      })
-    })
+      });
+    });
 
-    await page.goto(BASE_URL)
-    await page.waitForLoadState("domcontentloaded")
+    await page.goto(BASE_URL);
+    await page.waitForLoadState("domcontentloaded");
 
-    const viewport = await page.viewportSize()
-    if ((viewport?.width ?? 1280) < 768) test.skip(true, "chat hidden on mobile")
+    const viewport = await page.viewportSize();
+    if ((viewport?.width ?? 1280) < 768)
+      test.skip(true, "chat hidden on mobile");
 
-    await selectKodyAgent(page)
+    await selectKodyAgent(page);
 
     // Upload the PNG via the (hidden) file input.
-    const fileInput = page.locator('input[type="file"]').first()
+    const fileInput = page.locator('input[type="file"]').first();
     await fileInput.setInputFiles({
       name: "pixel.png",
       mimeType: "image/png",
       buffer: PNG_BUFFER,
-    })
+    });
 
     // Type and send a question about the image.
-    const input = page.getByPlaceholder(/ask kody|kody is waiting/i).first()
-    await input.waitFor({ state: "visible", timeout: 10_000 })
-    await input.fill("what is this?")
-    await input.press("Enter")
+    const input = page.getByPlaceholder(/ask kody|kody is waiting/i).first();
+    await input.waitFor({ state: "visible", timeout: 10_000 });
+    await input.fill("what is this?");
+    await input.press("Enter");
 
     // Reply rendered → request completed.
     await expect(
@@ -149,33 +154,35 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
         .filter({ has: page.locator(".prose") })
         .filter({ hasText: "I see your image." })
         .first(),
-    ).toBeVisible({ timeout: 10_000 })
+    ).toBeVisible({ timeout: 10_000 });
 
     // 1) The outgoing payload must use structured parts, not a base64
     // string smashed into the text. Last user message → content array
     // → has a text part AND an image part with a data URL.
-    expect(captured, "request body").not.toBeNull()
+    expect(captured, "request body").not.toBeNull();
     const body = captured as {
-      messages: Array<{ role: string; content: unknown }>
-    }
-    const lastUser = [...body.messages].reverse().find((m) => m.role === "user")
-    expect(lastUser, "last user msg").toBeTruthy()
-    expect(Array.isArray(lastUser!.content), "content is parts[]").toBe(true)
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    const lastUser = [...body.messages]
+      .reverse()
+      .find((m) => m.role === "user");
+    expect(lastUser, "last user msg").toBeTruthy();
+    expect(Array.isArray(lastUser!.content), "content is parts[]").toBe(true);
     const parts = lastUser!.content as Array<{
-      type: string
-      text?: string
-      image?: string
-      mimeType?: string
-    }>
-    const textPart = parts.find((p) => p.type === "text")
-    const imagePart = parts.find((p) => p.type === "image")
-    expect(textPart?.text).toBe("what is this?")
-    expect(imagePart, "image part present").toBeTruthy()
-    expect(imagePart!.image).toMatch(/^data:image\/png;base64,/)
-    expect(imagePart!.mimeType).toBe("image/png")
+      type: string;
+      text?: string;
+      image?: string;
+      mimeType?: string;
+    }>;
+    const textPart = parts.find((p) => p.type === "text");
+    const imagePart = parts.find((p) => p.type === "image");
+    expect(textPart?.text).toBe("what is this?");
+    expect(imagePart, "image part present").toBeTruthy();
+    expect(imagePart!.image).toMatch(/^data:image\/png;base64,/);
+    expect(imagePart!.mimeType).toBe("image/png");
 
     // 2) Blob must now live in IDB.
-    expect(await idbCount(page), "idb has 1 blob").toBe(1)
+    expect(await idbCount(page), "idb has 1 blob").toBe(1);
 
     // useChatSessions debounces its localStorage write by 1s — wait for
     // the message to actually land in the store before we reload, or
@@ -184,46 +191,50 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
       .poll(
         () =>
           page.evaluate(() => {
-            const raw = localStorage.getItem("kody-sessions-v3")
-            if (!raw) return 0
+            const raw = localStorage.getItem("kody-sessions-v3");
+            if (!raw) return 0;
             try {
               const parsed = JSON.parse(raw) as {
-                messages: Record<string, Array<{ text?: string }>>
-              }
+                messages: Record<string, Array<{ text?: string }>>;
+              };
               return Object.values(parsed.messages ?? {}).reduce(
                 (n, arr) => n + arr.length,
                 0,
-              )
+              );
             } catch {
-              return 0
+              return 0;
             }
           }),
         { timeout: 5_000, intervals: [200, 400, 800] },
       )
-      .toBeGreaterThanOrEqual(2)
+      .toBeGreaterThanOrEqual(2);
 
     // 3) Hard reload — the message + thumbnail must come back.
-    await page.reload()
-    await page.waitForLoadState("domcontentloaded")
-    await selectKodyAgent(page)
+    await page.reload();
+    await page.waitForLoadState("domcontentloaded");
+    await selectKodyAgent(page);
 
     // User message text still rendered.
-    await expect(page.getByText("what is this?", { exact: false }).first()).toBeVisible({
+    await expect(
+      page.getByText("what is this?", { exact: false }).first(),
+    ).toBeVisible({
       timeout: 10_000,
-    })
+    });
 
     // Assistant reply still rendered (message memory across reload).
-    await expect(page.getByText("I see your image.", { exact: false }).first()).toBeVisible({
+    await expect(
+      page.getByText("I see your image.", { exact: false }).first(),
+    ).toBeVisible({
       timeout: 10_000,
-    })
+    });
 
     // Thumbnail <img> with a data: src appears, hydrated from IDB.
-    const thumb = page.locator('img[alt="pixel.png"]').first()
-    await expect(thumb).toBeVisible({ timeout: 10_000 })
-    const src = await thumb.getAttribute("src")
-    expect(src ?? "").toMatch(/^data:image\/png;base64,/)
+    const thumb = page.locator('img[alt="pixel.png"]').first();
+    await expect(thumb).toBeVisible({ timeout: 10_000 });
+    const src = await thumb.getAttribute("src");
+    expect(src ?? "").toMatch(/^data:image\/png;base64,/);
 
     // IDB still has exactly one blob — no orphan added on reload.
-    expect(await idbCount(page), "idb still has 1 blob after reload").toBe(1)
-  })
-})
+    expect(await idbCount(page), "idb still has 1 blob after reload").toBe(1);
+  });
+});

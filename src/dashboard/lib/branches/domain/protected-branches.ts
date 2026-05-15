@@ -15,14 +15,14 @@
  *   Every branch-deletion site must funnel through `isProtectedBranch`
  *   before calling `octokit.git.deleteRef`.
  */
-import { DEV_BRANCH, PROD_BRANCH } from '@dashboard/lib/constants'
+import { DEV_BRANCH, PROD_BRANCH } from "@dashboard/lib/constants";
 
 export const PROTECTED_BRANCHES: ReadonlySet<string> = new Set([
   PROD_BRANCH, // 'main'
   DEV_BRANCH, // 'dev'
-  'master',
-])
+  "master",
+]);
 
 export function isProtectedBranch(name: string): boolean {
-  return PROTECTED_BRANCHES.has(name.toLowerCase())
+  return PROTECTED_BRANCHES.has(name.toLowerCase());
 }

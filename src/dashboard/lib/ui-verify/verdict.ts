@@ -13,18 +13,20 @@
  *   FAIL           → kody:ui-failed
  */
 
-import { UI_VERIFIED, UI_FAILED } from './labels'
+import { UI_VERIFIED, UI_FAILED } from "./labels";
 
-export type UiVerdict = 'PASS' | 'CONCERNS' | 'FAIL'
+export type UiVerdict = "PASS" | "CONCERNS" | "FAIL";
 
-const VERDICT_RE = /##\s*Verdict\s*:\s*(PASS|CONCERNS|FAIL)\b/i
+const VERDICT_RE = /##\s*Verdict\s*:\s*(PASS|CONCERNS|FAIL)\b/i;
 
 export function parseVerdict(body: string): UiVerdict | null {
-  const m = body.match(VERDICT_RE)
-  if (!m) return null
-  return m[1]!.toUpperCase() as UiVerdict
+  const m = body.match(VERDICT_RE);
+  if (!m) return null;
+  return m[1]!.toUpperCase() as UiVerdict;
 }
 
-export function verdictToLabel(verdict: UiVerdict): typeof UI_VERIFIED | typeof UI_FAILED {
-  return verdict === 'FAIL' ? UI_FAILED : UI_VERIFIED
+export function verdictToLabel(
+  verdict: UiVerdict,
+): typeof UI_VERIFIED | typeof UI_FAILED {
+  return verdict === "FAIL" ? UI_FAILED : UI_VERIFIED;
 }

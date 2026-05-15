@@ -4,51 +4,51 @@
  * @pattern comment-box
  * @ai-summary Comment input component for writing comments on issues
  */
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Button } from '@dashboard/ui/button'
-import { Textarea } from '@dashboard/ui/textarea'
+import { useState } from "react";
+import { Button } from "@dashboard/ui/button";
+import { Textarea } from "@dashboard/ui/textarea";
 
 interface CommentBoxProps {
-  issueNumber: number
-  onCommentPosted?: () => void
+  issueNumber: number;
+  onCommentPosted?: () => void;
 }
 
 export function CommentBox({ issueNumber, onCommentPosted }: CommentBoxProps) {
-  const [comment, setComment] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [comment, setComment] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (!comment.trim()) return
+    if (!comment.trim()) return;
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
     try {
       const res = await fetch(`/api/kody/tasks/issue-${issueNumber}/actions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: 'comment',
+          action: "comment",
           comment: comment.trim(),
         }),
-      })
+      });
 
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to post comment')
+        const data = await res.json();
+        throw new Error(data.error || "Failed to post comment");
       }
 
-      setComment('')
-      onCommentPosted?.()
+      setComment("");
+      onCommentPosted?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to post comment')
+      setError(err instanceof Error ? err.message : "Failed to post comment");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="space-y-2">
@@ -62,11 +62,15 @@ export function CommentBox({ issueNumber, onCommentPosted }: CommentBoxProps) {
       <div className="flex justify-between items-center">
         {error && <span className="text-destructive text-sm">{error}</span>}
         <div className="ml-auto">
-          <Button onClick={handleSubmit} disabled={loading || !comment.trim()} size="sm">
-            {loading ? 'Posting...' : 'Comment'}
+          <Button
+            onClick={handleSubmit}
+            disabled={loading || !comment.trim()}
+            size="sm"
+          >
+            {loading ? "Posting..." : "Comment"}
           </Button>
         </div>
       </div>
     </div>
-  )
+  );
 }

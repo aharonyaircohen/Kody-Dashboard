@@ -4,29 +4,38 @@
  * @pattern steps-step
  * @ai-summary Step 3: Add and manage test steps
  */
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Button } from '@dashboard/ui/button'
-import { Input } from '@dashboard/ui/input'
-import { Label } from '@dashboard/ui/label'
+import { useState } from "react";
+import { Button } from "@dashboard/ui/button";
+import { Input } from "@dashboard/ui/input";
+import { Label } from "@dashboard/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@dashboard/ui/select'
-import { StepsList } from '../shared/StepsList'
-import { STEP_TYPES, ACTIONS } from '../../_constants/wizard'
-import type { Scenario, DSComponent, PrototypeElement } from '@dashboard/lib/scenario-schema-stub'
+} from "@dashboard/ui/select";
+import { StepsList } from "../shared/StepsList";
+import { STEP_TYPES, ACTIONS } from "../../_constants/wizard";
+import type {
+  Scenario,
+  DSComponent,
+  PrototypeElement,
+} from "@dashboard/lib/scenario-schema-stub";
 
 interface StepsStepProps {
-  scenario: Partial<Scenario>
-  selectedElements: PrototypeElement[]
-  selectedComponents: DSComponent[]
-  onAddStep: (step: { type: string; action: string; target: string; component?: string }) => void
-  onRemoveStep: (index: number) => void
+  scenario: Partial<Scenario>;
+  selectedElements: PrototypeElement[];
+  selectedComponents: DSComponent[];
+  onAddStep: (step: {
+    type: string;
+    action: string;
+    target: string;
+    component?: string;
+  }) => void;
+  onRemoveStep: (index: number) => void;
 }
 
 export function StepsStep({
@@ -36,28 +45,35 @@ export function StepsStep({
   onAddStep,
   onRemoveStep,
 }: StepsStepProps) {
-  const [stepType, setStepType] = useState('when')
-  const [action, setAction] = useState('navigate')
-  const [target, setTarget] = useState('')
-  const [component, setComponent] = useState('')
+  const [stepType, setStepType] = useState("when");
+  const [action, setAction] = useState("navigate");
+  const [target, setTarget] = useState("");
+  const [component, setComponent] = useState("");
 
   const handleElementClick = (element: PrototypeElement) => {
-    setTarget((element.selector as string) || element.idAttr || element.tag || '')
-    if (element.tag === 'button') setComponent('Button')
-    else if (element.tag === 'input') setComponent('Input')
-    else if (element.tag === 'a') setComponent('Button')
-  }
+    setTarget(
+      (element.selector as string) || element.idAttr || element.tag || "",
+    );
+    if (element.tag === "button") setComponent("Button");
+    else if (element.tag === "input") setComponent("Input");
+    else if (element.tag === "a") setComponent("Button");
+  };
 
   const handleComponentClick = (c: DSComponent) => {
-    setComponent(c.name)
-  }
+    setComponent(c.name);
+  };
 
   const handleAdd = () => {
-    if (!target) return
-    onAddStep({ type: stepType, action, target, component: component || undefined })
-    setTarget('')
-    setComponent('')
-  }
+    if (!target) return;
+    onAddStep({
+      type: stepType,
+      action,
+      target,
+      component: component || undefined,
+    });
+    setTarget("");
+    setComponent("");
+  };
 
   return (
     <div className="space-y-6">
@@ -84,7 +100,9 @@ export function StepsStep({
                   onClick={() => handleElementClick(el)}
                 >
                   {el.tag}
-                  {el.idAttr && <span className="ml-1 opacity-70">#{el.idAttr}</span>}
+                  {el.idAttr && (
+                    <span className="ml-1 opacity-70">#{el.idAttr}</span>
+                  )}
                 </Button>
               ))}
               {selectedComponents.map((c) => (
@@ -157,7 +175,11 @@ export function StepsStep({
           </div>
 
           <div className="col-span-1">
-            <Button onClick={handleAdd} disabled={!target} className="w-full h-9">
+            <Button
+              onClick={handleAdd}
+              disabled={!target}
+              className="w-full h-9"
+            >
               +
             </Button>
           </div>
@@ -172,5 +194,5 @@ export function StepsStep({
         <StepsList steps={scenario.steps} onRemove={onRemoveStep} />
       </div>
     </div>
-  )
+  );
 }

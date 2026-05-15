@@ -7,18 +7,18 @@
  *   well within the ≥15s rule from CLAUDE.md, and the server-side cache
  *   collapses concurrent calls.
  */
-'use client'
+"use client";
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery } from "@tanstack/react-query";
 import {
   kodyApi,
   type DefaultBranchCI,
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
-} from '../api'
+} from "../api";
 
-export const defaultBranchCIQueryKey = ['kody-ci-main'] as const
+export const defaultBranchCIQueryKey = ["kody-ci-main"] as const;
 
 export function useDefaultBranchCI() {
   return useQuery<DefaultBranchCI>({
@@ -29,9 +29,9 @@ export function useDefaultBranchCI() {
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     retry: (failureCount, error) => {
-      if (error instanceof SessionExpiredError) return false
-      if (error instanceof NoTokenError) return false
-      return failureCount < 2
+      if (error instanceof SessionExpiredError) return false;
+      if (error instanceof NoTokenError) return false;
+      return failureCount < 2;
     },
-  })
+  });
 }

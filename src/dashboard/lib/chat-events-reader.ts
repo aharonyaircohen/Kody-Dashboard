@@ -72,7 +72,8 @@ export async function readEventsFile(
   } catch (err: unknown) {
     const e = err as { status?: number };
     // 304 = file unchanged. Serve cached lines for free.
-    if (e.status === 304 && cached) return { lines: cached.lines, exists: true, fromCache: true };
+    if (e.status === 304 && cached)
+      return { lines: cached.lines, exists: true, fromCache: true };
     if (e.status !== 404) throw err;
   }
   return { lines: [], exists: false, fromCache: false };

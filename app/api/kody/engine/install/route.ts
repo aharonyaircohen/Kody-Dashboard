@@ -15,38 +15,38 @@
  * Body (optional): { force?: boolean } — re-commit even if the
  * workflow already matches the latest template.
  */
-import { NextRequest, NextResponse } from 'next/server'
-import { getRequestAuth } from '@dashboard/lib/auth'
-import { getPublicBaseUrl } from '@dashboard/lib/auth/oauth-url'
-import { createUserOctokit } from '@dashboard/lib/github-client'
-import { installEngine } from '@dashboard/lib/engine/install'
+import { NextRequest, NextResponse } from "next/server";
+import { getRequestAuth } from "@dashboard/lib/auth";
+import { getPublicBaseUrl } from "@dashboard/lib/auth/oauth-url";
+import { createUserOctokit } from "@dashboard/lib/github-client";
+import { installEngine } from "@dashboard/lib/engine/install";
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const auth = getRequestAuth(req)
+  const auth = getRequestAuth(req);
   if (!auth) {
     return NextResponse.json(
       {
-        error: 'missing_auth',
+        error: "missing_auth",
         message:
-          'Connect a repo first — /init needs x-kody-token, x-kody-owner, x-kody-repo headers.',
+          "Connect a repo first — /init needs x-kody-token, x-kody-owner, x-kody-repo headers.",
       },
       { status: 401 },
-    )
+    );
   }
 
-  let body: { force?: boolean } = {}
+  let body: { force?: boolean } = {};
   try {
-    if (req.headers.get('content-length') !== '0') {
-      body = (await req.json().catch(() => ({}))) as typeof body
+    if (req.headers.get("content-length") !== "0") {
+      body = (await req.json().catch(() => ({}))) as typeof body;
     }
   } catch {
-    body = {}
+    body = {};
   }
 
-  const octokit = createUserOctokit(auth.token)
+  const octokit = createUserOctokit(auth.token);
   const result = await installEngine({
     octokit,
     owner: auth.owner,
@@ -54,10 +54,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     token: auth.token,
     hookUrl: `${getPublicBaseUrl(req)}/api/webhooks/github`,
     force: body.force === true,
-  })
+  });
 
   if (!result.ok) {
-    return NextResponse.json(result, { status: 500 })
+    return NextResponse.json(result, { status: 500 });
   }
-  return NextResponse.json(result, { status: 200 })
+  return NextResponse.json(result, { status: 200 });
 }

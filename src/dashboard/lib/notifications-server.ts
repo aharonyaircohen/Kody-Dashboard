@@ -32,7 +32,10 @@ const locks = new Map<string, Promise<unknown>>();
 
 async function withRepoLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const previous = locks.get(key) ?? Promise.resolve();
-  const run = previous.then(() => fn(), () => fn());
+  const run = previous.then(
+    () => fn(),
+    () => fn(),
+  );
   locks.set(key, run);
   try {
     return await run;
@@ -175,7 +178,9 @@ export async function mutateNotificationsManifest<T>(
     }
     throw (
       lastError ??
-      new Error(`notifications manifest write conflict: failed after ${maxAttempts} attempts`)
+      new Error(
+        `notifications manifest write conflict: failed after ${maxAttempts} attempts`,
+      )
     );
   });
 }

@@ -30,20 +30,20 @@ src/dashboard/
 
 ## Key Files
 
-| File | Purpose |
-|------|---------|
-| `app/page.tsx` | Dashboard home (task list) |
-| `app/KodyProviders.tsx` | Root providers (React Query, Theme) |
-| `src/dashboard/lib/components/KodyDashboard.tsx` | Main dashboard component |
-| `src/dashboard/lib/components/KodyChat.tsx` | Chat interface |
-| `src/dashboard/lib/auth/kody_session.ts` | Session management |
-| `src/dashboard/lib/api.ts` | API client utilities |
-| `src/dashboard/lib/github-client.ts` | GitHub API client |
+| File                                             | Purpose                             |
+| ------------------------------------------------ | ----------------------------------- |
+| `app/page.tsx`                                   | Dashboard home (task list)          |
+| `app/KodyProviders.tsx`                          | Root providers (React Query, Theme) |
+| `src/dashboard/lib/components/KodyDashboard.tsx` | Main dashboard component            |
+| `src/dashboard/lib/components/KodyChat.tsx`      | Chat interface                      |
+| `src/dashboard/lib/auth/kody_session.ts`         | Session management                  |
+| `src/dashboard/lib/api.ts`                       | API client utilities                |
+| `src/dashboard/lib/github-client.ts`             | GitHub API client                   |
 
 ## Environment Variables
 
-| Variable | Purpose |
-|----------|---------|
-| `KODY_MASTER_KEY` | Single master secret — vault AES, session JWT, ingest HMAC. |
-| `GITHUB_TOKEN` / `KODY_BOT_TOKEN` | GitHub API access for server-side flows. |
-| `NEXT_PUBLIC_SERVER_URL` | Public URL for redirects/callbacks (set in dev; in prod, Vercel headers are used). |
+| Variable                          | Purpose                                                                            |
+| --------------------------------- | ---------------------------------------------------------------------------------- |
+| `KODY_MASTER_KEY`                 | Single master secret — vault AES, session JWT, ingest HMAC.                        |
+| `GITHUB_TOKEN` / `KODY_BOT_TOKEN` | GitHub API access for server-side flows.                                           |
+| `NEXT_PUBLIC_SERVER_URL`          | Public URL for redirects/callbacks (set in dev; in prod, Vercel headers are used). |

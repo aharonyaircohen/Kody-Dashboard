@@ -4,47 +4,52 @@
  * @pattern report-issue-dialog
  * @ai-summary Dialog for QA to flag unresolved issues. Adds kody:needs-fix label and posts a 🛑 QA: comment.
  */
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Button } from '@dashboard/ui/button'
+import { useState } from "react";
+import { Button } from "@dashboard/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@dashboard/ui/dialog'
-import { AlertTriangle, Loader2, Eye, Edit } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+} from "@dashboard/ui/dialog";
+import { AlertTriangle, Loader2, Eye, Edit } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface ReportIssueDialogProps {
-  isOpen: boolean
-  onClose: () => void
-  onSubmit: (notes: string) => Promise<void>
-  issueNumber: number
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (notes: string) => Promise<void>;
+  issueNumber: number;
 }
 
-export function ReportIssueDialog({ isOpen, onClose, onSubmit, issueNumber }: ReportIssueDialogProps) {
-  const [notes, setNotes] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
+export function ReportIssueDialog({
+  isOpen,
+  onClose,
+  onSubmit,
+  issueNumber,
+}: ReportIssueDialogProps) {
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const handleSubmit = async () => {
-    if (!notes.trim()) return
-    setSubmitting(true)
+    if (!notes.trim()) return;
+    setSubmitting(true);
     try {
-      await onSubmit(notes.trim())
-      setNotes('')
-      setShowPreview(false)
-      onClose()
+      await onSubmit(notes.trim());
+      setNotes("");
+      setShowPreview(false);
+      onClose();
     } catch {
       // Error handled by caller
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -55,9 +60,9 @@ export function ReportIssueDialog({ isOpen, onClose, onSubmit, issueNumber }: Re
             Report Issue on #{issueNumber}
           </DialogTitle>
           <DialogDescription>
-            Document unresolved problems found during QA. Adds the{' '}
-            <code className="text-red-400">kody:needs-fix</code> label and pins your notes
-            on the task.
+            Document unresolved problems found during QA. Adds the{" "}
+            <code className="text-red-400">kody:needs-fix</code> label and pins
+            your notes on the task.
           </DialogDescription>
         </DialogHeader>
 
@@ -67,7 +72,9 @@ export function ReportIssueDialog({ isOpen, onClose, onSubmit, issueNumber }: Re
             <button
               onClick={() => setShowPreview(false)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                !showPreview ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'
+                !showPreview
+                  ? "bg-zinc-800 text-white"
+                  : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
               <Edit className="w-3 h-3" /> Write
@@ -75,7 +82,9 @@ export function ReportIssueDialog({ isOpen, onClose, onSubmit, issueNumber }: Re
             <button
               onClick={() => setShowPreview(true)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                showPreview ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'
+                showPreview
+                  ? "bg-zinc-800 text-white"
+                  : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
               <Eye className="w-3 h-3" /> Preview
@@ -94,10 +103,14 @@ export function ReportIssueDialog({ isOpen, onClose, onSubmit, issueNumber }: Re
             <div className="min-h-[160px] px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg overflow-y-auto">
               {notes.trim() ? (
                 <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{notes}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {notes}
+                  </ReactMarkdown>
                 </div>
               ) : (
-                <p className="text-zinc-600 text-sm italic">Nothing to preview</p>
+                <p className="text-zinc-600 text-sm italic">
+                  Nothing to preview
+                </p>
               )}
             </div>
           )}
@@ -127,5 +140,5 @@ export function ReportIssueDialog({ isOpen, onClose, onSubmit, issueNumber }: Re
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

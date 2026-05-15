@@ -14,17 +14,17 @@
  *   paths hit endpoints without a repo header and still need env-based keys.
  */
 
-import type { NextRequest } from "next/server"
-import { getRequestAuth } from "@dashboard/lib/auth"
-import { createUserOctokit } from "@dashboard/lib/github-client"
-import { logger } from "@dashboard/lib/logger"
-import { readVault } from "./store"
-import { isVaultConfigured } from "./crypto"
+import type { NextRequest } from "next/server";
+import { getRequestAuth } from "@dashboard/lib/auth";
+import { createUserOctokit } from "@dashboard/lib/github-client";
+import { logger } from "@dashboard/lib/logger";
+import { readVault } from "./store";
+import { isVaultConfigured } from "./crypto";
 
 interface GetSecretOptions {
-  req: NextRequest
+  req: NextRequest;
   /** When true, skip the process.env fallback. Default false. */
-  vaultOnly?: boolean
+  vaultOnly?: boolean;
 }
 
 export async function getSecret(
@@ -32,22 +32,22 @@ export async function getSecret(
   options: GetSecretOptions,
 ): Promise<string | null> {
   if (isVaultConfigured()) {
-    const auth = getRequestAuth(options.req)
+    const auth = getRequestAuth(options.req);
     if (auth) {
       try {
-        const octokit = createUserOctokit(auth.token)
-        const { doc } = await readVault(octokit, auth.owner, auth.repo)
-        const entry = doc.secrets[name]
-        if (entry?.value) return entry.value
+        const octokit = createUserOctokit(auth.token);
+        const { doc } = await readVault(octokit, auth.owner, auth.repo);
+        const entry = doc.secrets[name];
+        if (entry?.value) return entry.value;
       } catch (err) {
         logger.warn(
           { err, name, owner: auth.owner, repo: auth.repo },
           "vault: read failed; falling back to env",
-        )
+        );
       }
     }
   }
 
-  if (options.vaultOnly) return null
-  return process.env[name] ?? null
+  if (options.vaultOnly) return null;
+  return process.env[name] ?? null;
 }

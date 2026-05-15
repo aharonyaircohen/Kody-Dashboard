@@ -32,7 +32,11 @@ export function getStoredAuth(): {
   try {
     const raw = localStorage.getItem("kody_auth");
     if (!raw) return null;
-    const auth = JSON.parse(raw) as { token?: string; owner?: string; repo?: string };
+    const auth = JSON.parse(raw) as {
+      token?: string;
+      owner?: string;
+      repo?: string;
+    };
     if (!auth.token || !auth.owner || !auth.repo) return null;
     return { token: auth.token, owner: auth.owner, repo: auth.repo };
   } catch {
@@ -51,7 +55,11 @@ export function getStoredFlyPerf(): "low" | "medium" | "high" | null {
     const raw = localStorage.getItem("kody_auth");
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { flyPerf?: string };
-    if (parsed.flyPerf === "low" || parsed.flyPerf === "medium" || parsed.flyPerf === "high") {
+    if (
+      parsed.flyPerf === "low" ||
+      parsed.flyPerf === "medium" ||
+      parsed.flyPerf === "high"
+    ) {
       return parsed.flyPerf;
     }
     return null;
@@ -69,7 +77,9 @@ export function getStoredBrainConfig(): { url: string; apiKey: string } | null {
   try {
     const raw = localStorage.getItem("kody_auth");
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { brain?: { url?: string; apiKey?: string } };
+    const parsed = JSON.parse(raw) as {
+      brain?: { url?: string; apiKey?: string };
+    };
     const b = parsed.brain;
     if (!b?.url || !b.apiKey) return null;
     return { url: b.url, apiKey: b.apiKey };
@@ -78,7 +88,9 @@ export function getStoredBrainConfig(): { url: string; apiKey: string } | null {
   }
 }
 
-function buildHeaders(extra: Record<string, string> = {}): Record<string, string> {
+function buildHeaders(
+  extra: Record<string, string> = {},
+): Record<string, string> {
   const auth = getStoredAuth();
   return {
     "Content-Type": "application/json",
@@ -108,9 +120,7 @@ export class RateLimitError extends Error {
 }
 
 export class NoTokenError extends Error {
-  constructor(
-    message = "GitHub token is not configured. Please log in.",
-  ) {
+  constructor(message = "GitHub token is not configured. Please log in.") {
     super(message);
     this.name = "NoTokenError";
   }
@@ -207,7 +217,9 @@ export const tasksApi = {
     assignees: Array<{ login: string; avatar_url: string }>;
     comments: unknown[];
   }> => {
-    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}`, {
+      headers: buildHeaders(),
+    });
     return handleResponse(res);
   },
 
@@ -482,7 +494,9 @@ export const tasksApi = {
     context: string,
     actorLogin?: string,
   ): Promise<ActionResponse> => {
-    const comment = context.trim() ? `@kody\n\n${context.trim()}` : "@kody resume";
+    const comment = context.trim()
+      ? `@kody\n\n${context.trim()}`
+      : "@kody resume";
 
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
@@ -637,18 +651,24 @@ export const tasksApi = {
 
 export const prsApi = {
   files: async (prNumber: number): Promise<FileChange[]> => {
-    const res = await fetch(`${API_BASE}/prs/files?prNumber=${prNumber}`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/prs/files?prNumber=${prNumber}`, {
+      headers: buildHeaders(),
+    });
     const data = await handleResponse<{ files: FileChange[] }>(res);
     return data.files;
   },
   // PR CI status is sourced from the bulk tasks list — see usePRCIStatus.
   behind: async (prNumber: number): Promise<number> => {
-    const res = await fetch(`${API_BASE}/prs/behind?prNumber=${prNumber}`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/prs/behind?prNumber=${prNumber}`, {
+      headers: buildHeaders(),
+    });
     const data = await handleResponse<{ behindBy: number }>(res);
     return data.behindBy;
   },
   comments: async (prNumber: number): Promise<PRComment[]> => {
-    const res = await fetch(`${API_BASE}/prs/comments?prNumber=${prNumber}`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/prs/comments?prNumber=${prNumber}`, {
+      headers: buildHeaders(),
+    });
     const data = await handleResponse<{ comments: PRComment[] }>(res);
     return data.comments;
   },
@@ -674,7 +694,9 @@ export const prsApi = {
 export const taskDocsApi = {
   list: async (taskId: string, branch?: string): Promise<TaskDocument[]> => {
     const params = branch ? `?branch=${encodeURIComponent(branch)}` : "";
-    const res = await fetch(`${API_BASE}/tasks/${taskId}/docs${params}`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/tasks/${taskId}/docs${params}`, {
+      headers: buildHeaders(),
+    });
     const data = await handleResponse<{ documents: TaskDocument[] }>(res);
     return data.documents;
   },
@@ -694,7 +716,9 @@ export const boardsApi = {
 
 export const collaboratorsApi = {
   list: async (): Promise<GitHubCollaborator[]> => {
-    const res = await fetch(`${API_BASE}/collaborators`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/collaborators`, {
+      headers: buildHeaders(),
+    });
     const data = await handleResponse<CollaboratorsResponse>(res);
     return data.collaborators;
   },
@@ -842,6 +866,11 @@ export interface Job {
    * (every 15 min). Engine-side gating ships separately.
    */
   schedule: JobSchedule | null;
+  /**
+   * Mirrors `disabled: true` in the frontmatter. When `true` the engine
+   * scheduler skips this job; manual "Run now" still fires.
+   */
+  disabled: boolean;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -866,6 +895,7 @@ export const jobsApi = {
     title: string;
     body: string;
     schedule?: JobSchedule | null;
+    disabled?: boolean;
     actorLogin?: string;
   }): Promise<Job> => {
     const res = await fetch(`${API_BASE}/jobs`, {
@@ -883,6 +913,7 @@ export const jobsApi = {
       title?: string;
       body?: string;
       schedule?: JobSchedule | null;
+      disabled?: boolean;
       actorLogin?: string;
     },
   ): Promise<Job> => {
@@ -899,10 +930,13 @@ export const jobsApi = {
     const params = new URLSearchParams();
     if (actorLogin) params.set("actorLogin", actorLogin);
     const suffix = params.toString() ? `?${params}` : "";
-    const res = await fetch(`${API_BASE}/jobs/${encodeURIComponent(slug)}${suffix}`, {
-      method: "DELETE",
-      headers: buildHeaders(),
-    });
+    const res = await fetch(
+      `${API_BASE}/jobs/${encodeURIComponent(slug)}${suffix}`,
+      {
+        method: "DELETE",
+        headers: buildHeaders(),
+      },
+    );
     await handleResponse<{ success: boolean }>(res);
   },
 
@@ -919,12 +953,20 @@ export const jobsApi = {
   run: async (
     job: { slug: string },
     opts?: { force?: boolean },
-  ): Promise<{ issueNumber: number; commentId: number; commentUrl: string; force: boolean }> => {
-    const res = await fetch(`${API_BASE}/jobs/${encodeURIComponent(job.slug)}/run`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify({ force: opts?.force ?? true }),
-    });
+  ): Promise<{
+    issueNumber: number;
+    commentId: number;
+    commentUrl: string;
+    force: boolean;
+  }> => {
+    const res = await fetch(
+      `${API_BASE}/jobs/${encodeURIComponent(job.slug)}/run`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify({ force: opts?.force ?? true }),
+      },
+    );
     return handleResponse(res);
   },
 };
@@ -1047,9 +1089,7 @@ export const goalsApi = {
     return handleResponse<GoalsListResponse>(res);
   },
 
-  fetchDiscussion: async (
-    id: string,
-  ): Promise<GoalDiscussionPayload> => {
+  fetchDiscussion: async (id: string): Promise<GoalDiscussionPayload> => {
     const res = await fetch(
       `${API_BASE}/goals/${encodeURIComponent(id)}/discussion`,
       {
@@ -1285,7 +1325,9 @@ export interface ChangelogPayload {
 
 export const changelogApi = {
   get: async (): Promise<ChangelogPayload> => {
-    const res = await fetch(`${API_BASE}/changelog`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/changelog`, {
+      headers: buildHeaders(),
+    });
     return handleResponse<ChangelogPayload>(res);
   },
 };
@@ -1301,11 +1343,15 @@ export const changelogApi = {
 export const vibeApi = {
   execute: async (
     issueNumber: number,
-  ): Promise<{ ok: true; issueNumber: number; runner: "fly"; machineId: string; sessionId: string }> => {
+  ): Promise<{
+    ok: true;
+    issueNumber: number;
+    runner: "fly";
+    machineId: string;
+    sessionId: string;
+  }> => {
     const flyPerf = getStoredFlyPerf();
-    const headers = buildHeaders(
-      flyPerf ? { "x-kody-fly-perf": flyPerf } : {},
-    );
+    const headers = buildHeaders(flyPerf ? { "x-kody-fly-perf": flyPerf } : {});
     const res = await fetch(`${API_BASE}/vibe/execute`, {
       method: "POST",
       headers,

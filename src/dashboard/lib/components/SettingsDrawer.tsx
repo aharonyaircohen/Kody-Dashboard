@@ -8,10 +8,10 @@
  *   icon in page headers. Trigger is wired through `SettingsDrawerContext`
  *   so any header can call `useSettingsDrawer().open()` without prop drilling.
  */
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -19,8 +19,8 @@ import {
   useMemo,
   useState,
   type ReactNode,
-} from 'react'
-import { MoreVertical } from 'lucide-react'
+} from "react";
+import { MoreVertical } from "lucide-react";
 
 import {
   Sheet,
@@ -28,55 +28,52 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@dashboard/ui/sheet'
-import { cn } from '@dashboard/lib/utils/ui'
-import { SETTINGS_NAV_SECTIONS } from './settings-nav'
-import { InboxBadge } from './InboxBadge'
+} from "@dashboard/ui/sheet";
+import { cn } from "@dashboard/lib/utils/ui";
+import { SETTINGS_NAV_SECTIONS } from "./settings-nav";
+import { InboxBadge } from "./InboxBadge";
 
 interface SettingsDrawerContextValue {
-  open: () => void
-  close: () => void
-  isOpen: boolean
+  open: () => void;
+  close: () => void;
+  isOpen: boolean;
 }
 
 const SettingsDrawerContext = createContext<SettingsDrawerContextValue | null>(
   null,
-)
+);
 
 export function SettingsDrawerProvider({ children }: { children: ReactNode }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const open = useCallback(() => setIsOpen(true), [])
-  const close = useCallback(() => setIsOpen(false), [])
+  const [isOpen, setIsOpen] = useState(false);
+  const open = useCallback(() => setIsOpen(true), []);
+  const close = useCallback(() => setIsOpen(false), []);
 
-  const value = useMemo(
-    () => ({ open, close, isOpen }),
-    [open, close, isOpen],
-  )
+  const value = useMemo(() => ({ open, close, isOpen }), [open, close, isOpen]);
 
   return (
     <SettingsDrawerContext.Provider value={value}>
       {children}
       <SettingsDrawer isOpen={isOpen} onOpenChange={setIsOpen} />
     </SettingsDrawerContext.Provider>
-  )
+  );
 }
 
 export function useSettingsDrawer(): SettingsDrawerContextValue {
-  const ctx = useContext(SettingsDrawerContext)
+  const ctx = useContext(SettingsDrawerContext);
   if (!ctx) {
     // Allow safe no-op usage outside the provider (e.g. server snapshots).
-    return { open: () => {}, close: () => {}, isOpen: false }
+    return { open: () => {}, close: () => {}, isOpen: false };
   }
-  return ctx
+  return ctx;
 }
 
 interface SettingsDrawerProps {
-  isOpen: boolean
-  onOpenChange: (open: boolean) => void
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
-  const pathname = usePathname() ?? '/'
+  const pathname = usePathname() ?? "/";
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
@@ -103,21 +100,21 @@ function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
                 {section.title}
               </p>
               {section.items.map((item) => {
-                const Icon = item.icon
+                const Icon = item.icon;
                 const active =
                   pathname === item.href ||
-                  pathname.startsWith(`${item.href}/`)
+                  pathname.startsWith(`${item.href}/`);
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={() => onOpenChange(false)}
-                    aria-current={active ? 'page' : undefined}
+                    aria-current={active ? "page" : undefined}
                     className={cn(
-                      'flex items-start gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                      "flex items-start gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                       active
-                        ? 'bg-accent text-foreground'
-                        : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                     )}
                   >
                     <Icon className="w-4 h-4 mt-0.5 shrink-0" />
@@ -126,7 +123,7 @@ function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
                         <span className="block truncate font-medium">
                           {item.label}
                         </span>
-                        {item.href === '/inbox' && <InboxBadge />}
+                        {item.href === "/inbox" && <InboxBadge />}
                       </span>
                       {item.description && (
                         <span className="block text-[11px] text-muted-foreground/80 truncate">
@@ -135,14 +132,14 @@ function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
                       )}
                     </span>
                   </Link>
-                )
+                );
               })}
             </div>
           ))}
         </nav>
       </SheetContent>
     </Sheet>
-  )
+  );
 }
 
 /**
@@ -150,24 +147,20 @@ function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
  * Calls into the shared drawer context so a single drawer instance
  * services every page.
  */
-export function SettingsDrawerTrigger({
-  className,
-}: {
-  className?: string
-}) {
-  const { open } = useSettingsDrawer()
+export function SettingsDrawerTrigger({ className }: { className?: string }) {
+  const { open } = useSettingsDrawer();
   return (
     <button
       type="button"
       onClick={open}
       aria-label="Open settings"
       className={cn(
-        'inline-flex items-center justify-center h-8 w-8 rounded-md',
-        'text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors',
+        "inline-flex items-center justify-center h-8 w-8 rounded-md",
+        "text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors",
         className,
       )}
     >
       <MoreVertical className="w-4 h-4" />
     </button>
-  )
+  );
 }

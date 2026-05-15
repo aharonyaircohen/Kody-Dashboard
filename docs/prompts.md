@@ -85,17 +85,17 @@ Migrate the SearchBar component from React to Vue.
 
 ## Built-in prompts
 
-| Slug        | What it does                                                      |
-| ----------- | ----------------------------------------------------------------- |
-| `/plan`     | Plan a change without writing code yet.                           |
-| `/research` | Investigate a topic. 3–5 tool calls, summary only — no edits.     |
-| `/review`   | Review your uncommitted changes.                                  |
-| `/explain`  | Explain a topic in this codebase.                                 |
-| `/issue`    | Research → draft → create an issue, then offer to run with Kody.  |
-| `/goal`     | Draft a new goal (motivation + metric + milestone).               |
-| `/analyze`  | Analyze whatever you're viewing (issue, PR, run).                 |
-| `/job`      | Draft a `.kody/jobs/<slug>.md` scheduled job.                     |
-| `/init`     | Install the Kody engine in the connected repo.                    |
+| Slug        | What it does                                                     |
+| ----------- | ---------------------------------------------------------------- |
+| `/plan`     | Plan a change without writing code yet.                          |
+| `/research` | Investigate a topic. 3–5 tool calls, summary only — no edits.    |
+| `/review`   | Review your uncommitted changes.                                 |
+| `/explain`  | Explain a topic in this codebase.                                |
+| `/issue`    | Research → draft → create an issue, then offer to run with Kody. |
+| `/goal`     | Draft a new goal (motivation + metric + milestone).              |
+| `/analyze`  | Analyze whatever you're viewing (issue, PR, run).                |
+| `/job`      | Draft a `.kody/jobs/<slug>.md` scheduled job.                    |
+| `/init`     | Install the Kody engine in the connected repo.                   |
 
 Fork any of them to customize the wording for your repo.
 

@@ -10,25 +10,25 @@
  *   convention the engine uses for jobs.
  */
 
-export type GoalRunStateValue = 'active' | 'paused' | 'done'
+export type GoalRunStateValue = "active" | "paused" | "done";
 
 export interface GoalRunState {
   /** Schema version. Bump on incompatible changes. */
-  version: 1
+  version: 1;
   /** Current run state. */
-  state: GoalRunStateValue
+  state: GoalRunStateValue;
   /** ISO timestamp the goal first entered `active`. */
-  startedAt: string
+  startedAt: string;
   /** ISO timestamp of the last write. */
-  updatedAt: string
+  updatedAt: string;
   /** Optional human-readable reason for `paused`. */
-  pausedReason?: string
+  pausedReason?: string;
   /**
    * ISO timestamp the goal entered `done`. Set by `goal-tick` (Phase 2)
    * when every issue with the goal label is closed. Optional today —
    * dashboard never writes this.
    */
-  completedAt?: string
+  completedAt?: string;
   /**
    * Engine-owned bookkeeping fields (stacked-PR model writes `state`,
    * `lastDispatchedIssue`, `updatedAt`; older repos may still have legacy
@@ -39,20 +39,20 @@ export interface GoalRunState {
    * fault. Passthrough rather than enumerated keeps future engine fields
    * working without a dashboard release.
    */
-  [extraField: string]: unknown
+  [extraField: string]: unknown;
 }
 
 /** Repo path for a goal's state file. */
 export function goalStatePath(goalId: string): string {
   if (!goalId || /[\\/]/.test(goalId)) {
-    throw new Error(`Invalid goalId for state path: ${JSON.stringify(goalId)}`)
+    throw new Error(`Invalid goalId for state path: ${JSON.stringify(goalId)}`);
   }
-  return `.kody/goals/${goalId}/state.json`
+  return `.kody/goals/${goalId}/state.json`;
 }
 
 export function makeInitialActiveState(now = new Date()): GoalRunState {
-  const iso = now.toISOString()
-  return { version: 1, state: 'active', startedAt: iso, updatedAt: iso }
+  const iso = now.toISOString();
+  return { version: 1, state: "active", startedAt: iso, updatedAt: iso };
 }
 
 /**
@@ -61,15 +61,18 @@ export function makeInitialActiveState(now = new Date()): GoalRunState {
  * locale, no Intl.RelativeTimeFormat — because the strings are tiny and
  * dependency-free is more valuable here than perfect i18n.
  */
-export function formatTickAge(updatedAt: string, now: Date = new Date()): string {
-  const then = new Date(updatedAt).getTime()
-  if (Number.isNaN(then)) return ''
-  const ms = Math.max(0, now.getTime() - then)
-  const min = Math.floor(ms / 60_000)
-  if (min < 1) return 'just now'
-  if (min < 60) return `${min}m ago`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr}h ago`
-  const d = Math.floor(hr / 24)
-  return `${d}d ago`
+export function formatTickAge(
+  updatedAt: string,
+  now: Date = new Date(),
+): string {
+  const then = new Date(updatedAt).getTime();
+  if (Number.isNaN(then)) return "";
+  const ms = Math.max(0, now.getTime() - then);
+  const min = Math.floor(ms / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const d = Math.floor(hr / 24);
+  return `${d}d ago`;
 }

@@ -8,10 +8,10 @@
  */
 
 export interface ParseSSECallbacks {
-  onTextDelta: (delta: string) => void
-  onToolInputStart: (toolName: string) => void
-  onToolOutputAvailable: () => void
-  onError: (errorText: string) => void
+  onTextDelta: (delta: string) => void;
+  onToolInputStart: (toolName: string) => void;
+  onToolOutputAvailable: () => void;
+  onError: (errorText: string) => void;
 }
 
 /**
@@ -20,28 +20,31 @@ export interface ParseSSECallbacks {
  * Expects lines in the format: `data: <json>\n`
  * where json has a `type` field matching AI SDK v6 UI message stream protocol.
  */
-export function parseSSEChunk(text: string, callbacks: ParseSSECallbacks): void {
-  const lines = text.split('\n')
+export function parseSSEChunk(
+  text: string,
+  callbacks: ParseSSECallbacks,
+): void {
+  const lines = text.split("\n");
   for (const line of lines) {
-    if (!line.startsWith('data: ')) continue
-    const data = line.slice(6)
-    if (data === '[DONE]') continue
+    if (!line.startsWith("data: ")) continue;
+    const data = line.slice(6);
+    if (data === "[DONE]") continue;
     try {
-      const parsed = JSON.parse(data)
+      const parsed = JSON.parse(data);
       switch (parsed.type) {
-        case 'text-delta': {
-          callbacks.onTextDelta(parsed.delta)
-          break
+        case "text-delta": {
+          callbacks.onTextDelta(parsed.delta);
+          break;
         }
-        case 'tool-input-start':
-          callbacks.onToolInputStart(parsed.toolName)
-          break
-        case 'tool-output-available':
-          callbacks.onToolOutputAvailable()
-          break
-        case 'error':
-          callbacks.onError(parsed.errorText)
-          break
+        case "tool-input-start":
+          callbacks.onToolInputStart(parsed.toolName);
+          break;
+        case "tool-output-available":
+          callbacks.onToolOutputAvailable();
+          break;
+        case "error":
+          callbacks.onError(parsed.errorText);
+          break;
       }
     } catch {
       /* skip malformed JSON */
@@ -57,36 +60,36 @@ export function parseSSEChunk(text: string, callbacks: ParseSSECallbacks): void 
  */
 export async function consumeSSEStream(
   body: ReadableStream<Uint8Array>,
-  callbacks: Omit<ParseSSECallbacks, 'onTextDelta'> & {
-    onTextDelta?: (delta: string) => void
+  callbacks: Omit<ParseSSECallbacks, "onTextDelta"> & {
+    onTextDelta?: (delta: string) => void;
   },
 ): Promise<string> {
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  let accumulatedContent = ''
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let accumulatedContent = "";
 
   const fullCallbacks: ParseSSECallbacks = {
     onTextDelta: (delta) => {
-      accumulatedContent += delta
-      callbacks.onTextDelta?.(delta)
+      accumulatedContent += delta;
+      callbacks.onTextDelta?.(delta);
     },
     onToolInputStart: callbacks.onToolInputStart,
     onToolOutputAvailable: callbacks.onToolOutputAvailable,
     onError: callbacks.onError,
-  }
+  };
 
   while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const lastNewline = buffer.lastIndexOf('\n')
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lastNewline = buffer.lastIndexOf("\n");
     if (lastNewline !== -1) {
-      parseSSEChunk(buffer.slice(0, lastNewline + 1), fullCallbacks)
-      buffer = buffer.slice(lastNewline + 1)
+      parseSSEChunk(buffer.slice(0, lastNewline + 1), fullCallbacks);
+      buffer = buffer.slice(lastNewline + 1);
     }
   }
-  if (buffer.trim()) parseSSEChunk(buffer, fullCallbacks)
+  if (buffer.trim()) parseSSEChunk(buffer, fullCallbacks);
 
-  return accumulatedContent
+  return accumulatedContent;
 }

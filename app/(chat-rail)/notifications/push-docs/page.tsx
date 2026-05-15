@@ -57,10 +57,7 @@ export default async function PushDocsPage() {
         </a>
       </header>
       <main className="px-4 md:px-6 py-6 max-w-4xl mx-auto">
-        <MarkdownViewer
-          content={content}
-          title="docs/push-notifications.md"
-        />
+        <MarkdownViewer content={content} title="docs/push-notifications.md" />
       </main>
     </div>
   );

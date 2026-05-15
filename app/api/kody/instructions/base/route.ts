@@ -8,12 +8,12 @@
  *   is layered on top of. Auth-gated but does not need a repo context —
  *   the base prompt is identical across repos.
  */
-import { NextRequest, NextResponse } from "next/server"
-import { requireKodyAuth } from "@dashboard/lib/auth"
-import { AGENT_KODY } from "@dashboard/lib/agents"
+import { NextRequest, NextResponse } from "next/server";
+import { requireKodyAuth } from "@dashboard/lib/auth";
+import { AGENT_KODY } from "@dashboard/lib/agents";
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireKodyAuth(req)
-  if (authResult instanceof NextResponse) return authResult
-  return NextResponse.json({ prompt: AGENT_KODY.systemPrompt })
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
+  return NextResponse.json({ prompt: AGENT_KODY.systemPrompt });
 }

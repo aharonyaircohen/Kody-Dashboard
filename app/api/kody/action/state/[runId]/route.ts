@@ -9,7 +9,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getActionState } from "@dashboard/lib/kody-store/action-state";
-import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getUserOctokit,
+  getRequestAuth,
+} from "@dashboard/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -32,7 +36,8 @@ export async function GET(
   const { runId } = await params;
 
   const headerAuth = getRequestAuth(req);
-  const owner = headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
+  const owner =
+    headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
   const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "Kody-Dashboard";
 
   let octokit;
@@ -59,12 +64,16 @@ export async function GET(
   } catch (err) {
     console.error("[Kody] Error fetching action state:", err);
     return NextResponse.json(
-      { error: "Failed to fetch action state", message: (err as Error)?.message },
+      {
+        error: "Failed to fetch action state",
+        message: (err as Error)?.message,
+      },
       { status: 500 },
     );
   }
 
-  if (!state) return NextResponse.json({ error: "Action not found" }, { status: 404 });
+  if (!state)
+    return NextResponse.json({ error: "Action not found" }, { status: 404 });
 
   return NextResponse.json({ state });
 }

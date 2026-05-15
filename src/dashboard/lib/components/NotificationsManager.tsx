@@ -176,9 +176,9 @@ function NotificationsManagerInner() {
                 No notification rules yet.
               </p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                Add a rule to ping Slack, Telegram, Discord, or a custom
-                webhook when a release deploy PR merges, a kody flow fails,
-                or other events fire.
+                Add a rule to ping Slack, Telegram, Discord, or a custom webhook
+                when a release deploy PR merges, a kody flow fails, or other
+                events fire.
               </p>
               <Button
                 size="sm"
@@ -547,9 +547,7 @@ function ChannelFields({
             <Input
               id="ch-tg-chat"
               value={channel.chatId}
-              onChange={(e) =>
-                onChange({ ...channel, chatId: e.target.value })
-              }
+              onChange={(e) => onChange({ ...channel, chatId: e.target.value })}
               placeholder="-1001234567890 or @channelname"
             />
             <p className="text-[11px] text-white/40">
@@ -604,19 +602,17 @@ function ChannelFields({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="json">
-                  JSON (application/json)
-                </SelectItem>
+                <SelectItem value="json">JSON (application/json)</SelectItem>
                 <SelectItem value="form">
                   Form-encoded (application/x-www-form-urlencoded)
                 </SelectItem>
               </SelectContent>
             </Select>
             <p className="text-[11px] text-white/40">
-              Use <span className="text-white/60">JSON</span> for most
-              modern APIs (Slack-shaped, Mattermost, GChat, etc.). Use{" "}
-              <span className="text-white/60">Form-encoded</span> for
-              Twilio, Mailgun, and most legacy REST APIs.
+              Use <span className="text-white/60">JSON</span> for most modern
+              APIs (Slack-shaped, Mattermost, GChat, etc.). Use{" "}
+              <span className="text-white/60">Form-encoded</span> for Twilio,
+              Mailgun, and most legacy REST APIs.
             </p>
           </div>
           <div className="space-y-1.5">
@@ -671,9 +667,9 @@ function ChannelFields({
     case "web-push":
       return (
         <p className="text-[11px] text-white/40">
-          Notifications go to every device that has enabled push for this
-          repo via Notification Settings → Mobile / push notifications.
-          No per-channel config — server-side fan-out via VAPID.
+          Notifications go to every device that has enabled push for this repo
+          via Notification Settings → Mobile / push notifications. No
+          per-channel config — server-side fan-out via VAPID.
         </p>
       );
   }

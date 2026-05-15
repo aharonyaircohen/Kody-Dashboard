@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import { Toaster as SonnerToaster } from 'sonner'
+import { Toaster as SonnerToaster } from "sonner";
 
 export function Toaster() {
   return (
@@ -10,11 +10,11 @@ export function Toaster() {
       closeButton
       toastOptions={{
         classNames: {
-          toast: 'font-sans',
-          title: 'font-medium',
-          description: 'text-body-sm opacity-90',
+          toast: "font-sans",
+          title: "font-medium",
+          description: "text-body-sm opacity-90",
         },
       }}
     />
-  )
+  );
 }

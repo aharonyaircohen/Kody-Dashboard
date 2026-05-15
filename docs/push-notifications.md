@@ -41,16 +41,16 @@ If the test arrives but `@mentions` don't: the GitHub webhook on your repo may n
 
 Currently: any `@username` matching a subscribed user's GitHub login, in the body of any of these GitHub events on the connected repo:
 
-| Event | When |
-|---|---|
-| `issues` (opened, edited) | New issue body or edit |
-| `pull_request` (opened, edited) | New PR body or edit |
-| `issue_comment` (created) | Comment on an issue/PR |
-| `pull_request_review_comment` (created) | Line comment on a PR diff |
-| `pull_request_review` (submitted) | Review with a body |
-| `commit_comment` (created) | Comment on a commit |
-| `discussion` (created, edited) | New goal-discussion thread (dashboard goal chats are backed by GitHub Discussions) |
-| `discussion_comment` (created) | Comment in a goal discussion |
+| Event                                   | When                                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------------- |
+| `issues` (opened, edited)               | New issue body or edit                                                             |
+| `pull_request` (opened, edited)         | New PR body or edit                                                                |
+| `issue_comment` (created)               | Comment on an issue/PR                                                             |
+| `pull_request_review_comment` (created) | Line comment on a PR diff                                                          |
+| `pull_request_review` (submitted)       | Review with a body                                                                 |
+| `commit_comment` (created)              | Comment on a commit                                                                |
+| `discussion` (created, edited)          | New goal-discussion thread (dashboard goal chats are backed by GitHub Discussions) |
+| `discussion_comment` (created)          | Comment in a goal discussion                                                       |
 
 The notification title is `@author mentioned you on "<thread title>"`. The body is the first ~180 characters of the comment/post, with code fences stripped, so repeated mentions on the same thread are distinguishable at a glance.
 
@@ -133,7 +133,11 @@ import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
 // inside the POST handler that persists the comment / post / message
 await dispatchMentionPushes("issue_comment", {
   action: "created",
-  repository: { full_name: `${owner}/${repo}`, owner: { login: owner }, name: repo },
+  repository: {
+    full_name: `${owner}/${repo}`,
+    owner: { login: owner },
+    name: repo,
+  },
   comment: { body, user: { login: authorLogin }, html_url: postUrl },
   issue: { title: threadTitle },
 });
@@ -143,11 +147,11 @@ await dispatchMentionPushes("issue_comment", {
 
 ## Troubleshooting
 
-| Symptom | Likely cause |
-|---|---|
-| Card shows "Server keys missing" / 503 from `/api/push/public-key` | `KODY_MASTER_KEY` not set in Vercel env. |
-| Card shows "Not supported" on iOS Safari | You're in Safari, not the installed PWA. Add to Home Screen first. |
-| Card shows "Blocked" | OS-level permission denied. Unblock in **iOS Settings → Notifications → Kody** (or browser site-settings on desktop). |
-| Test push works but @mentions don't | The webhook hook on your repo may not be subscribed to the relevant event. POST `/api/webhooks/register` to refresh. |
-| Subscriptions silently fail with no log | Run `vercel logs https://<your-deployment>` and grep for `mention_push_*` — each silent-return path now logs its reason. |
-| Got a mention notification but the body shows only the issue title (not the comment) | You're on a deploy from before the snippet-in-body fix. Redeploy. |
+| Symptom                                                                              | Likely cause                                                                                                             |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Card shows "Server keys missing" / 503 from `/api/push/public-key`                   | `KODY_MASTER_KEY` not set in Vercel env.                                                                                 |
+| Card shows "Not supported" on iOS Safari                                             | You're in Safari, not the installed PWA. Add to Home Screen first.                                                       |
+| Card shows "Blocked"                                                                 | OS-level permission denied. Unblock in **iOS Settings → Notifications → Kody** (or browser site-settings on desktop).    |
+| Test push works but @mentions don't                                                  | The webhook hook on your repo may not be subscribed to the relevant event. POST `/api/webhooks/register` to refresh.     |
+| Subscriptions silently fail with no log                                              | Run `vercel logs https://<your-deployment>` and grep for `mention_push_*` — each silent-return path now logs its reason. |
+| Got a mention notification but the body shows only the issue title (not the comment) | You're on a deploy from before the snippet-in-body fix. Redeploy.                                                        |

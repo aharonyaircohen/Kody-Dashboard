@@ -15,7 +15,10 @@ interface ActionStatusBadgeProps {
   className?: string;
 }
 
-export function ActionStatusBadge({ taskId, className }: ActionStatusBadgeProps) {
+export function ActionStatusBadge({
+  taskId,
+  className,
+}: ActionStatusBadgeProps) {
   const { state } = useKodyActionState(taskId);
 
   if (!state) return null;
@@ -64,7 +67,10 @@ export function ActionStatusBadge({ taskId, className }: ActionStatusBadgeProps)
             />
           )}
           <span
-            className={cn("relative inline-flex h-2 w-2 rounded-full", dotColor)}
+            className={cn(
+              "relative inline-flex h-2 w-2 rounded-full",
+              dotColor,
+            )}
           />
         </span>
         <span className="truncate max-w-[140px]">

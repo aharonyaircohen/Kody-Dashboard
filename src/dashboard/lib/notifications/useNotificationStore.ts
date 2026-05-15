@@ -1,4 +1,4 @@
-'use client'
+"use client";
 /**
  * @fileType hook
  * @domain kody
@@ -6,106 +6,117 @@
  * @ai-summary localStorage-backed notification history (max 50) with read/unread tracking
  */
 
-import { useState, useCallback, useEffect } from 'react'
-import type { KodyNotification, NotificationPrefs, NotificationType } from './types'
-import { DEFAULT_PREFS, NOTIFICATION_META } from './types'
+import { useState, useCallback, useEffect } from "react";
+import type {
+  KodyNotification,
+  NotificationPrefs,
+  NotificationType,
+} from "./types";
+import { DEFAULT_PREFS, NOTIFICATION_META } from "./types";
 
-const STORAGE_KEY = 'kody-notifications'
-const PREFS_KEY = 'kody-notification-prefs'
-const MAX_NOTIFICATIONS = 50
+const STORAGE_KEY = "kody-notifications";
+const PREFS_KEY = "kody-notification-prefs";
+const MAX_NOTIFICATIONS = 50;
 
 function loadNotifications(): KodyNotification[] {
-  if (typeof window === 'undefined') return []
+  if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as KodyNotification[]) : []
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as KodyNotification[]) : [];
   } catch {
-    return []
+    return [];
   }
 }
 
 function saveNotifications(items: KodyNotification[]): void {
-  if (typeof window === 'undefined') return
+  if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items.slice(0, MAX_NOTIFICATIONS)))
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(items.slice(0, MAX_NOTIFICATIONS)),
+    );
   } catch {
     /* storage full */
   }
 }
 
 function loadPrefs(): NotificationPrefs {
-  if (typeof window === 'undefined') return DEFAULT_PREFS
+  if (typeof window === "undefined") return DEFAULT_PREFS;
   try {
-    const raw = localStorage.getItem(PREFS_KEY)
+    const raw = localStorage.getItem(PREFS_KEY);
     return raw
       ? { ...DEFAULT_PREFS, ...(JSON.parse(raw) as Partial<NotificationPrefs>) }
-      : DEFAULT_PREFS
+      : DEFAULT_PREFS;
   } catch {
-    return DEFAULT_PREFS
+    return DEFAULT_PREFS;
   }
 }
 
 function savePrefs(prefs: NotificationPrefs): void {
-  if (typeof window === 'undefined') return
+  if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
   } catch {
     /* storage full */
   }
 }
 
 export interface UseNotificationStoreReturn {
-  notifications: KodyNotification[]
-  unreadCount: number
-  prefs: NotificationPrefs
+  notifications: KodyNotification[];
+  unreadCount: number;
+  prefs: NotificationPrefs;
   /** Add a new notification. Returns false if the type is disabled. */
   addNotification: (
     type: NotificationType,
     title: string,
     body: string,
     opts?: {
-      taskIssueNumber?: number
-      taskTitle?: string
-      meta?: Record<string, string>
+      taskIssueNumber?: number;
+      taskTitle?: string;
+      meta?: Record<string, string>;
     },
-  ) => KodyNotification | null
-  markAsRead: (id: string) => void
-  markAllAsRead: () => void
-  clearAll: () => void
-  removeNotification: (id: string) => void
-  updatePrefs: (patch: Partial<NotificationPrefs>) => void
-  toggleType: (type: NotificationType) => void
-  isTypeEnabled: (type: NotificationType) => boolean
+  ) => KodyNotification | null;
+  markAsRead: (id: string) => void;
+  markAllAsRead: () => void;
+  clearAll: () => void;
+  removeNotification: (id: string) => void;
+  updatePrefs: (patch: Partial<NotificationPrefs>) => void;
+  toggleType: (type: NotificationType) => void;
+  isTypeEnabled: (type: NotificationType) => boolean;
 }
 
 export function useNotificationStore(): UseNotificationStoreReturn {
-  const [notifications, setNotifications] = useState<KodyNotification[]>([])
-  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS)
+  const [notifications, setNotifications] = useState<KodyNotification[]>([]);
+  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
 
   // Load from localStorage on mount
   useEffect(() => {
-    setNotifications(loadNotifications())
-    setPrefs(loadPrefs())
-  }, [])
+    setNotifications(loadNotifications());
+    setPrefs(loadPrefs());
+  }, []);
 
-  const unreadCount = notifications.filter((n) => !n.read).length
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const isTypeEnabled = useCallback(
     (type: NotificationType) => !prefs.disabledTypes.includes(type),
     [prefs.disabledTypes],
-  )
+  );
 
   const addNotification = useCallback(
     (
       type: NotificationType,
       title: string,
       body: string,
-      opts?: { taskIssueNumber?: number; taskTitle?: string; meta?: Record<string, string> },
+      opts?: {
+        taskIssueNumber?: number;
+        taskTitle?: string;
+        meta?: Record<string, string>;
+      },
     ): KodyNotification | null => {
-      if (prefs.disabledTypes.includes(type)) return null
-      if (!prefs.inAppEnabled) return null
+      if (prefs.disabledTypes.includes(type)) return null;
+      if (!prefs.inAppEnabled) return null;
 
-      const meta = NOTIFICATION_META[type]
+      const meta = NOTIFICATION_META[type];
       const notification: KodyNotification = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         type,
@@ -116,66 +127,66 @@ export function useNotificationStore(): UseNotificationStoreReturn {
         taskIssueNumber: opts?.taskIssueNumber,
         taskTitle: opts?.taskTitle,
         meta: opts?.meta,
-      }
+      };
 
       setNotifications((prev) => {
-        const next = [notification, ...prev].slice(0, MAX_NOTIFICATIONS)
-        saveNotifications(next)
-        return next
-      })
+        const next = [notification, ...prev].slice(0, MAX_NOTIFICATIONS);
+        saveNotifications(next);
+        return next;
+      });
 
-      return notification
+      return notification;
     },
     [prefs.disabledTypes, prefs.inAppEnabled],
-  )
+  );
 
   const markAsRead = useCallback((id: string) => {
     setNotifications((prev) => {
-      const next = prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-      saveNotifications(next)
-      return next
-    })
-  }, [])
+      const next = prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+      saveNotifications(next);
+      return next;
+    });
+  }, []);
 
   const markAllAsRead = useCallback(() => {
     setNotifications((prev) => {
-      const next = prev.map((n) => ({ ...n, read: true }))
-      saveNotifications(next)
-      return next
-    })
-  }, [])
+      const next = prev.map((n) => ({ ...n, read: true }));
+      saveNotifications(next);
+      return next;
+    });
+  }, []);
 
   const clearAll = useCallback(() => {
-    setNotifications([])
-    saveNotifications([])
-  }, [])
+    setNotifications([]);
+    saveNotifications([]);
+  }, []);
 
   const removeNotification = useCallback((id: string) => {
     setNotifications((prev) => {
-      const next = prev.filter((n) => n.id !== id)
-      saveNotifications(next)
-      return next
-    })
-  }, [])
+      const next = prev.filter((n) => n.id !== id);
+      saveNotifications(next);
+      return next;
+    });
+  }, []);
 
   const updatePrefs = useCallback((patch: Partial<NotificationPrefs>) => {
     setPrefs((prev) => {
-      const next = { ...prev, ...patch }
-      savePrefs(next)
-      return next
-    })
-  }, [])
+      const next = { ...prev, ...patch };
+      savePrefs(next);
+      return next;
+    });
+  }, []);
 
   const toggleType = useCallback((type: NotificationType) => {
     setPrefs((prev) => {
       const disabled = prev.disabledTypes.includes(type)
         ? prev.disabledTypes.filter((t) => t !== type)
-        : [...prev.disabledTypes, type]
-      const next = { ...prev, disabledTypes: disabled }
-      savePrefs(next)
-      return next
-    })
-  }, [])
+        : [...prev.disabledTypes, type];
+      const next = { ...prev, disabledTypes: disabled };
+      savePrefs(next);
+      return next;
+    });
+  }, []);
 
   return {
     notifications,
@@ -189,5 +200,5 @@ export function useNotificationStore(): UseNotificationStoreReturn {
     updatePrefs,
     toggleType,
     isTypeEnabled,
-  }
+  };
 }

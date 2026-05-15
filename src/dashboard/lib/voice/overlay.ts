@@ -21,7 +21,7 @@
  * — otherwise voice replies drift between agents.
  */
 
-import { z } from 'zod'
+import { z } from "zod";
 
 /**
  * TTS-friendly rules appended to the FULL assembled system prompt
@@ -54,7 +54,7 @@ Tone:
 - One short clarifying question is fine. Two is not.
 - Never narrate "calling tool X" or "let me check". Just do it and speak the result.
 
-Keep replies tight. The user is listening, not reading.`
+Keep replies tight. The user is listening, not reading.`;
 
 /**
  * Append the voice overlay to a fully-assembled system prompt. The
@@ -67,8 +67,8 @@ export function applyVoiceOverlay(
   basePrompt: string,
   voiceMode: boolean,
 ): string {
-  if (!voiceMode) return basePrompt
-  return `${basePrompt}\n\n${VOICE_OVERLAY_PROMPT}`
+  if (!voiceMode) return basePrompt;
+  return `${basePrompt}\n\n${VOICE_OVERLAY_PROMPT}`;
 }
 
 /**
@@ -78,6 +78,6 @@ export function applyVoiceOverlay(
  */
 export const VoiceModeBodySchema = z.object({
   voiceMode: z.boolean().optional().default(false),
-})
+});
 
-export type VoiceModeBody = z.infer<typeof VoiceModeBodySchema>
+export type VoiceModeBody = z.infer<typeof VoiceModeBodySchema>;

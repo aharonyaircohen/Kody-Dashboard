@@ -84,19 +84,19 @@ export const BRANCH_PREFIXES = [
 
 // ============ GitHub Configuration ============
 
-export const GITHUB_OWNER = process.env.GITHUB_OWNER?.trim() ?? '';
-export const GITHUB_REPO = process.env.GITHUB_REPO?.trim() ?? '';
+export const GITHUB_OWNER = process.env.GITHUB_OWNER?.trim() ?? "";
+export const GITHUB_REPO = process.env.GITHUB_REPO?.trim() ?? "";
 
 /**
  * Read the connected repo from localStorage kody_auth.
  * Falls back to GITHUB_OWNER/GITHUB_REPO env vars if not set.
  */
 function getConnectedRepo(): { owner: string; repo: string } {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return { owner: GITHUB_OWNER, repo: GITHUB_REPO };
   }
   try {
-    const raw = localStorage.getItem('kody_auth');
+    const raw = localStorage.getItem("kody_auth");
     if (!raw) return { owner: GITHUB_OWNER, repo: GITHUB_REPO };
     const auth = JSON.parse(raw) as { owner?: string; repo?: string };
     if (auth.owner && auth.repo) return { owner: auth.owner, repo: auth.repo };

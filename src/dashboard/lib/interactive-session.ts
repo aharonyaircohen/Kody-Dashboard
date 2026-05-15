@@ -46,7 +46,9 @@ export function sessionFilePath(sessionId: string): string {
   return `${SESSION_DIR}/${sessionId}.jsonl`;
 }
 
-export function buildMetaLine(opts: { idleExitMs?: number; hardCapMs?: number } = {}): SessionMeta {
+export function buildMetaLine(
+  opts: { idleExitMs?: number; hardCapMs?: number } = {},
+): SessionMeta {
   return {
     type: "meta",
     mode: "interactive",
@@ -106,12 +108,14 @@ export async function appendUserTurn(
   while (true) {
     attempt += 1;
     const existing = await readSessionFile(octokit, owner, repo, path, branch);
-    const newContent = existing.content + `${JSON.stringify({
-      role: turn.role,
-      content: turn.content,
-      timestamp: turn.timestamp,
-      toolCalls: turn.toolCalls ?? [],
-    })}\n`;
+    const newContent =
+      existing.content +
+      `${JSON.stringify({
+        role: turn.role,
+        content: turn.content,
+        timestamp: turn.timestamp,
+        toolCalls: turn.toolCalls ?? [],
+      })}\n`;
 
     try {
       await octokit.repos.createOrUpdateFileContents({
@@ -143,8 +147,14 @@ async function getFileSha(
   branch: string,
 ): Promise<string | null> {
   try {
-    const res = await octokit.repos.getContent({ owner, repo, path, ref: branch });
-    if ("sha" in res.data && typeof res.data.sha === "string") return res.data.sha;
+    const res = await octokit.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref: branch,
+    });
+    if ("sha" in res.data && typeof res.data.sha === "string")
+      return res.data.sha;
     return null;
   } catch (err: unknown) {
     const e = err as { status?: number };
@@ -161,8 +171,14 @@ async function readSessionFile(
   branch: string,
 ): Promise<{ content: string; sha: string | undefined }> {
   try {
-    const res = await octokit.repos.getContent({ owner, repo, path, ref: branch });
-    if (Array.isArray(res.data)) throw new Error("session path is a directory, not a file");
+    const res = await octokit.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref: branch,
+    });
+    if (Array.isArray(res.data))
+      throw new Error("session path is a directory, not a file");
     if (!("content" in res.data) || !("sha" in res.data)) {
       throw new Error("unexpected getContent response shape");
     }
