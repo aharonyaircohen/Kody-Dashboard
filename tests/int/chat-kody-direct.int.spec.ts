@@ -5,8 +5,10 @@
  *
  * Covers request validation + provider-key plumbing without hitting the
  * live Gemini API. The SDK call is not mocked end-to-end; we assert the
- * behaviour the UI depends on: 400 on bad input, 503 when the key is
- * missing, auth gate before doing any work.
+ * behaviour the UI depends on: 400 on bad input, 409 + `fallback:
+ * "kody-live"` when no model is resolvable or the key is missing (the UI
+ * routes the turn through the Actions engine instead), auth gate before
+ * doing any work.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
@@ -36,13 +38,16 @@ afterEach(() => {
 })
 
 describe("POST /api/kody/chat/kody", () => {
-  it("returns 503 when GEMINI_API_KEY is not configured", async () => {
+  it("returns 409 with fallback:kody-live when no model can be resolved", async () => {
     vi.stubEnv("GEMINI_API_KEY", "")
     vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "")
     const res = await kodyChatPOST(makeRequest({ messages: [{ role: "user", content: "hi" }] }))
-    expect(res.status).toBe(503)
+    expect(res.status).toBe(409)
     const data = await res.json()
-    expect(String(data.error)).toMatch(/GEMINI_API_KEY/)
+    expect(data.fallback).toBe("kody-live")
+    // Surface either path: no models configured (empty LLM_MODELS) or
+    // model resolved but its api-key secret is missing.
+    expect(String(data.error)).toMatch(/no_models_configured|model_api_key_missing|model_base_url_missing/)
   })
 
   it("returns 400 when messages are missing", async () => {
