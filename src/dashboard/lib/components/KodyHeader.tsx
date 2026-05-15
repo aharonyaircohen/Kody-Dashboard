@@ -16,15 +16,11 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import Link from 'next/link'
 import {
-  GitBranch,
   Github,
-  Layers,
   Menu,
   Moon,
   RefreshCw,
-  ScrollText,
   Sun,
 } from 'lucide-react'
 
@@ -35,18 +31,11 @@ import { useTheme } from '@dashboard/providers/Theme'
 import { NotificationCenter } from '../notifications/NotificationCenter'
 import { useNotifications } from '../notifications/NotificationsProvider'
 import { cn } from '../utils'
-import { PublishButton } from './PublishButton'
 import { SettingsDrawerTrigger } from './SettingsDrawer'
 import { SimpleTooltip } from './SimpleTooltip'
 import { VibeToggle } from './VibeToggle'
 
 interface KodyHeaderProps {
-  /** Called after a successful publish so the host page can focus the new issue. */
-  onPublished?: (issueNumber: number) => void
-
-  /** Opens the branch-cleanup dialog (host renders the dialog itself). */
-  onOpenBranchCleanup: () => void
-
   /** Opens the page-specific mobile menu (host renders the Sheet). */
   onOpenMobileMenu: () => void
 
@@ -61,8 +50,6 @@ interface KodyHeaderProps {
 }
 
 export function KodyHeader({
-  onPublished,
-  onOpenBranchCleanup,
   onOpenMobileMenu,
   onRefresh,
   isFetching,
@@ -177,34 +164,6 @@ export function KodyHeader({
           </Button>
         </SimpleTooltip>
 
-        <PublishButton actorLogin={githubUser?.login} onPublished={onPublished} />
-
-        <SimpleTooltip content="Jobs" side="bottom">
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="gap-1"
-            aria-label="Jobs"
-          >
-            <Link href="/jobs">
-              <Layers className="w-4 h-4" />
-            </Link>
-          </Button>
-        </SimpleTooltip>
-
-        <SimpleTooltip content="Clean up branches" side="bottom">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onOpenBranchCleanup}
-            aria-label="Clean up branches"
-            className="gap-1"
-          >
-            <GitBranch className="w-4 h-4" />
-          </Button>
-        </SimpleTooltip>
-
         <div className="h-5 w-px bg-white/[0.08] mx-1" aria-hidden="true" />
 
         <SimpleTooltip content="Refresh" side="bottom">
@@ -217,20 +176,6 @@ export function KodyHeader({
             className="gap-1"
           >
             <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
-          </Button>
-        </SimpleTooltip>
-
-        <SimpleTooltip content="Changelog" side="bottom">
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="gap-1"
-            aria-label="Changelog"
-          >
-            <Link href="/changelog">
-              <ScrollText className="w-4 h-4" />
-            </Link>
           </Button>
         </SimpleTooltip>
 
