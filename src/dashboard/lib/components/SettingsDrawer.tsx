@@ -20,7 +20,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { Settings as SettingsIcon } from 'lucide-react'
+import { MoreVertical } from 'lucide-react'
 
 import {
   Sheet,
@@ -162,12 +162,12 @@ export function SettingsDrawerTrigger({
       onClick={open}
       aria-label="Open settings"
       className={cn(
-        'inline-flex items-center justify-center h-8 w-8 rounded-md border border-white/[0.12]',
+        'inline-flex items-center justify-center h-8 w-8 rounded-md',
         'text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors',
         className,
       )}
     >
-      <SettingsIcon className="w-4 h-4" />
+      <MoreVertical className="w-4 h-4" />
     </button>
   )
 }

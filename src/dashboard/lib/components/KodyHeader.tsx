@@ -193,6 +193,33 @@ export function KodyHeader({
           </Button>
         </SimpleTooltip>
 
+        <SimpleTooltip content="Clean up branches" side="bottom">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenBranchCleanup}
+            aria-label="Clean up branches"
+            className="gap-1"
+          >
+            <GitBranch className="w-4 h-4" />
+          </Button>
+        </SimpleTooltip>
+
+        <div className="h-5 w-px bg-white/[0.08] mx-1" aria-hidden="true" />
+
+        <SimpleTooltip content="Refresh" side="bottom">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={isFetching}
+            aria-label="Refresh"
+            className="gap-1"
+          >
+            <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
+          </Button>
+        </SimpleTooltip>
+
         <SimpleTooltip content="Changelog" side="bottom">
           <Button
             asChild
@@ -208,31 +235,6 @@ export function KodyHeader({
         </SimpleTooltip>
 
         <SettingsDrawerTrigger />
-
-        <SimpleTooltip content="Clean up branches" side="bottom">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onOpenBranchCleanup}
-            aria-label="Clean up branches"
-            className="gap-1"
-          >
-            <GitBranch className="w-4 h-4" />
-          </Button>
-        </SimpleTooltip>
-
-        <SimpleTooltip content="Refresh" side="bottom">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRefresh}
-            disabled={isFetching}
-            aria-label="Refresh"
-            className="gap-1"
-          >
-            <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
-          </Button>
-        </SimpleTooltip>
       </div>
 
       {/* Mobile cluster — page-specific extras (e.g. issue picker) + hamburger. */}
