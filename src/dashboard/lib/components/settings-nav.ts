@@ -12,6 +12,7 @@ import {
   Bot,
   Cpu,
   Github,
+  Inbox,
   KeyRound,
   ScrollText,
   Settings as SettingsIcon,
@@ -67,6 +68,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "Workspace",
     items: [
+      {
+        href: "/inbox",
+        label: "Inbox",
+        icon: Inbox,
+        description: "Durable list of @mentions and review requests.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
       {
         href: "/notifications",
         label: "Notifications",

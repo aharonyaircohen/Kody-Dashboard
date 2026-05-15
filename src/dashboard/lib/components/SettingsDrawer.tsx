@@ -31,6 +31,7 @@ import {
 } from '@dashboard/ui/sheet'
 import { cn } from '@dashboard/lib/utils/ui'
 import { SETTINGS_NAV_SECTIONS } from './settings-nav'
+import { InboxBadge } from './InboxBadge'
 
 interface SettingsDrawerContextValue {
   open: () => void
@@ -120,9 +121,12 @@ function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
                     )}
                   >
                     <Icon className="w-4 h-4 mt-0.5 shrink-0" />
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium">
-                        {item.label}
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="block truncate font-medium">
+                          {item.label}
+                        </span>
+                        {item.href === '/inbox' && <InboxBadge />}
                       </span>
                       {item.description && (
                         <span className="block text-[11px] text-muted-foreground/80 truncate">

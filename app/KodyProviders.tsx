@@ -11,6 +11,7 @@ import React from 'react'
 import { ThemeProvider } from '@dashboard/providers/Theme'
 import { AuthProvider } from '@dashboard/lib/auth-context'
 import { ServiceWorkerRegister } from '@dashboard/lib/push/ServiceWorkerRegister'
+import { InboxWatcher } from '@dashboard/lib/inbox/useInboxWatcher'
 
 function makeQueryClient() {
   return new QueryClient({
@@ -42,6 +43,7 @@ export function KodyProviders({ children }: { children: React.ReactNode }) {
       <ThemeProvider>
         <AuthProvider>
           <ServiceWorkerRegister />
+          <InboxWatcher />
           {children}
         </AuthProvider>
       </ThemeProvider>
