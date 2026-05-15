@@ -218,15 +218,6 @@ function InstructionsManagerInner() {
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
       actions={
         <>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="gap-1"
-            onClick={() => setPromptDialog("base")}
-          >
-            <Eye className="w-4 h-4" />
-            View prompt
-          </Button>
           {data?.htmlUrl && (
             <Button asChild variant="ghost" size="sm" className="gap-1">
               <Link
@@ -318,13 +309,24 @@ function InstructionsManagerInner() {
               placeholder="e.g. Default to one-sentence answers. Always cite file paths when referencing code. Prefer Tailwind over inline styles."
               className="min-h-[320px] font-mono text-sm"
             />
-            <p className="text-[11px] text-white/30">
-              {data?.updatedAt
-                ? `Last saved ${formatRelative(data.updatedAt)}.`
-                : "Not saved yet."}{" "}
-              Hard rules in the base agent prompt (never fake tool calls,
-              research before evaluating) still win over your instructions.
-            </p>
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <p className="text-[11px] text-white/30">
+                {data?.updatedAt
+                  ? `Last saved ${formatRelative(data.updatedAt)}.`
+                  : "Not saved yet."}{" "}
+                Hard rules in the base agent prompt (never fake tool calls,
+                research before evaluating) still win over your instructions.
+              </p>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="gap-1 shrink-0 text-white/60 hover:text-white/90"
+                onClick={() => setPromptDialog("base")}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                View system prompt
+              </Button>
+            </div>
           </div>
         )}
       </div>
