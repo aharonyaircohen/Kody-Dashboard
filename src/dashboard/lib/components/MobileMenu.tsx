@@ -39,6 +39,7 @@ import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { cn } from '../utils'
 import { SimpleTooltip } from './SimpleTooltip'
 import { SETTINGS_NAV_SECTIONS } from './settings-nav'
+import { InboxBadge } from './InboxBadge'
 
 interface MobileMenuProps {
   open: boolean
@@ -252,8 +253,9 @@ export function MobileMenu({
                           >
                             <Icon className="w-4 h-4" />
                           </span>
-                          <span className="text-sm font-medium flex-1">
+                          <span className="text-sm font-medium flex-1 flex items-center gap-2">
                             {item.label}
+                            {item.href === '/inbox' && <InboxBadge />}
                           </span>
                         </Link>
                       )
