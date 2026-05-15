@@ -95,6 +95,14 @@ export function buildSystemPrompt(
      * the right runner on auto-handoff. Ignored outside vibe mode.
      */
     flyConfigured?: boolean
+    /**
+     * Raw body of `.kody/instructions.md` (or `null` when the file doesn't
+     * exist). Appended LAST inside the system prompt so it wins against
+     * the base agent prompt for tone / length / formatting preferences.
+     * Voice overlay still wins on mic turns — voice is applied outside
+     * this builder in route.ts.
+     */
+    userInstructions?: string | null
   },
 ): string {
   const sections: string[] = [base]
@@ -355,6 +363,22 @@ Everything in the base prompt about \`kody_run_issue\`, the \`@kody\` executor h
 ${opts.flyConfigured
   ? '- **Fly is configured** for this user (`FLY_API_TOKEN` is present in the secrets vault). On auto-handoff, use `switch_agent(\'kody-live-fly\')`.'
   : '- **Fly is NOT configured** for this user (no `FLY_API_TOKEN` in the secrets vault). Fly cannot boot. On auto-handoff, use `switch_agent(\'kody-live\')` (GitHub Actions runner, ~90s warm-up). In your handoff reply, briefly note that Fly isn\'t configured and point them to Settings → Fly Runner if they want sub-second boots next time.'}`)
+  }
+
+  // Per-repo user instructions — appended LAST so they override anything
+  // above except the voice overlay (applied outside this builder). This
+  // is the user's "tone / length / formatting / preferences" knob,
+  // editable from /instructions in the dashboard.
+  if (opts?.userInstructions && opts.userInstructions.trim().length > 0) {
+    sections.push(
+      `## User instructions for this repo
+
+The block below is the live contents of \`.kody/instructions.md\` for this repo — the user's explicit preferences for how you should behave in this chat. These OVERRIDE the base agent prompt for tone, length, formatting, and any other preference the user has chosen to record here. Apply them automatically; do not narrate that you're applying them.
+
+If a user instruction conflicts with a hard rule above (never fake tool calls, research before evaluating, issue-creation gates), the hard rule still wins — those exist to prevent footguns. Everything else, the user instruction wins.
+
+${opts.userInstructions.trim()}`,
+    )
   }
 
   return sections.join("\n\n")

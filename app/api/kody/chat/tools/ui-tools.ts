@@ -23,14 +23,13 @@ const SELECTABLE_AGENT_IDS = Object.values(AGENTS).map(
 export const switchAgentTool = tool({
   description:
     'Switch the active dashboard agent in the chat UI. Call ONLY when the user ' +
-    'explicitly asks to change agents ("switch to Kody Live", "use Brain instead", ' +
-    '"talk to Gemini"). Do NOT call proactively to "find the right agent" for a ' +
-    'question. The switch takes effect for the user\'s NEXT message, not the ' +
-    'current turn — explain that to the user. For Kody Live specifically, the ' +
-    'first message after the switch starts the live session (the runner boots ' +
-    'on first message — there is no separate "start" action). When the call is ' +
-    'made from voice mode and the target agent\'s backend is not the in-process ' +
-    'Gemini path (anything except kody / kody-assistant), voice will close ' +
+    'explicitly asks to change agents ("switch to Kody Live", "use Brain instead"). ' +
+    'Do NOT call proactively to "find the right agent" for a question. The switch ' +
+    'takes effect for the user\'s NEXT message, not the current turn — explain ' +
+    'that to the user. For Kody Live specifically, the first message after the ' +
+    'switch starts the live session (the runner boots on first message — there ' +
+    'is no separate "start" action). When the call is made from voice mode and ' +
+    "the target agent's backend is not kody-direct, voice will close " +
     'automatically; mention that the user will need to type the next message.',
   inputSchema: z.object({
     agentId: z
@@ -38,7 +37,7 @@ export const switchAgentTool = tool({
       .describe(
         'Target agent id. Valid: ' +
           SELECTABLE_AGENT_IDS.join(', ') +
-          '. Voice is a modality (the mic icon), not an agent — every agent works in voice mode but only kody / kody-assistant currently keep the mic open after a switch.',
+          '. Voice is a modality (the mic icon), not an agent — every agent works in voice mode but only kody-direct agents keep the mic open after a switch.',
       ),
     reason: z
       .string()
