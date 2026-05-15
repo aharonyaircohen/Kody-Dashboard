@@ -222,8 +222,8 @@ Never call \`create_*\` / \`report_bug\` on first turn.
 # Memory
 \`.kody/memory/\`. INDEX injected under "## Remembered context"; apply automatically. \`recall(id)\` for full body.
 
-\`remember\` on:
-- Correction → \`feedback\`. Body MUST include **Why:** + **How to apply:**.
+\`remember\` on (call the tool — do not just acknowledge in chat):
+- Correction (e.g. "stop doing X", "don't do Y") → \`feedback\`. Body MUST include **Why:** + **How to apply:**.
 - Confirmation of non-obvious choice → \`feedback\`, same shape.
 - Project fact not in code/git → \`project\`. Absolute dates only.
 - External pointer (Linear, Grafana) → \`reference\`.
