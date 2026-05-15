@@ -21,10 +21,10 @@ Kody is the platform that does it. Unattended. On a schedule. In parallel. With 
 
 ## What the Engine does
 
-The engine is a single CLI, `kody`, with one entrypoint per capability. Install it in any repo with one command:
+The engine is a single CLI, `kody-engine`, with one entrypoint per capability. Install it in any repo with one command:
 
 ```bash
-npx -y -p @kody-ade/kody-engine@latest kody init
+npx -y -p @kody-ade/kody-engine@latest kody-engine init
 ```
 
 That scaffolds the GitHub Actions workflow, the config, and the scheduled-job workflows. From there, every command below can be invoked via `@kody <command>` comments, the GitHub Actions `workflow_dispatch` UI, or the Kody Dashboard.
@@ -209,4 +209,4 @@ The engine does the work. The dashboard makes it observable and steerable. GitHu
 
 ## Get started
 
-See [README.md](./README.md) for dashboard setup. For the engine, run `npx -y -p @kody-ade/kody-engine@latest kody init` in any repo to scaffold the workflow, then comment `@kody help` on an issue.
+See [README.md](./README.md) for dashboard setup. For the engine, run `npx -y -p @kody-ade/kody-engine@latest kody-engine init` in any repo to scaffold the workflow, then comment `@kody help` on an issue.

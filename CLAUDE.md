@@ -199,7 +199,7 @@ plain text + `$ARGUMENTS` for portable prompts.
 
 **Engine path details** (when used): dispatches `kody.yml` in the connected
 repo with the session ID and an inline HMAC token in `dashboardUrl`. The kody
-engine runs `kody dispatch`, which branches to the chat executable, streams
+engine runs `kody-engine dispatch`, which branches to the chat executable, streams
 events back to `/api/kody/events/ingest` (real-time), and commits them to
 `.kody/events/{sessionId}.jsonl` (durable fallback, polled by
 `/api/kody/events/stream`). Token is verified via HMAC of sessionId with
