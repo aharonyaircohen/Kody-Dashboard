@@ -61,6 +61,7 @@ import { fetchUrlTool } from "../tools/fetch-url"
 import { featureTools } from "../tools/feature-tools"
 import { uiTools } from "../tools/ui-tools"
 import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files"
+import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files"
 
 export const runtime = "nodejs"
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -430,6 +431,7 @@ export async function POST(req: NextRequest) {
   // existing onFinish / catch paths to clear it. Per-request octokits
   // for GitHub tools are still created separately below to avoid races.
   let memoryIndex: string | null = null
+  let userInstructions: string | null = null
   if (repo) {
     setGitHubContext(repo.owner, repo.repo, repo.token)
     try {
@@ -439,6 +441,15 @@ export async function POST(req: NextRequest) {
       traceWarn(
         { traceId, err: err instanceof Error ? err.message : String(err) },
         "kody-direct: memory index load failed (continuing without it)",
+      )
+    }
+    try {
+      userInstructions = await loadInstructionsForPrompt()
+    } catch (err) {
+      // Instructions are best-effort; never block the chat. Log and continue.
+      traceWarn(
+        { traceId, err: err instanceof Error ? err.message : String(err) },
+        "kody-direct: user instructions load failed (continuing without them)",
       )
     }
   }
@@ -504,6 +515,7 @@ export async function POST(req: NextRequest) {
       memoryIndex,
       vibeMode,
       flyConfigured,
+      userInstructions,
     },
   )
 

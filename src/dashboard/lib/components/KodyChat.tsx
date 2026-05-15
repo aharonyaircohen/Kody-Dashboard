@@ -24,7 +24,7 @@ import {
   Loader2,
   ChevronDown,
 } from 'lucide-react'
-import { AGENT, AGENTS, type AgentId, type AgentConfig } from '../agents'
+import { AGENT_KODY, AGENTS, type AgentId, type AgentConfig } from '../agents'
 
 /**
  * Dropdown entry shape. `key` is a stable React key and a selection token
@@ -744,7 +744,7 @@ export function KodyChat({
   // model keeps generating, tokens keep flowing into the assistant bubble,
   // and the user has no recourse. Mirrors the Brain backend's pattern.
   const kodyAbortRef = useRef<AbortController | null>(null)
-  const currentAgent = AGENTS[selectedAgentId] ?? AGENT
+  const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY
   const agentList = buildAgentList(brainConfigured, flyConfigured, brainFlyOn, chatModels)
   // Vibe auto-kickoff. When `vibe_start_execution` returns a
   // SwitchAgentDirective with `autoKickoff`, the dashboard records the
