@@ -47,6 +47,7 @@ import { VibeDefaultPreviewField } from './VibeDefaultPreviewField'
 import { PreviewActions } from './PreviewActions'
 import { CIStatusBadge } from './CIStatusBadge'
 import { KodyHeader } from './KodyHeader'
+import { PageActions } from './PageActions'
 import { BranchCleanupDialog } from './BranchCleanupDialog'
 import { MobileMenu } from './MobileMenu'
 import { SimpleTooltip } from './SimpleTooltip'
@@ -407,22 +408,27 @@ export function VibePage() {
       {/* Header — mirrors the Dashboard so navigation feels like a view
           toggle. The VibeToggle in the header reflects "on" via pathname. */}
       <KodyHeader
-        onPublished={(n) => setSelectedIssueNumber(n)}
-        onOpenBranchCleanup={() => setShowBranchCleanup(true)}
         onOpenMobileMenu={() => setShowMobileMenu(true)}
         onRefresh={() => {
           tasksQuery.refetch()
         }}
         isFetching={tasksQuery.isFetching}
         desktopExtras={
-          selectedTask?.associatedPR ? (
-            <div className="flex items-center gap-2 min-w-0 mr-1">
-              <span className="text-xs text-zinc-500 truncate hidden lg:inline max-w-[220px]">
-                #{selectedTask.issueNumber} {selectedTask.title}
-              </span>
-              <CIStatusBadge prNumber={selectedTask.associatedPR.number} />
-            </div>
-          ) : null
+          <div className="flex items-center gap-3 min-w-0">
+            {selectedTask?.associatedPR ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs text-zinc-500 truncate hidden lg:inline max-w-[220px]">
+                  #{selectedTask.issueNumber} {selectedTask.title}
+                </span>
+                <CIStatusBadge prNumber={selectedTask.associatedPR.number} />
+              </div>
+            ) : null}
+            <PageActions
+              onOpenBranchCleanup={() => setShowBranchCleanup(true)}
+              onPublished={(n) => setSelectedIssueNumber(n)}
+              actorLogin={githubUser?.login}
+            />
+          </div>
         }
         mobileExtras={
           <SimpleTooltip content="Open issues">

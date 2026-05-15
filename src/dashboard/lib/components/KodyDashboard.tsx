@@ -104,6 +104,7 @@ import { SimpleTooltip } from "./SimpleTooltip";
 import { VibeToggle } from "./VibeToggle";
 import { SettingsDrawerTrigger } from "./SettingsDrawer";
 import { KodyHeader } from "./KodyHeader";
+import { PageActions } from "./PageActions";
 import { MobileMenu } from "./MobileMenu";
 import { PRIORITY_LEVELS, PRIORITY_META } from "../constants";
 
@@ -1254,8 +1255,6 @@ export function KodyDashboard({
           ) : (
             <>
               <KodyHeader
-                onPublished={(n) => setSelectedIssueNumber(n)}
-                onOpenBranchCleanup={() => setShowBranchCleanup(true)}
                 onOpenMobileMenu={() => setShowMobileMenu(true)}
                 onRefresh={() => {
                   refetch();
@@ -1282,7 +1281,6 @@ export function KodyDashboard({
                   labelCounts={labelCounts}
                   statusCounts={statusCounts}
                   totalCount={totalCount}
-                  filteredCount={filteredTasks.length}
                   runningCount={runningCount}
                   backlogCount={backlogCount}
                   queueCount={queueCount}
@@ -1293,6 +1291,13 @@ export function KodyDashboard({
                   onSortFieldChange={setSortField}
                   sortDirection={sortDirection}
                   onSortDirectionChange={setSortDirection}
+                  rightSlot={
+                    <PageActions
+                      onOpenBranchCleanup={() => setShowBranchCleanup(true)}
+                      onPublished={(n) => setSelectedIssueNumber(n)}
+                      actorLogin={githubUser?.login}
+                    />
+                  }
                 />
               </div>
 

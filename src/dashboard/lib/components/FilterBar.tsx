@@ -6,7 +6,7 @@
  */
 'use client'
 
-import { forwardRef, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useImperativeHandle, useRef, type ReactNode } from 'react'
 import { cn } from '../utils'
 import { Search } from 'lucide-react'
 import type { SortField, SortDirection } from '../types'
@@ -29,7 +29,6 @@ export interface FilterBarProps {
   onPriorityFilterChange: (value: string) => void
   statusCounts: Record<string, number>
   totalCount: number
-  filteredCount: number
   runningCount: number
   backlogCount: number
   queueCount?: number
@@ -44,6 +43,8 @@ export interface FilterBarProps {
   onSortFieldChange?: (field: SortField) => void
   sortDirection?: SortDirection
   onSortDirectionChange?: (direction: SortDirection) => void
+  /** Right-aligned slot for page-level actions (Jobs, Publish, etc). */
+  rightSlot?: ReactNode
 }
 
 export interface FilterBarHandle {
@@ -120,7 +121,6 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(function Fi
     onPriorityFilterChange,
     statusCounts,
     totalCount,
-    filteredCount,
     runningCount,
     backlogCount,
     queueCount,
@@ -131,6 +131,7 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(function Fi
     onSortFieldChange,
     sortDirection = 'desc',
     onSortDirectionChange,
+    rightSlot,
   },
   ref,
 ) {
@@ -191,10 +192,8 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(function Fi
         onSortDirectionChange={onSortDirectionChange}
       />
 
-      {/* Task count indicator */}
-      <span className="text-xs text-muted-foreground ml-auto">
-        {filteredCount} of {totalCount} tasks
-      </span>
+      {/* Right-aligned action cluster (Jobs / Publish / Cleanup / Changelog). */}
+      {rightSlot ? <div className="ml-auto">{rightSlot}</div> : null}
     </div>
   )
 })

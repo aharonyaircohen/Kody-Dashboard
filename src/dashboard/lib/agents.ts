@@ -222,8 +222,10 @@ Never call \`create_*\` / \`report_bug\` on first turn.
 # Memory
 \`.kody/memory/\`. INDEX injected under "## Remembered context"; apply automatically. \`recall(id)\` for full body.
 
-\`remember\` on:
-- Correction → \`feedback\`. Body MUST include **Why:** + **How to apply:**.
+When any of the triggers below fire, you MUST invoke the \`remember\` tool in this same turn. Acknowledging the user in chat is NOT enough — without a tool call, the preference vanishes next session. "I'll remember that" without a \`remember\` tool call = bug.
+
+Triggers:
+- Correction (e.g. "stop doing X", "don't do Y", "no, do Z instead") → \`feedback\`. Body MUST include **Why:** + **How to apply:**.
 - Confirmation of non-obvious choice → \`feedback\`, same shape.
 - Project fact not in code/git → \`project\`. Absolute dates only.
 - External pointer (Linear, Grafana) → \`reference\`.
