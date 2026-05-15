@@ -51,24 +51,16 @@ export interface ChatModelEntry {
 
 function buildAgentList(
   brainConfigured: boolean,
-  flyConfigured: boolean,
   brainFlyOn: boolean,
   models: ChatModelEntry[],
 ): ChatDropdownEntry[] {
-  const entries: ChatDropdownEntry[] = [];
-  // Live row: prefer the Fly runner when configured, fall back to GH
-  // Actions Live otherwise. Only one Live entry is shown — having both
-  // is noise once the user has opted into the faster Fly path.
-  const liveAgentId: AgentId = flyConfigured ? "kody-live-fly" : "kody-live";
-  const liveAgent = AGENTS[liveAgentId];
-  entries.push({
-    key: liveAgentId,
-    agentId: liveAgentId,
-    modelId: null,
-    name: liveAgent.name,
-    description: liveAgent.description,
-    icon: liveAgent.icon,
-  });
+  const entries: ChatDropdownEntry[] = []
+  // Live is intentionally absent from the chat picker. It still exists as
+  // the vibe execution backend (see vibe_start_execution → switch_agent
+  // directive), but users don't pick it manually — the runner choice is
+  // derived from Settings → Fly Runner (Fly token present → kody-live-fly,
+  // else kody-live). Keeping it out of the picker removes the confusion
+  // between Brain (chat) and Live (action).
   // Brain row: prefer Brain on Fly when it's running; otherwise the
   // manual Brain (URL+key via Settings or server-wide via BRAIN_CHAT_URL
   // env). Same single-slot rule as Live — surface one or the other,
@@ -776,14 +768,9 @@ export function KodyChat({
   // Without this the Stop button can't cancel the in-flight stream — the
   // model keeps generating, tokens keep flowing into the assistant bubble,
   // and the user has no recourse. Mirrors the Brain backend's pattern.
-  const kodyAbortRef = useRef<AbortController | null>(null);
-  const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY;
-  const agentList = buildAgentList(
-    brainConfigured,
-    flyConfigured,
-    brainFlyOn,
-    chatModels,
-  );
+  const kodyAbortRef = useRef<AbortController | null>(null)
+  const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY
+  const agentList = buildAgentList(brainConfigured, brainFlyOn, chatModels)
   // Vibe auto-kickoff. When `vibe_start_execution` returns a
   // SwitchAgentDirective with `autoKickoff`, the dashboard records the
   // message + target issue number here so a useEffect can dispatch it
