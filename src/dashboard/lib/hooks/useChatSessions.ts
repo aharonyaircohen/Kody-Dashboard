@@ -443,18 +443,17 @@ export function useChatSessions(
           ...prev,
           activeSessionId: currentActiveId,
           messages: { ...nextMessages, [currentActiveId]: computedNew },
+          // NOTE: title is intentionally left untouched here. Titling has
+          // a single owner — the auto-title effect in KodyChat, which asks
+          // the chat model for a real summary (slice is only its offline
+          // fallback). Slicing here too would pre-empt that effect (it
+          // only fires while the title is still "New conversation").
           sessions: nextSessions.map((s) =>
             s.id === currentActiveId
               ? {
                   ...s,
                   messageCount: computedNew.length,
                   updatedAt: new Date().toISOString(),
-                  title:
-                    s.title === "New conversation" && computedNew.length > 0
-                      ? computedNew
-                          .find((m: ChatMessage) => m.role === "user")
-                          ?.text?.slice(0, 60) || s.title
-                      : s.title,
                 }
               : s,
           ),
