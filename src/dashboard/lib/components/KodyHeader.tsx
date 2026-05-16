@@ -15,13 +15,11 @@
  */
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Github, Menu, Moon, RefreshCw, Sun } from "lucide-react";
+import { type ReactNode } from "react";
+import { Menu, RefreshCw } from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { Button } from "@dashboard/ui/button";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import { useTheme } from "@dashboard/providers/Theme";
 import { NotificationCenter } from "../notifications/NotificationCenter";
 import { useNotifications } from "../notifications/NotificationsProvider";
 import { cn } from "../utils";
@@ -49,15 +47,13 @@ export function KodyHeader({
   desktopExtras,
   mobileExtras,
 }: KodyHeaderProps) {
-  const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
-  const { theme, setTheme } = useTheme();
+  const { connectedRepo } = useGitHubIdentity();
   const {
     store: notificationStore,
     permission: notificationPermission,
     isSupported: notificationsSupported,
     requestPermission,
   } = useNotifications();
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   return (
     <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/20">
@@ -66,11 +62,6 @@ export function KodyHeader({
           <h1 className="text-lg md:text-xl font-semibold text-foreground truncate">
             {connectedRepo?.split("/").pop() || "Kody Operations"}
           </h1>
-          {process.env.NEXT_PUBLIC_APP_VERSION ? (
-            <span className="text-xs text-muted-foreground font-mono">
-              v{process.env.NEXT_PUBLIC_APP_VERSION}
-            </span>
-          ) : null}
         </div>
         <VibeToggle className="hidden sm:inline-flex" />
       </div>

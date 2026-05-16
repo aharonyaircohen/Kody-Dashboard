@@ -19,17 +19,26 @@ import { useEffect, useState } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
+  Github,
   History,
   Home,
   Layers,
+  LogOut,
+  Moon,
+  Sun,
   Users,
   type LucideIcon,
 } from 'lucide-react'
 
+import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
+import { useTheme } from '@dashboard/providers/Theme'
 import { cn } from '@dashboard/lib/utils/ui'
+import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { SimpleTooltip } from './SimpleTooltip'
 import { InboxBadge } from './InboxBadge'
 import { SETTINGS_NAV_SECTIONS } from './settings-nav'
+
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION
 
 interface NavItem {
   href: string
@@ -55,6 +64,9 @@ function isActive(pathname: string, item: NavItem): boolean {
 
 export function Sidebar() {
   const pathname = usePathname() ?? '/'
+  const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity()
+  const { theme, setTheme } = useTheme()
+  const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false)
   const [collapsed, setCollapsed] = useState<boolean>(false)
   const [hydrated, setHydrated] = useState<boolean>(false)
 
@@ -138,20 +150,25 @@ export function Sidebar() {
           collapsed ? 'justify-center' : 'justify-between',
         )}
       >
-        <Link
-          href="/"
-          className="flex items-center gap-2 text-foreground hover:text-foreground/80"
-          aria-label="Kody home"
+        <SimpleTooltip
+          content={APP_VERSION ? `Kody v${APP_VERSION}` : 'Kody'}
+          side="right"
         >
-          <div className="h-7 w-7 rounded-md bg-emerald-600 flex items-center justify-center text-white font-semibold text-sm shrink-0">
-            K
-          </div>
-          {!collapsed && (
-            <span className="text-sm font-semibold tracking-tight truncate">
-              Kody
-            </span>
-          )}
-        </Link>
+          <Link
+            href="/"
+            className="flex items-center gap-2 text-foreground hover:text-foreground/80"
+            aria-label={APP_VERSION ? `Kody home (v${APP_VERSION})` : 'Kody home'}
+          >
+            <div className="h-7 w-7 rounded-md bg-emerald-600 flex items-center justify-center text-white font-semibold text-sm shrink-0">
+              K
+            </div>
+            {!collapsed && (
+              <span className="text-sm font-semibold tracking-tight truncate">
+                Kody
+              </span>
+            )}
+          </Link>
+        </SimpleTooltip>
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
@@ -179,7 +196,111 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-white/[0.06] p-2">
+      <div className="border-t border-white/[0.06] p-2 space-y-1">
+        {/* GitHub identity — click to reveal connected repo + sign out.
+            Persistent app chrome, moved here from the page header. */}
+        {(githubUser || connectedRepo) && (
+          <div className="relative">
+            <SimpleTooltip
+              content={
+                githubUser
+                  ? `@${githubUser.login}${connectedRepo ? ` · ${connectedRepo}` : ''}`
+                  : (connectedRepo ?? 'Connected')
+              }
+              side="right"
+            >
+              <button
+                type="button"
+                onClick={() => setUserMenuOpen((prev) => !prev)}
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+                aria-label="Account"
+                className={cn(
+                  'flex items-center gap-3 w-full rounded-md text-sm h-9 px-3 transition-colors',
+                  'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                  collapsed && 'justify-center px-0',
+                )}
+              >
+                {githubUser ? (
+                  <Avatar className="h-5 w-5 shrink-0">
+                    <AvatarImage
+                      src={githubUser.avatar_url}
+                      alt={githubUser.login}
+                    />
+                    <AvatarFallback>
+                      {githubUser.login[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <Github className="w-4 h-4 shrink-0" />
+                )}
+                {!collapsed && (
+                  <span className="truncate flex-1 text-left">
+                    {githubUser ? `@${githubUser.login}` : 'Connected'}
+                  </span>
+                )}
+              </button>
+            </SimpleTooltip>
+            {userMenuOpen && (
+              <div className="absolute bottom-full left-0 mb-1 w-56 py-1 bg-popover border rounded-md shadow-lg z-50">
+                {connectedRepo && (
+                  <div className="px-3 py-1.5 text-xs text-muted-foreground border-b mb-1">
+                    <span className="font-medium text-foreground">Repo:</span>{' '}
+                    {connectedRepo}
+                  </div>
+                )}
+                {githubUser ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearGitHubUser()
+                      setUserMenuOpen(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent"
+                  >
+                    <LogOut className="w-3.5 h-3.5 shrink-0" />
+                    Sign out
+                  </button>
+                ) : (
+                  <div className="px-3 py-1.5 text-xs text-muted-foreground">
+                    No GitHub user signed in.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Theme toggle — global chrome, moved here from the page header. */}
+        <SimpleTooltip
+          content={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          side="right"
+        >
+          <button
+            type="button"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            aria-label={
+              theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
+            }
+            className={cn(
+              'flex items-center gap-3 w-full rounded-md text-sm h-9 px-3',
+              'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+              collapsed && 'justify-center px-0',
+            )}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-4 h-4 shrink-0" />
+            ) : (
+              <Moon className="w-4 h-4 shrink-0" />
+            )}
+            {!collapsed && (
+              <span className="truncate">
+                {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+              </span>
+            )}
+          </button>
+        </SimpleTooltip>
+
         <SimpleTooltip
           content={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           side="right"
