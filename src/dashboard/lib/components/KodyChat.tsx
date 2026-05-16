@@ -5089,7 +5089,7 @@ export function KodyChat({
             </div>
           </div>
         ) : null}
-        <div className="flex gap-2 items-end">
+        <div className="flex gap-2 items-center">
           {/* Attachment button */}
           <input
             ref={fileInputRef}
