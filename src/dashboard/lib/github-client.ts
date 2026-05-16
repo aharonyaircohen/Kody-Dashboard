@@ -3429,6 +3429,109 @@ export async function fetchGoalDiscussionComments(
   return promise;
 }
 
+export interface GoalDiscussionThread {
+  title: string;
+  body: string;
+  state: "open" | "closed";
+  htmlUrl: string;
+  createdAt: string;
+  comments: GoalDiscussionComment[];
+}
+
+/**
+ * Fetch a discussion's title + body + comments in one GraphQL call.
+ *
+ * Powers the inbox's inline thread viewer for "goal" mentions (goals are
+ * GitHub Discussions). On-demand only (one click) — not polled — so it
+ * doesn't add to the GraphQL polling budget, but it still caches with the
+ * same TTL as `fetchGoalDiscussionComments` to coalesce repeat opens.
+ */
+export async function fetchGoalDiscussionThread(
+  discussionNumber: number,
+): Promise<GoalDiscussionThread | null> {
+  const cacheKey = `discussion-thread:${getOwner()}:${getRepo()}:${discussionNumber}`;
+  const cached = getCached<GoalDiscussionThread>(cacheKey);
+  if (cached) return cached;
+
+  const octokit = getOctokit();
+  const query = `
+    query DiscussionThread($owner: String!, $repo: String!, $number: Int!) {
+      repository(owner: $owner, name: $repo) {
+        discussion(number: $number) {
+          title
+          body
+          url
+          createdAt
+          closed
+          comments(first: 100) {
+            nodes {
+              id
+              databaseId
+              body
+              createdAt
+              updatedAt
+              url
+              author { login avatarUrl }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const data = await octokit.graphql<{
+    repository: {
+      discussion: {
+        title: string;
+        body: string;
+        url: string;
+        createdAt: string;
+        closed: boolean;
+        comments: {
+          nodes: {
+            id: string;
+            databaseId: number;
+            body: string;
+            createdAt: string;
+            updatedAt: string;
+            url: string;
+            author: { login: string; avatarUrl?: string } | null;
+          }[];
+        };
+      } | null;
+    };
+  }>(query, {
+    owner: getOwner(),
+    repo: getRepo(),
+    number: discussionNumber,
+  });
+
+  const d = data.repository.discussion;
+  if (!d) return null;
+
+  const thread: GoalDiscussionThread = {
+    title: d.title,
+    body: d.body ?? "",
+    state: d.closed ? "closed" : "open",
+    htmlUrl: d.url,
+    createdAt: d.createdAt,
+    comments: d.comments.nodes.map((n) => ({
+      id: n.id,
+      databaseId: n.databaseId,
+      body: n.body ?? "",
+      createdAt: n.createdAt,
+      updatedAt: n.updatedAt,
+      url: n.url,
+      author: n.author
+        ? { login: n.author.login, avatarUrl: n.author.avatarUrl }
+        : null,
+    })),
+  };
+
+  setCache(cacheKey, DISCUSSION_COMMENTS_TTL, thread);
+  return thread;
+}
+
 /**
  * Post a comment on a goal's discussion. Always uses `userOctokit` so the
  * comment is attributed to the actual user — never the shared polling token.

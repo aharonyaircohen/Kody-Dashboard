@@ -18,12 +18,13 @@ import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
 import {
   fetchIssue,
   fetchPRComments,
+  fetchGoalDiscussionThread,
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 
 const getSchema = z.object({
-  type: z.enum(["Issue", "PullRequest"]),
+  type: z.enum(["Issue", "PullRequest", "Discussion"]),
   number: z.coerce.number().int().positive(),
 });
 
@@ -49,7 +50,38 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { number } = parsed.data;
+    const { type, number } = parsed.data;
+
+    // Goals are GitHub Discussions — different API (GraphQL), same
+    // normalized response shape so the client renders them identically.
+    if (type === "Discussion") {
+      const d = await fetchGoalDiscussionThread(number);
+      if (!d) {
+        return NextResponse.json(
+          { error: "Thread not found" },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json({
+        thread: {
+          title: d.title,
+          body: d.body,
+          state: d.state,
+          htmlUrl: d.htmlUrl,
+          createdAt: d.createdAt,
+          comments: d.comments.map((c) => ({
+            id: c.databaseId,
+            body: c.body,
+            created_at: c.createdAt,
+            user: {
+              login: c.author?.login ?? "ghost",
+              type: "User" as const,
+              avatar_url: c.author?.avatarUrl ?? "",
+            },
+          })),
+        },
+      });
+    }
 
     // PRs are issues under the hood — issues.get / issues.listComments
     // resolve the body + conversation thread for both.

@@ -37,11 +37,17 @@ interface ThreadResponse {
 }
 
 /** Parse `Issue`/`PullRequest` + number out of an inbox entry, or null. */
+type ResolvableType = "Issue" | "PullRequest" | "Discussion";
+
 export function resolvableThread(
   entry: InboxEntry,
   connectedRepo: string | undefined,
-): { type: "Issue" | "PullRequest"; number: number } | null {
-  if (entry.threadType !== "Issue" && entry.threadType !== "PullRequest") {
+): { type: ResolvableType; number: number } | null {
+  if (
+    entry.threadType !== "Issue" &&
+    entry.threadType !== "PullRequest" &&
+    entry.threadType !== "Discussion"
+  ) {
     return null;
   }
   // The inline fetch is scoped to the connected repo's GitHub context.
@@ -54,7 +60,7 @@ export function resolvableThread(
     return null;
   }
 
-  const m = entry.url.match(/\/(?:issues|pull)\/(\d+)/);
+  const m = entry.url.match(/\/(?:issues|pull|discussions)\/(\d+)/);
   if (!m) return null;
   return { type: entry.threadType, number: Number(m[1]) };
 }
