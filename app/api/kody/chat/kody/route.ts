@@ -50,6 +50,7 @@ import { createRemoteTools } from "../tools/remote-tools";
 import { createBugTools } from "../tools/bug-tools";
 import { createTaskTools } from "../tools/task-tools";
 import { createJobTools } from "../tools/job-tools";
+import { createWorkerTools } from "../tools/worker-tools";
 import { createMemoryTools } from "../tools/memory-tools";
 import { createPlannerTools } from "../tools/planner-tools";
 import { createReleaseTools } from "../tools/release-tools";
@@ -517,6 +518,12 @@ export async function POST(req: NextRequest) {
         actorLogin: body.actorLogin ?? null,
       }),
       ...createJobTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createWorkerTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,

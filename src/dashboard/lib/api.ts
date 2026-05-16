@@ -971,6 +971,150 @@ export const jobsApi = {
   },
 };
 
+// ============ Workers API ============
+
+/** Per-worker cadence tokens; mirrors `ScheduleEvery` in workers-frontmatter.ts. */
+export type WorkerSchedule =
+  | "15m"
+  | "30m"
+  | "1h"
+  | "2h"
+  | "6h"
+  | "12h"
+  | "1d"
+  | "3d"
+  | "7d"
+  /** Sentinel: scheduler never auto-fires; only the dashboard "Run now" button executes it. */
+  | "manual";
+
+export interface Worker {
+  /** Filename without `.md` — stable identity. */
+  slug: string;
+  title: string;
+  body: string;
+  /** Last commit timestamp affecting this file (ISO8601). */
+  updatedAt: string;
+  /**
+   * Last commit timestamp of the sibling `<slug>.state.json` (ISO8601),
+   * or `null` if the worker has never run. The engine writes
+   * `<slug>.state.json` on every tick that acts.
+   */
+  lastTickAt: string | null;
+  /**
+   * UTC ISO timestamp at which this worker will next be eligible to act —
+   * read from `data.nextEligibleISO` in the state JSON. `null` if the
+   * worker has never run, or its body doesn't yet emit the field.
+   */
+  nextEligibleAt: string | null;
+  /**
+   * Per-worker cadence parsed from frontmatter. `null` = global cron wake
+   * (every 15 min). Engine-side gating ships separately.
+   */
+  schedule: WorkerSchedule | null;
+  /**
+   * Mirrors `disabled: true` in the frontmatter. When `true` the engine
+   * scheduler skips this worker; manual "Run now" still fires.
+   */
+  disabled: boolean;
+  /** Convenience link to the file on github.com. */
+  htmlUrl: string;
+}
+
+export const workersApi = {
+  list: async (): Promise<Worker[]> => {
+    const res = await fetch(`${API_BASE}/workers`, { headers: buildHeaders() });
+    const data = await handleResponse<{ workers: Worker[] }>(res);
+    return data.workers;
+  },
+
+  get: async (slug: string): Promise<Worker> => {
+    const res = await fetch(`${API_BASE}/workers/${encodeURIComponent(slug)}`, {
+      headers: buildHeaders(),
+    });
+    const data = await handleResponse<{ worker: Worker }>(res);
+    return data.worker;
+  },
+
+  create: async (data: {
+    slug?: string;
+    title: string;
+    body: string;
+    schedule?: WorkerSchedule | null;
+    disabled?: boolean;
+    actorLogin?: string;
+  }): Promise<Worker> => {
+    const res = await fetch(`${API_BASE}/workers`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ worker: Worker }>(res);
+    return payload.worker;
+  },
+
+  update: async (
+    slug: string,
+    data: {
+      title?: string;
+      body?: string;
+      schedule?: WorkerSchedule | null;
+      disabled?: boolean;
+      actorLogin?: string;
+    },
+  ): Promise<Worker> => {
+    const res = await fetch(`${API_BASE}/workers/${encodeURIComponent(slug)}`, {
+      method: "PATCH",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ worker: Worker }>(res);
+    return payload.worker;
+  },
+
+  remove: async (slug: string, actorLogin?: string): Promise<void> => {
+    const params = new URLSearchParams();
+    if (actorLogin) params.set("actorLogin", actorLogin);
+    const suffix = params.toString() ? `?${params}` : "";
+    const res = await fetch(
+      `${API_BASE}/workers/${encodeURIComponent(slug)}${suffix}`,
+      {
+        method: "DELETE",
+        headers: buildHeaders(),
+      },
+    );
+    await handleResponse<{ success: boolean }>(res);
+  },
+
+  /**
+   * Manually trigger a single worker by posting an `@kody job-tick` comment
+   * on the repo's "Kody control" issue. The engine's existing
+   * `issue_comment` trigger routes to job-tick. Defaults to `force: true`
+   * because the operator clicked "Run now" — they want it to run regardless
+   * of the body's cadence guard. Pass `force: false` to respect the guard.
+   *
+   * Reuses the jobs `job-tick` plumbing verbatim — no separate engine path.
+   */
+  run: async (
+    worker: { slug: string },
+    opts?: { force?: boolean },
+  ): Promise<{
+    issueNumber: number;
+    commentId: number;
+    commentUrl: string;
+    force: boolean;
+  }> => {
+    const res = await fetch(
+      `${API_BASE}/workers/${encodeURIComponent(worker.slug)}/run`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify({ force: opts?.force ?? true }),
+      },
+    );
+    return handleResponse(res);
+  },
+};
+
 // ============ Reports API ============
 
 export interface Report {
@@ -1373,6 +1517,7 @@ export const kodyApi = {
   ci: ciApi,
   remote: remoteApi,
   jobs: jobsApi,
+  workers: workersApi,
   reports: reportsApi,
   goals: goalsApi,
   notifications: notificationsApi,

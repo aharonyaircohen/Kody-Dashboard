@@ -10,7 +10,7 @@
 "use client";
 
 import Link from "next/link";
-import { GitBranch, Layers, ScrollText } from "lucide-react";
+import { Bot, GitBranch, Layers, ScrollText } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
 import { PublishButton } from "./PublishButton";
@@ -33,6 +33,14 @@ export function PageActions({
         <Button asChild variant="outline" size="sm" aria-label="Jobs">
           <Link href="/jobs">
             <Layers className="w-4 h-4" />
+          </Link>
+        </Button>
+      </SimpleTooltip>
+
+      <SimpleTooltip content="Workers" side="bottom">
+        <Button asChild variant="outline" size="sm" aria-label="Workers">
+          <Link href="/workers">
+            <Bot className="w-4 h-4" />
           </Link>
         </Button>
       </SimpleTooltip>
