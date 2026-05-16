@@ -928,10 +928,12 @@ function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
 }
 
 /**
- * Schedule dropdown — two options only:
+ * Schedule dropdown — full cadence list:
  *
  * - **Auto** (sentinel `null`, no frontmatter): the engine ticks the worker
  *   on every cron wake; the body's cadence guard decides whether to act.
+ * - Every explicit cadence (`15m` … `7d`): the engine gates ticks to that
+ *   interval via the frontmatter `every:` field.
  * - **Manual only** (`every: manual`): the engine skips auto-ticks; the
  *   worker runs only when the Run button is clicked.
  */
@@ -949,19 +951,28 @@ function ScheduleSelect({
     <div className="space-y-1.5">
       <Label htmlFor="worker-schedule">Schedule</Label>
       <Select
-        value={value === "manual" ? "manual" : AUTO}
-        onValueChange={(v) => onChange(v === AUTO ? null : "manual")}
+        value={value ?? AUTO}
+        onValueChange={(v) =>
+          onChange(v === AUTO ? null : (v as WorkerSchedule))
+        }
       >
         <SelectTrigger id="worker-schedule" className="w-full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={AUTO}>Auto</SelectItem>
-          <SelectItem value="manual">Manual only</SelectItem>
+          {ALL_SCHEDULE_EVERY_OPTIONS.map((opt) => (
+            <SelectItem key={opt} value={opt}>
+              {opt === "manual"
+                ? "Manual only"
+                : `Every ${scheduleEveryLabel(opt).replace(/^every /, "")}`}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        <strong>Auto</strong> — the body's cadence guard decides when to run.{" "}
+        <strong>Auto</strong> — the body's cadence guard decides when to run. A
+        fixed cadence gates ticks to that interval.{" "}
         <strong>Manual only</strong> — never auto-runs; click Run to trigger.
       </p>
     </div>
