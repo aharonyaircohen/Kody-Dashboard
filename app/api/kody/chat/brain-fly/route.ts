@@ -133,6 +133,7 @@ export async function POST(req: NextRequest) {
   const repo = headerAuth
     ? `${headerAuth.owner}/${headerAuth.repo}`
     : undefined;
+  const repoToken = headerAuth?.token;
 
   return streamBrainChat({
     brainUrl: provisioned.url,
@@ -144,6 +145,7 @@ export async function POST(req: NextRequest) {
     jobDraft: body.jobDraft,
     jobContext: body.jobContext,
     repo,
+    repoToken,
     voiceMode: body.voiceMode === true,
   });
 }
