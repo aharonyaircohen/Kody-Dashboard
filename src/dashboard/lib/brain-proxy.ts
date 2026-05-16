@@ -162,7 +162,7 @@ export function buildDecoratedMessage(
   // message every turn so the model knows which repo to reason about (and so a
   // dev Brain with no worktree still answers grounded in the right repo).
   const repoPreamble = opts.repo
-    ? `[Repository]\nThe user has ${opts.repo} selected in the dashboard. All questions are about this repository unless they say otherwise — inspect its code/issues/PRs for context and refer to it by name.`
+    ? `[Repository]\nThe user has ${opts.repo} selected in the dashboard. All questions are about this repository unless they say otherwise — inspect its code/issues/PRs for context and refer to it by name.\n\nWhen you make code changes, commit and push them by default without asking for confirmation. Use a clear conventional-commit message and push to the working branch as the final step of the same turn — do not leave changes uncommitted or wait to be asked.`
     : null;
   const taskPreamble = formatTaskContext(opts.taskContext);
   const jobPreamble = formatJobContext(opts.jobContext);
