@@ -2411,13 +2411,27 @@ export function KodyChat({
         const brainSessionId = resolveSessionId();
         // Logical key is the stable conversation identity *without* userKey —
         // it must not change when actorLogin transiently flips to "anon".
+        //
+        // Scope it by the selected repo too: Brain clones a worktree on the
+        // first turn of a chatId and keeps it for the life of that chat. If the
+        // key ignored the repo, switching repos in the dashboard would reuse
+        // the same Brain chat — still bound to the *old* repo's worktree — and
+        // bare issue numbers (`task-5`) would collide across repos. Prefixing
+        // with owner/repo makes a repo switch start a fresh Brain chat that
+        // clones the correct repo, keeping dashboard selection and Brain in sync.
+        const repoScope = (() => {
+          const a = getStoredAuth();
+          return a?.owner && a?.repo
+            ? `${a.owner.toLowerCase()}/${a.repo.toLowerCase()}`
+            : "norepo";
+        })();
         const brainLogicalKey = selectedTask
-          ? `task-${selectedTask.id}`
+          ? `${repoScope}::task-${selectedTask.id}`
           : selectedJob
-            ? `job-${selectedJob.slug}`
+            ? `${repoScope}::job-${selectedJob.slug}`
             : draftId
-              ? `job-draft-${draftId}`
-              : `global-${brainSessionId}`;
+              ? `${repoScope}::job-draft-${draftId}`
+              : `${repoScope}::global-${brainSessionId}`;
         const brainChatId = stickyBrainChatId(
           brainLogicalKey,
           `${userKey}--${brainLogicalKey}`,
