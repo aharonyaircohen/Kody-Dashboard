@@ -13,20 +13,27 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
+  Check,
   CheckCheck,
   ExternalLink,
   Inbox as InboxIcon,
   Loader2,
   RefreshCw,
   Trash2,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@dashboard/ui/button";
 import { PageShell } from "./PageShell";
 import { InboxThreadDialog, resolvableThread } from "./InboxThreadDialog";
 import { useAuth } from "../auth-context";
 import { useInbox } from "../inbox/useInbox";
 import { cn } from "../utils";
+import { kodyApi } from "../api";
+import { detectCtoRecommendation } from "../cto/recommendation";
 import type { InboxEntry, InboxSource } from "../inbox/types";
+
+type CtoVerdict = "approve" | "reject";
 
 const SOURCE_LABEL: Record<InboxSource, string> = {
   mention: "mentioned you",
@@ -58,12 +65,30 @@ interface RowProps {
   onOpen: () => void;
   onToggleRead: () => void;
   onDelete: () => void;
+  onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
 }
 
-function Row({ entry, onOpen, onToggleRead, onDelete }: RowProps) {
+function Row({
+  entry,
+  onOpen,
+  onToggleRead,
+  onDelete,
+  onCtoDecision,
+}: RowProps) {
   const unread = entry.readAt === null;
   const author = entry.author ? `@${entry.author}` : "Someone";
   const label = SOURCE_LABEL[entry.source];
+  const cto = detectCtoRecommendation(entry);
+  const [ctoBusy, setCtoBusy] = useState<CtoVerdict | null>(null);
+
+  const decide = async (verdict: CtoVerdict) => {
+    setCtoBusy(verdict);
+    try {
+      await onCtoDecision(entry, verdict);
+    } finally {
+      setCtoBusy(null);
+    }
+  };
   return (
     <li
       className={cn(
@@ -137,6 +162,41 @@ function Row({ entry, onOpen, onToggleRead, onDelete }: RowProps) {
           </button>
         </div>
       </div>
+      {cto && (
+        <div className="mt-2.5 ml-5 flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-amber-300/70">
+            CTO · {cto.action}
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={ctoBusy !== null}
+            onClick={() => void decide("approve")}
+            className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
+          >
+            {ctoBusy === "approve" ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Check className="w-3.5 h-3.5" />
+            )}
+            Approve
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={ctoBusy !== null}
+            onClick={() => void decide("reject")}
+            className="h-7 gap-1 border border-rose-500/30 bg-rose-500/[0.06] text-rose-200 hover:bg-rose-500/15"
+          >
+            {ctoBusy === "reject" ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <X className="w-3.5 h-3.5" />
+            )}
+            Reject
+          </Button>
+        </div>
+      )}
     </li>
   );
 }
@@ -163,6 +223,40 @@ export function InboxList() {
   );
 
   const subtitle = auth ? `${auth.owner}/${auth.repo}` : undefined;
+
+  // One-tap verdict on a CTO recommendation. Approve runs the action;
+  // both verdicts are tallied server-side (the trust ledger). On success
+  // we mark the entry read so the inbox reflects the decision immediately.
+  const handleCtoDecision = async (
+    entry: InboxEntry,
+    verdict: CtoVerdict,
+  ): Promise<void> => {
+    const rec = detectCtoRecommendation(entry);
+    if (!rec) return;
+    try {
+      const res = await kodyApi.cto.decide({
+        taskNumber: rec.taskNumber,
+        action: rec.action,
+        decision: verdict,
+        ...(auth?.user?.login ? { actorLogin: auth.user.login } : {}),
+      });
+      if (verdict === "approve") {
+        toast.success(`Approved — ${rec.action} dispatched on #${rec.taskNumber}`, {
+          description: res.stats
+            ? `${res.stats.consecutiveApprovals} in a row · ${res.stats.approvals}✓ / ${res.stats.rejections}✗`
+            : undefined,
+        });
+      } else {
+        toast.success(`Rejected — #${rec.taskNumber} left as-is`);
+      }
+      if (entry.readAt === null) await markRead(entry.id);
+      await refetch();
+    } catch (err) {
+      toast.error("CTO decision failed", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  };
 
   const openEntry = async (entry: InboxEntry) => {
     // Issues/PRs in the connected repo render inline; everything else
@@ -256,6 +350,7 @@ export function InboxList() {
         onOpen={openEntry}
         onToggleRead={(id) => void markUnread(id)}
         onDelete={(id) => void remove(id)}
+        onCtoDecision={handleCtoDecision}
         readSection={false}
       />
 
@@ -269,6 +364,7 @@ export function InboxList() {
             onOpen={openEntry}
             onToggleRead={(id) => void markUnread(id)}
             onDelete={(id) => void remove(id)}
+            onCtoDecision={handleCtoDecision}
             readSection
           />
         </div>
@@ -296,6 +392,7 @@ interface SectionProps {
   onOpen: (entry: InboxEntry) => void;
   onToggleRead: (id: string) => void;
   onDelete: (id: string) => void;
+  onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
   readSection: boolean;
 }
 
@@ -307,6 +404,7 @@ function Section({
   onOpen,
   onToggleRead,
   onDelete,
+  onCtoDecision,
   readSection,
 }: SectionProps) {
   return (
@@ -327,6 +425,7 @@ function Section({
               onOpen={() => onOpen(e)}
               onToggleRead={() => onToggleRead(e.id)}
               onDelete={() => onDelete(e.id)}
+              onCtoDecision={onCtoDecision}
             />
           ))}
         </ul>

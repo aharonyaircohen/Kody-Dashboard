@@ -44,6 +44,7 @@ import { GOAL_LABEL_PREFIX } from "@dashboard/lib/goals";
 import { getOwner, getRepo } from "@dashboard/lib/github-client";
 import { isProtectedBranch } from "@dashboard/lib/branches";
 import { matchWorkflowRunsForTask } from "@dashboard/lib/workflow-matching";
+import { withActor, postWithFallback } from "@dashboard/lib/kody-command";
 
 const actionSchema = z.object({
   action: z.enum([
@@ -79,60 +80,8 @@ const actionSchema = z.object({
   actorLogin: z.string().optional(),
 });
 
-/**
- * Format a string with actor attribution (only used when falling back to bot token).
- * When user's own token is available, comments appear under their identity naturally.
- */
-function withActor(message: string, actor?: string): string {
-  return actor ? `${message} _(by @${actor})_` : message;
-}
-
-/**
- * Post a comment with fallback to bot token if user token fails.
- * - First tries with user's Octokit (clean attribution)
- * - If 401/403 (token expired/revoked), falls back to bot token with actor attribution
- * - If no user token, uses bot token with attribution directly
- */
-async function postWithFallback(
-  issueNumber: number,
-  message: string,
-  actor: string | undefined,
-  userOctokit: any,
-): Promise<void> {
-  // If no user token, use bot with attribution
-  if (!userOctokit) {
-    const body = withActor(message, actor);
-    await postComment(issueNumber, body);
-    return;
-  }
-
-  // Try with user's token first
-  try {
-    await postComment(issueNumber, message, userOctokit);
-  } catch (error: any) {
-    // Check if it's an auth-related error (401 or 403 from GitHub)
-    const isAuthError = error?.status === 401 || error?.status === 403;
-    const isGitHubAuthError =
-      isAuthError &&
-      (error?.message?.includes("Bad credentials") ||
-        error?.message?.includes("Resource not found") ||
-        error?.message?.includes("Not Found") ||
-        error?.response?.data?.message?.includes("Bad credentials") ||
-        error?.response?.data?.message?.includes("Not Found"));
-
-    if (isAuthError || isGitHubAuthError) {
-      // User token failed — fall back to bot token with attribution
-      console.warn(
-        `[Kody] User token failed (status: ${error?.status}), falling back to bot token for issue ${issueNumber}`,
-      );
-      const body = withActor(message, actor);
-      await postComment(issueNumber, body);
-    } else {
-      // Re-throw non-auth errors
-      throw error;
-    }
-  }
-}
+// `withActor` + `postWithFallback` live in @dashboard/lib/kody-command so
+// the CTO decision endpoint can reuse the exact same `@kody` post path.
 
 export async function POST(
   req: NextRequest,

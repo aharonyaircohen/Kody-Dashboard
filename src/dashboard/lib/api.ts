@@ -1504,6 +1504,40 @@ export const vibeApi = {
   },
 };
 
+// ============ CTO API ============
+
+/**
+ * One-tap operator verdict on a CTO recommendation surfaced in the inbox.
+ * `approve` runs the recommended action (Phase 1: `execute`); both verdicts
+ * are tallied in the `kody:cto-decisions` ledger that drives graduation.
+ */
+export const ctoApi = {
+  decide: async (input: {
+    taskNumber: number;
+    action?: "execute";
+    decision: "approve" | "reject";
+    actorLogin?: string;
+  }): Promise<{
+    ok: true;
+    executed: boolean;
+    action: string;
+    decision: "approve" | "reject";
+    stats: {
+      approvals: number;
+      rejections: number;
+      consecutiveApprovals: number;
+      mode: "ask" | "auto";
+    } | null;
+  }> => {
+    const res = await fetch(`${API_BASE}/cto/decision`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(input),
+    });
+    return handleResponse(res);
+  },
+};
+
 // ============ Combined API ============
 
 export const kodyApi = {
@@ -1522,4 +1556,5 @@ export const kodyApi = {
   notifications: notificationsApi,
   changelog: changelogApi,
   vibe: vibeApi,
+  cto: ctoApi,
 };
