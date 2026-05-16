@@ -41,6 +41,8 @@ import { SimpleTooltip } from "./SimpleTooltip";
 import { SETTINGS_NAV_SECTIONS } from "./settings-nav";
 import { InboxBadge } from "./InboxBadge";
 
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
+
 interface MobileMenuProps {
   open: boolean;
   onOpenChange: (next: boolean) => void;
@@ -275,6 +277,12 @@ export function MobileMenu({
         </div>
 
         {extras}
+
+        {APP_VERSION && (
+          <p className="px-5 pt-3 pb-1 text-[10px] font-mono text-muted-foreground/50 select-none">
+            v{APP_VERSION}
+          </p>
+        )}
 
         {bottomCta && (
           <div className="sticky bottom-0 px-4 py-3 border-t border-white/[0.08] bg-black/95 backdrop-blur">
