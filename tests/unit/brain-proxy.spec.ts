@@ -164,6 +164,7 @@ async function readSseEvents(res: Response): Promise<
     error?: string;
     name?: string;
     role?: string;
+    seq?: number;
   }>
 > {
   const reader = res.body!.getReader();
@@ -287,7 +288,9 @@ describe("streamBrainChat — SSE translation", () => {
       "Hello world",
     ]);
     expect(messageEvents.every((e) => e.role === "assistant")).toBe(true);
-    expect(events[events.length - 1]).toEqual({ type: "chat.done" });
+    // Every translated event now carries a `seq` cursor (0 here — the stub
+    // sends no seq, so lastSeq never advances).
+    expect(events[events.length - 1]).toMatchObject({ type: "chat.done" });
   });
 
   it("translates tool_use into chat.tool_use with name + input", async () => {
@@ -325,7 +328,7 @@ describe("streamBrainChat — SSE translation", () => {
         message: "hi",
       }),
     );
-    expect(events[events.length - 1]).toEqual({
+    expect(events[events.length - 1]).toMatchObject({
       type: "chat.error",
       error: "agent kaboom",
     });
@@ -378,5 +381,100 @@ describe("streamBrainChat — SSE translation", () => {
     >;
     expect(body.attachments).toBeUndefined();
     expect(body.repo).toBeUndefined();
+  });
+
+  it("propagates the upstream seq onto every translated event", async () => {
+    installFetchStub({
+      events: [
+        { type: "text", text: "hi", seq: 4 },
+        { type: "done", seq: 5 },
+      ],
+    });
+    const events = await readSseEvents(
+      await streamBrainChat({
+        brainUrl: "https://b.example.com",
+        brainKey: "k",
+        chatId: "c1",
+        message: "hi",
+      }),
+    );
+    const msg = events.find((e) => e.type === "chat.message");
+    const done = events.find((e) => e.type === "chat.done");
+    expect(msg!.seq).toBe(4);
+    expect(done!.seq).toBe(5);
+  });
+
+  it("emits chat.reconnect when upstream closes without a terminal event", async () => {
+    installFetchStub({
+      events: [{ type: "text", text: "partial", seq: 9 }],
+    });
+    const events = await readSseEvents(
+      await streamBrainChat({
+        brainUrl: "https://b.example.com",
+        brainKey: "k",
+        chatId: "c1",
+        message: "hi",
+      }),
+    );
+    const last = events[events.length - 1];
+    expect(last.type).toBe("chat.reconnect");
+    // Cursor carried so the client reconnects from the last seen event.
+    expect(last.seq).toBe(9);
+  });
+
+  it("resume mode GETs /chats/:id/stream?since=N with no body", async () => {
+    const { calls } = installFetchStub({ events: [{ type: "done", seq: 8 }] });
+    await streamBrainChat({
+      brainUrl: "https://b.example.com",
+      brainKey: "k",
+      chatId: "c1",
+      message: "",
+      resumeSince: 7,
+    });
+    expect(calls[0]!.url).toBe(
+      "https://b.example.com/chats/c1/stream?since=7",
+    );
+    expect(calls[0]!.init!.method).toBe("GET");
+    expect(calls[0]!.init!.body).toBeUndefined();
+    const headers = calls[0]!.init!.headers as Record<string, string>;
+    expect(headers["X-Api-Key"]).toBe("k");
+  });
+
+  it("resume seeds the cumulative buffer with resumeText so the reply isn't truncated", async () => {
+    installFetchStub({
+      events: [
+        { type: "text", text: " world", seq: 3 },
+        { type: "done", seq: 4 },
+      ],
+    });
+    const events = await readSseEvents(
+      await streamBrainChat({
+        brainUrl: "https://b.example.com",
+        brainKey: "k",
+        chatId: "c1",
+        message: "",
+        resumeSince: 2,
+        resumeText: "Hello",
+      }),
+    );
+    const msg = events.find((e) => e.type === "chat.message");
+    // Continues from what the client already showed, not just the tail.
+    expect(msg!.content).toBe("Hello world");
+  });
+
+  it("resume reports a non-regressing cursor when no new events arrive", async () => {
+    installFetchStub({ events: [] });
+    const events = await readSseEvents(
+      await streamBrainChat({
+        brainUrl: "https://b.example.com",
+        brainKey: "k",
+        chatId: "c1",
+        message: "",
+        resumeSince: 12,
+      }),
+    );
+    const last = events[events.length - 1];
+    expect(last.type).toBe("chat.reconnect");
+    expect(last.seq).toBe(12);
   });
 });

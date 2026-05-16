@@ -26,6 +26,9 @@ import {
 } from "@dashboard/lib/brain-proxy";
 
 export const runtime = "nodejs";
+// Hold the proxy open up to Vercel's ceiling; the proxy itself closes ~30s
+// early with a `chat.reconnect` sentinel so the browser resumes cleanly.
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -55,6 +58,8 @@ export async function POST(req: NextRequest) {
     jobDraft?: boolean;
     jobContext?: BrainJobContext;
     voiceMode?: boolean;
+    resumeSince?: number;
+    resumeText?: string;
   };
   try {
     body = await req.json();
@@ -64,10 +69,13 @@ export async function POST(req: NextRequest) {
 
   const chatId = body.chatId?.trim();
   const message = body.message;
+  // A reconnect carries `resumeSince` and no message — it re-attaches to an
+  // in-flight turn rather than starting a new one.
+  const isResume = Number.isFinite(body.resumeSince);
   if (!chatId) {
     return NextResponse.json({ error: "chatId required" }, { status: 400 });
   }
-  if (!message || typeof message !== "string") {
+  if (!isResume && (!message || typeof message !== "string")) {
     return NextResponse.json({ error: "message required" }, { status: 400 });
   }
 
@@ -85,7 +93,7 @@ export async function POST(req: NextRequest) {
     brainUrl,
     brainKey,
     chatId,
-    message,
+    message: message ?? "",
     taskContext: body.taskContext,
     attachments: body.attachments,
     jobDraft: body.jobDraft,
@@ -93,5 +101,8 @@ export async function POST(req: NextRequest) {
     repo,
     repoToken,
     voiceMode: body.voiceMode === true,
+    ...(isResume
+      ? { resumeSince: Number(body.resumeSince), resumeText: body.resumeText }
+      : {}),
   });
 }

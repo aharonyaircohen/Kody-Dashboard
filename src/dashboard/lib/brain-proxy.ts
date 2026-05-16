@@ -78,6 +78,24 @@ export interface BrainChatRequest {
    * voice payloads is a deploy-skew issue, not a correctness issue.
    */
   voiceMode?: boolean;
+  /**
+   * Reconnect cursor. When set, the proxy does NOT start a new turn — it
+   * attaches to the (possibly still-running) turn for `chatId` via Brain's
+   * `GET /chats/:id/stream?since=<resumeSince>`, replaying events the client
+   * missed then live-tailing to the terminal event. This is what lets a Brain
+   * reply outlive the ~300s Vercel function ceiling: the browser reconnects
+   * with its last-seen `seq` instead of losing the turn. `message` is ignored
+   * when this is set.
+   */
+  resumeSince?: number;
+  /**
+   * The assistant text the client has already rendered for this turn. Brain
+   * replays only events with `seq > resumeSince`, so without this the proxy's
+   * cumulative `chat.message` would emit only the tail and the client would
+   * truncate the visible reply. Seeding the buffer with it keeps the
+   * cumulative-replace contract intact across a reconnect.
+   */
+  resumeText?: string;
 }
 
 /** Wire shape of events received from the upstream Brain server. */
@@ -88,6 +106,8 @@ interface BrainEvent {
   name?: string;
   input?: unknown;
   error?: string;
+  /** Per-chat monotonic cursor (absent on the `chat` handshake). */
+  seq?: number;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -224,7 +244,14 @@ export async function streamBrainChat(
   const attachments = [...clientAttachments, ...issueAttachments];
 
   const requestId = crypto.randomUUID();
-  const target = `${input.brainUrl.replace(/\/+$/, "")}/chats/${encodeURIComponent(input.chatId)}/messages`;
+  const base = input.brainUrl.replace(/\/+$/, "");
+  const chatPath = encodeURIComponent(input.chatId);
+  const isResume = Number.isFinite(input.resumeSince);
+  // Resume → attach to the in-flight/finished turn and replay past `since`.
+  // Fresh → start a new turn.
+  const target = isResume
+    ? `${base}/chats/${chatPath}/stream?since=${Number(input.resumeSince)}`
+    : `${base}/chats/${chatPath}/messages`;
 
   // Bound the *connect* (time-to-headers) wait so a Brain server that hangs
   // before it ever responds surfaces an error instead of the UI spinning on
@@ -240,18 +267,22 @@ export async function streamBrainChat(
   let upstream: Response;
   try {
     upstream = await fetch(target, {
-      method: "POST",
+      method: isResume ? "GET" : "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Api-Key": input.brainKey,
       },
-      body: JSON.stringify({
-        message: decoratedMessage,
-        ...(attachments.length > 0 ? { attachments } : {}),
-        ...(input.repo ? { repo: input.repo } : {}),
-        ...(input.repoToken ? { repoToken: input.repoToken } : {}),
-        ...(input.voiceMode === true ? { voiceMode: true } : {}),
-      }),
+      ...(isResume
+        ? {}
+        : {
+            body: JSON.stringify({
+              message: decoratedMessage,
+              ...(attachments.length > 0 ? { attachments } : {}),
+              ...(input.repo ? { repo: input.repo } : {}),
+              ...(input.repoToken ? { repoToken: input.repoToken } : {}),
+              ...(input.voiceMode === true ? { voiceMode: true } : {}),
+            }),
+          }),
       signal: connectController.signal,
     });
   } catch (err) {
@@ -307,15 +338,45 @@ export async function streamBrainChat(
 
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
-  let assistantBuffer = "";
+  // On resume, seed the cumulative buffer with what the client already shows
+  // so post-`since` deltas append instead of replacing the visible reply.
+  let assistantBuffer = isResume ? (input.resumeText ?? "") : "";
+  // Highest Brain seq forwarded — the client echoes this back as `resumeSince`
+  // to reconnect. Starts at the resume cursor so a reconnect that yields no
+  // new events still reports a correct (non-regressing) cursor.
+  let lastSeq = isResume ? Number(input.resumeSince) : 0;
+  let sawTerminal = false;
+  let budgetHit = false;
 
   const translated = new ReadableStream<Uint8Array>({
     async start(controller) {
+      let closed = false;
       const emit = (event: Record<string, unknown>) => {
+        if (closed) return;
         controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+          encoder.encode(
+            `data: ${JSON.stringify({ ...event, seq: lastSeq })}\n\n`,
+          ),
         );
       };
+
+      // Proactively hand the turn back to the client before Vercel hard-kills
+      // the function at its 300s ceiling. We close ~30s early with a
+      // `chat.reconnect` sentinel carrying the cursor, so the browser
+      // reconnects cleanly instead of eating a mid-line TCP reset. The turn
+      // itself keeps running server-side on Brain.
+      const BUDGET_MS = 270_000;
+      const budgetTimer = setTimeout(() => {
+        budgetHit = true;
+        emit({ type: "chat.reconnect" });
+        closed = true;
+        reader.cancel().catch(() => {});
+        try {
+          controller.close();
+        } catch {
+          /* already closed */
+        }
+      }, BUDGET_MS);
 
       const reader = upstream.body!.getReader();
       let buf = "";
@@ -332,6 +393,15 @@ export async function streamBrainChat(
             ev = JSON.parse(raw) as BrainEvent;
           } catch {
             continue;
+          }
+
+          // Advance the cursor before emitting so the dashboard event carries
+          // the seq of the Brain event that produced it.
+          if (typeof ev.seq === "number" && ev.seq > lastSeq) {
+            lastSeq = ev.seq;
+          }
+          if (ev.type === "done" || ev.type === "error") {
+            sawTerminal = true;
           }
 
           switch (ev.type) {
@@ -405,24 +475,42 @@ export async function streamBrainChat(
           }
         }
         if (buf.trim()) parseBrainChunk(buf);
+        // Upstream closed without a terminal event and we didn't close it for
+        // the budget — the Brain connection dropped but the turn may still be
+        // running server-side. Tell the client to reconnect from the cursor
+        // rather than falsely ending the reply.
+        if (!sawTerminal && !budgetHit && !closed) {
+          emit({ type: "chat.reconnect" });
+        }
       } catch (err) {
-        const idle =
-          err instanceof Error && err.message === "brain-idle-timeout";
-        logger.error(
-          { err, requestId, chatId: input.chatId, idle },
-          idle
-            ? "brain-proxy: stream idle timeout (no chunk for 120s)"
-            : "brain-proxy: stream read error",
-        );
-        emit({
-          type: "chat.error",
-          error: idle
-            ? "Brain went silent (no response for 120s) — it may be busy cloning the repo. Try again."
-            : "Brain stream interrupted",
-        });
-        await reader.cancel().catch(() => {});
+        if (budgetHit) {
+          // Expected: we cancelled the reader to hand off before the Vercel
+          // ceiling. The reconnect sentinel was already emitted.
+        } else {
+          const idle =
+            err instanceof Error && err.message === "brain-idle-timeout";
+          logger.error(
+            { err, requestId, chatId: input.chatId, idle },
+            idle
+              ? "brain-proxy: stream idle timeout (no chunk for 120s)"
+              : "brain-proxy: stream read error",
+          );
+          // The turn keeps running on Brain; a reconnect replays from the
+          // cursor. The client bounds retries and surfaces a real error if
+          // reconnection keeps failing.
+          emit({ type: "chat.reconnect" });
+          await reader.cancel().catch(() => {});
+        }
       } finally {
-        controller.close();
+        clearTimeout(budgetTimer);
+        if (!closed) {
+          closed = true;
+          try {
+            controller.close();
+          } catch {
+            /* already closed */
+          }
+        }
       }
     },
   });

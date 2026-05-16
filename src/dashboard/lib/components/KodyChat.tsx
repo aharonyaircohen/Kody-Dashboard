@@ -2473,49 +2473,76 @@ export function KodyChat({
           data: a.data,
         }));
 
+        // The Brain reply runs to completion server-side. The Vercel proxy is
+        // hard-killed at ~300s, so a long turn arrives across several proxy
+        // connections: the first POSTs the message, each subsequent attempt
+        // re-attaches with the last seen `seq` (and the text shown so far) and
+        // Brain replays the gap then live-tails. Bounded so a pathologically
+        // stuck turn can't loop forever.
+        const MAX_RECONNECTS = 60;
+        let latestAssistantText = "";
+        let lastSeq = 0;
         try {
-          const res = await fetch(brainEndpoint, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...authHeaders(),
-              ...brainExtraHeaders,
-            },
-            body: JSON.stringify({
-              chatId: brainChatId,
-              message: messageContent,
-              ...(taskContext ? { taskContext } : {}),
-              ...(selectedJob
-                ? {
-                    jobContext: {
-                      slug: selectedJob.slug,
-                      title: selectedJob.title,
-                      body: selectedJob.body,
-                    },
-                  }
-                : {}),
-              ...(brainAttachments.length > 0
-                ? { attachments: brainAttachments }
-                : {}),
-              ...(isDraftMode ? { jobDraft: true } : {}),
-              // Voice modality. Brain forwards this to the upstream chat
-              // server, which is responsible for appending the voice
-              // overlay to its system prompt for this turn.
-              ...(voiceMode ? { voiceMode: true } : {}),
-            }),
-            signal: abort.signal,
-          });
-          if (!res.ok || !res.body) {
-            const errorData = await res
-              .json()
-              .catch(() => ({ error: `HTTP ${res.status}` }));
-            throw new Error(errorData.error || `HTTP ${res.status}`);
-          }
+          // Held on an object so TS doesn't narrow it to the initializer —
+          // the value is mutated inside the applyEvent closure below.
+          const turn: {
+            outcome: "done" | "error" | "aborted" | "exhausted";
+          } = { outcome: "exhausted" };
 
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let buf = "";
-          let latestAssistantText = "";
+          for (let attempt = 0; attempt <= MAX_RECONNECTS; attempt++) {
+            const isReconnect = attempt > 0;
+            const res = await fetch(brainEndpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...authHeaders(),
+                ...brainExtraHeaders,
+              },
+              body: JSON.stringify(
+                isReconnect
+                  ? {
+                      chatId: brainChatId,
+                      resumeSince: lastSeq,
+                      resumeText: latestAssistantText,
+                    }
+                  : {
+                      chatId: brainChatId,
+                      message: messageContent,
+                      ...(taskContext ? { taskContext } : {}),
+                      ...(selectedJob
+                        ? {
+                            jobContext: {
+                              slug: selectedJob.slug,
+                              title: selectedJob.title,
+                              body: selectedJob.body,
+                            },
+                          }
+                        : {}),
+                      ...(brainAttachments.length > 0
+                        ? { attachments: brainAttachments }
+                        : {}),
+                      ...(isDraftMode ? { jobDraft: true } : {}),
+                      // Voice modality. Brain forwards this to the upstream
+                      // chat server, which is responsible for appending the
+                      // voice overlay to its system prompt for this turn.
+                      ...(voiceMode ? { voiceMode: true } : {}),
+                    },
+              ),
+              signal: abort.signal,
+            });
+            if (!res.ok || !res.body) {
+              const errorData = await res
+                .json()
+                .catch(() => ({ error: `HTTP ${res.status}` }));
+              throw new Error(errorData.error || `HTTP ${res.status}`);
+            }
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buf = "";
+            // Per-connection: did the proxy ask us to reconnect, and did the
+            // turn reach a terminal event on this connection?
+            let reconnectRequested = false;
 
           const applyEvent = (parsed: {
             type?: string;
@@ -2526,7 +2553,17 @@ export function KodyChat({
             id?: string;
             name?: string;
             input?: Record<string, unknown>;
+            seq?: number;
           }) => {
+            if (typeof parsed.seq === "number" && parsed.seq > lastSeq) {
+              lastSeq = parsed.seq;
+            }
+            if (parsed.type === "chat.reconnect") {
+              // Proxy handed the turn back before the Vercel ceiling (or the
+              // upstream connection dropped). Reconnect from `lastSeq`.
+              reconnectRequested = true;
+              return;
+            }
             if (parsed.type === "chat.message") {
               if (
                 parsed.role !== "user" &&
@@ -2598,11 +2635,13 @@ export function KodyChat({
                 return copy;
               });
             } else if (parsed.type === "chat.done") {
+              turn.outcome = "done";
               setLoading(false);
               setMessages((prev) =>
                 prev.map((m) => (m.isLoading ? { ...m, isLoading: false } : m)),
               );
             } else if (parsed.type === "chat.error") {
+              turn.outcome = "error";
               setLoading(false);
               setMessages((prev) => {
                 const filtered = prev.filter(
@@ -2621,25 +2660,61 @@ export function KodyChat({
             }
           };
 
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buf += decoder.decode(value, { stream: true });
-            const lastNewline = buf.lastIndexOf("\n");
-            if (lastNewline === -1) continue;
-            const chunk = buf.slice(0, lastNewline + 1);
-            buf = buf.slice(lastNewline + 1);
-            for (const line of chunk.split("\n")) {
-              if (!line.startsWith("data: ")) continue;
-              const raw = line.slice(6).trim();
-              if (!raw) continue;
-              try {
-                applyEvent(JSON.parse(raw));
-              } catch {
-                /* skip malformed */
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buf += decoder.decode(value, { stream: true });
+              const lastNewline = buf.lastIndexOf("\n");
+              if (lastNewline === -1) continue;
+              const chunk = buf.slice(0, lastNewline + 1);
+              buf = buf.slice(lastNewline + 1);
+              for (const line of chunk.split("\n")) {
+                if (!line.startsWith("data: ")) continue;
+                const raw = line.slice(6).trim();
+                if (!raw) continue;
+                try {
+                  applyEvent(JSON.parse(raw));
+                } catch {
+                  /* skip malformed */
+                }
               }
             }
+            await reader.cancel().catch(() => {});
+
+            // The turn finished on this connection — stop reconnecting.
+            if (turn.outcome === "done" || turn.outcome === "error") break;
+            if (abort.signal.aborted) {
+              turn.outcome = "aborted";
+              break;
+            }
+            // Connection ended without a terminal event: either the proxy
+            // handed back before the Vercel ceiling (`chat.reconnect`) or the
+            // upstream dropped. Either way the turn keeps running on Brain —
+            // loop to re-attach from `lastSeq`. `reconnectRequested` is read
+            // here only to document intent; we reconnect regardless.
+            void reconnectRequested;
           }
+
+          if (turn.outcome === "exhausted") {
+            setLoading(false);
+            setMessages((prev) => {
+              const filtered = prev.filter(
+                (m) => !(m.role === "assistant" && m.isLoading),
+              );
+              return [
+                ...filtered,
+                {
+                  role: "assistant",
+                  content:
+                    "Error: lost the connection to Brain and couldn't resume the reply after several attempts. The work may still be running — try again in a moment.",
+                  isLoading: false,
+                  isError: true,
+                },
+              ];
+            });
+            return null;
+          }
+
           setLoading(false);
           setMessages((prev) =>
             prev.map((m) => (m.isLoading ? { ...m, isLoading: false } : m)),
