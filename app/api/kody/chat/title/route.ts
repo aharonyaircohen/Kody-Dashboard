@@ -80,20 +80,28 @@ export async function POST(req: NextRequest) {
     });
     // Models sometimes wrap the title in quotes or add a period despite
     // the instruction — normalize defensively.
-    const title = text
+    const cleaned = text
       .trim()
       .replace(/^["'`]+|["'`]+$/g, "")
       .replace(/[.\s]+$/, "")
       .replace(/\s+/g, " ")
-      .slice(0, MAX_TITLE_LEN)
       .trim();
 
-    if (!title) {
+    // Reject reasoning-style runaways: a thinking model can ignore the
+    // instruction and emit chain-of-thought ("The user just said hi…").
+    // A real title is short and clause-free — anything longer or that
+    // reads like a sentence is a 502 so the client uses its fallback.
+    const wordCount = cleaned.split(/\s+/).filter(Boolean).length;
+    const looksLikeReasoning =
+      wordCount > 9 || /\b(the user|i need|let me|i should)\b/i.test(cleaned);
+    if (!cleaned || looksLikeReasoning) {
       return NextResponse.json(
-        { error: "empty_title" },
+        { error: "unusable_title" },
         { status: 502 },
       );
     }
+
+    const title = cleaned.slice(0, MAX_TITLE_LEN).trim();
     return NextResponse.json({ title });
   } catch (err) {
     return NextResponse.json(
