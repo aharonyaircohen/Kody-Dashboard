@@ -70,93 +70,12 @@ export function KodyHeader({
       <div className="hidden md:flex items-center gap-3">
         {desktopExtras}
 
-        {/* GitHub identity badge with dropdown */}
-        {(githubUser || connectedRepo) && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowUserDropdown((prev) => !prev)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-accent transition-colors max-w-[180px]"
-            >
-              {githubUser ? (
-                <Avatar className="h-5 w-5 shrink-0">
-                  <AvatarImage
-                    src={githubUser.avatar_url}
-                    alt={githubUser.login}
-                  />
-                  <AvatarFallback>
-                    {githubUser.login[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              ) : (
-                <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center shrink-0">
-                  <Github className="h-3 w-3 text-muted-foreground" />
-                </div>
-              )}
-              <span className="text-xs text-muted-foreground truncate">
-                {githubUser ? `@${githubUser.login}` : "Connected"}
-                {connectedRepo && (
-                  <span className="text-muted-foreground/60">
-                    {" "}
-                    · {connectedRepo}
-                  </span>
-                )}
-              </span>
-            </button>
-            {showUserDropdown && (
-              <div className="absolute top-full right-0 mt-1 w-56 py-1 bg-popover border rounded-md shadow-lg z-50">
-                {connectedRepo && (
-                  <div className="px-3 py-1.5 text-xs text-muted-foreground border-b mb-1">
-                    <span className="font-medium text-foreground">Repo:</span>{" "}
-                    {connectedRepo}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    clearGitHubUser();
-                    setShowUserDropdown(false);
-                  }}
-                  className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
-                >
-                  Sign out
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
         <NotificationCenter
           store={notificationStore}
           browserPermission={notificationPermission}
           isSupported={notificationsSupported}
           onRequestPermission={requestPermission}
         />
-
-        <SimpleTooltip
-          content={
-            theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
-          }
-          side="bottom"
-        >
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            aria-label={
-              theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
-            }
-            className="text-muted-foreground"
-          >
-            {theme === "dark" ? (
-              <Sun className="w-4 h-4" />
-            ) : (
-              <Moon className="w-4 h-4" />
-            )}
-          </Button>
-        </SimpleTooltip>
-
-        <div className="h-5 w-px bg-white/[0.08] mx-1" aria-hidden="true" />
 
         <SimpleTooltip content="Refresh" side="bottom">
           <Button
