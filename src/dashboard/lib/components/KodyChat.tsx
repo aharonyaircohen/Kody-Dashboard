@@ -4317,10 +4317,21 @@ export function KodyChat({
               ) : null}
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground flex items-center gap-1.5">
-              <Globe className="w-3 h-3" />
-              Global chat — not tied to any task
-            </div>
+            (() => {
+              const sessionTitle = sessionHook.activeSession?.title;
+              const hasRealTitle =
+                !!sessionTitle && sessionTitle !== "New conversation";
+              return (
+                <div className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <Globe className="w-3 h-3 shrink-0" />
+                  <span className="truncate">
+                    {hasRealTitle
+                      ? sessionTitle
+                      : "Global chat — not tied to any task"}
+                  </span>
+                </div>
+              );
+            })()
           )}
         </div>
       </div>
