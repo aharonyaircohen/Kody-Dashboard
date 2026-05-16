@@ -214,7 +214,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             <SheetContent
               side="right"
               hideClose
-              className="w-full sm:max-w-md p-0 gap-0 shadow-none flex flex-col"
+              className="w-full sm:max-w-md p-0 gap-0 shadow-none border-0 outline-none focus:outline-none focus-visible:outline-none flex flex-col"
             >
               <SheetHeader className="sr-only">
                 <SheetTitle>Chat</SheetTitle>
