@@ -4291,7 +4291,7 @@ export function KodyChat({
                             />
                           );
                         })()}
-                        <span className="flex flex-col flex-1 min-w-0">
+                        <span className="flex flex-col flex-1 min-w-0 pr-24">
                           <span className="font-medium flex items-center gap-1.5">
                             {a.name}
                             {isDefault && (
@@ -4318,9 +4318,11 @@ export function KodyChat({
                             });
                             setAgentMenuOpen(false);
                           }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent rounded"
+                          title="Make this the default chat on load"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border border-border bg-background text-muted-foreground hover:text-amber-500 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
                         >
-                          Set as default
+                          <Star className="w-3 h-3" aria-hidden="true" />
+                          Set default
                         </button>
                       )}
                     </li>
