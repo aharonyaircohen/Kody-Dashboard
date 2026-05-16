@@ -213,7 +213,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetContent
               side="right"
-              className="w-full sm:max-w-md p-0 flex flex-col"
+              hideClose
+              className="w-full sm:max-w-md p-0 gap-0 shadow-none flex flex-col"
             >
               <SheetHeader className="sr-only">
                 <SheetTitle>Chat</SheetTitle>
