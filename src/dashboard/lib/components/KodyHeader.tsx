@@ -27,7 +27,6 @@ import { useTheme } from "@dashboard/providers/Theme";
 import { NotificationCenter } from "../notifications/NotificationCenter";
 import { useNotifications } from "../notifications/NotificationsProvider";
 import { cn } from "../utils";
-import { SettingsDrawerTrigger } from "./SettingsDrawer";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { VibeToggle } from "./VibeToggle";
 
@@ -199,8 +198,6 @@ export function KodyHeader({
             />
           </Button>
         </SimpleTooltip>
-
-        <SettingsDrawerTrigger />
       </div>
 
       {/* Mobile cluster — page-specific extras (e.g. issue picker) + hamburger. */}

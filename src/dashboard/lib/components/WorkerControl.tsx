@@ -59,7 +59,10 @@ import {
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useNow } from "../hooks/useNow";
 import { formatDuration, formatRelativePast } from "../workers-schedule";
-import { scheduleEveryLabel } from "../workers-frontmatter";
+import {
+  ALL_SCHEDULE_EVERY_OPTIONS,
+  scheduleEveryLabel,
+} from "../workers-frontmatter";
 import type { Worker, WorkerSchedule } from "../api";
 import { WORKER_TEMPLATE } from "../worker-template";
 import { ConfirmDialog } from "./ConfirmDialog";

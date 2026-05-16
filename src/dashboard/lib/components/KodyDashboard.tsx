@@ -102,7 +102,6 @@ import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { VibeToggle } from "./VibeToggle";
-import { SettingsDrawerTrigger } from "./SettingsDrawer";
 import { KodyHeader } from "./KodyHeader";
 import { PageActions } from "./PageActions";
 import { MobileMenu } from "./MobileMenu";

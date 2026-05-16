@@ -18,7 +18,6 @@ import { cn } from "@dashboard/lib/utils/ui";
 import { JobControl } from "./JobControl";
 import { ReportsView } from "./ReportsView";
 import { VibeToggle } from "./VibeToggle";
-import { SettingsDrawerTrigger } from "./SettingsDrawer";
 import { SimpleTooltip } from "./SimpleTooltip";
 
 type Tab = "jobs" | "reports";
@@ -104,7 +103,6 @@ export function JobsPageTabs() {
         </div>
         <div className="flex items-center gap-2 pb-2">
           <VibeToggle className="hidden sm:inline-flex" />
-          <SettingsDrawerTrigger />
         </div>
       </div>
 

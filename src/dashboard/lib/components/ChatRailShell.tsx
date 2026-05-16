@@ -37,6 +37,7 @@ import {
   SheetTitle,
 } from "@dashboard/ui/sheet";
 import { KodyChat } from "./KodyChat";
+import { Sidebar } from "./Sidebar";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
 import { NotificationsProvider } from "../notifications/NotificationsProvider";
 import { useAuth } from "../auth-context";
@@ -162,6 +163,9 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       <NotificationsProvider>
         <SettingsDrawerProvider>
           <div className="h-screen flex overflow-hidden bg-background text-foreground">
+            {/* Persistent primary-navigation rail — desktop only. */}
+            <Sidebar />
+
             {/* Desktop chat rail — hidden below md. */}
             <aside
               className="hidden md:flex flex-col shrink-0 border-r border-border bg-black/20 w-[400px]"
@@ -184,9 +188,9 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
               )}
             </aside>
 
-            {/* Primary navigation lives in page headers (Vibe toggle, Jobs
-            button, Settings gear). The settings drawer is mounted globally
-            via SettingsDrawerProvider so any header trigger opens it. */}
+            {/* Primary + settings navigation lives in the persistent
+            <Sidebar /> above. The SettingsDrawer remains mounted for the
+            mobile/header path; the desktop kebab triggers were removed. */}
 
             {/* Page content. Pages own their own internal scroll. */}
             <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">

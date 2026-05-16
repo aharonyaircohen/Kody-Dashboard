@@ -20,7 +20,6 @@ import { Button } from "@dashboard/ui/button";
 import { cn } from "@dashboard/lib/utils/ui";
 import { WorkerControl } from "./WorkerControl";
 import { VibeToggle } from "./VibeToggle";
-import { SettingsDrawerTrigger } from "./SettingsDrawer";
 import { SimpleTooltip } from "./SimpleTooltip";
 
 type Tab = "workers";
@@ -102,7 +101,6 @@ export function WorkersPageTabs() {
         </div>
         <div className="flex items-center gap-2 pb-2">
           <VibeToggle className="hidden sm:inline-flex" />
-          <SettingsDrawerTrigger />
         </div>
       </div>
 
