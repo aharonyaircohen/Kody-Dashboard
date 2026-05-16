@@ -45,7 +45,14 @@ export function resolvableThread(
     return null;
   }
   // The inline fetch is scoped to the connected repo's GitHub context.
-  if (connectedRepo && entry.repoFullName !== connectedRepo) return null;
+  // GitHub's notification payload uses canonical repo casing, which can
+  // differ from how the connected repo is stored — compare case-insensitively.
+  if (
+    connectedRepo &&
+    entry.repoFullName.toLowerCase() !== connectedRepo.toLowerCase()
+  ) {
+    return null;
+  }
 
   const m = entry.url.match(/\/(?:issues|pull)\/(\d+)/);
   if (!m) return null;
