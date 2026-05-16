@@ -151,8 +151,16 @@ export function buildDecoratedMessage(
     taskContext?: BrainTaskContext;
     jobContext?: BrainJobContext;
     jobDraft?: boolean;
+    repo?: string;
   },
 ): string {
+  // The `repo` JSON field is at most a one-time clone hint Brain consumes to
+  // set up a worktree — it never reaches the model's context. State it in the
+  // message every turn so the model knows which repo to reason about (and so a
+  // dev Brain with no worktree still answers grounded in the right repo).
+  const repoPreamble = opts.repo
+    ? `[Repository]\nThe user has ${opts.repo} selected in the dashboard. All questions are about this repository unless they say otherwise — inspect its code/issues/PRs for context and refer to it by name.`
+    : null;
   const taskPreamble = formatTaskContext(opts.taskContext);
   const jobPreamble = formatJobContext(opts.jobContext);
   const draftPreamble = opts.jobDraft
@@ -160,8 +168,9 @@ export function buildDecoratedMessage(
 The user is drafting a new Kody job — there is no existing job to look up. A Kody job is a GitHub issue (labelled kody:job) whose markdown body describes intent, system prompt, allowed commands, and restrictions. Ask concrete scoping questions one turn at a time, then produce a copy-ready markdown draft with those four sections so the user can click "Use as job" on your reply.`
     : null;
   const preamble =
-    [draftPreamble, jobPreamble, taskPreamble].filter(Boolean).join("\n\n") ||
-    null;
+    [repoPreamble, draftPreamble, jobPreamble, taskPreamble]
+      .filter(Boolean)
+      .join("\n\n") || null;
   return preamble ? `${preamble}\n\n[User]\n${message}` : message;
 }
 
@@ -184,6 +193,7 @@ export async function streamBrainChat(
     taskContext: input.taskContext,
     jobContext: input.jobContext,
     jobDraft: input.jobDraft,
+    repo: input.repo,
   });
 
   const clientAttachments = Array.isArray(input.attachments)
