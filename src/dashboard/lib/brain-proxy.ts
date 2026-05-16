@@ -122,6 +122,9 @@ export function formatTaskContext(
       tc.body.length > 1500 ? `${tc.body.slice(0, 1500)}…` : tc.body;
     parts.push(`\n[Description]\n${truncated}`);
   }
+  parts.push(
+    "\nThe user is chatting about this task. Before acting, ask whether they want you to resolve it directly using your tools or to open/refine a GitHub issue for it — do NOT pick on your own. Once they choose, proceed that way without asking again for this task.",
+  );
   return parts.join("\n");
 }
 

@@ -48,8 +48,7 @@ describe("formatTaskContext", () => {
   it("truncates long descriptions to 1500 chars with ellipsis", () => {
     const body = "x".repeat(2000);
     const out = formatTaskContext({ issueNumber: 1, body })!;
-    expect(out.endsWith("…")).toBe(true);
-    expect(out).toContain("x".repeat(1500));
+    expect(out).toContain(`${"x".repeat(1500)}…`);
     expect(out).not.toContain("x".repeat(1501));
   });
 
