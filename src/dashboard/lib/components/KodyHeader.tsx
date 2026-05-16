@@ -16,10 +16,12 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Github, Menu, Moon, RefreshCw, Sun } from "lucide-react";
+import Link from "next/link";
+import { Github, Inbox, Menu, Moon, RefreshCw, Sun } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { Button } from "@dashboard/ui/button";
+import { InboxBadge } from "./InboxBadge";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useTheme } from "@dashboard/providers/Theme";
 import { NotificationCenter } from "../notifications/NotificationCenter";
@@ -135,6 +137,21 @@ export function KodyHeader({
             )}
           </div>
         )}
+
+        <SimpleTooltip content="Inbox" side="bottom">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            aria-label="Inbox"
+            className="relative text-muted-foreground"
+          >
+            <Link href="/inbox">
+              <Inbox className="w-4 h-4" />
+              <InboxBadge className="absolute -top-0.5 -right-0.5" />
+            </Link>
+          </Button>
+        </SimpleTooltip>
 
         <NotificationCenter
           store={notificationStore}
