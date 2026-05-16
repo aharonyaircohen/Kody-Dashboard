@@ -117,16 +117,25 @@ test.describe("Brain reconnect @real", () => {
     const chatId = `pw-reconnect-${Date.now()}`;
     const h = headers();
 
-    // ── Phase 1: start the turn, then sever the connection mid-reply ──
-    // A prompt that streams over several seconds so we can reliably catch it
-    // in flight (the reply must still be running when we disconnect).
+    // ── Phase 1: start a genuinely long-running turn, then sever the
+    // connection at the very first event ──
+    // The reply must still be in progress (with work left) when we cut, or
+    // the reconnect path isn't meaningfully exercised. A short prose answer
+    // streams in one block and finishes in ~1s, so we drive a multi-second
+    // shell loop via the agent's Bash tool: the turn emits an early tool_use
+    // event, then nothing for ~30s while the loop runs server-side, then the
+    // result + marker. We disconnect at that first event — the entire ~30s of
+    // work then has to survive and be replayed on reconnect.
     const startRes = await fetch(`${BASE_URL}/api/kody/chat/brain`, {
       method: "POST",
       headers: h,
       body: JSON.stringify({
         chatId,
         message:
-          "Output the numbers 1 through 30, each on its own line, prefixed with 'LINE '. After the list, on a new line, write exactly: DONE-MARKER-7714.",
+          "Run exactly this command with your Bash tool and wait for it to finish: " +
+          "for i in $(seq 1 15); do echo PROGRESS-$i; sleep 2; done . " +
+          "Then, on its own final line, output exactly: DONE-MARKER-7714. " +
+          "Do not do anything else.",
       }),
     });
     expect(
@@ -140,42 +149,30 @@ test.describe("Brain reconnect @real", () => {
     let cutSeq = 0;
     let cutText = "";
     let sawDoneBeforeCut = false;
-    const phase1 = await readStream(startRes, (ev, all) => {
+    // Cut at the FIRST event carrying a cursor (tool_use or text) — i.e. the
+    // earliest point a real client would have a seq to reconnect from. We do
+    // NOT advance cutSeq to the max seen: resuming from the earliest cursor is
+    // what proves Brain replays everything after it.
+    await readStream(startRes, (ev) => {
       if (ev.type === "chat.done" || ev.type === "chat.error") {
         sawDoneBeforeCut = true;
-        return true; // reply finished before we could cut — handled below
+        return true;
       }
-      // Cut once we have a real partial assistant message with a cursor.
-      const msgs = all.filter((e) => e.type === "chat.message");
-      if (
-        ev.type === "chat.message" &&
-        typeof ev.seq === "number" &&
-        ev.seq > 0 &&
-        (ev.content?.length ?? 0) > 0 &&
-        msgs.length >= 1
-      ) {
-        cutSeq = ev.seq ?? 0;
-        cutText = ev.content ?? "";
+      if (typeof ev.seq === "number" && ev.seq > 0) {
+        cutSeq = ev.seq;
+        if (ev.type === "chat.message") cutText = ev.content ?? "";
         return true;
       }
       return false;
     });
 
-    // Track the highest seq actually seen at the cut.
-    for (const e of phase1) {
-      if (typeof e.seq === "number" && e.seq > cutSeq) cutSeq = e.seq;
-    }
-
     // If Brain finished before we could sever, the reconnect path isn't
     // exercised — fail loudly rather than passing vacuously.
     expect(
       sawDoneBeforeCut,
-      "reply completed before we could disconnect — increase the prompt length",
+      "reply completed before we could disconnect — use a longer-running prompt",
     ).toBeFalsy();
     expect(cutSeq, "expected a positive cursor at the cut").toBeGreaterThan(0);
-    expect(cutText.length, "expected partial text at the cut").toBeGreaterThan(
-      0,
-    );
 
     // ── Phase 2: reconnect from the cursor, read to completion ──
     const resumeRes = await fetch(`${BASE_URL}/api/kody/chat/brain`, {
