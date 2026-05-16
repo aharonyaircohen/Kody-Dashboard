@@ -61,6 +61,12 @@ export interface BrainChatRequest {
   /** owner/name of the user's repo (forwarded so Brain can clone a worktree). */
   repo?: string;
   /**
+   * GitHub token (the user's PAT) so Brain can clone a private `repo` into a
+   * worktree. Without it a dev Brain server has no credentials of its own and
+   * the clone fails. Trust level matches the user-configured Brain URL/key.
+   */
+  repoToken?: string;
+  /**
    * Voice modality. When true the upstream Brain server should append the
    * shared voice overlay (see `@dashboard/lib/voice/overlay`) to its system
    * prompt for this turn — short sentences, no markdown, symbols-as-words.
@@ -219,6 +225,7 @@ export async function streamBrainChat(
         message: decoratedMessage,
         ...(attachments.length > 0 ? { attachments } : {}),
         ...(input.repo ? { repo: input.repo } : {}),
+        ...(input.repoToken ? { repoToken: input.repoToken } : {}),
         ...(input.voiceMode === true ? { voiceMode: true } : {}),
       }),
     });

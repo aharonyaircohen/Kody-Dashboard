@@ -77,6 +77,9 @@ export async function POST(req: NextRequest) {
   const repo = headerAuth
     ? `${headerAuth.owner}/${headerAuth.repo}`
     : undefined;
+  // Forward the user's token too — a dev Brain server has no GitHub creds of
+  // its own, so without this the worktree clone of a private repo fails.
+  const repoToken = headerAuth?.token;
 
   return streamBrainChat({
     brainUrl,
@@ -88,6 +91,7 @@ export async function POST(req: NextRequest) {
     jobDraft: body.jobDraft,
     jobContext: body.jobContext,
     repo,
+    repoToken,
     voiceMode: body.voiceMode === true,
   });
 }
