@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import { PageShell } from "./PageShell";
+import { InboxThreadDialog, resolvableThread } from "./InboxThreadDialog";
 import { useAuth } from "../auth-context";
 import { useInbox } from "../inbox/useInbox";
 import { cn } from "../utils";
@@ -109,6 +110,15 @@ function Row({ entry, onOpen, onToggleRead, onDelete }: RowProps) {
           </div>
         </button>
         <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <a
+            href={entry.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open on GitHub"
+            className="p-1 rounded text-white/50 hover:text-white hover:bg-white/[0.06]"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
           <button
             type="button"
             onClick={onToggleRead}
@@ -145,6 +155,8 @@ export function InboxList() {
     remove,
   } = useInbox();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [activeEntry, setActiveEntry] = useState<InboxEntry | null>(null);
+  const connectedRepo = auth ? `${auth.owner}/${auth.repo}` : undefined;
 
   const scopeMissing = /gist_scope_missing|gist.*scope/i.test(
     error?.message ?? "",
@@ -153,7 +165,11 @@ export function InboxList() {
   const subtitle = auth ? `${auth.owner}/${auth.repo}` : undefined;
 
   const openEntry = async (entry: InboxEntry) => {
-    if (typeof window !== "undefined") {
+    // Issues/PRs in the connected repo render inline; everything else
+    // (discussions, commits, cross-repo) still opens github.com.
+    if (resolvableThread(entry, connectedRepo)) {
+      setActiveEntry(entry);
+    } else if (typeof window !== "undefined") {
       window.open(entry.url, "_blank", "noopener,noreferrer");
     }
     if (entry.readAt === null) {
@@ -263,6 +279,11 @@ export function InboxList() {
         Entries are stored in a private gist on your GitHub account. Switching
         repos swaps the inbox automatically.
       </p>
+
+      <InboxThreadDialog
+        entry={activeEntry}
+        onClose={() => setActiveEntry(null)}
+      />
     </PageShell>
   );
 }
