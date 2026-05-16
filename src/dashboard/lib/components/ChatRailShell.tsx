@@ -27,7 +27,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { MessageSquare, X as XIcon } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import {
   Sheet,
@@ -215,19 +215,9 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
               side="right"
               className="w-full sm:max-w-md p-0 flex flex-col"
             >
-              <SheetHeader className="px-4 py-3 border-b border-border flex-row items-center justify-between space-y-0">
-                <SheetTitle className="text-sm font-semibold">Chat</SheetTitle>
-                <SheetDescription className="sr-only">
-                  Kody assistant chat
-                </SheetDescription>
-                <button
-                  type="button"
-                  onClick={() => setMobileOpen(false)}
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label="Close chat"
-                >
-                  <XIcon className="w-4 h-4" />
-                </button>
+              <SheetHeader className="sr-only">
+                <SheetTitle>Chat</SheetTitle>
+                <SheetDescription>Kody assistant chat</SheetDescription>
               </SheetHeader>
               <div className="flex-1 min-h-0">
                 {mobileOpen && auth ? (

@@ -134,8 +134,9 @@ gap-analysis conversation.`,
       "Markdown files at .kody/workers/<slug>.md — a parallel feature to Kody Jobs.",
     details: `A Kody Worker is a markdown file at \`.kody/workers/<slug>.md\`. Workers
 are a parallel feature to Kody Jobs with identical structure and UI (the
-Workers page mirrors the Jobs page). Manual "Run now" dispatch reuses the
-jobs \`job-tick\` plumbing verbatim.
+Workers page mirrors the Jobs page). The engine's \`worker-scheduler\` ticks
+every worker on the same cron as jobs (via the \`worker-tick\` executable);
+manual "Run now" posts \`@kody worker-tick\`.
 
 Format (must match existing workers in \`.kody/workers/\`):
 - H1 title
