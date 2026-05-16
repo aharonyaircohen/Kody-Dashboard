@@ -894,18 +894,24 @@ export function KodyChat({
 
     if (defaultChatEntryKey) {
       const entry = agentList.find((e) => e.key === defaultChatEntryKey);
-      if (entry) {
-        setSelectedAgentId(entry.agentId);
-        setSelectedModelId(entry.modelId);
-        initialDefaultAppliedRef.current = true;
+      if (!entry) {
+        // The entry isn't in the list yet — Brain visibility (auth) and
+        // Brain-Fly status probe hydrate after models. KEEP WAITING; the
+        // effect re-runs as agentList changes. An explicit choice must
+        // never be silently overridden by the legacy model.default
+        // fallback (that bug landed users on a model after picking Brain).
+        // If the entry never appears (Brain unconfigured / model deleted)
+        // we simply never apply here and the visible-entry effect settles
+        // on Kody Live — correct, since the pick is unavailable anyway.
         return;
       }
-      // Key set but its entry isn't in the list yet — models / brain
-      // status may still be resolving. Wait unless models have loaded
-      // (then the key points at something gone; fall through to legacy).
-      if (chatModels.length === 0) return;
+      setSelectedAgentId(entry.agentId);
+      setSelectedModelId(entry.modelId);
+      initialDefaultAppliedRef.current = true;
+      return;
     }
 
+    // No explicit key — legacy fallback to a Models-page default model.
     if (chatModels.length === 0) return;
     const def = chatModels.find(
       (m) => m.default === true && m.enabled !== false,
