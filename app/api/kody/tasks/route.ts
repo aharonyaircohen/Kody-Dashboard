@@ -261,6 +261,10 @@ export async function GET(req: NextRequest) {
         state: "open",
         perPage: 100,
         since: sinceDate,
+        // The "Kody control" issue is the dashboard's own audit trail for
+        // Run now dispatches — infrastructure, not a task. Drop it so it
+        // doesn't show up as noise in the task list.
+        excludeLabels: ["kody:control"],
       }),
       fetchWorkflowRuns({ perPage: 30 }),
       fetchOpenPRs(),
