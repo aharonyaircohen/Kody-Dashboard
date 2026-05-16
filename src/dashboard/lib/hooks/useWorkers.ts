@@ -121,7 +121,8 @@ export function useRunWorker() {
       toast.success(
         data.force ? "Worker triggered (force)" : "Worker triggered",
         {
-          description: "Engine will pick it up on the next workflow run.",
+          description:
+            "Dispatch comment posted — the engine starts a run now (not on the 15-min tick).",
         },
       );
     },
