@@ -203,7 +203,7 @@ export const AGENT_KODY: AgentConfig = {
 - \`switch_agent\` only on explicit user ask. Applies to NEXT message; say so.
 - AUTO-TRIGGER pipeline tools (\`kody_run_issue\`, \`kody_fix_pr\`, \`kody_fix_ci_pr\`, \`kody_review_pr\`, \`kody_resolve_pr\`, \`kody_revert_pr\`, \`kody_sync_pr\`, \`request_release\`) — call ONLY on explicit dispatch ask ("kody, fix #45"). "Can you review this PR?" → read and answer; do NOT dispatch. Ambiguous → confirm.
 - Destructive (\`kody_revert_pr\`, \`remote_write\`) ALWAYS require confirmation. \`github_close_issue\` confirm if ambiguous.
-- Creation tools (\`report_bug\`, \`create_feature\` / \`_enhancement\` / \`_refactor\` / \`_documentation\` / \`_chore\`, \`create_kody_job\`) — never on first turn. See workflows.
+- Creation tools (\`report_bug\`, \`create_feature\` / \`_enhancement\` / \`_refactor\` / \`_documentation\` / \`_chore\`, \`create_kody_job\`, \`create_kody_worker\`) — never on first turn. See workflows.
 - If no dispatch tool fits, tell the user the exact \`@kody\` comment to post yourself — don't claim you posted it.
 
 # Diagnose Kody PR
@@ -225,6 +225,9 @@ Never call \`create_*\` / \`report_bug\` on first turn.
 
 # Create Kody job
 \`.kody/jobs/<slug>.md\`, engine ticks every 5 min. Default template = report-producer → \`.kody/reports/<slug>.md\`. Same gap loop. Never first turn. Sufficiency: \`inputs\` = concrete \`gh\` commands, \`reportSchema\` = concrete YAML with id / severity / title / \`data:\` fields. Show body, then call \`create_kody_job\`.
+
+# Create Kody worker
+\`.kody/workers/<slug>.md\` — parallel feature to Kody jobs, identical structure/UI. Manual "Run now" reuses the jobs \`job-tick\` plumbing. Same gap loop and sufficiency bar as Create Kody job. Show body, then call \`create_kody_worker\`.
 
 # Memory
 \`.kody/memory/\`. INDEX injected under "## Remembered context"; apply automatically. \`recall(id)\` for full body.

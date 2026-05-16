@@ -18,6 +18,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Bot,
   ChevronDown,
   FileText,
   Github,
@@ -174,13 +175,13 @@ export function MobileMenu({
           </Link>
         </div>
 
-        {/* Workspace — page-specific primary action + Jobs/Reports tiles. */}
+        {/* Workspace — page-specific primary action + Jobs/Workers/Reports tiles. */}
         <div className="px-4 pt-4">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-2 px-1">
             Workspace
           </div>
           {workspacePrimary}
-          <div className="grid grid-cols-3 gap-2 mt-2">
+          <div className="grid grid-cols-2 gap-2 mt-2">
             <Link
               href="/jobs"
               onClick={close}
@@ -190,6 +191,19 @@ export function MobileMenu({
                 <Layers className="w-4 h-4 text-amber-300" />
               </span>
               <span className="text-sm font-medium">Jobs</span>
+              <span className="text-[11px] text-muted-foreground">
+                Run and edit
+              </span>
+            </Link>
+            <Link
+              href="/workers"
+              onClick={close}
+              className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
+            >
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-violet-500/10">
+                <Bot className="w-4 h-4 text-violet-300" />
+              </span>
+              <span className="text-sm font-medium">Workers</span>
               <span className="text-[11px] text-muted-foreground">
                 Run and edit
               </span>

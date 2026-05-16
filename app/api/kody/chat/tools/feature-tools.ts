@@ -128,6 +128,30 @@ The chat exposes the \`create_kody_job\` tool to scaffold a new job after a
 gap-analysis conversation.`,
   },
   {
+    id: "kody-workers",
+    name: "Kody Workers (scheduled markdown workers)",
+    summary:
+      "Markdown files at .kody/workers/<slug>.md — a parallel feature to Kody Jobs.",
+    details: `A Kody Worker is a markdown file at \`.kody/workers/<slug>.md\`. Workers
+are a parallel feature to Kody Jobs with identical structure and UI (the
+Workers page mirrors the Jobs page). Manual "Run now" dispatch reuses the
+jobs \`job-tick\` plumbing verbatim.
+
+Format (must match existing workers in \`.kody/workers/\`):
+- H1 title
+- \`## Worker\` — purpose
+- \`## Allowed Commands\`
+- \`## Restrictions\`
+- \`## State\`
+
+Default template is REPORT-PRODUCER: each active tick gathers inputs, composes
+a YAML \`findings:\` report, and commits it to \`.kody/reports/<slug>.md\` via
+\`gh api PUT\`.
+
+The chat exposes the \`create_kody_worker\` tool to scaffold a new worker
+after a gap-analysis conversation.`,
+  },
+  {
     id: "memory",
     name: "Persistent Memory System",
     summary:

@@ -165,6 +165,20 @@ export function invalidateJobsCache(slug?: string): void {
 }
 
 /**
+ * Invalidate cache entries for worker files. Pass a slug to scope to one
+ * worker, or omit to clear the listing cache (e.g. on bulk changes).
+ * Mirrors `invalidateJobsCache` — workers are an independent feature
+ * stored at `.kody/workers/<slug>.md`.
+ */
+export function invalidateWorkersCache(slug?: string): void {
+  if (typeof slug === "string" && slug.length > 0) {
+    // Repo-scoped key shape: `worker:owner:repo:slug`. Wipe across repos.
+    invalidateCache("worker:");
+  }
+  invalidateCache("workers:");
+}
+
+/**
  * Invalidate cache entries for prompt files. Pass a slug to scope to one
  * prompt, or omit to clear the listing cache (e.g. on bulk changes).
  * Prompts live at `.kody/prompts/<slug>.md` and back the chat slash
