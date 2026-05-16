@@ -43,12 +43,13 @@ the dashboard's Settings page (user-scoped, not Vercel-scoped).
 > with `KODY_MASTER_KEY=... pnpm push:init`.
 
 **Do NOT add `FLY_API_TOKEN` (or `FLY_IO_TOKEN`) as a Vercel env var.** The
-Fly Machines token is a **user-scoped** credential managed via the
-dashboard's Settings page → Fly Runner card, sent per-request as the
-`x-kody-fly-token` header. The server intentionally does not fall back to
-an env var. Same rule applies to any future per-user infra credentials —
-prefer Settings over Vercel envs whenever the secret belongs to a single
-user, not the whole deployment.
+Fly Machines token is a **repo-scoped** credential, managed only on the
+`/secrets` page (vault `FLY_API_TOKEN`). Server code resolves it from the
+vault via `resolveFlyContext` / `getSecret`; there is no
+`x-kody-fly-token` header. The Settings page → Fly Runner card owns only
+the **performance tier** (`flyPerf`, per-user localStorage, sent as
+`x-kody-fly-perf`) plus a read-only "token configured?" probe — it does
+not store the token (that would duplicate the vault entry).
 
 ## Secrets vault (`/secrets`)
 
