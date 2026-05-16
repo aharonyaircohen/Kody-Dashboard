@@ -226,6 +226,17 @@ export async function streamBrainChat(
   const requestId = crypto.randomUUID();
   const target = `${input.brainUrl.replace(/\/+$/, "")}/chats/${encodeURIComponent(input.chatId)}/messages`;
 
+  // Bound the *connect* (time-to-headers) wait so a Brain server that hangs
+  // before it ever responds surfaces an error instead of the UI spinning on
+  // "thinking" forever. The streaming read has its own separate idle timeout
+  // below — we don't abort a slow-but-alive stream, only a dead connection.
+  const CONNECT_TIMEOUT_MS = 60_000;
+  const connectController = new AbortController();
+  const connectTimer = setTimeout(
+    () => connectController.abort(),
+    CONNECT_TIMEOUT_MS,
+  );
+
   let upstream: Response;
   try {
     upstream = await fetch(target, {
@@ -241,8 +252,23 @@ export async function streamBrainChat(
         ...(input.repoToken ? { repoToken: input.repoToken } : {}),
         ...(input.voiceMode === true ? { voiceMode: true } : {}),
       }),
+      signal: connectController.signal,
     });
   } catch (err) {
+    clearTimeout(connectTimer);
+    const timedOut = connectController.signal.aborted;
+    if (timedOut) {
+      logger.error(
+        { requestId, chatId: input.chatId },
+        "brain-proxy: connect timeout (no response headers)",
+      );
+      return new Response(
+        JSON.stringify({
+          error: `Brain chat server did not respond within ${CONNECT_TIMEOUT_MS / 1000}s`,
+        }),
+        { status: 504, headers: { "content-type": "application/json" } },
+      );
+    }
     logger.error(
       { err, requestId, chatId: input.chatId },
       "brain-proxy: fetch failed",
@@ -252,6 +278,10 @@ export async function streamBrainChat(
       { status: 502, headers: { "content-type": "application/json" } },
     );
   }
+
+  // Headers arrived — connect succeeded. Stop the connect timer so it can't
+  // fire mid-stream (the stream has its own idle timeout below).
+  clearTimeout(connectTimer);
 
   if (!upstream.ok || !upstream.body) {
     const text = await upstream.text().catch(() => "");
@@ -346,9 +376,26 @@ export async function streamBrainChat(
         }
       };
 
+      // Idle timeout: a connected-but-silent stream is the actual "stuck on
+      // thinking" symptom. If no chunk arrives for this long, give up and
+      // surface an error instead of holding the spinner open indefinitely.
+      // Reset every time a chunk lands, so a long healthy response is fine —
+      // only true silence trips it.
+      const IDLE_TIMEOUT_MS = 120_000;
+      const readWithIdleTimeout = () =>
+        Promise.race([
+          reader.read(),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("brain-idle-timeout")),
+              IDLE_TIMEOUT_MS,
+            ),
+          ),
+        ]);
+
       try {
         while (true) {
-          const { done, value } = await reader.read();
+          const { done, value } = await readWithIdleTimeout();
           if (done) break;
           buf += decoder.decode(value, { stream: true });
           const lastNewline = buf.lastIndexOf("\n");
@@ -359,11 +406,21 @@ export async function streamBrainChat(
         }
         if (buf.trim()) parseBrainChunk(buf);
       } catch (err) {
+        const idle =
+          err instanceof Error && err.message === "brain-idle-timeout";
         logger.error(
-          { err, requestId, chatId: input.chatId },
-          "brain-proxy: stream read error",
+          { err, requestId, chatId: input.chatId, idle },
+          idle
+            ? "brain-proxy: stream idle timeout (no chunk for 120s)"
+            : "brain-proxy: stream read error",
         );
-        emit({ type: "chat.error", error: "Brain stream interrupted" });
+        emit({
+          type: "chat.error",
+          error: idle
+            ? "Brain went silent (no response for 120s) — it may be busy cloning the repo. Try again."
+            : "Brain stream interrupted",
+        });
+        await reader.cancel().catch(() => {});
       } finally {
         controller.close();
       }

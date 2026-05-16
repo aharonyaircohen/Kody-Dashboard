@@ -82,45 +82,39 @@ export function SettingsManager() {
   // ─── Vercel bypass secret ───────────────────────────────────────────────
   const [vercelSecret, setVercelSecret] = useState("");
 
-  // ─── Fly Machines API token + perf tier ─────────────────────────────────
-  // Token lives in the repo vault (.kody/secrets.enc → FLY_API_TOKEN) so it
-  // is project-scoped instead of per-browser. Perf tier stays per-user in
-  // localStorage via auth-context, so the card behaves as before: edits to
-  // either are committed together when Save is clicked.
-  const [flyToken, setFlyToken] = useState("");
-  const [savedFlyToken, setSavedFlyToken] = useState("");
+  // ─── Fly Machines perf tier ─────────────────────────────────────────────
+  // The Fly token itself is NOT edited here — it lives in the repo vault
+  // (.kody/secrets.enc → FLY_API_TOKEN) and is managed on the Secrets page,
+  // the single source of truth. This card only owns the perf tier (per-user
+  // localStorage via auth-context) and probes the vault read-only so the
+  // Brain-on-Fly card knows whether a token is configured.
+  const [flyTokenConfigured, setFlyTokenConfigured] = useState(false);
   const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT);
 
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmClearBrain, setConfirmClearBrain] = useState(false);
   const [confirmClearVercel, setConfirmClearVercel] = useState(false);
-  const [confirmClearFly, setConfirmClearFly] = useState(false);
 
-  // Load FLY_API_TOKEN from the per-repo vault. Re-runs whenever auth (and
-  // therefore the connected repo) changes.
-  const loadFlyToken = useCallback(async () => {
+  // Read-only probe: is FLY_API_TOKEN present in the per-repo vault? Re-runs
+  // whenever auth (and therefore the connected repo) changes.
+  const probeFlyToken = useCallback(async () => {
     const headers = vaultHeaders();
     if (Object.keys(headers).length === 0) {
-      setSavedFlyToken("");
-      setFlyToken("");
+      setFlyTokenConfigured(false);
       return;
     }
     try {
       const res = await fetch(`/api/kody/secrets/${FLY_VAULT_KEY}/value`, {
         headers,
       });
-      if (res.status === 404) {
-        setSavedFlyToken("");
-        setFlyToken("");
+      if (!res.ok) {
+        setFlyTokenConfigured(false);
         return;
       }
-      if (!res.ok) return;
       const body = (await res.json()) as { value?: string };
-      const v = body.value ?? "";
-      setSavedFlyToken(v);
-      setFlyToken(v);
+      setFlyTokenConfigured(Boolean(body.value));
     } catch {
-      // Network/vault errors leave the field empty — same UX as no token.
+      setFlyTokenConfigured(false);
     }
   }, []);
 
@@ -130,7 +124,7 @@ export function SettingsManager() {
     setBrainKey(auth?.brain?.apiKey ?? "");
     setVercelSecret(auth?.vercelBypassSecret ?? "");
     setFlyPerf(auth?.flyPerf ?? FLY_PERF_DEFAULT);
-    void loadFlyToken();
+    void probeFlyToken();
   }, [
     auth?.brain?.url,
     auth?.brain?.apiKey,
@@ -138,7 +132,7 @@ export function SettingsManager() {
     auth?.flyPerf,
     auth?.owner,
     auth?.repo,
-    loadFlyToken,
+    probeFlyToken,
   ]);
 
   const brainHasChanges =
@@ -146,9 +140,7 @@ export function SettingsManager() {
     brainKey.trim() !== (auth?.brain?.apiKey ?? "");
   const vercelHasChanges =
     vercelSecret.trim() !== (auth?.vercelBypassSecret ?? "");
-  const flyHasChanges =
-    flyToken.trim() !== savedFlyToken ||
-    flyPerf !== (auth?.flyPerf ?? FLY_PERF_DEFAULT);
+  const flyHasChanges = flyPerf !== (auth?.flyPerf ?? FLY_PERF_DEFAULT);
 
   function saveBrain() {
     const url = brainUrl.trim();
@@ -186,75 +178,12 @@ export function SettingsManager() {
     toast.success("Vercel bypass secret cleared");
   }
 
-  async function saveFly() {
-    const tok = flyToken.trim();
-    if (!tok) {
-      toast.error("Fly token cannot be empty — use Clear to remove it");
-      return;
-    }
-    const headers = vaultHeaders();
-    if (Object.keys(headers).length === 0) {
-      toast.error("Sign in to a repo before saving Fly settings");
-      return;
-    }
-    // Token → repo vault; perf tier stays per-user in localStorage. Save
-    // both in one click so the card behaves as before.
-    const tokenChanged = tok !== savedFlyToken;
-    try {
-      if (tokenChanged) {
-        const res = await fetch("/api/kody/secrets", {
-          method: "POST",
-          headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: FLY_VAULT_KEY,
-            value: tok,
-            actorLogin: auth?.user?.login,
-          }),
-        });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as {
-            message?: string;
-          };
-          toast.error(body.message ?? `Save failed (HTTP ${res.status})`);
-          return;
-        }
-        setSavedFlyToken(tok);
-      }
-      updateIntegrations({
-        flyPerf: flyPerf === FLY_PERF_DEFAULT ? null : flyPerf,
-      });
-      toast.success("Fly settings saved");
-    } catch (err) {
-      toast.error(`Save failed: ${(err as Error).message}`);
-    }
-  }
-
-  async function clearFly() {
-    const headers = vaultHeaders();
-    if (savedFlyToken && Object.keys(headers).length > 0) {
-      try {
-        const res = await fetch(`/api/kody/secrets/${FLY_VAULT_KEY}`, {
-          method: "DELETE",
-          headers,
-        });
-        if (!res.ok && res.status !== 404) {
-          const body = (await res.json().catch(() => ({}))) as {
-            message?: string;
-          };
-          toast.error(body.message ?? `Clear failed (HTTP ${res.status})`);
-          return;
-        }
-      } catch (err) {
-        toast.error(`Clear failed: ${(err as Error).message}`);
-        return;
-      }
-    }
-    updateIntegrations({ flyPerf: null });
-    setFlyToken("");
-    setSavedFlyToken("");
-    setFlyPerf(FLY_PERF_DEFAULT);
-    setConfirmClearFly(false);
-    toast.success("Fly settings cleared");
+  function saveFly() {
+    // Perf tier only — the token is managed on the Secrets page.
+    updateIntegrations({
+      flyPerf: flyPerf === FLY_PERF_DEFAULT ? null : flyPerf,
+    });
+    toast.success("Fly performance tier saved");
   }
 
   return (
@@ -373,23 +302,15 @@ export function SettingsManager() {
               <h2 className="text-sm font-semibold">Fly Runner</h2>
             </div>
             <p className="text-xs text-white/50 -mt-2">
-              Fly Machines API token. Lets the dashboard spawn the kody-live-fly
-              runner on Fly.io as an alternative to GitHub Actions. Create one
-              at fly.io → Tokens, scoped to the kody-runner app.
+              Lets the dashboard spawn the kody-live-fly runner on Fly.io as an
+              alternative to GitHub Actions. The Fly Machines API token is
+              managed on the{" "}
+              <a href="/secrets" className="text-sky-400 hover:underline">
+                Secrets
+              </a>{" "}
+              page as <span className="font-mono">FLY_API_TOKEN</span> —{" "}
+              {flyTokenConfigured ? "configured." : "not set yet."}
             </p>
-            <div className="space-y-2">
-              <Label htmlFor="fly-token" className="text-xs text-white/70">
-                API token
-              </Label>
-              <Input
-                id="fly-token"
-                type="password"
-                placeholder="fo1_..."
-                value={flyToken}
-                onChange={(e) => setFlyToken(e.target.value)}
-                className="bg-black/30 border-white/10 font-mono"
-              />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="fly-perf" className="text-xs text-white/70">
                 Performance tier
@@ -424,16 +345,6 @@ export function SettingsManager() {
               <Button size="sm" onClick={saveFly} disabled={!flyHasChanges}>
                 Save
               </Button>
-              {savedFlyToken && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setConfirmClearFly(true)}
-                  className="text-rose-300 hover:text-rose-200"
-                >
-                  Clear
-                </Button>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -441,7 +352,7 @@ export function SettingsManager() {
         {/* ─── Brain on Fly toggle ────────────────────────────────────── */}
         <BrainFlyCard
           headers={vaultHeaders()}
-          flyTokenConfigured={Boolean(savedFlyToken)}
+          flyTokenConfigured={flyTokenConfigured}
         />
 
         {/* ─── Chat ───────────────────────────────────────────────────── */}
@@ -561,15 +472,6 @@ export function SettingsManager() {
         confirmLabel="Clear"
         variant="destructive"
         onConfirm={clearVercel}
-      />
-      <ConfirmDialog
-        open={confirmClearFly}
-        onClose={() => setConfirmClearFly(false)}
-        title="Clear Fly token?"
-        description="Removes the saved Fly Machines API token from this browser. kody-live-fly sessions will fail until a new token is saved — the dashboard does not fall back to a server env var."
-        confirmLabel="Clear"
-        variant="destructive"
-        onConfirm={clearFly}
       />
     </PageShell>
   );

@@ -169,6 +169,31 @@ function formatElapsed(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+// ─── Brain chat-id stickiness ────────────────────────────────────────────────
+// Brain keeps all conversation memory server-side, keyed by the chatId we send
+// each turn. If that id changes mid-conversation (e.g. `actorLogin` is briefly
+// null so the prefix flips guy-- → anon--, or a global session id gets
+// re-minted), Brain looks up an empty chat and the history "vanishes". So we
+// pin the id: the first turn for a given logical conversation wins, and every
+// later turn reuses it verbatim regardless of transient prefix/session churn.
+const BRAIN_CHAT_ID_KEY = "kody-brain-chat-ids";
+
+function stickyBrainChatId(logicalKey: string, candidate: string): string {
+  if (typeof window === "undefined") return candidate;
+  try {
+    const raw = window.localStorage.getItem(BRAIN_CHAT_ID_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    const pinned = map[logicalKey];
+    if (pinned) return pinned;
+    map[logicalKey] = candidate;
+    window.localStorage.setItem(BRAIN_CHAT_ID_KEY, JSON.stringify(map));
+  } catch {
+    // localStorage unavailable/corrupt — fall back to the candidate. Worst
+    // case is the pre-fix behavior, not a crash.
+  }
+  return candidate;
+}
+
 // ─── Kody Live persistence ───────────────────────────────────────────────────
 // Survives page refreshes by saving the live session to localStorage. Stale
 // records (older than the engine's 30min hard cap + 5min idle buffer) are
@@ -2384,13 +2409,19 @@ export function KodyChat({
         // across users working on the same task.
         const userKey = actorLogin ?? "anon";
         const brainSessionId = resolveSessionId();
-        const brainChatId = selectedTask
-          ? `${userKey}--task-${selectedTask.id}`
+        // Logical key is the stable conversation identity *without* userKey —
+        // it must not change when actorLogin transiently flips to "anon".
+        const brainLogicalKey = selectedTask
+          ? `task-${selectedTask.id}`
           : selectedJob
-            ? `${userKey}--job-${selectedJob.slug}`
+            ? `job-${selectedJob.slug}`
             : draftId
-              ? `${userKey}--job-draft-${draftId}`
-              : `${userKey}--global-${brainSessionId}`;
+              ? `job-draft-${draftId}`
+              : `global-${brainSessionId}`;
+        const brainChatId = stickyBrainChatId(
+          brainLogicalKey,
+          `${userKey}--${brainLogicalKey}`,
+        );
 
         // When chatting about a specific task, pass a compact context blob so
         // Brain answers in the context of that issue. Brain's route injects it
