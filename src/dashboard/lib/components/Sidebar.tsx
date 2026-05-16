@@ -19,6 +19,7 @@ import { useEffect, useState } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
+  History,
   Home,
   Layers,
   Users,
@@ -42,6 +43,7 @@ const PRIMARY_ITEMS: readonly NavItem[] = [
   { href: '/', label: 'Dashboard', icon: Home, exact: true },
   { href: '/jobs', label: 'Jobs', icon: Layers },
   { href: '/workers', label: 'Workers', icon: Users },
+  { href: '/changelog', label: 'Changelog', icon: History },
 ]
 
 const COLLAPSED_KEY = 'kody.sidebar.collapsed'
