@@ -3,15 +3,15 @@
  * @domain kody
  * @pattern worker-run
  * @ai-summary POST /api/kody/workers/:slug/run — manually trigger a single
- *   worker by posting an `@kody job-tick --job <slug> [--force]` comment on
- *   the repo's "Kody control" issue. Reuses the jobs `job-tick` plumbing
- *   verbatim (per product decision): the engine's existing `issue_comment`
- *   trigger fires kody.yml; the dispatcher routes to `job-tick`. No separate
- *   worker-tick engine path is introduced.
+ *   worker by posting an `@kody worker-tick --job <slug> [--force]` comment
+ *   on the repo's "Kody control" issue. The engine's existing `issue_comment`
+ *   trigger fires kody.yml; the dispatcher routes to the `worker-tick`
+ *   executable, which reads `.kody/workers/<slug>.md` (parallel to
+ *   `job-tick` for `.kody/jobs/`).
  *
  *   Why a comment, not a chat-trigger fake: workers are autonomous
  *   primitives, not chat sessions. This path uses three established
- *   conventions (`@kody <subcommand>`, `job-tick --job <slug>`,
+ *   conventions (`@kody <subcommand>`, `worker-tick --job <slug>`,
  *   `issue_comment` trigger) without overloading any of them — and crucially
  *   without needing `KODY_MASTER_KEY` for HMAC signing, since no chat
  *   session is being minted.
@@ -139,9 +139,10 @@ export async function POST(
 
   try {
     const issueNumber = await findOrCreateControlIssue(octokit, owner, repo);
-    // Reuse the jobs `job-tick` plumbing verbatim — no worker-tick path.
+    // Route to the engine's `worker-tick` executable, which reads
+    // `.kody/workers/<slug>.md` (parallel to `job-tick` for jobs).
     const flags = payload.force ? `--job ${slug} --force` : `--job ${slug}`;
-    const body = `@kody job-tick ${flags}`;
+    const body = `@kody worker-tick ${flags}`;
     const { data: comment } = await octokit.rest.issues.createComment({
       owner,
       repo,

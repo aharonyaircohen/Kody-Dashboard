@@ -201,8 +201,9 @@ export function createWorkerTools(ctx: Ctx) {
         "tick gathers inputs, composes a YAML findings report, and commits it to " +
         "`.kody/reports/<slug>.md` via `gh api PUT` (the engine's job-tick " +
         "executable only has Bash + Read, so reports are committed via API, not " +
-        "the working tree). Workers reuse the jobs `job-tick` plumbing for manual " +
-        '"Run now" dispatch.\n\n' +
+        "the working tree). The engine's worker-scheduler ticks every worker in " +
+        "`.kody/workers/` on the same cron as jobs; each worker's own cadence " +
+        "guard decides whether to act.\n\n" +
         "BEFORE CALLING: gather title, purpose, cadenceHours, inputs (data sources " +
         "as concrete `gh` commands), and reportSchema (YAML fragment for the " +
         "`findings:` array). Ask the user clarifying questions in small batches " +
@@ -251,8 +252,9 @@ export function createWorkerTools(ctx: Ctx) {
             title: worker.title,
             htmlUrl: worker.htmlUrl,
             note:
-              "Worker file committed at `.kody/workers/<slug>.md`. Use the Worker " +
-              'Control "Run now" button to dispatch it via the jobs job-tick plumbing.',
+              "Worker file committed at `.kody/workers/<slug>.md`. The engine's " +
+              "worker-scheduler will tick it on the next cron wake; the cadence " +
+              'guard decides when it acts. "Run now" forces an immediate tick.',
           };
         } catch (err) {
           logger.warn(

@@ -227,7 +227,7 @@ Never call \`create_*\` / \`report_bug\` on first turn.
 \`.kody/jobs/<slug>.md\`, engine ticks every 5 min. Default template = report-producer → \`.kody/reports/<slug>.md\`. Same gap loop. Never first turn. Sufficiency: \`inputs\` = concrete \`gh\` commands, \`reportSchema\` = concrete YAML with id / severity / title / \`data:\` fields. Show body, then call \`create_kody_job\`.
 
 # Create Kody worker
-\`.kody/workers/<slug>.md\` — parallel feature to Kody jobs, identical structure/UI. Manual "Run now" reuses the jobs \`job-tick\` plumbing. Same gap loop and sufficiency bar as Create Kody job. Show body, then call \`create_kody_worker\`.
+\`.kody/workers/<slug>.md\` — parallel feature to Kody jobs, identical structure/UI. Engine \`worker-scheduler\` ticks them on the same cron as jobs (via \`worker-tick\`); "Run now" posts \`@kody worker-tick\`. Same gap loop and sufficiency bar as Create Kody job. Show body, then call \`create_kody_worker\`.
 
 # Memory
 \`.kody/memory/\`. INDEX injected under "## Remembered context"; apply automatically. \`recall(id)\` for full body.

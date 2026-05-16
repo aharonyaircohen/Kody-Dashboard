@@ -1086,13 +1086,12 @@ export const workersApi = {
   },
 
   /**
-   * Manually trigger a single worker by posting an `@kody job-tick` comment
-   * on the repo's "Kody control" issue. The engine's existing
-   * `issue_comment` trigger routes to job-tick. Defaults to `force: true`
-   * because the operator clicked "Run now" — they want it to run regardless
-   * of the body's cadence guard. Pass `force: false` to respect the guard.
-   *
-   * Reuses the jobs `job-tick` plumbing verbatim — no separate engine path.
+   * Manually trigger a single worker by posting an `@kody worker-tick`
+   * comment on the repo's "Kody control" issue. The engine's existing
+   * `issue_comment` trigger routes to the `worker-tick` executable.
+   * Defaults to `force: true` because the operator clicked "Run now" —
+   * they want it to run regardless of the body's cadence guard. Pass
+   * `force: false` to respect the guard.
    */
   run: async (
     worker: { slug: string },

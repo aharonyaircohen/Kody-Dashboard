@@ -14,12 +14,11 @@
  */
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bot,
-  ChevronDown,
   FileText,
   Github,
   Layers,
@@ -48,8 +47,6 @@ interface MobileMenuProps {
   /** Primary action shown above the Jobs/Reports tiles (e.g. "Chat with Kody",
    *  or "Open issues" on the Vibe page). */
   workspacePrimary?: ReactNode;
-  /** Whether the Settings group is open by default. Defaults to false. */
-  defaultSettingsOpen?: boolean;
   /** Extra sections rendered between Settings and the bottom CTA — Dashboard
    *  uses this for Filters + Actions. */
   extras?: ReactNode;
@@ -61,13 +58,11 @@ export function MobileMenu({
   open,
   onOpenChange,
   workspacePrimary,
-  defaultSettingsOpen = false,
   extras,
   bottomCta,
 }: MobileMenuProps) {
   const pathname = usePathname() ?? "/";
   const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
-  const [settingsOpen, setSettingsOpen] = useState(defaultSettingsOpen);
 
   const onVibe = pathname.startsWith("/vibe");
   const vibeHref = onVibe ? "/" : "/vibe";
@@ -237,25 +232,13 @@ export function MobileMenu({
           </div>
         </div>
 
-        {/* Settings — collapsible group. */}
+        {/* Settings — always expanded. */}
         <div className="px-4 pt-4">
-          <button
-            type="button"
-            onClick={() => setSettingsOpen((v) => !v)}
-            aria-expanded={settingsOpen}
-            className="w-full flex items-center gap-2 px-1 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/70 hover:text-foreground transition-colors"
-          >
-            <span className="flex-1 text-left">Settings</span>
-            <ChevronDown
-              className={cn(
-                "w-3.5 h-3.5 transition-transform",
-                !settingsOpen && "-rotate-90",
-              )}
-            />
-          </button>
-          {settingsOpen && (
-            <div className="space-y-3 mt-1">
-              {SETTINGS_NAV_SECTIONS.map((section) => (
+          <div className="px-1 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/70">
+            Settings
+          </div>
+          <div className="space-y-3 mt-1">
+            {SETTINGS_NAV_SECTIONS.map((section) => (
                 <div key={section.title}>
                   <p className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground/60">
                     {section.title}
@@ -287,9 +270,8 @@ export function MobileMenu({
                     })}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+            ))}
+          </div>
         </div>
 
         {extras}
