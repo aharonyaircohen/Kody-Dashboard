@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   Loader2,
   ChevronDown,
+  Star,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId, type AgentConfig } from "../agents";
 
@@ -124,6 +125,23 @@ function authHeaders(): Record<string, string> {
         "x-kody-repo": auth.repo,
       }
     : {};
+}
+
+/** Set a model as the default and persist via the models API */
+async function setDefaultModel(modelId: string, currentModels: ChatModelEntry[]): Promise<void> {
+  const updated = currentModels.map((m) => ({
+    ...m,
+    default: m.id === modelId,
+  }));
+  const res = await fetch("/api/kody/models", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ models: updated }),
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
 }
 
 /**
@@ -4148,6 +4166,9 @@ export function KodyChat({
                     return <Icon className="w-5 h-5" aria-label={headerName} />;
                   })()}
                   <span className="font-semibold text-base">{headerName}</span>
+                  {currentEntry?.modelId && chatModels.find(m => m.id === currentEntry.modelId)?.default === true && (
+                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" aria-label="Default model" />
+                  )}
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="14"
@@ -4179,8 +4200,11 @@ export function KodyChat({
                   const isSelected =
                     a.agentId === selectedAgentId &&
                     (a.modelId ?? null) === selectedModelId;
+                  const isKodyModel = a.agentId === "kody" && a.modelId !== null;
+                  const modelEntry = isKodyModel ? chatModels.find(m => m.id === a.modelId) : null;
+                  const isDefault = modelEntry?.default === true;
                   return (
-                    <li key={a.key}>
+                    <li key={a.key} className="relative">
                       <button
                         type="button"
                         onClick={() => {
@@ -4203,13 +4227,39 @@ export function KodyChat({
                             />
                           );
                         })()}
-                        <span className="flex flex-col">
-                          <span className="font-medium">{a.name}</span>
+                        <span className="flex flex-col flex-1 min-w-0">
+                          <span className="font-medium flex items-center gap-1.5">
+                            {a.name}
+                            {isDefault && (
+                              <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" aria-label="Default model" />
+                            )}
+                          </span>
                           <span className="text-xs text-muted-foreground">
                             {a.description}
                           </span>
                         </span>
                       </button>
+                      {isKodyModel && !isDefault && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (a.modelId) {
+                              setDefaultModel(a.modelId, chatModels).then(() => {
+                                return fetch("/api/kody/models", { headers: authHeaders() })
+                                  .then(res => res.ok ? res.json() : Promise.reject(res))
+                                  .then((json: { models?: ChatModelEntry[] }) => {
+                                    setChatModels(Array.isArray(json.models) ? json.models : []);
+                                  });
+                              }).catch(() => toast.error("Failed to set default model"));
+                            }
+                            setAgentMenuOpen(false);
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent rounded"
+                        >
+                          Set as default
+                        </button>
+                      )}
                     </li>
                   );
                 })}
