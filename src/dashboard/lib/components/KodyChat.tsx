@@ -3968,12 +3968,27 @@ export function KodyChat({
     const sliceTitle =
       raw.length > 48 ? `${raw.slice(0, 48).trim()}…` : raw;
 
+    // Strip <think> reasoning and drop empty assistant turns before
+    // titling. Without this, reasoning-heavy modes (Vibe) send a
+    // conversation that is mostly thinking, and the model dutifully
+    // titles it "Thinking". The user's intent lives in their messages
+    // and the assistant's actual answer — not its scratchpad.
     const convo = messages
       .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      }));
+      .map((m) => {
+        if (m.role !== "assistant") {
+          return { role: "user" as const, content: m.content };
+        }
+        const cleaned = m.content
+          .replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "")
+          .trim();
+        return cleaned
+          ? { role: "assistant" as const, content: cleaned }
+          : null;
+      })
+      .filter((m): m is { role: "user" | "assistant"; content: string } =>
+        m !== null && m.content.trim().length > 0,
+      );
 
     (async () => {
       try {

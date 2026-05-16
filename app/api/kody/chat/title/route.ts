@@ -51,8 +51,14 @@ export async function POST(req: NextRequest) {
     .slice(0, MAX_MESSAGES)
     .map((m) => ({
       role: m.role,
-      content: m.content.slice(0, MAX_CHARS_PER_MESSAGE),
-    }));
+      // Defensively strip <think> reasoning server-side too — a title
+      // should reflect intent, never the model's scratchpad.
+      content: m.content
+        .replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "")
+        .trim()
+        .slice(0, MAX_CHARS_PER_MESSAGE),
+    }))
+    .filter((m) => m.content.length > 0);
 
   if (trimmed.length === 0) {
     return NextResponse.json(
