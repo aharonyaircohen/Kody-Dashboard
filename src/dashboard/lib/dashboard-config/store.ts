@@ -17,6 +17,13 @@ export interface DashboardConfig {
   version: 1;
   /** URL shown in the Vibe page preview pane when no issue is selected. */
   defaultPreviewUrl?: string;
+  /**
+   * Chat dropdown entry the composer auto-selects on mount. Holds a
+   * `ChatDropdownEntry.key`: `"brain"`, `"brain-fly"`, or `"kody:<modelId>"`.
+   * Distinct from a model's `default` flag (which governs server-side
+   * gateway model resolution) — this is purely the chat UI's starting pick.
+   */
+  defaultChatEntryKey?: string;
 }
 
 interface CacheEntry {

@@ -127,16 +127,12 @@ function authHeaders(): Record<string, string> {
     : {};
 }
 
-/** Set a model as the default and persist via the models API */
-async function setDefaultModel(modelId: string, currentModels: ChatModelEntry[]): Promise<void> {
-  const updated = currentModels.map((m) => ({
-    ...m,
-    default: m.id === modelId,
-  }));
-  const res = await fetch("/api/kody/models", {
+/** Persist the default chat dropdown entry key via the dashboard-config API */
+async function persistDefaultChatEntry(key: string): Promise<void> {
+  const res = await fetch("/api/kody/dashboard-config", {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ models: updated }),
+    body: JSON.stringify({ defaultChatEntryKey: key }),
   });
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
@@ -781,6 +777,17 @@ export function KodyChat({
   // Empty until first load completes; renders only Kody Live (+ Brain) in
   // the dropdown while empty.
   const [chatModels, setChatModels] = useState<ChatModelEntry[]>([]);
+  // The user-chosen default chat dropdown entry key (any entry: Brain,
+  // Brain-Fly, or `kody:<modelId>`), persisted in `.kody/dashboard.json`.
+  // Null until the config load resolves. Separate from a model's own
+  // `default` flag, which governs server-side gateway model resolution.
+  const [defaultChatEntryKey, setDefaultChatEntryKeyState] = useState<
+    string | null
+  >(null);
+  // False until the dashboard-config load attempt resolves (success OR
+  // failure). Apply-on-load waits for this so it doesn't fire the legacy
+  // model.default fallback before the persisted key is known.
+  const [defaultChatEntryLoaded, setDefaultChatEntryLoaded] = useState(false);
   const brainAbortRef = useRef<AbortController | null>(null);
   // AbortController for the in-process Gemini path (`/api/kody/chat/kody`).
   // Without this the Stop button can't cancel the in-flight stream — the
@@ -847,14 +854,58 @@ export function KodyChat({
     };
   }, []);
 
-  // Apply the user-marked default model on first load. Beats both
-  // Kody Live (the unconditional fallback) and the Brain auto-default —
-  // an explicit Models-page choice wins over any heuristic. Runs at most
+  // Load the persisted default chat entry key once on mount. Silent on
+  // failure — apply-on-load just falls back to the legacy model.default
+  // heuristic below.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/kody/dashboard-config", { headers: authHeaders() })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((json: { config?: { defaultChatEntryKey?: string } }) => {
+        if (cancelled) return;
+        setDefaultChatEntryKeyState(json.config?.defaultChatEntryKey ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setDefaultChatEntryKeyState(null);
+      })
+      .finally(() => {
+        if (!cancelled) setDefaultChatEntryLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Apply the user-chosen default dropdown entry on first load. Beats
+  // both Kody Live (the unconditional fallback) and the Brain
+  // auto-default — an explicit pick wins over any heuristic. Runs at most
   // once per chat mount; later dropdown picks aren't overridden.
+  //
+  // Resolution order:
+  //   1. The persisted `defaultChatEntryKey` (any entry: Brain, Brain-Fly,
+  //      or a Kody model) — matched against the live agentList by key.
+  //   2. Legacy fallback: a Kody model still flagged `default` in the
+  //      Models page, for users who set a default before this existed.
   const initialDefaultAppliedRef = useRef(false);
   useEffect(() => {
     if (lockedAgentId) return;
     if (initialDefaultAppliedRef.current) return;
+    if (!defaultChatEntryLoaded) return;
+
+    if (defaultChatEntryKey) {
+      const entry = agentList.find((e) => e.key === defaultChatEntryKey);
+      if (entry) {
+        setSelectedAgentId(entry.agentId);
+        setSelectedModelId(entry.modelId);
+        initialDefaultAppliedRef.current = true;
+        return;
+      }
+      // Key set but its entry isn't in the list yet — models / brain
+      // status may still be resolving. Wait unless models have loaded
+      // (then the key points at something gone; fall through to legacy).
+      if (chatModels.length === 0) return;
+    }
+
     if (chatModels.length === 0) return;
     const def = chatModels.find(
       (m) => m.default === true && m.enabled !== false,
@@ -864,7 +915,13 @@ export function KodyChat({
       setSelectedModelId(def.id);
     }
     initialDefaultAppliedRef.current = true;
-  }, [chatModels, lockedAgentId]);
+  }, [
+    agentList,
+    defaultChatEntryKey,
+    defaultChatEntryLoaded,
+    chatModels,
+    lockedAgentId,
+  ]);
 
   // Keep the selection on a visible dropdown entry. Live and Live (Fly)
   // share one slot in the dropdown; same for Brain and Brain (Fly). When
@@ -4169,8 +4226,8 @@ export function KodyChat({
                     return <Icon className="w-5 h-5" aria-label={headerName} />;
                   })()}
                   <span className="font-semibold text-base">{headerName}</span>
-                  {currentEntry?.modelId && chatModels.find(m => m.id === currentEntry.modelId)?.default === true && (
-                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" aria-label="Default model" />
+                  {currentEntry && currentEntry.key === defaultChatEntryKey && (
+                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" aria-label="Default chat" />
                   )}
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -4203,9 +4260,7 @@ export function KodyChat({
                   const isSelected =
                     a.agentId === selectedAgentId &&
                     (a.modelId ?? null) === selectedModelId;
-                  const isKodyModel = a.agentId === "kody" && a.modelId !== null;
-                  const modelEntry = isKodyModel ? chatModels.find(m => m.id === a.modelId) : null;
-                  const isDefault = modelEntry?.default === true;
+                  const isDefault = a.key === defaultChatEntryKey;
                   return (
                     <li key={a.key} className="relative">
                       <button
@@ -4234,7 +4289,7 @@ export function KodyChat({
                           <span className="font-medium flex items-center gap-1.5">
                             {a.name}
                             {isDefault && (
-                              <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" aria-label="Default model" />
+                              <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" aria-label="Default chat" />
                             )}
                           </span>
                           <span className="text-xs text-muted-foreground">
@@ -4242,20 +4297,19 @@ export function KodyChat({
                           </span>
                         </span>
                       </button>
-                      {isKodyModel && !isDefault && (
+                      {!isDefault && (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (a.modelId) {
-                              setDefaultModel(a.modelId, chatModels).then(() => {
-                                return fetch("/api/kody/models", { headers: authHeaders() })
-                                  .then(res => res.ok ? res.json() : Promise.reject(res))
-                                  .then((json: { models?: ChatModelEntry[] }) => {
-                                    setChatModels(Array.isArray(json.models) ? json.models : []);
-                                  });
-                              }).catch(() => toast.error("Failed to set default model"));
-                            }
+                            const prev = defaultChatEntryKey;
+                            // Optimistic: the star moves immediately, roll
+                            // back if the persist fails.
+                            setDefaultChatEntryKeyState(a.key);
+                            persistDefaultChatEntry(a.key).catch(() => {
+                              setDefaultChatEntryKeyState(prev);
+                              toast.error("Failed to set default chat");
+                            });
                             setAgentMenuOpen(false);
                           }}
                           className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent rounded"

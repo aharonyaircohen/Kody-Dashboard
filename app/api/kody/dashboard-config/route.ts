@@ -30,6 +30,7 @@ const UpsertSchema = z.object({
     .max(2048)
     .optional()
     .or(z.literal("")),
+  defaultChatEntryKey: z.string().max(256).optional().or(z.literal("")),
   actorLogin: z.string().optional(),
 });
 
@@ -101,19 +102,29 @@ export async function PUT(req: NextRequest) {
         force: true,
       },
     );
-    const trimmed = parsed.data.defaultPreviewUrl?.trim();
-    const next: DashboardConfig = {
-      ...doc,
-      version: 1,
-      defaultPreviewUrl: trimmed ? trimmed : undefined,
-    };
+    // Partial merge: only fields present in the request body are
+    // overwritten, so a Vibe-page save and a chat-default save don't
+    // clobber each other's value.
+    const bodyKeys = body && typeof body === "object" ? body : {};
+    const next: DashboardConfig = { ...doc, version: 1 };
+    let commitMessage = `chore(dashboard): update dashboard config`;
+    if ("defaultPreviewUrl" in bodyKeys) {
+      const trimmed = parsed.data.defaultPreviewUrl?.trim();
+      next.defaultPreviewUrl = trimmed ? trimmed : undefined;
+      commitMessage = `chore(dashboard): set default preview URL`;
+    }
+    if ("defaultChatEntryKey" in bodyKeys) {
+      const key = parsed.data.defaultChatEntryKey?.trim();
+      next.defaultChatEntryKey = key ? key : undefined;
+      commitMessage = `chore(dashboard): set default chat entry`;
+    }
     await writeDashboardConfig(
       octokit,
       auth.owner,
       auth.repo,
       next,
       sha,
-      `chore(dashboard): set default preview URL`,
+      commitMessage,
     );
     invalidateDashboardConfigCache(auth.owner, auth.repo);
     return NextResponse.json({ ok: true, config: next });
