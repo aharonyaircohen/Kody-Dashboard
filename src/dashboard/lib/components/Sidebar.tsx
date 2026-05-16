@@ -323,6 +323,17 @@ export function Sidebar() {
             {!collapsed && <span className="truncate">Collapse</span>}
           </button>
         </SimpleTooltip>
+
+        {APP_VERSION && (
+          <p
+            className={cn(
+              'pt-1 text-[10px] font-mono text-muted-foreground/50 select-none',
+              collapsed ? 'text-center' : 'px-3',
+            )}
+          >
+            v{APP_VERSION}
+          </p>
+        )}
       </div>
     </aside>
   )
