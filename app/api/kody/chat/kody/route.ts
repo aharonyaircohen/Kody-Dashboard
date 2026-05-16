@@ -21,14 +21,7 @@
 
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import {
-  streamText,
-  stepCountIs,
-  type ModelMessage,
-  type LanguageModel,
-} from "ai";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { streamText, stepCountIs, type ModelMessage } from "ai";
 import {
   AGENT_KODY,
   getAgent,
@@ -44,11 +37,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
-import {
-  loadChatModels,
-  pickDefaultModel,
-  pickModelById,
-} from "@dashboard/lib/variables/models";
+import { resolveChatModel } from "../resolve-model";
 import {
   buildSystemPrompt,
   type GoalContext,
@@ -382,67 +371,14 @@ export async function POST(req: NextRequest) {
   // match an enabled entry — we never trust arbitrary ids from the wire.
   // Voice mode does not affect model selection; it's a per-turn prompt
   // overlay only (see system-prompt builder).
-  const availableModels = await loadChatModels(req);
   const voiceMode = body.voiceMode === true;
-  const resolvedModel =
-    pickModelById(availableModels, body.model) ??
-    pickDefaultModel(availableModels);
-  if (!resolvedModel) {
-    return NextResponse.json(
-      {
-        error: "no_models_configured",
-        fallback: "kody-live",
-        message:
-          "No chat models configured. Add one at /models, or fall back to Kody Live.",
-      },
-      { status: 409 },
-    );
-  }
+  // Model resolution (list → pick → key → SDK) is shared with the title
+  // route via resolveChatModel so the two can't drift. Voice mode does
+  // not affect model selection; it's a per-turn prompt overlay only.
+  const resolution = await resolveChatModel(req, body.model);
+  if ("error" in resolution) return resolution.error;
+  const { model, resolvedModel, apiKey } = resolution;
   const modelId = resolvedModel.id;
-
-  // Pull the per-model API key from the vault (or env fallback). When
-  // the secret is missing we fall back to Kody Live so the user isn't
-  // dropped into a 5xx loop because they forgot to fill one entry.
-  const apiKey = await getSecret(resolvedModel.apiKeySecret, { req });
-  if (!apiKey) {
-    return NextResponse.json(
-      {
-        error: "model_api_key_missing",
-        fallback: "kody-live",
-        message: `${resolvedModel.apiKeySecret} is not set. Add it under /secrets, or fall back to Kody Live.`,
-      },
-      { status: 409 },
-    );
-  }
-
-  // Pick the SDK by wire protocol. `anthropic` keeps Claude's native
-  // features (prompt caching, full thinking control). `openai` covers
-  // every OpenAI-compatible endpoint (Gemini compat, GPT, Groq, etc).
-  let model: LanguageModel;
-  if (resolvedModel.protocol === "anthropic") {
-    const anthropic = createAnthropic({
-      apiKey,
-      ...(resolvedModel.baseURL ? { baseURL: resolvedModel.baseURL } : {}),
-    });
-    model = anthropic(resolvedModel.modelName);
-  } else {
-    if (!resolvedModel.baseURL) {
-      return NextResponse.json(
-        {
-          error: "model_base_url_missing",
-          fallback: "kody-live",
-          message: `Model ${modelId} has no baseURL. Edit it under /models.`,
-        },
-        { status: 409 },
-      );
-    }
-    const openai = createOpenAICompatible({
-      name: resolvedModel.provider,
-      apiKey,
-      baseURL: resolvedModel.baseURL,
-    });
-    model = openai(resolvedModel.modelName);
-  }
   const repo = getRequestAuth(req);
   const goalPlannerActive = body.goalPlanner === true && !!body.goal;
 
