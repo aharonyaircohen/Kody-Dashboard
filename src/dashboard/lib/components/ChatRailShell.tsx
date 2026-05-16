@@ -163,9 +163,6 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       <NotificationsProvider>
         <SettingsDrawerProvider>
           <div className="h-screen flex overflow-hidden bg-background text-foreground">
-            {/* Persistent primary-navigation rail — desktop only. */}
-            <Sidebar />
-
             {/* Desktop chat rail — hidden below md. */}
             <aside
               className="hidden md:flex flex-col shrink-0 border-r border-border bg-black/20 w-[400px]"
@@ -188,9 +185,10 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
               )}
             </aside>
 
-            {/* Primary + settings navigation lives in the persistent
-            <Sidebar /> above. The SettingsDrawer remains mounted for the
-            mobile/header path; the desktop kebab triggers were removed. */}
+            {/* Persistent primary-navigation rail — desktop only, sits
+            to the right of the chat. The SettingsDrawer remains mounted
+            for the mobile/header path; desktop kebab triggers removed. */}
+            <Sidebar />
 
             {/* Page content. Pages own their own internal scroll. */}
             <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
