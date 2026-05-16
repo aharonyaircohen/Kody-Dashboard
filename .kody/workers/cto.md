@@ -78,10 +78,14 @@ QA result) — then re-enter the flow from the relevant step.
 ### Recommendation comment format
 
 One comment, terse, machine-greppable so the dashboard inbox can group
-it. Always lead with the marker line:
+it. **It MUST `@`-mention the operator (`@aguyaharonyair`) on the first
+line** — that mention is the only thing that routes this recommendation
+into the dashboard inbox and push. A recommendation with no mention is
+invisible to the operator and is a bug. Always lead with the marker
+line:
 
 ```
-🧭 **CTO recommendation** — `<action>`
+@aguyaharonyair 🧭 **CTO recommendation** — `<action>`
 
 <one or two sentences: why, and what confirming will do>
 
