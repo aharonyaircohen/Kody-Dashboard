@@ -12,12 +12,16 @@ import {
   Bot,
   Cpu,
   Github,
+  History,
+  Home,
   Inbox,
   KeyRound,
+  Layers,
   ScrollText,
   Settings as SettingsIcon,
   Settings2,
   Sparkles,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,7 +33,21 @@ export interface SettingsNavItem {
   description?: string;
   /** Tailwind classes for the mobile menu's icon tint chip. */
   tint?: string;
+  /** When true, only the exact path is the active route (used for "/"). */
+  exact?: boolean;
 }
+
+/**
+ * Primary surfaces — the top of the sidebar and the first palette group.
+ * Shared so the Sidebar, CommandPalette (and eventually MobileMenu) render
+ * one list instead of drifting copies.
+ */
+export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
+  { href: "/", label: "Dashboard", icon: Home, exact: true },
+  { href: "/jobs", label: "Jobs", icon: Layers },
+  { href: "/workers", label: "Workers", icon: Users },
+  { href: "/changelog", label: "Changelog", icon: History },
+] as const;
 
 export interface SettingsNavSection {
   /** Section heading shown above its items. */

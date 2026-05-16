@@ -20,14 +20,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Github,
-  History,
-  Home,
-  Layers,
   LogOut,
   Moon,
   Sun,
-  Users,
-  type LucideIcon,
 } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
@@ -36,24 +31,15 @@ import { cn } from '@dashboard/lib/utils/ui'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { SimpleTooltip } from './SimpleTooltip'
 import { InboxBadge } from './InboxBadge'
-import { SETTINGS_NAV_SECTIONS } from './settings-nav'
+import {
+  PRIMARY_NAV_ITEMS,
+  SETTINGS_NAV_SECTIONS,
+  type SettingsNavItem,
+} from './settings-nav'
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION
 
-interface NavItem {
-  href: string
-  label: string
-  icon: LucideIcon
-  /** When true, only match the exact path (used for the root). */
-  exact?: boolean
-}
-
-const PRIMARY_ITEMS: readonly NavItem[] = [
-  { href: '/', label: 'Dashboard', icon: Home, exact: true },
-  { href: '/jobs', label: 'Jobs', icon: Layers },
-  { href: '/workers', label: 'Workers', icon: Users },
-  { href: '/changelog', label: 'Changelog', icon: History },
-]
+type NavItem = SettingsNavItem
 
 const COLLAPSED_KEY = 'kody.sidebar.collapsed'
 
@@ -172,7 +158,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {PRIMARY_ITEMS.map((item) => renderLink(item))}
+        {PRIMARY_NAV_ITEMS.map((item) => renderLink(item))}
 
         {/* Configuration surfaces, sourced from the shared settings-nav so
             new pages appear here and in the mobile menu automatically.
