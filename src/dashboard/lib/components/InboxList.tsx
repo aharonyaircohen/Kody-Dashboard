@@ -9,7 +9,7 @@
  *   marks the entry read. Top toolbar exposes mark-all-read, refresh, and
  *   a one-click jump to settings if the PAT is missing the `gist` scope.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -323,6 +323,12 @@ export function InboxList() {
     () => parseThreadParam(searchParams.get(INBOX_THREAD_PARAM)),
     [searchParams],
   );
+  // The deep-link value we've already acted on. Without this, closing the
+  // dialog (`setActiveEntry(null)`) re-runs the auto-open effect before
+  // `useSearchParams()` reflects the cleared param, so `deepLink` is still
+  // set and the dialog jumps back open. Tracking the consumed value makes
+  // auto-open fire only for a genuinely new link, never a re-close.
+  const consumedDeepLinkRef = useRef<string | null>(null);
   const clearDeepLink = () => {
     if (!searchParams.has(INBOX_THREAD_PARAM)) return;
     const next = new URLSearchParams(searchParams);
@@ -334,6 +340,9 @@ export function InboxList() {
   // shareable link and Back/refresh restore the open item.
   const syncDeepLink = (type: DeepLinkType, number: number) => {
     const value = serializeThreadParam(type, number);
+    // Manually opened — mark consumed so the effect's param lag can't
+    // reopen this same thread after the user closes it.
+    consumedDeepLinkRef.current = value;
     if (searchParams.get(INBOX_THREAD_PARAM) === value) return;
     const next = new URLSearchParams(searchParams);
     next.set(INBOX_THREAD_PARAM, value);
@@ -342,6 +351,9 @@ export function InboxList() {
 
   useEffect(() => {
     if (!deepLink || !connectedRepo || activeEntry) return;
+    const key = serializeThreadParam(deepLink.type, deepLink.number);
+    if (consumedDeepLinkRef.current === key) return;
+    consumedDeepLinkRef.current = key;
     setActiveEntry(
       buildSyntheticInboxEntry(connectedRepo, deepLink.type, deepLink.number),
     );
