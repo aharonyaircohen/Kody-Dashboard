@@ -22,6 +22,7 @@ import {
   type VaultDocument,
 } from "@dashboard/lib/vault/store";
 import { isVaultConfigured } from "@dashboard/lib/vault/crypto";
+import { recordAction } from "@dashboard/lib/activity/action-log";
 import { logger } from "@dashboard/lib/logger";
 
 const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
@@ -135,6 +136,13 @@ export async function POST(req: NextRequest) {
       `chore(vault): upsert ${parsed.data.name}`,
     );
     invalidateVaultCache(auth.owner, auth.repo);
+    recordAction({
+      type: "vault.write",
+      target: parsed.data.name,
+      actor: actorLogin,
+      repo: `${auth.owner}/${auth.repo}`,
+      detail: "upsert secret",
+    });
     return NextResponse.json({ ok: true, secrets: listSecretMetadata(next) });
   } catch (err) {
     logger.error(

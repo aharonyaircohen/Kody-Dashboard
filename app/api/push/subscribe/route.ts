@@ -30,6 +30,7 @@ import {
   readPushManifest,
 } from "@dashboard/lib/push-server";
 import type { PushSubscriptionRecord } from "@dashboard/lib/push";
+import { recordAction } from "@dashboard/lib/activity/action-log";
 
 const subscribeSchema = z.object({
   endpoint: z.string().url(),
@@ -157,6 +158,15 @@ export async function POST(req: NextRequest) {
       { userOctokit: userOctokit ?? undefined },
     );
 
+    recordAction({
+      type: "push.subscribe",
+      target: resolvedLogin ?? "device",
+      actor: resolvedLogin,
+      repo: getRequestAuth(req)
+        ? `${getRequestAuth(req)!.owner}/${getRequestAuth(req)!.repo}`
+        : null,
+      detail: parsed.label?.trim() || null,
+    });
     return NextResponse.json({ subscription: outcome.result });
   } catch (error: any) {
     if (error instanceof z.ZodError) {
@@ -211,6 +221,15 @@ export async function DELETE(req: NextRequest) {
     );
 
     const removed = "kind" in outcome ? outcome.result : outcome.result;
+    if (removed) {
+      recordAction({
+        type: "push.unsubscribe",
+        target: "device",
+        repo: getRequestAuth(req)
+          ? `${getRequestAuth(req)!.owner}/${getRequestAuth(req)!.repo}`
+          : null,
+      });
+    }
     return NextResponse.json({ removed });
   } catch (error: any) {
     if (error instanceof z.ZodError) {

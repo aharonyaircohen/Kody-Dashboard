@@ -30,8 +30,10 @@ import { PageShell } from "./PageShell";
 import { useAuth } from "../auth-context";
 import { useActivity } from "../hooks/useActivity";
 import { useActivityFeed } from "../hooks/useActivityFeed";
+import { useActivityLog } from "../hooks/useActivityLog";
 import { cn } from "../utils";
 import type { ActivityRun } from "../activity/types";
+import type { ActionLogEntry } from "../activity/action-log";
 import type {
   FeedEvent,
   FeedSession,
@@ -41,7 +43,7 @@ import type {
 import { ACTIVITY_CATEGORY_LABELS } from "../activity/categorize";
 
 type RunFilter = "all" | "active" | "failed";
-type ActivityTab = "runs" | "feed";
+type ActivityTab = "log" | "runs" | "feed";
 
 const FEED_SOURCE_STYLES: Record<FeedSource, string> = {
   engine: "bg-sky-500/15 text-sky-200/80",
@@ -452,10 +454,101 @@ function FeedView({ active }: { active: boolean }) {
   );
 }
 
+function LogView({ active }: { active: boolean }) {
+  const { data, isLoading, error } = useActivityLog(active);
+  const [query, setQuery] = useState("");
+
+  const entries = useMemo(() => {
+    let all: ActionLogEntry[] = data?.entries ?? [];
+    const q = query.trim().toLowerCase();
+    if (q)
+      all = all.filter((e) =>
+        [e.type, e.target, e.actor, e.repo ?? "", e.detail ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+      );
+    return all;
+  }, [data, query]);
+
+  return (
+    <div className="mt-2">
+      {error && (
+        <div className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/[0.06] p-3 text-xs text-rose-200">
+          {error instanceof Error ? error.message : "Failed to load log"}
+        </div>
+      )}
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search actions, target, actor…"
+            className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
+          />
+        </div>
+        <span className="ml-auto text-[10px] text-white/35">
+          {data ? `${entries.length} of ${data.total} actions` : ""}
+          {data?.computedAt && ` · updated ${relTime(data.computedAt)}`}
+        </span>
+      </div>
+      {isLoading ? (
+        <p className="text-xs text-white/40 italic py-6 text-center">
+          Loading actions…
+        </p>
+      ) : entries.length === 0 ? (
+        <p className="text-xs text-white/40 italic py-6 text-center">
+          No dashboard actions recorded yet on this server instance.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {entries.map((e) => (
+            <li
+              key={e.id}
+              className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
+            >
+              <span className="mt-px shrink-0 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-200/80">
+                {e.type}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm truncate">
+                  <span className="font-mono text-white/80">{e.target}</span>
+                  {e.detail && (
+                    <span className="text-white/50"> — {e.detail}</span>
+                  )}
+                </div>
+                <div className="text-[10px] text-white/40 truncate">
+                  by {e.actor}
+                  {e.repo && <> · {e.repo}</>}
+                </div>
+              </div>
+              <div
+                className="shrink-0 text-right text-[11px] text-white/40 tabular-nums"
+                title={fmtExactTime(e.at)}
+              >
+                {fmtExactTime(e.at)}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-6 text-[10px] text-white/30">
+        Dashboard-native actions (task actions, vault writes, push
+        subscribe) that never spawn a GitHub Actions run, so Runs/Feed
+        can&apos;t see them. Recorded in memory per server instance — free,
+        no GitHub API budget; history resets on redeploy and isn&apos;t
+        shared across instances.
+      </p>
+    </div>
+  );
+}
+
 export function ActivityPage() {
   const { auth } = useAuth();
   const { data, isLoading, error, refetch, isFetching } = useActivity();
-  const [tab, setTab] = useState<ActivityTab>("runs");
+  const [tab, setTab] = useState<ActivityTab>("log");
   const [filter, setFilter] = useState<RunFilter>("all");
   const [query, setQuery] = useState("");
   const [trigger, setTrigger] = useState<string>("all");
@@ -534,7 +627,7 @@ export function ActivityPage() {
       )}
 
       <div className="mb-4 flex items-center gap-1">
-        {(["runs", "feed"] as ActivityTab[]).map((t) => (
+        {(["log", "runs", "feed"] as ActivityTab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -551,10 +644,12 @@ export function ActivityPage() {
             ) : (
               <ScrollText className="w-3.5 h-3.5" />
             )}
-            {t === "runs" ? "Runs" : "Feed"}
+            {t === "log" ? "Log" : t === "runs" ? "Runs" : "Feed"}
           </button>
         ))}
       </div>
+
+      {tab === "log" && <LogView active={tab === "log"} />}
 
       {tab === "feed" && <FeedView active={tab === "feed"} />}
 

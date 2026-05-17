@@ -40,6 +40,7 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
+import { recordAction } from "@dashboard/lib/activity/action-log";
 import { GOAL_LABEL_PREFIX } from "@dashboard/lib/goals";
 import { getOwner, getRepo } from "@dashboard/lib/github-client";
 import { isProtectedBranch } from "@dashboard/lib/branches";
@@ -124,6 +125,14 @@ export async function POST(
     }
 
     const { assignees, label, comment } = actionSchema.parse(body);
+
+    recordAction({
+      type: "task.action",
+      target: `#${issueNumber}`,
+      actor,
+      repo: headerAuth ? `${headerAuth.owner}/${headerAuth.repo}` : null,
+      detail: action,
+    });
 
     switch (action) {
       case "approve": {
