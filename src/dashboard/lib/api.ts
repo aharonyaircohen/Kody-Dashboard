@@ -1562,6 +1562,13 @@ export const activityApi = {
     });
     return handleResponse(res);
   },
+  /** Engine + chat event feed. Load-on-demand only — never polled. */
+  feed: async (): Promise<import("./activity/feed").FeedSnapshot> => {
+    const res = await fetch(`${API_BASE}/activity/feed`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse(res);
+  },
 };
 
 // ============ Combined API ============

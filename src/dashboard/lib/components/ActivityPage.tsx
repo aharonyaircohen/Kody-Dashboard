@@ -20,16 +20,27 @@ import {
   Search,
   XCircle,
   Clock,
+  ScrollText,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import { PageShell } from "./PageShell";
 import { useAuth } from "../auth-context";
 import { useActivity } from "../hooks/useActivity";
+import { useActivityFeed } from "../hooks/useActivityFeed";
 import { cn } from "../utils";
 import type { ActivityRun } from "../activity/types";
+import type { FeedEvent, FeedSource } from "../activity/feed";
 import { ACTIVITY_CATEGORY_LABELS } from "../activity/categorize";
 
 type RunFilter = "all" | "active" | "failed";
+type ActivityTab = "runs" | "feed";
+
+const FEED_SOURCE_STYLES: Record<FeedSource, string> = {
+  engine: "bg-sky-500/15 text-sky-200/80",
+  chat: "bg-violet-500/15 text-violet-200/80",
+  pipeline: "bg-emerald-500/15 text-emerald-200/80",
+  other: "bg-white/[0.06] text-white/55",
+};
 
 function fmtDuration(sec: number): string {
   if (sec < 60) return `${sec}s`;
@@ -114,9 +125,125 @@ function StatusBadge({ run }: { run: ActivityRun }) {
   );
 }
 
+function FeedRow({ ev }: { ev: FeedEvent }) {
+  return (
+    <li className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 hover:bg-white/[0.04]">
+      <span
+        className={cn(
+          "mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+          FEED_SOURCE_STYLES[ev.source],
+        )}
+      >
+        {ev.source}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm truncate">{ev.summary}</div>
+        <div className="text-[10px] text-white/40 truncate">
+          <span className="font-mono text-white/55">{ev.kind}</span>
+          {ev.status && <> · {ev.status}</>}
+          {ev.runId && <> · run {ev.runId}</>}
+          {ev.sessionId && <> · session {ev.sessionId.slice(0, 8)}</>}
+          {ev.channel && <> · {ev.channel}</>}
+        </div>
+      </div>
+      <div className="shrink-0 w-20 text-right text-[11px] text-white/40">
+        {relTime(ev.emittedAt)}
+      </div>
+    </li>
+  );
+}
+
+function FeedView({ active }: { active: boolean }) {
+  const { data, isLoading, error } = useActivityFeed(active);
+  const [source, setSource] = useState<"all" | FeedSource>("all");
+  const [query, setQuery] = useState("");
+
+  const events = useMemo(() => {
+    let all = data?.events ?? [];
+    if (source !== "all") all = all.filter((e) => e.source === source);
+    const q = query.trim().toLowerCase();
+    if (q)
+      all = all.filter((e) =>
+        [e.summary, e.kind, e.runId ?? "", e.channel ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+      );
+    return all;
+  }, [data, source, query]);
+
+  return (
+    <div className="mt-2">
+      {error && (
+        <div className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/[0.06] p-3 text-xs text-rose-200">
+          {error instanceof Error ? error.message : "Failed to load feed"}
+        </div>
+      )}
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1">
+          {(["all", "engine", "chat", "pipeline", "other"] as const).map(
+            (sv) => (
+              <button
+                key={sv}
+                type="button"
+                onClick={() => setSource(sv)}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs capitalize transition-colors",
+                  source === sv
+                    ? "bg-white/[0.08] text-white"
+                    : "text-white/50 hover:text-white hover:bg-white/[0.04]",
+                )}
+              >
+                {sv}
+              </button>
+            ),
+          )}
+        </div>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search events…"
+            className="w-56 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
+          />
+        </div>
+        <span className="ml-auto text-[10px] text-white/35">
+          {data ? `${events.length} of ${data.total} events` : ""}
+          {data?.computedAt && ` · updated ${relTime(data.computedAt)}`}
+        </span>
+      </div>
+      {isLoading ? (
+        <p className="text-xs text-white/40 italic py-6 text-center">
+          Loading event feed…
+        </p>
+      ) : events.length === 0 ? (
+        <p className="text-xs text-white/40 italic py-6 text-center">
+          No events in this view.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {events.map((ev) => (
+            <FeedRow key={ev.id} ev={ev} />
+          ))}
+        </ul>
+      )}
+      <p className="mt-6 text-[10px] text-white/30">
+        Reads the engine&apos;s append-only event log
+        (.kody/event-log.jsonl) — chat and engine-step events run-only
+        Activity can&apos;t see. Loads only when this tab is open (60s
+        server cache), never polled, so it adds no steady-state GitHub
+        API budget.
+      </p>
+    </div>
+  );
+}
+
 export function ActivityPage() {
   const { auth } = useAuth();
   const { data, isLoading, error, refetch, isFetching } = useActivity();
+  const [tab, setTab] = useState<ActivityTab>("runs");
   const [filter, setFilter] = useState<RunFilter>("all");
   const [query, setQuery] = useState("");
   const [trigger, setTrigger] = useState<string>("all");
@@ -194,7 +321,32 @@ export function ActivityPage() {
         </div>
       )}
 
-      {alert && (
+      <div className="mb-4 flex items-center gap-1">
+        {(["runs", "feed"] as ActivityTab[]).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              tab === t
+                ? "bg-white/[0.08] text-white"
+                : "text-white/50 hover:text-white hover:bg-white/[0.04]",
+            )}
+          >
+            {t === "runs" ? (
+              <ActivityIcon className="w-3.5 h-3.5" />
+            ) : (
+              <ScrollText className="w-3.5 h-3.5" />
+            )}
+            {t === "runs" ? "Runs" : "Feed"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "feed" && <FeedView active={tab === "feed"} />}
+
+      {tab === "runs" && alert && (
         <div
           className={cn(
             "mb-4 flex items-start gap-2 rounded-lg border p-3 text-sm",
@@ -214,6 +366,8 @@ export function ActivityPage() {
         </div>
       )}
 
+      {tab === "runs" && (
+       <>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard
           label="Queue depth"
@@ -508,6 +662,8 @@ export function ActivityPage() {
         Reads the same cached workflow-run data as the rest of the dashboard
         — this view adds no extra GitHub API calls. Polls every 30s.
       </p>
+       </>
+      )}
     </PageShell>
   );
 }
