@@ -1536,6 +1536,20 @@ export const ctoApi = {
     });
     return handleResponse(res);
   },
+
+  /**
+   * Latest verdict per `${taskNumber}:${action}` from the trust ledger.
+   * The inbox uses this to swap Approve/Reject for a verdict badge once a
+   * recommendation has been decided on any device.
+   */
+  decisions: async (): Promise<{
+    decided: Record<string, "approve" | "reject">;
+  }> => {
+    const res = await fetch(`${API_BASE}/cto/decision`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse(res);
+  },
 };
 
 // ============ Activity API ============

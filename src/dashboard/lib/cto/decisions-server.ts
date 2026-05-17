@@ -89,6 +89,26 @@ async function write(
   return created.number;
 }
 
+/**
+ * Cached read of the decisions ledger so the inbox can gate
+ * already-decided recommendations. Unlike `readFresh` (CAS path,
+ * `noCache`), this goes through the ETag/304 cache — the POST handler
+ * already calls `invalidateIssueCache` after every decision, so reads
+ * stay correct without burning the GitHub budget on each inbox poll
+ * (CLAUDE.md rate-limit rules 2 & 5).
+ */
+export async function readCtoDecisions(): Promise<CtoDecisionsManifest> {
+  const issues = await fetchIssues({
+    state: "open",
+    labels: CTO_DECISIONS_LABEL,
+    perPage: 5,
+  });
+  if (!issues.length) return parseCtoDecisionsBody(null);
+  const first = [...issues].sort((a, b) => a.number - b.number)[0];
+  const full = await fetchIssue(first.number);
+  return parseCtoDecisionsBody(full?.body ?? "");
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export interface MutateOptions {

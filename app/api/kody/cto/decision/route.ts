@@ -31,8 +31,11 @@ import {
   invalidateIssueCache,
 } from "@dashboard/lib/github-client";
 import { postWithFallback } from "@dashboard/lib/kody-command";
-import { mutateCtoDecisions } from "@dashboard/lib/cto/decisions-server";
-import { applyDecision } from "@dashboard/lib/cto/decisions";
+import {
+  mutateCtoDecisions,
+  readCtoDecisions,
+} from "@dashboard/lib/cto/decisions-server";
+import { applyDecision, latestCtoDecisions } from "@dashboard/lib/cto/decisions";
 
 // Phase 1 only graduates `execute`. Other actions can be approved/rejected
 // (recorded) but the closed set guards against typo'd or unsupported verbs.
@@ -118,6 +121,35 @@ export async function POST(req: NextRequest) {
     console.error("[cto/decision] failed", err);
     return NextResponse.json(
       { error: "decision_failed", message },
+      { status: 500 },
+    );
+  } finally {
+    clearGitHubContext();
+  }
+}
+
+/**
+ * GET /api/kody/cto/decision — the latest verdict per task+action, so the
+ * inbox can render a verdict badge instead of Approve/Reject for
+ * recommendations that were already decided (on any device). Cached read
+ * (ETag/304); POST invalidates the ledger issue so this stays fresh.
+ */
+export async function GET(req: NextRequest) {
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
+
+  const headerAuth = getRequestAuth(req);
+  if (!headerAuth) {
+    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+  }
+  setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+  try {
+    const manifest = await readCtoDecisions();
+    return NextResponse.json({ decided: latestCtoDecisions(manifest) });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "read failed";
+    return NextResponse.json(
+      { error: "decisions_read_failed", message },
       { status: 500 },
     );
   } finally {
