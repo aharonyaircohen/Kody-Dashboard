@@ -230,11 +230,11 @@ function FeedView({ active }: { active: boolean }) {
         </ul>
       )}
       <p className="mt-6 text-[10px] text-white/30">
-        Reads the engine&apos;s append-only event log
-        (.kody/event-log.jsonl) — chat and engine-step events run-only
+        Reads the engine&apos;s per-session event files
+        (.kody/events/*.jsonl) — chat and engine-step events run-only
         Activity can&apos;t see. Loads only when this tab is open (60s
-        server cache), never polled, so it adds no steady-state GitHub
-        API budget.
+        server cache, recent sessions only), never polled, so it adds no
+        steady-state GitHub API budget.
       </p>
     </div>
   );

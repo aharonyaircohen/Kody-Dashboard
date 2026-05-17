@@ -65,6 +65,18 @@ describe("buildFeedSnapshot", () => {
     expect(events.some((e) => e.runId === "42")).toBe(true);
   });
 
+  it("falls back to payload.sessionId when actionState is absent", () => {
+    const [ev] = buildFeedSnapshot([
+      entry({
+        event: "chat.ready",
+        payload: { sessionId: "live-123-abc" },
+        actionState: undefined,
+      }),
+    ]).events;
+    expect(ev.sessionId).toBe("live-123-abc");
+    expect(ev.source).toBe("chat");
+  });
+
   it("caps rendered events at the limit but reports the true total", () => {
     const many = Array.from({ length: 30 }, (_, i) =>
       entry({ event: `e${i}` }),

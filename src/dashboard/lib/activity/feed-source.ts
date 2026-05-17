@@ -2,65 +2,148 @@
  * @fileType utility
  * @domain kody
  * @pattern activity-feed-source
- * @ai-summary Rate-limit-safe reader for the engine event log behind the
- *   Activity Feed tab. `getAllEvents` does an *uncached* full-file GitHub
- *   fetch, and the Feed must not regress the shared polling budget
- *   (CLAUDE.md rate-limit rules). So this wraps it with the same shape as
- *   `fetchOpenPRs`: a 60s in-process cache, in-flight dedup, and a stale
- *   fallback that refreshes the TTL on error so a throttled GitHub doesn't
- *   compound. The Feed tab is also load-on-demand (not polled), so steady
- *   state costs zero GitHub calls.
+ * @ai-summary Rate-limit-safe reader for the Activity Feed. The engine
+ *   streams events to per-session files `.kody/events/{sessionId}.jsonl`
+ *   in the connected repo (NOT the dashboard-internal
+ *   `.kody/event-log.jsonl`, which the engine doesn't write here). So the
+ *   Feed lists the events dir, takes the most-recent N sessions, and reads
+ *   each via the shared ETag-aware `readEventsFile`. The directory listing
+ *   has its own 60s cache + in-flight dedup + stale fallback (CLAUDE.md
+ *   rate-limit rules); per-file reads get free 304s from `readEventsFile`.
+ *   The Feed tab is also load-on-demand (not polled), so steady state is
+ *   ~zero GitHub calls.
  */
+import type { Octokit } from "@octokit/rest";
 import { createUserOctokit } from "../github-client";
-import { getAllEvents, type EventLogEntry } from "../kody-store/event-log";
+import { readEventsFile } from "../chat-events-reader";
+import type { EventLogEntry } from "../kody-store/event-log";
 
-const TTL_MS = 60_000;
+const BRANCH = process.env.KODY_STORE_BRANCH ?? "main";
+const EVENTS_DIR = ".kody/events";
+const LIST_TTL_MS = 60_000;
+/** Most-recent session files merged into one feed — caps GitHub reads. */
+const MAX_SESSIONS = 12;
 
-interface Entry {
-  data: EventLogEntry[];
+interface ListEntry {
+  data: string[];
   expires: number;
 }
-
-const cache = new Map<string, Entry>();
-const inflight = new Map<string, Promise<EventLogEntry[]>>();
+const listCache = new Map<string, ListEntry>();
+const listInflight = new Map<string, Promise<string[]>>();
 
 /**
- * Read the connected repo's `.kody/event-log.jsonl`, cached for 60s with
- * in-flight dedup and a stale fallback. `owner`/`repo`/`token` come from the
- * request auth so the Feed reflects the repo the user is connected to.
+ * Session filenames embed an epoch (`live-1778149397247-xxx`,
+ * `live-direct-1778080135`). Sort by the largest numeric token so newest
+ * sessions win without a per-file mtime lookup.
  */
-export async function readEventLogCached(
+function sessionTs(name: string): number {
+  let max = 0;
+  for (const n of name.match(/\d+/g) ?? []) {
+    const v = Number(n);
+    if (v > max) max = v;
+  }
+  return max;
+}
+
+async function listRecentSessions(
+  octokit: Octokit,
   owner: string,
   repo: string,
-  token: string,
-): Promise<EventLogEntry[]> {
+): Promise<string[]> {
   const key = `${owner}/${repo}`;
-
-  const cached = cache.get(key);
+  const cached = listCache.get(key);
   if (cached && cached.expires > Date.now()) return cached.data;
 
-  const existing = inflight.get(key);
+  const existing = listInflight.get(key);
   if (existing) return existing;
 
   const promise = (async () => {
     try {
-      const octokit = createUserOctokit(token);
-      const events = await getAllEvents({ owner, repo, octokit });
-      cache.set(key, { data: events, expires: Date.now() + TTL_MS });
-      return events;
-    } catch (err) {
-      // Throttled / errored: serve the last good list and refresh the TTL so
-      // we don't hammer GitHub on every subsequent open while degraded.
+      const { data } = await octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path: EVENTS_DIR,
+        ref: BRANCH,
+      });
+      const files = Array.isArray(data) ? data : [];
+      const sessions = files
+        .filter((f) => f.type === "file" && f.name.endsWith(".jsonl"))
+        .sort((a, b) => sessionTs(b.name) - sessionTs(a.name))
+        .slice(0, MAX_SESSIONS)
+        .map((f) => f.name.replace(/\.jsonl$/, ""));
+      listCache.set(key, { data: sessions, expires: Date.now() + LIST_TTL_MS });
+      return sessions;
+    } catch (err: unknown) {
+      const e = err as { status?: number };
       if (cached) {
-        cache.set(key, { data: cached.data, expires: Date.now() + TTL_MS });
+        // Throttled/errored: serve last good list, refresh TTL so we don't
+        // hammer GitHub on every subsequent open while degraded.
+        listCache.set(key, {
+          data: cached.data,
+          expires: Date.now() + LIST_TTL_MS,
+        });
         return cached.data;
       }
+      if (e.status === 404) return []; // repo has no events dir yet
       throw err;
     } finally {
-      inflight.delete(key);
+      listInflight.delete(key);
     }
   })();
 
-  inflight.set(key, promise);
+  listInflight.set(key, promise);
   return promise;
+}
+
+interface RawLine {
+  event?: string;
+  payload?: Record<string, unknown>;
+  runId?: string;
+  emittedAt?: string;
+  channel?: string;
+  actionState?: EventLogEntry["actionState"];
+}
+
+/**
+ * Read the connected repo's recent session event files and flatten them
+ * into `EventLogEntry`-shaped records for the pure feed fold.
+ */
+export async function readFeedEntries(
+  owner: string,
+  repo: string,
+  token: string,
+): Promise<EventLogEntry[]> {
+  const octokit = createUserOctokit(token);
+  const sessions = await listRecentSessions(octokit, owner, repo);
+
+  const entries: EventLogEntry[] = [];
+  await Promise.all(
+    sessions.map(async (sid) => {
+      let res;
+      try {
+        res = await readEventsFile(octokit, owner, repo, BRANCH, sid);
+      } catch {
+        return; // one bad session file shouldn't sink the whole feed
+      }
+      res.lines.forEach((line, idx) => {
+        let o: RawLine;
+        try {
+          o = JSON.parse(line) as RawLine;
+        } catch {
+          return; // skip malformed line
+        }
+        if (!o.event) return;
+        entries.push({
+          id: `${sid}:${idx}`,
+          runId: o.runId ?? "unknown",
+          event: o.event,
+          payload: o.payload ?? {},
+          channel: o.channel,
+          actionState: o.actionState,
+          emittedAt: o.emittedAt ?? new Date().toISOString(),
+        });
+      });
+    }),
+  );
+  return entries;
 }
