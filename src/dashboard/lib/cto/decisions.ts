@@ -141,6 +141,27 @@ export function parseCtoDecisionsBody(
   }
 }
 
+/** Stable key for "has this task's action been decided" lookups. */
+export function ctoDecisionKey(taskNumber: number, action: string): string {
+  return `${taskNumber}:${action}`;
+}
+
+/**
+ * Collapse the append-only log into the latest verdict per task+action.
+ * The inbox uses this to swap Approve/Reject for a verdict badge once a
+ * recommendation has been decided (on any device). Later log entries win,
+ * so a reject-then-reapprove reflects the final state.
+ */
+export function latestCtoDecisions(
+  manifest: CtoDecisionsManifest,
+): Record<string, CtoDecision> {
+  const out: Record<string, CtoDecision> = {};
+  for (const e of manifest.log) {
+    out[ctoDecisionKey(e.taskNumber, e.action)] = e.decision;
+  }
+  return out;
+}
+
 export function serializeCtoDecisionsBody(
   manifest: CtoDecisionsManifest,
 ): string {

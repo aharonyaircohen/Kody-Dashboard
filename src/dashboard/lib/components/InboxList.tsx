@@ -31,6 +31,7 @@ import { useInbox } from "../inbox/useInbox";
 import { cn } from "../utils";
 import { kodyApi } from "../api";
 import { detectCtoRecommendation } from "../cto/recommendation";
+import { useCtoDecisions } from "../cto/useCtoDecisions";
 import type { InboxEntry, InboxSource } from "../inbox/types";
 
 type CtoVerdict = "approve" | "reject";
@@ -66,6 +67,7 @@ interface RowProps {
   onToggleRead: () => void;
   onDelete: () => void;
   onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
+  verdictFor: (taskNumber: number, action: "execute") => CtoVerdict | null;
 }
 
 function Row({
@@ -74,11 +76,13 @@ function Row({
   onToggleRead,
   onDelete,
   onCtoDecision,
+  verdictFor,
 }: RowProps) {
   const unread = entry.readAt === null;
   const author = entry.author ? `@${entry.author}` : "Someone";
   const label = SOURCE_LABEL[entry.source];
   const cto = detectCtoRecommendation(entry);
+  const ctoVerdict = cto ? verdictFor(cto.taskNumber, cto.action) : null;
   const [ctoBusy, setCtoBusy] = useState<CtoVerdict | null>(null);
 
   const decide = async (verdict: CtoVerdict) => {
@@ -167,34 +171,55 @@ function Row({
           <span className="text-[10px] uppercase tracking-wider text-amber-300/70">
             CTO · {cto.action}
           </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={ctoBusy !== null}
-            onClick={() => void decide("approve")}
-            className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
-          >
-            {ctoBusy === "approve" ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Check className="w-3.5 h-3.5" />
-            )}
-            Approve
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={ctoBusy !== null}
-            onClick={() => void decide("reject")}
-            className="h-7 gap-1 border border-rose-500/30 bg-rose-500/[0.06] text-rose-200 hover:bg-rose-500/15"
-          >
-            {ctoBusy === "reject" ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <X className="w-3.5 h-3.5" />
-            )}
-            Reject
-          </Button>
+          {ctoVerdict ? (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium",
+                ctoVerdict === "approve"
+                  ? "border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200"
+                  : "border-rose-500/30 bg-rose-500/[0.06] text-rose-200",
+              )}
+              title="This recommendation was already decided"
+            >
+              {ctoVerdict === "approve" ? (
+                <Check className="w-3.5 h-3.5" />
+              ) : (
+                <X className="w-3.5 h-3.5" />
+              )}
+              {ctoVerdict === "approve" ? "Approved" : "Rejected"}
+            </span>
+          ) : (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={ctoBusy !== null}
+                onClick={() => void decide("approve")}
+                className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
+              >
+                {ctoBusy === "approve" ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Check className="w-3.5 h-3.5" />
+                )}
+                Approve
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={ctoBusy !== null}
+                onClick={() => void decide("reject")}
+                className="h-7 gap-1 border border-rose-500/30 bg-rose-500/[0.06] text-rose-200 hover:bg-rose-500/15"
+              >
+                {ctoBusy === "reject" ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <X className="w-3.5 h-3.5" />
+                )}
+                Reject
+              </Button>
+            </>
+          )}
         </div>
       )}
     </li>
@@ -214,6 +239,7 @@ export function InboxList() {
     markAllRead,
     remove,
   } = useInbox();
+  const { verdictFor, invalidate: invalidateCtoDecisions } = useCtoDecisions();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activeEntry, setActiveEntry] = useState<InboxEntry | null>(null);
   const connectedRepo = auth ? `${auth.owner}/${auth.repo}` : undefined;
@@ -250,7 +276,9 @@ export function InboxList() {
         toast.success(`Rejected — #${rec.taskNumber} left as-is`);
       }
       if (entry.readAt === null) await markRead(entry.id);
-      await refetch();
+      // Flip the row to its verdict badge immediately (and on every other
+      // open tab/device on next poll) — the ledger now has this decision.
+      await Promise.all([refetch(), invalidateCtoDecisions()]);
     } catch (err) {
       toast.error("CTO decision failed", {
         description: err instanceof Error ? err.message : "Unknown error",
@@ -351,6 +379,7 @@ export function InboxList() {
         onToggleRead={(id) => void markUnread(id)}
         onDelete={(id) => void remove(id)}
         onCtoDecision={handleCtoDecision}
+        verdictFor={verdictFor}
         readSection={false}
       />
 
@@ -365,6 +394,7 @@ export function InboxList() {
             onToggleRead={(id) => void markUnread(id)}
             onDelete={(id) => void remove(id)}
             onCtoDecision={handleCtoDecision}
+            verdictFor={verdictFor}
             readSection
           />
         </div>
@@ -393,6 +423,7 @@ interface SectionProps {
   onToggleRead: (id: string) => void;
   onDelete: (id: string) => void;
   onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
+  verdictFor: (taskNumber: number, action: "execute") => CtoVerdict | null;
   readSection: boolean;
 }
 
@@ -405,6 +436,7 @@ function Section({
   onToggleRead,
   onDelete,
   onCtoDecision,
+  verdictFor,
   readSection,
 }: SectionProps) {
   return (
@@ -426,6 +458,7 @@ function Section({
               onToggleRead={() => onToggleRead(e.id)}
               onDelete={() => onDelete(e.id)}
               onCtoDecision={onCtoDecision}
+              verdictFor={verdictFor}
             />
           ))}
         </ul>
