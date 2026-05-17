@@ -24,7 +24,7 @@ import type { PushSubscriptionRecord } from "../push";
 import { appendInboxFeed } from "../inbox/feed-server";
 import { feedEntryId, type InboxFeedEntry } from "../inbox/feed";
 import { buildSnippet } from "../inbox/types";
-import { parseCtoAction } from "../cto/recommendation";
+import { parseCtoAction, parseCtoCommand } from "../cto/recommendation";
 import { logger } from "../logger";
 import { dashboardThreadUrl } from "../thread-link";
 import { deriveVapidKeys } from "./vapid-keys";
@@ -297,6 +297,7 @@ async function recordInboxFeed(
   // Parse the CTO verb from the *raw* body now, while backticks are intact —
   // the snippet collapses them to `[code]` and loses it.
   const ctoAction = parseCtoAction(ev.body ?? "");
+  const ctoCommand = parseCtoCommand(ev.body ?? "");
   const entries: InboxFeedEntry[] = mentions.map((login) => ({
     id: feedEntryId(login, url),
     login,
@@ -309,6 +310,7 @@ async function recordInboxFeed(
     url,
     sentAt,
     ...(ctoAction ? { ctoAction } : {}),
+    ...(ctoCommand ? { ctoCommand } : {}),
   }));
 
   setGitHubContext(owner, repo, token);

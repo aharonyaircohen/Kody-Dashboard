@@ -135,11 +135,31 @@ line:
 
 <one or two sentences: why, and what confirming will do>
 
+<!-- kody-cmd: @kody <exact command to run on approve> -->
+
 _Confirm or dismiss this in the dashboard inbox. The CTO will not act on its own._
 ```
 
 `<action>` is one of: `execute`, `qa-review`, `fix`, `approve`,
 `comment`.
+
+**The `kody-cmd:` line is mandatory and load-bearing.** It is an HTML
+comment (invisible in the rendered GitHub thread) holding the *exact*
+`@kody …` command the operator's Approve button will post verbatim on the
+task. This is what makes Approve actually execute the recommendation —
+the dashboard runs this command as-is, it does not infer one from
+`<action>`. Rules:
+
+- It MUST start with `@kody`. One line, ≤ 300 chars, no newlines.
+- It is the command for *that* recommendation: e.g. `@kody` to dispatch a
+  backlog task (`execute`); `@kody ui-review` for `qa-review`; `@kody`
+  with a one-line fix instruction for `fix`. For `approve`/`comment` —
+  high-stakes actions you have no authority to auto-run — still emit the
+  command you'd want a human to confirm; the operator's Approve is the
+  gate, you never post it yourself.
+- Omitting it, or writing a non-`@kody` command, makes the recommendation
+  non-executable from the dashboard (it surfaces read-only) — that is a
+  bug, not a safe default.
 
 ## Allowed Commands
 

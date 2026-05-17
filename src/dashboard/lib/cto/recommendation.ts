@@ -39,29 +39,46 @@ export type CtoAction = (typeof CTO_ACTIONS)[number];
 export type CtoActionable = CtoAction;
 
 /**
- * Actions the dashboard can run on approve, mapped to the exact engine
- * command posted on the task. `execute`/`fix` re-dispatch the task (for
- * `fix` the QA-failure comment is already in-thread); `qa-review` posts
- * the UI/QA review command the engine already understands.
+ * Legacy fallback only. The command to run now comes from the CTO's own
+ * `<!-- kody-cmd: @kody … -->` line (see cto.md); this map is used only for
+ * older recs written before that line existed, so they stay actionable.
  */
-const DISPATCH_COMMAND: Partial<Record<CtoAction, string>> = {
+const FALLBACK_COMMAND: Partial<Record<CtoAction, string>> = {
   execute: "@kody",
   fix: "@kody",
   "qa-review": "@kody ui-review",
 };
 
-export function isDispatchable(action: CtoAction): boolean {
-  return action in DISPATCH_COMMAND;
+/** Max length of a CTO-emitted command we'll post verbatim. */
+const MAX_COMMAND_LEN = 300;
+
+/**
+ * Extract the literal command the CTO wants Approve to post, from the raw
+ * comment body. Guarded: must be a single `@kody …` line, length-capped.
+ * Returns null when absent/invalid (rec then surfaces read-only).
+ */
+export function parseCtoCommand(rawBody: string): string | null {
+  const m = rawBody.match(/<!--\s*kody-cmd:\s*(@kody[^\n]*?)\s*-->/i);
+  if (!m) return null;
+  const cmd = m[1].trim();
+  if (!cmd.startsWith("@kody") || cmd.length > MAX_COMMAND_LEN) return null;
+  return cmd;
 }
 
-/** The `@kody …` comment to post when this action is approved, or null. */
+export function isDispatchable(action: CtoAction): boolean {
+  return action in FALLBACK_COMMAND;
+}
+
+/** Legacy verb→command fallback for recs with no explicit `kody-cmd`. */
 export function dispatchCommand(action: CtoAction): string | null {
-  return DISPATCH_COMMAND[action] ?? null;
+  return FALLBACK_COMMAND[action] ?? null;
 }
 
 export interface CtoRecommendation {
   taskNumber: number;
   action: CtoAction;
+  /** The exact `@kody …` command Approve will post, or null if none. */
+  command: string | null;
   /** True when Approve can actually run the action from the dashboard. */
   dispatchable: boolean;
 }
@@ -135,5 +152,14 @@ export function detectCtoRecommendation(
   const action: CtoAction =
     asCtoAction(entry.ctoAction) ?? parseAction(haystack) ?? "other";
 
-  return { taskNumber, action, dispatchable: isDispatchable(action) };
+  // The command the CTO explicitly asked Approve to post (parsed from the
+  // raw body at write time) wins. Legacy recs with no `kody-cmd` line fall
+  // back to the verb→command map. No command → read-only (never misroute).
+  const stored = entry.ctoCommand?.trim();
+  const command =
+    stored && stored.startsWith("@kody")
+      ? stored
+      : (dispatchCommand(action) ?? null);
+
+  return { taskNumber, action, command, dispatchable: command !== null };
 }

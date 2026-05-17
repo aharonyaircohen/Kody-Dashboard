@@ -62,6 +62,11 @@ export interface InboxEntry {
    * falls back to parsing the lossy snippet).
    */
   ctoAction?: string;
+  /**
+   * The exact `@kody …` command the CTO asked Approve to post, parsed
+   * from the raw body's `kody-cmd` line at write time. CTO recs only.
+   */
+  ctoCommand?: string;
 }
 
 export interface InboxManifest {
