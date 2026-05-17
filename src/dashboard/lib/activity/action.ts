@@ -8,21 +8,31 @@
  *   (cached/ETagged) and each issue carries the label the engine stamps
  *   when an executable starts.
  *
- *   Granularity ceiling (by design): `fix`/`fix-ci` both stamp
- *   `kody:fixing` and `review`/`ui-review` both stamp `kody:reviewing` in
- *   the engine, so they collapse to `fix` / `review` here. Splitting them
- *   would ripple into the dashboard's ui-verify dedup — a separate,
- *   deliberate engine task, not inferred here.
+ *   Per-command granularity: the engine stamps a distinct phase label per
+ *   command (`fix`→kody:fixing, `fix-ci`→kody:fixing-ci,
+ *   `review`→kody:reviewing, `ui-review`→kody:reviewing-ui), so the
+ *   action shown here is the exact `@kody` command, not a collapsed
+ *   bucket. The ui-verify dedup keys off the same labels — kept in
+ *   lockstep (see ui-verify/labels.ts, pipeline-utils.ts).
  */
 import type { GitHubIssue, WorkflowRun } from "../types";
 
-export type ActivityAction = "fix" | "sync" | "resolve" | "review" | "run";
+export type ActivityAction =
+  | "fix"
+  | "fix-ci"
+  | "sync"
+  | "resolve"
+  | "review"
+  | "ui-review"
+  | "run";
 
 const LABEL_TO_ACTION: Record<string, ActivityAction> = {
   "kody:fixing": "fix",
+  "kody:fixing-ci": "fix-ci",
   "kody:syncing": "sync",
   "kody:resolving": "resolve",
   "kody:reviewing": "review",
+  "kody:reviewing-ui": "ui-review",
   "kody:running": "run",
   "kody:building": "run",
 };

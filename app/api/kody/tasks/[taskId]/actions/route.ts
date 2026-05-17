@@ -253,10 +253,12 @@ export async function POST(
           "kody:running",
           "kody:planning",
           "kody:reviewing",
+          "kody:reviewing-ui",
           "kody:building",
           "kody:classifying",
           "kody:researching",
           "kody:fixing",
+          "kody:fixing-ci",
           "kody:resolving",
           "kody:syncing",
           "kody:orchestrating",
@@ -376,6 +378,7 @@ export async function POST(
           "kody:running",
           "kody:planning",
           "kody:reviewing",
+          "kody:reviewing-ui",
         ];
         for (const lbl of labelsToRemove) {
           try {

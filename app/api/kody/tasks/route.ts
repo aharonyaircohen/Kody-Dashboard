@@ -159,7 +159,11 @@ function getColumnForIssue(
   if (labelNames.includes("kody:done")) return "done";
 
   // 1. Review phase — pipeline finished, PR open, awaiting human review
-  if (labelNames.includes("kody:reviewing")) return "review";
+  if (
+    labelNames.includes("kody:reviewing") ||
+    labelNames.includes("kody:reviewing-ui")
+  )
+    return "review";
 
   // 2. Any other kody:* active phase collapses to the "building" lane
   if (
@@ -169,6 +173,7 @@ function getColumnForIssue(
     labelNames.includes("kody:planning") ||
     labelNames.includes("kody:running") ||
     labelNames.includes("kody:fixing") ||
+    labelNames.includes("kody:fixing-ci") ||
     labelNames.includes("kody:resolving") ||
     labelNames.includes("kody:syncing") ||
     labelNames.includes("kody:orchestrating")
@@ -204,6 +209,7 @@ function getColumnForIssue(
     const prMidFlow = prLabels.some(
       (l) =>
         l === "kody:fixing" ||
+        l === "kody:fixing-ci" ||
         l === "kody:syncing" ||
         l === "kody:resolving" ||
         l === "kody:building" ||
