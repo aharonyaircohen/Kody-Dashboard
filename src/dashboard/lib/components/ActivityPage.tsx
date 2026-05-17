@@ -21,6 +21,9 @@ import {
   XCircle,
   Clock,
   ScrollText,
+  ChevronRight,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import { PageShell } from "./PageShell";
@@ -29,7 +32,12 @@ import { useActivity } from "../hooks/useActivity";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import { cn } from "../utils";
 import type { ActivityRun } from "../activity/types";
-import type { FeedEvent, FeedSource } from "../activity/feed";
+import type {
+  FeedEvent,
+  FeedSession,
+  FeedSource,
+  FeedOrigin,
+} from "../activity/feed";
 import { ACTIVITY_CATEGORY_LABELS } from "../activity/categorize";
 
 type RunFilter = "all" | "active" | "failed";
@@ -125,52 +133,239 @@ function StatusBadge({ run }: { run: ActivityRun }) {
   );
 }
 
-function FeedRow({ ev }: { ev: FeedEvent }) {
+const FEED_ORIGIN_STYLES: Record<FeedOrigin, string> = {
+  live: "bg-sky-500/15 text-sky-200/80",
+  vibe: "bg-violet-500/15 text-violet-200/80",
+  direct: "bg-emerald-500/15 text-emerald-200/80",
+  test: "bg-white/[0.06] text-white/55",
+  other: "bg-white/[0.06] text-white/55",
+};
+
+function fmtExactTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
   return (
-    <li className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 hover:bg-white/[0.04]">
-      <span
-        className={cn(
-          "mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-          FEED_SOURCE_STYLES[ev.source],
-        )}
+    <button
+      type="button"
+      onClick={() => {
+        void navigator.clipboard?.writeText(text);
+        setDone(true);
+        setTimeout(() => setDone(false), 1500);
+      }}
+      title="Copy raw JSON"
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-white/40 hover:text-white hover:bg-white/[0.06]"
+    >
+      {done ? (
+        <Check className="w-3 h-3 text-emerald-300" />
+      ) : (
+        <Copy className="w-3 h-3" />
+      )}
+      {done ? "copied" : "copy"}
+    </button>
+  );
+}
+
+function EventItem({ ev }: { ev: FeedEvent }) {
+  const [open, setOpen] = useState(false);
+  const raw = JSON.stringify({ event: ev.kind, ...ev.payload }, null, 2);
+  return (
+    <li className="rounded-md border border-white/[0.05] bg-white/[0.015]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-start gap-2 px-2.5 py-1.5 text-left hover:bg-white/[0.03]"
       >
-        {ev.source}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="text-sm truncate">{ev.summary}</div>
-        <div className="text-[10px] text-white/40 truncate">
-          <span className="font-mono text-white/55">{ev.kind}</span>
-          {ev.status && <> · {ev.status}</>}
-          {ev.runId && <> · run {ev.runId}</>}
-          {ev.sessionId && <> · session {ev.sessionId.slice(0, 8)}</>}
-          {ev.channel && <> · {ev.channel}</>}
+        <ChevronRight
+          className={cn(
+            "mt-0.5 w-3 h-3 shrink-0 text-white/35 transition-transform",
+            open && "rotate-90",
+          )}
+        />
+        <span
+          className={cn(
+            "mt-px shrink-0 rounded px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide",
+            FEED_SOURCE_STYLES[ev.source],
+          )}
+        >
+          {ev.source}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="text-xs">{ev.summary}</span>
+          <span className="block text-[10px] text-white/35">
+            <span className="font-mono text-white/50">{ev.kind}</span>
+            {ev.step && <> · {ev.step}</>}
+            {ev.status && <> · {ev.status}</>}
+          </span>
+        </span>
+        <span
+          className="shrink-0 text-[10px] text-white/35 tabular-nums"
+          title={fmtExactTime(ev.emittedAt)}
+        >
+          {relTime(ev.emittedAt)}
+        </span>
+      </button>
+      {open && (
+        <div className="border-t border-white/[0.05] px-2.5 py-2">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-[10px] text-white/40">
+              {fmtExactTime(ev.emittedAt)}
+              {ev.runId && <> · run {ev.runId}</>}
+              {ev.channel && <> · {ev.channel}</>}
+            </span>
+            <CopyButton text={raw} />
+          </div>
+          <pre className="max-h-72 overflow-auto rounded bg-black/30 p-2 text-[10px] leading-relaxed text-white/70">
+            {raw}
+          </pre>
         </div>
-      </div>
-      <div className="shrink-0 w-20 text-right text-[11px] text-white/40">
-        {relTime(ev.emittedAt)}
-      </div>
+      )}
+    </li>
+  );
+}
+
+function StatusPill({ s }: { s: FeedSession["status"] }) {
+  const map = {
+    running: "text-sky-300",
+    exited: "text-white/45",
+    error: "text-rose-300",
+    unknown: "text-white/35",
+  } as const;
+  return (
+    <span className={cn("inline-flex items-center gap-1", map[s])}>
+      {s === "running" ? (
+        <Loader2 className="w-3 h-3 animate-spin" />
+      ) : s === "error" ? (
+        <XCircle className="w-3 h-3" />
+      ) : (
+        <CheckCircle2 className="w-3 h-3" />
+      )}
+      {s}
+    </span>
+  );
+}
+
+function SessionCard({ s }: { s: FeedSession }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <li className="rounded-lg border border-white/[0.06] bg-white/[0.02]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-white/[0.04]"
+      >
+        <ChevronRight
+          className={cn(
+            "mt-0.5 w-3.5 h-3.5 shrink-0 text-white/35 transition-transform",
+            open && "rotate-90",
+          )}
+        />
+        <span
+          className={cn(
+            "mt-px shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+            FEED_ORIGIN_STYLES[s.origin],
+          )}
+        >
+          {s.origin}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm truncate">
+            {s.issueNumber != null ? (
+              <Link
+                href={`/${s.issueNumber}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:underline hover:text-white"
+                title={`Open task #${s.issueNumber}`}
+              >
+                #{s.issueNumber}
+              </Link>
+            ) : null}{" "}
+            <span className="font-mono text-white/70">{s.sessionId}</span>
+          </div>
+          <div className="text-[10px] text-white/40 truncate">
+            <StatusPill s={s.status} />
+            {s.initiator && <> · by {s.initiator}</>}
+            {s.turns != null && <> · {s.turns} turn(s)</>}
+            {s.exitReason && <> · {s.exitReason}</>}
+            {" · "}
+            {s.eventCount} event(s)
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div
+            className="text-[11px] text-white/45 tabular-nums"
+            title={s.startedAt ? fmtExactTime(s.startedAt) : ""}
+          >
+            {s.startedAt ? relTime(s.startedAt) : "—"}
+          </div>
+          {s.runUrl && (
+            <a
+              href={s.runUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title="Open the GitHub Actions run"
+              className="inline-flex items-center gap-1 text-[10px] text-white/40 hover:text-white"
+            >
+              run <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      </button>
+      {open && (
+        <div className="border-t border-white/[0.06] px-3 py-2">
+          <div className="mb-2 text-[10px] text-white/40">
+            started {s.startedAt ? fmtExactTime(s.startedAt) : "—"}
+            {s.endedAt && <> · ended {fmtExactTime(s.endedAt)}</>}
+            {s.runId && <> · run {s.runId}</>}
+          </div>
+          <ul className="space-y-1">
+            {s.events.map((ev) => (
+              <EventItem key={ev.id} ev={ev} />
+            ))}
+          </ul>
+        </div>
+      )}
     </li>
   );
 }
 
 function FeedView({ active }: { active: boolean }) {
   const { data, isLoading, error } = useActivityFeed(active);
-  const [source, setSource] = useState<"all" | FeedSource>("all");
+  const [origin, setOrigin] = useState<"all" | FeedOrigin>("all");
   const [query, setQuery] = useState("");
 
-  const events = useMemo(() => {
-    let all = data?.events ?? [];
-    if (source !== "all") all = all.filter((e) => e.source === source);
+  const sessions = useMemo(() => {
+    let all = data?.sessions ?? [];
+    if (origin !== "all") all = all.filter((s) => s.origin === origin);
     const q = query.trim().toLowerCase();
     if (q)
-      all = all.filter((e) =>
-        [e.summary, e.kind, e.runId ?? "", e.channel ?? ""]
+      all = all.filter((s) =>
+        [
+          s.sessionId,
+          s.origin,
+          s.initiator ?? "",
+          s.exitReason ?? "",
+          s.issueNumber != null ? `#${s.issueNumber}` : "",
+          ...s.events.map((e) => e.summary),
+        ]
           .join(" ")
           .toLowerCase()
           .includes(q),
       );
     return all;
-  }, [data, source, query]);
+  }, [data, origin, query]);
 
   return (
     <div className="mt-2">
@@ -181,20 +376,20 @@ function FeedView({ active }: { active: boolean }) {
       )}
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
-          {(["all", "engine", "chat", "pipeline", "other"] as const).map(
-            (sv) => (
+          {(["all", "live", "vibe", "direct", "test", "other"] as const).map(
+            (ov) => (
               <button
-                key={sv}
+                key={ov}
                 type="button"
-                onClick={() => setSource(sv)}
+                onClick={() => setOrigin(ov)}
                 className={cn(
                   "rounded-md px-2.5 py-1 text-xs capitalize transition-colors",
-                  source === sv
+                  origin === ov
                     ? "bg-white/[0.08] text-white"
                     : "text-white/50 hover:text-white hover:bg-white/[0.04]",
                 )}
               >
-                {sv}
+                {ov}
               </button>
             ),
           )}
@@ -205,36 +400,39 @@ function FeedView({ active }: { active: boolean }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search events…"
-            className="w-56 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
+            placeholder="Search sessions, initiator, content…"
+            className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
           />
         </div>
         <span className="ml-auto text-[10px] text-white/35">
-          {data ? `${events.length} of ${data.total} events` : ""}
+          {data
+            ? `${sessions.length} of ${data.totalSessions} sessions · ${data.totalEvents} events`
+            : ""}
           {data?.computedAt && ` · updated ${relTime(data.computedAt)}`}
         </span>
       </div>
       {isLoading ? (
         <p className="text-xs text-white/40 italic py-6 text-center">
-          Loading event feed…
+          Loading sessions…
         </p>
-      ) : events.length === 0 ? (
+      ) : sessions.length === 0 ? (
         <p className="text-xs text-white/40 italic py-6 text-center">
-          No events in this view.
+          No sessions in this view.
         </p>
       ) : (
         <ul className="space-y-1.5">
-          {events.map((ev) => (
-            <FeedRow key={ev.id} ev={ev} />
+          {sessions.map((s) => (
+            <SessionCard key={s.sessionId} s={s} />
           ))}
         </ul>
       )}
       <p className="mt-6 text-[10px] text-white/30">
-        Reads the engine&apos;s per-session event files
-        (.kody/events/*.jsonl) — chat and engine-step events run-only
-        Activity can&apos;t see. Loads only when this tab is open (60s
-        server cache, recent sessions only), never polled, so it adds no
-        steady-state GitHub API budget.
+        One row per chat/run session, grouped from the engine&apos;s
+        per-session event files (.kody/events/*.jsonl). Expand a session
+        for its events; expand an event for the exact time and raw payload
+        (copyable). Loads only when this tab is open (60s server cache,
+        recent sessions only), never polled — no steady-state GitHub API
+        budget.
       </p>
     </div>
   );
