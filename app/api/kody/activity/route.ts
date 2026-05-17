@@ -13,10 +13,12 @@ import { handleKodyApiError } from "@dashboard/lib/github-error-handler";
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
 import {
   fetchWorkflowRuns,
+  fetchIssues,
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { buildActivitySnapshot } from "@dashboard/lib/activity/snapshot";
+import { mapRunActions } from "@dashboard/lib/activity/action";
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -30,8 +32,15 @@ export async function GET(req: NextRequest) {
   try {
     // 100 keeps the queue-depth / flood signals accurate without a
     // second page; this hits the same cached+ETag path as task-matching.
-    const runs = await fetchWorkflowRuns({ perPage: 100 });
-    return NextResponse.json(buildActivitySnapshot(runs));
+    // Both calls hit the shared cached+ETag path (same as task-matching);
+    // the issue list is what carries the engine's kody:* action label, so
+    // joining run→issue→action costs no per-issue requests.
+    const [runs, issues] = await Promise.all([
+      fetchWorkflowRuns({ perPage: 100 }),
+      fetchIssues({ state: "open", perPage: 100 }),
+    ]);
+    const runActions = mapRunActions(runs, issues);
+    return NextResponse.json(buildActivitySnapshot(runs, Date.now(), runActions));
   } catch (error: unknown) {
     return handleKodyApiError(error, "activity");
   } finally {

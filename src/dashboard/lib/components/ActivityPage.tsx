@@ -120,6 +120,7 @@ export function ActivityPage() {
   const [query, setQuery] = useState("");
   const [trigger, setTrigger] = useState<string>("all");
   const [category, setCategory] = useState<string>("all");
+  const [action, setAction] = useState<string>("all");
 
   const triggers = useMemo(() => {
     const set = new Set<string>();
@@ -142,16 +143,24 @@ export function ActivityPage() {
     if (trigger !== "all") all = all.filter((r) => r.trigger === trigger);
     if (category !== "all")
       all = all.filter((r) => r.category === category);
+    if (action !== "all") all = all.filter((r) => r.action === action);
     const q = query.trim().toLowerCase();
     if (q)
       all = all.filter((r) =>
-        [r.title, r.branch ?? "", r.actor ?? "", r.trigger, `#${r.runNumber}`]
+        [
+          r.title,
+          r.branch ?? "",
+          r.actor ?? "",
+          r.trigger,
+          r.action ?? "",
+          `#${r.runNumber}`,
+        ]
           .join(" ")
           .toLowerCase()
           .includes(q),
       );
     return all;
-  }, [data, filter, trigger, category, query]);
+  }, [data, filter, trigger, category, action, query]);
 
   const s = data?.signals;
   const alert = data?.alert;
@@ -298,6 +307,25 @@ export function ActivityPage() {
         </div>
       )}
 
+      {s && Object.keys(s.byAction).length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+          <span className="text-white/40">Actions (last 15 min):</span>
+          {Object.entries(s.byAction)
+            .sort((a, b) => b[1] - a[1])
+            .map(([act, n]) => (
+              <button
+                key={act}
+                type="button"
+                onClick={() => setAction(act)}
+                title={`Filter to ${act}`}
+                className="rounded-md border border-sky-500/25 bg-sky-500/[0.06] px-2 py-0.5 tabular-nums text-sky-200/80 transition-colors hover:bg-sky-500/15"
+              >
+                {act} · {n}
+              </button>
+            ))}
+        </div>
+      )}
+
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
           {(["all", "active", "failed"] as RunFilter[]).map((f) => (
@@ -357,9 +385,26 @@ export function ActivityPage() {
           ))}
         </select>
 
+        <select
+          value={action}
+          onChange={(e) => setAction(e.target.value)}
+          aria-label="Filter by action"
+          className="rounded-md border border-white/[0.08] bg-white/[0.02] py-1 px-2 text-xs text-white/70 focus:border-white/20 focus:outline-none"
+        >
+          <option value="all" className="bg-neutral-900">
+            all actions
+          </option>
+          {["fix", "sync", "resolve", "review", "run"].map((a) => (
+            <option key={a} value={a} className="bg-neutral-900">
+              {a}
+            </option>
+          ))}
+        </select>
+
         {(query ||
           trigger !== "all" ||
           category !== "all" ||
+          action !== "all" ||
           filter !== "all") && (
           <button
             type="button"
@@ -367,6 +412,7 @@ export function ActivityPage() {
               setQuery("");
               setTrigger("all");
               setCategory("all");
+              setAction("all");
               setFilter("all");
             }}
             className="text-[11px] text-white/40 hover:text-white"
@@ -406,6 +452,14 @@ export function ActivityPage() {
                     <span className="rounded bg-white/[0.06] px-1 py-0.5 text-white/55">
                       {ACTIVITY_CATEGORY_LABELS[r.category] ?? r.category}
                     </span>{" "}
+                    {r.action && (
+                      <>
+                        {" "}
+                        <span className="rounded bg-sky-500/15 px-1 py-0.5 text-sky-200/80">
+                          {r.action}
+                        </span>
+                      </>
+                    )}{" "}
                     <span className="text-white/45">{r.trigger}</span>
                     {r.runNumber != null && <> · #{r.runNumber}</>}
                     {r.actor && <> · @{r.actor}</>}

@@ -25,6 +25,11 @@ export interface ActivityRun {
   trigger: string;
   /** Coarse bucket derived from trigger+title (see categorize.ts). */
   category: import("./categorize").ActivityCategory;
+  /**
+   * @kody action behind the run, joined from its issue's kody:* label.
+   * null when the run couldn't be tied to a labelled issue.
+   */
+  action: import("./action").ActivityAction | null;
   runNumber: number | null;
   actor: string | null;
 }
@@ -48,6 +53,8 @@ export interface ActivitySignals {
   byTrigger: Record<string, number>;
   /** Last-15m run counts grouped by coarse category. */
   byCategory: Record<string, number>;
+  /** Last-15m run counts grouped by joined @kody action. */
+  byAction: Record<string, number>;
 }
 
 export interface ActivityAlert {

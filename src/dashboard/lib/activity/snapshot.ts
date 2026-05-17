@@ -40,6 +40,7 @@ function median(values: number[]): number | null {
 export function buildActivitySnapshot(
   workflowRuns: WorkflowRun[],
   now: number = Date.now(),
+  runActions: Record<number, import("./action").ActivityAction> = {},
 ): ActivitySnapshot {
   const runs: ActivityRun[] = workflowRuns
     .map((r) => ({
@@ -54,6 +55,7 @@ export function buildActivitySnapshot(
       branch: r.head_branch ?? null,
       trigger: r.event?.trim() || "unknown",
       category: categorizeRun(r.event, r.display_title),
+      action: runActions[r.id] ?? null,
       runNumber: r.run_number ?? null,
       actor: r.actor ?? null,
     }))
@@ -77,9 +79,11 @@ export function buildActivitySnapshot(
   );
   const byTrigger: Record<string, number> = {};
   const byCategory: Record<string, number> = {};
+  const byAction: Record<string, number> = {};
   for (const r of last15m) {
     byTrigger[r.trigger] = (byTrigger[r.trigger] ?? 0) + 1;
     byCategory[r.category] = (byCategory[r.category] ?? 0) + 1;
+    if (r.action) byAction[r.action] = (byAction[r.action] ?? 0) + 1;
   }
 
   const signals: ActivitySignals = {
@@ -93,6 +97,7 @@ export function buildActivitySnapshot(
     medianDurationSec: median(completed.map((r) => r.durationSec)),
     byTrigger,
     byCategory,
+    byAction,
   };
 
   return {
