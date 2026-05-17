@@ -279,6 +279,7 @@ export function InboxList() {
       const res = await kodyApi.cto.decide({
         taskNumber: rec.taskNumber,
         action: rec.action,
+        ...(rec.command ? { command: rec.command } : {}),
         decision: verdict,
         ...(auth?.user?.login ? { actorLogin: auth.user.login } : {}),
       });

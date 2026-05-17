@@ -1519,6 +1519,8 @@ export const ctoApi = {
     action?: import("./cto/recommendation").CtoAction;
     decision: "approve" | "reject";
     actorLogin?: string;
+    /** The exact `@kody …` command from the CTO's `kody-cmd` line. */
+    command?: string;
   }): Promise<{
     ok: true;
     executed: boolean;

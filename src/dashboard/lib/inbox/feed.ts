@@ -50,6 +50,8 @@ export interface InboxFeedEntry {
   sentAt: string;
   /** CTO action verb parsed from the raw comment body (CTO recs only). */
   ctoAction?: string;
+  /** Exact `@kody …` command from the raw body's `kody-cmd` line. */
+  ctoCommand?: string;
 }
 
 export interface InboxFeedManifest {

@@ -42,6 +42,7 @@ interface FeedEntry {
   url: string;
   sentAt: string;
   ctoAction?: string;
+  ctoCommand?: string;
 }
 
 function readCursor(owner: string, repo: string): string | null {
@@ -98,6 +99,7 @@ async function runOnce(opts: {
     sentAt: f.sentAt,
     readAt: null,
     ...(f.ctoAction ? { ctoAction: f.ctoAction } : {}),
+    ...(f.ctoCommand ? { ctoCommand: f.ctoCommand } : {}),
   }));
 
   try {

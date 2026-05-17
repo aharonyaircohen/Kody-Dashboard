@@ -50,6 +50,13 @@ const bodySchema = z.object({
   action: z.enum(CTO_ACTIONS).default("execute"),
   decision: z.enum(["approve", "reject"]),
   actorLogin: z.string().optional(),
+  /**
+   * The exact `@kody …` command to post on approve, as parsed from the
+   * CTO's own `kody-cmd` line. Server-side guards still apply (must start
+   * with `@kody`, ≤300 chars); falls back to the legacy verb→command map
+   * when absent so older recs stay actionable.
+   */
+  command: z.string().max(300).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -77,6 +84,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { taskNumber, action, decision, actorLogin } = payload;
+    const requested = payload.command?.trim();
 
     if (actorLogin) {
       const actorResult = await verifyActorLogin(req, actorLogin);
@@ -88,10 +96,15 @@ export async function POST(req: NextRequest) {
     // Approve → run the recommended action before recording, so a failed
     // dispatch doesn't get logged as a trusted approval.
     let executed = false;
-    const command =
-      decision === "approve" && isDispatchable(action)
-        ? dispatchCommand(action)
-        : null;
+    // The CTO's own command wins (guarded: must be a single `@kody …`).
+    // Legacy recs with no command fall back to the verb→command map.
+    const resolved =
+      requested && requested.startsWith("@kody") && !requested.includes("\n")
+        ? requested
+        : isDispatchable(action)
+          ? dispatchCommand(action)
+          : null;
+    const command = decision === "approve" ? resolved : null;
     if (command) {
       // Each action maps to the exact engine command: `execute`/`fix` →
       // `@kody` (for `fix` the QA-failure comment is already in-thread, so
