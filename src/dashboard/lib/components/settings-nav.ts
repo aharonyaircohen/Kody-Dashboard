@@ -8,6 +8,7 @@
  *   sidebars pick them up automatically.
  */
 import {
+  Activity,
   Bell,
   Bot,
   Cpu,
@@ -46,6 +47,12 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
   { href: "/", label: "Dashboard", icon: Home, exact: true },
   { href: "/jobs", label: "Jobs", icon: Layers },
   { href: "/workers", label: "Workers", icon: Users },
+  {
+    href: "/activity",
+    label: "Activity",
+    icon: Activity,
+    description: "Engine run health — queue depth, throughput, failures.",
+  },
   { href: "/changelog", label: "Changelog", icon: History },
 ] as const;
 
