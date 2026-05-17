@@ -1538,6 +1538,18 @@ export const ctoApi = {
   },
 };
 
+// ============ Activity API ============
+
+/** Engine run health for the connected repo (read-only). */
+export const activityApi = {
+  get: async (): Promise<import("./activity/types").ActivitySnapshot> => {
+    const res = await fetch(`${API_BASE}/activity`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse(res);
+  },
+};
+
 // ============ Combined API ============
 
 export const kodyApi = {
@@ -1557,4 +1569,5 @@ export const kodyApi = {
   changelog: changelogApi,
   vibe: vibeApi,
   cto: ctoApi,
+  activity: activityApi,
 };

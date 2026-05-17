@@ -21,6 +21,9 @@ import webpush, {
 import { setGitHubContext, clearGitHubContext } from "../github-client";
 import { readPushManifest, mutatePushManifest } from "../push-server";
 import type { PushSubscriptionRecord } from "../push";
+import { appendInboxFeed } from "../inbox/feed-server";
+import { feedEntryId, type InboxFeedEntry } from "../inbox/feed";
+import { buildSnippet } from "../inbox/types";
 import { logger } from "../logger";
 import { deriveVapidKeys } from "./vapid-keys";
 
@@ -48,6 +51,8 @@ interface MentionEvent {
   url?: string;
   title?: string;
   repoFullName: string;
+  /** `Issue` / `PullRequest` / `Discussion` / `Commit` — for the inbox feed. */
+  threadType: string;
 }
 
 /**
@@ -82,12 +87,19 @@ function extractEvent(
         (typeof issue?.title === "string" && issue.title) ||
         (typeof pr?.title === "string" && pr.title) ||
         "";
+      const threadType =
+        eventType === "commit_comment"
+          ? "Commit"
+          : eventType === "pull_request_review_comment" || issue?.pull_request
+            ? "PullRequest"
+            : "Issue";
       return {
         body,
         author: typeof author === "string" ? author : undefined,
         url,
         title,
         repoFullName,
+        threadType,
       };
     }
 
@@ -107,6 +119,7 @@ function extractEvent(
         url,
         title,
         repoFullName,
+        threadType: "PullRequest",
       };
     }
 
@@ -125,6 +138,7 @@ function extractEvent(
         url,
         title,
         repoFullName,
+        threadType: "Issue",
       };
     }
 
@@ -142,6 +156,7 @@ function extractEvent(
         url,
         title,
         repoFullName,
+        threadType: "PullRequest",
       };
     }
 
@@ -161,6 +176,7 @@ function extractEvent(
         url,
         title,
         repoFullName,
+        threadType: "Discussion",
       };
     }
 
@@ -179,6 +195,7 @@ function extractEvent(
         url,
         title,
         repoFullName,
+        threadType: "Discussion",
       };
     }
 
@@ -251,6 +268,57 @@ function buildPayload(
 }
 
 /**
+ * Append one inbox-feed entry per mentioned login. Best-effort and isolated:
+ * a feed-write failure must not stop the web-push fan-out (or vice-versa), and
+ * never throws so the webhook still ACKs. Skips mentions on events with no
+ * deep-linkable url (the inbox needs a clickable target).
+ */
+async function recordInboxFeed(
+  owner: string,
+  repo: string,
+  token: string,
+  ev: MentionEvent,
+  mentions: string[],
+): Promise<void> {
+  const url = ev.url ?? "";
+  if (!url) return;
+  const sentAt = new Date().toISOString();
+  const snippet = buildSnippet(ev.body);
+  const entries: InboxFeedEntry[] = mentions.map((login) => ({
+    id: feedEntryId(login, url),
+    login,
+    source: "mention",
+    repoFullName: ev.repoFullName,
+    threadType: ev.threadType,
+    title: ev.title ?? "",
+    snippet,
+    author: ev.author,
+    url,
+    sentAt,
+  }));
+
+  setGitHubContext(owner, repo, token);
+  try {
+    const added = await appendInboxFeed(entries);
+    logger.info(
+      { event: "inbox_feed_appended", added, mentions, repo: ev.repoFullName },
+      `Inbox feed: +${added} entr${added === 1 ? "y" : "ies"}`,
+    );
+  } catch (err) {
+    logger.warn(
+      {
+        event: "inbox_feed_append_failed",
+        error: err instanceof Error ? err.message : String(err),
+        repo: ev.repoFullName,
+      },
+      "Inbox feed append failed — web-push still proceeds",
+    );
+  } finally {
+    clearGitHubContext();
+  }
+}
+
+/**
  * Entry point — call from the webhook receiver. Never throws; logs and swallows
  * errors so a misconfigured push setup can't break GitHub delivery.
  */
@@ -293,14 +361,6 @@ export async function dispatchMentionPushes(
     const [owner, repo] = ev.repoFullName.split("/");
     if (!owner || !repo) return;
 
-    if (!initVapid()) {
-      logger.info(
-        { event: "mention_push_no_vapid" },
-        "VAPID keys missing — skipping mention push dispatch",
-      );
-      return;
-    }
-
     const token =
       process.env.KODY_BOT_TOKEN ||
       process.env.GITHUB_TOKEN ||
@@ -308,7 +368,22 @@ export async function dispatchMentionPushes(
     if (!token) {
       logger.warn(
         { event: "mention_push_no_token" },
-        "No bot token — cannot read push manifest for mention dispatch",
+        "No bot token — cannot read push manifest / write inbox feed",
+      );
+      return;
+    }
+
+    // 1. Durable inbox feed — the source of truth for the dashboard inbox.
+    //    Runs regardless of whether web-push is configured, because the
+    //    inbox must surface every mention even when no device subscribed
+    //    and no browser tab is open (the bug this path fixes).
+    await recordInboxFeed(owner, repo, token, ev, mentions);
+
+    // 2. Best-effort web-push fan-out to subscribed devices.
+    if (!initVapid()) {
+      logger.info(
+        { event: "mention_push_no_vapid" },
+        "VAPID keys missing — inbox feed written, skipping web-push",
       );
       return;
     }
