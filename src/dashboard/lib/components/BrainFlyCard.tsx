@@ -27,7 +27,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Brain, Loader2, Pause, Play, Power, RefreshCw } from "lucide-react";
 
-import { Switch } from "@dashboard/ui/switch";
+import { Checkbox } from "@dashboard/ui/checkbox";
 
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
@@ -104,6 +104,11 @@ export function BrainFlyCard({
     "idle" | "provisioning" | "destroying" | "suspending" | "resuming"
   >("idle");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Per-repo `.kody/dashboard.json` flag — whether the "Kody Brain (Fly)"
+  // row is offered in the chat picker. Default off. Independent of the
+  // provision lifecycle above and of Fly task execution.
+  const [chatEnabled, setChatEnabled] = useState(false);
+  const [chatToggleBusy, setChatToggleBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!flyTokenConfigured || Object.keys(headers).length === 0) {
@@ -131,6 +136,55 @@ export function BrainFlyCard({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Load the per-repo chat-picker flag. Silent on failure — defaults to
+  // off, matching a missing/empty config.
+  useEffect(() => {
+    let cancelled = false;
+    if (Object.keys(headers).length === 0) return;
+    fetch("/api/kody/dashboard-config", { headers })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((json: { config?: { brainFlyChatEnabled?: boolean } }) => {
+        if (!cancelled) {
+          setChatEnabled(json.config?.brainFlyChatEnabled === true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setChatEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [headers]);
+
+  async function toggleChatEnabled(next: boolean) {
+    setChatToggleBusy(true);
+    // Optimistic: reflect immediately, revert on failure.
+    setChatEnabled(next);
+    try {
+      const res = await fetch("/api/kody/dashboard-config", {
+        method: "PUT",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ brainFlyChatEnabled: next }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(body.error ?? `Save failed (HTTP ${res.status})`);
+        setChatEnabled(!next);
+        return;
+      }
+      toast.success(
+        next
+          ? "Kody Brain (Fly) is now offered in chat"
+          : "Kody Brain (Fly) hidden from chat",
+      );
+    } catch (err) {
+      toast.error(`Save failed: ${(err as Error).message}`);
+      setChatEnabled(!next);
+    } finally {
+      setChatToggleBusy(false);
+    }
+  }
 
   async function turnOn() {
     setBusy("provisioning");
@@ -255,14 +309,30 @@ export function BrainFlyCard({
             </Button>
           </div>
           <p className="text-xs text-white/50 -mt-2">
-            Per-user Brain server on your Fly account. When on, the &ldquo;Kody
-            Brain (Fly)&rdquo; agent appears in the chat picker. Suspends when
-            idle (resumes in ~1s on the next chat) — no manual wake-up required.
+            Per-user Brain server on your Fly account. Suspends when idle
+            (resumes in ~1s on the next chat) — no manual wake-up required.
           </p>
           {!flyTokenConfigured && (
             <p className="text-[11px] text-amber-300/80 italic">
               Add FLY_API_TOKEN to the repo Secrets vault to enable.
             </p>
+          )}
+          {flyTokenConfigured && (
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <Checkbox
+                checked={chatEnabled}
+                disabled={chatToggleBusy}
+                onCheckedChange={(v) => void toggleChatEnabled(v === true)}
+                className="mt-0.5"
+              />
+              <span className="text-xs text-white/60 leading-relaxed">
+                Offer &ldquo;Kody Brain (Fly)&rdquo; in the chat picker.
+                <span className="block text-[11px] text-white/35">
+                  Off by default. Chat-only — Fly task execution is
+                  unaffected.
+                </span>
+              </span>
+            </label>
           )}
           {app && (
             <div className="text-[11px] text-white/40 font-mono break-all">
