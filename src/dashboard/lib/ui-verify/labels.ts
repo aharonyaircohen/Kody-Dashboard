@@ -10,8 +10,10 @@
  *   kody:ui-verified — ui-review ran and verdict was PASS or CONCERNS
  *   kody:ui-failed   — ui-review ran and verdict was FAIL
  *
- * In-flight dedup reuses the engine's existing `kody:reviewing` label
+ * In-flight dedup reuses the engine's existing `kody:reviewing-ui` label
  * (set by ui-review's preflight) — no new in-flight marker needed.
+ * (`kody:reviewing` is the plain-review marker; kept in the guard too so
+ * a review-family run in flight still blocks re-dispatch.)
  */
 
 export const UI_VERIFIED = "kody:ui-verified";
@@ -39,5 +41,6 @@ export const UI_VERIFY_LABEL_META: Record<
 export const UI_VERIFY_GUARD_LABELS: readonly string[] = [
   UI_VERIFIED,
   UI_FAILED,
+  "kody:reviewing-ui",
   "kody:reviewing",
 ] as const;

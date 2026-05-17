@@ -9,9 +9,9 @@
  * dispatcher picks up and runs.
  *
  * Idempotency: skip if the PR already carries any UI-verify guard
- * label (kody:ui-verified / kody:ui-failed / kody:reviewing). The
- * `kody:reviewing` check is the in-flight marker — set by ui-review's
- * preflight (`setLifecycleLabel`).
+ * label (kody:ui-verified / kody:ui-failed / kody:reviewing-ui /
+ * kody:reviewing). The `kody:reviewing-ui` check is the in-flight
+ * marker — set by ui-review's preflight (`setLifecycleLabel`).
  */
 
 import { fetchIssue, postComment } from "../github-client";

@@ -1,8 +1,9 @@
 /**
  * Tests for the action join — deriving the @kody action from an issue's
  * kody:* label and mapping it onto the runs that reference that issue.
- * Locks in the documented granularity ceiling (fix-ci→fix, ui-review→
- * review) and the run↔issue matching predicate.
+ * Locks in the per-command granularity (fix-ci→fix-ci,
+ * ui-review→ui-review, distinct from fix/review) and the run↔issue
+ * matching predicate.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -37,9 +38,11 @@ function run(over: Partial<WorkflowRun>): WorkflowRun {
 describe("actionFromLabels", () => {
   it("maps known kody:* phase labels to actions", () => {
     expect(actionFromLabels(["kody:fixing"])).toBe("fix");
+    expect(actionFromLabels(["kody:fixing-ci"])).toBe("fix-ci");
     expect(actionFromLabels(["kody:syncing"])).toBe("sync");
     expect(actionFromLabels(["kody:resolving"])).toBe("resolve");
     expect(actionFromLabels(["kody:reviewing"])).toBe("review");
+    expect(actionFromLabels(["kody:reviewing-ui"])).toBe("ui-review");
   });
 
   it("returns null when no phase label present", () => {

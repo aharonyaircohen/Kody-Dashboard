@@ -356,9 +356,11 @@ export function getReviewPercent(task: KodyTask): number {
     (l) =>
       l === "kody:syncing" ||
       l === "kody:fixing" ||
+      l === "kody:fixing-ci" ||
       l === "kody:failed" ||
       l === "kody:resolving" ||
-      l === "kody:reviewing",
+      l === "kody:reviewing" ||
+      l === "kody:reviewing-ui",
   );
   if (kodyMidFlow) return 70;
 
