@@ -13,9 +13,10 @@
  *   The dashboard *server* writes to the gist using the user's PAT (passed
  *   per-request via `x-kody-token`) — never using the bot token, because the
  *   inbox belongs to the user, not to the deployment. Webhook receivers
- *   therefore can't write inbox entries directly; the client watcher polls
- *   GitHub's notifications API and appends entries via the API routes when
- *   it sees new mentions.
+ *   therefore can't write the gist directly; instead they append to the
+ *   server-side **inbox feed** (`feed.ts`, bot-token), and the client
+ *   watcher pulls this user's slice of that feed down into the gist via the
+ *   API routes. See `useInboxWatcher.tsx`.
  *
  *   Cap: the manifest stores the last `INBOX_MAX_ENTRIES` entries. Older
  *   ones drop off — this is an inbox, not an archive.
