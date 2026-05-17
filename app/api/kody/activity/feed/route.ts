@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern activity-feed-api
  * @ai-summary GET /api/kody/activity/feed — the on-demand "Feed" tab of the
- *   Activity page. Reads the engine's append-only event log
- *   (`.kody/event-log.jsonl`) so chat + engine-step events finally show up,
+ *   Activity page. Reads the engine's per-session event files
+ *   (`.kody/events/*.jsonl`) so chat + engine-step events finally show up,
  *   which run-only Activity can't see. Unlike `/api/kody/activity` this is
  *   NOT polled — the client fetches it only when the Feed tab is opened —
  *   and it goes through `readEventLogCached` (60s cache + in-flight dedup +
@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleKodyApiError } from "@dashboard/lib/github-error-handler";
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
-import { readEventLogCached } from "@dashboard/lib/activity/feed-source";
+import { readFeedEntries } from "@dashboard/lib/activity/feed-source";
 import { buildFeedSnapshot } from "@dashboard/lib/activity/feed";
 
 export async function GET(req: NextRequest) {
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const entries = await readEventLogCached(
+    const entries = await readFeedEntries(
       headerAuth.owner,
       headerAuth.repo,
       headerAuth.token,

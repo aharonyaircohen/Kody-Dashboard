@@ -101,7 +101,11 @@ export function buildFeedSnapshot(
       source: deriveSource(e.channel, e.event),
       summary: summarize(e),
       runId: e.runId && e.runId !== "unknown" ? e.runId : null,
-      sessionId: e.actionState?.sessionId ?? null,
+      sessionId:
+        e.actionState?.sessionId ??
+        (typeof e.payload.sessionId === "string"
+          ? e.payload.sessionId
+          : null),
       channel: e.channel ?? null,
       status: e.actionState?.status ?? null,
       step: e.actionState?.step ?? null,
