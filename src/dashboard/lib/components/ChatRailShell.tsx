@@ -122,6 +122,46 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     [],
   );
 
+  // Drag-to-resize width (px) for the rail in `normal` mode. Clamped so
+  // the user can't drag it off-screen or thinner than the composer needs.
+  const RAIL_MIN = 320;
+  const RAIL_MAX = 900;
+  const [railWidth, setRailWidth] = useState(400);
+  useEffect(() => {
+    const saved = Number(localStorage.getItem("kody:rail-width"));
+    if (saved >= RAIL_MIN && saved <= RAIL_MAX) setRailWidth(saved);
+  }, []);
+  const [dragging, setDragging] = useState(false);
+  const startResize = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      setDragging(true);
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "col-resize";
+      const onMove = (ev: PointerEvent) => {
+        const next = Math.min(
+          RAIL_MAX,
+          Math.max(RAIL_MIN, Math.round(ev.clientX)),
+        );
+        setRailWidth(next);
+      };
+      const onUp = () => {
+        setDragging(false);
+        document.body.style.userSelect = "";
+        document.body.style.cursor = "";
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        setRailWidth((w) => {
+          localStorage.setItem("kody:rail-width", String(w));
+          return w;
+        });
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [],
+  );
+
   // Hydration guard: SSR has no localStorage so `auth` is always null on
   // the server. Without this flag the first client render would diverge
   // from the server HTML and React would bail out with hydration error
@@ -195,11 +235,14 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             streaming/scroll state survives the collapse. */}
             <aside
               className={cn(
-                "hidden md:flex flex-col shrink-0 border-r border-border bg-black/20 transition-[width] duration-200",
+                "hidden md:flex flex-col shrink-0 border-r border-border bg-black/20",
+                !dragging && "transition-[width] duration-200",
                 railMode === "collapsed" && "w-0 overflow-hidden border-r-0",
-                railMode === "normal" && "w-[400px]",
                 railMode === "fullscreen" && "w-full",
               )}
+              style={
+                railMode === "normal" ? { width: railWidth } : undefined
+              }
               aria-label="Kody chat"
             >
               {auth ? (
@@ -225,6 +268,27 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 </div>
               )}
             </aside>
+
+            {/* Drag-to-resize handle — desktop, normal mode only. Sits
+            on the seam between the chat rail and the nav sidebar. */}
+            {auth && railMode === "normal" && (
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize chat"
+                onPointerDown={startResize}
+                onDoubleClick={() => {
+                  setRailWidth(400);
+                  localStorage.setItem("kody:rail-width", "400");
+                }}
+                className={cn(
+                  "hidden md:block shrink-0 w-1 cursor-col-resize select-none -ml-px",
+                  "hover:bg-emerald-500/40 active:bg-emerald-500/60",
+                  dragging ? "bg-emerald-500/60" : "bg-transparent",
+                )}
+                title="Drag to resize · double-click to reset"
+              />
+            )}
 
             {/* Persistent primary-navigation rail — desktop only, sits
             to the right of the chat. The SettingsDrawer remains mounted
