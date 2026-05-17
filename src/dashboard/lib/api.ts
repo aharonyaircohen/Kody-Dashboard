@@ -1571,6 +1571,17 @@ export const activityApi = {
     });
     return handleResponse(res);
   },
+  /** Dashboard-native action log (in-memory; free to poll). */
+  log: async (): Promise<{
+    entries: import("./activity/action-log").ActionLogEntry[];
+    total: number;
+    computedAt: string;
+  }> => {
+    const res = await fetch(`${API_BASE}/activity/log`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse(res);
+  },
 };
 
 // ============ Combined API ============
