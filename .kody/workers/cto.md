@@ -62,6 +62,27 @@ Only `execute` can ever be `auto`. Every other action (`fix`, `approve`,
 `comment`, anything in the held-back set) is always ask, regardless of
 the ledger.
 
+### Backpressure — at most 10 pending recommendations
+
+The same ledger body carries a `log` array (newest last) of every
+operator decision: `{ taskNumber, action, decision, at }`. Read it
+alongside `actions.execute.mode`.
+
+A recommendation is **pending** when you have posted it and the operator
+has not yet acted: a task in `data.tasks` whose `stage` is one of
+`backlog-flagged`, `execute-recommended`, `qa-requested`,
+`fix-recommended`, `approve-recommended`, with `lastRecAt` set, and **no**
+`log` entry for that `taskNumber` whose `at` is `>= lastRecAt`. Count
+those.
+
+**If 10 or more are pending, the operator's queue is full.** This tick:
+do **not** post any new recommendation in Flow 1 or Flow 2 — still update
+each task's `fp` / state so dedup stays correct, and still auto-dispatch
+graduated `execute` tasks (those execute immediately, they never sit in
+the pending queue). Resume posting on a later tick once decisions land
+and the pending count drops below 10. Never drop or rewrite an existing
+recommendation to make room — backpressure only withholds *new* ones.
+
 ### Flow 1 — Backlog
 
 For each Backlog task, decide if it is **ready to run**: it has a clear
@@ -193,6 +214,9 @@ the dashboard runs this command as-is, it does not infer one from
   (fingerprint changed — see State). Re-posting the same recommendation
   every 15 minutes is the primary failure mode; the dedup ledger exists
   to prevent it.
+- Hard cap: **never let pending (undecided) recommendations exceed 10**.
+  When 10 or more are already awaiting the operator, post nothing new
+  this tick — see "Backpressure" above.
 - Never call `gh` once per task in a loop — one `issue list` drives the
   tick; per-task `view` only for the few tasks you are deciding on.
 - Hold the high-stakes vocabulary out of v1: no `merge`,
