@@ -10,8 +10,9 @@
  *   Issue/PullRequest are resolvable inline; other thread types never open
  *   this dialog (InboxList opens github.com directly for them).
  */
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { Check, ExternalLink, Link2, Loader2 } from "lucide-react";
 
 import {
   Dialog,
@@ -21,6 +22,7 @@ import {
 } from "@dashboard/ui/dialog";
 import { useAuth, buildAuthHeaders } from "../auth-context";
 import type { InboxEntry } from "../inbox/types";
+import { buildThreadShareLink } from "../inbox/deep-link";
 import type { GitHubComment } from "../types";
 import { CommentList } from "./CommentList";
 import { MarkdownViewer } from "./MarkdownViewer";
@@ -103,6 +105,25 @@ export function InboxThreadDialog({ entry, onClose }: InboxThreadDialogProps) {
   const thread = query.data?.thread;
   const githubUrl = thread?.htmlUrl ?? entry?.url ?? "#";
 
+  const [copied, setCopied] = useState(false);
+  const copyShareLink = async () => {
+    if (!target || typeof window === "undefined") return;
+    const link = buildThreadShareLink(
+      window.location.origin,
+      target.type,
+      target.number,
+    );
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard blocked (insecure context / denied) — fall back to a
+      // prompt so the user can still grab the link manually.
+      window.prompt("Copy this link", link);
+    }
+  };
+
   return (
     <Dialog open={!!entry} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
@@ -111,15 +132,37 @@ export function InboxThreadDialog({ entry, onClose }: InboxThreadDialogProps) {
             <DialogTitle className="text-base leading-snug">
               {thread?.title || entry?.title || "Thread"}
             </DialogTitle>
-            <a
-              href={githubUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 inline-flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200"
-            >
-              Open on GitHub
-              <ExternalLink className="w-3 h-3" />
-            </a>
+            <div className="shrink-0 flex items-center gap-3">
+              {target && (
+                <button
+                  type="button"
+                  onClick={copyShareLink}
+                  className="inline-flex items-center gap-1 text-xs text-white/50 hover:text-white/80"
+                  title="Copy a shareable dashboard link to this thread"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3 h-3" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="w-3 h-3" />
+                      Copy link
+                    </>
+                  )}
+                </button>
+              )}
+              <a
+                href={githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200"
+              >
+                Open on GitHub
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
           </div>
           {entry && (
             <p className="text-[11px] text-white/40">

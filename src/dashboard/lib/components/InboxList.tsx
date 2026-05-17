@@ -9,8 +9,9 @@
  *   marks the entry read. Top toolbar exposes mark-all-read, refresh, and
  *   a one-click jump to settings if the PAT is missing the `gist` scope.
  */
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   Check,
@@ -36,6 +37,11 @@ import {
 } from "../cto/recommendation";
 import { useCtoDecisions } from "../cto/useCtoDecisions";
 import type { InboxEntry, InboxSource } from "../inbox/types";
+import {
+  INBOX_THREAD_PARAM,
+  buildSyntheticInboxEntry,
+  parseThreadParam,
+} from "../inbox/deep-link";
 
 type CtoVerdict = "approve" | "reject";
 
@@ -260,6 +266,32 @@ export function InboxList() {
   const [activeEntry, setActiveEntry] = useState<InboxEntry | null>(null);
   const connectedRepo = auth ? `${auth.owner}/${auth.repo}` : undefined;
 
+  // Shareable deep link: `/inbox?thread=<Type>:<number>` opens the thread
+  // panel for that issue/PR/discussion in the *viewer's* connected repo.
+  // The link targets the thread, not a gist entry (the inbox is private
+  // per-user), so a synthetic entry is enough to drive the dialog.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const deepLink = useMemo(
+    () => parseThreadParam(searchParams.get(INBOX_THREAD_PARAM)),
+    [searchParams],
+  );
+  const clearDeepLink = () => {
+    if (!searchParams.has(INBOX_THREAD_PARAM)) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete(INBOX_THREAD_PARAM);
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
+  useEffect(() => {
+    if (!deepLink || !connectedRepo || activeEntry) return;
+    setActiveEntry(
+      buildSyntheticInboxEntry(connectedRepo, deepLink.type, deepLink.number),
+    );
+  }, [deepLink, connectedRepo, activeEntry]);
+
   const scopeMissing = /gist_scope_missing|gist.*scope/i.test(
     error?.message ?? "",
   );
@@ -429,7 +461,10 @@ export function InboxList() {
 
       <InboxThreadDialog
         entry={activeEntry}
-        onClose={() => setActiveEntry(null)}
+        onClose={() => {
+          setActiveEntry(null);
+          clearDeepLink();
+        }}
       />
     </PageShell>
   );
