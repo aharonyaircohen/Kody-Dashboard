@@ -60,6 +60,28 @@ describe("buildActivitySnapshot", () => {
     expect(snap.signals.queueDepth).toBe(25);
   });
 
+  it("groups last-15m runs by trigger (names a loop)", () => {
+    const at = new Date(NOW - 60_000).toISOString();
+    const snap = buildActivitySnapshot(
+      [
+        ...Array.from({ length: 12 }, () =>
+          run({ event: "issue_comment", created_at: at }),
+        ),
+        run({ event: "schedule", created_at: at }),
+        run({
+          event: "schedule",
+          created_at: new Date(NOW - 30 * 60_000).toISOString(),
+        }), // outside 15m window
+      ],
+      NOW,
+    );
+    expect(snap.signals.byTrigger).toEqual({
+      issue_comment: 12,
+      schedule: 1,
+    });
+    expect(snap.runs[0].trigger).toBeDefined();
+  });
+
   it("stays ok when healthy", () => {
     const snap = buildActivitySnapshot(
       [

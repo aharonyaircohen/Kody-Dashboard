@@ -211,6 +211,14 @@ export interface WorkflowRun {
   html_url: string;
   display_title?: string;
   head_branch?: string;
+  /** GitHub event that triggered the run: schedule, issue_comment, … */
+  event?: string;
+  /** Per-workflow incrementing run number. */
+  run_number?: number;
+  /** Re-run attempt count (1 = first attempt). */
+  run_attempt?: number;
+  /** Login of the actor that triggered the run, when known. */
+  actor?: string;
 }
 
 export interface GitHubPR {

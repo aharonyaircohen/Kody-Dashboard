@@ -1318,6 +1318,11 @@ export async function fetchWorkflowRuns(options?: {
     html_url: run.html_url,
     display_title: (run as any).display_title ?? "",
     head_branch: (run as any).head_branch ?? undefined,
+    event: (run as any).event ?? undefined,
+    run_number: (run as any).run_number ?? undefined,
+    run_attempt: (run as any).run_attempt ?? undefined,
+    actor:
+      (run as any).triggering_actor?.login ?? (run as any).actor?.login,
   }));
 
   setCache(cacheKey, CACHE_TTL.pipeline, runs, { etag: newEtag });

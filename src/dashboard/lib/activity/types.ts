@@ -21,6 +21,10 @@ export interface ActivityRun {
   htmlUrl: string;
   title: string;
   branch: string | null;
+  /** GitHub trigger event (schedule, issue_comment, workflow_dispatch, …). */
+  trigger: string;
+  runNumber: number | null;
+  actor: string | null;
 }
 
 export interface ActivitySignals {
@@ -35,6 +39,11 @@ export interface ActivitySignals {
   runsLast15m: number;
   /** Median completed-run duration (seconds), or null if none completed. */
   medianDurationSec: number | null;
+  /**
+   * Count of runs created in the last 15 min, grouped by trigger event.
+   * A lopsided bucket (e.g. issue_comment: 28) names a trigger loop.
+   */
+  byTrigger: Record<string, number>;
 }
 
 export interface ActivityAlert {
