@@ -155,7 +155,7 @@ function Row({
           className="flex-1 min-w-0 text-left"
         >
           <div className="flex items-baseline justify-between gap-2">
-            <div className="text-sm font-medium truncate">
+            <div className="text-base font-medium truncate">
               <span className="text-white/90">{author}</span>
               <span className="text-white/50"> {label}</span>
               {entry.title && (
@@ -167,7 +167,7 @@ function Row({
             </span>
           </div>
           {entry.snippet && (
-            <p className="mt-1 text-xs text-white/60 line-clamp-2">
+            <p className="mt-1 text-sm text-white/60 line-clamp-2">
               {entry.snippet}
             </p>
           )}

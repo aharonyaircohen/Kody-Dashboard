@@ -131,9 +131,9 @@
     --muted: 215 20% 14%;
     --muted-foreground: 215 15% 60%;
 
-    /* Accent: vibrant purple (complementary to coral) */
-    --accent: 261 75% 65%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent: brand-tinted surface for selected/active (matches light mode) */
+    --accent: 353 42% 24%;
+    --accent-foreground: 353 78% 85%;
 
     --destructive: 0 70% 35%;
     --destructive-foreground: 0 0% 95%;
@@ -168,10 +168,10 @@
     --header-fg: var(--card-foreground);
     --footer-bg: var(--card);
 
-    /* Interactive element states */
+    /* Interactive element states - neutral hover, brand-tied selection */
     --hover-bg: 222 25% 16%;
-    --selected-bg: 220 25% 20%;
-    --selected-fg: 210 40% 95%;
+    --selected-bg: var(--accent);
+    --selected-fg: var(--accent-foreground);
 
     /* Form elements - slightly altered background for visual distinction */
     --form-bg: var(--card);
