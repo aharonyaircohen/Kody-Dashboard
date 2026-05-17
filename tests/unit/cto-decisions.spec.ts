@@ -1,0 +1,95 @@
+/**
+ * Tests for the CTO trust ledger's pure graduation logic
+ * (`applyDecision`). This is the Phase 2 contract: N consecutive clean
+ * approvals flip an action to "auto"; a single reject de-graduates it
+ * (the kill switch). The math lives in code, not the LLM, so it's
+ * deterministic and tested here.
+ */
+import { describe, expect, it } from "vitest";
+import {
+  applyDecision,
+  parseCtoDecisionsBody,
+  serializeCtoDecisionsBody,
+  EMPTY_CTO_DECISIONS_MANIFEST,
+  CTO_GRADUATION_THRESHOLD,
+  type CtoDecisionsManifest,
+} from "@dashboard/lib/cto/decisions";
+
+function approveN(
+  start: CtoDecisionsManifest,
+  n: number,
+  action = "execute",
+): CtoDecisionsManifest {
+  let m = start;
+  for (let i = 0; i < n; i++) {
+    m = applyDecision(m, { taskNumber: i + 1, action, decision: "approve" });
+  }
+  return m;
+}
+
+describe("applyDecision — graduation", () => {
+  it("stays in 'ask' below the threshold", () => {
+    const m = approveN(
+      EMPTY_CTO_DECISIONS_MANIFEST,
+      CTO_GRADUATION_THRESHOLD - 1,
+    );
+    const stats = m.actions.execute;
+    expect(stats.consecutiveApprovals).toBe(CTO_GRADUATION_THRESHOLD - 1);
+    expect(stats.mode).toBe("ask");
+  });
+
+  it("flips to 'auto' exactly at the threshold", () => {
+    const m = approveN(EMPTY_CTO_DECISIONS_MANIFEST, CTO_GRADUATION_THRESHOLD);
+    expect(m.actions.execute.mode).toBe("auto");
+    expect(m.actions.execute.approvals).toBe(CTO_GRADUATION_THRESHOLD);
+  });
+
+  it("a single reject de-graduates back to 'ask' (kill switch)", () => {
+    const graduated = approveN(
+      EMPTY_CTO_DECISIONS_MANIFEST,
+      CTO_GRADUATION_THRESHOLD,
+    );
+    expect(graduated.actions.execute.mode).toBe("auto");
+
+    const killed = applyDecision(graduated, {
+      taskNumber: 99,
+      action: "execute",
+      decision: "reject",
+    });
+    expect(killed.actions.execute.mode).toBe("ask");
+    expect(killed.actions.execute.consecutiveApprovals).toBe(0);
+    expect(killed.actions.execute.rejections).toBe(1);
+    // Totals are preserved — graduation resets, history doesn't.
+    expect(killed.actions.execute.approvals).toBe(CTO_GRADUATION_THRESHOLD);
+  });
+
+  it("must re-earn the full streak after a reject", () => {
+    let m = approveN(EMPTY_CTO_DECISIONS_MANIFEST, CTO_GRADUATION_THRESHOLD);
+    m = applyDecision(m, {
+      taskNumber: 1,
+      action: "execute",
+      decision: "reject",
+    });
+    m = approveN(m, CTO_GRADUATION_THRESHOLD - 1);
+    expect(m.actions.execute.mode).toBe("ask");
+    m = approveN(m, 1);
+    expect(m.actions.execute.mode).toBe("auto");
+  });
+
+  it("does not mutate the input manifest (immutability)", () => {
+    const before = structuredClone(EMPTY_CTO_DECISIONS_MANIFEST);
+    applyDecision(EMPTY_CTO_DECISIONS_MANIFEST, {
+      taskNumber: 1,
+      action: "execute",
+      decision: "approve",
+    });
+    expect(EMPTY_CTO_DECISIONS_MANIFEST).toEqual(before);
+  });
+
+  it("round-trips through serialize/parse", () => {
+    const m = approveN(EMPTY_CTO_DECISIONS_MANIFEST, 3);
+    const round = parseCtoDecisionsBody(serializeCtoDecisionsBody(m));
+    expect(round.actions.execute).toEqual(m.actions.execute);
+    expect(round.log).toHaveLength(3);
+  });
+});

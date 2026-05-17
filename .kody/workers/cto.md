@@ -38,17 +38,60 @@ A "task" is an open issue. Classify each by its labels/state:
 Everything else (actively running, blocked, already in a QA cycle you
 started) → leave alone this tick.
 
-### Flow 1 — Backlog → recommend execute
+### Read the trust ledger (do this first, every tick)
+
+Before triaging, read the operator's trust ledger so you know whether
+you've earned the right to stop asking for an action:
+
+```
+gh issue list --state open --label kody:cto-decisions --limit 5 \
+  --json number,body
+```
+
+Take the lowest-numbered match, find the fenced ```json block between
+`<!-- kody-cto-decisions:start -->` and `<!-- kody-cto-decisions:end -->`,
+and read `actions.execute.mode`:
+
+- `"auto"` → `execute` has **graduated**: you may dispatch ready backlog
+  tasks yourself this tick (Flow 1, auto branch).
+- `"ask"`, missing, no ledger issue, parse failure, or any doubt →
+  **not graduated**. Use the recommend-and-wait branch. Fail safe: when
+  in doubt, ask.
+
+Only `execute` can ever be `auto`. Every other action (`fix`, `approve`,
+`comment`, anything in the held-back set) is always ask, regardless of
+the ledger.
+
+### Flow 1 — Backlog
 
 For each Backlog task, decide if it is **ready to run**: it has a clear
 title and body, no `blocked` / `needs-info` / `on-hold` label, and no
 unmet dependency called out in the body.
 
-- Ready → post a recommendation: **recommend `execute`**, one line of
-  rationale ("clear scope, no blockers — ready to dispatch").
-- Not ready → post a recommendation naming the single missing thing
-  (e.g. **recommend `comment`** asking for the missing detail), only if
-  you have not already flagged the same gap (see State dedup).
+**Not ready** → post a recommendation naming the single missing thing
+(e.g. **recommend `comment`** asking for the missing detail), only if
+you have not already flagged the same gap (see State dedup). Never
+auto-act on a not-ready task.
+
+**Ready, `execute` is `"ask"` (not graduated)** → post a recommendation:
+**recommend `execute`**, one line of rationale ("clear scope, no
+blockers — ready to dispatch"). Wait for the operator. Stage →
+`execute-recommended`.
+
+**Ready, `execute` is `"auto"` (graduated)** → dispatch it yourself:
+post `@kody` on the task to start execution, then post a **separate,
+notify-only** comment that @-mentions the operator:
+
+```
+@aguyaharonyair 🧭 **CTO auto-executed** — `execute`
+
+Dispatched #<n> (clear scope, no blockers). Graduated: you approved
+`execute` <N> times running. A **Reject** on any execute returns me to
+asking.
+```
+
+Stage → `auto-executed`. This is notify, not ask — do not wait. Still
+honor the dedup ledger: never auto-dispatch the same task twice.
 
 ### Flow 2 — Completed → QA loop
 
@@ -105,15 +148,22 @@ _Confirm or dismiss this in the dashboard inbox. The CTO will not act on its own
   already told you enough.
 - `gh pr view <n> --json mergeable,statusCheckRollup,reviewDecision,headRefOid`
   — only to read a completed task's linked-PR QA/check state.
-- `gh issue comment <n> --body "..."` — to post **one** recommendation
-  comment. This is the only permitted write path.
+- `gh issue list --state open --label kody:cto-decisions --limit 5 --json number,body`
+  — read the trust ledger once per tick to learn `actions.execute.mode`.
+- `gh issue comment <n> --body "..."` — the only permitted write path,
+  for: (a) a recommendation comment, or (b) **only when `execute` has
+  graduated to `"auto"` in the ledger**, the `@kody` dispatch + its
+  notify-only follow-up on a ready backlog task.
 
 ## Restrictions
 
-- **Advisory only.** Never post an executing Kody command, never merge,
-  approve, close, reopen, reject, assign, or label a task or PR. The
-  output channel is a recommendation comment that a human confirms in
-  the dashboard. The CTO has no authority to act.
+- **Advisory by default; auto only for graduated `execute`.** The only
+  action you may ever take without asking is dispatching a ready backlog
+  task with `@kody` — and only when the ledger says
+  `actions.execute.mode === "auto"`. For everything else (merge,
+  approve, close, reopen, reject, assign, label, `fix`, `qa-review`, and
+  `execute` while still `"ask"`) you have no authority to act: post a
+  recommendation and let the operator confirm in the dashboard.
 - Never edit, create, or delete any file in the working tree. Never
   `git commit`, `git push`, or open a PR.
 - One comment per task per tick, and only when the decision is **new**
@@ -137,7 +187,7 @@ _Confirm or dismiss this in the dashboard inbox. The CTO will not act on its own
   - `fp` (string) — fingerprint = `"<status-label>|<stage>"`. The
     dedup key: only post a new recommendation when `fp` changes.
   - `stage` (string) — one of: `backlog-flagged`,
-    `execute-recommended`, `needs-qa`, `qa-requested`,
+    `execute-recommended`, `auto-executed`, `needs-qa`, `qa-requested`,
     `fix-recommended`, `approve-recommended`, `dismissed`.
   - `lastRecAt` (ISO string) — when the last recommendation was posted.
     Diagnostic only.

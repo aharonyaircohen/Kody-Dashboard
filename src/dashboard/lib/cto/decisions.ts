@@ -23,6 +23,14 @@ export const CTO_DECISIONS_MANIFEST_VERSION = 1 as const;
 /** Keep the decision log bounded — it's a trust signal, not an archive. */
 export const CTO_DECISIONS_LOG_MAX = 500;
 
+/**
+ * Consecutive clean approvals an action needs before the CTO stops asking
+ * and starts auto-acting (Phase 2 graduation). A single reject resets the
+ * streak AND de-graduates the action back to "ask" — that's the kill
+ * switch: one wrong call returns control to the operator.
+ */
+export const CTO_GRADUATION_THRESHOLD = 10;
+
 const MANIFEST_START = "<!-- kody-cto-decisions:start -->";
 const MANIFEST_END = "<!-- kody-cto-decisions:end -->";
 
@@ -73,11 +81,19 @@ export function applyDecision(
 ): CtoDecisionsManifest {
   const prev = manifest.actions[entry.action] ?? freshStats();
   const isApprove = entry.decision === "approve";
+  const consecutiveApprovals = isApprove ? prev.consecutiveApprovals + 1 : 0;
+  // Graduation is deterministic and lives here (not in the LLM): cross the
+  // threshold → "auto"; any reject → back to "ask" (the kill switch).
+  const mode: CtoActionMode = !isApprove
+    ? "ask"
+    : consecutiveApprovals >= CTO_GRADUATION_THRESHOLD
+      ? "auto"
+      : prev.mode;
   const nextStats: CtoActionStats = {
     approvals: prev.approvals + (isApprove ? 1 : 0),
     rejections: prev.rejections + (isApprove ? 0 : 1),
-    consecutiveApprovals: isApprove ? prev.consecutiveApprovals + 1 : 0,
-    mode: prev.mode,
+    consecutiveApprovals,
+    mode,
   };
   const logEntry: CtoDecisionLogEntry = {
     taskNumber: entry.taskNumber,
