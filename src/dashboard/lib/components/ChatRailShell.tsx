@@ -27,7 +27,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, PanelLeft } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import {
   Sheet,
@@ -100,6 +100,28 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const [scope, setScope] = useState<ChatContext | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Desktop chat rail sizing. `collapsed` shrinks the aside to zero width
+  // (KodyChat stays mounted — see file docstring — so streaming/scroll
+  // state survives) and surfaces a floating reopen button. `fullscreen`
+  // grows the aside to full width, pushing the page to 0 width. Persisted
+  // per-browser so the user's preference sticks across reloads.
+  const [railMode, setRailMode] = useState<
+    "collapsed" | "normal" | "fullscreen"
+  >("normal");
+  useEffect(() => {
+    const saved = localStorage.getItem("kody:rail-mode");
+    if (saved === "collapsed" || saved === "fullscreen" || saved === "normal") {
+      setRailMode(saved);
+    }
+  }, []);
+  const updateRailMode = useCallback(
+    (next: "collapsed" | "normal" | "fullscreen") => {
+      setRailMode(next);
+      localStorage.setItem("kody:rail-mode", next);
+    },
+    [],
+  );
+
   // Hydration guard: SSR has no localStorage so `auth` is always null on
   // the server. Without this flag the first client render would diverge
   // from the server HTML and React would bail out with hydration error
@@ -168,9 +190,16 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
         <SettingsDrawerProvider>
           <CommandPalette />
           <div className="h-screen flex overflow-hidden bg-background text-foreground">
-            {/* Desktop chat rail — hidden below md. */}
+            {/* Desktop chat rail — hidden below md. Width is driven by
+            railMode; collapsed keeps KodyChat mounted but zero-width so
+            streaming/scroll state survives the collapse. */}
             <aside
-              className="hidden md:flex flex-col shrink-0 border-r border-border bg-black/20 w-[400px]"
+              className={cn(
+                "hidden md:flex flex-col shrink-0 border-r border-border bg-black/20 transition-[width] duration-200",
+                railMode === "collapsed" && "w-0 overflow-hidden border-r-0",
+                railMode === "normal" && "w-[400px]",
+                railMode === "fullscreen" && "w-full",
+              )}
               aria-label="Kody chat"
             >
               {auth ? (
@@ -180,6 +209,13 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                   lockedAgentId={lockedAgentId}
                   vibeMode={isVibeRoute}
                   onIssueCreated={dispatchIssueCreated}
+                  onCollapseRail={() => updateRailMode("collapsed")}
+                  onToggleFullscreen={() =>
+                    updateRailMode(
+                      railMode === "fullscreen" ? "normal" : "fullscreen",
+                    )
+                  }
+                  railFullscreen={railMode === "fullscreen"}
                 />
               ) : (
                 <div className="flex-1 flex items-center justify-center p-6">
@@ -200,6 +236,24 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
               {children}
             </div>
           </div>
+
+          {/* Desktop reopen button — only shows when the rail is
+          collapsed (md and up). */}
+          {auth && railMode === "collapsed" && (
+            <Button
+              type="button"
+              size="icon"
+              onClick={() => updateRailMode("normal")}
+              className={cn(
+                "hidden md:flex fixed bottom-4 left-4 z-40 h-11 w-11 rounded-full shadow-lg",
+                "bg-emerald-600 hover:bg-emerald-700 text-white",
+              )}
+              aria-label="Open chat"
+              title="Open chat"
+            >
+              <PanelLeft className="w-5 h-5" />
+            </Button>
+          )}
 
           {/* Mobile chat FAB — only shows below md. */}
           <Button

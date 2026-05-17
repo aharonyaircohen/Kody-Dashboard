@@ -24,6 +24,9 @@ import {
   Loader2,
   ChevronDown,
   Star,
+  PanelLeftClose,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId, type AgentConfig } from "../agents";
 
@@ -547,6 +550,19 @@ interface KodyChatProps {
   /** Optional close handler — when set, renders a close `×` in the header (mobile sheet). */
   onClose?: () => void;
   /**
+   * Collapse the desktop chat rail to a strip. When set, the header
+   * renders a collapse button (desktop only — the mobile sheet uses
+   * `onClose` instead).
+   */
+  onCollapseRail?: () => void;
+  /**
+   * Toggle the desktop chat rail between its normal width and
+   * fullscreen. When set, the header renders an expand/restore button.
+   */
+  onToggleFullscreen?: () => void;
+  /** Whether the rail is currently fullscreen — picks the expand icon. */
+  railFullscreen?: boolean;
+  /**
    * Force a specific agent and hide the picker. Used by the Vibe page,
    * which is always Kody Live. When set, the chevron + dropdown are
    * suppressed and the brain auto-default logic is skipped.
@@ -708,6 +724,9 @@ export function KodyChat({
   context,
   actorLogin,
   onClose,
+  onCollapseRail,
+  onToggleFullscreen,
+  railFullscreen,
   lockedAgentId,
   vibeMode,
   onIssueCreated,
@@ -4525,6 +4544,36 @@ export function KodyChat({
               >
                 <History className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">History</span>
+              </button>
+            )}
+
+            {/* Fullscreen / restore (desktop rail only) */}
+            {onToggleFullscreen && (
+              <button
+                type="button"
+                onClick={onToggleFullscreen}
+                aria-label={railFullscreen ? "Restore chat width" : "Expand chat fullscreen"}
+                title={railFullscreen ? "Restore" : "Fullscreen"}
+                className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+              >
+                {railFullscreen ? (
+                  <Minimize2 className="w-4 h-4" />
+                ) : (
+                  <Maximize2 className="w-4 h-4" />
+                )}
+              </button>
+            )}
+
+            {/* Collapse to a strip (desktop rail only) */}
+            {onCollapseRail && (
+              <button
+                type="button"
+                onClick={onCollapseRail}
+                aria-label="Collapse chat"
+                title="Collapse"
+                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+              >
+                <PanelLeftClose className="w-4 h-4" />
               </button>
             )}
 
