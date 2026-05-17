@@ -82,6 +82,24 @@ describe("buildActivitySnapshot", () => {
     expect(snap.runs[0].trigger).toBeDefined();
   });
 
+  it("excludes skipped/cancelled twins from the flood signal", () => {
+    const at = new Date(NOW - 60_000).toISOString();
+    const runs = [
+      run({ conclusion: "success", created_at: at }),
+      ...Array.from({ length: 18 }, () =>
+        run({ conclusion: "skipped", created_at: at }),
+      ),
+      ...Array.from({ length: 6 }, () =>
+        run({ conclusion: "cancelled", created_at: at }),
+      ),
+    ];
+    const snap = buildActivitySnapshot(runs, NOW);
+    expect(snap.signals.runsLast15m).toBe(1); // only the real run
+    expect(snap.signals.noiseLast15m).toBe(24); // 18 skipped + 6 cancelled
+    expect(snap.alert.level).toBe("ok"); // not a false "trigger loop"
+    expect(snap.runs).toHaveLength(25); // all still visible in the list
+  });
+
   it("stays ok when healthy", () => {
     const snap = buildActivitySnapshot(
       [
