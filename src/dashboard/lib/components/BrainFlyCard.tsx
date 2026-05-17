@@ -27,6 +27,8 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Brain, Loader2, Pause, Play, Power, RefreshCw } from "lucide-react";
 
+import { Switch } from "@dashboard/ui/switch";
+
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { ConfirmDialog } from "./ConfirmDialog";

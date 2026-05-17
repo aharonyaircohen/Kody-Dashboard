@@ -38,11 +38,25 @@ export type CtoAction = (typeof CTO_ACTIONS)[number];
 /** Back-compat alias — callers that only cared about the type name. */
 export type CtoActionable = CtoAction;
 
-/** Actions the dashboard can run via the engine's `@kody` dispatch path. */
-const DISPATCHABLE = new Set<CtoAction>(["execute", "fix"]);
+/**
+ * Actions the dashboard can run on approve, mapped to the exact engine
+ * command posted on the task. `execute`/`fix` re-dispatch the task (for
+ * `fix` the QA-failure comment is already in-thread); `qa-review` posts
+ * the UI/QA review command the engine already understands.
+ */
+const DISPATCH_COMMAND: Partial<Record<CtoAction, string>> = {
+  execute: "@kody",
+  fix: "@kody",
+  "qa-review": "@kody ui-review",
+};
 
 export function isDispatchable(action: CtoAction): boolean {
-  return DISPATCHABLE.has(action);
+  return action in DISPATCH_COMMAND;
+}
+
+/** The `@kody …` comment to post when this action is approved, or null. */
+export function dispatchCommand(action: CtoAction): string | null {
+  return DISPATCH_COMMAND[action] ?? null;
 }
 
 export interface CtoRecommendation {
@@ -85,6 +99,25 @@ function parseAction(haystack: string): CtoAction | null {
   return null;
 }
 
+/**
+ * Parse the CTO action from a *raw* comment body (backticks intact) at
+ * inbox-write time. This is the reliable path: the 240-char plain-text
+ * snippet collapses backtick spans to `[code]`, so the verb on the marker
+ * line is often gone by the time the client sees it. Returns null when the
+ * body isn't a CTO recommendation. Stored on the entry as `ctoAction`.
+ */
+export function parseCtoAction(rawBody: string): CtoAction | null {
+  if (!MARKER.test(rawBody)) return null;
+  return parseAction(rawBody);
+}
+
+/** Narrow an arbitrary string to a known CtoAction (for stored values). */
+function asCtoAction(v: string | undefined): CtoAction | null {
+  return v && (CTO_ACTIONS as readonly string[]).includes(v)
+    ? (v as CtoAction)
+    : null;
+}
+
 export function detectCtoRecommendation(
   entry: InboxEntry,
 ): CtoRecommendation | null {
@@ -95,10 +128,12 @@ export function detectCtoRecommendation(
   const taskNumber = issueNumberFromUrl(entry.url);
   if (taskNumber === null) return null;
 
-  // Marker present but verb unparseable → keep the rec visible as `other`
-  // (non-dispatchable). Never return null here: that's what made legacy
-  // recs lose their Approve/Reject row.
-  const action = parseAction(haystack) ?? "other";
+  // Prefer the action parsed from the raw body at write time (`ctoAction`).
+  // Fall back to the lossy snippet for legacy entries written before that
+  // field existed. Marker present but verb unrecoverable → `other`
+  // (non-dispatchable) so the rec stays visible without ever misrouting.
+  const action: CtoAction =
+    asCtoAction(entry.ctoAction) ?? parseAction(haystack) ?? "other";
 
   return { taskNumber, action, dispatchable: isDispatchable(action) };
 }

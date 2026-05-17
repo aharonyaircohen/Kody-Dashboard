@@ -31,6 +31,7 @@ const UpsertSchema = z.object({
     .optional()
     .or(z.literal("")),
   defaultChatEntryKey: z.string().max(256).optional().or(z.literal("")),
+  brainFlyChatEnabled: z.boolean().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -117,6 +118,12 @@ export async function PUT(req: NextRequest) {
       const key = parsed.data.defaultChatEntryKey?.trim();
       next.defaultChatEntryKey = key ? key : undefined;
       commitMessage = `chore(dashboard): set default chat entry`;
+    }
+    if ("brainFlyChatEnabled" in bodyKeys) {
+      next.brainFlyChatEnabled = parsed.data.brainFlyChatEnabled === true;
+      commitMessage = `chore(dashboard): ${
+        next.brainFlyChatEnabled ? "enable" : "disable"
+      } Brain (Fly) in chat`;
     }
     await writeDashboardConfig(
       octokit,

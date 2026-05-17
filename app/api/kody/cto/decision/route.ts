@@ -39,7 +39,11 @@ import {
   readCtoDecisions,
 } from "@dashboard/lib/cto/decisions-server";
 import { applyDecision, latestCtoDecisions } from "@dashboard/lib/cto/decisions";
-import { CTO_ACTIONS, isDispatchable } from "@dashboard/lib/cto/recommendation";
+import {
+  CTO_ACTIONS,
+  isDispatchable,
+  dispatchCommand,
+} from "@dashboard/lib/cto/recommendation";
 
 const bodySchema = z.object({
   taskNumber: z.number().int().positive(),
@@ -84,12 +88,17 @@ export async function POST(req: NextRequest) {
     // Approve → run the recommended action before recording, so a failed
     // dispatch doesn't get logged as a trusted approval.
     let executed = false;
-    if (decision === "approve" && isDispatchable(action)) {
-      // `execute` and `fix` both resolve to the engine's single write path:
-      // an `@kody` comment on the task. For `fix` the QA-failure comment is
-      // already in-thread, so re-dispatching IS the fix. Non-dispatchable
-      // verbs fall through here and are recorded only — never rerouted.
-      await postWithFallback(taskNumber, "@kody", actorLogin, userOctokit);
+    const command =
+      decision === "approve" && isDispatchable(action)
+        ? dispatchCommand(action)
+        : null;
+    if (command) {
+      // Each action maps to the exact engine command: `execute`/`fix` →
+      // `@kody` (for `fix` the QA-failure comment is already in-thread, so
+      // re-dispatching IS the fix); `qa-review` → `@kody ui-review`.
+      // Non-dispatchable verbs never reach here — recorded only, never
+      // rerouted.
+      await postWithFallback(taskNumber, command, actorLogin, userOctokit);
       executed = true;
       // The task issue just got a comment, and the task list view may
       // change — invalidate both per CLAUDE.md rate-limit rule 5.

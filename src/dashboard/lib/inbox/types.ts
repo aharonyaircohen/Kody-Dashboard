@@ -55,6 +55,13 @@ export interface InboxEntry {
   sentAt: string;
   /** ISO timestamp the user marked it read, or null. */
   readAt: string | null;
+  /**
+   * CTO action verb parsed from the *raw* comment body at write time
+   * (`execute` | `fix` | `qa-review` | …). Present only for CTO
+   * recommendation entries; absent on legacy entries (the client then
+   * falls back to parsing the lossy snippet).
+   */
+  ctoAction?: string;
 }
 
 export interface InboxManifest {
