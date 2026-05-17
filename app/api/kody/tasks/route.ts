@@ -262,9 +262,10 @@ export async function GET(req: NextRequest) {
         perPage: 100,
         since: sinceDate,
         // The "Kody control" issue is the dashboard's own audit trail for
-        // Run now dispatches — infrastructure, not a task. Drop it so it
-        // doesn't show up as noise in the task list.
-        excludeLabels: ["kody:control"],
+        // Run now dispatches; "kody:inbox-feed" is the mention hand-off
+        // buffer the webhook writes. Both are infrastructure, not tasks —
+        // drop them so they don't show up as noise in the task list.
+        excludeLabels: ["kody:control", "kody:inbox-feed"],
       }),
       fetchWorkflowRuns({ perPage: 30 }),
       fetchOpenPRs(),
