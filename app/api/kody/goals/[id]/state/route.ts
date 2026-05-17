@@ -255,15 +255,30 @@ export async function PUT(
     let engineDispatched = false;
     if (next.state === "active") {
       try {
+        // Dispatch on the repo's DEFAULT branch, not a hardcoded "main".
+        // workflow_dispatch runs the workflow file from the given ref; a
+        // stale `main` can carry an outdated kody.yml that fails instantly
+        // (e.g. renamed engine binary), while cron correctly uses the
+        // default branch. Resolve it so Start matches the cron behaviour.
+        const repoMeta = await octokit.rest.repos.get({
+          owner: headerAuth.owner,
+          repo: headerAuth.repo,
+        });
+        const defaultBranch = repoMeta.data.default_branch || "main";
         await octokit.rest.actions.createWorkflowDispatch({
           owner: headerAuth.owner,
           repo: headerAuth.repo,
           workflow_id: "kody.yml",
-          ref: "main",
+          ref: defaultBranch,
         });
         engineDispatched = true;
         logger.info(
-          { goalId: id, owner: headerAuth.owner, repo: headerAuth.repo },
+          {
+            goalId: id,
+            owner: headerAuth.owner,
+            repo: headerAuth.repo,
+            ref: defaultBranch,
+          },
           "goals: engine dispatched on start",
         );
       } catch (dispatchErr) {
