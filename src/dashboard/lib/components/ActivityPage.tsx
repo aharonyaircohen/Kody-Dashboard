@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Loader2,
   RefreshCw,
+  Search,
   XCircle,
   Clock,
 } from "lucide-react";
@@ -115,21 +116,38 @@ export function ActivityPage() {
   const { auth } = useAuth();
   const { data, isLoading, error, refetch, isFetching } = useActivity();
   const [filter, setFilter] = useState<RunFilter>("all");
+  const [query, setQuery] = useState("");
+  const [trigger, setTrigger] = useState<string>("all");
+
+  const triggers = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of data?.runs ?? []) set.add(r.trigger);
+    return ["all", ...[...set].sort()];
+  }, [data]);
 
   const runs = useMemo(() => {
-    const all = data?.runs ?? [];
+    let all = data?.runs ?? [];
     if (filter === "active")
-      return all.filter(
+      all = all.filter(
         (r) => r.status === "queued" || r.status === "in_progress",
       );
-    if (filter === "failed")
-      return all.filter(
+    else if (filter === "failed")
+      all = all.filter(
         (r) =>
           r.status === "completed" &&
           (r.conclusion === "failure" || r.conclusion === "timed_out"),
       );
+    if (trigger !== "all") all = all.filter((r) => r.trigger === trigger);
+    const q = query.trim().toLowerCase();
+    if (q)
+      all = all.filter((r) =>
+        [r.title, r.branch ?? "", r.actor ?? "", r.trigger, `#${r.runNumber}`]
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+      );
     return all;
-  }, [data, filter]);
+  }, [data, filter, trigger, query]);
 
   const s = data?.signals;
   const alert = data?.alert;
@@ -230,22 +248,87 @@ export function ActivityPage() {
         />
       </div>
 
-      <div className="mt-6 flex items-center gap-1">
-        {(["all", "active", "failed"] as RunFilter[]).map((f) => (
+      {s && Object.keys(s.byTrigger).length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px]">
+          <span className="text-white/40">Triggers (last 15 min):</span>
+          {Object.entries(s.byTrigger)
+            .sort((a, b) => b[1] - a[1])
+            .map(([ev, n]) => (
+              <button
+                key={ev}
+                type="button"
+                onClick={() => setTrigger(ev)}
+                title={`Filter to ${ev}`}
+                className={cn(
+                  "rounded-md border px-2 py-0.5 tabular-nums transition-colors",
+                  n >= 8
+                    ? "border-rose-500/40 bg-rose-500/[0.08] text-rose-200"
+                    : "border-white/[0.08] bg-white/[0.03] text-white/60 hover:bg-white/[0.06]",
+                )}
+              >
+                {ev} · {n}
+              </button>
+            ))}
+        </div>
+      )}
+
+      <div className="mt-5 flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1">
+          {(["all", "active", "failed"] as RunFilter[]).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs capitalize transition-colors",
+                filter === f
+                  ? "bg-white/[0.08] text-white"
+                  : "text-white/50 hover:text-white hover:bg-white/[0.04]",
+              )}
+            >
+              {f === "active" ? "Queued / running" : f}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search title, branch, actor…"
+            className="w-56 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
+          />
+        </div>
+
+        <select
+          value={trigger}
+          onChange={(e) => setTrigger(e.target.value)}
+          aria-label="Filter by trigger"
+          className="rounded-md border border-white/[0.08] bg-white/[0.02] py-1 px-2 text-xs text-white/70 focus:border-white/20 focus:outline-none"
+        >
+          {triggers.map((t) => (
+            <option key={t} value={t} className="bg-neutral-900">
+              {t === "all" ? "all triggers" : t}
+            </option>
+          ))}
+        </select>
+
+        {(query || trigger !== "all" || filter !== "all") && (
           <button
-            key={f}
             type="button"
-            onClick={() => setFilter(f)}
-            className={cn(
-              "rounded-md px-2.5 py-1 text-xs capitalize transition-colors",
-              filter === f
-                ? "bg-white/[0.08] text-white"
-                : "text-white/50 hover:text-white hover:bg-white/[0.04]",
-            )}
+            onClick={() => {
+              setQuery("");
+              setTrigger("all");
+              setFilter("all");
+            }}
+            className="text-[11px] text-white/40 hover:text-white"
           >
-            {f === "active" ? "Queued / running" : f}
+            Clear
           </button>
-        ))}
+        )}
+
         <span className="ml-auto text-[10px] text-white/35">
           {data ? `${runs.length} shown` : ""}
           {data?.computedAt && ` · updated ${relTime(data.computedAt)}`}
@@ -273,11 +356,12 @@ export function ActivityPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm truncate">{r.title}</div>
-                  {r.branch && (
-                    <div className="text-[10px] text-white/40 truncate">
-                      {r.branch}
-                    </div>
-                  )}
+                  <div className="text-[10px] text-white/40 truncate">
+                    <span className="text-white/55">{r.trigger}</span>
+                    {r.runNumber != null && <> · #{r.runNumber}</>}
+                    {r.actor && <> · @{r.actor}</>}
+                    {r.branch && <> · {r.branch}</>}
+                  </div>
                 </div>
                 <div className="shrink-0 text-[11px] text-white/45 tabular-nums">
                   {fmtDuration(r.durationSec)}

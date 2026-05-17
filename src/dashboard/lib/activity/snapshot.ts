@@ -51,6 +51,9 @@ export function buildActivitySnapshot(
       htmlUrl: r.html_url,
       title: r.display_title?.trim() || `Run ${r.id}`,
       branch: r.head_branch ?? null,
+      trigger: r.event?.trim() || "unknown",
+      runNumber: r.run_number ?? null,
+      actor: r.actor ?? null,
     }))
     .sort(
       (a, b) =>
@@ -67,9 +70,13 @@ export function buildActivitySnapshot(
     (r) => r.conclusion === "failure" || r.conclusion === "timed_out",
   ).length;
 
-  const runsLast15m = runs.filter(
+  const last15m = runs.filter(
     (r) => now - new Date(r.createdAt).getTime() <= FIFTEEN_MIN_MS,
-  ).length;
+  );
+  const byTrigger: Record<string, number> = {};
+  for (const r of last15m) {
+    byTrigger[r.trigger] = (byTrigger[r.trigger] ?? 0) + 1;
+  }
 
   const signals: ActivitySignals = {
     queueDepth: queued + inProgress,
@@ -78,8 +85,9 @@ export function buildActivitySnapshot(
     completed: completed.length,
     succeeded,
     failed,
-    runsLast15m,
+    runsLast15m: last15m.length,
     medianDurationSec: median(completed.map((r) => r.durationSec)),
+    byTrigger,
   };
 
   return {
