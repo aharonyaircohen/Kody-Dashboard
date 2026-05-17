@@ -15,56 +15,56 @@
 
   :root,
   [data-theme='light'] {
-    /* Background: warm off-white that sets cards apart cleanly */
-    --background: 220 20% 96%; /* #f1f3f7 */
-    --foreground: 222 25% 12%; /* #181c25 */
+    /* Base: warm "paper" ground — soft, non-clinical, lets white cards lift */
+    --background: 30 24% 97%; /* #f9f7f4 */
+    --foreground: 24 14% 13%; /* #241f1c warm near-black */
 
     /* Card: pure white for elevated surfaces */
     --card: 0 0% 100%;
-    --card-foreground: 222 25% 12%;
+    --card-foreground: 24 14% 13%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 25% 12%;
+    --popover-foreground: 24 14% 13%;
 
-    /* Primary: warm burgundy red (brand color) */
-    --primary: 353 70% 38%; /* #b53038 - softened from 29% so hovers don't burn */
-    --primary-soft: 0 60% 96%; /* #fde8ea - light wash for hover states */
+    /* Primary: brand burgundy, balanced for AA contrast on white */
+    --primary: 353 66% 41%; /* #ad303b */
+    --primary-soft: 353 64% 96%; /* #fbe9eb - light wash for hover states */
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary: neutral slate (replaces sage green which clashed) */
-    --secondary: 220 14% 92%; /* #e6e9ef */
-    --secondary-foreground: 222 25% 18%;
+    /* Secondary: warm neutral surface */
+    --secondary: 30 14% 92%; /* #ece8e3 */
+    --secondary-foreground: 24 12% 22%;
 
     /* Muted: hover/zebra surfaces and secondary text */
-    --muted: 220 16% 93%; /* #e8ebf1 */
-    --muted-foreground: 220 9% 40%; /* #5d6371 */
+    --muted: 30 16% 94%; /* #f0ece7 */
+    --muted-foreground: 25 8% 40%; /* #6b635d */
 
-    /* Accent: subtle indigo for selected/active states (replaces vivid purple) */
-    --accent: 220 18% 90%; /* #dee2ea */
-    --accent-foreground: 222 25% 18%;
+    /* Accent: subtle brand-tinted wash for selected/active (was stray indigo) */
+    --accent: 353 44% 95%; /* #f7e9eb */
+    --accent-foreground: 353 54% 33%; /* #8a2f37 */
 
-    --destructive: 0 75% 50%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Border: visible enough to define structure without harshness */
-    --border: 220 13% 0% / 0.1; /* rgba(0,0,0,0.10) */
-    --input: 220 16% 96%; /* #f1f3f7 */
+    /* Border: warm, visible enough to define structure without harshness */
+    --border: 24 14% 14% / 0.11; /* warm rgba ~0.11 */
+    --input: 30 18% 98%; /* #fbf9f6 */
 
     /* Focus ring follows primary */
-    --ring: 353 70% 38%;
+    --ring: 353 66% 41%;
 
-    /* Shadow system - soft layered shadows for elevation */
-    --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
-    --shadow-card-hover: 0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06);
-    --shadow-modal: 0 20px 40px -10px rgb(15 23 42 / 0.18);
-    --shadow-dropdown: 0 8px 12px -2px rgb(15 23 42 / 0.1), 0 4px 8px -2px rgb(15 23 42 / 0.06);
+    /* Elevation - warm-tinted layered shadows for real depth */
+    --shadow-card: 0 1px 2px 0 rgb(40 33 28 / 0.05), 0 1px 3px 0 rgb(40 33 28 / 0.07);
+    --shadow-card-hover: 0 4px 8px -2px rgb(40 33 28 / 0.1), 0 2px 6px -2px rgb(40 33 28 / 0.07);
+    --shadow-modal: 0 24px 48px -12px rgb(40 33 28 / 0.22);
+    --shadow-dropdown: 0 10px 16px -4px rgb(40 33 28 / 0.12), 0 4px 8px -4px rgb(40 33 28 / 0.08);
 
     /* Radius system */
     --radius: 0.75rem; /* 12px - default */
 
-    --success: 142 71% 45%;
-    --warning: 38 92% 50%;
-    --error: 0 72% 51%;
+    --success: 142 64% 36%;
+    --warning: 32 90% 42%;
+    --error: 0 70% 47%;
 
     /* Badge colors - for course categories */
     --badge-orange: 25 95% 53%; /* Orange badge */
@@ -75,10 +75,10 @@
     --header-fg: var(--card-foreground);
     --footer-bg: var(--card);
 
-    /* Interactive element states */
+    /* Interactive element states - neutral hover, brand-tied selection */
     --hover-bg: var(--muted);
-    --selected-bg: var(--muted);
-    --selected-fg: var(--foreground);
+    --selected-bg: var(--accent);
+    --selected-fg: var(--accent-foreground);
 
     /* Form elements - slightly altered background for visual distinction */
     --form-bg: var(--input);
@@ -232,42 +232,42 @@
   .bg-white\/\[0\.01\],
   .bg-white\/\[0\.02\],
   .bg-white\/\[0\.03\] {
-    background-color: rgb(15 23 42 / 0.025);
+    background-color: rgb(40 33 28 / 0.025);
   }
   .bg-white\/\[0\.04\],
   .bg-white\/\[0\.06\],
   .bg-white\/5 {
-    background-color: rgb(15 23 42 / 0.04);
+    background-color: rgb(40 33 28 / 0.04);
   }
   .bg-white\/\[0\.08\],
   .bg-white\/\[0\.1\],
   .bg-white\/10,
   .bg-white\/\[0\.12\] {
-    background-color: rgb(15 23 42 / 0.06);
+    background-color: rgb(40 33 28 / 0.06);
   }
   .hover\:bg-white\/\[0\.04\]:hover,
   .hover\:bg-white\/\[0\.06\]:hover,
   .hover\:bg-white\/\[0\.08\]:hover,
   .hover\:bg-white\/5:hover,
   .hover\:bg-white\/10:hover {
-    background-color: rgb(15 23 42 / 0.06);
+    background-color: rgb(40 33 28 / 0.06);
   }
 
   /* white/x borders → visible neutral borders */
   .border-white\/\[0\.04\],
   .border-white\/\[0\.06\],
   .border-white\/\[0\.08\] {
-    border-color: rgb(15 23 42 / 0.08);
+    border-color: rgb(40 33 28 / 0.08);
   }
   .border-white\/\[0\.1\],
   .border-white\/10,
   .border-white\/\[0\.12\],
   .border-white\/\[0\.18\] {
-    border-color: rgb(15 23 42 / 0.12);
+    border-color: rgb(40 33 28 / 0.12);
   }
   .hover\:border-white\/\[0\.18\]:hover,
   .hover\:border-white\/10:hover {
-    border-color: rgb(15 23 42 / 0.18);
+    border-color: rgb(40 33 28 / 0.18);
   }
 
   /* black/x backgrounds → light mode equivalents
@@ -275,51 +275,51 @@
      Notifications page background. */
   .bg-black\/5,
   .bg-black\/10 {
-    background-color: rgb(15 23 42 / 0.04);
+    background-color: rgb(40 33 28 / 0.04);
   }
   .bg-black\/20,
   .bg-black\/30 {
-    /* Used as section header tints — pick a soft surface, not gray haze */
-    background-color: hsl(220 16% 93%);
+    /* Used as section header tints — pick a soft warm surface, not gray haze */
+    background-color: hsl(30 16% 93%);
   }
   /* bg-black/95 is used as a page-level background on /notifications.
      In light mode it must become the page bg, not a dim overlay. */
   .bg-black\/95 {
-    background-color: hsl(220 20% 96%);
+    background-color: hsl(30 24% 97%);
   }
   /* bg-black/80 and bg-black/90 are genuine modal/preview dimming overlays
      — keep them as a dark scrim so modals still pop above content. */
   .bg-black\/80,
   .bg-black\/90 {
-    background-color: rgb(15 23 42 / 0.55);
+    background-color: rgb(40 33 28 / 0.55);
   }
 
   /* ----- Text on previously-dark surfaces -----
      `text-white/X` is everywhere on pages designed dark-first. In light
      mode these need to flip to dark-on-light with matching contrast. */
   .text-white {
-    color: hsl(222 25% 12%);
+    color: hsl(24 14% 13%);
   }
   .text-white\/90 {
-    color: hsl(222 25% 14%);
+    color: hsl(24 13% 16%);
   }
   .text-white\/70,
   .text-white\/60 {
-    color: hsl(220 12% 32%);
+    color: hsl(25 9% 34%);
   }
   .text-white\/50,
   .text-white\/40 {
-    color: hsl(220 9% 45%);
+    color: hsl(25 7% 46%);
   }
   .text-white\/30,
   .text-white\/20 {
-    color: hsl(220 9% 58%);
+    color: hsl(25 6% 60%);
   }
 
   /* white solid fills used for toggle thumbs, progress bars — keep light */
   .bg-white\/40,
   .bg-white\/15 {
-    background-color: hsl(220 13% 75%);
+    background-color: hsl(30 10% 74%);
   }
 
   /* ----- Sky / rose accent palettes used on this page ----- */
