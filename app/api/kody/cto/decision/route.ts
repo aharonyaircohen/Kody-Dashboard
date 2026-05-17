@@ -39,7 +39,7 @@ import { applyDecision, latestCtoDecisions } from "@dashboard/lib/cto/decisions"
 
 // Phase 1 only graduates `execute`. Other actions can be approved/rejected
 // (recorded) but the closed set guards against typo'd or unsupported verbs.
-const SUPPORTED_ACTIONS = ["execute"] as const;
+const SUPPORTED_ACTIONS = ["execute", "qa-review"] as const;
 
 const bodySchema = z.object({
   taskNumber: z.number().int().positive(),
