@@ -111,7 +111,13 @@ function isValidEntry(x: unknown): x is InboxEntry {
   );
 }
 
-/** Strip code fences + collapse whitespace for the inbox preview. */
+/** Strip code fences + collapse whitespace for the inbox preview.
+ *
+ *  Inline backtick-quoted strings that look like identifiers (single-word
+ *  actions such as `execute`, `qa-review`, `fix`, `approve`) are kept as-is
+ *  since they carry more meaning than a generic "[code]" placeholder.
+ *  Everything else (multi-word strings, strings with punctuation, file paths,
+ *  etc.) is collapsed to "[code]". */
 export function buildSnippet(
   body: string | null | undefined,
   max = 240,
@@ -119,6 +125,10 @@ export function buildSnippet(
   if (!body) return "";
   return body
     .replace(/```[\s\S]*?```/g, "[code]")
+    // Preserve single-word action names in backticks; collapse everything
+    // else to [code]. A "word" here is alphanumerics, underscores, hyphens.
+    .replace(/`([a-zA-Z0-9_-]+)`/g, (_, word) => word)
+    // Collapse any remaining backtick pairs (multi-word or punctuation)
     .replace(/`[^`]*`/g, "[code]")
     .replace(/\s+/g, " ")
     .trim()
