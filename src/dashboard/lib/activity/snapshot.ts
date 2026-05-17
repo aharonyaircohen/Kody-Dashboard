@@ -8,6 +8,7 @@
  *   unit-testable and reusable.
  */
 import type { WorkflowRun } from "../types";
+import { categorizeRun } from "./categorize";
 import {
   type ActivityRun,
   type ActivitySignals,
@@ -52,6 +53,7 @@ export function buildActivitySnapshot(
       title: r.display_title?.trim() || `Run ${r.id}`,
       branch: r.head_branch ?? null,
       trigger: r.event?.trim() || "unknown",
+      category: categorizeRun(r.event, r.display_title),
       runNumber: r.run_number ?? null,
       actor: r.actor ?? null,
     }))
@@ -74,8 +76,10 @@ export function buildActivitySnapshot(
     (r) => now - new Date(r.createdAt).getTime() <= FIFTEEN_MIN_MS,
   );
   const byTrigger: Record<string, number> = {};
+  const byCategory: Record<string, number> = {};
   for (const r of last15m) {
     byTrigger[r.trigger] = (byTrigger[r.trigger] ?? 0) + 1;
+    byCategory[r.category] = (byCategory[r.category] ?? 0) + 1;
   }
 
   const signals: ActivitySignals = {
@@ -88,6 +92,7 @@ export function buildActivitySnapshot(
     runsLast15m: last15m.length,
     medianDurationSec: median(completed.map((r) => r.durationSec)),
     byTrigger,
+    byCategory,
   };
 
   return {

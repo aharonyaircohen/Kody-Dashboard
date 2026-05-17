@@ -23,6 +23,8 @@ export interface ActivityRun {
   branch: string | null;
   /** GitHub trigger event (schedule, issue_comment, workflow_dispatch, …). */
   trigger: string;
+  /** Coarse bucket derived from trigger+title (see categorize.ts). */
+  category: import("./categorize").ActivityCategory;
   runNumber: number | null;
   actor: string | null;
 }
@@ -44,6 +46,8 @@ export interface ActivitySignals {
    * A lopsided bucket (e.g. issue_comment: 28) names a trigger loop.
    */
   byTrigger: Record<string, number>;
+  /** Last-15m run counts grouped by coarse category. */
+  byCategory: Record<string, number>;
 }
 
 export interface ActivityAlert {
