@@ -172,7 +172,7 @@ function Row({
       {cto && (
         <div className="mt-2.5 ml-5 flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-wider text-amber-300/70">
-            CTO · {cto.action}
+            CTO · {cto.action === "other" ? "review" : cto.action}
           </span>
           {ctoVerdict ? (
             <span
