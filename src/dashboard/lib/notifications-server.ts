@@ -2,22 +2,19 @@
  * @fileType utility
  * @domain kody
  * @pattern notifications-cas
- * @ai-summary Server-only notifications-manifest helpers. Mirrors
- *   `goals-server.ts`: per-repo mutex + verify-after-write retry around the
- *   read-mutate-write cycle so concurrent rule edits can't silently
- *   overwrite each other. Could be generalized into a shared "manifest
- *   issue helper" later — kept duplicated for v1 to limit blast radius.
+ * @ai-summary Server-only notifications-manifest helpers. The read → mutate →
+ *   write → verify cycle (in-process per-repo mutex + retry) now lives in the
+ *   shared `manifest-store` core; this file is just the notifications-specific
+ *   config plus the original public API (names/signatures unchanged).
  */
-import type { Octokit } from "@octokit/rest";
 import {
-  fetchIssues,
-  fetchIssue,
-  createIssue,
-  updateIssue,
-  invalidateIssueCache,
-  getOwner,
-  getRepo,
-} from "./github-client";
+  createManifestStore,
+  type ManifestRef,
+  type ManifestMutateOptions,
+  type ManifestMutationOutcome,
+  type ManifestMutator,
+  type ManifestMutatorReturn,
+} from "./manifest-store";
 import {
   EMPTY_MANIFEST,
   NOTIFICATIONS_MANIFEST_LABEL,
@@ -28,65 +25,10 @@ import {
   type NotificationRule,
 } from "./notifications";
 
-const locks = new Map<string, Promise<unknown>>();
-
-async function withRepoLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  const previous = locks.get(key) ?? Promise.resolve();
-  const run = previous.then(
-    () => fn(),
-    () => fn(),
-  );
-  locks.set(key, run);
-  try {
-    return await run;
-  } finally {
-    if (locks.get(key) === run) locks.delete(key);
-  }
-}
-
-interface ManifestRef {
-  number: number | null;
-  manifest: NotificationsManifest;
-}
-
-async function readManifestFresh(): Promise<ManifestRef> {
-  const issues = await fetchIssues({
-    state: "open",
-    labels: NOTIFICATIONS_MANIFEST_LABEL,
-    perPage: 5,
-    noCache: true,
-  });
-  if (!issues.length) {
-    return { number: null, manifest: { ...EMPTY_MANIFEST, rules: [] } };
-  }
-  const first = [...issues].sort((a, b) => a.number - b.number)[0];
-  const full = await fetchIssue(first.number, { noCache: true });
-  return {
-    number: first.number,
-    manifest: parseManifestBody(full?.body ?? ""),
-  };
-}
-
-async function writeManifest(
-  next: NotificationsManifest,
-  existingNumber: number | null,
-  userOctokit?: Octokit,
-): Promise<number> {
-  const body = serializeManifestBody(next);
-  if (existingNumber !== null) {
-    await updateIssue(existingNumber, { body }, userOctokit);
-    return existingNumber;
-  }
-  const created = await createIssue(
-    {
-      title: MANIFEST_ISSUE_TITLE,
-      body,
-      labels: [NOTIFICATIONS_MANIFEST_LABEL],
-    },
-    userOctokit,
-  );
-  return created.number;
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// CAS verify — field-by-field per rule; channel compared by JSON.stringify
+// (scalar fields, non-overlapping union shapes — matches serialized bytes)
+// ─────────────────────────────────────────────────────────────────────────────
 
 function rulesEqual(a: NotificationRule, b: NotificationRule): boolean {
   if (
@@ -101,9 +43,6 @@ function rulesEqual(a: NotificationRule, b: NotificationRule): boolean {
   ) {
     return false;
   }
-  // Channel comparison — JSON-stringify is enough since fields are scalar
-  // and the union shapes don't overlap. Cheap and matches the manifest's
-  // serialized form bytewise.
   return JSON.stringify(a.channel) === JSON.stringify(b.channel);
 }
 
@@ -118,78 +57,41 @@ function manifestsEqual(
   return true;
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const store = createManifestStore<NotificationsManifest>({
+  label: NOTIFICATIONS_MANIFEST_LABEL,
+  title: MANIFEST_ISSUE_TITLE,
+  name: "notifications manifest",
+  parse: parseManifestBody,
+  serialize: serializeManifestBody,
+  empty: () => ({ ...EMPTY_MANIFEST, rules: [] }),
+  equals: manifestsEqual,
+});
 
-export interface MutateOptions {
-  userOctokit?: Octokit;
-  maxAttempts?: number;
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Public API (unchanged surface)
+// ─────────────────────────────────────────────────────────────────────────────
 
-export interface MutationOutcome<T> {
-  result: T;
-  manifest: NotificationsManifest;
-  issueNumber: number;
-}
+export type MutateOptions = ManifestMutateOptions;
+export type MutationOutcome<T> = ManifestMutationOutcome<
+  NotificationsManifest,
+  T
+>;
+export type MutatorReturn<T> = ManifestMutatorReturn<NotificationsManifest, T>;
+export type Mutator<T> = ManifestMutator<NotificationsManifest, T>;
 
-export type MutatorReturn<T> =
-  | { next: NotificationsManifest; result: T }
-  | { kind: "noop"; result: T };
-
-export type Mutator<T> = (
-  current: NotificationsManifest,
-) => MutatorReturn<T> | Promise<MutatorReturn<T>>;
-
-export async function mutateNotificationsManifest<T>(
+export function mutateNotificationsManifest<T>(
   mutator: Mutator<T>,
   options: MutateOptions = {},
 ): Promise<MutationOutcome<T> | { kind: "noop"; result: T }> {
-  const lockKey = `${getOwner()}/${getRepo()}`;
-  const maxAttempts = options.maxAttempts ?? 3;
-
-  return withRepoLock(lockKey, async () => {
-    let lastError: Error | null = null;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const ref = await readManifestFresh();
-      const mutation = await mutator(ref.manifest);
-      if ("kind" in mutation && mutation.kind === "noop") {
-        return { kind: "noop" as const, result: mutation.result };
-      }
-      const written = mutation as { next: NotificationsManifest; result: T };
-      const issueNumber = await writeManifest(
-        written.next,
-        ref.number,
-        options.userOctokit,
-      );
-      invalidateIssueCache(issueNumber);
-
-      const verify = await fetchIssue(issueNumber, { noCache: true });
-      const verifyManifest = parseManifestBody(verify?.body ?? "");
-      if (manifestsEqual(verifyManifest, written.next)) {
-        return {
-          result: written.result,
-          manifest: written.next,
-          issueNumber,
-        };
-      }
-      lastError = new Error(
-        `notifications manifest write conflict on issue #${issueNumber} (attempt ${attempt}/${maxAttempts})`,
-      );
-      await sleep(50 * attempt + Math.floor(Math.random() * 50));
-    }
-    throw (
-      lastError ??
-      new Error(
-        `notifications manifest write conflict: failed after ${maxAttempts} attempts`,
-      )
-    );
-  });
+  return store.mutate(mutator, options);
 }
 
 /**
  * Read-only fresh accessor for the webhook handler / dispatcher (cache
- * bypass — the dispatcher should always see the latest rule state when
- * deciding whether to fire).
+ * bypass — the dispatcher should always see the latest rule state).
  */
-export async function readNotificationsManifestFresh(): Promise<ManifestRef> {
-  return readManifestFresh();
+export function readNotificationsManifestFresh(): Promise<
+  ManifestRef<NotificationsManifest>
+> {
+  return store.readFresh();
 }
