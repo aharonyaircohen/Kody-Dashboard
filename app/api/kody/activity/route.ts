@@ -18,7 +18,10 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { buildActivitySnapshot } from "@dashboard/lib/activity/snapshot";
-import { mapRunActions } from "@dashboard/lib/activity/action";
+import {
+  mapRunActions,
+  mapRunIssueNumbers,
+} from "@dashboard/lib/activity/action";
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -40,7 +43,10 @@ export async function GET(req: NextRequest) {
       fetchIssues({ state: "open", perPage: 100 }),
     ]);
     const runActions = mapRunActions(runs, issues);
-    return NextResponse.json(buildActivitySnapshot(runs, Date.now(), runActions));
+    const runIssues = mapRunIssueNumbers(runs, issues);
+    return NextResponse.json(
+      buildActivitySnapshot(runs, Date.now(), runActions, runIssues),
+    );
   } catch (error: unknown) {
     return handleKodyApiError(error, "activity");
   } finally {

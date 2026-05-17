@@ -41,6 +41,7 @@ export function buildActivitySnapshot(
   workflowRuns: WorkflowRun[],
   now: number = Date.now(),
   runActions: Record<number, import("./action").ActivityAction> = {},
+  runIssues: Record<number, number> = {},
 ): ActivitySnapshot {
   const runs: ActivityRun[] = workflowRuns
     .map((r) => ({
@@ -56,6 +57,7 @@ export function buildActivitySnapshot(
       trigger: r.event?.trim() || "unknown",
       category: categorizeRun(r.event, r.display_title),
       action: runActions[r.id] ?? null,
+      taskNumber: runIssues[r.id] ?? null,
       runNumber: r.run_number ?? null,
       actor: r.actor ?? null,
     }))

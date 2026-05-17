@@ -30,6 +30,12 @@ export interface ActivityRun {
    * null when the run couldn't be tied to a labelled issue.
    */
   action: import("./action").ActivityAction | null;
+  /**
+   * Issue number this run is joined to (same predicate as `action`), so
+   * the row can deep-link to the dashboard task page. null when the run
+   * couldn't be tied to an open issue.
+   */
+  taskNumber: number | null;
   runNumber: number | null;
   actor: string | null;
 }

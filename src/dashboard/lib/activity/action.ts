@@ -48,10 +48,37 @@ export function actionFromLabels(
 }
 
 /**
+ * The run↔issue match predicate the dashboard already uses
+ * (`matchWorkflowRunToTask`): exact issue-title match, or a `#<number>`
+ * reference to the issue in the run's display title.
+ */
+function runMatchesIssue(run: WorkflowRun, issue: GitHubIssue): boolean {
+  const title = run.display_title || "";
+  if (title === issue.title) return true;
+  return new RegExp(`#${issue.number}(?:\\D|$)`).test(title);
+}
+
+/**
+ * Build runId → issue number via the shared match predicate, so a run
+ * row can deep-link to its task page in the dashboard. Pure — caller
+ * supplies the already-fetched arrays.
+ */
+export function mapRunIssueNumbers(
+  runs: WorkflowRun[],
+  issues: GitHubIssue[],
+): Record<number, number> {
+  const out: Record<number, number> = {};
+  for (const issue of issues) {
+    for (const run of runs) {
+      if (runMatchesIssue(run, issue)) out[run.id] = issue.number;
+    }
+  }
+  return out;
+}
+
+/**
  * Build runId → action by matching each open issue to its run(s) with the
- * same predicate the dashboard already uses (`matchWorkflowRunToTask`):
- * exact issue-title match or a `#<number>` reference in the run's
- * display title. Pure — caller supplies the already-fetched arrays.
+ * shared predicate. Pure — caller supplies the already-fetched arrays.
  */
 export function mapRunActions(
   runs: WorkflowRun[],
@@ -61,12 +88,8 @@ export function mapRunActions(
   for (const issue of issues) {
     const action = actionFromLabels(issue.labels.map((l) => l.name));
     if (!action) continue;
-    const numRe = new RegExp(`#${issue.number}(?:\\D|$)`);
     for (const run of runs) {
-      const title = run.display_title || "";
-      if (title === issue.title || numRe.test(title)) {
-        out[run.id] = action;
-      }
+      if (runMatchesIssue(run, issue)) out[run.id] = action;
     }
   }
   return out;
