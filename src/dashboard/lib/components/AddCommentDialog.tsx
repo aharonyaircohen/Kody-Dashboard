@@ -18,6 +18,9 @@ import {
 import { MessageSquare, Loader2, Eye, Edit } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { cn } from "@dashboard/lib/utils/ui";
+import { useCommentAttachments } from "../hooks/useCommentAttachments";
+import { AttachmentBar } from "./AttachmentBar";
 
 interface AddCommentDialogProps {
   isOpen: boolean;
@@ -35,14 +38,20 @@ export function AddCommentDialog({
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const att = useCommentAttachments();
+
+  const hasReadyAttachment = att.attachments.some((a) => a.status === "done");
+  const canSubmit =
+    (!!body.trim() || hasReadyAttachment) && !submitting && !att.isUploading;
 
   const handleSubmit = async () => {
-    if (!body.trim()) return;
+    if (!canSubmit) return;
     setSubmitting(true);
     try {
-      await onSubmit(body.trim());
+      await onSubmit(att.withAttachments(body.trim()));
       setBody("");
       setShowPreview(false);
+      att.reset();
       onClose();
     } catch {
       // Error handled by caller
@@ -54,6 +63,7 @@ export function AddCommentDialog({
   const handleClose = () => {
     setBody("");
     setShowPreview(false);
+    att.reset();
     onClose();
   };
 
@@ -71,7 +81,13 @@ export function AddCommentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div
+          className={cn(
+            "space-y-3 rounded-md",
+            att.isDragging && "ring-2 ring-blue-500/60",
+          )}
+          {...att.dropzoneProps}
+        >
           {/* Editor / Preview toggle */}
           <div className="flex items-center gap-1 border-b border-zinc-800 pb-2">
             <button
@@ -120,6 +136,8 @@ export function AddCommentDialog({
               )}
             </div>
           )}
+
+          <AttachmentBar api={att} disabled={submitting} />
         </div>
 
         <div className="flex justify-end gap-2 mt-2">
@@ -128,7 +146,7 @@ export function AddCommentDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!body.trim() || submitting}
+            disabled={!canSubmit}
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             {submitting ? (

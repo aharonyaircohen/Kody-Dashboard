@@ -36,6 +36,8 @@ import {
   usePostGoalDiscussionComment,
 } from "../hooks/useGoals";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useCommentAttachments } from "../hooks/useCommentAttachments";
+import { AttachmentBar } from "./AttachmentBar";
 import { kodyApi } from "../api";
 import type { DiscussionDisabledReason, GoalDiscussionComment } from "../api";
 
@@ -208,7 +210,7 @@ function DiscussionCommentItem({
         </a>
       </div>
 
-      <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
+      <div dir="auto" className="prose prose-sm dark:prose-invert max-w-none text-sm">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
@@ -311,18 +313,25 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
     .filter((m) => m.login.toLowerCase().includes(mentionQuery.toLowerCase()))
     .slice(0, 5);
 
+  const att = useCommentAttachments();
+  const hasReadyAttachment = att.attachments.some((a) => a.status === "done");
+
   const {
     mutate: postComment,
     isPending,
     error,
   } = usePostGoalDiscussionComment(goalId, githubUser?.login);
 
+  const canSubmit =
+    (!!body.trim() || hasReadyAttachment) && !isPending && !att.isUploading;
+
   const handleSubmit = () => {
-    if (!body.trim() || isPending) return;
-    postComment(body.trim(), {
+    if (!canSubmit) return;
+    postComment(att.withAttachments(body.trim()), {
       onSuccess: () => {
         setBody("");
         setShowPreview(false);
+        att.reset();
       },
     });
   };
@@ -497,9 +506,15 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
         </Button>
       </div>
 
-      <div className="relative">
+      <div
+        className={cn(
+          "relative rounded-md",
+          att.isDragging && "ring-2 ring-emerald-500/60",
+        )}
+        {...att.dropzoneProps}
+      >
         {showPreview ? (
-          <div className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs prose prose-sm dark:prose-invert max-w-none">
+          <div dir="auto" className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {body || "*Nothing to preview*"}
             </ReactMarkdown>
@@ -513,6 +528,7 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
               onKeyDown={handleKeyDown}
               placeholder="Write a comment... use @ to mention"
               rows={3}
+              dir="auto"
               disabled={isPending}
               className="resize-none text-sm"
             />
@@ -567,6 +583,8 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
         )}
       </div>
 
+      <AttachmentBar api={att} disabled={isPending} />
+
       <div className="flex justify-between items-center gap-2">
         <p className="text-[11px] text-muted-foreground leading-snug">
           Tip: type{" "}
@@ -584,7 +602,7 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
           ) : null}
           <Button
             onClick={handleSubmit}
-            disabled={isPending || !body.trim()}
+            disabled={!canSubmit}
             size="sm"
             variant="default"
             className="h-7 px-2 bg-emerald-600 hover:bg-emerald-700 gap-1.5"

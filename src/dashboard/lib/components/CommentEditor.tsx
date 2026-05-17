@@ -14,6 +14,8 @@ import { Button } from "@dashboard/ui/button";
 import { Textarea } from "@dashboard/ui/textarea";
 import { cn } from "@dashboard/lib/utils/ui";
 import { usePostComment } from "../hooks";
+import { useCommentAttachments } from "../hooks/useCommentAttachments";
+import { AttachmentBar } from "./AttachmentBar";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { EMOJI_LIST, getGitHubIssueUrl } from "../constants";
 import {
@@ -57,11 +59,20 @@ export function CommentEditor({
   const mentionsRef = useRef<HTMLDivElement>(null);
 
   const { githubUser } = useGitHubIdentity();
+  const att = useCommentAttachments();
   const {
     mutate: postComment,
     isPending: isPosting,
     error,
   } = usePostComment(issueNumber, githubUser?.login);
+
+  const hasReadyAttachment = att.attachments.some(
+    (a) => a.status === "done",
+  );
+  const canSubmit =
+    (!!comment.trim() || hasReadyAttachment) &&
+    !isPosting &&
+    !att.isUploading;
 
   // Fetch collaborators for @mentions
   useEffect(() => {
@@ -138,12 +149,13 @@ export function CommentEditor({
   };
 
   const handleSubmit = () => {
-    if (!comment.trim() || isPosting) return;
+    if (!canSubmit) return;
 
-    postComment(comment.trim(), {
+    postComment(att.withAttachments(comment.trim()), {
       onSuccess: () => {
         setComment("");
         setShowPreview(false);
+        att.reset();
         onCommentPosted?.();
       },
     });
@@ -315,9 +327,15 @@ export function CommentEditor({
       </div>
 
       {/* Editor / Preview */}
-      <div className="relative">
+      <div
+        className={cn(
+          "relative rounded-md",
+          att.isDragging && "ring-2 ring-emerald-500/60",
+        )}
+        {...att.dropzoneProps}
+      >
         {showPreview ? (
-          <div className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs prose prose-sm dark:prose-invert max-w-none">
+          <div dir="auto" className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown>{comment || "*Nothing to preview*"}</ReactMarkdown>
           </div>
         ) : (
@@ -329,6 +347,7 @@ export function CommentEditor({
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
               rows={3}
+              dir="auto"
               disabled={isPosting}
               className="resize-none text-sm"
             />
@@ -365,6 +384,8 @@ export function CommentEditor({
         )}
       </div>
 
+      <AttachmentBar api={att} disabled={isPosting} />
+
       {/* Error and submit */}
       <div className="flex justify-end items-center gap-1">
         {error && (
@@ -375,16 +396,17 @@ export function CommentEditor({
         <Button
           onClick={() => {
             // Execute @kody command - post and trigger
-            const cmdComment = comment.trim() || "@kody";
+            const cmdComment = att.withAttachments(comment.trim() || "@kody");
             postComment(cmdComment, {
               onSuccess: () => {
                 setComment("");
                 setShowPreview(false);
+                att.reset();
                 onCommentPosted?.();
               },
             });
           }}
-          disabled={isPosting}
+          disabled={isPosting || att.isUploading}
           size="sm"
           variant="outline"
           className="h-6 px-1.5 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
@@ -403,7 +425,7 @@ export function CommentEditor({
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={isPosting || !comment.trim()}
+          disabled={!canSubmit}
           size="sm"
           variant="default"
           className="h-6 px-1.5 bg-emerald-600 hover:bg-emerald-700"

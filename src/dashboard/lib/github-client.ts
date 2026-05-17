@@ -2751,6 +2751,53 @@ export async function uploadIssueAttachment(
 }
 
 /**
+ * Upload a comment attachment by committing it to the connected repo under
+ * `.kody/attachments/`, then handing back a markdown snippet to embed in the
+ * comment body.
+ *
+ * Why commit-to-repo: GitHub's public REST API has no attachment-upload
+ * endpoint (`uploadIssueAttachment` above is GHE-only). The web UI uploads to
+ * a private `user-attachments` host the API can't reach. Committing the file
+ * and embedding its URL is the only API-supported path.
+ *
+ * Caveat: `raw.githubusercontent.com` requires auth for private repos, so the
+ * inline image preview won't render for other viewers on a private repo — the
+ * link still resolves for anyone with repo access. Public repos render inline.
+ */
+export async function uploadCommentAttachment(
+  file: { name: string; contentBase64: string },
+  userOctokit?: Octokit,
+): Promise<{ url: string; name: string; isImage: boolean; markdown: string }> {
+  const octokit = userOctokit ?? getOctokit();
+  const owner = getOwner();
+  const repo = getRepo();
+  const branch = await getDefaultBranch();
+
+  // Sanitize: keep it filesystem/URL safe, cap length, always keep extension.
+  const cleaned = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-80);
+  const safeName = cleaned.replace(/^[-.]+/, "") || "file";
+  const path = `.kody/attachments/${globalThis.crypto.randomUUID()}-${safeName}`;
+
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path,
+    branch,
+    message: `chore(attachments): add ${safeName}`,
+    content: file.contentBase64,
+  });
+
+  const isImage = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(safeName);
+  const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+  const blobUrl = `https://github.com/${owner}/${repo}/blob/${branch}/${path}`;
+  const markdown = isImage
+    ? `![${safeName}](${rawUrl})`
+    : `[📎 ${safeName}](${blobUrl})`;
+
+  return { url: isImage ? rawUrl : blobUrl, name: safeName, isImage, markdown };
+}
+
+/**
  * Update an issue (close, reopen, change title/body)
  */
 export async function updateIssue(
