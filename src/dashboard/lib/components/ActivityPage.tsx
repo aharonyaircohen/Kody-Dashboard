@@ -13,7 +13,6 @@ import {
   Activity as ActivityIcon,
   AlertTriangle,
   CheckCircle2,
-  ClipboardList,
   ExternalLink,
   Loader2,
   RefreshCw,
@@ -452,7 +451,19 @@ export function ActivityPage() {
                   <StatusBadge run={r} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm truncate">{r.title}</div>
+                  <div className="text-sm truncate">
+                    {r.taskNumber != null ? (
+                      <a
+                        href={`/${r.taskNumber}`}
+                        title={`Open task #${r.taskNumber} in the dashboard`}
+                        className="hover:underline hover:text-white"
+                      >
+                        {r.title}
+                      </a>
+                    ) : (
+                      r.title
+                    )}
+                  </div>
                   <div className="text-[10px] text-white/40 truncate">
                     <span className="rounded bg-white/[0.06] px-1 py-0.5 text-white/55">
                       {ACTIVITY_CATEGORY_LABELS[r.category] ?? r.category}
@@ -477,15 +488,6 @@ export function ActivityPage() {
                 <div className="shrink-0 w-20 text-right text-[11px] text-white/40">
                   {relTime(r.createdAt)}
                 </div>
-                {r.taskNumber != null && (
-                  <a
-                    href={`/${r.taskNumber}`}
-                    title={`Open task #${r.taskNumber} in the dashboard`}
-                    className="shrink-0 p-1 rounded text-white/40 hover:text-white hover:bg-white/[0.06]"
-                  >
-                    <ClipboardList className="w-3.5 h-3.5" />
-                  </a>
-                )}
                 <a
                   href={r.htmlUrl}
                   target="_blank"
