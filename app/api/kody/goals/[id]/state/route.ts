@@ -23,6 +23,7 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
+import { logger } from "@dashboard/lib/logger";
 import {
   goalStatePath,
   type GoalRunState,
@@ -246,7 +247,34 @@ export async function PUT(
       ...(existing?.sha ? { sha: existing.sha } : {}),
     });
 
-    return NextResponse.json({ state: next }, { status: 200 });
+    // Starting a goal must take effect now, not on the next 15-min cron tick.
+    // Dispatch the engine workflow with no inputs — same shape as the cron
+    // trigger — so the engine runs its normal lifecycle scan, sees the goal
+    // is `active`, and picks it up within seconds. Non-fatal: the cron remains
+    // the backstop, so a missing `workflow` token scope can't break Start.
+    let engineDispatched = false;
+    if (next.state === "active") {
+      try {
+        await octokit.rest.actions.createWorkflowDispatch({
+          owner: headerAuth.owner,
+          repo: headerAuth.repo,
+          workflow_id: "kody.yml",
+          ref: "main",
+        });
+        engineDispatched = true;
+        logger.info(
+          { goalId: id, owner: headerAuth.owner, repo: headerAuth.repo },
+          "goals: engine dispatched on start",
+        );
+      } catch (dispatchErr) {
+        logger.warn(
+          { err: dispatchErr, goalId: id },
+          "goals: engine dispatch failed; cron will pick it up",
+        );
+      }
+    }
+
+    return NextResponse.json({ state: next, engineDispatched }, { status: 200 });
   } catch (err) {
     return mapGithubError(err, "failed_to_write_goal_state");
   } finally {
