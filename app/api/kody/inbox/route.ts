@@ -42,6 +42,7 @@ const entrySchema = z.object({
   url: z.string().url().max(1024),
   sentAt: z.string().min(1).max(40),
   readAt: z.string().nullable(),
+  ctoAction: z.string().max(40).optional(),
 }) satisfies z.ZodType<InboxEntry>;
 
 const appendSchema = z.object({

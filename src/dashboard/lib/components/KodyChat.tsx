@@ -56,6 +56,7 @@ export interface ChatModelEntry {
 function buildAgentList(
   brainConfigured: boolean,
   flyConfigured: boolean,
+  brainFlyChatEnabled: boolean,
   models: ChatModelEntry[],
 ): ChatDropdownEntry[] {
   const entries: ChatDropdownEntry[] = []
@@ -65,12 +66,14 @@ function buildAgentList(
   // derived from Settings → Fly Runner (Fly token present → kody-live-fly,
   // else kody-live). Keeping it out of the picker removes the confusion
   // between Brain (chat) and Live (action).
-  // Brain row: prefer Brain on Fly whenever the repo vault has a
-  // FLY_API_TOKEN (it self-provisions on first message — no Settings
-  // step); otherwise the manual Brain (URL+key via Settings or
+  // Brain row: offer Brain on Fly only when the repo has FLY_API_TOKEN
+  // *and* the per-repo `brainFlyChatEnabled` toggle is on (Settings →
+  // Brain on Fly, default off). Fly task *execution* is independent and
+  // still keys off FLY_API_TOKEN alone — this flag is chat-only.
+  // Otherwise fall back to the manual Brain (URL+key via Settings or
   // server-wide via BRAIN_CHAT_URL env). Same single-slot rule as Live
   // — surface one or the other, never both.
-  if (flyConfigured) {
+  if (flyConfigured && brainFlyChatEnabled) {
     const brainFly = AGENTS["brain-fly"];
     entries.push({
       key: "brain-fly",
@@ -814,6 +817,9 @@ export function KodyChat({
   // non-empty FLY_API_TOKEN. The Fly dropdown row is hidden until then so
   // users can't pick a runner that will fail at start-fly time.
   const [flyConfigured, setFlyConfigured] = useState(false);
+  // Per-repo opt-in for the "Kody Brain (Fly)" chat row (.kody/dashboard.json,
+  // default false). Chat-only — does NOT gate Fly task execution.
+  const [brainFlyChatEnabled, setBrainFlyChatEnabled] = useState(false);
   // User-managed chat models from /api/kody/models (LLM_MODELS variable).
   // Empty until first load completes; renders only Kody Live (+ Brain) in
   // the dropdown while empty.
@@ -836,7 +842,12 @@ export function KodyChat({
   // and the user has no recourse. Mirrors the Brain backend's pattern.
   const kodyAbortRef = useRef<AbortController | null>(null)
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY
-  const agentList = buildAgentList(brainConfigured, flyConfigured, chatModels)
+  const agentList = buildAgentList(
+    brainConfigured,
+    flyConfigured,
+    brainFlyChatEnabled,
+    chatModels,
+  )
   // Vibe auto-kickoff. When `vibe_start_execution` returns a
   // SwitchAgentDirective with `autoKickoff`, the dashboard records the
   // message + target issue number here so a useEffect can dispatch it
@@ -902,12 +913,27 @@ export function KodyChat({
     let cancelled = false;
     fetch("/api/kody/dashboard-config", { headers: authHeaders() })
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((json: { config?: { defaultChatEntryKey?: string } }) => {
-        if (cancelled) return;
-        setDefaultChatEntryKeyState(json.config?.defaultChatEntryKey ?? null);
-      })
+      .then(
+        (json: {
+          config?: {
+            defaultChatEntryKey?: string;
+            brainFlyChatEnabled?: boolean;
+          };
+        }) => {
+          if (cancelled) return;
+          setDefaultChatEntryKeyState(
+            json.config?.defaultChatEntryKey ?? null,
+          );
+          setBrainFlyChatEnabled(
+            json.config?.brainFlyChatEnabled === true,
+          );
+        },
+      )
       .catch(() => {
-        if (!cancelled) setDefaultChatEntryKeyState(null);
+        if (!cancelled) {
+          setDefaultChatEntryKeyState(null);
+          setBrainFlyChatEnabled(false);
+        }
       })
       .finally(() => {
         if (!cancelled) setDefaultChatEntryLoaded(true);
@@ -991,11 +1017,12 @@ export function KodyChat({
       return;
     }
     if (selectedAgentId === "brain" || selectedAgentId === "brain-fly") {
-      const brainTarget: AgentId | null = flyConfigured
-        ? "brain-fly"
-        : brainConfigured
-          ? "brain"
-          : null;
+      const brainTarget: AgentId | null =
+        flyConfigured && brainFlyChatEnabled
+          ? "brain-fly"
+          : brainConfigured
+            ? "brain"
+            : null;
       if (brainTarget === null) {
         setSelectedAgentId(liveTarget);
         setSelectedModelId(null);
@@ -1008,6 +1035,7 @@ export function KodyChat({
     }
   }, [
     flyConfigured,
+    brainFlyChatEnabled,
     brainConfigured,
     selectedAgentId,
     selectedModelId,

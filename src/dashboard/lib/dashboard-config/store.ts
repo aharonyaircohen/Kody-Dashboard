@@ -24,6 +24,12 @@ export interface DashboardConfig {
    * gateway model resolution) — this is purely the chat UI's starting pick.
    */
   defaultChatEntryKey?: string;
+  /**
+   * Whether the "Kody Brain (Fly)" row is offered in the chat picker.
+   * Per-repo, default `false` — Fly task *execution* is independent of
+   * this and stays driven solely by the repo's `FLY_API_TOKEN`.
+   */
+  brainFlyChatEnabled?: boolean;
 }
 
 interface CacheEntry {

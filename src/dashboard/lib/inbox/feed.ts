@@ -48,6 +48,8 @@ export interface InboxFeedEntry {
   url: string;
   /** ISO timestamp the webhook produced this entry. */
   sentAt: string;
+  /** CTO action verb parsed from the raw comment body (CTO recs only). */
+  ctoAction?: string;
 }
 
 export interface InboxFeedManifest {
