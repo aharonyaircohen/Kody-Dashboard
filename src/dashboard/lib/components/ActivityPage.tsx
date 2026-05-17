@@ -236,7 +236,11 @@ export function ActivityPage() {
                 ? "warn"
                 : "default"
           }
-          hint="runs created"
+          hint={
+            s?.noiseLast15m
+              ? `real runs · +${s.noiseLast15m} skipped/cancelled`
+              : "real runs created"
+          }
         />
         <StatCard
           label="Succeeded"

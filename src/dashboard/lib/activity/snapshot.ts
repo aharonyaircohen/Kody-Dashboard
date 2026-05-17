@@ -64,9 +64,22 @@ export function buildActivitySnapshot(
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
 
-  const queued = runs.filter((r) => r.status === "queued").length;
-  const inProgress = runs.filter((r) => r.status === "in_progress").length;
-  const completed = runs.filter((r) => r.status === "completed");
+  // `skipped`/`cancelled` runs are not real work: skipped = kody.yml
+  // re-triggering on its own progress comments and short-circuiting via a
+  // guard; cancelled = concurrency superseding. Counting them turns a
+  // normal burst into a false "trigger loop" alarm. Signals derive from
+  // real runs only — same stance matchWorkflowRunToTask already takes.
+  // They stay in `runs` so the operator can still see them.
+  const isNoise = (r: ActivityRun) =>
+    r.status === "completed" &&
+    (r.conclusion === "skipped" || r.conclusion === "cancelled");
+  const realRuns = runs.filter((r) => !isNoise(r));
+
+  const queued = realRuns.filter((r) => r.status === "queued").length;
+  const inProgress = realRuns.filter(
+    (r) => r.status === "in_progress",
+  ).length;
+  const completed = realRuns.filter((r) => r.status === "completed");
   const succeeded = completed.filter(
     (r) => r.conclusion === "success",
   ).length;
@@ -74,9 +87,12 @@ export function buildActivitySnapshot(
     (r) => r.conclusion === "failure" || r.conclusion === "timed_out",
   ).length;
 
-  const last15m = runs.filter(
-    (r) => now - new Date(r.createdAt).getTime() <= FIFTEEN_MIN_MS,
-  );
+  const within15m = (r: ActivityRun) =>
+    now - new Date(r.createdAt).getTime() <= FIFTEEN_MIN_MS;
+  const last15m = realRuns.filter(within15m);
+  const noiseLast15m = runs.filter(
+    (r) => isNoise(r) && within15m(r),
+  ).length;
   const byTrigger: Record<string, number> = {};
   const byCategory: Record<string, number> = {};
   const byAction: Record<string, number> = {};
@@ -94,6 +110,7 @@ export function buildActivitySnapshot(
     succeeded,
     failed,
     runsLast15m: last15m.length,
+    noiseLast15m,
     medianDurationSec: median(completed.map((r) => r.durationSec)),
     byTrigger,
     byCategory,

@@ -42,8 +42,10 @@ export interface ActivitySignals {
   completed: number;
   succeeded: number;
   failed: number;
-  /** Runs created in the last 15 minutes — a flood detector. */
+  /** Real runs created in the last 15 minutes — a flood detector. */
   runsLast15m: number;
+  /** Skipped/cancelled twins in the last 15m — shown, not alarmed on. */
+  noiseLast15m: number;
   /** Median completed-run duration (seconds), or null if none completed. */
   medianDurationSec: number | null;
   /**
