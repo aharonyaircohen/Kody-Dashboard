@@ -9,6 +9,7 @@
  *   30s off the shared cached workflow-run data.
  */
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Activity as ActivityIcon,
   AlertTriangle,
@@ -453,13 +454,13 @@ export function ActivityPage() {
                 <div className="flex-1 min-w-0">
                   <div className="text-sm truncate">
                     {r.taskNumber != null ? (
-                      <a
+                      <Link
                         href={`/${r.taskNumber}`}
                         title={`Open task #${r.taskNumber} in the dashboard`}
                         className="hover:underline hover:text-white"
                       >
                         {r.title}
-                      </a>
+                      </Link>
                     ) : (
                       r.title
                     )}
