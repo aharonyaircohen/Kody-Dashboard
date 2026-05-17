@@ -43,6 +43,8 @@ import {
   buildSyntheticInboxEntry,
   buildThreadShareLink,
   parseThreadParam,
+  serializeThreadParam,
+  type DeepLinkType,
 } from "../inbox/deep-link";
 
 type CtoVerdict = "approve" | "reject";
@@ -328,6 +330,15 @@ export function InboxList() {
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
+  // Reflect the opened thread in the URL so the address bar is the
+  // shareable link and Back/refresh restore the open item.
+  const syncDeepLink = (type: DeepLinkType, number: number) => {
+    const value = serializeThreadParam(type, number);
+    if (searchParams.get(INBOX_THREAD_PARAM) === value) return;
+    const next = new URLSearchParams(searchParams);
+    next.set(INBOX_THREAD_PARAM, value);
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  };
 
   useEffect(() => {
     if (!deepLink || !connectedRepo || activeEntry) return;
@@ -386,8 +397,10 @@ export function InboxList() {
   const openEntry = async (entry: InboxEntry) => {
     // Issues/PRs in the connected repo render inline; everything else
     // (discussions, commits, cross-repo) still opens github.com.
-    if (resolvableThread(entry, connectedRepo)) {
+    const target = resolvableThread(entry, connectedRepo);
+    if (target) {
       setActiveEntry(entry);
+      syncDeepLink(target.type, target.number);
     } else if (typeof window !== "undefined") {
       window.open(entry.url, "_blank", "noopener,noreferrer");
     }
