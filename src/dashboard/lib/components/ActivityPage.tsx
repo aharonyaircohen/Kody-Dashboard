@@ -26,6 +26,7 @@ import { useAuth } from "../auth-context";
 import { useActivity } from "../hooks/useActivity";
 import { cn } from "../utils";
 import type { ActivityRun } from "../activity/types";
+import { ACTIVITY_CATEGORY_LABELS } from "../activity/categorize";
 
 type RunFilter = "all" | "active" | "failed";
 
@@ -118,6 +119,7 @@ export function ActivityPage() {
   const [filter, setFilter] = useState<RunFilter>("all");
   const [query, setQuery] = useState("");
   const [trigger, setTrigger] = useState<string>("all");
+  const [category, setCategory] = useState<string>("all");
 
   const triggers = useMemo(() => {
     const set = new Set<string>();
@@ -138,6 +140,8 @@ export function ActivityPage() {
           (r.conclusion === "failure" || r.conclusion === "timed_out"),
       );
     if (trigger !== "all") all = all.filter((r) => r.trigger === trigger);
+    if (category !== "all")
+      all = all.filter((r) => r.category === category);
     const q = query.trim().toLowerCase();
     if (q)
       all = all.filter((r) =>
@@ -147,7 +151,7 @@ export function ActivityPage() {
           .includes(q),
       );
     return all;
-  }, [data, filter, trigger, query]);
+  }, [data, filter, trigger, category, query]);
 
   const s = data?.signals;
   const alert = data?.alert;
@@ -272,6 +276,28 @@ export function ActivityPage() {
         </div>
       )}
 
+      {s && Object.keys(s.byCategory).length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+          <span className="text-white/40">Activity (last 15 min):</span>
+          {Object.entries(s.byCategory)
+            .sort((a, b) => b[1] - a[1])
+            .map(([cat, n]) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCategory(cat)}
+                title={`Filter to ${cat}`}
+                className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 tabular-nums text-white/60 transition-colors hover:bg-white/[0.06]"
+              >
+                {ACTIVITY_CATEGORY_LABELS[
+                  cat as keyof typeof ACTIVITY_CATEGORY_LABELS
+                ] ?? cat}{" "}
+                · {n}
+              </button>
+            ))}
+        </div>
+      )}
+
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
           {(["all", "active", "failed"] as RunFilter[]).map((f) => (
@@ -315,12 +341,32 @@ export function ActivityPage() {
           ))}
         </select>
 
-        {(query || trigger !== "all" || filter !== "all") && (
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          aria-label="Filter by category"
+          className="rounded-md border border-white/[0.08] bg-white/[0.02] py-1 px-2 text-xs text-white/70 focus:border-white/20 focus:outline-none"
+        >
+          <option value="all" className="bg-neutral-900">
+            all categories
+          </option>
+          {Object.entries(ACTIVITY_CATEGORY_LABELS).map(([k, label]) => (
+            <option key={k} value={k} className="bg-neutral-900">
+              {label}
+            </option>
+          ))}
+        </select>
+
+        {(query ||
+          trigger !== "all" ||
+          category !== "all" ||
+          filter !== "all") && (
           <button
             type="button"
             onClick={() => {
               setQuery("");
               setTrigger("all");
+              setCategory("all");
               setFilter("all");
             }}
             className="text-[11px] text-white/40 hover:text-white"
@@ -357,7 +403,10 @@ export function ActivityPage() {
                 <div className="flex-1 min-w-0">
                   <div className="text-sm truncate">{r.title}</div>
                   <div className="text-[10px] text-white/40 truncate">
-                    <span className="text-white/55">{r.trigger}</span>
+                    <span className="rounded bg-white/[0.06] px-1 py-0.5 text-white/55">
+                      {ACTIVITY_CATEGORY_LABELS[r.category] ?? r.category}
+                    </span>{" "}
+                    <span className="text-white/45">{r.trigger}</span>
                     {r.runNumber != null && <> · #{r.runNumber}</>}
                     {r.actor && <> · @{r.actor}</>}
                     {r.branch && <> · {r.branch}</>}
