@@ -18,13 +18,20 @@
  */
 import type { InboxEntry } from "../inbox/types";
 
-/** Every action the CTO worker may emit (see cto.md "Restrictions"). */
+/**
+ * Every action the CTO worker may emit (see cto.md "Restrictions"), plus
+ * `other` — a catch-all for marker-bearing comments whose verb we can't
+ * parse (legacy / free-form recs). `other` is non-dispatchable and lives in
+ * its own ledger bucket, so an unparsed rec stays visible (Reject + GitHub
+ * link) without ever rerouting to `@kody` or polluting `execute` trust.
+ */
 export const CTO_ACTIONS = [
   "execute",
   "fix",
   "qa-review",
   "approve",
   "comment",
+  "other",
 ] as const;
 export type CtoAction = (typeof CTO_ACTIONS)[number];
 
@@ -61,8 +68,16 @@ function issueNumberFromUrl(url: string): number | null {
  * substring never wins. Returns null when no known verb is present — we
  * fail closed rather than assume `execute` (the old bug).
  */
+const PARSEABLE: CtoAction[] = [
+  "qa-review",
+  "execute",
+  "fix",
+  "approve",
+  "comment",
+];
+
 function parseAction(haystack: string): CtoAction | null {
-  for (const a of CTO_ACTIONS) {
+  for (const a of PARSEABLE) {
     if (new RegExp(`\\b${a.replace("-", "[- ]?")}\\b`, "i").test(haystack)) {
       return a;
     }
@@ -80,8 +95,10 @@ export function detectCtoRecommendation(
   const taskNumber = issueNumberFromUrl(entry.url);
   if (taskNumber === null) return null;
 
-  const action = parseAction(haystack);
-  if (action === null) return null;
+  // Marker present but verb unparseable → keep the rec visible as `other`
+  // (non-dispatchable). Never return null here: that's what made legacy
+  // recs lose their Approve/Reject row.
+  const action = parseAction(haystack) ?? "other";
 
   return { taskNumber, action, dispatchable: isDispatchable(action) };
 }
