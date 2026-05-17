@@ -115,8 +115,11 @@ This is a per-task state machine. The task's stage lives in
      this in the dashboard.
 
 Once a task is `fix-recommended` or `approve-recommended`, take no
-further action on it unless its fingerprint changes (status moved, new
-QA result) — then re-enter the flow from the relevant step.
+further action on it unless the **stage** portion of its fingerprint
+advances (e.g. a QA result changes the stage, or a linked PR state
+transitions). A label-only change (e.g. `dismissed` label added by the
+operator) updates `fp` and `lastRecFp` in state but does **not** trigger
+a new recommendation — see `lastRecFp` in State.
 
 ### Recommendation comment format
 
@@ -185,10 +188,22 @@ _Confirm or dismiss this in the dashboard inbox. The CTO will not act on its own
 
 - `tasks` (object) — keyed by issue number. Each value:
   - `fp` (string) — fingerprint = `"<status-label>|<stage>"`. The
-    dedup key: only post a new recommendation when `fp` changes.
+    dedup key: updated every tick, compared against `lastRecFp` to
+    decide whether to re-post.
   - `stage` (string) — one of: `backlog-flagged`,
     `execute-recommended`, `auto-executed`, `needs-qa`, `qa-requested`,
     `fix-recommended`, `approve-recommended`, `dismissed`.
+  - `lastRecFp` (string) — fingerprint when the last recommendation
+    was posted (or `null` if never acted on). Used to distinguish a
+    meaningful stage change from a label-only change (e.g. operator
+    dismissed). Only post a new recommendation when the **stage**
+    portion of `fp` has advanced, or when `fp` differs from `lastRecFp`
+    and the task is in a stage where no recommendation has ever been
+    acted on. If `fp` changed but the stage stayed in
+    `execute-recommended` / `fix-recommended` / `approve-recommended`
+    (label-only mutation such as a `dismissed` label), treat as
+    dismissal: update `fp` and `lastRecFp` to new `fp` but **do not**
+    post a new recommendation.
   - `lastRecAt` (ISO string) — when the last recommendation was posted.
     Diagnostic only.
 - Prune entries for issues no longer in the open list so `data` does
