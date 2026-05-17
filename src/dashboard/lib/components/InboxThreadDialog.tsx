@@ -10,7 +10,7 @@
  *   Issue/PullRequest are resolvable inline; other thread types never open
  *   this dialog (InboxList opens github.com directly for them).
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ExternalLink, Link2, Loader2 } from "lucide-react";
 
@@ -70,9 +70,19 @@ export function resolvableThread(
 interface InboxThreadDialogProps {
   entry: InboxEntry | null;
   onClose: () => void;
+  /**
+   * Optional sticky footer (e.g. CTO Approve/Reject for a recommendation
+   * entry). The dialog stays presentation-only — the caller owns the
+   * action logic and just hands us the rendered controls.
+   */
+  footer?: ReactNode;
 }
 
-export function InboxThreadDialog({ entry, onClose }: InboxThreadDialogProps) {
+export function InboxThreadDialog({
+  entry,
+  onClose,
+  footer,
+}: InboxThreadDialogProps) {
   const { auth } = useAuth();
   const target = entry
     ? resolvableThread(entry, auth ? `${auth.owner}/${auth.repo}` : undefined)
@@ -215,6 +225,12 @@ export function InboxThreadDialog({ entry, onClose }: InboxThreadDialogProps) {
             </>
           )}
         </div>
+
+        {footer && (
+          <div className="border-t border-white/10 pt-3 mt-1 flex items-center justify-end gap-2">
+            {footer}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

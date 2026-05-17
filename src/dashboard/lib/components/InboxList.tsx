@@ -18,6 +18,7 @@ import {
   CheckCheck,
   ExternalLink,
   Inbox as InboxIcon,
+  Link2,
   Loader2,
   RefreshCw,
   Trash2,
@@ -40,6 +41,7 @@ import type { InboxEntry, InboxSource } from "../inbox/types";
 import {
   INBOX_THREAD_PARAM,
   buildSyntheticInboxEntry,
+  buildThreadShareLink,
   parseThreadParam,
 } from "../inbox/deep-link";
 
@@ -72,6 +74,7 @@ function relativeTime(iso: string): string {
 
 interface RowProps {
   entry: InboxEntry;
+  connectedRepo: string | undefined;
   onOpen: () => void;
   onToggleRead: () => void;
   onDelete: () => void;
@@ -81,6 +84,7 @@ interface RowProps {
 
 function Row({
   entry,
+  connectedRepo,
   onOpen,
   onToggleRead,
   onDelete,
@@ -88,6 +92,30 @@ function Row({
   verdictFor,
 }: RowProps) {
   const unread = entry.readAt === null;
+  const [copied, setCopied] = useState(false);
+
+  // Shareable link for this row: the in-dashboard deep link when the thread
+  // can render inline (Issue/PR/Discussion in the connected repo), else the
+  // GitHub URL — same predicate the inline dialog uses, so the share link
+  // always matches what clicking the row does.
+  const shareTarget = resolvableThread(entry, connectedRepo);
+  const copyLink = async () => {
+    if (typeof window === "undefined") return;
+    const link = shareTarget
+      ? buildThreadShareLink(
+          window.location.origin,
+          shareTarget.type,
+          shareTarget.number,
+        )
+      : entry.url;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      window.prompt("Copy this link", link);
+    }
+  };
   const author = entry.author ? `@${entry.author}` : "Someone";
   const label = SOURCE_LABEL[entry.source];
   const cto = detectCtoRecommendation(entry);
@@ -148,6 +176,22 @@ function Row({
           </div>
         </button>
         <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            type="button"
+            onClick={copyLink}
+            title={
+              shareTarget
+                ? "Copy a shareable dashboard link to this thread"
+                : "Copy the GitHub link to this thread"
+            }
+            className="p-1 rounded text-white/50 hover:text-white hover:bg-white/[0.06]"
+          >
+            {copied ? (
+              <Check className="w-3.5 h-3.5 text-emerald-300" />
+            ) : (
+              <Link2 className="w-3.5 h-3.5" />
+            )}
+          </button>
           <a
             href={entry.url}
             target="_blank"
@@ -427,6 +471,7 @@ export function InboxList() {
             : "Nothing unread. New @mentions land here automatically."
         }
         entries={unread}
+        connectedRepo={connectedRepo}
         busyId={busyId}
         onOpen={openEntry}
         onToggleRead={(id) => void markUnread(id)}
@@ -442,6 +487,7 @@ export function InboxList() {
             title={`Read (${read.length})`}
             empty=""
             entries={read}
+            connectedRepo={connectedRepo}
             busyId={busyId}
             onOpen={openEntry}
             onToggleRead={(id) => void markUnread(id)}
@@ -465,8 +511,122 @@ export function InboxList() {
           setActiveEntry(null);
           clearDeepLink();
         }}
+        footer={(() => {
+          if (!activeEntry) return undefined;
+          const rec = detectCtoRecommendation(activeEntry);
+          if (!rec) return undefined;
+          return (
+            <CtoDialogActions
+              action={rec.action}
+              dispatchable={rec.dispatchable}
+              verdict={verdictFor(rec.taskNumber, rec.action)}
+              githubUrl={activeEntry.url}
+              onDecide={(v) => handleCtoDecision(activeEntry, v)}
+            />
+          );
+        })()}
       />
     </PageShell>
+  );
+}
+
+/**
+ * CTO Approve/Reject controls rendered into the thread dialog footer when
+ * the opened entry is a recommendation. Mirrors the in-row CTO buttons —
+ * same verdicts, same trust ledger — but lives at the bottom of the open
+ * item so the operator can decide after reading the full thread.
+ */
+function CtoDialogActions({
+  action,
+  dispatchable,
+  verdict,
+  githubUrl,
+  onDecide,
+}: {
+  action: string;
+  dispatchable: boolean;
+  verdict: CtoVerdict | null;
+  githubUrl: string;
+  onDecide: (verdict: CtoVerdict) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState<CtoVerdict | null>(null);
+  const decide = async (v: CtoVerdict) => {
+    setBusy(v);
+    try {
+      await onDecide(v);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <>
+      <span className="mr-auto text-[10px] uppercase tracking-wider text-amber-300/70">
+        CTO · {action === "other" ? "review" : action}
+      </span>
+      {verdict ? (
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium",
+            verdict === "approve"
+              ? "border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200"
+              : "border-rose-500/30 bg-rose-500/[0.06] text-rose-200",
+          )}
+          title="This recommendation was already decided"
+        >
+          {verdict === "approve" ? (
+            <Check className="w-3.5 h-3.5" />
+          ) : (
+            <X className="w-3.5 h-3.5" />
+          )}
+          {verdict === "approve" ? "Approved" : "Rejected"}
+        </span>
+      ) : (
+        <>
+          {dispatchable ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy !== null}
+              onClick={() => void decide("approve")}
+              className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
+            >
+              {busy === "approve" ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Check className="w-3.5 h-3.5" />
+              )}
+              Approve
+            </Button>
+          ) : (
+            <a
+              href={githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`'${action}' has no dashboard action — the CTO is advising; act on it in GitHub`}
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-white/15 bg-white/[0.04] px-2 text-[11px] font-medium text-white/70 hover:bg-white/[0.08]"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Review on GitHub
+            </a>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy !== null}
+            onClick={() => void decide("reject")}
+            className="h-7 gap-1 border border-rose-500/30 bg-rose-500/[0.06] text-rose-200 hover:bg-rose-500/15"
+          >
+            {busy === "reject" ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <X className="w-3.5 h-3.5" />
+            )}
+            Reject
+          </Button>
+        </>
+      )}
+    </>
   );
 }
 
@@ -474,6 +634,7 @@ interface SectionProps {
   title: string;
   empty: string;
   entries: InboxEntry[];
+  connectedRepo: string | undefined;
   busyId: string | null;
   onOpen: (entry: InboxEntry) => void;
   onToggleRead: (id: string) => void;
@@ -487,6 +648,7 @@ function Section({
   title,
   empty,
   entries,
+  connectedRepo,
   busyId,
   onOpen,
   onToggleRead,
@@ -510,6 +672,7 @@ function Section({
             <Row
               key={e.id}
               entry={e}
+              connectedRepo={connectedRepo}
               onOpen={() => onOpen(e)}
               onToggleRead={() => onToggleRead(e.id)}
               onDelete={() => onDelete(e.id)}
