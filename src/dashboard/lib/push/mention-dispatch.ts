@@ -25,6 +25,7 @@ import { appendInboxFeed } from "../inbox/feed-server";
 import { feedEntryId, type InboxFeedEntry } from "../inbox/feed";
 import { buildSnippet } from "../inbox/types";
 import { logger } from "../logger";
+import { dashboardThreadUrl } from "../thread-link";
 import { deriveVapidKeys } from "./vapid-keys";
 
 // GitHub login: 1–39 chars, alphanumeric or single hyphens, not starting/
@@ -259,10 +260,18 @@ function buildPayload(
     .trim()
     .slice(0, 180);
 
+  // Open the notification inside Kody (dashboard task view) for Issue
+  // threads; PRs/discussions/commits have no dashboard deep route, so
+  // those still open github.com (with their comment anchor intact).
+  const clickUrl = dashboardThreadUrl({
+    githubUrl: ev.url,
+    threadType: ev.threadType,
+  });
+
   return JSON.stringify({
     title: `${who} mentioned you${where}`,
     body: snippet || `${ev.repoFullName} — ${kind}`,
-    url: ev.url,
+    url: clickUrl,
     tag: `mention:${mention}:${ev.url ?? ev.repoFullName}`,
   });
 }
