@@ -38,7 +38,6 @@ import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@dashboard/lib/logger";
 import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
-import { maybeDispatchUiReview } from "@dashboard/lib/ui-verify/dispatch";
 import { applyVerdictFromComment } from "@dashboard/lib/ui-verify/apply-label";
 import {
   handlePrMerged,
@@ -84,25 +83,6 @@ interface ReleasePayload {
   action?: string;
   release?: { tag_name?: string };
 }
-interface CheckRunPayload {
-  action?: string;
-  check_run?: {
-    name?: string;
-    conclusion?: string;
-    pull_requests?: Array<{ number?: number }>;
-  };
-}
-
-/**
- * Vercel's GitHub integration creates check runs whose name starts with
- * "Vercel" (e.g. "Vercel", "Vercel – my-project"). Matched case-insensitively
- * to be resilient to integration variations.
- */
-function isVercelCheck(name: string | undefined): boolean {
-  if (!name) return false;
-  return name.trim().toLowerCase().startsWith("vercel");
-}
-
 /**
  * Best-effort side effect: never block the webhook response on it, and never
  * let a rejection crash the receiver. Errors are logged inside each handler.
@@ -203,28 +183,17 @@ function dispatch(
     case "check_run": {
       invalidateWorkflowCache();
 
-      // ui-verify side-effect: when Vercel's preview-deployment check
-      // completes successfully on a PR, auto-dispatch `@kody ui-review`.
-      // `maybeDispatchUiReview` is idempotent — it short-circuits if the
-      // PR already has a UI-verify guard label.
-      const p = payload as CheckRunPayload;
-      const cr = p?.check_run;
-      if (
-        p?.action === "completed" &&
-        cr?.conclusion === "success" &&
-        isVercelCheck(cr.name) &&
-        Array.isArray(cr.pull_requests) &&
-        cr.pull_requests.length > 0
-      ) {
-        for (const pr of cr.pull_requests) {
-          if (typeof pr.number === "number") {
-            fireAndForget(
-              maybeDispatchUiReview(pr.number),
-              `maybeDispatchUiReview#${pr.number}`,
-            );
-          }
-        }
-      }
+      // ui-verify auto-dispatch is DISABLED. Previously, every successful
+      // Vercel preview check auto-posted `@kody ui-review`. With auto-sync
+      // re-pushing ~30 open PRs every cycle, each rebuild produced a fresh
+      // preview-ready check, so this re-fired endlessly (984 comments
+      // observed) and jammed the engine's Actions queue. The per-PR guard
+      // label didn't hold because the SHA changes on every sync.
+      //
+      // UI review is now opt-in only: the explicit "Request UI review"
+      // button in PreviewActions still posts `@kody ui-review` on demand.
+      // Re-enabling auto-dispatch requires SHA/preview-URL-keyed dedup so
+      // a rebuild of the same PR can't re-trigger it.
 
       return { handled: true, detail: event };
     }
