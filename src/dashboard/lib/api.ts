@@ -1508,13 +1508,15 @@ export const vibeApi = {
 
 /**
  * One-tap operator verdict on a CTO recommendation surfaced in the inbox.
- * `approve` runs the recommended action (Phase 1: `execute`); both verdicts
- * are tallied in the `kody:cto-decisions` ledger that drives graduation.
+ * `approve` runs the recommended action for dispatchable verbs
+ * (`execute`/`fix`); non-dispatchable verbs are recorded only. Both
+ * verdicts are tallied in the `kody:cto-decisions` ledger that drives
+ * graduation.
  */
 export const ctoApi = {
   decide: async (input: {
     taskNumber: number;
-    action?: "execute";
+    action?: import("./cto/recommendation").CtoAction;
     decision: "approve" | "reject";
     actorLogin?: string;
   }): Promise<{

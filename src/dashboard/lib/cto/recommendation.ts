@@ -3,21 +3,46 @@
  * @domain kody
  * @pattern cto-recommendation-detect
  * @ai-summary Pure detector: given an inbox entry, decide whether it is a
- *   CTO recommendation and, if so, extract the task number + action so the
- *   inbox can render one-tap Approve/Reject. The CTO worker leads every
- *   recommendation comment with `🧭 **CTO recommendation** — \`<action>\``
- *   (see .kody/workers/cto.md); the inbox snippet has code fences stripped,
- *   so we match on the prose marker, not the backticks.
+ *   CTO recommendation and, if so, extract the task number + the *actual*
+ *   action the CTO named. The CTO worker leads every recommendation comment
+ *   with `🧭 **CTO recommendation** — \`<action>\`` (see .kody/workers/cto.md);
+ *   the inbox snippet has code fences stripped, so we match the prose marker
+ *   and read the verb that follows it — never defaulting to `execute`.
+ *
+ *   Only `execute`/`fix` are *dispatchable* from the dashboard: both resolve
+ *   to the engine's single write path (an `@kody` comment on the task — for
+ *   `fix` the QA-failure comment is already in-thread, so re-dispatching is
+ *   the fix). `qa-review`/`approve`/`comment` have no dashboard executor
+ *   (per cto.md, approve is a human merge gate) — they surface read-only so
+ *   approving can never silently post the wrong command.
  */
 import type { InboxEntry } from "../inbox/types";
 
-/** Actions the inbox can act on in Phase 1. */
-const ACTIONABLE = ["execute"] as const;
-export type CtoActionable = (typeof ACTIONABLE)[number];
+/** Every action the CTO worker may emit (see cto.md "Restrictions"). */
+export const CTO_ACTIONS = [
+  "execute",
+  "fix",
+  "qa-review",
+  "approve",
+  "comment",
+] as const;
+export type CtoAction = (typeof CTO_ACTIONS)[number];
+
+/** Back-compat alias — callers that only cared about the type name. */
+export type CtoActionable = CtoAction;
+
+/** Actions the dashboard can run via the engine's `@kody` dispatch path. */
+const DISPATCHABLE = new Set<CtoAction>(["execute", "fix"]);
+
+export function isDispatchable(action: CtoAction): boolean {
+  return DISPATCHABLE.has(action);
+}
 
 export interface CtoRecommendation {
   taskNumber: number;
-  action: CtoActionable;
+  action: CtoAction;
+  /** True when Approve can actually run the action from the dashboard. */
+  dispatchable: boolean;
 }
 
 const MARKER = /CTO recommendation/i;
@@ -30,6 +55,21 @@ function issueNumberFromUrl(url: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+/**
+ * Read the action the CTO named on the marker line. We scan for the longest
+ * matching verb first (`qa-review` before `review`-free tokens) so a
+ * substring never wins. Returns null when no known verb is present — we
+ * fail closed rather than assume `execute` (the old bug).
+ */
+function parseAction(haystack: string): CtoAction | null {
+  for (const a of CTO_ACTIONS) {
+    if (new RegExp(`\\b${a.replace("-", "[- ]?")}\\b`, "i").test(haystack)) {
+      return a;
+    }
+  }
+  return null;
+}
+
 export function detectCtoRecommendation(
   entry: InboxEntry,
 ): CtoRecommendation | null {
@@ -40,12 +80,8 @@ export function detectCtoRecommendation(
   const taskNumber = issueNumberFromUrl(entry.url);
   if (taskNumber === null) return null;
 
-  // Phase 1 only acts on `execute`. If the snippet names another verb we
-  // still recognise it as a CTO rec but expose only the supported action;
-  // unknown/other actions fall back to `execute` (the default rec).
-  const action: CtoActionable =
-    ACTIONABLE.find((a) => new RegExp(`\\b${a}\\b`, "i").test(haystack)) ??
-    "execute";
+  const action = parseAction(haystack);
+  if (action === null) return null;
 
-  return { taskNumber, action };
+  return { taskNumber, action, dispatchable: isDispatchable(action) };
 }

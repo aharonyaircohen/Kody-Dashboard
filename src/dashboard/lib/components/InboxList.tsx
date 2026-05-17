@@ -30,7 +30,10 @@ import { useAuth } from "../auth-context";
 import { useInbox } from "../inbox/useInbox";
 import { cn } from "../utils";
 import { kodyApi } from "../api";
-import { detectCtoRecommendation } from "../cto/recommendation";
+import {
+  detectCtoRecommendation,
+  type CtoAction,
+} from "../cto/recommendation";
 import { useCtoDecisions } from "../cto/useCtoDecisions";
 import type { InboxEntry, InboxSource } from "../inbox/types";
 
@@ -67,7 +70,7 @@ interface RowProps {
   onToggleRead: () => void;
   onDelete: () => void;
   onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
-  verdictFor: (taskNumber: number, action: "execute") => CtoVerdict | null;
+  verdictFor: (taskNumber: number, action: CtoAction) => CtoVerdict | null;
 }
 
 function Row({
@@ -190,20 +193,33 @@ function Row({
             </span>
           ) : (
             <>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={ctoBusy !== null}
-                onClick={() => void decide("approve")}
-                className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
-              >
-                {ctoBusy === "approve" ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Check className="w-3.5 h-3.5" />
-                )}
-                Approve
-              </Button>
+              {cto.dispatchable ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={ctoBusy !== null}
+                  onClick={() => void decide("approve")}
+                  className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
+                >
+                  {ctoBusy === "approve" ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  Approve
+                </Button>
+              ) : (
+                <a
+                  href={entry.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`'${cto.action}' has no dashboard action — the CTO is advising; act on it in GitHub`}
+                  className="inline-flex h-7 items-center gap-1 rounded-md border border-white/15 bg-white/[0.04] px-2 text-[11px] font-medium text-white/70 hover:bg-white/[0.08]"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Review on GitHub
+                </a>
+              )}
               <Button
                 size="sm"
                 variant="ghost"
@@ -267,7 +283,11 @@ export function InboxList() {
         ...(auth?.user?.login ? { actorLogin: auth.user.login } : {}),
       });
       if (verdict === "approve") {
-        toast.success(`Approved — ${rec.action} dispatched on #${rec.taskNumber}`, {
+        toast.success(
+          res.executed
+            ? `Approved — ${rec.action} dispatched on #${rec.taskNumber}`
+            : `Recorded — ${rec.action} on #${rec.taskNumber} (no dashboard action; act on GitHub)`,
+          {
           description: res.stats
             ? `${res.stats.consecutiveApprovals} in a row · ${res.stats.approvals}✓ / ${res.stats.rejections}✗`
             : undefined,
@@ -423,7 +443,7 @@ interface SectionProps {
   onToggleRead: (id: string) => void;
   onDelete: (id: string) => void;
   onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
-  verdictFor: (taskNumber: number, action: "execute") => CtoVerdict | null;
+  verdictFor: (taskNumber: number, action: CtoAction) => CtoVerdict | null;
   readSection: boolean;
 }
 

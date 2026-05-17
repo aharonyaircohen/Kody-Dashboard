@@ -5,10 +5,13 @@
  * @ai-summary POST /api/kody/cto/decision — the operator's one-tap verdict
  *   on a CTO recommendation surfaced in the inbox.
  *
- *   `approve` → triggers the recommended action (Phase 1: only `execute`,
- *   which posts `@kody` on the task issue — the exact same path as the
- *   Tasks "execute" action, via the shared `postWithFallback` helper) and
- *   records the approval in the `kody:cto-decisions` ledger.
+ *   `approve` → triggers the recommended action for *dispatchable* verbs
+ *   (`execute`/`fix`, which post `@kody` on the task issue — the engine's
+ *   single write path, via the shared `postWithFallback` helper). For
+ *   non-dispatchable verbs (`qa-review`/`approve`/`comment`) there is no
+ *   dashboard executor, so approve only records the verdict — it never
+ *   silently reroutes to `@kody`. Either way the verdict lands in the
+ *   `kody:cto-decisions` ledger.
  *
  *   `reject` → records the rejection only (and resets that action's
  *   consecutive-approval streak, so a single "no" blocks graduation).
@@ -36,14 +39,11 @@ import {
   readCtoDecisions,
 } from "@dashboard/lib/cto/decisions-server";
 import { applyDecision, latestCtoDecisions } from "@dashboard/lib/cto/decisions";
-
-// Phase 1 only graduates `execute`. Other actions can be approved/rejected
-// (recorded) but the closed set guards against typo'd or unsupported verbs.
-const SUPPORTED_ACTIONS = ["execute", "qa-review"] as const;
+import { CTO_ACTIONS, isDispatchable } from "@dashboard/lib/cto/recommendation";
 
 const bodySchema = z.object({
   taskNumber: z.number().int().positive(),
-  action: z.enum(SUPPORTED_ACTIONS).default("execute"),
+  action: z.enum(CTO_ACTIONS).default("execute"),
   decision: z.enum(["approve", "reject"]),
   actorLogin: z.string().optional(),
 });
@@ -84,15 +84,17 @@ export async function POST(req: NextRequest) {
     // Approve → run the recommended action before recording, so a failed
     // dispatch doesn't get logged as a trusted approval.
     let executed = false;
-    if (decision === "approve") {
-      if (action === "execute") {
-        await postWithFallback(taskNumber, "@kody", actorLogin, userOctokit);
-        executed = true;
-        // The task issue just got a comment, and the task list view may
-        // change — invalidate both per CLAUDE.md rate-limit rule 5.
-        invalidateIssueCache(taskNumber);
-        invalidateTaskCache();
-      }
+    if (decision === "approve" && isDispatchable(action)) {
+      // `execute` and `fix` both resolve to the engine's single write path:
+      // an `@kody` comment on the task. For `fix` the QA-failure comment is
+      // already in-thread, so re-dispatching IS the fix. Non-dispatchable
+      // verbs fall through here and are recorded only — never rerouted.
+      await postWithFallback(taskNumber, "@kody", actorLogin, userOctokit);
+      executed = true;
+      // The task issue just got a comment, and the task list view may
+      // change — invalidate both per CLAUDE.md rate-limit rule 5.
+      invalidateIssueCache(taskNumber);
+      invalidateTaskCache();
     }
 
     const { manifest } = await mutateCtoDecisions(
