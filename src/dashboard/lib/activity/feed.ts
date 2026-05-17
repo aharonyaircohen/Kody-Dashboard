@@ -39,10 +39,20 @@ export interface FeedEvent {
 export interface FeedSession {
   sessionId: string;
   origin: FeedOrigin;
+  /**
+   * Human title — what this session was about. Derived from the agent's
+   * first task restatement (chat.thinking) or first reply, never the raw
+   * session id.
+   */
+  title: string;
+  /** Longer context line (the agent's first substantive reply), or null. */
+  description: string | null;
+  /** Target repo `owner/name`, parsed from the run URL, or null. */
+  repo: string | null;
   /** Issue number for vibe sessions (`vibe-1587-…`), else null. */
   issueNumber: number | null;
   runId: string | null;
-  /** Deep-link to the GitHub Actions run, from the chat.ready event. */
+  /** Deep-link to the GitHub Actions run (the executor), from chat.ready. */
   runUrl: string | null;
   startedAt: string | null;
   endedAt: string | null;
@@ -189,12 +199,42 @@ function buildSession(
   const lastEventAt =
     chrono[chrono.length - 1]?.emittedAt ?? startedAt ?? "";
 
+  const runUrl = str(ready.runUrl);
+  // https://github.com/OWNER/REPO/actions/runs/ID → "OWNER/REPO"
+  const repo = runUrl?.match(/github\.com\/([^/]+\/[^/]+)\//)?.[1] ?? null;
+
+  // User prompts aren't logged — the agent's first task restatement
+  // (chat.thinking) is the truest "what was this about". Fall back to its
+  // first substantive reply, then to the issue, then a generic label.
+  const firstThinking = str(
+    chrono.find((e) => e.event === "chat.thinking")?.payload.text,
+  );
+  const firstAssistant = str(
+    chrono.find(
+      (e) =>
+        e.event === "chat.message" && str(e.payload.role) === "assistant",
+    )?.payload.content,
+  );
+  const title = truncate(
+    firstThinking ??
+      firstAssistant ??
+      (issueNumber != null ? `Issue #${issueNumber}` : `${origin} session`),
+    140,
+  );
+  // Only show a description when it adds something beyond the title.
+  const descSrc = firstThinking ? firstAssistant : null;
+  const description =
+    descSrc && descSrc !== title ? truncate(descSrc, 240) : null;
+
   return {
     sessionId,
     origin,
+    title,
+    description,
+    repo,
     issueNumber,
     runId: str(ready.runId),
-    runUrl: str(ready.runUrl),
+    runUrl,
     startedAt,
     endedAt,
     lastEventAt,

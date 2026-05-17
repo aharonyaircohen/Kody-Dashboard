@@ -50,6 +50,48 @@ describe("buildFeedSnapshot", () => {
     expect(s.eventCount).toBe(2);
     // raw payload preserved for the expand/copy UI
     expect(s.events[1].payload.content).toBe("hi");
+    // target repo parsed from the run URL
+    expect(s.repo).toBe("o/r");
+  });
+
+  it("titles a session from the agent's first thinking, then reply", () => {
+    // feed-source ids events `${sessionId}:${idx}`; chat.thinking lines
+    // carry no sessionId in payload, so grouping recovers the id prefix.
+    const [s] = buildFeedSnapshot([
+      entry({
+        id: "vibe-1587-z:0",
+        event: "chat.ready",
+        payload: { sessionId: "vibe-1587-z" },
+        emittedAt: "2026-05-17T10:00:00Z",
+      }),
+      entry({
+        id: "vibe-1587-z:1",
+        event: "chat.thinking",
+        payload: { text: "The user wants to follow up on issue #1587." },
+        emittedAt: "2026-05-17T10:00:01Z",
+      }),
+      entry({
+        id: "vibe-1587-z:2",
+        event: "chat.message",
+        payload: { role: "assistant", content: "Here is the status…" },
+        emittedAt: "2026-05-17T10:00:02Z",
+      }),
+    ]).sessions;
+    expect(s.title).toBe("The user wants to follow up on issue #1587.");
+    expect(s.description).toBe("Here is the status…");
+    expect(s.issueNumber).toBe(1587);
+  });
+
+  it("falls back to a generic title when there is no agent text", () => {
+    const [s] = buildFeedSnapshot([
+      entry({
+        id: "live-abc:0",
+        event: "chat.ready",
+        payload: { sessionId: "live-abc" },
+      }),
+    ]).sessions;
+    expect(s.title).toBe("live session");
+    expect(s.description).toBeNull();
   });
 
   it("parses origin + issue number from the sessionId", () => {

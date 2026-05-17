@@ -280,47 +280,58 @@ function SessionCard({ s }: { s: FeedSession }) {
           {s.origin}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm truncate">
-            {s.issueNumber != null ? (
+          <div className="text-sm text-white/90 line-clamp-2">{s.title}</div>
+          {s.description && (
+            <div className="mt-0.5 text-[11px] text-white/45 line-clamp-2">
+              {s.description}
+            </div>
+          )}
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-white/40">
+            <StatusPill s={s.status} />
+            {s.startedAt && (
+              <span
+                className="tabular-nums text-white/55"
+                title={`started ${fmtExactTime(s.startedAt)}`}
+              >
+                {fmtExactTime(s.startedAt)}
+              </span>
+            )}
+            {s.issueNumber != null && (
               <Link
                 href={`/${s.issueNumber}`}
                 onClick={(e) => e.stopPropagation()}
-                className="hover:underline hover:text-white"
-                title={`Open task #${s.issueNumber}`}
+                className="text-sky-300/80 hover:underline hover:text-sky-200"
+                title={`Open task #${s.issueNumber} in the dashboard`}
               >
-                #{s.issueNumber}
+                issue #{s.issueNumber}
               </Link>
-            ) : null}{" "}
-            <span className="font-mono text-white/70">{s.sessionId}</span>
-          </div>
-          <div className="text-[10px] text-white/40 truncate">
-            <StatusPill s={s.status} />
-            {s.initiator && <> · by {s.initiator}</>}
-            {s.turns != null && <> · {s.turns} turn(s)</>}
-            {s.exitReason && <> · {s.exitReason}</>}
-            {" · "}
-            {s.eventCount} event(s)
+            )}
+            {s.repo && <span>target {s.repo}</span>}
+            {s.runUrl && (
+              <a
+                href={s.runUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title="Open the GitHub Actions run that executed this session"
+                className="inline-flex items-center gap-1 hover:text-white"
+              >
+                executor: run {s.runId ?? ""}
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+            {s.initiator && <span>by {s.initiator}</span>}
+            {s.turns != null && <span>{s.turns} turn(s)</span>}
+            {s.exitReason && <span>{s.exitReason}</span>}
+            <span>{s.eventCount} event(s)</span>
+            <span className="font-mono text-white/30">{s.sessionId}</span>
           </div>
         </div>
-        <div className="shrink-0 text-right">
-          <div
-            className="text-[11px] text-white/45 tabular-nums"
-            title={s.startedAt ? fmtExactTime(s.startedAt) : ""}
-          >
-            {s.startedAt ? relTime(s.startedAt) : "—"}
-          </div>
-          {s.runUrl && (
-            <a
-              href={s.runUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              title="Open the GitHub Actions run"
-              className="inline-flex items-center gap-1 text-[10px] text-white/40 hover:text-white"
-            >
-              run <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
+        <div
+          className="shrink-0 text-right text-[11px] text-white/40 tabular-nums"
+          title={s.startedAt ? fmtExactTime(s.startedAt) : ""}
+        >
+          {s.startedAt ? relTime(s.startedAt) : "—"}
         </div>
       </button>
       {open && (
@@ -353,8 +364,11 @@ function FeedView({ active }: { active: boolean }) {
     if (q)
       all = all.filter((s) =>
         [
+          s.title,
+          s.description ?? "",
           s.sessionId,
           s.origin,
+          s.repo ?? "",
           s.initiator ?? "",
           s.exitReason ?? "",
           s.issueNumber != null ? `#${s.issueNumber}` : "",
