@@ -444,6 +444,114 @@
   .bg-yellow-500\/20 {
     background-color: rgb(234 179 8 / 0.18);
   }
+
+  /* ----- Neutral scales (zinc / slate / gray) -----
+     Goal, task and detail components are written dark-first with raw
+     zinc/slate/gray utilities. On the warm light ground the light shades
+     (zinc-50..300) render as near-white invisible text and the dark
+     shades (zinc-700..950) read as heavy charcoal blocks. Remap the whole
+     scale to warm-coherent values so titles, labels and surfaces match
+     the rest of light mode. */
+
+  /* Light text shades → warm dark foreground (these are titles/body on dark) */
+  .text-zinc-50,
+  .text-zinc-100,
+  .text-zinc-200 {
+    color: hsl(24 14% 13%);
+  }
+  .text-zinc-300,
+  .text-slate-300,
+  .text-gray-300 {
+    color: hsl(24 12% 24%);
+  }
+  .text-zinc-400,
+  .text-slate-400,
+  .text-gray-400 {
+    color: hsl(25 8% 40%);
+  }
+  .text-zinc-500,
+  .text-slate-500 {
+    color: hsl(25 8% 45%);
+  }
+  .text-zinc-600,
+  .text-gray-600 {
+    color: hsl(25 8% 48%);
+  }
+  .text-zinc-700,
+  .text-gray-700 {
+    color: hsl(25 9% 36%);
+  }
+
+  /* Solid dark surfaces → light neutral surface */
+  .bg-zinc-600,
+  .bg-zinc-700,
+  .bg-zinc-800,
+  .bg-zinc-900,
+  .bg-zinc-950,
+  .bg-neutral-900 {
+    background-color: hsl(30 14% 91%);
+  }
+  .bg-gray-100 {
+    background-color: hsl(30 16% 94%);
+  }
+
+  /* Dark surfaces with alpha → subtle / elevated light surfaces */
+  .bg-gray-900\/30,
+  .bg-zinc-800\/40,
+  .bg-zinc-800\/50,
+  .bg-zinc-900\/50 {
+    background-color: rgb(40 33 28 / 0.05);
+  }
+  .bg-zinc-800\/60,
+  .bg-zinc-900\/60,
+  .bg-zinc-700\/70,
+  .bg-zinc-950\/50 {
+    background-color: rgb(40 33 28 / 0.07);
+  }
+  .bg-zinc-900\/95,
+  .bg-zinc-950\/80,
+  .bg-zinc-950\/95 {
+    /* dropdown / menu panels — make them elevated light cards */
+    background-color: hsl(30 18% 97%);
+  }
+
+  /* Solid mid fills (status dots) → warm mid so they read on white */
+  .bg-zinc-500,
+  .bg-slate-500 {
+    background-color: rgb(150 140 130);
+  }
+
+  /* Neutral tints */
+  .bg-slate-500\/\[0\.03\],
+  .bg-zinc-500\/10,
+  .bg-zinc-500\/15 {
+    background-color: rgb(40 33 28 / 0.06);
+  }
+  .bg-zinc-500\/20 {
+    background-color: rgb(40 33 28 / 0.09);
+  }
+  .bg-zinc-600\/40 {
+    background-color: rgb(40 33 28 / 0.12);
+  }
+  .bg-zinc-500\/70 {
+    background-color: rgb(40 33 28 / 0.16);
+  }
+
+  /* Neutral borders → warm visible borders */
+  .border-zinc-600,
+  .border-zinc-700,
+  .border-zinc-800,
+  .border-zinc-700\/50,
+  .border-zinc-700\/60 {
+    border-color: rgb(40 33 28 / 0.14);
+  }
+  .border-zinc-500\/30,
+  .border-l-slate-500\/40 {
+    border-color: rgb(40 33 28 / 0.22);
+  }
+  .ring-zinc-400\/30 {
+    --tw-ring-color: rgb(40 33 28 / 0.25);
+  }
 }
 
 @layer utilities {
