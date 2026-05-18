@@ -226,8 +226,21 @@ export function useChatSessions(
 
   // Get messages for active session
   const messages = useMemo(() => {
-    if (!store || !activeSession) return [];
-    return store.messages[activeSession.id] || [];
+    if (!store) return [];
+    if (activeSession) return store.messages[activeSession.id] || [];
+    // Defense-in-depth: activeSession is null only when activeSessionId
+    // points at a session that doesn't exist in-memory (e.g. a stale-closure
+    // createSession() created a phantom, or a spurious reload). Rather than
+    // render an empty thread that "heals on refresh", fall back to the most
+    // recently updated session so persisted history never silently vanishes.
+    if (store.sessions.length > 0) {
+      const recent = [...store.sessions].sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      )[0];
+      return store.messages[recent.id] || [];
+    }
+    return [];
   }, [store, activeSession]);
 
   // Create a new session

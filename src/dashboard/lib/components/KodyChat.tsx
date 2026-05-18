@@ -761,6 +761,10 @@ export function KodyChat({
   // Task-scoped messages (loaded from / saved to API)
   const [taskMessages, setTaskMessages] = useState<Message[]>([]);
   const [isLoadingTaskChat, setIsLoadingTaskChat] = useState(false);
+  // Tracks the task id whose history is currently loaded into `taskMessages`,
+  // so the loader can tell a real task switch from a same-task re-fire and
+  // avoid blanking the visible thread on transient re-renders.
+  const loadedTaskIdRef = useRef<string | null>(null);
   // Draft-scoped messages (ephemeral — no persistence). Cleared whenever a
   // new draft session opens (fresh draftId).
   const [draftMessages, setDraftMessages] = useState<Message[]>([]);
@@ -1235,8 +1239,25 @@ export function KodyChat({
   // no-task ("default preview") chat lives in its own bucket so it
   // doesn't share history with the dashboard chat — selecting an issue
   // still swaps over to per-task chat as usual.
-  const sessionStoreScope: import("../hooks/useChatSessions").ChatSessionScope =
+  const desiredSessionScope: import("../hooks/useChatSessions").ChatSessionScope =
     vibeMode && !selectedTask ? "vibe-default" : "global";
+  // Commit scope changes only after they settle. A transient context flip
+  // (parent re-render / task refetch momentarily dropping the selection)
+  // would otherwise swap useChatSessions to the empty `vibe-default` bucket
+  // and wipe the visible history until a manual refresh. A short settle
+  // window absorbs flickers (they revert within the same tick) while real
+  // user-driven task select/clear persists well past it.
+  const [sessionStoreScope, setSessionStoreScope] = useState<
+    import("../hooks/useChatSessions").ChatSessionScope
+  >(desiredSessionScope);
+  useEffect(() => {
+    if (desiredSessionScope === sessionStoreScope) return;
+    const t = setTimeout(
+      () => setSessionStoreScope(desiredSessionScope),
+      150,
+    );
+    return () => clearTimeout(t);
+  }, [desiredSessionScope, sessionStoreScope]);
   const sessionHook = useChatSessions(sessionStoreScope);
 
   // Abort any in-flight stream + reset loading when the active session
@@ -1936,11 +1957,18 @@ export function KodyChat({
   // empty, keep whatever local had (the task likely has no branch yet).
   useEffect(() => {
     if (selectedTask) {
+      const switchingTask = loadedTaskIdRef.current !== selectedTask.id;
+      loadedTaskIdRef.current = selectedTask.id;
       // Tier 1 — local mirror, synchronous, no network.
       const localMsgs = loadTaskChatLocal(selectedTask.id);
       if (localMsgs.length > 0) {
         setTaskMessages(localMsgs.map(chatToMessage));
-      } else {
+      } else if (switchingTask) {
+        // Only blank when we're genuinely moving to a different task — the
+        // old task's messages must not bleed into the new one. For the same
+        // task (effect re-fire / transient re-render) keep what's on screen
+        // until the server fetch reconciles, so history can't vanish until
+        // a manual refresh.
         setTaskMessages([]);
       }
 
@@ -1983,6 +2011,7 @@ export function KodyChat({
         .finally(() => setIsLoadingTaskChat(false));
     } else {
       // Clear task messages when no task
+      loadedTaskIdRef.current = null;
       setTaskMessages([]);
       setTaskSessions([]);
     }
