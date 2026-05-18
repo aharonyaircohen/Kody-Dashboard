@@ -30,7 +30,6 @@ const UpsertSchema = z.object({
     .max(2048)
     .optional()
     .or(z.literal("")),
-  defaultChatEntryKey: z.string().max(256).optional().or(z.literal("")),
   brainFlyChatEnabled: z.boolean().optional(),
   actorLogin: z.string().optional(),
 });

@@ -52,6 +52,21 @@ function generateSessionId(): string {
 }
 
 /**
+ * Derive a short, human-readable preview from the first non-empty user
+ * message. Mirrors the slice fallback used by KodyChat's auto-title effect
+ * so the sidebar label and the eventual offline title stay consistent.
+ */
+function derivePreview(messages: ChatMessage[]): string | undefined {
+  const firstUser = messages.find(
+    (m) => m.role === "user" && m.text.trim().length > 0,
+  );
+  if (!firstUser) return undefined;
+  const raw = firstUser.text.trim().replace(/\s+/g, " ");
+  if (raw.length === 0) return undefined;
+  return raw.length > 48 ? `${raw.slice(0, 48).trim()}…` : raw;
+}
+
+/**
  * Migrate v2 store (agent-scoped) to v3 store (single session).
  * Sessions from all agents are merged — agentId field is dropped.
  */
@@ -467,6 +482,7 @@ export function useChatSessions(
                   ...s,
                   messageCount: computedNew.length,
                   updatedAt: new Date().toISOString(),
+                  preview: derivePreview(computedNew) ?? s.preview,
                 }
               : s,
           ),

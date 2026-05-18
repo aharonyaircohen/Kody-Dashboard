@@ -87,6 +87,13 @@ export interface SessionMeta {
   id: string;
   /** User-editable or auto-generated title */
   title: string;
+  /**
+   * First user message, sliced. Used as the visible label while `title`
+   * is still the "New conversation" placeholder (the async LLM auto-title
+   * may not have resolved, or the session never completed an exchange).
+   * Purely cosmetic — the LLM auto-title effect remains the title owner.
+   */
+  preview?: string;
   /** When this session was created */
   createdAt: string;
   /** Last message timestamp */

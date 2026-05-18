@@ -69,7 +69,11 @@ export function SessionSidebar({
 
   const handleStartEdit = (session: SessionMeta) => {
     setEditingId(session.id);
-    setEditTitle(session.title);
+    setEditTitle(
+      session.title === "New conversation" && session.preview
+        ? session.preview
+        : session.title,
+    );
   };
 
   const handleSaveEdit = () => {
@@ -184,7 +188,9 @@ export function SessionSidebar({
                       {session.pinned && (
                         <span className="mr-1 text-amber-500">📌</span>
                       )}
-                      {session.title}
+                      {session.title === "New conversation" && session.preview
+                        ? session.preview
+                        : session.title}
                     </p>
                   )}
 

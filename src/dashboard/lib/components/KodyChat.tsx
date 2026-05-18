@@ -134,17 +134,9 @@ function authHeaders(): Record<string, string> {
     : {};
 }
 
-/** Persist the default chat dropdown entry key via the dashboard-config API */
+/** Persist the default chat dropdown entry key (per-user, localStorage) */
 async function persistDefaultChatEntry(key: string): Promise<void> {
-  const res = await fetch("/api/kody/dashboard-config", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ defaultChatEntryKey: key }),
-  });
-  if (!res.ok) {
-    const json = await res.json().catch(() => ({}));
-    throw new Error(json.message || json.error || `HTTP ${res.status}`);
-  }
+  writeDefaultChatEntry(key);
 }
 
 /**
@@ -233,6 +225,44 @@ function liveSessionStorageKey(): string {
     return `${LIVE_SESSION_STORAGE_KEY_BASE}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
   } catch {
     return LIVE_SESSION_UNSCOPED_KEY;
+  }
+}
+
+// The default chat dropdown entry is a *per-user* preference (each person
+// picks their own starting agent), so it lives in localStorage — repo-scoped
+// the same way live sessions are, so a default chosen for repo A doesn't
+// bleed into repo B. Previously this was repo-shared in `.kody/dashboard.json`,
+// which meant one user's pick silently changed the default for everyone.
+const DEFAULT_CHAT_ENTRY_KEY_BASE = "kody-default-chat-entry";
+
+function defaultChatEntryStorageKey(): string {
+  if (typeof window === "undefined") return DEFAULT_CHAT_ENTRY_KEY_BASE;
+  try {
+    const raw = window.localStorage.getItem("kody_auth");
+    if (!raw) return DEFAULT_CHAT_ENTRY_KEY_BASE;
+    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
+    if (!auth.owner || !auth.repo) return DEFAULT_CHAT_ENTRY_KEY_BASE;
+    return `${DEFAULT_CHAT_ENTRY_KEY_BASE}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
+  } catch {
+    return DEFAULT_CHAT_ENTRY_KEY_BASE;
+  }
+}
+
+function readDefaultChatEntry(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(defaultChatEntryStorageKey());
+  } catch {
+    return null;
+  }
+}
+
+function writeDefaultChatEntry(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(defaultChatEntryStorageKey(), key);
+  } catch {
+    // localStorage unavailable/full — non-fatal, the pick just won't persist.
   }
 }
 
@@ -829,16 +859,16 @@ export function KodyChat({
   // the dropdown while empty.
   const [chatModels, setChatModels] = useState<ChatModelEntry[]>([]);
   // The user-chosen default chat dropdown entry key (any entry: Brain,
-  // Brain-Fly, or `kody:<modelId>`), persisted in `.kody/dashboard.json`.
-  // Null until the config load resolves. Separate from a model's own
-  // `default` flag, which governs server-side gateway model resolution.
+  // Brain-Fly, or `kody:<modelId>`), a per-user preference persisted in
+  // localStorage (repo-scoped). Read synchronously on mount. Separate from a
+  // model's own `default` flag, which governs server-side gateway resolution.
   const [defaultChatEntryKey, setDefaultChatEntryKeyState] = useState<
     string | null
-  >(null);
-  // False until the dashboard-config load attempt resolves (success OR
-  // failure). Apply-on-load waits for this so it doesn't fire the legacy
-  // model.default fallback before the persisted key is known.
-  const [defaultChatEntryLoaded, setDefaultChatEntryLoaded] = useState(false);
+  >(() => readDefaultChatEntry());
+  // localStorage is synchronous, so the key is known on first render — the
+  // apply-on-load effect can run immediately. The flag stays only to keep the
+  // Brain auto-default effect's existing gating contract intact.
+  const [defaultChatEntryLoaded, setDefaultChatEntryLoaded] = useState(true);
   const brainAbortRef = useRef<AbortController | null>(null);
   // AbortController for the in-process Gemini path (`/api/kody/chat/kody`).
   // Without this the Stop button can't cancel the in-flight stream — the
@@ -927,9 +957,9 @@ export function KodyChat({
     };
   }, []);
 
-  // Load the persisted default chat entry key once on mount. Silent on
-  // failure — apply-on-load just falls back to the legacy model.default
-  // heuristic below.
+  // Load the repo-wide Brain (Fly) chat toggle once on mount. The default
+  // chat entry is no longer fetched here — it's a per-user localStorage
+  // preference, read synchronously into state above. Silent on failure.
   useEffect(() => {
     let cancelled = false;
     fetch("/api/kody/dashboard-config", { headers: authHeaders() })
@@ -937,27 +967,17 @@ export function KodyChat({
       .then(
         (json: {
           config?: {
-            defaultChatEntryKey?: string;
             brainFlyChatEnabled?: boolean;
           };
         }) => {
           if (cancelled) return;
-          setDefaultChatEntryKeyState(
-            json.config?.defaultChatEntryKey ?? null,
-          );
           setBrainFlyChatEnabled(
             json.config?.brainFlyChatEnabled === true,
           );
         },
       )
       .catch(() => {
-        if (!cancelled) {
-          setDefaultChatEntryKeyState(null);
-          setBrainFlyChatEnabled(false);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setDefaultChatEntryLoaded(true);
+        if (!cancelled) setBrainFlyChatEnabled(false);
       });
     return () => {
       cancelled = true;
