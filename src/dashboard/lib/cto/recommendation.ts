@@ -162,8 +162,15 @@ function asCtoAction(v: string | undefined): CtoAction | null {
 export function detectCtoRecommendation(
   entry: InboxEntry,
 ): CtoRecommendation | null {
+  // The server parses the marker from the *raw* body at write time and
+  // stores the verb on `entry.ctoAction`. Trust that first: the 240-char
+  // snippet routinely truncates the marker line away, so re-testing the
+  // marker against `title + snippet` would drop a valid rec — that's the
+  // "no Approve/Reject buttons" bug. Only legacy entries written before
+  // `ctoAction` existed fall back to the lossy marker re-check.
+  const storedAction = asCtoAction(entry.ctoAction);
   const haystack = `${entry.title ?? ""} ${entry.snippet ?? ""}`;
-  if (!MARKER.test(haystack)) return null;
+  if (!storedAction && !MARKER.test(haystack)) return null;
   // CTO recs land on issues (legacy task flow) or pull requests
   // (PR-health: fix-ci/sync/resolve). Block only non-issue/PR threads
   // (e.g. Discussion) so a goal mention never misroutes as a rec.
@@ -178,8 +185,7 @@ export function detectCtoRecommendation(
   // Fall back to the lossy snippet for legacy entries written before that
   // field existed. Marker present but verb unrecoverable → `other`
   // (non-dispatchable) so the rec stays visible without ever misrouting.
-  const action: CtoAction =
-    asCtoAction(entry.ctoAction) ?? parseAction(haystack) ?? "other";
+  const action: CtoAction = storedAction ?? parseAction(haystack) ?? "other";
 
   // The command the CTO explicitly asked Approve to post (parsed from the
   // raw body at write time) wins. Legacy recs with no `kody-cmd` line fall
