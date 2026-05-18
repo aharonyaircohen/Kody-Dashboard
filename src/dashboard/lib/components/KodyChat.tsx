@@ -2146,6 +2146,13 @@ export function KodyChat({
     setMessages([]);
     setToolCalls([]);
 
+    // Drop the live engine session bound to this scope so the next message
+    // starts a fresh runner instead of resuming the old one. rehydrate sees
+    // no saved record now, closes SSE/poll, and resets live state to idle.
+    const liveScope = currentScopeKeyRef.current;
+    clearLiveSession(liveScope);
+    rehydrateForScope(liveScope);
+
     // If in task mode, also clear the saved chat
     if (isTaskMode && selectedTask) {
       clearTaskChatLocal(selectedTask.id);
