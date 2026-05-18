@@ -12,6 +12,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   Archive,
+  Bot,
   Bug,
   Calendar,
   ChevronDown,
@@ -59,6 +60,7 @@ import {
   useGoalState,
   useSetGoalState,
   useMergeGoal,
+  useManageGoal,
 } from "../hooks/useGoalState";
 import { useClosedGoalTasks } from "../hooks/useClosedGoalTasks";
 import { usePersistedSet } from "../hooks/usePersistedState";
@@ -489,6 +491,7 @@ export function GoalGroupedView({
           {/* Goal management actions (run / plan / discussion / edit / delete) — creation lives in the card footer */}
           {group.goal ? (
             <div className="flex items-center gap-1 shrink-0">
+              <ManageGoalButton goal={group.goal} />
               <RunGoalButton goal={group.goal} taskCount={total} />
               <MergeGoalButton goal={group.goal} taskCount={total} />
               <Button
@@ -778,6 +781,55 @@ function RunGoalButton({ goal, taskCount }: { goal: Goal; taskCount: number }) {
         </span>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * "Let Kody manage this goal" toggle. When on, the `goal-manager` worker
+ * owns the goal end-to-end: it decomposes it into tasks, lets the engine
+ * build them, verifies the end-to-end journey with `qa-engineer`,
+ * recovers stalled tasks, and leaves ONE open deliverable PR for a human
+ * to merge (the engine never auto-merges). Always available — managing a
+ * goal with no tasks is the point (the worker writes the task list).
+ */
+function ManageGoalButton({ goal }: { goal: Goal }) {
+  const { githubUser } = useGitHubIdentity();
+  const { data: state, isLoading } = useGoalState(goal.id);
+  const manage = useManageGoal(goal.id, githubUser?.login ?? null);
+
+  // A done goal can't be re-managed (deliverable PR is already open).
+  if (state?.state === "done") return null;
+
+  const isManaged = state?.managed === true;
+  const pending = manage.isPending || isLoading;
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      disabled={pending}
+      onClick={() => {
+        if (!pending) manage.mutate(!isManaged);
+      }}
+      className={cn(
+        "h-8 w-8 p-0 transition-colors",
+        isManaged
+          ? "text-violet-400 hover:text-violet-300"
+          : "text-muted-foreground hover:text-violet-400",
+      )}
+      aria-label={`${isManaged ? "Disable" : "Enable"} Kody management for ${goal.name}`}
+      title={
+        isManaged
+          ? "Kody is managing this goal end-to-end (decompose → build → QA the journey → one open PR). Click to disable."
+          : "Let Kody manage this goal end-to-end: it breaks it into tasks, QA-verifies the journey, recovers stalls, and opens one PR for you to merge."
+      }
+    >
+      {pending ? (
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      ) : (
+        <Bot className="w-3.5 h-3.5" />
+      )}
+    </Button>
   );
 }
 

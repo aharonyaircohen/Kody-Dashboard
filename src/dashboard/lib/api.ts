@@ -1368,6 +1368,28 @@ export const goalsApi = {
   },
 
   /**
+   * Toggle "let Kody manage this goal end-to-end". Enabling on a
+   * never-started goal also seeds an active state + dispatches the engine.
+   */
+  manage: async (
+    id: string,
+    body: { managed: boolean; actorLogin?: string },
+  ): Promise<import("./goal-state").GoalRunState> => {
+    const res = await fetch(
+      `${API_BASE}/goals/${encodeURIComponent(id)}/manage`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify(body),
+      },
+    );
+    const payload = await handleResponse<{
+      state: import("./goal-state").GoalRunState;
+    }>(res);
+    return payload.state;
+  },
+
+  /**
    * Approve the manual merge of a parked goal (state="awaiting-merge").
    * Flips it back to active + arms the engine's one-shot finalize.
    */

@@ -36,12 +36,20 @@ export interface GoalRunState {
   /** Optional human-readable reason for `paused`. */
   pausedReason?: string;
   /**
-   * One-shot "user clicked Merge" flag. Written by the dashboard's merge
-   * endpoint alongside `state="active"`; the engine's `parkGoalForMerge`
-   * consumes it (lets finalize run once, then clears it). Absent/false
-   * means an all-done goal parks at `awaiting-merge` instead of merging.
+   * DEPRECATED. The engine no longer auto-merges, so this flag is inert.
+   * Kept only so legacy state files round-trip without a parse error.
    */
   mergeApproved?: boolean;
+  /**
+   * "Let Kody manage this goal end-to-end." When true, the `goal-manager`
+   * worker (`.kody/workers/goal-manager.md`) picks the goal up: decomposes
+   * it into task issues, lets `goal-tick` execute them, verifies the
+   * end-to-end journey with `qa-engineer`, recovers stalls, and leaves a
+   * single open deliverable PR for a human to merge. Absent/false → the
+   * worker ignores the goal entirely. Written only by the dashboard's
+   * `/goals/<id>/manage` endpoint; the engine/worker only reads it.
+   */
+  managed?: boolean;
   /**
    * ISO timestamp the goal entered `done`. Set by `goal-tick` (Phase 2)
    * when every issue with the goal label is closed. Optional today —

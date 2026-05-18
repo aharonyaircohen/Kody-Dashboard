@@ -76,6 +76,37 @@ export function useSetGoalState(goalId: string, actorLogin?: string | null) {
 }
 
 /**
+ * Toggle "let Kody manage this goal end-to-end" — the `goal-manager`
+ * worker decomposes it, QA-verifies the journey, recovers stalls, and
+ * leaves one open deliverable PR. Enabling a never-started goal starts it.
+ */
+export function useManageGoal(goalId: string, actorLogin?: string | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (managed: boolean): Promise<GoalRunState> => {
+      return goalsApi.manage(goalId, {
+        managed,
+        ...(actorLogin ? { actorLogin } : {}),
+      });
+    },
+    onSuccess: (next) => {
+      queryClient.setQueryData(goalStateQueryKeys.one(goalId), next);
+      toast.success(
+        next.managed
+          ? "Kody will manage this goal end-to-end"
+          : "Kody management disabled for this goal",
+      );
+    },
+    onError: (err: unknown) => {
+      const msg =
+        err instanceof Error ? err.message : "Failed to update management";
+      toast.error(msg);
+    },
+  });
+}
+
+/**
  * Approve the manual merge of a parked goal. The engine then runs its
  * existing finalize once (squash-merge the leaf, close the stack, →done).
  */
