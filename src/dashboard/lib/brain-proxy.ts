@@ -96,7 +96,28 @@ export interface BrainChatRequest {
    * cumulative-replace contract intact across a reconnect.
    */
   resumeText?: string;
+  /**
+   * When true, append the plain-language style preamble so Brain answers in
+   * simpler terms (short sentences, no jargon, lead with the answer). Set by
+   * the brain-fly route only; the external `/brain` endpoint leaves Brain's
+   * own answer style untouched.
+   */
+  plainLanguage?: boolean;
 }
+
+/**
+ * Output-only style overlay: makes Brain answer in plain, simple terms.
+ * Appended LAST in the decorated message so its formatting rules win by
+ * recency over the repo/task/job preambles (same reasoning as the voice
+ * overlay). It reshapes OUTPUT only — no mention of tools or persona.
+ */
+export const PLAIN_LANGUAGE_PREAMBLE = `[Answer style]
+Answer in plain, simple terms — explain it like you would to a smart teammate who is new to this codebase.
+- Lead with the direct answer or recommendation in the first sentence. No preamble.
+- Short sentences, one idea each. Prefer two short sentences over one long one.
+- Avoid jargon and acronyms; if a technical term is unavoidable, say what it means in a few words.
+- Describe the effect before the mechanism. Only go into implementation detail if the user asks.
+- Keep it tight. Offer to go deeper instead of dumping everything up front.`;
 
 /** Wire shape of events received from the upstream Brain server. */
 interface BrainEvent {
@@ -175,6 +196,7 @@ export function buildDecoratedMessage(
     jobContext?: BrainJobContext;
     jobDraft?: boolean;
     repo?: string;
+    plainLanguage?: boolean;
   },
 ): string {
   // The `repo` JSON field is at most a one-time clone hint Brain consumes to
@@ -190,8 +212,11 @@ export function buildDecoratedMessage(
     ? `[Job drafting mode]
 The user is drafting a new Kody job — there is no existing job to look up. A Kody job is a GitHub issue (labelled kody:job) whose markdown body describes intent, system prompt, allowed commands, and restrictions. Ask concrete scoping questions one turn at a time, then produce a copy-ready markdown draft with those four sections so the user can click "Use as job" on your reply.`
     : null;
+  // Style overlay goes LAST so its output rules win by recency over the
+  // repo/task/job context blocks above it.
+  const stylePreamble = opts.plainLanguage ? PLAIN_LANGUAGE_PREAMBLE : null;
   const preamble =
-    [repoPreamble, draftPreamble, jobPreamble, taskPreamble]
+    [repoPreamble, draftPreamble, jobPreamble, taskPreamble, stylePreamble]
       .filter(Boolean)
       .join("\n\n") || null;
   return preamble ? `${preamble}\n\n[User]\n${message}` : message;
@@ -217,6 +242,7 @@ export async function streamBrainChat(
     jobContext: input.jobContext,
     jobDraft: input.jobDraft,
     repo: input.repo,
+    plainLanguage: input.plainLanguage,
   });
 
   const clientAttachments = Array.isArray(input.attachments)

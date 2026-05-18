@@ -107,6 +107,25 @@ describe("buildDecoratedMessage", () => {
     expect(taskIdx).toBeGreaterThan(jobIdx);
     expect(userIdx).toBeGreaterThan(taskIdx);
   });
+
+  it("omits the plain-language preamble unless plainLanguage is set", () => {
+    expect(buildDecoratedMessage("hi", {})).not.toContain("[Answer style]");
+    expect(buildDecoratedMessage("hi", { plainLanguage: false })).not.toContain(
+      "[Answer style]",
+    );
+  });
+
+  it("appends the plain-language preamble LAST (after context, before user)", () => {
+    const out = buildDecoratedMessage("user text", {
+      taskContext: { issueNumber: 2, title: "T" },
+      plainLanguage: true,
+    });
+    const taskIdx = out.indexOf("[Current task context]");
+    const styleIdx = out.indexOf("[Answer style]");
+    const userIdx = out.indexOf("[User]\nuser text");
+    expect(styleIdx).toBeGreaterThan(taskIdx);
+    expect(userIdx).toBeGreaterThan(styleIdx);
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────────

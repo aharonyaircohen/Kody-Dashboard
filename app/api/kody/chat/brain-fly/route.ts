@@ -155,6 +155,9 @@ export async function POST(req: NextRequest) {
     repo,
     repoToken,
     voiceMode: body.voiceMode === true,
+    // Per-user Brain on Fly answers in plain, simple terms (external /brain
+    // keeps its own style). See PLAIN_LANGUAGE_PREAMBLE in brain-proxy.
+    plainLanguage: true,
     ...(isResume
       ? { resumeSince: Number(body.resumeSince), resumeText: body.resumeText }
       : {}),
