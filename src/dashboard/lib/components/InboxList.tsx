@@ -226,18 +226,13 @@ function Row({
           <span className="text-[10px] uppercase tracking-wider text-amber-300/70">
             CTO · {cto.action === "other" ? "review" : cto.action}
           </span>
-          <button
-            type="button"
-            onClick={onOpen}
-            title={
-              shareTarget
-                ? "Open this task in the dashboard"
-                : "Open this task on GitHub"
-            }
+          <Link
+            href={`/${cto.taskNumber}`}
+            title="Open this task in the dashboard"
             className="text-[11px] font-medium text-sky-300/80 hover:text-sky-200 hover:underline"
           >
             Task #{cto.taskNumber}
-          </button>
+          </Link>
           {ctoVerdict ? (
             <span
               className={cn(
