@@ -884,12 +884,29 @@ export function KodyChat({
       return;
     }
     if (authLoading) return;
+    // Yield to an explicit saved default. The dashboard-config fetch and the
+    // auth fetch race; if config resolves first and applies the user's saved
+    // entry, this effect must not then stomp it back to Brain when auth
+    // settles. Wait for the config load, and once it's known, defer entirely
+    // to the explicit-default effect when a key is set (it resolves to
+    // "brain" itself if that's the saved choice).
+    if (!defaultChatEntryLoaded) return;
+    if (defaultChatEntryKey) {
+      initialBrainDefaultRef.current = true;
+      return;
+    }
     if (brainConfigured) {
       setSelectedAgentId("brain");
       setSelectedModelId(null);
     }
     initialBrainDefaultRef.current = true;
-  }, [authLoading, brainConfigured, lockedAgentId]);
+  }, [
+    authLoading,
+    brainConfigured,
+    lockedAgentId,
+    defaultChatEntryLoaded,
+    defaultChatEntryKey,
+  ]);
 
   // Load the user-managed model list once on mount. The dropdown stays in
   // Kody Live-only mode until this resolves; failures are silent — chat
