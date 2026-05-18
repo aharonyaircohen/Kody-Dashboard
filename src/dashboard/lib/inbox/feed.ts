@@ -122,3 +122,27 @@ export function serializeInboxFeedBody(manifest: InboxFeedManifest): string {
 export function feedEntryId(login: string, url: string): string {
   return `${login}:${url}`;
 }
+
+/**
+ * Collapse key for a CTO recommendation entry: `(login, repo, task#,
+ * action)`. The CTO re-posts a fresh recommendation *comment* for the same
+ * task every tick — each has a unique comment URL, so id-dedup can't catch
+ * it and the inbox grows without bound. Keying recs by what they're *about*
+ * (not which comment carried them) lets a re-post supersede the prior row.
+ * Returns null for anything that isn't a parseable CTO rec — those keep
+ * plain id-dedup (every distinct mention is its own entry, as intended).
+ */
+export function ctoFeedKey(entry: {
+  login?: string;
+  repoFullName: string;
+  url: string;
+  ctoAction?: string;
+}): string | null {
+  if (!entry.ctoAction) return null;
+  const m = entry.url.match(/\/(?:issues|pull|discussions)\/(\d+)/);
+  if (!m) return null;
+  // The shared feed mixes logins, so it scopes the key by login; a
+  // per-user gist is already single-login and omits it.
+  const prefix = entry.login ? `${entry.login}:` : "";
+  return `${prefix}${entry.repoFullName.toLowerCase()}:${m[1]}:${entry.ctoAction}`;
+}
