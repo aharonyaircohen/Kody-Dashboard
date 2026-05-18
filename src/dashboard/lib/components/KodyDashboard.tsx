@@ -84,6 +84,7 @@ import { useBrowserNotifications } from "../hooks/useBrowserNotifications";
 import { useNotifications } from "../notifications/NotificationsProvider";
 import { NotificationCenter } from "../notifications/NotificationCenter";
 import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
+import { useScrollRestoration } from "@dashboard/lib/hooks/useScrollRestoration";
 import {
   RateLimitError,
   NoTokenError,
@@ -176,6 +177,13 @@ export function KodyDashboard({
   }, [taskListLayout]);
 
   const filterBarRef = useRef<{ focusSearch: () => void } | null>(null);
+
+  // Persist the list scroll position across list → task detail → back.
+  // The list subtree fully unmounts when a task is selected, so a module-
+  // scoped store keyed by the active filter signature is what survives.
+  const listScrollRef = useScrollRestoration(
+    `dash:${taskListLayout}:${viewMode}:${dateFilter}:${statusFilter}:${labelFilter}:${priorityFilter}:${debouncedSearch}:${sortField}:${sortDirection}`,
+  );
 
   // Persistent chat lives in the root layout (ChatRailShell). We just
   // push our context up and read mobile-open from the shared rail API.
@@ -1401,7 +1409,10 @@ export function KodyDashboard({
               />
 
               {/* Task List */}
-              <div className="flex-1 min-h-0 overflow-y-auto">
+              <div
+                ref={listScrollRef}
+                className="flex-1 min-h-0 overflow-y-auto"
+              >
                 {noAuth ? (
                   // No PAT stored → show the repo-connect form in the
                   // task pane instead of an empty list. Header, filter
