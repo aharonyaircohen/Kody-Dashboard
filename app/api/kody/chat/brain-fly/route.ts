@@ -120,11 +120,15 @@ export async function POST(req: NextRequest) {
 
   // Provision returns when the Fly Machine API has accepted the create
   // call, but the Node server inside doesn't bind :8080 until the
-  // entrypoint finishes the repo clone + LiteLLM + brain-serve startup
-  // (~30-60s on a cold provision). On reuse the server is already up and
-  // this returns on the first poll.
+  // entrypoint finishes the repo clone + LiteLLM + brain-serve startup.
+  // Measured cold boot is ~105s and varies with git-clone time, so the
+  // 120s default tipped over on normal variance. Budget 240s here (the
+  // poll returns the instant /healthz is 200 — the larger number only
+  // prevents premature failure, and stays well under maxDuration=300).
+  // On reuse / resume-from-suspend the server is already up and this
+  // returns on the first poll.
   try {
-    await waitForBrainHealth(provisioned.url);
+    await waitForBrainHealth(provisioned.url, 240_000);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(
