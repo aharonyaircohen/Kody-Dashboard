@@ -18,13 +18,6 @@ export interface DashboardConfig {
   /** URL shown in the Vibe page preview pane when no issue is selected. */
   defaultPreviewUrl?: string;
   /**
-   * Chat dropdown entry the composer auto-selects on mount. Holds a
-   * `ChatDropdownEntry.key`: `"brain"`, `"brain-fly"`, or `"kody:<modelId>"`.
-   * Distinct from a model's `default` flag (which governs server-side
-   * gateway model resolution) — this is purely the chat UI's starting pick.
-   */
-  defaultChatEntryKey?: string;
-  /**
    * Whether the "Kody Brain (Fly)" row is offered in the chat picker.
    * Per-repo, default `false` — Fly task *execution* is independent of
    * this and stays driven solely by the repo's `FLY_API_TOKEN`.
