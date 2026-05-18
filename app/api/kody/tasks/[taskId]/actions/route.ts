@@ -536,16 +536,27 @@ export async function POST(
           fixBody,
           userOctokit ?? undefined,
         );
-        // Clear terminal lifecycle labels so the task immediately leaves the
-        // "done"/"failed" column instead of waiting ~10-60s for the engine to
-        // dispatch and swap labels. The engine will re-add kody:fixing on its
-        // own once the workflow starts.
+        // Clear terminal lifecycle labels and apply kody:fixing so the task
+        // moves straight to the "building" column instead of waiting ~10-60s
+        // for the engine to dispatch and swap labels. The engine's
+        // setLifecycleLabel(kody:fixing) is idempotent (no-op if already
+        // present), and the canonical kodyState comment overrides labels once
+        // the workflow runs, so a pre-applied label self-heals.
         for (const lbl of ["kody:done", "kody:failed"]) {
           try {
             await removeLabel(issueNumber, lbl, userOctokit ?? undefined);
           } catch {
             // 404 = label wasn't applied; ignore
           }
+        }
+        try {
+          await addLabels(
+            issueNumber,
+            ["kody:fixing"],
+            userOctokit ?? undefined,
+          );
+        } catch {
+          // Non-fatal: engine re-adds kody:fixing when the workflow starts.
         }
         invalidateTaskCache();
         invalidatePRCache();

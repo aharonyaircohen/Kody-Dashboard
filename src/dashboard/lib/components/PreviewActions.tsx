@@ -124,11 +124,13 @@ export function PreviewActions({
   const handleFixSubmit = async (description: string) => {
     try {
       await tasksApi.fixRequest(task.issueNumber, description, actorLogin);
-      // Mirror the backend, which also clears terminal lifecycle labels so the
-      // task immediately leaves the "completed" column while we wait for the
-      // engine to dispatch the fix workflow.
+      // Mirror the backend: clear terminal lifecycle labels and apply
+      // kody:fixing so the task moves straight to "building" instead of
+      // falling back to "review" while we wait for the engine to dispatch
+      // the fix workflow.
       removeOptimisticLabel(queryClient, task.issueNumber, "kody:done");
       removeOptimisticLabel(queryClient, task.issueNumber, "kody:failed");
+      applyOptimisticLabel(queryClient, task.issueNumber, "kody:fixing");
       toast.success("Fix requested — Kody will work on it");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to request fix");
