@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronRight,
   Flag,
+  GitMerge,
   GripVertical,
   Inbox,
   Loader2,
@@ -54,7 +55,11 @@ import { GOAL_LABEL_PREFIX } from "../goals";
 import { goalPalette } from "../goal-palette";
 import { useReorderGoals } from "../hooks/useGoals";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import { useGoalState, useSetGoalState } from "../hooks/useGoalState";
+import {
+  useGoalState,
+  useSetGoalState,
+  useMergeGoal,
+} from "../hooks/useGoalState";
 import { useClosedGoalTasks } from "../hooks/useClosedGoalTasks";
 import { formatTickAge } from "../goal-state";
 import { TaskList } from "./TaskList";
@@ -485,6 +490,7 @@ export function GoalGroupedView({
           {group.goal ? (
             <div className="flex items-center gap-1 shrink-0">
               <RunGoalButton goal={group.goal} taskCount={total} />
+              <MergeGoalButton goal={group.goal} taskCount={total} />
               <Button
                 variant="ghost"
                 size="sm"
@@ -701,6 +707,8 @@ function RunGoalButton({ goal, taskCount }: { goal: Goal; taskCount: number }) {
   if (taskCount === 0) return null;
 
   const current = state?.state ?? null;
+  // Parked-for-merge is owned by MergeGoalButton — don't also show "Run".
+  if (current === "awaiting-merge") return null;
   const isActive = current === "active";
   const isPaused = current === "paused";
   const isDone = current === "done";
@@ -770,6 +778,49 @@ function RunGoalButton({ goal, taskCount }: { goal: Goal; taskCount: number }) {
         </span>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * "Merge goal" button — only visible once the engine has parked the goal
+ * at `state="awaiting-merge"` (every task done, nothing merged). Clicking
+ * arms the engine's one-shot finalize, which squash-merges the cumulative
+ * leaf PR into the default branch and closes the stack. Hidden in every
+ * other state (the goal isn't ready to merge, or already merged → done).
+ */
+function MergeGoalButton({
+  goal,
+  taskCount,
+}: {
+  goal: Goal;
+  taskCount: number;
+}) {
+  const { githubUser } = useGitHubIdentity();
+  const { data: state } = useGoalState(goal.id);
+  const merge = useMergeGoal(goal.id, githubUser?.login ?? null);
+
+  if (taskCount === 0) return null;
+  if (state?.state !== "awaiting-merge") return null;
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      disabled={merge.isPending}
+      onClick={() => {
+        if (!merge.isPending) merge.mutate();
+      }}
+      className="h-8 px-2 gap-1 text-emerald-400 hover:text-emerald-300"
+      aria-label={`Merge ${goal.name}`}
+      title="All tasks done — squash-merge the goal's cumulative changes into the default branch and close the stack"
+    >
+      {merge.isPending ? (
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      ) : (
+        <GitMerge className="w-3.5 h-3.5" />
+      )}
+      <span className="text-[11px] font-medium">Merge</span>
+    </Button>
   );
 }
 

@@ -10,7 +10,19 @@
  *   convention the engine uses for jobs.
  */
 
-export type GoalRunStateValue = "active" | "paused" | "done";
+/**
+ * `awaiting-merge`: every task is complete but the cumulative goal diff
+ * has NOT been merged. The engine parks here instead of auto-merging.
+ * The dashboard never *writes* this value (the engine sets it); it only
+ * reads it to show the "Merge goal" button. Clicking Merge flips the
+ * goal back to `active` with `mergeApproved`, which lets the engine's
+ * existing finalize squash-merge the leaf once.
+ */
+export type GoalRunStateValue =
+  | "active"
+  | "paused"
+  | "awaiting-merge"
+  | "done";
 
 export interface GoalRunState {
   /** Schema version. Bump on incompatible changes. */
@@ -23,6 +35,13 @@ export interface GoalRunState {
   updatedAt: string;
   /** Optional human-readable reason for `paused`. */
   pausedReason?: string;
+  /**
+   * One-shot "user clicked Merge" flag. Written by the dashboard's merge
+   * endpoint alongside `state="active"`; the engine's `parkGoalForMerge`
+   * consumes it (lets finalize run once, then clears it). Absent/false
+   * means an all-done goal parks at `awaiting-merge` instead of merging.
+   */
+  mergeApproved?: boolean;
   /**
    * ISO timestamp the goal entered `done`. Set by `goal-tick` (Phase 2)
    * when every issue with the goal label is closed. Optional today —

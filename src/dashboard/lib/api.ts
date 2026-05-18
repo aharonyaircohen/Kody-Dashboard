@@ -1366,6 +1366,28 @@ export const goalsApi = {
     }>(res);
     return payload.state;
   },
+
+  /**
+   * Approve the manual merge of a parked goal (state="awaiting-merge").
+   * Flips it back to active + arms the engine's one-shot finalize.
+   */
+  merge: async (
+    id: string,
+    body: { actorLogin?: string } = {},
+  ): Promise<import("./goal-state").GoalRunState> => {
+    const res = await fetch(
+      `${API_BASE}/goals/${encodeURIComponent(id)}/merge`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify(body),
+      },
+    );
+    const payload = await handleResponse<{
+      state: import("./goal-state").GoalRunState;
+    }>(res);
+    return payload.state;
+  },
 };
 
 // ============ Notifications API ============

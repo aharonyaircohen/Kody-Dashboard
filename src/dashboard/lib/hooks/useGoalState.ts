@@ -74,3 +74,27 @@ export function useSetGoalState(goalId: string, actorLogin?: string | null) {
     },
   });
 }
+
+/**
+ * Approve the manual merge of a parked goal. The engine then runs its
+ * existing finalize once (squash-merge the leaf, close the stack, →done).
+ */
+export function useMergeGoal(goalId: string, actorLogin?: string | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (): Promise<GoalRunState> => {
+      return goalsApi.merge(goalId, {
+        ...(actorLogin ? { actorLogin } : {}),
+      });
+    },
+    onSuccess: (next) => {
+      queryClient.setQueryData(goalStateQueryKeys.one(goalId), next);
+      toast.success("Merging goal — engine is finalizing the PRs");
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Failed to merge goal";
+      toast.error(msg);
+    },
+  });
+}
