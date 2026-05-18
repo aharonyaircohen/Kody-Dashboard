@@ -4880,6 +4880,11 @@ export function KodyChat({
                     <ThinkingPanel
                       toolCalls={msg.toolCalls}
                       isStreaming={!!msg.isLoading}
+                      persistKey={
+                        sessionHook.activeSession?.id && !msg.isLoading
+                          ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
+                          : undefined
+                      }
                     />
                   )}
                   {!msg.content && loading && i === messages.length - 1 ? (
@@ -4893,6 +4898,11 @@ export function KodyChat({
                             <ReasoningPanel
                               content={reasoning}
                               isStreaming={!!msg.isLoading}
+                              persistKey={
+                                sessionHook.activeSession?.id && !msg.isLoading
+                                  ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
+                                  : undefined
+                              }
                             />
                           )}
                           <div className="prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words">

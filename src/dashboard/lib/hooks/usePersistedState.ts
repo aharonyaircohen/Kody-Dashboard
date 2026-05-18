@@ -29,8 +29,8 @@ function storageKey(key: string): string {
   return key.startsWith(PREFIX) ? key : PREFIX + key;
 }
 
-function read<T>(key: string, initial: T): T {
-  if (typeof window === "undefined") return initial;
+function read<T>(key: string | null | undefined, initial: T): T {
+  if (!key || typeof window === "undefined") return initial;
   try {
     const raw = window.localStorage.getItem(storageKey(key));
     if (raw === null) return initial;
@@ -46,9 +46,14 @@ function read<T>(key: string, initial: T): T {
  * render reads localStorage (so a remounted component restores
  * immediately, no flash-then-restore); every subsequent change is
  * written back. Accepts the same updater-function form as `useState`.
+ *
+ * A null/undefined/empty `key` opts out of persistence entirely — the
+ * hook behaves as a plain `useState`. This lets a component expose an
+ * optional `persistKey` prop: persisted when a stable id is available,
+ * ephemeral otherwise, without breaking the rules of hooks.
  */
 export function usePersistedState<T>(
-  key: string,
+  key: string | null | undefined,
   initial: T,
 ): [T, (next: T | ((prev: T) => T)) => void] {
   // `initial` is captured once; changing it later won't reset the store.
@@ -66,7 +71,7 @@ export function usePersistedState<T>(
   }, [key]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!key || typeof window === "undefined") return;
     try {
       window.localStorage.setItem(storageKey(key), JSON.stringify(value));
     } catch {

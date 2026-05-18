@@ -7,6 +7,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePersistedState } from "../hooks/usePersistedState";
 import type { CheckRunResult } from "../types";
 import { Button } from "@dashboard/ui/button";
 import { Badge } from "@dashboard/ui/badge";
@@ -26,7 +27,11 @@ export function StageErrorDetail({
   runId,
   className,
 }: StageErrorDetailProps) {
-  const [expanded, setExpanded] = useState(false);
+  // Persisted per run so a failed stage you opened stays open after reload.
+  const [expanded, setExpanded] = usePersistedState(
+    `stage-error:${runId ?? "none"}`,
+    false,
+  );
   const [checkRuns, setCheckRuns] = useState<CheckRunResult[]>([]);
   const [loading, setLoading] = useState(false);
 

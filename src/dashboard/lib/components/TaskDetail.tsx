@@ -1561,7 +1561,7 @@ export function TaskDetail({
                 Pipeline
               </h4>
               <div className="rounded-lg p-3 bg-white/[0.03] border border-white/[0.06]">
-                <PipelineStatus status={task.pipeline} />
+                <PipelineStatus status={task.pipeline} scopeKey={task.id} />
               </div>
             </div>
           )}
@@ -1796,7 +1796,9 @@ export function TaskDetail({
             />
 
             {/* Pipeline */}
-            {task.pipeline && <PipelineStatus status={task.pipeline} />}
+            {task.pipeline && (
+              <PipelineStatus status={task.pipeline} scopeKey={task.id} />
+            )}
           </div>
         )}
       </div>

@@ -61,6 +61,7 @@ import {
   useMergeGoal,
 } from "../hooks/useGoalState";
 import { useClosedGoalTasks } from "../hooks/useClosedGoalTasks";
+import { usePersistedSet } from "../hooks/usePersistedState";
 import { formatTickAge } from "../goal-state";
 import { TaskList } from "./TaskList";
 import { GoalProgressRing } from "./GoalProgressRing";
@@ -214,29 +215,28 @@ export function useGoalCollapse(goals: Goal[], tasks: KodyTask[]) {
     [groups],
   );
 
-  // Collapse "Ungrouped" by default when goals exist; keep goals expanded.
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    if (goals.length > 0) initial.add("ungrouped");
-    return initial;
-  });
-
-  const toggle = useCallback((key: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }, []);
+  // Persisted across reloads/navigation. Default (first ever visit, nothing
+  // stored): collapse "Ungrouped" when goals exist, keep goals expanded.
+  const {
+    set: collapsed,
+    has: isCollapsed,
+    toggle,
+    setSet: setCollapsed,
+  } = usePersistedSet(
+    "goals.collapse",
+    new Set(goals.length > 0 ? ["ungrouped"] : []),
+  );
 
   const allKeys = visibleGroups.map((g) => g.key);
   const allCollapsed =
-    allKeys.length > 0 && allKeys.every((k) => collapsed.has(k));
-  const expandAll = useCallback(() => setCollapsed(new Set()), []);
+    allKeys.length > 0 && allKeys.every((k) => isCollapsed(k));
+  const expandAll = useCallback(
+    () => setCollapsed(new Set()),
+    [setCollapsed],
+  );
   const collapseAll = useCallback(
     () => setCollapsed(new Set(allKeys)),
-    [allKeys],
+    [allKeys, setCollapsed],
   );
 
   return {

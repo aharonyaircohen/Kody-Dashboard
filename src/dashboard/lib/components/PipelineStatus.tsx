@@ -6,8 +6,8 @@
  */
 "use client";
 
-import { useState } from "react";
 import { cn, formatDuration } from "../utils";
+import { usePersistedState } from "../hooks/usePersistedState";
 import type { KodyPipelineStatus, StageStatus } from "../types";
 import { SPEC_STAGES, IMPL_STAGES } from "../constants";
 import { StageErrorDetail } from "./StageErrorDetail";
@@ -18,12 +18,21 @@ import { SimpleTooltip } from "./SimpleTooltip";
 interface PipelineStatusProps {
   status: KodyPipelineStatus;
   className?: string;
+  /**
+   * Stable scope (e.g. task id) so each task's expanded-stage state is
+   * remembered independently across reloads. Omit for ephemeral use.
+   */
+  scopeKey?: string;
 }
 
-export function PipelineStatus({ status, className }: PipelineStatusProps) {
-  const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>(
-    {},
-  );
+export function PipelineStatus({
+  status,
+  className,
+  scopeKey,
+}: PipelineStatusProps) {
+  const [expandedStages, setExpandedStages] = usePersistedState<
+    Record<string, boolean>
+  >(`pipeline.stages:${scopeKey ?? "default"}`, {});
 
   const toggleStage = (stage: string) => {
     setExpandedStages((prev) => ({

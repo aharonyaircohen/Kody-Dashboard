@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { cn } from "@dashboard/lib/utils/ui";
+import { usePersistedState } from "../hooks/usePersistedState";
 
 interface ToolCall {
   name: string;
@@ -176,14 +177,23 @@ interface ThinkingPanelProps {
   /** Whether the agent is still producing output (affects the summary label). */
   isStreaming?: boolean;
   className?: string;
+  /**
+   * Stable id (e.g. session + message) to remember open/closed across
+   * reloads. Omit for ephemeral panels (live/streaming turns).
+   */
+  persistKey?: string;
 }
 
 export function ThinkingPanel({
   toolCalls,
   isStreaming,
   className,
+  persistKey,
 }: ThinkingPanelProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = usePersistedState(
+    persistKey ? `thinking:${persistKey}` : null,
+    false,
+  );
   if (toolCalls.length === 0) return null;
 
   const running = toolCalls.some((tc) => tc.status === "running");
@@ -227,14 +237,20 @@ interface ReasoningPanelProps {
   content: string;
   isStreaming?: boolean;
   className?: string;
+  /** Stable id to remember open/closed across reloads. Omit = ephemeral. */
+  persistKey?: string;
 }
 
 export function ReasoningPanel({
   content,
   isStreaming,
   className,
+  persistKey,
 }: ReasoningPanelProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = usePersistedState(
+    persistKey ? `reasoning:${persistKey}` : null,
+    false,
+  );
   const trimmed = content.trim();
   if (!trimmed) return null;
 

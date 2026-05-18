@@ -6,8 +6,8 @@
  */
 "use client";
 
-import { useState } from "react";
 import { cn } from "@dashboard/lib/utils/ui";
+import { usePersistedSet } from "../hooks/usePersistedState";
 import type { ChatSession } from "../chat-types";
 
 interface TaskSessionHistoryProps {
@@ -118,21 +118,11 @@ export function TaskSessionHistory({
   sessions,
   className,
 }: TaskSessionHistoryProps) {
-  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(
-    new Set(),
+  // Persisted across reloads/navigation. Session keys (stage + startedAt)
+  // are stable per task, so expanded rows survive a refresh.
+  const { has: isSessionExpanded, toggle: toggleExpand } = usePersistedSet(
+    "task-sessions.expanded",
   );
-
-  const toggleExpand = (sessionId: string) => {
-    setExpandedSessions((prev) => {
-      const next = new Set(prev);
-      if (next.has(sessionId)) {
-        next.delete(sessionId);
-      } else {
-        next.add(sessionId);
-      }
-      return next;
-    });
-  };
 
   // Sort sessions: pipeline stages first (in order), then dashboard
   const pipelineStages = [
@@ -179,7 +169,7 @@ export function TaskSessionHistory({
 
       <div className="divide-y max-h-64 overflow-auto">
         {sortedSessions.map((session) => {
-          const isExpanded = expandedSessions.has(
+          const isExpanded = isSessionExpanded(
             session.stage + session.startedAt,
           );
           const color = getStageColor(session.stage);
