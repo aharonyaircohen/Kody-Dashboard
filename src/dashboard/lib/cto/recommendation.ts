@@ -28,6 +28,9 @@ import type { InboxEntry } from "../inbox/types";
 export const CTO_ACTIONS = [
   "execute",
   "fix",
+  "fix-ci",
+  "sync",
+  "resolve",
   "qa-review",
   "approve",
   "comment",
@@ -46,6 +49,13 @@ export type CtoActionable = CtoAction;
 const FALLBACK_COMMAND: Partial<Record<CtoAction, string>> = {
   execute: "@kody",
   fix: "@kody",
+  // PR-health primitives. Recs always carry the exact `<!-- kody-cmd:
+  // @kody <verb> --pr N -->` line (that wins in the approve path); these
+  // bare fallbacks exist only so the verbs read as *dispatchable* for
+  // legacy recs written before the kody-cmd line.
+  "fix-ci": "@kody fix-ci",
+  sync: "@kody sync",
+  resolve: "@kody resolve",
   "qa-review": "@kody ui-review",
 };
 
@@ -85,9 +95,13 @@ export interface CtoRecommendation {
 
 const MARKER = /CTO recommendation/i;
 
-/** Pull `123` out of a `.../issues/123` or `.../issues/123#...` URL. */
+/**
+ * Pull `123` out of a `.../issues/123` or `.../pull/123` URL (with or
+ * without a `#…` fragment). PR-health recs (`fix-ci`/`sync`/`resolve`)
+ * are posted on pull requests, so `/pull/` must parse too.
+ */
 function issueNumberFromUrl(url: string): number | null {
-  const m = url.match(/\/issues\/(\d+)/);
+  const m = url.match(/\/(?:issues|pull)\/(\d+)/);
   if (!m) return null;
   const n = Number(m[1]);
   return Number.isInteger(n) && n > 0 ? n : null;
@@ -102,7 +116,12 @@ function issueNumberFromUrl(url: string): number | null {
 const PARSEABLE: CtoAction[] = [
   "qa-review",
   "execute",
+  // `fix-ci` MUST precede `fix` — `\bfix\b` also matches the "fix" inside
+  // "fix-ci", so the longer verb has to win first.
+  "fix-ci",
   "fix",
+  "sync",
+  "resolve",
   "approve",
   "comment",
 ];
@@ -145,7 +164,12 @@ export function detectCtoRecommendation(
 ): CtoRecommendation | null {
   const haystack = `${entry.title ?? ""} ${entry.snippet ?? ""}`;
   if (!MARKER.test(haystack)) return null;
-  if (entry.threadType && !/issue/i.test(entry.threadType)) return null;
+  // CTO recs land on issues (legacy task flow) or pull requests
+  // (PR-health: fix-ci/sync/resolve). Block only non-issue/PR threads
+  // (e.g. Discussion) so a goal mention never misroutes as a rec.
+  if (entry.threadType && !/issue|pullrequest/i.test(entry.threadType)) {
+    return null;
+  }
 
   const taskNumber = issueNumberFromUrl(entry.url);
   if (taskNumber === null) return null;
