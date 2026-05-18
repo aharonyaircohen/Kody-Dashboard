@@ -21,10 +21,13 @@ import webpush, {
 import { setGitHubContext, clearGitHubContext } from "../github-client";
 import { readPushManifest, mutatePushManifest } from "../push-server";
 import type { PushSubscriptionRecord } from "../push";
-import { appendInboxFeed } from "../inbox/feed-server";
+import { appendInboxFeed, readInboxFeed } from "../inbox/feed-server";
 import { feedEntryId, type InboxFeedEntry } from "../inbox/feed";
 import { buildSnippet } from "../inbox/types";
 import { parseCtoAction, parseCtoCommand } from "../cto/recommendation";
+import { readCtoDecisions } from "../cto/decisions-server";
+import { latestCtoDecisions } from "../cto/decisions";
+import { applyCtoBackpressure } from "../cto/backpressure";
 import { logger } from "../logger";
 import { dashboardThreadUrl } from "../thread-link";
 import { deriveVapidKeys } from "./vapid-keys";
@@ -315,7 +318,47 @@ async function recordInboxFeed(
 
   setGitHubContext(owner, repo, token);
   try {
-    const added = await appendInboxFeed(entries);
+    // Code-enforced cap on pending CTO recommendations. The cto.md worker is
+    // told to stop at 10 but counts by hand each tick and drifts; this gate
+    // makes it deterministic at the single write point. Both reads are
+    // cached (ETag/304) — no extra GitHub budget on the webhook path.
+    let toAppend = entries;
+    try {
+      const [feed, ledger] = await Promise.all([
+        readInboxFeed(),
+        readCtoDecisions(),
+      ]);
+      const { admitted, withheld } = applyCtoBackpressure(
+        feed.entries,
+        entries,
+        latestCtoDecisions(ledger),
+      );
+      toAppend = admitted;
+      if (withheld.length > 0) {
+        logger.info(
+          {
+            event: "cto_backpressure_withheld",
+            withheld: withheld.length,
+            repo: ev.repoFullName,
+          },
+          `CTO backpressure: withheld ${withheld.length} recommendation(s) — operator queue full (max 10 pending)`,
+        );
+      }
+    } catch (bpErr) {
+      // Fail open on the gate (never on the cap itself going wrong silently
+      // dropping real mentions): if the ledger/feed read fails, append as
+      // before rather than block delivery.
+      logger.warn(
+        {
+          event: "cto_backpressure_skipped",
+          error: bpErr instanceof Error ? bpErr.message : String(bpErr),
+          repo: ev.repoFullName,
+        },
+        "CTO backpressure check failed — appending without gate",
+      );
+    }
+
+    const added = await appendInboxFeed(toAppend);
     logger.info(
       { event: "inbox_feed_appended", added, mentions, repo: ev.repoFullName },
       `Inbox feed: +${added} entr${added === 1 ? "y" : "ies"}`,
