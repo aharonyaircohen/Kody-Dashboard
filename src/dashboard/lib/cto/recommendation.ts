@@ -125,7 +125,12 @@ function parseAction(haystack: string): CtoAction | null {
  */
 export function parseCtoAction(rawBody: string): CtoAction | null {
   if (!MARKER.test(rawBody)) return null;
-  return parseAction(rawBody);
+  // Marker present ⇒ it IS a recommendation. Mirror detectCtoRecommendation:
+  // an unrecoverable verb is `other` (non-dispatchable), never null. If this
+  // returned null the entry would carry no `ctoAction`, and BOTH the pending
+  // cap (applyCtoBackpressure) and the duplicate-collapse (ctoFeedKey) skip
+  // anything without `ctoAction` — that silent bypass is exactly the flood.
+  return parseAction(rawBody) ?? "other";
 }
 
 /** Narrow an arbitrary string to a known CtoAction (for stored values). */
