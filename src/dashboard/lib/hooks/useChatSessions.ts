@@ -22,8 +22,20 @@ const DEBOUNCE_MS = 1000;
 export type ChatSessionScope = "global" | "vibe-default";
 
 /**
+ * Last successfully-resolved per-repo key per scope. A genuine repo switch
+ * reloads the page (see auth-context.tsx setCurrentRepo), which clears this
+ * module state — so the only thing this guards against is a *transient*
+ * `kody_auth` removal (token refresh / brief 401) within the same page life.
+ * Without it, such a blip would silently redirect reads/writes to the
+ * unscoped legacy key and could trigger legacy-key deletion in loadStore,
+ * deleting the user's history mid-conversation.
+ */
+const lastKnownRepoKey = new Map<ChatSessionScope, string>();
+
+/**
  * Compute the per-repo storage key from the connected repo in localStorage.kody_auth.
- * Returns the unscoped legacy key when no repo is connected (e.g. logged out).
+ * Falls back to the last resolved repo key when `kody_auth` is briefly absent,
+ * and only to the unscoped legacy key when no repo has ever been seen.
  *
  * Repo switching reloads the page (see auth-context.tsx setCurrentRepo), so this
  * value is stable for a given (repo, scope) pair.
@@ -33,14 +45,17 @@ function getStorageKey(scope: ChatSessionScope): string {
     scope === "global" ? STORAGE_KEY_BASE : `${STORAGE_KEY_BASE}-${scope}`;
   const unscopedFallback = scope === "global" ? LEGACY_UNSCOPED_KEY : base;
   if (typeof window === "undefined") return unscopedFallback;
+  const fallback = () => lastKnownRepoKey.get(scope) ?? unscopedFallback;
   try {
     const raw = window.localStorage.getItem("kody_auth");
-    if (!raw) return unscopedFallback;
+    if (!raw) return fallback();
     const auth = JSON.parse(raw) as { owner?: string; repo?: string };
-    if (!auth.owner || !auth.repo) return unscopedFallback;
-    return `${base}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
+    if (!auth.owner || !auth.repo) return fallback();
+    const key = `${base}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
+    lastKnownRepoKey.set(scope, key);
+    return key;
   } catch {
-    return unscopedFallback;
+    return fallback();
   }
 }
 
@@ -160,22 +175,57 @@ function loadStore(
 }
 
 /**
- * Save data to localStorage (debounced)
+ * Save data to localStorage (debounced, per storage key).
+ *
+ * The debounce timer and pending payload are keyed by `storageKey` — NOT
+ * shared across all stores. Previously a single module-level timer meant a
+ * pending save of the `global` chat could be cancelled by a save targeting
+ * the (empty) `vibe-default` store after a scope swap, persisting a blank
+ * store over real history. Per-key isolation makes that impossible.
  */
-let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+const saveTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+const pendingSaves = new Map<string, string>();
+
+function writePending(storageKey: string): void {
+  const serialized = pendingSaves.get(storageKey);
+  if (serialized === undefined) return;
+  pendingSaves.delete(storageKey);
+  try {
+    localStorage.setItem(storageKey, serialized);
+  } catch (error) {
+    console.error("Failed to save chat sessions:", error);
+  }
+}
+
+/**
+ * Synchronously commit any debounced-but-unwritten save for a key. Called
+ * before the hook loads a different scope/key so an in-flight write of real
+ * history is never silently dropped by the scope swap.
+ */
+function flushSave(storageKey: string): void {
+  const timeout = saveTimeouts.get(storageKey);
+  if (timeout) {
+    clearTimeout(timeout);
+    saveTimeouts.delete(storageKey);
+  }
+  writePending(storageKey);
+}
 
 function saveStore(store: GlobalChatStore, storageKey: string): void {
   if (typeof window === "undefined") return;
 
-  if (saveTimeout) clearTimeout(saveTimeout);
+  pendingSaves.set(storageKey, JSON.stringify(store));
 
-  saveTimeout = setTimeout(() => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(store));
-    } catch (error) {
-      console.error("Failed to save chat sessions:", error);
-    }
-  }, DEBOUNCE_MS);
+  const existing = saveTimeouts.get(storageKey);
+  if (existing) clearTimeout(existing);
+
+  saveTimeouts.set(
+    storageKey,
+    setTimeout(() => {
+      saveTimeouts.delete(storageKey);
+      writePending(storageKey);
+    }, DEBOUNCE_MS),
+  );
 }
 
 export interface UseChatSessionsResult {
@@ -220,8 +270,15 @@ export function useChatSessions(
   const storageKey = useMemo(() => getStorageKey(scope), [scope]);
 
   // Load on mount and whenever the storage key (i.e. scope) changes.
+  // The cleanup runs with the *previous* key's closure, so a scope swap
+  // flushes the old store's pending debounced save to disk before the new
+  // (possibly empty) scope is loaded into state — otherwise that pending
+  // write would be discarded and the conversation lost.
   useEffect(() => {
     setStore(loadStore(storageKey, scope));
+    return () => {
+      flushSave(storageKey);
+    };
   }, [storageKey, scope]);
 
   // Get sessions sorted by updatedAt descending
