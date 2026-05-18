@@ -113,11 +113,6 @@ export async function PUT(req: NextRequest) {
       next.defaultPreviewUrl = trimmed ? trimmed : undefined;
       commitMessage = `chore(dashboard): set default preview URL`;
     }
-    if ("defaultChatEntryKey" in bodyKeys) {
-      const key = parsed.data.defaultChatEntryKey?.trim();
-      next.defaultChatEntryKey = key ? key : undefined;
-      commitMessage = `chore(dashboard): set default chat entry`;
-    }
     if ("brainFlyChatEnabled" in bodyKeys) {
       next.brainFlyChatEnabled = parsed.data.brainFlyChatEnabled === true;
       commitMessage = `chore(dashboard): ${
