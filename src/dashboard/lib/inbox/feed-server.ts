@@ -23,6 +23,7 @@ import {
   INBOX_FEED_LABEL,
   INBOX_FEED_ISSUE_TITLE,
   INBOX_FEED_MAX_ENTRIES,
+  ctoFeedKey,
   parseInboxFeedBody,
   serializeInboxFeedBody,
   type InboxFeedEntry,
@@ -73,10 +74,41 @@ export async function appendInboxFeed(
     | { kind: "noop"; result: number } = await store.mutate<number>(
     (current) => {
       const seen = new Set(current.entries.map((e) => e.id));
-      const fresh = incoming.filter((e) => !seen.has(e.id));
+      let fresh = incoming.filter((e) => !seen.has(e.id));
       if (fresh.length === 0) return { kind: "noop", result: 0 };
 
-      const all = [...fresh, ...current.entries];
+      // Collapse repeated CTO recommendations: within this batch keep only
+      // the newest per (user, repo, task, action), and have those supersede
+      // any matching older row already in the feed. Without this, every CTO
+      // re-post is a new comment URL → a new entry → hundreds of rows.
+      const freshByKey = new Map<string, InboxFeedEntry>();
+      const freshNonCto: InboxFeedEntry[] = [];
+      for (const e of fresh) {
+        const k = ctoFeedKey(e);
+        if (k === null) {
+          freshNonCto.push(e);
+          continue;
+        }
+        const prev = freshByKey.get(k);
+        if (
+          !prev ||
+          new Date(e.sentAt).getTime() > new Date(prev.sentAt).getTime()
+        ) {
+          freshByKey.set(k, e);
+        }
+      }
+      fresh = [...freshNonCto, ...freshByKey.values()];
+
+      const supersededKeys = new Set(freshByKey.keys());
+      const retained =
+        supersededKeys.size === 0
+          ? current.entries
+          : current.entries.filter((e) => {
+              const k = ctoFeedKey(e);
+              return k === null || !supersededKeys.has(k);
+            });
+
+      const all = [...fresh, ...retained];
       all.sort(
         (a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime(),
       );

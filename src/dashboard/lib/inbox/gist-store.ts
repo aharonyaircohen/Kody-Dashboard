@@ -27,6 +27,7 @@ import {
   type InboxEntry,
   type InboxManifest,
 } from "./types";
+import { ctoFeedKey } from "./feed";
 
 const locks = new Map<string, Promise<unknown>>();
 
@@ -187,13 +188,29 @@ export async function appendInboxEntries(
   const manifest = await mutateInbox(octokit, owner, repo, (current) => {
     const seen = new Set(current.entries.map((e) => e.id));
     const fresh = incoming.filter((e) => !seen.has(e.id));
-    if (fresh.length === 0) return null;
     added = fresh.length;
     const all = [...fresh, ...current.entries];
     all.sort(
       (a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime(),
     );
-    return { version: 1, entries: all.slice(0, INBOX_MAX_ENTRIES) };
+    // Collapse CTO recommendation duplicates across the *whole* manifest
+    // (newest per task+action wins — list is already sorted newest-first),
+    // so a backlog of repeated recs the CTO posted before the feed-side
+    // fix self-heals. Non-rec entries pass through untouched.
+    const seenCtoKey = new Set<string>();
+    const collapsed = all.filter((e) => {
+      const k = ctoFeedKey(e);
+      if (k === null) return true;
+      if (seenCtoKey.has(k)) return false;
+      seenCtoKey.add(k);
+      return true;
+    });
+    // No new entries AND nothing collapsed → genuine no-op, skip the write
+    // so plain polling never costs a gist commit.
+    if (fresh.length === 0 && collapsed.length === current.entries.length) {
+      return null;
+    }
+    return { version: 1, entries: collapsed.slice(0, INBOX_MAX_ENTRIES) };
   });
   return { manifest, added };
 }
