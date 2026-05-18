@@ -124,25 +124,37 @@ export function feedEntryId(login: string, url: string): string {
 }
 
 /**
- * Collapse key for a CTO recommendation entry: `(login, repo, task#,
- * action)`. The CTO re-posts a fresh recommendation *comment* for the same
- * task every tick — each has a unique comment URL, so id-dedup can't catch
- * it and the inbox grows without bound. Keying recs by what they're *about*
- * (not which comment carried them) lets a re-post supersede the prior row.
- * Returns null for anything that isn't a parseable CTO rec — those keep
- * plain id-dedup (every distinct mention is its own entry, as intended).
+ * Collapse key for a CTO recommendation entry: `(login, repo, task#)`.
+ * The CTO re-posts a fresh recommendation *comment* for the same task every
+ * tick — each has a unique comment URL, so id-dedup can't catch it and the
+ * inbox grows without bound. Keying recs by the *task* they're about (not
+ * which comment carried them, and deliberately NOT the action verb — the
+ * parsed verb drifts across re-posts and cto.md guarantees one live rec per
+ * task) lets the newest rec supersede every prior one for that task.
+ * Returns null for anything without `ctoAction` (not a recommendation) — it
+ * keeps plain id-dedup, so every distinct mention is its own entry.
  */
 export function ctoFeedKey(entry: {
   login?: string;
   repoFullName: string;
   url: string;
   ctoAction?: string;
+  title?: string;
+  snippet?: string;
 }): string | null {
-  if (!entry.ctoAction) return null;
+  // A rec either carries a parsed `ctoAction` (new entries) or — for the
+  // backlog written before that was reliable — still bears the prose marker
+  // in its title/snippet (backticks are stripped but the marker is plain
+  // text, so it survives). Recognising the legacy shape lets the existing
+  // flood self-heal, not just future re-posts.
+  const isRec =
+    !!entry.ctoAction ||
+    /CTO recommendation/i.test(`${entry.title ?? ""} ${entry.snippet ?? ""}`);
+  if (!isRec) return null;
   const m = entry.url.match(/\/(?:issues|pull|discussions)\/(\d+)/);
   if (!m) return null;
   // The shared feed mixes logins, so it scopes the key by login; a
   // per-user gist is already single-login and omits it.
   const prefix = entry.login ? `${entry.login}:` : "";
-  return `${prefix}${entry.repoFullName.toLowerCase()}:${m[1]}:${entry.ctoAction}`;
+  return `${prefix}${entry.repoFullName.toLowerCase()}:${m[1]}`;
 }
