@@ -33,7 +33,6 @@ import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { Textarea } from "@dashboard/ui/textarea";
 import { cn } from "@dashboard/lib/utils/ui";
-import { formatRelativeTime } from "../utils";
 import {
   useMessageChannels,
   useChannelThread,
@@ -79,11 +78,24 @@ function dayLabel(iso: string): string {
   });
 }
 
-function MessageMarkdown({ body }: { body: string }) {
+function MessageMarkdown({
+  body,
+  onPrimary,
+}: {
+  body: string;
+  /** Rendered inside a primary-colored "my message" bubble — flip
+   *  link/code colors so they stay legible on the dark fill. */
+  onPrimary?: boolean;
+}) {
   return (
     <div
       dir="auto"
-      className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed break-words"
+      className={cn(
+        "prose prose-sm max-w-none text-sm leading-relaxed break-words",
+        onPrimary
+          ? "prose-invert prose-p:text-primary-foreground"
+          : "dark:prose-invert",
+      )}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
@@ -93,7 +105,12 @@ function MessageMarkdown({ body }: { body: string }) {
             if (!match) {
               return (
                 <code
-                  className="bg-muted px-1 py-0.5 rounded text-xs"
+                  className={cn(
+                    "px-1 py-0.5 rounded text-xs",
+                    onPrimary
+                      ? "bg-primary-foreground/20"
+                      : "bg-muted",
+                  )}
                   {...props}
                 >
                   {children}
@@ -101,7 +118,12 @@ function MessageMarkdown({ body }: { body: string }) {
               );
             }
             return (
-              <pre className="bg-muted p-2 rounded-md overflow-x-auto">
+              <pre
+                className={cn(
+                  "p-2 rounded-md overflow-x-auto",
+                  onPrimary ? "bg-primary-foreground/15" : "bg-muted",
+                )}
+              >
                 <code className={className} {...props}>
                   {children}
                 </code>
@@ -114,7 +136,12 @@ function MessageMarkdown({ body }: { body: string }) {
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline break-all"
+                className={cn(
+                  "hover:underline break-all",
+                  onPrimary
+                    ? "text-primary-foreground underline"
+                    : "text-primary",
+                )}
                 {...props}
               >
                 {children}
@@ -137,11 +164,14 @@ function MessageItem({
   comment,
   highlight,
   grouped,
+  isMe,
 }: {
   comment: GoalDiscussionComment;
   highlight?: boolean;
-  /** Part of a run from the same author — hide avatar/name, show hover time. */
+  /** Part of a run from the same author — hide avatar/name. */
   grouped?: boolean;
+  /** Authored by the signed-in user — render on the right in primary. */
+  isMe?: boolean;
 }) {
   const author = comment.author;
   const isBot = author?.login.endsWith("[bot]") ?? false;
@@ -154,61 +184,80 @@ function MessageItem({
   }, [highlight]);
 
   const time = new Date(comment.createdAt);
+  const timeLabel = time.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return (
     <div
       ref={ref}
       id={`msg-${comment.databaseId}`}
       className={cn(
-        "group flex gap-3 px-4 scroll-mt-16 transition-colors",
-        grouped ? "py-0.5" : "pt-3 pb-0.5 mt-1",
-        highlight
-          ? "bg-primary/10 ring-1 ring-inset ring-primary/40"
-          : "hover:bg-muted/40",
+        "group flex gap-2 px-3 scroll-mt-16",
+        grouped ? "mt-0.5" : "mt-3",
+        isMe ? "flex-row-reverse" : "flex-row",
       )}
     >
-      {grouped ? (
-        <div className="w-8 shrink-0 select-none pt-0.5 text-right">
-          <span className="text-[10px] tabular-nums text-muted-foreground/70 opacity-0 group-hover:opacity-100 transition-opacity">
-            {time.toLocaleTimeString(undefined, {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </span>
-        </div>
-      ) : (
-        <Avatar className="h-8 w-8 mt-0.5 shrink-0 ring-1 ring-border">
-          {author?.avatarUrl ? (
-            <AvatarImage src={author.avatarUrl} alt={author.login} />
-          ) : null}
-          <AvatarFallback className="text-xs bg-muted">
-            {author?.login[0]?.toUpperCase() || "?"}
-          </AvatarFallback>
-        </Avatar>
-      )}
-      <div className="min-w-0 flex-1">
-        {!grouped ? (
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-foreground">
-              {author?.login ?? "unknown"}
-            </span>
+      {/* Avatar gutter — only on incoming messages, only first of a run. */}
+      {!isMe ? (
+        grouped ? (
+          <div className="w-7 shrink-0" />
+        ) : (
+          <Avatar className="h-7 w-7 mt-auto shrink-0">
+            {author?.avatarUrl ? (
+              <AvatarImage src={author.avatarUrl} alt={author.login} />
+            ) : null}
+            <AvatarFallback className="text-[11px] bg-muted">
+              {author?.login[0]?.toUpperCase() || "?"}
+            </AvatarFallback>
+          </Avatar>
+        )
+      ) : null}
+
+      <div
+        className={cn(
+          "flex flex-col max-w-[78%] sm:max-w-[68%]",
+          isMe ? "items-end" : "items-start",
+        )}
+      >
+        {!grouped && !isMe ? (
+          <span className="px-1 pb-0.5 text-xs font-medium text-muted-foreground">
+            {author?.login ?? "unknown"}
             {isBot ? (
-              <span className="text-[10px] font-medium uppercase tracking-wide bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded">
+              <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/70">
                 bot
               </span>
             ) : null}
-            <a
-              href={comment.url}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-muted-foreground hover:text-foreground"
-              title={time.toLocaleString()}
-            >
-              {formatRelativeTime(comment.createdAt)}
-            </a>
-          </div>
+          </span>
         ) : null}
-        <MessageMarkdown body={comment.body} />
+        <div
+          className={cn(
+            "rounded-2xl px-3 py-2 shadow-sm transition-colors",
+            isMe
+              ? "bg-primary text-primary-foreground"
+              : "bg-card border border-border",
+            // Tail: square the corner nearest the avatar/sender.
+            !grouped && (isMe ? "rounded-tr-md" : "rounded-tl-md"),
+            highlight && "ring-2 ring-inset ring-primary/50",
+          )}
+        >
+          <MessageMarkdown body={comment.body} onPrimary={isMe} />
+          <a
+            href={comment.url}
+            target="_blank"
+            rel="noreferrer"
+            title={time.toLocaleString()}
+            className={cn(
+              "mt-0.5 block text-right text-[10px] tabular-nums leading-none hover:underline",
+              isMe
+                ? "text-primary-foreground/70"
+                : "text-muted-foreground/70",
+            )}
+          >
+            {timeLabel}
+          </a>
+        </div>
       </div>
     </div>
   );
@@ -229,9 +278,12 @@ function MessageList({
     if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
   }, [comments, highlightCommentId]);
 
+  const { githubUser } = useGitHubIdentity();
+  const myLogin = githubUser?.login;
+
   if (comments.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6 bg-muted/20">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
           <MessageSquare className="w-5 h-5 text-muted-foreground" />
         </div>
@@ -242,7 +294,7 @@ function MessageList({
     );
   }
   return (
-    <div ref={ref} className="flex-1 overflow-y-auto py-2">
+    <div ref={ref} className="flex-1 overflow-y-auto bg-muted/20 py-3 pb-4">
       {comments.map((c, i) => {
         const prev = comments[i - 1];
         const sameDay = prev && dayKey(prev.createdAt) === dayKey(c.createdAt);
@@ -256,17 +308,16 @@ function MessageList({
         return (
           <div key={c.id}>
             {!sameDay ? (
-              <div className="flex items-center gap-3 px-4 py-3">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="flex justify-center py-3">
+                <span className="rounded-full bg-background/80 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
                   {dayLabel(c.createdAt)}
                 </span>
-                <div className="h-px flex-1 bg-border" />
               </div>
             ) : null}
             <MessageItem
               comment={c}
               grouped={grouped}
+              isMe={!!myLogin && c.author?.login === myLogin}
               highlight={
                 highlightCommentId !== undefined &&
                 c.databaseId === highlightCommentId
@@ -288,6 +339,7 @@ function MessageComposer({
 }) {
   const [body, setBody] = useState("");
   const [showPreview, setShowPreview] = useState(false);
+  const [showTools, setShowTools] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { githubUser } = useGitHubIdentity();
 
@@ -404,16 +456,16 @@ function MessageComposer({
     "h-7 w-7 p-0 text-muted-foreground hover:text-foreground";
 
   return (
-    <div className="border-t border-border bg-card/40 p-3">
-      <div
-        className={cn(
-          "rounded-xl border border-border bg-background shadow-sm transition-all",
-          "focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20",
-          att.isDragging && "border-primary/60 ring-2 ring-primary/30",
-        )}
-        {...att.dropzoneProps}
-      >
-        <div className="flex items-center gap-0.5 px-2 pt-2">
+    <div
+      className="border-t border-border bg-card/60 px-2 py-2 md:px-3 md:py-3"
+      {...att.dropzoneProps}
+    >
+      {error ? (
+        <p className="px-2 pb-1.5 text-xs text-destructive">{error.message}</p>
+      ) : null}
+
+      {showTools ? (
+        <div className="flex items-center gap-0.5 px-1 pb-1.5">
           <Button
             type="button"
             variant="ghost"
@@ -480,101 +532,125 @@ function MessageComposer({
             {showPreview ? "Edit" : "Preview"}
           </Button>
         </div>
+      ) : null}
 
-        {showPreview ? (
-          <div
-            dir="auto"
-            className="m-2 min-h-[60px] p-3 rounded-lg bg-muted/40 text-sm prose prose-sm dark:prose-invert max-w-none"
-          >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {body || "*Nothing to preview*"}
-            </ReactMarkdown>
-          </div>
-        ) : (
-          <div className="relative">
-            <Textarea
-              ref={textareaRef}
-              value={body}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              placeholder={`Message #${channelName} — use @ to mention, ⌘↵ to send`}
-              rows={3}
-              dir="auto"
-              disabled={isPending}
-              className="resize-none border-0 bg-transparent text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-            />
-            {showMentions ? (
-              <div className="absolute bottom-full left-2 mb-2 z-50 w-72 max-h-48 overflow-y-auto rounded-xl border border-border bg-popover shadow-dropdown p-1">
-                {filteredMentions.length > 0 ? (
-                  filteredMentions.map((mention, index) => (
-                    <button
-                      key={mention.login}
-                      type="button"
-                      onClick={() => selectMention(mention)}
-                      className={cn(
-                        "w-full flex items-center gap-2 px-2 py-1.5 text-left rounded-lg transition-colors",
-                        index === selectedMentionIndex
-                          ? "bg-accent text-accent-foreground"
-                          : "hover:bg-muted",
-                      )}
-                    >
-                      <Avatar className="h-6 w-6">
-                        {mention.avatar_url ? (
-                          <AvatarImage
-                            src={mention.avatar_url}
-                            alt={mention.login}
-                          />
-                        ) : null}
-                        <AvatarFallback className="text-xs bg-muted">
-                          {mention.login[0]?.toUpperCase() || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm truncate">{mention.login}</span>
-                      {mention.isWorker ? (
-                        <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-primary bg-primary/10 rounded px-1.5 py-0.5">
-                          worker
-                        </span>
-                      ) : null}
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-3 py-3 text-xs text-muted-foreground">
-                    No matches for{" "}
-                    <code className="font-mono bg-muted px-1 rounded">
-                      @{mentionQuery}
-                    </code>{" "}
-                    — type the full username, they&apos;ll still be notified.
-                  </div>
-                )}
-              </div>
-            ) : null}
-          </div>
-        )}
-
-        <div className="px-2 pb-2">
-          <AttachmentBar api={att} disabled={isPending} />
+      {showPreview ? (
+        <div
+          dir="auto"
+          className="mb-2 min-h-[44px] p-3 rounded-2xl bg-muted/50 text-sm prose prose-sm dark:prose-invert max-w-none"
+        >
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {body || "*Nothing to preview*"}
+          </ReactMarkdown>
         </div>
+      ) : null}
+
+      <div className="px-1">
+        <AttachmentBar api={att} disabled={isPending} />
       </div>
 
-      <div className="flex justify-end items-center gap-2 pt-2">
-        {error ? (
-          <span className="text-destructive text-xs mr-auto">
-            {error.message}
-          </span>
-        ) : null}
+      <div className="flex items-end gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowTools((v) => !v)}
+          className={cn(
+            "h-9 w-9 shrink-0 rounded-full p-0",
+            showTools
+              ? "bg-muted text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+          title="Formatting"
+          aria-label="Formatting options"
+        >
+          <Plus
+            className={cn(
+              "w-5 h-5 transition-transform",
+              showTools && "rotate-45",
+            )}
+          />
+        </Button>
+
+        <div
+          className={cn(
+            "relative flex-1 min-w-0 rounded-3xl border bg-background transition-all",
+            att.isDragging
+              ? "border-primary/60 ring-2 ring-primary/30"
+              : "border-border focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20",
+          )}
+        >
+          <Textarea
+            ref={textareaRef}
+            value={body}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder={`Message #${channelName}`}
+            rows={1}
+            dir="auto"
+            disabled={isPending}
+            className="max-h-32 min-h-[40px] resize-none border-0 bg-transparent px-4 py-2.5 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+          {showMentions ? (
+            <div className="absolute bottom-full left-1 mb-2 z-50 w-72 max-h-48 overflow-y-auto rounded-xl border border-border bg-popover shadow-dropdown p-1">
+              {filteredMentions.length > 0 ? (
+                filteredMentions.map((mention, index) => (
+                  <button
+                    key={mention.login}
+                    type="button"
+                    onClick={() => selectMention(mention)}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-2 py-1.5 text-left rounded-lg transition-colors",
+                      index === selectedMentionIndex
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-muted",
+                    )}
+                  >
+                    <Avatar className="h-6 w-6">
+                      {mention.avatar_url ? (
+                        <AvatarImage
+                          src={mention.avatar_url}
+                          alt={mention.login}
+                        />
+                      ) : null}
+                      <AvatarFallback className="text-xs bg-muted">
+                        {mention.login[0]?.toUpperCase() || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm truncate">{mention.login}</span>
+                    {mention.isWorker ? (
+                      <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-primary bg-primary/10 rounded px-1.5 py-0.5">
+                        worker
+                      </span>
+                    ) : null}
+                  </button>
+                ))
+              ) : (
+                <div className="px-3 py-3 text-xs text-muted-foreground">
+                  No matches for{" "}
+                  <code className="font-mono bg-muted px-1 rounded">
+                    @{mentionQuery}
+                  </code>{" "}
+                  — type the full username, they&apos;ll still be notified.
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+
         <Button
           onClick={handleSubmit}
           disabled={!canSubmit}
           size="sm"
-          className="h-8 px-3 gap-1.5"
+          className="h-9 w-9 shrink-0 rounded-full p-0"
           title="Send message"
+          aria-label="Send message"
         >
           {isPending ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-4 h-4" />
           )}
-          <span>{isPending ? "Sending…" : "Send"}</span>
         </Button>
       </div>
     </div>
@@ -622,25 +698,27 @@ function ChannelThread({
               <ChevronLeft className="w-5 h-5" />
             </button>
           ) : null}
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary shrink-0">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
             <Hash className="w-4 h-4" />
           </div>
-          <span className="font-semibold truncate text-[15px]">
-            {channelName}
-          </span>
-          {isFetching ? (
-            <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
-          ) : null}
+          <div className="min-w-0 flex flex-col">
+            <span className="font-semibold truncate text-[15px] leading-tight">
+              {channelName}
+            </span>
+            <span className="text-[11px] text-muted-foreground leading-tight">
+              {isFetching ? "syncing…" : "channel"}
+            </span>
+          </div>
         </div>
         <a
           href={channelUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-md px-2 py-1 hover:bg-muted transition-colors shrink-0"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-md px-2 py-1.5 hover:bg-muted transition-colors shrink-0"
           title="Open on GitHub"
         >
-          <ExternalLink className="w-3.5 h-3.5" />
-          GitHub
+          <ExternalLink className="w-4 h-4" />
+          <span className="hidden sm:inline">GitHub</span>
         </a>
       </div>
 
@@ -801,7 +879,7 @@ export function MessagesView() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-8rem)] border border-border rounded-xl overflow-hidden bg-background shadow-sm">
+    <div className="flex h-[calc(100dvh-4rem)] md:h-[calc(100dvh-8rem)] overflow-hidden bg-background md:border md:border-border md:rounded-xl md:shadow-sm">
       <aside
         className={cn(
           "shrink-0 border-r border-border flex-col w-full md:w-64 bg-card/40",
