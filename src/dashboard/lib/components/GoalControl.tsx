@@ -17,6 +17,7 @@ import {
   Calendar,
   CheckCircle,
   CircleDashed,
+  Copy,
   ExternalLink,
   Flag,
   GripVertical,
@@ -399,7 +400,34 @@ function GoalDetail({
                 {goal.name}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-                <span className="font-mono opacity-80">{goal.id}</span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    const token = `${GOAL_LABEL_PREFIX}${goal.id}`;
+                    navigator.clipboard
+                      ?.writeText(token)
+                      .then(() =>
+                        toast.success(`Copied "${token}"`, {
+                          description:
+                            "Type this in chat to direct the conversation to this goal.",
+                        }),
+                      )
+                      .catch(() => {});
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      (e.currentTarget as HTMLSpanElement).click();
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 font-mono opacity-80 hover:opacity-100 cursor-pointer transition-opacity"
+                  title="Goal id — type this in chat (goal:<id>) to direct the conversation to this goal. Click to copy."
+                >
+                  {GOAL_LABEL_PREFIX}
+                  {goal.id}
+                  <Copy className="w-3 h-3" />
+                </span>
                 <span>·</span>
                 <span>
                   created {new Date(goal.createdAt).toLocaleDateString()}
