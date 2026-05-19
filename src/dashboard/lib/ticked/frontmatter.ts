@@ -56,6 +56,13 @@ export interface TickFrontmatter {
    * `false` keeps the file active.
    */
   disabled?: boolean;
+  /**
+   * Slug of the worker (persona) under `.kody/workers/<worker>.md` that
+   * executes this job. Jobs own the schedule; the worker is *who* the tick
+   * runs as. Only meaningful on job files — worker files never carry it.
+   * A job with no `worker:` is skipped by the engine scheduler.
+   */
+  worker?: string;
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -179,6 +186,8 @@ function parseFlatYaml(text: string): TickFrontmatter {
       const lower = value.toLowerCase();
       if (lower === "true") out.disabled = true;
       else if (lower === "false") out.disabled = false;
+    } else if (key === "worker" && value.length > 0) {
+      out.worker = value;
     }
     // Unknown keys silently dropped on read — they round-trip via the
     // raw body if callers preserve it. We don't surface them on the
@@ -190,6 +199,7 @@ function parseFlatYaml(text: string): TickFrontmatter {
 function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
   const lines: string[] = [];
   if (frontmatter.every) lines.push(`every: ${frontmatter.every}`);
+  if (frontmatter.worker) lines.push(`worker: ${frontmatter.worker}`);
   // Only emit `disabled: true` — the default (enabled) leaves the line
   // out so an unchanged ticked file stays byte-identical.
   if (frontmatter.disabled === true) lines.push(`disabled: true`);

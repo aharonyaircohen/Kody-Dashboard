@@ -59,6 +59,7 @@ export function useCreateJob(actorLogin?: string) {
       body: string;
       schedule?: JobSchedule | null;
       disabled?: boolean;
+      worker?: string | null;
     }
   >({
     mutationFn: (data) =>
@@ -87,6 +88,7 @@ export function useUpdateJob(slug: string, actorLogin?: string) {
       body?: string;
       schedule?: JobSchedule | null;
       disabled?: boolean;
+      worker?: string | null;
     }
   >({
     mutationFn: (data) =>

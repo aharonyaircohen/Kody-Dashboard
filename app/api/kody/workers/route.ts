@@ -67,11 +67,6 @@ const createWorkerSchema = z.object({
   slug: z.string().min(1).max(64).optional(),
   title: z.string().min(1),
   body: z.string().default(""),
-  schedule: z
-    .enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d", "manual"])
-    .nullable()
-    .optional(),
-  disabled: z.boolean().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -99,8 +94,6 @@ export async function POST(req: NextRequest) {
       slug: requestedSlug,
       title,
       body,
-      schedule,
-      disabled,
       actorLogin,
     } = createWorkerSchema.parse(payload);
 
@@ -144,8 +137,6 @@ export async function POST(req: NextRequest) {
       slug,
       title,
       body,
-      schedule: schedule ?? null,
-      disabled: disabled === true,
     });
 
     return NextResponse.json({ worker });

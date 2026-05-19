@@ -4,14 +4,14 @@
  * @pattern ai-sdk-tool
  * @ai-summary Worker-creation tool for the kody-direct chat agent. Writes a
  *   `.kody/workers/<slug>.md` file via the same `writeWorkerFile` helper the
- *   dashboard's POST /api/kody/workers endpoint uses. Duplicated from
- *   job-tools.ts. Default body follows the report-producer template: each
- *   tick gathers inputs, composes a YAML findings report, and commits it to
- *   `.kody/reports/<slug>.md` via `gh api PUT`. Format mirrors workers
- *   (Worker / Allowed Commands / Restrictions / State).
+ *   dashboard's POST /api/kody/workers endpoint uses. A worker is a pure
+ *   reusable PERSONA: a markdown body describing intent, allowed commands,
+ *   and restrictions. Workers have no schedule, no state, and no run/tick —
+ *   they're personas referenced by other flows. Format mirrors the worker
+ *   template (Worker / Allowed Commands / Restrictions).
  *
  *   The model should NOT call this on the first turn — it must gap-
- *   analyze and ask the user questions until the worker is well-specified.
+ *   analyze and ask the user questions until the persona is well-specified.
  */
 import { tool } from "ai";
 import { z } from "zod";
@@ -35,9 +35,6 @@ interface WorkerInput {
   title: string;
   slug?: string;
   purpose: string;
-  cadenceHours: number;
-  inputs: string[];
-  reportSchema: string;
   extraAllowedCommands?: string[];
   extraRestrictions?: string[];
 }
@@ -52,21 +49,12 @@ function slugifyTitle(title: string): string {
     .slice(0, 64);
 }
 
-function bullets(items: string[]): string {
-  return items.map((s) => `- ${s.trim()}`).join("\n");
-}
-
 /**
- * Render the default report-producer worker body. The model fills in the
- * variable parts (purpose, cadence, inputs, report schema). Commands and
- * restrictions match the engine's job-tick constraints (Bash + Read +
- * `gh` only — no Write tool, so the report is committed via `gh api PUT`).
+ * Render the default persona worker body. The model fills in the variable
+ * parts (purpose, allowed commands, restrictions). A worker is a reusable
+ * persona — no cadence, no state, no tick.
  */
-function buildWorkerBody(slug: string, input: WorkerInput): string {
-  const cadence = Math.max(1, Math.round(input.cadenceHours));
-  const inputBullets =
-    input.inputs.length > 0 ? bullets(input.inputs) : "- _Not specified_";
-  const reportSchemaBlock = input.reportSchema.trim() || "_Not specified_";
+function buildWorkerBody(input: WorkerInput): string {
   const extraCmds = input.extraAllowedCommands ?? [];
   const extraRest = input.extraRestrictions ?? [];
 
@@ -75,57 +63,21 @@ function buildWorkerBody(slug: string, input: WorkerInput): string {
   body += `## Worker\n\n`;
   body += `${input.purpose.trim()}\n\n`;
 
-  body += `**Cadence guard.** If \`data.lastRunISO\` is set and within the last ${cadence} hours, emit unchanged state and exit. Otherwise proceed and update \`data.lastRunISO\` to now (UTC ISO).\n\n`;
-
-  body += `**Per tick (one action max):**\n\n`;
-  body += `1. Gather inputs:\n`;
-  body += `${inputBullets
-    .split("\n")
-    .map((l) => `   ${l}`)
-    .join("\n")}\n`;
-  body += `2. Compose the report findings as YAML frontmatter following this schema:\n\n`;
-  body += `   \`\`\`yaml\n`;
-  body += `   slug: ${slug}\n`;
-  body += `   generatedAt: <ISO 8601 timestamp>\n`;
-  body += `   findings:\n`;
-  body += `${reportSchemaBlock
-    .split("\n")
-    .map((l) => `   ${l}`)
-    .join("\n")}\n`;
-  body += `   \`\`\`\n\n`;
-  body += `3. Look up the existing report's blob SHA (skip on 404 — first run):\n`;
-  body += `   \`\`\`\n`;
-  body += `   gh api repos/{owner}/{repo}/contents/.kody/reports/${slug}.md \\\n`;
-  body += `     --jq .sha 2>/dev/null || echo ""\n`;
-  body += `   \`\`\`\n`;
-  body += `4. Commit the new report via the contents API (omit \`-f sha=...\` on first run):\n`;
-  body += `   \`\`\`\n`;
-  body += `   gh api -X PUT repos/{owner}/{repo}/contents/.kody/reports/${slug}.md \\\n`;
-  body += `     -f message="chore(reports): update ${slug}" \\\n`;
-  body += `     -f content="$(printf '%s' "$REPORT_BODY" | base64)" \\\n`;
-  body += `     -f sha="$EXISTING_SHA"\n`;
-  body += `   \`\`\`\n`;
-  body += `5. On success, stash \`data.lastReportISO = <now>\` and \`data.findingCount = <count>\`. On non-2xx, set \`cursor: error\` and narrate the status code.\n\n`;
-
   body += `## Allowed Commands\n\n`;
-  body += `- \`gh api\` — read + PUT contents on \`.kody/reports/${slug}.md\` only\n`;
-  for (const cmd of extraCmds) body += `- ${cmd.trim()}\n`;
+  if (extraCmds.length > 0) {
+    for (const cmd of extraCmds) body += `- ${cmd.trim()}\n`;
+  } else {
+    body += `- _Not specified_\n`;
+  }
   body += `\n`;
 
   body += `## Restrictions\n\n`;
-  body += `- Never edit, create, or delete files in the working tree. The report is committed via the GitHub contents API, not the working tree.\n`;
-  body += `- Never push, never commit any path other than \`.kody/reports/${slug}.md\`.\n`;
-  body += `- Maximum **one** report write per tick.\n`;
-  body += `- If the contents PUT fails with 409 (sha mismatch), re-read the SHA and retry once; otherwise emit \`cursor: error\` and exit.\n`;
-  for (const r of extraRest) body += `- ${r.trim()}\n`;
+  if (extraRest.length > 0) {
+    for (const r of extraRest) body += `- ${r.trim()}\n`;
+  } else {
+    body += `- _Not specified_\n`;
+  }
   body += `\n`;
-
-  body += `## State\n\n`;
-  body += `- \`cursor\`: \`idle\` | \`producing\` | \`error\`\n`;
-  body += `- \`data.lastRunISO\`: ISO timestamp of the last tick that ran (used by the cadence guard)\n`;
-  body += `- \`data.lastReportISO\`: ISO timestamp of the last successful report write\n`;
-  body += `- \`data.findingCount\`: count of findings in the last report (informational)\n`;
-  body += `- \`done\`: always \`false\`\n`;
 
   return body;
 }
@@ -146,46 +98,21 @@ export const createKodyWorkerInputSchema = z.object({
     .string()
     .min(1)
     .describe(
-      "One to three sentences describing what the worker scans/observes and what report it produces. " +
-        "No implementation details — those go in `inputs` and `reportSchema`.",
-    ),
-  cadenceHours: z
-    .number()
-    .int()
-    .min(1)
-    .max(720)
-    .describe(
-      "Minimum hours between active ticks (cadence guard). Daily = 24, weekly = 168, hourly = 1.",
-    ),
-  inputs: z
-    .array(z.string().min(1))
-    .min(1)
-    .describe(
-      "Concrete data sources / commands the worker runs to gather inputs. Each item is one bullet — " +
-        'e.g. "`gh pr list --state open --json number,title,createdAt`" or ' +
-        '"`gh api repos/{owner}/{repo}/actions/runs?status=failure&per_page=20`".',
-    ),
-  reportSchema: z
-    .string()
-    .min(1)
-    .describe(
-      "YAML fragment describing the `findings:` array shape that the worker will produce. Indented as it " +
-        'will appear inside the YAML frontmatter — e.g. "  - id: <stable id>\\n    severity: ' +
-        '<high|medium|low>\\n    title: \\"...\\"\\n    data: { ... }". Do NOT include the slug or ' +
-        "generatedAt fields — those are added automatically.",
+      "One to three sentences describing the worker persona — what it is, what it does, " +
+        "and how it should behave. No implementation details.",
     ),
   extraAllowedCommands: z
     .array(z.string().min(1))
     .optional()
     .describe(
-      "Optional additional shell commands the worker may run beyond `gh api` (e.g. " +
+      "Optional shell commands the worker persona may run (e.g. " +
         '"`gh pr list`", "`gh run list`"). Each item becomes a bullet under "Allowed Commands".',
     ),
   extraRestrictions: z
     .array(z.string().min(1))
     .optional()
     .describe(
-      'Optional additional restriction bullets to append (e.g. "Never comment on PRs from this worker.").',
+      'Optional restriction bullets to append (e.g. "Never comment on PRs from this worker.").',
     ),
 });
 
@@ -197,18 +124,14 @@ export function createWorkerTools(ctx: Ctx) {
     create_kody_worker: tool({
       description:
         `Create a new Kody Worker in ${repoRef} by committing a markdown file at ` +
-        "`.kody/workers/<slug>.md`. The default template is a REPORT-PRODUCER: each " +
-        "tick gathers inputs, composes a YAML findings report, and commits it to " +
-        "`.kody/reports/<slug>.md` via `gh api PUT` (the engine's job-tick " +
-        "executable only has Bash + Read, so reports are committed via API, not " +
-        "the working tree). The engine's worker-scheduler ticks every worker in " +
-        "`.kody/workers/` on the same cron as jobs; each worker's own cadence " +
-        "guard decides whether to act.\n\n" +
-        "BEFORE CALLING: gather title, purpose, cadenceHours, inputs (data sources " +
-        "as concrete `gh` commands), and reportSchema (YAML fragment for the " +
-        "`findings:` array). Ask the user clarifying questions in small batches " +
-        "until each field is well-specified — never invent inputs or schema. Show " +
-        "the proposed markdown body for approval before calling.\n\n" +
+        "`.kody/workers/<slug>.md`. A worker is a pure reusable PERSONA — a " +
+        "markdown body describing intent, allowed commands, and restrictions. " +
+        "Workers have no schedule, no state, and no run/tick; they're personas " +
+        "referenced by other flows.\n\n" +
+        "BEFORE CALLING: gather title, purpose, and (optionally) allowed " +
+        "commands and restrictions. Ask the user clarifying questions in small " +
+        "batches until the persona is well-specified — never invent behavior. " +
+        "Show the proposed markdown body for approval before calling.\n\n" +
         "Returns the new file's slug, title, and html URL on success.",
       inputSchema: createKodyWorkerInputSchema,
       execute: async (input) => {
@@ -232,7 +155,7 @@ export function createWorkerTools(ctx: Ctx) {
             };
           }
 
-          const body = buildWorkerBody(slug, input);
+          const body = buildWorkerBody(input);
           const message = `feat(workers): add ${slug}${actorLogin ? ` (via chat by @${actorLogin})` : ""}`;
           const worker = await writeWorkerFile({
             octokit,
@@ -243,7 +166,7 @@ export function createWorkerTools(ctx: Ctx) {
           });
 
           logger.info(
-            { owner, repo, slug, cadenceHours: input.cadenceHours, actorLogin },
+            { owner, repo, slug, actorLogin },
             "create_kody_worker: created worker file",
           );
 
@@ -252,9 +175,8 @@ export function createWorkerTools(ctx: Ctx) {
             title: worker.title,
             htmlUrl: worker.htmlUrl,
             note:
-              "Worker file committed at `.kody/workers/<slug>.md`. The engine's " +
-              "worker-scheduler will tick it on the next cron wake; the cadence " +
-              'guard decides when it acts. "Run now" forces an immediate tick.',
+              "Worker persona committed at `.kody/workers/<slug>.md`. It can " +
+              "now be referenced by other flows.",
           };
         } catch (err) {
           logger.warn(

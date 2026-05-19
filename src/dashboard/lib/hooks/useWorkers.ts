@@ -13,7 +13,6 @@ import { toast } from "sonner";
 import {
   kodyApi,
   type Worker,
-  type WorkerSchedule,
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
@@ -57,8 +56,6 @@ export function useCreateWorker(actorLogin?: string) {
       slug?: string;
       title: string;
       body: string;
-      schedule?: WorkerSchedule | null;
-      disabled?: boolean;
     }
   >({
     mutationFn: (data) =>
@@ -85,8 +82,6 @@ export function useUpdateWorker(slug: string, actorLogin?: string) {
     {
       title?: string;
       body?: string;
-      schedule?: WorkerSchedule | null;
-      disabled?: boolean;
     }
   >({
     mutationFn: (data) =>
@@ -101,33 +96,6 @@ export function useUpdateWorker(slug: string, actorLogin?: string) {
     },
     onError: (error) => {
       toast.error("Failed to update worker", { description: error.message });
-    },
-  });
-}
-
-export function useRunWorker() {
-  return useMutation<
-    {
-      issueNumber: number;
-      commentId: number;
-      commentUrl: string;
-      force: boolean;
-    },
-    Error,
-    { slug: string; force?: boolean }
-  >({
-    mutationFn: ({ slug, force }) => kodyApi.workers.run({ slug }, { force }),
-    onSuccess: (data) => {
-      toast.success(
-        data.force ? "Worker triggered (force)" : "Worker triggered",
-        {
-          description:
-            "Dispatch comment posted — the engine starts a run now (not on the 15-min tick).",
-        },
-      );
-    },
-    onError: (error) => {
-      toast.error("Failed to dispatch worker", { description: error.message });
     },
   });
 }

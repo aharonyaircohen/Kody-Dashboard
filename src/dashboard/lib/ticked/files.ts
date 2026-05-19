@@ -64,6 +64,13 @@ export interface TickFile {
    * "disabled" pill in list rows.
    */
   disabled: boolean;
+  /**
+   * Assigned worker (persona) slug from the `worker:` frontmatter, or
+   * `null` if none. Job-only in practice — workers are personas and never
+   * declare a worker. The dashboard reads this to render/seed the job's
+   * worker picker; the engine scheduler skips jobs with no worker.
+   */
+  worker: string | null;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -83,6 +90,11 @@ export interface TickWriteOptions {
    * skips this file on every cron wake. Absent or `false` keeps it active.
    */
   disabled?: boolean;
+  /**
+   * Worker (persona) slug to emit as `worker:` frontmatter. `null`/absent
+   * writes no `worker:` line. Only jobs set this; worker files never do.
+   */
+  worker?: string | null;
   /** SHA of the existing blob; omit on create. */
   sha?: string;
   /** Commit message override. */
@@ -248,11 +260,13 @@ function buildFileContent(
   body: string,
   schedule: ScheduleEvery | null,
   disabled: boolean,
+  worker: string | null,
 ): string {
   const trimmedBody = body.replace(/^\s+/, "");
   const titled = `# ${title.trim()}\n\n${trimmedBody}${trimmedBody.endsWith("\n") ? "" : "\n"}`;
   const fm: TickFrontmatter = {};
   if (schedule) fm.every = schedule;
+  if (worker) fm.worker = worker;
   if (disabled) fm.disabled = true;
   return joinFrontmatter(fm, titled);
 }
@@ -348,6 +362,7 @@ export function createTickedFiles(
             nextEligibleAt,
             schedule: frontmatter.every ?? null,
             disabled: frontmatter.disabled === true,
+            worker: frontmatter.worker ?? null,
             htmlUrl: buildHtmlUrl(slug, branch),
           } satisfies TickFile;
         } catch {
@@ -395,6 +410,7 @@ export function createTickedFiles(
         nextEligibleAt,
         schedule: frontmatter.every ?? null,
         disabled: frontmatter.disabled === true,
+        worker: frontmatter.worker ?? null,
         htmlUrl: buildHtmlUrl(slug, branch),
       };
     } catch (error: unknown) {
@@ -419,6 +435,7 @@ export function createTickedFiles(
       opts.body,
       opts.schedule ?? null,
       opts.disabled === true,
+      opts.worker ?? null,
     );
     const message =
       opts.message ??

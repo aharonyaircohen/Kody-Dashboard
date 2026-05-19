@@ -26,6 +26,7 @@ import {
   Target,
   Timer,
   Trash2,
+  User,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@dashboard/ui/button";
@@ -54,6 +55,7 @@ import {
   useRunJob,
   useUpdateJob,
 } from "../hooks/useJobs";
+import { useWorkers } from "../hooks/useWorkers";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useNow } from "../hooks/useNow";
 import { formatDuration, formatRelativePast } from "../jobs-schedule";
@@ -502,6 +504,24 @@ function JobDetail({
                   <Calendar className="w-3 h-3" />
                   updated {new Date(job.updatedAt).toLocaleDateString()}
                 </span>
+                <span>·</span>
+                {job.worker ? (
+                  <span
+                    className="inline-flex items-center gap-1"
+                    title={`Runs as the ${job.worker} worker persona`}
+                  >
+                    <User className="w-3 h-3" />
+                    {job.worker}
+                  </span>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1 text-amber-400"
+                    title="No worker assigned — the engine scheduler skips this job"
+                  >
+                    <User className="w-3 h-3" />
+                    no worker
+                  </span>
+                )}
                 <ScheduleInline schedule={job.schedule} />
                 <LastTickDetail lastTickAt={job.lastTickAt} />
                 {!job.disabled ? (
@@ -646,19 +666,21 @@ function CreateJobDialog({
   const [title, setTitle] = useState("");
   const [body, setBody] = useState(JOB_TEMPLATE);
   const [schedule, setSchedule] = useState<JobSchedule | null>(null);
+  const [worker, setWorker] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setTitle("");
       setBody(initialBody && initialBody.trim() ? initialBody : JOB_TEMPLATE);
       setSchedule(null);
+      setWorker(null);
     }
   }, [open, initialBody]);
 
   const handleSubmit = () => {
     if (!title.trim() || createMutation.isPending) return;
     createMutation.mutate(
-      { title: title.trim(), body, schedule },
+      { title: title.trim(), body, schedule, worker },
       {
         onSuccess: (job) => onCreated(job),
       },
@@ -688,6 +710,7 @@ function CreateJobDialog({
             />
           </div>
           <ScheduleSelect value={schedule} onChange={setSchedule} />
+          <WorkerSelect value={worker} onChange={setWorker} />
           <div className="space-y-1.5">
             <Label>Body</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={14} />
@@ -726,11 +749,13 @@ function EditJobDialog({
   const [title, setTitle] = useState(job.title);
   const [body, setBody] = useState(job.body || "");
   const [schedule, setSchedule] = useState<JobSchedule | null>(job.schedule);
+  const [worker, setWorker] = useState<string | null>(job.worker);
 
   useEffect(() => {
     setTitle(job.title);
     setBody(job.body || "");
     setSchedule(job.schedule);
+    setWorker(job.worker);
   }, [job]);
 
   const handleSubmit = () => {
@@ -739,10 +764,12 @@ function EditJobDialog({
       title?: string;
       body?: string;
       schedule?: JobSchedule | null;
+      worker?: string | null;
     } = {};
     if (title !== job.title) patch.title = title.trim();
     if (body !== job.body) patch.body = body;
     if (schedule !== job.schedule) patch.schedule = schedule;
+    if (worker !== job.worker) patch.worker = worker;
     if (Object.keys(patch).length === 0) {
       onSaved();
       return;
@@ -772,6 +799,7 @@ function EditJobDialog({
             />
           </div>
           <ScheduleSelect value={schedule} onChange={setSchedule} />
+          <WorkerSelect value={worker} onChange={setWorker} />
           <JobTimingReadout
             lastTickAt={job.lastTickAt}
             nextEligibleAt={job.nextEligibleAt}
@@ -962,6 +990,61 @@ function ScheduleSelect({
       <p className="text-xs text-muted-foreground">
         <strong>Auto</strong> — the body's cadence guard decides when to run.{" "}
         <strong>Manual only</strong> — never auto-runs; click Run to trigger.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Worker (persona) picker. A job is *what* runs on a schedule; the worker
+ * it names is *who* runs it — the engine injects that persona ahead of the
+ * job body. Every job must name a worker: the engine scheduler skips jobs
+ * with none, so the picker warns when unset and offers the personas under
+ * `.kody/workers/`.
+ */
+function WorkerSelect({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (next: string | null) => void;
+}) {
+  const { data: workers, isLoading } = useWorkers();
+  // Radix Select.Item disallows empty-string values; bind `null` to a
+  // sentinel instead.
+  const NONE = "__none__";
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="job-worker">Worker</Label>
+      <Select
+        value={value ?? NONE}
+        onValueChange={(v) => onChange(v === NONE ? null : v)}
+      >
+        <SelectTrigger id="job-worker" className="w-full">
+          <SelectValue
+            placeholder={isLoading ? "Loading workers…" : "Select a worker"}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>None (job won&apos;t run)</SelectItem>
+          {(workers ?? []).map((w) => (
+            <SelectItem key={w.slug} value={w.slug}>
+              {w.title} ({w.slug})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {value ? (
+          <>
+            Runs as the <strong>{value}</strong> persona.
+          </>
+        ) : (
+          <span className="text-amber-400">
+            No worker assigned — the engine scheduler will skip this job until
+            you pick one.
+          </span>
+        )}
       </p>
     </div>
   );

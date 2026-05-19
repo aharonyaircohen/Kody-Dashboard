@@ -69,6 +69,7 @@ const updateJobSchema = z.object({
     .nullable()
     .optional(),
   disabled: z.boolean().optional(),
+  worker: z.string().min(1).nullable().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -95,7 +96,7 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, body, schedule, disabled, actorLogin } =
+    const { title, body, schedule, disabled, worker, actorLogin } =
       updateJobSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
@@ -119,6 +120,7 @@ export async function PATCH(
       body: body ?? existing.body,
       schedule: schedule === undefined ? existing.schedule : schedule,
       disabled: disabled === undefined ? existing.disabled : disabled,
+      worker: worker === undefined ? existing.worker : worker,
       sha: existing.sha,
     });
 
