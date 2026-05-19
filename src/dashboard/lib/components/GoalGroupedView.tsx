@@ -23,9 +23,7 @@ import {
   Inbox,
   Loader2,
   MessageSquare,
-  Pause,
   Pencil,
-  Play,
   Plus,
   Sparkles,
   Trash2,
@@ -58,13 +56,11 @@ import { useReorderGoals } from "../hooks/useGoals";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import {
   useGoalState,
-  useSetGoalState,
   useMergeGoal,
   useManageGoal,
 } from "../hooks/useGoalState";
 import { useClosedGoalTasks } from "../hooks/useClosedGoalTasks";
 import { usePersistedSet } from "../hooks/usePersistedState";
-import { formatTickAge } from "../goal-state";
 import { TaskList } from "./TaskList";
 import { GoalProgressRing } from "./GoalProgressRing";
 
@@ -500,7 +496,6 @@ export function GoalGroupedView({
           {group.goal ? (
             <div className="flex items-center gap-1 shrink-0">
               <ManageGoalButton goal={group.goal} />
-              <RunGoalButton goal={group.goal} taskCount={total} />
               <MergeGoalButton goal={group.goal} taskCount={total} />
               <Button
                 variant="ghost"
@@ -693,100 +688,6 @@ export function GoalGroupedView({
             <span className="text-sm font-medium">New goal</span>
           </button>
         </div>
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * Self-contained run/pause/done button per goal. Owns its own state fetch
- * and mutation, so the parent doesn't need to know about runtime state.
- *
- * UX shape:
- *   • taskCount === 0  → hidden (planner button is the only sensible action).
- *   • state == null     → "Run" (filled).
- *   • state == "active" → "Pause" (ghost).
- *   • state == "paused" → "Resume" (filled).
- *   • state == "done"   → "Re-run" (clickable). Flips state back to "active";
- *                         engine picks up any newly added tasks on next tick.
- */
-function RunGoalButton({ goal, taskCount }: { goal: Goal; taskCount: number }) {
-  const { githubUser } = useGitHubIdentity();
-  const { data: state, isLoading } = useGoalState(goal.id);
-  const setState = useSetGoalState(goal.id, githubUser?.login ?? null);
-
-  if (taskCount === 0) return null;
-
-  const current = state?.state ?? null;
-  // Parked-for-merge is owned by MergeGoalButton — don't also show "Run".
-  if (current === "awaiting-merge") return null;
-  const isActive = current === "active";
-  const isPaused = current === "paused";
-  const isDone = current === "done";
-  const pending = setState.isPending || isLoading;
-
-  const onClick = () => {
-    if (pending) return;
-    if (isActive) {
-      setState.mutate({ state: "paused" });
-    } else {
-      setState.mutate({ state: "active" });
-    }
-  };
-
-  const label = isActive
-    ? "Pause"
-    : isPaused
-      ? "Resume"
-      : isDone
-        ? "Re-run"
-        : "Run";
-  const Icon = isActive ? Pause : Play;
-  const title = isActive
-    ? "Pause the goal runner"
-    : isPaused
-      ? "Resume the goal runner"
-      : isDone
-        ? "Re-run the goal — flips state back to active so the engine picks up any newly added tasks"
-        : "Start the goal runner — engine will drive each task to a merged PR";
-
-  // Match sibling buttons (Sparkles / MessageSquare / Pencil / Trash2):
-  // ghost variant, 32×32 icon-only, muted text with a colored hover. Running
-  // state gets a subtle emerald tint so it's still readable at a glance.
-  //
-  // Companion "ticked Xm ago" indicator: only shown once the runner is real
-  // (active or paused). Hidden when never-started or done — those states
-  // already read clearly from the button alone.
-  const tickAge =
-    state && (current === "active" || current === "paused")
-      ? formatTickAge(state.updatedAt)
-      : null;
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={pending}
-        onClick={onClick}
-        className={cn(
-          "h-8 w-8 p-0 transition-colors",
-          isActive
-            ? "text-emerald-400 hover:text-emerald-300"
-            : "text-muted-foreground hover:text-emerald-400",
-        )}
-        aria-label={`${label} ${goal.name}`}
-        title={title}
-      >
-        <Icon className="w-3.5 h-3.5" />
-      </Button>
-      {tickAge ? (
-        <span
-          className="hidden lg:inline text-[11px] text-muted-foreground tabular-nums whitespace-nowrap"
-          title={`Last tick at ${state?.updatedAt ?? ""}`}
-        >
-          {tickAge}
-        </span>
       ) : null}
     </div>
   );
