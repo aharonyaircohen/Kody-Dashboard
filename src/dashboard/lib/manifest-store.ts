@@ -35,6 +35,7 @@ import {
   getOwner,
   getRepo,
 } from "./github-client";
+import { INTERNAL_ISSUE_LABEL } from "./constants";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-repo mutex (verbatim from the originals — chain onto the tail so the
@@ -181,7 +182,10 @@ export function createManifestStore<M>(
       return existingNumber;
     }
     const created = await createIssue(
-      { title, body, labels: [label] },
+      // Stamp the umbrella label alongside the per-manifest discovery label so
+      // the task list (and any future reader) can exclude all infra issues by
+      // one label. Discovery still keys off `label` (see pickIssueNumber).
+      { title, body, labels: [label, INTERNAL_ISSUE_LABEL] },
       userOctokit,
     );
     return created.number;

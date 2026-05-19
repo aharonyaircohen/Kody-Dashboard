@@ -26,6 +26,7 @@ import {
   getRequestAuth,
 } from "@dashboard/lib/auth";
 import { isValidSlug } from "@dashboard/lib/workers-files";
+import { INTERNAL_ISSUE_LABEL } from "@dashboard/lib/constants";
 
 const CONTROL_LABEL = "kody:control";
 const CONTROL_TITLE = "Kody control";
@@ -85,7 +86,9 @@ async function findOrCreateControlIssue(
     repo,
     title: CONTROL_TITLE,
     body: CONTROL_BODY,
-    labels: [CONTROL_LABEL],
+    // `kody:internal` is the umbrella label every infra issue carries so the
+    // task list can exclude them all by one label (GitHub auto-creates it).
+    labels: [CONTROL_LABEL, INTERNAL_ISSUE_LABEL],
   });
   return created.number;
 }

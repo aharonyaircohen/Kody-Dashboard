@@ -43,6 +43,7 @@ import {
   parseKodyPhase,
   parseKodyFlow,
   TASK_ID_REGEX,
+  INTERNAL_ISSUE_LABELS,
 } from "@dashboard/lib/constants";
 
 /**
@@ -267,18 +268,11 @@ export async function GET(req: NextRequest) {
         state: "open",
         perPage: 100,
         since: sinceDate,
-        // These are all dashboard infrastructure stored in issue bodies, not
-        // real tasks: "kody:control" is the Run-now audit trail,
-        // "kody:inbox-feed" the mention hand-off buffer, and the three
-        // manifest issues back the CTO-decision ledger, goals, and push
-        // subscriptions. Drop them so they don't show up as task noise.
-        excludeLabels: [
-          "kody:control",
-          "kody:inbox-feed",
-          "kody:cto-decisions",
-          "kody:goals-manifest",
-          "kody:push-subscriptions",
-        ],
+        // Dashboard infrastructure stored in issue bodies (manifest stores,
+        // the Run-now audit trail) — not real tasks. Single source of truth
+        // in constants; new infra issue types get `kody:internal` stamped at
+        // creation, so this site never needs editing again.
+        excludeLabels: [...INTERNAL_ISSUE_LABELS],
       }),
       fetchWorkflowRuns({ perPage: 30 }),
       fetchOpenPRs(),
