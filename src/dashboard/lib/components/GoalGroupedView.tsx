@@ -17,6 +17,7 @@ import {
   Calendar,
   ChevronDown,
   ChevronRight,
+  Copy,
   Flag,
   GitMerge,
   GripVertical,
@@ -48,6 +49,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { toast } from "sonner";
 import { Button } from "@dashboard/ui/button";
 import { cn } from "../utils";
 import type { KodyTask } from "../types";
@@ -475,6 +477,38 @@ export function GoalGroupedView({
                     </span>
                   );
                 })()}
+                {group.goal ? (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const token = `${GOAL_LABEL_PREFIX}${group.goal!.id}`;
+                      navigator.clipboard
+                        ?.writeText(token)
+                        .then(() =>
+                          toast.success(`Copied "${token}"`, {
+                            description:
+                              "Type this in chat to direct the conversation to this goal.",
+                          }),
+                        )
+                        .catch(() => {});
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        (e.currentTarget as HTMLSpanElement).click();
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium shrink-0 bg-white/[0.04] ring-1 ring-white/[0.06] text-muted-foreground hover:text-foreground hover:bg-white/[0.07] transition-colors cursor-pointer"
+                    title="Goal id — type this in chat (goal:<id>) to direct the conversation to this goal. Click to copy."
+                  >
+                    {GOAL_LABEL_PREFIX}
+                    {group.goal.id}
+                    <Copy className="w-2.5 h-2.5 opacity-60" />
+                  </span>
+                ) : null}
               </div>
               {/* One-line description */}
               {group.goal?.description?.trim() ? (

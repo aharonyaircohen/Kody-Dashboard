@@ -43,6 +43,7 @@ import { SettingsDrawerProvider } from "./SettingsDrawer";
 import { NotificationsProvider } from "../notifications/NotificationsProvider";
 import { useAuth } from "../auth-context";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useGoals } from "../hooks/useGoals";
 import type { ChatContext } from "../chat-types";
 import { cn } from "../utils";
 
@@ -99,6 +100,31 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const { githubUser } = useGitHubIdentity();
   const [scope, setScope] = useState<ChatContext | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Goals power the "direct chat to a goal by id" flow: a user types
+  // `goal:<id>` in the composer and the chat re-scopes to that goal's
+  // planner. The rail owns this (not the dashboard page) so it works
+  // from any route — the chat is always mounted here.
+  const { data: goalsData } = useGoals();
+  const goals = goalsData ?? [];
+  const knownGoalIds = useMemo(() => goals.map((g) => g.id), [goals]);
+  const directToGoal = useCallback(
+    (goalId: string) => {
+      const goal = goals.find((g) => g.id === goalId);
+      if (!goal) return;
+      const sessionId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `planner-${Date.now()}`;
+      setScope({
+        kind: "goal-planner",
+        goal,
+        sessionId,
+        onExit: () => setScope(null),
+      });
+    },
+    [goals],
+  );
 
   // Desktop chat rail sizing. `collapsed` shrinks the aside to zero width
   // (KodyChat stays mounted — see file docstring — so streaming/scroll
@@ -252,6 +278,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                   lockedAgentId={lockedAgentId}
                   vibeMode={isVibeRoute}
                   onIssueCreated={dispatchIssueCreated}
+                  knownGoalIds={knownGoalIds}
+                  onDirectToGoal={directToGoal}
                   onCollapseRail={() => updateRailMode("collapsed")}
                   onToggleFullscreen={() =>
                     updateRailMode(
@@ -352,6 +380,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                     lockedAgentId={lockedAgentId}
                     vibeMode={isVibeRoute}
                     onIssueCreated={dispatchIssueCreated}
+                    knownGoalIds={knownGoalIds}
+                    onDirectToGoal={directToGoal}
                   />
                 ) : mobileOpen ? (
                   <div className="flex-1 flex items-center justify-center p-6">

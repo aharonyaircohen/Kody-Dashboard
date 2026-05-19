@@ -120,6 +120,7 @@ import {
   parseSlashTrigger,
   expandSlashCommand,
 } from "../prompts/useSlashPrompts";
+import { parseGoalMention } from "../goal-mention";
 import { SlashCommandMenu, filterPrompts } from "./SlashCommandMenu";
 
 /** Build fetch headers including client auth when available */
@@ -620,6 +621,17 @@ interface KodyChatProps {
    * transferred history.
    */
   onIssueCreated?: (issueNumber: number) => void;
+  /**
+   * Goal ids the user can "direct chat to" by typing `goal:<id>` in the
+   * composer. Supplied by ChatRailShell from the live goals list.
+   */
+  knownGoalIds?: string[];
+  /**
+   * Re-scope the chat to the given goal's planner. Fired when the user
+   * mentions a known `goal:<id>` token; the host (ChatRailShell) builds
+   * the `goal-planner` ChatContext and pushes it back down via `context`.
+   */
+  onDirectToGoal?: (goalId: string) => void;
 }
 
 /**
@@ -764,6 +776,8 @@ export function KodyChat({
   lockedAgentId,
   vibeMode,
   onIssueCreated,
+  knownGoalIds,
+  onDirectToGoal,
 }: KodyChatProps) {
   // Context-kind derivations.
   const selectedTask: KodyTask | null =
@@ -3976,6 +3990,26 @@ export function KodyChat({
     // slugs pass through unchanged so users can still type "/" prefixed
     // text freely.
     const rawInput = input.trim();
+
+    // "Direct chat to a goal by id": if the message mentions a known
+    // `goal:<id>` token, re-scope this chat to that goal's planner and
+    // keep the rest of the message in the composer for the user to send
+    // into the now-goal-scoped thread. Consuming the mention on its own
+    // Enter keeps it race-free (the scope swap drives a re-render before
+    // anything is sent). A mention of the goal we're already in just
+    // strips the token (the `!==` guard skips a redundant re-scope).
+    if (onDirectToGoal && knownGoalIds && knownGoalIds.length > 0) {
+      const mention = parseGoalMention(rawInput, knownGoalIds);
+      if (mention) {
+        if (mention.goalId !== plannerGoal?.id) {
+          onDirectToGoal(mention.goalId);
+        }
+        setInput(mention.rest);
+        setSlashMenuOpen(false);
+        setSlashSelectedIndex(0);
+        return;
+      }
+    }
 
     // Built-in `/init` — deterministic engine install. Bypasses the LLM
     // entirely: hits the install endpoint, renders the result as a chat
