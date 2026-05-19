@@ -270,13 +270,24 @@ export function KodyDashboard({
     return false;
   };
 
-  // A deep-linked task (e.g. "Task #N" from a CTO inbox rec) is usually
-  // closed/merged, so it's NOT in the day-windowed `tasks` poll. Fetch it
-  // on demand so the detail view can open instead of silently landing on
-  // the bare dashboard.
-  const selectedMissingFromPoll =
+  // A deep-linked task from a CTO inbox rec arrives by *number*, but that
+  // number means different things per rec type:
+  //   • legacy / execute / fix recs  → the number IS the task issue
+  //   • PR-health recs (fix-ci/sync/resolve) → the rec lives on a PR, so
+  //     the number is the PR number, NOT the issue
+  // It's also usually closed/merged, so it's not in the day-windowed poll.
+  // Match the poll by issue number first, then by associated PR number, and
+  // only fall back to an on-demand single fetch when neither hits — so the
+  // detail card opens instead of silently landing on the bare list.
+  const selectedInPoll =
     selectedIssueNumber != null &&
-    !tasks.some((t) => t.issueNumber === selectedIssueNumber);
+    tasks.some(
+      (t) =>
+        t.issueNumber === selectedIssueNumber ||
+        t.associatedPR?.number === selectedIssueNumber,
+    );
+  const selectedMissingFromPoll =
+    selectedIssueNumber != null && !selectedInPoll;
 
   const { data: fetchedSelected } = useQuery({
     queryKey: ["kody-task-deeplink", selectedIssueNumber],
@@ -286,16 +297,32 @@ export function KodyDashboard({
   });
 
   // #1: Derive selectedTask from query data — always fresh. Prefer the live
-  // poll; fall back to the on-demand fetch for out-of-window deep links.
+  // poll (by issue, then by PR number for PR-health recs); fall back to the
+  // on-demand fetch for out-of-window deep links.
   const selectedTask = useMemo(
     () =>
       selectedIssueNumber
         ? (tasks.find((t) => t.issueNumber === selectedIssueNumber) ??
+          tasks.find(
+            (t) => t.associatedPR?.number === selectedIssueNumber,
+          ) ??
           fetchedSelected?.task ??
           null)
         : null,
     [selectedIssueNumber, tasks, fetchedSelected],
   );
+
+  // When a deep link resolved via PR number, realign the selected id to the
+  // task's real issue so the URL (`/<issue>`) and detail header are correct.
+  useEffect(() => {
+    if (
+      selectedTask &&
+      selectedIssueNumber != null &&
+      selectedTask.issueNumber !== selectedIssueNumber
+    ) {
+      setSelectedIssueNumber(selectedTask.issueNumber);
+    }
+  }, [selectedTask, selectedIssueNumber]);
 
   // GitHub identity — verified via OAuth session cookie
   const { githubUser, connectedRepo, authError, clearGitHubUser } =
