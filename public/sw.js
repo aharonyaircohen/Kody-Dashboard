@@ -39,53 +39,27 @@ self.addEventListener("push", (event) => {
     data = { title: "Kody", body: event.data ? event.data.text() : "" };
   }
 
+  const title = (data && data.title) || "Kody";
   const body = (data && data.body) || "";
   const icon = (data && data.icon) || DEFAULT_ICON;
+  const tag = data && data.tag;
   const url = (data && data.url) || "/";
 
-  // Web push has no native notification grouping — only replace-by-tag. To
-  // "stack" rather than only keep the latest, we coalesce into ONE notification
-  // (constant tag) whose body is a running list of the most recent messages.
-  // The list is stashed on `notification.data.lines` so the next push can read
-  // it back (there is no API to enumerate a notification's history otherwise).
-  const COALESCE_TAG = "kody";
-  const MAX_LINES = 5;
+  const options = {
+    body,
+    icon,
+    badge: DEFAULT_BADGE,
+    // Per-thread tag from the payload: repeated activity on the same
+    // issue/PR/channel replaces in place; distinct threads stay separate
+    // and individually clickable. `renotify` so a replacement still alerts.
+    tag,
+    renotify: !!tag,
+    // `data` is the only way to carry state into the notificationclick
+    // handler — it isn't accessible from `notification.body` etc.
+    data: { url },
+  };
 
-  // Collapse each message to one short, scannable line: strip markdown quote
-  // markers / bullets / whitespace, take the first line, hard-truncate, and
-  // prefix with a bullet so stacked entries are visually distinct.
-  const firstLine = body.replace(/\s+/g, " ").replace(/^[>*\-#\s]+/, "").trim();
-  const newLine =
-    "• " + (firstLine.length > 70 ? firstLine.slice(0, 69) + "…" : firstLine);
-
-  event.waitUntil(
-    (async () => {
-      const existing = await self.registration.getNotifications({
-        tag: COALESCE_TAG,
-      });
-      const prevLines =
-        (existing[0] &&
-          existing[0].data &&
-          Array.isArray(existing[0].data.lines) &&
-          existing[0].data.lines) ||
-        [];
-
-      const lines = [newLine, ...prevLines].slice(0, MAX_LINES);
-      const title =
-        lines.length > 1 ? `Kody — ${lines.length} updates` : "Kody";
-
-      await self.registration.showNotification(title, {
-        body: lines.join("\n"),
-        icon,
-        badge: DEFAULT_BADGE,
-        tag: COALESCE_TAG,
-        renotify: true,
-        // `data` carries state into notificationclick: `url` is the latest
-        // message's target; `lines` is the stack we read back on next push.
-        data: { url, lines },
-      });
-    })(),
-  );
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener("notificationclick", (event) => {

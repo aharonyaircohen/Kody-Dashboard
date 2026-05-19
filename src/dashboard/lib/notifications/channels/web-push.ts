@@ -70,11 +70,16 @@ function buildPayload(ctx: SendContext): PushPayload {
     firstNewline === -1
       ? ""
       : trimmed.slice(firstNewline + 1, firstNewline + 281);
+  const url = ctx.vars.prUrl || ctx.vars.url;
   return {
     title: title || "Kody",
     body,
-    url: ctx.vars.prUrl || ctx.vars.url,
-    tag: ctx.vars.repo,
+    url,
+    // Per-thread tag: a specific PR/issue URL collapses repeated activity on
+    // that thread into one notification, while different threads stay
+    // separate and individually tappable. Falls back to repo only when the
+    // rule has no URL var (rare — keeps a sane key rather than undefined).
+    tag: url || ctx.vars.repo,
   };
 }
 
