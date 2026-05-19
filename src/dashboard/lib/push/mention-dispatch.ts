@@ -532,7 +532,12 @@ export async function dispatchMentionPushes(
     // 1. Durable inbox feed — the source of truth for the dashboard inbox.
     //    Runs regardless of whether web-push is configured so the inbox
     //    surfaces the message even when no device subscribed.
-    await recordInboxFeed(owner, repo, token, ev, recipients);
+    //    Channel messages are skipped: the recipient already receives the
+    //    message itself (in-app + broadcast push), so an inbox mention
+    //    entry pointing back at the same message is redundant noise.
+    if (!ev.channel) {
+      await recordInboxFeed(owner, repo, token, ev, recipients);
+    }
 
     // 2. Best-effort web-push fan-out to subscribed devices.
     if (!initVapid()) {
