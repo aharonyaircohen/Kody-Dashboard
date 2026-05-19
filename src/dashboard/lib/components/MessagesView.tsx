@@ -100,11 +100,32 @@ function MessageMarkdown({ body }: { body: string }) {
   );
 }
 
-function MessageItem({ comment }: { comment: GoalDiscussionComment }) {
+function MessageItem({
+  comment,
+  highlight,
+}: {
+  comment: GoalDiscussionComment;
+  highlight?: boolean;
+}) {
   const author = comment.author;
   const isBot = author?.login.endsWith("[bot]") ?? false;
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (highlight && ref.current) {
+      ref.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlight]);
+
   return (
-    <div className="flex gap-3 px-4 py-2 hover:bg-muted/30">
+    <div
+      ref={ref}
+      id={`msg-${comment.databaseId}`}
+      className={cn(
+        "flex gap-3 px-4 py-2 hover:bg-muted/30 scroll-mt-16 transition-colors",
+        highlight && "bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/40",
+      )}
+    >
       <Avatar className="h-8 w-8 mt-0.5 shrink-0">
         {author?.avatarUrl ? (
           <AvatarImage src={author.avatarUrl} alt={author.login} />
@@ -139,11 +160,20 @@ function MessageItem({ comment }: { comment: GoalDiscussionComment }) {
   );
 }
 
-function MessageList({ comments }: { comments: GoalDiscussionComment[] }) {
+function MessageList({
+  comments,
+  highlightCommentId,
+}: {
+  comments: GoalDiscussionComment[];
+  highlightCommentId?: number;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    // Don't yank to the bottom when we're deep-linking to a specific
+    // message — MessageItem scrolls that one into view instead.
+    if (highlightCommentId) return;
     if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
-  }, [comments]);
+  }, [comments, highlightCommentId]);
 
   if (comments.length === 0) {
     return (
@@ -155,7 +185,14 @@ function MessageList({ comments }: { comments: GoalDiscussionComment[] }) {
   return (
     <div ref={ref} className="flex-1 overflow-y-auto py-2">
       {comments.map((c) => (
-        <MessageItem key={c.id} comment={c} />
+        <MessageItem
+          key={c.id}
+          comment={c}
+          highlight={
+            highlightCommentId !== undefined &&
+            c.databaseId === highlightCommentId
+          }
+        />
       ))}
     </div>
   );
@@ -471,10 +508,12 @@ function ChannelThread({
   channelNumber,
   channelName,
   channelUrl,
+  highlightCommentId,
 }: {
   channelNumber: number;
   channelName: string;
   channelUrl: string;
+  highlightCommentId?: number;
 }) {
   const { data, isLoading, error, refetch, isFetching } =
     useChannelThread(channelNumber);
@@ -513,7 +552,10 @@ function ChannelThread({
           </Button>
         </div>
       ) : (
-        <MessageList comments={data?.comments ?? []} />
+        <MessageList
+          comments={data?.comments ?? []}
+          highlightCommentId={highlightCommentId}
+        />
       )}
 
       <MessageComposer channelNumber={channelNumber} channelName={channelName} />
@@ -583,7 +625,24 @@ function CreateChannelForm({ onClose }: { onClose: () => void }) {
 
 export function MessagesView() {
   const { data, isLoading, error, refetch } = useMessageChannels();
-  const [selected, setSelected] = useState<number | null>(null);
+
+  // Deep link from a push notification / inbox entry:
+  // /messages?channel=<n>&c=<commentDatabaseId>. Read once on mount.
+  const deepLink = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const p = new URLSearchParams(window.location.search);
+    const ch = Number(p.get("channel"));
+    if (!Number.isInteger(ch) || ch <= 0) return null;
+    const c = Number(p.get("c"));
+    return {
+      channel: ch,
+      commentId: Number.isInteger(c) && c > 0 ? c : undefined,
+    };
+  }, []);
+
+  const [selected, setSelected] = useState<number | null>(
+    deepLink?.channel ?? null,
+  );
   const [creating, setCreating] = useState(false);
 
   const channels = useMemo(
@@ -685,6 +744,11 @@ export function MessagesView() {
             channelNumber={activeChannel.number}
             channelName={activeChannel.name}
             channelUrl={activeChannel.url}
+            highlightCommentId={
+              deepLink && deepLink.channel === activeChannel.number
+                ? deepLink.commentId
+                : undefined
+            }
           />
         ) : (
           <div className="flex items-center justify-center h-full text-sm text-muted-foreground">

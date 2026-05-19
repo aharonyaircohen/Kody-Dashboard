@@ -29,7 +29,7 @@ import { readCtoDecisions } from "../cto/decisions-server";
 import { latestCtoDecisions } from "../cto/decisions";
 import { applyCtoBackpressure } from "../cto/backpressure";
 import { logger } from "../logger";
-import { dashboardThreadUrl } from "../thread-link";
+import { dashboardThreadUrl, dashboardChannelUrl } from "../thread-link";
 import { deriveVapidKeys } from "./vapid-keys";
 
 // GitHub login: 1–39 chars, alphanumeric or single hyphens, not starting/
@@ -58,7 +58,16 @@ interface MentionEvent {
   repoFullName: string;
   /** `Issue` / `PullRequest` / `Discussion` / `Commit` — for the inbox feed. */
   threadType: string;
+  /**
+   * Set when the event is a comment in a messaging *channel* (a `#`-titled
+   * Discussion). Channel messages broadcast to every subscribed teammate
+   * (not just `@mentions`) and deep-link into the in-app `/messages` view.
+   */
+  channel?: { number: number; commentId?: number };
 }
+
+/** Channels are Discussions whose title starts with this marker. */
+const CHANNEL_TITLE_PREFIX = "#";
 
 /**
  * Pull the relevant body, author, and url out of the webhook payload for the
@@ -194,6 +203,14 @@ function extractEvent(
       const url = typeof comment?.html_url === "string" ? comment.html_url : "";
       const disc = payload.discussion as Record<string, unknown> | undefined;
       const title = typeof disc?.title === "string" ? disc.title : "";
+      // A `#`-titled discussion is a messaging channel — every comment is a
+      // team message that broadcasts to all subscribers and deep-links into
+      // the in-app channel view.
+      const isChannel = title.startsWith(CHANNEL_TITLE_PREFIX);
+      const discNumber =
+        typeof disc?.number === "number" ? disc.number : undefined;
+      const commentId =
+        typeof comment?.id === "number" ? comment.id : undefined;
       return {
         body,
         author: typeof author === "string" ? author : undefined,
@@ -201,6 +218,9 @@ function extractEvent(
         title,
         repoFullName,
         threadType: "Discussion",
+        ...(isChannel && discNumber !== undefined
+          ? { channel: { number: discNumber, commentId } }
+          : {}),
       };
     }
 
@@ -264,9 +284,22 @@ function buildPayload(
     .trim()
     .slice(0, 180);
 
-  // Open the notification inside Kody (dashboard task view) for Issue
-  // threads; PRs/discussions/commits have no dashboard deep route, so
-  // those still open github.com (with their comment anchor intact).
+  // Channel messages deep-link into the in-app /messages view scrolled to
+  // the message. Issue threads open the dashboard task view; PRs/discussions/
+  // commits have no dashboard deep route so they open github.com.
+  if (ev.channel) {
+    const channelName = ev.title?.replace(/^#/, "") ?? "channel";
+    return JSON.stringify({
+      title: `${who} in #${channelName}`,
+      body: snippet || `New message in #${channelName}`,
+      url: dashboardChannelUrl({
+        channelNumber: ev.channel.number,
+        commentId: ev.channel.commentId,
+      }),
+      tag: `channel:${ev.channel.number}`,
+    });
+  }
+
   const clickUrl = dashboardThreadUrl({
     githubUrl: ev.url,
     threadType: ev.threadType,
@@ -293,7 +326,14 @@ async function recordInboxFeed(
   ev: MentionEvent,
   mentions: string[],
 ): Promise<void> {
-  const url = ev.url ?? "";
+  // Channel messages deep-link into the in-app /messages view; everything
+  // else keeps its github.com comment anchor.
+  const url = ev.channel
+    ? dashboardChannelUrl({
+        channelNumber: ev.channel.number,
+        commentId: ev.channel.commentId,
+      })
+    : (ev.url ?? "");
   if (!url) return;
   const sentAt = new Date().toISOString();
   const snippet = buildSnippet(ev.body);
@@ -394,29 +434,6 @@ export async function dispatchMentionPushes(
       );
       return;
     }
-    const mentions = extractMentions(ev.body);
-    if (mentions.length === 0) {
-      logger.info(
-        {
-          event: "mention_push_no_mentions",
-          eventType,
-          repo: ev.repoFullName,
-          bodyPreview: ev.body.slice(0, 80),
-        },
-        "Event body contained no @mentions",
-      );
-      return;
-    }
-    logger.info(
-      {
-        event: "mention_push_mentions_found",
-        eventType,
-        mentions,
-        repo: ev.repoFullName,
-      },
-      `Found ${mentions.length} @mention(s)`,
-    );
-
     const [owner, repo] = ev.repoFullName.split("/");
     if (!owner || !repo) return;
 
@@ -432,11 +449,80 @@ export async function dispatchMentionPushes(
       return;
     }
 
+    // Read the push manifest once. Needed up front for channel broadcasts
+    // (the audience IS the subscriber set) and reused for the web-push
+    // fan-out below. A read failure must not drop mention inbox entries,
+    // so fail open with an empty list.
+    setGitHubContext(owner, repo, token);
+    let subs: PushSubscriptionRecord[] = [];
+    try {
+      const { manifest } = await readPushManifest();
+      subs = manifest.subscriptions;
+    } catch (err) {
+      logger.warn(
+        {
+          event: "mention_push_manifest_read_failed",
+          error: err instanceof Error ? err.message : String(err),
+          repo: ev.repoFullName,
+        },
+        "Push manifest read failed — proceeding with empty subscriber set",
+      );
+    } finally {
+      clearGitHubContext();
+    }
+
+    // Recipients: channel messages broadcast to every subscribed teammate
+    // (minus the author — you don't get pinged for your own message);
+    // everything else stays gated to explicit `@mentions`.
+    let recipients: string[];
+    if (ev.channel) {
+      const authorLc = ev.author?.toLowerCase();
+      recipients = [
+        ...new Set(
+          subs
+            .map((s) => s.userLogin?.toLowerCase())
+            .filter((l): l is string => !!l && l !== authorLc),
+        ),
+      ];
+      logger.info(
+        {
+          event: "channel_broadcast_recipients",
+          channel: ev.channel.number,
+          recipients,
+          repo: ev.repoFullName,
+        },
+        `Channel #${ev.channel.number} broadcast → ${recipients.length} subscriber(s)`,
+      );
+      if (recipients.length === 0) return;
+    } else {
+      recipients = extractMentions(ev.body);
+      if (recipients.length === 0) {
+        logger.info(
+          {
+            event: "mention_push_no_mentions",
+            eventType,
+            repo: ev.repoFullName,
+            bodyPreview: ev.body.slice(0, 80),
+          },
+          "Event body contained no @mentions",
+        );
+        return;
+      }
+      logger.info(
+        {
+          event: "mention_push_mentions_found",
+          eventType,
+          mentions: recipients,
+          repo: ev.repoFullName,
+        },
+        `Found ${recipients.length} @mention(s)`,
+      );
+    }
+
     // 1. Durable inbox feed — the source of truth for the dashboard inbox.
-    //    Runs regardless of whether web-push is configured, because the
-    //    inbox must surface every mention even when no device subscribed
-    //    and no browser tab is open (the bug this path fixes).
-    await recordInboxFeed(owner, repo, token, ev, mentions);
+    //    Runs regardless of whether web-push is configured so the inbox
+    //    surfaces the message even when no device subscribed.
+    await recordInboxFeed(owner, repo, token, ev, recipients);
 
     // 2. Best-effort web-push fan-out to subscribed devices.
     if (!initVapid()) {
@@ -447,20 +533,7 @@ export async function dispatchMentionPushes(
       return;
     }
 
-    setGitHubContext(owner, repo, token);
-    let subs: PushSubscriptionRecord[];
-    try {
-      const { manifest } = await readPushManifest();
-      subs = manifest.subscriptions;
-    } finally {
-      clearGitHubContext();
-    }
-
-    // Note: we used to drop the author from the mention set so people
-    // didn't ping themselves when typing `@me` in their own comment. The
-    // user pointed out that's a footgun — if someone @s themselves it's
-    // almost always intentional (a reminder, a self-cc), so respect it.
-    const mentionSet = new Set(mentions);
+    const mentionSet = new Set(recipients);
     if (mentionSet.size === 0) return;
 
     const targets = subs.filter((s) => {

@@ -36,3 +36,21 @@ export function dashboardThreadUrl(opts: {
   const base = getPublicBaseUrl().replace(/\/+$/, "");
   return `${base}/${m[1]}`;
 }
+
+/**
+ * Dashboard deep link for a messaging-channel comment. Channels are
+ * `#`-titled Discussions surfaced in the in-app `/messages` view, so push
+ * + inbox entries open the channel scrolled to the message rather than
+ * github.com. `c` is the comment's REST `databaseId` — `MessagesView`
+ * matches it to scroll/highlight.
+ */
+export function dashboardChannelUrl(opts: {
+  channelNumber: number;
+  commentId?: number;
+}): string {
+  const base = getPublicBaseUrl().replace(/\/+$/, "");
+  const q = opts.commentId
+    ? `?channel=${opts.channelNumber}&c=${opts.commentId}`
+    : `?channel=${opts.channelNumber}`;
+  return `${base}/messages${q}`;
+}
