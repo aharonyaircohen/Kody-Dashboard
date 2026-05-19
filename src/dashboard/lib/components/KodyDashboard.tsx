@@ -1467,7 +1467,7 @@ export function KodyDashboard({
                   <div className="flex items-center justify-center h-full">
                     <div className="text-muted-foreground">Loading...</div>
                   </div>
-                ) : taskListLayout === "flat" ? (
+                ) : taskListLayout === "flat" || debouncedSearch.trim() ? (
                   <div>
                     {/* Legacy flat view: actions pinned at the top so the
                         user can create a task or report a bug without

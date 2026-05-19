@@ -8,7 +8,7 @@
 
 import { forwardRef, useImperativeHandle, useRef, type ReactNode } from "react";
 import { cn } from "../utils";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import type { SortField, SortDirection } from "../types";
 import { FilterDropdown } from "./FilterDropdown";
 
@@ -168,8 +168,18 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Search tasks…"
               aria-label="Search tasks"
-              className="h-8 pl-8 pr-3 text-xs rounded-md bg-white/[0.04] border border-white/[0.08] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-white/20 w-40"
+              className="h-8 pl-8 pr-7 text-xs rounded-md bg-white/[0.04] border border-white/[0.08] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-white/20 w-40"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => onSearchChange("")}
+                aria-label="Clear search"
+                className="absolute right-2 flex items-center justify-center text-muted-foreground/60 hover:text-foreground"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         )}
 
