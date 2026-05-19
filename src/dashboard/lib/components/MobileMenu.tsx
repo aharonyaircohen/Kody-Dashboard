@@ -23,6 +23,7 @@ import {
   Github,
   Layers,
   LogOut,
+  MessageSquare,
   ScrollText,
   Sparkles,
 } from "lucide-react";
@@ -203,6 +204,19 @@ export function MobileMenu({
               <span className="text-sm font-medium">Workers</span>
               <span className="text-[11px] text-muted-foreground">
                 Run and edit
+              </span>
+            </Link>
+            <Link
+              href="/messages"
+              onClick={close}
+              className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
+            >
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-emerald-500/10">
+                <MessageSquare className="w-4 h-4 text-emerald-300" />
+              </span>
+              <span className="text-sm font-medium">Messages</span>
+              <span className="text-[11px] text-muted-foreground">
+                Team chat
               </span>
             </Link>
             <Link
