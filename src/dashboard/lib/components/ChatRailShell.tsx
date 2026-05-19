@@ -101,13 +101,14 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const [scope, setScope] = useState<ChatContext | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Goals power the "direct chat to a goal by id" flow: a user types
-  // `goal:<id>` in the composer and the chat re-scopes to that goal's
-  // planner. The rail owns this (not the dashboard page) so it works
-  // from any route — the chat is always mounted here.
+  // Goals power the "direct chat to a goal by id" flow: a user types the
+  // goal's `#<discussionNumber>` (or `goal:<n>`) in the composer and the
+  // chat re-scopes to that goal's planner. The rail owns this (not the
+  // dashboard page) so it works from any route — chat is always mounted
+  // here. We pass the live goals straight down; the parser resolves the
+  // number/slug to a canonical id.
   const { data: goalsData } = useGoals();
-  const goals = goalsData ?? [];
-  const knownGoalIds = useMemo(() => goals.map((g) => g.id), [goals]);
+  const goals = useMemo(() => goalsData ?? [], [goalsData]);
   const directToGoal = useCallback(
     (goalId: string) => {
       const goal = goals.find((g) => g.id === goalId);
@@ -278,7 +279,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                   lockedAgentId={lockedAgentId}
                   vibeMode={isVibeRoute}
                   onIssueCreated={dispatchIssueCreated}
-                  knownGoalIds={knownGoalIds}
+                  knownGoals={goals}
                   onDirectToGoal={directToGoal}
                   onCollapseRail={() => updateRailMode("collapsed")}
                   onToggleFullscreen={() =>
@@ -380,7 +381,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                     lockedAgentId={lockedAgentId}
                     vibeMode={isVibeRoute}
                     onIssueCreated={dispatchIssueCreated}
-                    knownGoalIds={knownGoalIds}
+                    knownGoals={goals}
                     onDirectToGoal={directToGoal}
                   />
                 ) : mobileOpen ? (

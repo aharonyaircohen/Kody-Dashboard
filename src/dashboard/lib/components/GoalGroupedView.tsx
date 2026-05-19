@@ -48,7 +48,6 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { toast } from "sonner";
 import { Button } from "@dashboard/ui/button";
 import { cn } from "../utils";
 import type { KodyTask } from "../types";
@@ -447,35 +446,12 @@ export function GoalGroupedView({
             </span>
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
-                {group.goal ? (
+                {typeof group.goal?.discussionNumber === "number" ? (
                   <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const token = `${GOAL_LABEL_PREFIX}${group.goal!.id}`;
-                      navigator.clipboard
-                        ?.writeText(token)
-                        .then(() =>
-                          toast.success(`Copied "${token}"`, {
-                            description:
-                              "Type this in chat to direct the conversation to this goal.",
-                          }),
-                        )
-                        .catch(() => {});
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        (e.currentTarget as HTMLSpanElement).click();
-                      }
-                    }}
-                    className="text-base md:text-lg font-mono font-semibold text-sky-400 hover:text-sky-300 shrink-0 cursor-pointer transition-colors"
-                    title="Goal id — type this in chat (goal:<id>) to direct the conversation to this goal. Click to copy."
+                    className="text-base md:text-lg font-mono font-semibold text-muted-foreground shrink-0"
+                    title="Goal id — mention #{number} or goal:{number} in chat to direct the conversation here"
                   >
-                    {GOAL_LABEL_PREFIX}
-                    {group.goal.id}
+                    #{group.goal.discussionNumber}
                   </span>
                 ) : null}
                 <span

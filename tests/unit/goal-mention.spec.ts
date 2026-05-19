@@ -1,62 +1,73 @@
 import { describe, it, expect } from "vitest";
-import { parseGoalMention } from "../../src/dashboard/lib/goal-mention";
+import {
+  parseGoalMention,
+  type GoalRef,
+} from "../../src/dashboard/lib/goal-mention";
 
-const KNOWN = ["q4-roadmap", "mobile-app", "ga"];
+const GOALS: GoalRef[] = [
+  { id: "q4-roadmap", discussionNumber: 12 },
+  { id: "mobile-app", discussionNumber: 7 },
+  { id: "ga" }, // no backing discussion
+];
 
 describe("parseGoalMention", () => {
   it("returns null when there is no token", () => {
-    expect(parseGoalMention("hello there", KNOWN)).toBeNull();
+    expect(parseGoalMention("hello there", GOALS)).toBeNull();
   });
 
-  it("returns null when the id is not a known goal", () => {
-    expect(parseGoalMention("goal:nope what's left", KNOWN)).toBeNull();
+  it("returns null when the number is not a known goal discussion", () => {
+    expect(parseGoalMention("goal:999 what's left", GOALS)).toBeNull();
+    expect(parseGoalMention("#999 what's left", GOALS)).toBeNull();
   });
 
-  it("returns null for empty text or no known goals", () => {
-    expect(parseGoalMention("", KNOWN)).toBeNull();
-    expect(parseGoalMention("goal:q4-roadmap", [])).toBeNull();
+  it("returns null for empty text or no goals", () => {
+    expect(parseGoalMention("", GOALS)).toBeNull();
+    expect(parseGoalMention("goal:12", [])).toBeNull();
   });
 
-  it("matches a bare token at the start and strips it", () => {
-    expect(parseGoalMention("goal:q4-roadmap what is left?", KNOWN)).toEqual({
+  it("resolves goal:<number> to the canonical slug id", () => {
+    expect(parseGoalMention("goal:12 what is left?", GOALS)).toEqual({
       goalId: "q4-roadmap",
       rest: "what is left?",
     });
   });
 
-  it("matches a token mid-sentence", () => {
-    expect(
-      parseGoalMention("can you check goal:mobile-app for me", KNOWN),
-    ).toEqual({ goalId: "mobile-app", rest: "can you check for me" });
+  it("resolves a bare #<number> mid-sentence", () => {
+    expect(parseGoalMention("can you check #7 for me", GOALS)).toEqual({
+      goalId: "mobile-app",
+      rest: "can you check for me",
+    });
   });
 
-  it("accepts an optional # or @ prefix and strips the whole token", () => {
-    expect(parseGoalMention("#goal:ga ship it", KNOWN)).toEqual({
-      goalId: "ga",
+  it("accepts #goal:<number> / @goal:<number> and strips the token", () => {
+    expect(parseGoalMention("#goal:12 ship it", GOALS)).toEqual({
+      goalId: "q4-roadmap",
       rest: "ship it",
     });
-    expect(parseGoalMention("(@goal:ga)", KNOWN)).toEqual({
-      goalId: "ga",
+    expect(parseGoalMention("(@goal:7)", GOALS)).toEqual({
+      goalId: "mobile-app",
       rest: "()",
     });
   });
 
-  it("is case-insensitive but returns the canonical id", () => {
-    expect(parseGoalMention("GOAL:Q4-Roadmap status", KNOWN)).toEqual({
+  it("still resolves the legacy goal:<slug> form", () => {
+    expect(parseGoalMention("GOAL:Q4-Roadmap status", GOALS)).toEqual({
       goalId: "q4-roadmap",
       rest: "status",
+    });
+    expect(parseGoalMention("goal:ga go", GOALS)).toEqual({
+      goalId: "ga",
+      rest: "go",
     });
   });
 
   it("does not match inside a larger word/url", () => {
-    expect(
-      parseGoalMention("see https://x/goal:q4-roadmap-extra", KNOWN),
-    ).toBeNull();
+    expect(parseGoalMention("see https://x/goal:12-extra", GOALS)).toBeNull();
   });
 
   it("returns an empty rest when only the token was typed", () => {
-    expect(parseGoalMention("  goal:ga  ", KNOWN)).toEqual({
-      goalId: "ga",
+    expect(parseGoalMention("  #12  ", GOALS)).toEqual({
+      goalId: "q4-roadmap",
       rest: "",
     });
   });

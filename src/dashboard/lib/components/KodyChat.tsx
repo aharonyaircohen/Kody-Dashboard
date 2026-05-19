@@ -120,7 +120,7 @@ import {
   parseSlashTrigger,
   expandSlashCommand,
 } from "../prompts/useSlashPrompts";
-import { parseGoalMention } from "../goal-mention";
+import { parseGoalMention, type GoalRef } from "../goal-mention";
 import { SlashCommandMenu, filterPrompts } from "./SlashCommandMenu";
 
 /** Build fetch headers including client auth when available */
@@ -622,10 +622,11 @@ interface KodyChatProps {
    */
   onIssueCreated?: (issueNumber: number) => void;
   /**
-   * Goal ids the user can "direct chat to" by typing `goal:<id>` in the
-   * composer. Supplied by ChatRailShell from the live goals list.
+   * Goals the user can "direct chat to" by typing the goal's
+   * `#<discussionNumber>` (or `goal:<n>`) in the composer. Supplied by
+   * ChatRailShell from the live goals list.
    */
-  knownGoalIds?: string[];
+  knownGoals?: GoalRef[];
   /**
    * Re-scope the chat to the given goal's planner. Fired when the user
    * mentions a known `goal:<id>` token; the host (ChatRailShell) builds
@@ -776,7 +777,7 @@ export function KodyChat({
   lockedAgentId,
   vibeMode,
   onIssueCreated,
-  knownGoalIds,
+  knownGoals,
   onDirectToGoal,
 }: KodyChatProps) {
   // Context-kind derivations.
@@ -3992,14 +3993,15 @@ export function KodyChat({
     const rawInput = input.trim();
 
     // "Direct chat to a goal by id": if the message mentions a known
-    // `goal:<id>` token, re-scope this chat to that goal's planner and
-    // keep the rest of the message in the composer for the user to send
-    // into the now-goal-scoped thread. Consuming the mention on its own
-    // Enter keeps it race-free (the scope swap drives a re-render before
-    // anything is sent). A mention of the goal we're already in just
-    // strips the token (the `!==` guard skips a redundant re-scope).
-    if (onDirectToGoal && knownGoalIds && knownGoalIds.length > 0) {
-      const mention = parseGoalMention(rawInput, knownGoalIds);
+    // goal (`#<n>` / `goal:<n>`), re-scope this chat to that goal's
+    // planner and keep the rest of the message in the composer for the
+    // user to send into the now-goal-scoped thread. Consuming the
+    // mention on its own Enter keeps it race-free (the scope swap drives
+    // a re-render before anything is sent). A mention of the goal we're
+    // already in just strips the token (the `!==` guard skips a
+    // redundant re-scope).
+    if (onDirectToGoal && knownGoals && knownGoals.length > 0) {
+      const mention = parseGoalMention(rawInput, knownGoals);
       if (mention) {
         if (mention.goalId !== plannerGoal?.id) {
           onDirectToGoal(mention.goalId);

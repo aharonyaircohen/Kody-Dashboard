@@ -17,7 +17,6 @@ import {
   Calendar,
   CheckCircle,
   CircleDashed,
-  Copy,
   ExternalLink,
   Flag,
   GripVertical,
@@ -400,35 +399,17 @@ function GoalDetail({
                 {goal.name}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    const token = `${GOAL_LABEL_PREFIX}${goal.id}`;
-                    navigator.clipboard
-                      ?.writeText(token)
-                      .then(() =>
-                        toast.success(`Copied "${token}"`, {
-                          description:
-                            "Type this in chat to direct the conversation to this goal.",
-                        }),
-                      )
-                      .catch(() => {});
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      (e.currentTarget as HTMLSpanElement).click();
-                    }
-                  }}
-                  className="inline-flex items-center gap-1 font-mono opacity-80 hover:opacity-100 cursor-pointer transition-opacity"
-                  title="Goal id — type this in chat (goal:<id>) to direct the conversation to this goal. Click to copy."
-                >
-                  {GOAL_LABEL_PREFIX}
-                  {goal.id}
-                  <Copy className="w-3 h-3" />
-                </span>
-                <span>·</span>
+                {typeof goal.discussionNumber === "number" ? (
+                  <>
+                    <span
+                      className="font-mono opacity-80"
+                      title="Goal id — mention #{number} or goal:{number} in chat to direct the conversation here"
+                    >
+                      #{goal.discussionNumber}
+                    </span>
+                    <span>·</span>
+                  </>
+                ) : null}
                 <span>
                   created {new Date(goal.createdAt).toLocaleDateString()}
                 </span>
@@ -1191,10 +1172,11 @@ function SortableGoalItem({
           className="flex-1 text-left pr-4 py-3"
         >
           <div className="font-medium text-sm truncate">
-            <span className="font-mono text-sky-400">
-              {GOAL_LABEL_PREFIX}
-              {goal.id}
-            </span>{" "}
+            {typeof goal.discussionNumber === "number" ? (
+              <span className="font-mono text-muted-foreground">
+                #{goal.discussionNumber}{" "}
+              </span>
+            ) : null}
             {goal.name}
           </div>
           <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
