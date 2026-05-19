@@ -21,11 +21,13 @@ import {
   Link2,
   Loader2,
   RefreshCw,
+  Search,
   Trash2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@dashboard/ui/button";
+import { Input } from "@dashboard/ui/input";
 import { PageShell } from "./PageShell";
 import { InboxThreadDialog, resolvableThread } from "./InboxThreadDialog";
 import { useAuth } from "../auth-context";
@@ -48,6 +50,20 @@ import {
 } from "../inbox/deep-link";
 
 type CtoVerdict = "approve" | "reject";
+
+/** Case-insensitive substring match across an entry's searchable fields. */
+function matchesQuery(entry: InboxEntry, q: string): boolean {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  return [
+    entry.title,
+    entry.snippet,
+    entry.author,
+    entry.repoFullName,
+    entry.threadType,
+    entry.source,
+  ].some((field) => field?.toLowerCase().includes(needle));
+}
 
 const SOURCE_LABEL: Record<InboxSource, string> = {
   mention: "mentioned you",
@@ -318,7 +334,18 @@ export function InboxList() {
   const { verdictFor, invalidate: invalidateCtoDecisions } = useCtoDecisions();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activeEntry, setActiveEntry] = useState<InboxEntry | null>(null);
+  const [query, setQuery] = useState("");
   const connectedRepo = auth ? `${auth.owner}/${auth.repo}` : undefined;
+
+  const trimmedQuery = query.trim();
+  const filteredUnread = useMemo(
+    () => unread.filter((e) => matchesQuery(e, trimmedQuery)),
+    [unread, trimmedQuery],
+  );
+  const filteredRead = useMemo(
+    () => read.filter((e) => matchesQuery(e, trimmedQuery)),
+    [read, trimmedQuery],
+  );
 
   // Shareable deep link: `/inbox?thread=<Type>:<number>` opens the thread
   // panel for that issue/PR/discussion in the *viewer's* connected repo.
@@ -496,14 +523,28 @@ export function InboxList() {
         </div>
       )}
 
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+        <Input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search inbox — title, author, repo, type…"
+          className="pl-9"
+          aria-label="Search inbox"
+        />
+      </div>
+
       <Section
-        title={`Unread (${unread.length})`}
+        title={`Unread (${filteredUnread.length})`}
         empty={
           isLoading
             ? "Loading…"
-            : "Nothing unread. New @mentions land here automatically."
+            : trimmedQuery
+              ? `No unread matches for “${trimmedQuery}”.`
+              : "Nothing unread. New @mentions land here automatically."
         }
-        entries={unread}
+        entries={filteredUnread}
         connectedRepo={connectedRepo}
         busyId={busyId}
         onOpen={openEntry}
@@ -514,12 +555,12 @@ export function InboxList() {
         readSection={false}
       />
 
-      {read.length > 0 && (
+      {filteredRead.length > 0 && (
         <div className="mt-6">
           <Section
-            title={`Read (${read.length})`}
+            title={`Read (${filteredRead.length})`}
             empty=""
-            entries={read}
+            entries={filteredRead}
             connectedRepo={connectedRepo}
             busyId={busyId}
             onOpen={openEntry}
