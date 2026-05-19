@@ -51,8 +51,12 @@ self.addEventListener("push", (event) => {
   const COALESCE_TAG = "kody";
   const MAX_LINES = 5;
 
-  // First line of each incoming message — keeps the stacked list scannable.
-  const newLine = body.split("\n")[0].trim();
+  // Collapse each message to one short, scannable line: strip markdown quote
+  // markers / bullets / whitespace, take the first line, hard-truncate, and
+  // prefix with a bullet so stacked entries are visually distinct.
+  const firstLine = body.replace(/\s+/g, " ").replace(/^[>*\-#\s]+/, "").trim();
+  const newLine =
+    "• " + (firstLine.length > 70 ? firstLine.slice(0, 69) + "…" : firstLine);
 
   event.waitUntil(
     (async () => {
