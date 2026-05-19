@@ -1190,7 +1190,13 @@ function SortableGoalItem({
           onClick={onSelect}
           className="flex-1 text-left pr-4 py-3"
         >
-          <div className="font-medium text-sm truncate">{goal.name}</div>
+          <div className="font-medium text-sm truncate">
+            <span className="font-mono text-sky-400">
+              {GOAL_LABEL_PREFIX}
+              {goal.id}
+            </span>{" "}
+            {goal.name}
+          </div>
           <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1 tabular-nums">
               <CheckCircle className="w-3 h-3" />
