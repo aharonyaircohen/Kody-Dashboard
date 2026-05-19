@@ -16,79 +16,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import type { Octokit } from "@octokit/rest";
 import {
   requireKodyAuth,
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
 import { isValidSlug } from "@dashboard/lib/jobs-files";
-import { INTERNAL_ISSUE_LABEL } from "@dashboard/lib/constants";
-
-const CONTROL_LABEL = "kody:control";
-const CONTROL_TITLE = "Kody control";
-const CONTROL_BODY = [
-  "Audit trail for manual `@kody` dispatches from the dashboard.",
-  "",
-  'Each comment below was a "Run now" click in Job Control. The engine',
-  "fires on `issue_comment` and routes to the named executable.",
-  "",
-  "Do not close — the dashboard reuses this issue. If you do close it,",
-  "the next dispatch will create a new one.",
-].join("\n");
+import { findOrCreateControlIssue } from "@dashboard/lib/control-issue";
 
 const runSchema = z.object({
   force: z.boolean().optional().default(true),
 });
-
-async function ensureControlLabel(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<void> {
-  try {
-    await octokit.rest.issues.getLabel({ owner, repo, name: CONTROL_LABEL });
-  } catch (err: any) {
-    if (err?.status !== 404) throw err;
-    await octokit.rest.issues.createLabel({
-      owner,
-      repo,
-      name: CONTROL_LABEL,
-      color: "ededed",
-      description:
-        "Kody manual control issue — audit trail for dashboard dispatches",
-    });
-  }
-}
-
-async function findOrCreateControlIssue(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<number> {
-  // Reuse the most recent open kody:control issue if one exists.
-  const { data: existing } = await octokit.rest.issues.listForRepo({
-    owner,
-    repo,
-    labels: CONTROL_LABEL,
-    state: "open",
-    per_page: 1,
-  });
-  if (existing.length > 0 && existing[0]) return existing[0].number;
-
-  await ensureControlLabel(octokit, owner, repo);
-
-  const { data: created } = await octokit.rest.issues.create({
-    owner,
-    repo,
-    title: CONTROL_TITLE,
-    body: CONTROL_BODY,
-    // `kody:internal` is the umbrella label every infra issue carries so the
-    // task list can exclude them all by one label (GitHub auto-creates it).
-    labels: [CONTROL_LABEL, INTERNAL_ISSUE_LABEL],
-  });
-  return created.number;
-}
 
 export async function POST(
   req: NextRequest,
