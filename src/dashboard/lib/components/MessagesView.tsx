@@ -91,7 +91,7 @@ function MessageMarkdown({
     <div
       dir="auto"
       className={cn(
-        "prose prose-sm max-w-none text-sm leading-relaxed break-words",
+        "prose prose-sm max-w-none text-[15px] leading-relaxed break-words",
         onPrimary
           ? "prose-invert prose-p:text-primary-foreground"
           : "dark:prose-invert",
@@ -222,7 +222,7 @@ function MessageItem({
         )}
       >
         {!grouped && !isMe ? (
-          <span className="px-1 pb-0.5 text-xs font-medium text-muted-foreground">
+          <span className="px-1 pb-0.5 text-[13px] font-medium text-muted-foreground">
             {author?.login ?? "unknown"}
             {isBot ? (
               <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/70">
@@ -294,7 +294,7 @@ function MessageList({
     );
   }
   return (
-    <div ref={ref} className="flex-1 overflow-y-auto bg-muted/20 py-3 pb-4">
+    <div ref={ref} className="flex-1 min-h-0 overflow-y-auto bg-muted/20 py-3 pb-4">
       {comments.map((c, i) => {
         const prev = comments[i - 1];
         const sameDay = prev && dayKey(prev.createdAt) === dayKey(c.createdAt);
@@ -589,7 +589,7 @@ function MessageComposer({
             rows={1}
             dir="auto"
             disabled={isPending}
-            className="max-h-32 min-h-[40px] resize-none border-0 bg-transparent px-4 py-2.5 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="max-h-32 min-h-[40px] resize-none border-0 bg-transparent px-4 py-2.5 text-[15px] shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
           {showMentions ? (
             <div className="absolute bottom-full left-1 mb-2 z-50 w-72 max-h-48 overflow-y-auto rounded-xl border border-border bg-popover shadow-dropdown p-1">
@@ -685,7 +685,7 @@ function ChannelThread({
   };
 
   return (
-    <div className="flex flex-col h-full min-w-0">
+    <div className="flex flex-col h-full min-h-0 min-w-0">
       <div className="flex items-center justify-between gap-2 border-b border-border bg-card/40 px-4 py-3">
         <div className="flex items-center gap-2.5 min-w-0">
           {onBack ? (
@@ -879,7 +879,7 @@ export function MessagesView() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-4rem)] md:h-[calc(100dvh-8rem)] overflow-hidden bg-background md:border md:border-border md:rounded-xl md:shadow-sm">
+    <div className="flex h-full min-h-0 overflow-hidden bg-background md:border md:border-border md:rounded-xl md:shadow-sm">
       <aside
         className={cn(
           "shrink-0 border-r border-border flex-col w-full md:w-64 bg-card/40",

@@ -23,7 +23,7 @@ export const metadata = buildKodyMetadata({
 
 export default function MessagesPage() {
   return (
-    <div className="p-0 md:p-4">
+    <div className="h-full p-0 md:p-4">
       <MessagesView />
     </div>
   );
