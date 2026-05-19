@@ -24,6 +24,7 @@ import {
   fetchMessageChannels,
   fetchGoalDiscussionComments,
   postGoalDiscussionComment,
+  deleteMessageChannel,
 } from "@dashboard/lib/github-client";
 
 function mapGithubError(error: any, fallback: string, status = 500) {
@@ -147,6 +148,44 @@ export async function POST(
       );
     }
     return mapGithubError(error, "message_post_failed");
+  } finally {
+    clearGitHubContext();
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ number: string }> },
+) {
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
+
+  const headerAuth = getRequestAuth(req);
+  if (headerAuth)
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+
+  try {
+    const channelNumber = parseNumber((await params).number);
+    if (channelNumber === null) {
+      return NextResponse.json({ error: "invalid_channel" }, { status: 400 });
+    }
+
+    const userOctokit = await getUserOctokit(req);
+    if (!userOctokit) {
+      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
+    }
+
+    const channels = await fetchMessageChannels();
+    const channel = channels.find((c) => c.number === channelNumber);
+    if (!channel) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    await deleteMessageChannel(channel.id, userOctokit);
+    return NextResponse.json({ ok: true });
+  } catch (error: any) {
+    console.error("[Messages] thread DELETE error:", error);
+    return mapGithubError(error, "channel_delete_failed");
   } finally {
     clearGitHubContext();
   }

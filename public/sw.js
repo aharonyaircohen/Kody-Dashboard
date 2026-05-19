@@ -90,8 +90,13 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl =
+  const rawUrl =
     (event.notification.data && event.notification.data.url) || "/";
+  // Dashboard targets arrive as root-relative paths (`/123`,
+  // `/messages?...`); resolve them against THIS service worker's origin —
+  // the actually-deployed domain — so the click works regardless of any
+  // server-side base-URL config. Absolute github.com URLs pass through.
+  const targetUrl = new URL(rawUrl, self.registration.scope).href;
 
   event.waitUntil(
     (async () => {

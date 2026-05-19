@@ -40,6 +40,7 @@ const subscribeSchema = z.object({
   }),
   label: z.string().max(120).optional(),
   userLogin: z.string().max(120).optional(),
+  channelNotify: z.enum(["all", "mentions", "off"]).optional(),
 });
 
 function applyAuth(req: NextRequest): { ok: true } | NextResponse {
@@ -128,6 +129,7 @@ export async function POST(req: NextRequest) {
             resolvedLogin ?? parsed.userLogin?.trim() ?? existing?.userLogin,
           createdAt: existing?.createdAt ?? now,
           lastSeenAt: now,
+          channelNotify: parsed.channelNotify ?? existing?.channelNotify,
         };
 
         // No-op if everything matches (same endpoint, same keys, same label).
@@ -136,7 +138,8 @@ export async function POST(req: NextRequest) {
           existing.keys.p256dh === updated.keys.p256dh &&
           existing.keys.auth === updated.keys.auth &&
           (existing.label ?? null) === (updated.label ?? null) &&
-          (existing.userLogin ?? null) === (updated.userLogin ?? null)
+          (existing.userLogin ?? null) === (updated.userLogin ?? null) &&
+          (existing.channelNotify ?? null) === (updated.channelNotify ?? null)
         ) {
           return { kind: "noop" as const, result: existing };
         }

@@ -43,7 +43,13 @@ export interface PushSubscriptionRecord {
   /** ISO timestamp of last successful send (or 0 if never). Used to surface
    *  stale devices in the UI. */
   lastSeenAt?: string;
+  /** Per-user channel-message notification preference. `all` = every channel
+   *  message; `mentions` = only when @mentioned; `off` = none. Undefined is
+   *  treated as `all` (the default broadcast behavior). */
+  channelNotify?: ChannelNotify;
 }
+
+export type ChannelNotify = "all" | "mentions" | "off";
 
 export interface PushSubscriptionsManifest {
   version: 1;
@@ -107,6 +113,12 @@ export function parsePushManifestBody(
             ? s.createdAt
             : new Date().toISOString(),
         lastSeenAt: typeof s.lastSeenAt === "string" ? s.lastSeenAt : undefined,
+        channelNotify:
+          s.channelNotify === "all" ||
+          s.channelNotify === "mentions" ||
+          s.channelNotify === "off"
+            ? s.channelNotify
+            : undefined,
       });
     }
     return { version: 1, subscriptions: subs };

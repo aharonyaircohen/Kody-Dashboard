@@ -17,8 +17,16 @@
  *   `disable()` reverses 4+5 (unsubscribe locally + DELETE server-side).
  */
 import { useCallback, useEffect, useState } from "react";
-import { urlBase64ToUint8Array } from "../push";
+import { urlBase64ToUint8Array, type ChannelNotify } from "../push";
 import { getStoredAuth } from "../api";
+
+const CHANNEL_NOTIFY_KEY = "kody-channel-notify";
+
+function loadChannelNotify(): ChannelNotify {
+  if (typeof window === "undefined") return "all";
+  const v = window.localStorage.getItem(CHANNEL_NOTIFY_KEY);
+  return v === "mentions" || v === "off" ? v : "all";
+}
 
 /**
  * Build the dashboard's standard repo-auth headers (`x-kody-token / -owner /
@@ -57,6 +65,11 @@ interface UsePushSubscriptionResult {
    *  throws. Used by the "Send test push" button. */
   sendTest: () => Promise<number>;
   busy: boolean;
+  /** Per-user channel-message notification preference. */
+  channelNotify: ChannelNotify;
+  /** Persist a new channel-notify preference (and push it to the server if
+   *  a subscription already exists). */
+  setChannelNotify: (next: ChannelNotify) => Promise<void>;
 }
 
 function browserSupportsPush(): boolean {
@@ -91,6 +104,12 @@ export function usePushSubscription(
   const [status, setStatus] = useState<PushStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [channelNotify, setChannelNotifyState] =
+    useState<ChannelNotify>("all");
+
+  useEffect(() => {
+    setChannelNotifyState(loadChannelNotify());
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!browserSupportsPush()) {
@@ -177,6 +196,7 @@ export function usePushSubscription(
           keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
           label: options.label,
           userLogin: options.userLogin,
+          channelNotify: loadChannelNotify(),
         }),
       });
       if (!subRes.ok) {
@@ -225,6 +245,42 @@ export function usePushSubscription(
     }
   }, []);
 
+  const setChannelNotify = useCallback(
+    async (next: ChannelNotify) => {
+      setChannelNotifyState(next);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(CHANNEL_NOTIFY_KEY, next);
+      }
+      // Push to the server only if this device is already subscribed —
+      // otherwise it's stored locally and sent on the next enable().
+      try {
+        if (!browserSupportsPush()) return;
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub) return;
+        const json = sub.toJSON() as {
+          endpoint?: string;
+          keys?: { p256dh?: string; auth?: string };
+        };
+        if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return;
+        await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({
+            endpoint: json.endpoint,
+            keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
+            label: options.label,
+            userLogin: options.userLogin,
+            channelNotify: next,
+          }),
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [options.label, options.userLogin],
+  );
+
   const sendTest = useCallback(async (): Promise<number> => {
     setError(null);
     setBusy(true);
@@ -259,5 +315,14 @@ export function usePushSubscription(
     }
   }, []);
 
-  return { status, error, enable, disable, sendTest, busy };
+  return {
+    status,
+    error,
+    enable,
+    disable,
+    sendTest,
+    busy,
+    channelNotify,
+    setChannelNotify,
+  };
 }

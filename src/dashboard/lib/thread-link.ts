@@ -6,6 +6,13 @@
  *   dashboard task route (`/<issueNumber>`) so push notifications open
  *   inside Kody instead of github.com.
  *
+ *   Dashboard targets are returned as ROOT-RELATIVE paths (`/123`,
+ *   `/messages?...`). They end up in a web-push payload and are resolved
+ *   by the service worker against its own registration origin — i.e. the
+ *   actually-deployed domain — so this works on every deployment with no
+ *   `NEXT_PUBLIC_SERVER_URL` config. Cross-origin github.com URLs (non-
+ *   Issue threads) are still returned absolute, unchanged.
+ *
  *   Only `Issue` threads have a clean dashboard target — the task page
  *   (`app/[issueNumber]/page.tsx`) is keyed by issue number alone. PRs,
  *   discussions, and commits have no equivalent deep route, so their
@@ -13,7 +20,6 @@
  *   preserving comment anchors there).
  */
 import "server-only";
-import { getPublicBaseUrl } from "./auth/oauth-url";
 
 // Matches the issue number in a GitHub issue/issue-comment html_url, e.g.
 // https://github.com/owner/repo/issues/123 or .../issues/123#issuecomment-456
@@ -33,8 +39,7 @@ export function dashboardThreadUrl(opts: {
   const m = githubUrl.match(ISSUE_PATH_RE);
   if (!m) return githubUrl;
 
-  const base = getPublicBaseUrl().replace(/\/+$/, "");
-  return `${base}/${m[1]}`;
+  return `/${m[1]}`;
 }
 
 /**
@@ -48,9 +53,8 @@ export function dashboardChannelUrl(opts: {
   channelNumber: number;
   commentId?: number;
 }): string {
-  const base = getPublicBaseUrl().replace(/\/+$/, "");
   const q = opts.commentId
     ? `?channel=${opts.channelNumber}&c=${opts.commentId}`
     : `?channel=${opts.channelNumber}`;
-  return `${base}/messages${q}`;
+  return `/messages${q}`;
 }

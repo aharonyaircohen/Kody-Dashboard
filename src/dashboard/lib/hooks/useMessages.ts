@@ -93,6 +93,31 @@ export function useCreateChannel(actorLogin?: string) {
   });
 }
 
+export function useDeleteChannel() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, number>({
+    mutationFn: (channelNumber) =>
+      kodyApi.messages.deleteChannel(channelNumber),
+    onSuccess: (_void, channelNumber) => {
+      queryClient.setQueryData<MessageChannelsPayload>(
+        messageQueryKeys.channels,
+        (prev) => {
+          if (!prev || !prev.enabled) return prev;
+          return {
+            ...prev,
+            channels: prev.channels.filter((c) => c.number !== channelNumber),
+          };
+        },
+      );
+      queryClient.invalidateQueries({ queryKey: messageQueryKeys.channels });
+      toast.success("Channel deleted");
+    },
+    onError: (error) => {
+      toast.error("Failed to delete channel", { description: error.message });
+    },
+  });
+}
+
 export function usePostChannelMessage(
   channelNumber: number,
   actorLogin?: string,

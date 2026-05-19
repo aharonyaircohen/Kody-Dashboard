@@ -34,7 +34,15 @@ function defaultLabel(): string | undefined {
 }
 
 export function PushToggle({ userLogin, label }: PushToggleProps) {
-  const { status, error, enable, disable, busy } = usePushSubscription({
+  const {
+    status,
+    error,
+    enable,
+    disable,
+    busy,
+    channelNotify,
+    setChannelNotify,
+  } = usePushSubscription({
     userLogin,
     label: label ?? defaultLabel(),
   });
@@ -117,6 +125,29 @@ export function PushToggle({ userLogin, label }: PushToggleProps) {
         <p className="text-[10px] text-muted-foreground pl-5 leading-snug">
           {helpText}
         </p>
+      )}
+      {status === "on" && (
+        <div className="flex items-center justify-between pl-5 pt-0.5">
+          <span className="text-[10px] text-muted-foreground">
+            Channel messages
+          </span>
+          <div className="flex rounded bg-muted p-0.5">
+            {(["all", "mentions", "off"] as const).map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => void setChannelNotify(opt)}
+                className={`text-[10px] px-1.5 py-0.5 rounded capitalize ${
+                  channelNotify === opt
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
       {error && (
         <p className="text-[10px] text-destructive pl-5 leading-snug">

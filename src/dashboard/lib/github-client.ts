@@ -3803,3 +3803,25 @@ export async function createMessageChannel(
     author: null,
   };
 }
+
+/**
+ * Permanently delete a channel (its backing Discussion). Unlike goal
+ * threads — which we only *close* to preserve history — a channel is
+ * disposable team chat, so the user can remove it outright. Attributed
+ * to the human via `userOctokit` (needs maintain/admin on the repo).
+ */
+export async function deleteMessageChannel(
+  discussionId: string,
+  userOctokit?: Octokit,
+): Promise<void> {
+  const octokit = userOctokit ?? getOctokit();
+  await octokit.graphql(
+    `mutation DeleteMessageChannel($id: ID!) {
+       deleteDiscussion(input: { id: $id }) {
+         discussion { id }
+       }
+     }`,
+    { id: discussionId },
+  );
+  invalidateDiscussionCache();
+}

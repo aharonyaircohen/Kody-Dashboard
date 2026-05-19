@@ -1643,6 +1643,14 @@ export const messagesApi = {
     );
     return payload.comment;
   },
+
+  deleteChannel: async (channelNumber: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/messages/${channelNumber}`, {
+      method: "DELETE",
+      headers: buildHeaders(),
+    });
+    await handleResponse<{ ok: true }>(res);
+  },
 };
 
 // ============ Combined API ============

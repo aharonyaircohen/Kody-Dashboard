@@ -477,11 +477,21 @@ export async function dispatchMentionPushes(
     let recipients: string[];
     if (ev.channel) {
       const authorLc = ev.author?.toLowerCase();
+      const mentionedLc = new Set(extractMentions(ev.body));
+      // Per-subscription preference: `off` opts out entirely, `mentions`
+      // only fires when @mentioned, `all`/undefined gets every message.
+      const wantsChannel = (s: PushSubscriptionRecord): boolean => {
+        const login = s.userLogin?.toLowerCase();
+        if (!login || login === authorLc) return false;
+        if (s.channelNotify === "off") return false;
+        if (s.channelNotify === "mentions") return mentionedLc.has(login);
+        return true;
+      };
       recipients = [
         ...new Set(
           subs
-            .map((s) => s.userLogin?.toLowerCase())
-            .filter((l): l is string => !!l && l !== authorLc),
+            .filter(wantsChannel)
+            .map((s) => s.userLogin!.toLowerCase()),
         ),
       ];
       logger.info(

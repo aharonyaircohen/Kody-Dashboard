@@ -27,6 +27,7 @@ import {
   MessageSquare,
   Plus,
   Send,
+  Trash2,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { Button } from "@dashboard/ui/button";
@@ -38,6 +39,7 @@ import {
   useMessageChannels,
   useChannelThread,
   useCreateChannel,
+  useDeleteChannel,
   usePostChannelMessage,
 } from "../hooks/useMessages";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
@@ -524,6 +526,17 @@ function ChannelThread({
 }) {
   const { data, isLoading, error, refetch, isFetching } =
     useChannelThread(channelNumber);
+  const { mutate: deleteChannel, isPending: deleting } = useDeleteChannel();
+
+  const handleDelete = () => {
+    if (
+      !window.confirm(
+        `Delete #${channelName}? This permanently removes the channel and all its messages.`,
+      )
+    )
+      return;
+    deleteChannel(channelNumber, { onSuccess: () => onBack?.() });
+  };
 
   return (
     <div className="flex flex-col h-full min-w-0">
