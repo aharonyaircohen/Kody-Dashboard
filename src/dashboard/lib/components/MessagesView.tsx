@@ -15,6 +15,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Bold,
+  ChevronLeft,
   Code,
   ExternalLink,
   Eye,
@@ -85,13 +86,17 @@ function MessageMarkdown({ body }: { body: string }) {
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline"
+                className="text-primary hover:underline break-all"
                 {...props}
               >
                 {children}
               </a>
             );
           },
+          img: (props) => (
+            // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+            <img {...props} className="max-w-full h-auto rounded-md" />
+          ),
         }}
       >
         {body}
@@ -509,11 +514,13 @@ function ChannelThread({
   channelName,
   channelUrl,
   highlightCommentId,
+  onBack,
 }: {
   channelNumber: number;
   channelName: string;
   channelUrl: string;
   highlightCommentId?: number;
+  onBack?: () => void;
 }) {
   const { data, isLoading, error, refetch, isFetching } =
     useChannelThread(channelNumber);
@@ -522,6 +529,16 @@ function ChannelThread({
     <div className="flex flex-col h-full min-w-0">
       <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div className="flex items-center gap-2 min-w-0">
+          {onBack ? (
+            <button
+              onClick={onBack}
+              className="md:hidden -ml-1 p-1 text-muted-foreground hover:text-foreground"
+              title="Back to channels"
+              aria-label="Back to channels"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          ) : null}
           <Hash className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className="font-semibold truncate">{channelName}</span>
           {isFetching ? (
@@ -650,10 +667,17 @@ export function MessagesView() {
     [data],
   );
 
-  // Default to the first channel once the list loads.
+  // Auto-open the first channel once, on initial load only. Guarded by a
+  // ref so the mobile "back to channels" action (which sets selected=null)
+  // isn't immediately undone.
+  const didAutoSelect = useRef(false);
   useEffect(() => {
+    if (didAutoSelect.current) return;
     if (selected === null && channels.length > 0) {
       setSelected(channels[0].number);
+    }
+    if (selected !== null || channels.length > 0) {
+      didAutoSelect.current = true;
     }
   }, [channels, selected]);
 
@@ -690,8 +714,13 @@ export function MessagesView() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] border border-border rounded-lg overflow-hidden bg-background">
-      <aside className="w-56 shrink-0 border-r border-border flex flex-col">
+    <div className="flex h-[calc(100dvh-8rem)] border border-border rounded-lg overflow-hidden bg-background">
+      <aside
+        className={cn(
+          "shrink-0 border-r border-border flex-col w-full md:w-56",
+          selected !== null ? "hidden md:flex" : "flex",
+        )}
+      >
         <div className="flex items-center justify-between px-3 py-3 border-b border-border">
           <span className="text-sm font-semibold inline-flex items-center gap-1.5">
             <MessageSquare className="w-4 h-4" />
@@ -737,13 +766,19 @@ export function MessagesView() {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0">
+      <main
+        className={cn(
+          "flex-1 min-w-0",
+          selected !== null ? "flex flex-col" : "hidden md:flex md:flex-col",
+        )}
+      >
         {activeChannel ? (
           <ChannelThread
             key={activeChannel.number}
             channelNumber={activeChannel.number}
             channelName={activeChannel.name}
             channelUrl={activeChannel.url}
+            onBack={() => setSelected(null)}
             highlightCommentId={
               deepLink && deepLink.channel === activeChannel.number
                 ? deepLink.commentId
