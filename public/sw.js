@@ -39,23 +39,49 @@ self.addEventListener("push", (event) => {
     data = { title: "Kody", body: event.data ? event.data.text() : "" };
   }
 
-  const title = (data && data.title) || "Kody";
   const body = (data && data.body) || "";
   const icon = (data && data.icon) || DEFAULT_ICON;
-  const tag = data && data.tag;
   const url = (data && data.url) || "/";
 
-  const options = {
-    body,
-    icon,
-    badge: DEFAULT_BADGE,
-    tag,
-    // `data` is the only way to carry state into the notificationclick
-    // handler — it isn't accessible from `notification.body` etc.
-    data: { url },
-  };
+  // Web push has no native notification grouping — only replace-by-tag. To
+  // "stack" rather than only keep the latest, we coalesce into ONE notification
+  // (constant tag) whose body is a running list of the most recent messages.
+  // The list is stashed on `notification.data.lines` so the next push can read
+  // it back (there is no API to enumerate a notification's history otherwise).
+  const COALESCE_TAG = "kody";
+  const MAX_LINES = 5;
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  // First line of each incoming message — keeps the stacked list scannable.
+  const newLine = body.split("\n")[0].trim();
+
+  event.waitUntil(
+    (async () => {
+      const existing = await self.registration.getNotifications({
+        tag: COALESCE_TAG,
+      });
+      const prevLines =
+        (existing[0] &&
+          existing[0].data &&
+          Array.isArray(existing[0].data.lines) &&
+          existing[0].data.lines) ||
+        [];
+
+      const lines = [newLine, ...prevLines].slice(0, MAX_LINES);
+      const title =
+        lines.length > 1 ? `Kody — ${lines.length} updates` : "Kody";
+
+      await self.registration.showNotification(title, {
+        body: lines.join("\n"),
+        icon,
+        badge: DEFAULT_BADGE,
+        tag: COALESCE_TAG,
+        renotify: true,
+        // `data` carries state into notificationclick: `url` is the latest
+        // message's target; `lines` is the stack we read back on next push.
+        data: { url, lines },
+      });
+    })(),
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
