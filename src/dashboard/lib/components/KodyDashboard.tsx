@@ -92,6 +92,7 @@ import {
   tasksApi,
   kodyApi,
   redirectToLogin,
+  getStoredAuth,
 } from "../api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -269,13 +270,31 @@ export function KodyDashboard({
     return false;
   };
 
-  // #1: Derive selectedTask from query data — always fresh
+  // A deep-linked task (e.g. "Task #N" from a CTO inbox rec) is usually
+  // closed/merged, so it's NOT in the day-windowed `tasks` poll. Fetch it
+  // on demand so the detail view can open instead of silently landing on
+  // the bare dashboard.
+  const selectedMissingFromPoll =
+    selectedIssueNumber != null &&
+    !tasks.some((t) => t.issueNumber === selectedIssueNumber);
+
+  const { data: fetchedSelected } = useQuery({
+    queryKey: ["kody-task-deeplink", selectedIssueNumber],
+    queryFn: () => kodyApi.tasks.get(selectedIssueNumber as number),
+    enabled: selectedMissingFromPoll && !!getStoredAuth(),
+    staleTime: 30_000,
+  });
+
+  // #1: Derive selectedTask from query data — always fresh. Prefer the live
+  // poll; fall back to the on-demand fetch for out-of-window deep links.
   const selectedTask = useMemo(
     () =>
       selectedIssueNumber
-        ? (tasks.find((t) => t.issueNumber === selectedIssueNumber) ?? null)
+        ? (tasks.find((t) => t.issueNumber === selectedIssueNumber) ??
+          fetchedSelected?.task ??
+          null)
         : null,
-    [selectedIssueNumber, tasks],
+    [selectedIssueNumber, tasks, fetchedSelected],
   );
 
   // GitHub identity — verified via OAuth session cookie
@@ -919,16 +938,15 @@ export function KodyDashboard({
 
     const issueNum = initialIssueRef.current;
     if (!issueNum || selectedIssueNumber) return;
-    if (tasks.length === 0) return;
 
-    const match = tasks.find((t) => t.issueNumber === issueNum);
-    if (match) {
-      setSelectedIssueNumber(match.issueNumber);
-      if (!isDesktop) {
-        setShowMobileDetail(true);
-      }
-      initialIssueRef.current = undefined;
+    // Select immediately, even if the issue isn't in the polled window.
+    // `selectedTask` falls back to an on-demand fetch (fetchedSelected),
+    // so closed/merged tasks deep-linked from the inbox still open.
+    setSelectedIssueNumber(issueNum);
+    if (!isDesktop) {
+      setShowMobileDetail(true);
     }
+    initialIssueRef.current = undefined;
   }, [tasks, isDesktop]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Browser back/forward — listen to popstate and sync selected task
