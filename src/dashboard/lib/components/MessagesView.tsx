@@ -45,7 +45,8 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
 import { DiscussionsDisabledBadge } from "./GoalDiscussion";
-import { kodyApi, type GoalDiscussionComment } from "../api";
+import { type GoalDiscussionComment } from "../api";
+import { useMentionRoster } from "../hooks/useMentionRoster";
 
 interface Mention {
   login: string;
@@ -290,63 +291,16 @@ function MessageComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { githubUser } = useGitHubIdentity();
 
-  const [mentions, setMentions] = useState<Mention[]>([]);
   const [mentionQuery, setMentionQuery] = useState("");
   const [showMentions, setShowMentions] = useState(false);
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      kodyApi.collaborators.list().catch(() => [] as Mention[]),
-      // Workers join the same @-autocomplete; mentioning one dispatches an
-      // ad-hoc tick instead of (only) notifying a person.
-      kodyApi.workers
-        .list()
-        .then((ws) =>
-          ws.map(
-            (w): Mention => ({
-              login: w.slug,
-              avatar_url: "",
-              isWorker: true,
-            }),
-          ),
-        )
-        .catch(() => [] as Mention[]),
-    ])
-      .then(([collabs, workers]) => {
-        if (cancelled) return;
-        const merged: Mention[] = [...collabs];
-        if (
-          githubUser?.login &&
-          !merged.some((m) => m.login === githubUser.login)
-        ) {
-          merged.unshift({
-            login: githubUser.login,
-            avatar_url: githubUser.avatar_url ?? "",
-          });
-        }
-        // Workers last so people rank first in the picker; a worker slug
-        // that collides with a login still resolves as a worker on send.
-        for (const w of workers) {
-          if (!merged.some((m) => m.login === w.login && m.isWorker)) {
-            merged.push(w);
-          }
-        }
-        setMentions(merged);
-      })
-      .catch(() => {
-        if (githubUser?.login) {
-          setMentions([
-            { login: githubUser.login, avatar_url: githubUser.avatar_url ?? "" },
-          ]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [githubUser?.login, githubUser?.avatar_url]);
-
+  // Shared roster: collaborators + workers + self. Workers (e.g. @cto)
+  // are offered here and in every other composer via the same hook.
+  const mentions = useMentionRoster({
+    login: githubUser?.login,
+    avatar_url: githubUser?.avatar_url ?? undefined,
+  });
 
   const filteredMentions = mentions
     .filter((m) => m.login.toLowerCase().includes(mentionQuery.toLowerCase()))
