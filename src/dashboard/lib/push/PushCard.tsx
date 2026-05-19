@@ -43,7 +43,16 @@ export function PushCard() {
   // No-ops on the desktop site / when already enabled / when denied.
   useAutoEnablePush(push);
 
-  const { status, error, enable, disable, sendTest, busy } = push;
+  const {
+    status,
+    error,
+    enable,
+    disable,
+    sendTest,
+    busy,
+    channelNotify,
+    setChannelNotify,
+  } = push;
   const [testMsg, setTestMsg] = useState<string | null>(null);
 
   const onTest = async () => {
@@ -161,6 +170,41 @@ export function PushCard() {
           </Link>
         </div>
         {renderState()}
+
+        {status !== "loading" && status !== "unsupported" && (
+          <div className="border-t border-white/[0.06] pt-3 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm text-white/80">Channel messages</p>
+                <p className="text-[11px] text-white/45 leading-snug">
+                  How often team-channel messages notify you.
+                </p>
+              </div>
+              <div className="flex rounded bg-white/[0.06] p-0.5 shrink-0">
+                {(["all", "mentions", "off"] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => void setChannelNotify(opt)}
+                    className={`text-[11px] px-2 py-1 rounded capitalize transition-colors ${
+                      channelNotify === opt
+                        ? "bg-white/10 text-white"
+                        : "text-white/50 hover:text-white"
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {status !== "on" && (
+              <p className="text-[11px] text-white/40 leading-snug">
+                Saved now — applies once you enable push on this device.
+              </p>
+            )}
+          </div>
+        )}
+
         {error && <p className="text-[12px] text-rose-300/80">{error}</p>}
       </CardContent>
     </Card>
