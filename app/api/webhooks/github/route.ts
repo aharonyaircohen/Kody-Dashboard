@@ -38,6 +38,7 @@ import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@dashboard/lib/logger";
 import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
+import { dispatchWorkerMentions } from "@dashboard/lib/push/worker-mention-dispatch";
 import { applyVerdictFromComment } from "@dashboard/lib/ui-verify/apply-label";
 import {
   handlePrMerged,
@@ -293,6 +294,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           error: err instanceof Error ? err.message : String(err),
         },
         "dispatchMentionPushes threw — should have been caught internally",
+      );
+    });
+    // @worker mentions → one-shot worker-ask tick, reply back in-thread.
+    // Same GitHub-backed surfaces as mention push (messages, goals, tasks,
+    // previews, PR/issue comments, reviews) — one hook covers them all.
+    dispatchWorkerMentions(eventType, obj).catch((err: unknown) => {
+      logger.error(
+        {
+          event: "worker_mention_dispatch_crashed",
+          error: err instanceof Error ? err.message : String(err),
+        },
+        "dispatchWorkerMentions threw — should have been caught internally",
       );
     });
   }
