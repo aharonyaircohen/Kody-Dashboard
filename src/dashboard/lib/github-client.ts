@@ -3117,11 +3117,14 @@ function pickCategory(
 
 /**
  * Wipe discussion caches. Called from the webhook receiver on `discussion`,
- * `discussion_comment`, and `repository` events.
+ * `discussion_comment`, and `repository` events. Also clears the messaging
+ * channels cache, since channels are Discussions in the same category and a
+ * new/edited discussion changes the channel list and ordering.
  */
 export function invalidateDiscussionCache(): void {
   invalidateCache("discussions-meta:");
   invalidateCache("discussion-comments:");
+  invalidateCache("message-channels:");
 }
 
 /**
@@ -3639,5 +3642,164 @@ export async function postGoalDiscussionComment(
     author: c.author
       ? { login: c.author.login, avatarUrl: c.author.avatarUrl }
       : null,
+  };
+}
+
+// ============ Messaging channels (team chat over Discussions) ============
+//
+// A messaging "channel" is just a GitHub Discussion in the same category
+// goals use, distinguished by a `#`-prefixed title (e.g. `#general`). GitHub
+// exposes no API to create discussion *categories*, so we don't try — the
+// title prefix cleanly separates channels from goal threads (which are
+// titled `Goal: …`) even when both share the "General" category.
+//
+// Reuses the goal-discussion comment ops (`fetchGoalDiscussionComments` /
+// `postGoalDiscussionComment`) for thread reads/writes — they're generic
+// over a discussion number/id, and posting already invalidates the right
+// per-discussion comment cache, so the messaging feed stays fresh without
+// extra plumbing.
+
+/** Prefix marking a Discussion as a messaging channel. */
+export const MESSAGE_CHANNEL_PREFIX = "#";
+
+export interface MessageChannel {
+  /** Numeric discussion number — the channel's stable id in the URL. */
+  number: number;
+  /** GraphQL node ID, needed to post comments. */
+  id: string;
+  /** Channel name without the leading `#`. */
+  name: string;
+  url: string;
+  commentsCount: number;
+  /** Discussion `updatedAt` — used to sort most-active channels first. */
+  updatedAt: string;
+  /** Login of whoever opened the channel. */
+  author: { login: string; avatarUrl?: string } | null;
+}
+
+const MESSAGE_CHANNELS_TTL = 30_000; // 30s — list is UI-polled
+const inflightMessageChannels = new Map<string, Promise<MessageChannel[]>>();
+
+/** Normalize a user-supplied channel name into a `#slug` discussion title. */
+export function channelTitleFromName(rawName: string): string {
+  const slug = rawName
+    .trim()
+    .replace(/^#+/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return `${MESSAGE_CHANNEL_PREFIX}${slug || "channel"}`;
+}
+
+/**
+ * List messaging channels: Discussions in the resolved category whose title
+ * starts with `#`. Cached + in-flight-deduped + stale-on-error, matching the
+ * `fetchOpenPRs` GraphQL rate-limit pattern (no ETag on GraphQL).
+ */
+export async function fetchMessageChannels(): Promise<MessageChannel[]> {
+  const cacheKey = `message-channels:${getOwner()}:${getRepo()}`;
+  const cached = getCached<MessageChannel[]>(cacheKey);
+  if (cached) return cached;
+
+  const existing = inflightMessageChannels.get(cacheKey);
+  if (existing) return existing;
+
+  const stale = getStale<MessageChannel[]>(cacheKey);
+  const octokit = getOctokit();
+
+  const query = `
+    query MessageChannels($owner: String!, $repo: String!) {
+      repository(owner: $owner, name: $repo) {
+        discussions(first: 50, orderBy: { field: UPDATED_AT, direction: DESC }) {
+          nodes {
+            id
+            number
+            title
+            url
+            updatedAt
+            comments(first: 0) { totalCount }
+            author { login avatarUrl }
+          }
+        }
+      }
+    }
+  `;
+
+  const promise = (async () => {
+    try {
+      const data = await octokit.graphql<{
+        repository: {
+          discussions: {
+            nodes: {
+              id: string;
+              number: number;
+              title: string;
+              url: string;
+              updatedAt: string;
+              comments: { totalCount: number };
+              author: { login: string; avatarUrl?: string } | null;
+            }[];
+          };
+        };
+      }>(query, { owner: getOwner(), repo: getRepo() });
+
+      const channels: MessageChannel[] = data.repository.discussions.nodes
+        .filter((n) => n.title.startsWith(MESSAGE_CHANNEL_PREFIX))
+        .map((n) => ({
+          number: n.number,
+          id: n.id,
+          name: n.title.slice(MESSAGE_CHANNEL_PREFIX.length) || n.title,
+          url: n.url,
+          commentsCount: n.comments.totalCount,
+          updatedAt: n.updatedAt,
+          author: n.author
+            ? { login: n.author.login, avatarUrl: n.author.avatarUrl }
+            : null,
+        }));
+      setCache(cacheKey, MESSAGE_CHANNELS_TTL, channels);
+      return channels;
+    } catch (err) {
+      if (stale) {
+        setCache(cacheKey, Math.min(MESSAGE_CHANNELS_TTL, 30_000), stale.data);
+        return stale.data;
+      }
+      throw err;
+    } finally {
+      inflightMessageChannels.delete(cacheKey);
+    }
+  })();
+
+  inflightMessageChannels.set(cacheKey, promise);
+  return promise;
+}
+
+/**
+ * Create a new messaging channel (a `#`-titled Discussion in the goals
+ * category). Attributed to the human via `userOctokit`.
+ */
+export async function createMessageChannel(
+  args: { name: string; categoryId: string; topic?: string },
+  userOctokit?: Octokit,
+): Promise<MessageChannel> {
+  const title = channelTitleFromName(args.name);
+  const created = await createGoalDiscussion(
+    {
+      title,
+      body:
+        args.topic?.trim() ||
+        `Team channel **${title}** — messages here fan out to @mentioned teammates via push, Slack, and the inbox.`,
+      categoryId: args.categoryId,
+    },
+    userOctokit,
+  );
+  return {
+    number: created.number,
+    id: created.id,
+    name: title.slice(MESSAGE_CHANNEL_PREFIX.length),
+    url: created.url,
+    commentsCount: created.commentsCount,
+    updatedAt: new Date().toISOString(),
+    author: null,
   };
 }

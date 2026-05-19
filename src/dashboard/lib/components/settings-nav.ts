@@ -18,6 +18,7 @@ import {
   Inbox,
   KeyRound,
   Layers,
+  MessageSquare,
   ScrollText,
   Settings as SettingsIcon,
   Settings2,
@@ -47,6 +48,7 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
   { href: "/", label: "Dashboard", icon: Home, exact: true },
   { href: "/jobs", label: "Jobs", icon: Layers },
   { href: "/workers", label: "Workers", icon: Users },
+  { href: "/messages", label: "Messages", icon: MessageSquare },
   {
     href: "/activity",
     label: "Activity",
