@@ -77,3 +77,43 @@ export async function findOrCreateControlIssue(
   });
   return created.number;
 }
+
+/** Reply target for an ad-hoc worker run: where the worker posts its answer. */
+export interface WorkerAskReply {
+  kind: "discussion" | "issue";
+  number: number;
+}
+
+/**
+ * Dispatch a one-shot `worker-ask` tick by posting the directive comment on
+ * the repo's control issue. The engine's `issue_comment` trigger fires
+ * kody.yml and routes to the `worker-ask` executable. The directive line is
+ * first (the engine strips it); the message + context follows verbatim so
+ * markdown/newlines survive. Returns the created comment.
+ *
+ * Shared by the manual HTTP endpoint and the webhook mention path so there
+ * is exactly one dispatch shape.
+ */
+export async function dispatchWorkerAsk(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  opts: { slug: string; message: string; reply?: WorkerAskReply },
+): Promise<{ issueNumber: number; commentId: number; commentUrl: string }> {
+  const issueNumber = await findOrCreateControlIssue(octokit, owner, repo);
+  const replyFlag = opts.reply
+    ? ` --thread ${opts.reply.kind}:${opts.reply.number}`
+    : "";
+  const body = `@kody worker-ask --worker ${opts.slug}${replyFlag}\n\n${opts.message}`;
+  const { data: comment } = await octokit.rest.issues.createComment({
+    owner,
+    repo,
+    issue_number: issueNumber,
+    body,
+  });
+  return {
+    issueNumber,
+    commentId: comment.id,
+    commentUrl: comment.html_url,
+  };
+}

@@ -1054,30 +1054,6 @@ export const workersApi = {
     await handleResponse<{ success: boolean }>(res);
   },
 
-  /**
-   * Fire an ad-hoc, stateless worker tick from an @mention. The message +
-   * context runs through the engine's `worker-ask` executable under the
-   * worker persona; the reply lands as a comment on discussion `thread`.
-   */
-  ask: async (
-    slug: string,
-    opts: { message: string; thread?: number },
-  ): Promise<{
-    ok: true;
-    issueNumber: number;
-    commentId: number;
-    commentUrl: string;
-  }> => {
-    const res = await fetch(
-      `${API_BASE}/workers/${encodeURIComponent(slug)}/ask`,
-      {
-        method: "POST",
-        headers: buildHeaders(),
-        body: JSON.stringify(opts),
-      },
-    );
-    return handleResponse(res);
-  },
 };
 
 // ============ Reports API ============

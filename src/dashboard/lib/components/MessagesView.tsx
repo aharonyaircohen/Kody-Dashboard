@@ -11,7 +11,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -48,7 +47,6 @@ import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
 import { DiscussionsDisabledBadge } from "./GoalDiscussion";
 import { kodyApi, type GoalDiscussionComment } from "../api";
-import { extractWorkerMentions } from "../mentions/worker-mentions";
 
 interface Mention {
   login: string;
@@ -278,10 +276,6 @@ function MessageComposer({
     };
   }, [githubUser?.login, githubUser?.avatar_url]);
 
-  const workerSlugs = useMemo(
-    () => mentions.filter((m) => m.isWorker).map((m) => m.login),
-    [mentions],
-  );
 
   const filteredMentions = mentions
     .filter((m) => m.login.toLowerCase().includes(mentionQuery.toLowerCase()))
@@ -301,33 +295,14 @@ function MessageComposer({
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    const sentText = att.withAttachments(body.trim());
-    postMessage(sentText, {
+    // Worker @mentions are handled server-side: the message becomes a
+    // Discussion comment, the webhook detects `@worker` and dispatches the
+    // one-shot worker-ask tick, and the reply lands back in this thread.
+    postMessage(att.withAttachments(body.trim()), {
       onSuccess: () => {
         setBody("");
         setShowPreview(false);
         att.reset();
-        // The message is now a discussion comment (people @mentions already
-        // fanned out via the webhook). Any @worker also gets an ad-hoc tick;
-        // the worker's reply lands back in this thread.
-        const targeted = extractWorkerMentions(sentText, workerSlugs);
-        for (const slug of targeted) {
-          kodyApi.workers
-            .ask(slug, { message: sentText, thread: channelNumber })
-            .catch((err: unknown) => {
-              toast.error(`Couldn't reach @${slug}`, {
-                description:
-                  err instanceof Error ? err.message : "dispatch failed",
-              });
-            });
-        }
-        if (targeted.length > 0) {
-          toast.success(
-            targeted.length === 1
-              ? `@${targeted[0]} is on it — reply will appear here`
-              : `${targeted.length} workers pinged — replies will appear here`,
-          );
-        }
       },
     });
   };
