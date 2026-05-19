@@ -507,7 +507,7 @@ export function InboxList() {
         connectedRepo={connectedRepo}
         busyId={busyId}
         onOpen={openEntry}
-        onToggleRead={(id) => void markUnread(id)}
+        onToggleRead={(id) => void markRead(id)}
         onDelete={(id) => void remove(id)}
         onCtoDecision={handleCtoDecision}
         verdictFor={verdictFor}
