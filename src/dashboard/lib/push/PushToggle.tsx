@@ -126,27 +126,34 @@ export function PushToggle({ userLogin, label }: PushToggleProps) {
           {helpText}
         </p>
       )}
-      {status === "on" && (
-        <div className="flex items-center justify-between pl-5 pt-0.5">
-          <span className="text-[10px] text-muted-foreground">
-            Channel messages
-          </span>
-          <div className="flex rounded bg-muted p-0.5">
-            {(["all", "mentions", "off"] as const).map((opt) => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => void setChannelNotify(opt)}
-                className={`text-[10px] px-1.5 py-0.5 rounded capitalize ${
-                  channelNotify === opt
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {opt}
-              </button>
-            ))}
+      {status !== "loading" && status !== "unsupported" && (
+        <div className="space-y-0.5 pl-5 pt-0.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-muted-foreground">
+              Channel messages
+            </span>
+            <div className="flex rounded bg-muted p-0.5">
+              {(["all", "mentions", "off"] as const).map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => void setChannelNotify(opt)}
+                  className={`text-[10px] px-1.5 py-0.5 rounded capitalize ${
+                    channelNotify === opt
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
           </div>
+          {status !== "on" && (
+            <p className="text-[10px] text-muted-foreground/70 leading-snug">
+              Saved now — applies once you enable push on this device.
+            </p>
+          )}
         </div>
       )}
       {error && (
