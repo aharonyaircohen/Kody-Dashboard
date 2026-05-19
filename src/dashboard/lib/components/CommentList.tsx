@@ -24,6 +24,13 @@ interface CommentListProps {
   loading?: boolean;
   /** Associated PR number — enables the "Send to Kody to fix" button on pinned QA issues. */
   prNumber?: number;
+  /**
+   * GitHub comment id that triggered the open (parsed from the inbox
+   * entry's URL anchor). When set, the list scrolls that comment into
+   * view and briefly highlights it. When absent, it scrolls to the
+   * last comment (end of the discussion).
+   */
+  targetCommentId?: number;
 }
 
 /** Strip the leading `🛑 QA:` marker so dispatch quotes the raw notes. */
@@ -31,15 +38,46 @@ function stripQAPrefix(body: string): string {
   return body.replace(/^🛑 QA:\s*/, "").trim();
 }
 
-export function CommentList({ comments, loading, prNumber }: CommentListProps) {
-  // Auto-scroll to bottom when comments change - must be called before any early returns
+export function CommentList({
+  comments,
+  loading,
+  prNumber,
+  targetCommentId,
+}: CommentListProps) {
+  // On open, focus the comment that triggered this view (or the end of
+  // the discussion when there's no specific target). scrollIntoView walks
+  // up to the real scrollable ancestor (the dialog body) — setting
+  // scrollTop on this inner non-scrolling div would be a no-op.
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    const root = containerRef.current;
+    if (!root || !comments || comments.length === 0) return;
+
+    let el: HTMLElement | null =
+      targetCommentId != null
+        ? root.querySelector<HTMLElement>(
+            `[data-comment-id="${targetCommentId}"]`,
+          )
+        : null;
+    if (!el) {
+      const all = root.querySelectorAll<HTMLElement>("[data-comment-id]");
+      el = all.length ? all[all.length - 1] : null;
     }
-  }, [comments]);
+    if (!el) return;
+
+    el.scrollIntoView({ block: targetCommentId != null ? "center" : "end" });
+
+    if (targetCommentId != null) {
+      const target = el;
+      target.classList.add("ring-2", "ring-amber-400/60");
+      const t = setTimeout(
+        () => target.classList.remove("ring-2", "ring-amber-400/60"),
+        2200,
+      );
+      return () => clearTimeout(t);
+    }
+  }, [comments, targetCommentId]);
 
   if (loading) {
     return (
@@ -277,7 +315,11 @@ function CommentItem({ comment }: { comment: GitHubComment }) {
   const commentStyle = getCommentStyle(commentType, isBot);
 
   return (
-    <div className={commentStyle}>
+    <div
+      className={commentStyle}
+      data-comment-id={comment.id}
+      style={{ scrollMarginTop: 16, scrollMarginBottom: 16 }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         {commentType !== "default" && (

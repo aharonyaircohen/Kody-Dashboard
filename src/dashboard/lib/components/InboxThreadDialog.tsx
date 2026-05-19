@@ -115,6 +115,14 @@ export function InboxThreadDialog({
   const thread = query.data?.thread;
   const githubUrl = thread?.htmlUrl ?? entry?.url ?? "#";
 
+  // GitHub appends the triggering comment to the entry URL as a hash
+  // anchor (#issuecomment-N / #discussioncomment-N). Pull the id so the
+  // comment list can focus exactly the comment this inbox item describes.
+  const targetCommentId = (() => {
+    const m = entry?.url.match(/#(?:issue|discussion)comment-(\d+)/);
+    return m ? Number(m[1]) : undefined;
+  })();
+
   const [copied, setCopied] = useState(false);
   const copyShareLink = async () => {
     if (!target || typeof window === "undefined") return;
@@ -219,7 +227,10 @@ export function InboxThreadDialog({
                   <h3 className="text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-2">
                     Comments ({thread.comments.length})
                   </h3>
-                  <CommentList comments={thread.comments} />
+                  <CommentList
+                    comments={thread.comments}
+                    targetCommentId={targetCommentId}
+                  />
                 </div>
               )}
             </>
