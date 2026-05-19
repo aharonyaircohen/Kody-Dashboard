@@ -395,3 +395,29 @@ export const PRIORITY_RANK: Record<string, number> = {
   P2: 2,
   P3: 3,
 };
+
+// ============ Internal (non-task) issues ============
+
+/**
+ * Umbrella label stamped on every dashboard-infrastructure issue (manifest
+ * stores, the Run-now control audit trail) at creation time. Excluding this
+ * one label keeps *future* internal issue types out of the task list without
+ * touching the exclude site again.
+ */
+export const INTERNAL_ISSUE_LABEL = "kody:internal";
+
+/**
+ * Every label that marks an issue as dashboard infrastructure rather than a
+ * real task. The umbrella label covers anything created after this change;
+ * the specific legacy labels are kept so issues created *before* it (which
+ * never got `kody:internal`) are still filtered without a backfill. Single
+ * source of truth — readers (task list, activity feed) exclude this set.
+ */
+export const INTERNAL_ISSUE_LABELS = [
+  INTERNAL_ISSUE_LABEL,
+  "kody:control",
+  "kody:inbox-feed",
+  "kody:cto-decisions",
+  "kody:goals-manifest",
+  "kody:push-subscriptions",
+] as const;
