@@ -267,11 +267,18 @@ export async function GET(req: NextRequest) {
         state: "open",
         perPage: 100,
         since: sinceDate,
-        // The "Kody control" issue is the dashboard's own audit trail for
-        // Run now dispatches; "kody:inbox-feed" is the mention hand-off
-        // buffer the webhook writes. Both are infrastructure, not tasks —
-        // drop them so they don't show up as noise in the task list.
-        excludeLabels: ["kody:control", "kody:inbox-feed"],
+        // These are all dashboard infrastructure stored in issue bodies, not
+        // real tasks: "kody:control" is the Run-now audit trail,
+        // "kody:inbox-feed" the mention hand-off buffer, and the three
+        // manifest issues back the CTO-decision ledger, goals, and push
+        // subscriptions. Drop them so they don't show up as task noise.
+        excludeLabels: [
+          "kody:control",
+          "kody:inbox-feed",
+          "kody:cto-decisions",
+          "kody:goals-manifest",
+          "kody:push-subscriptions",
+        ],
       }),
       fetchWorkflowRuns({ perPage: 30 }),
       fetchOpenPRs(),
