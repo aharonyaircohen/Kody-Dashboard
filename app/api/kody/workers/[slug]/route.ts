@@ -65,11 +65,6 @@ export async function GET(
 const updateWorkerSchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
-  schedule: z
-    .enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d", "manual"])
-    .nullable()
-    .optional(),
-  disabled: z.boolean().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -96,8 +91,7 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, body, schedule, disabled, actorLogin } =
-      updateWorkerSchema.parse(payload);
+    const { title, body, actorLogin } = updateWorkerSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -119,8 +113,6 @@ export async function PATCH(
       slug,
       title: title ?? existing.title,
       body: body ?? existing.body,
-      schedule: schedule === undefined ? existing.schedule : schedule,
-      disabled: disabled === undefined ? existing.disabled : disabled,
       sha: existing.sha,
     });
 

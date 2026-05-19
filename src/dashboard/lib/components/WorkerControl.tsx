@@ -3,9 +3,10 @@
  * @domain kody
  * @pattern worker-control-page
  * @ai-summary Worker Control — list, view, create, edit, and delete workers.
- *   A worker is a markdown file at `.kody/workers/<slug>.md` in the
- *   connected repo whose body describes the worker's intent, allowed
- *   commands, and restrictions. Duplicated from JobControl.tsx; the chat
+ *   A worker is a pure reusable PERSONA file at `.kody/workers/<slug>.md`
+ *   in the connected repo: a markdown body describing the worker's intent,
+ *   allowed commands, and restrictions. Workers have no schedule, no state,
+ *   and no run/tick — they're personas referenced by other flows. The chat
  *   rail reuses the existing job/job-draft scope kinds (Worker is
  *   structurally identical to Job).
  */
@@ -15,18 +16,13 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Calendar,
-  Clock,
   ExternalLink,
   FileText,
   Pencil,
-  Play,
   Plus,
-  Power,
-  PowerOff,
   RefreshCw,
   Sparkles,
   Target,
-  Timer,
   Trash2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -40,30 +36,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@dashboard/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@dashboard/ui/select";
 import { AuthGuard } from "../auth-guard";
 import { cn } from "../utils";
 import {
   useCreateWorker,
   useDeleteWorker,
   useWorkers,
-  useRunWorker,
   useUpdateWorker,
 } from "../hooks/useWorkers";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import { useNow } from "../hooks/useNow";
-import { formatDuration, formatRelativePast } from "../workers-schedule";
-import {
-  ALL_SCHEDULE_EVERY_OPTIONS,
-  scheduleEveryLabel,
-} from "../workers-frontmatter";
-import type { Worker, WorkerSchedule } from "../api";
+import type { Worker } from "../api";
 import { WORKER_TEMPLATE } from "../worker-template";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -104,7 +86,6 @@ export function WorkerControlInner({
   const [showCreate, setShowCreate] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Worker | null>(null);
-  const [pendingRun, setPendingRun] = useState<Worker | null>(null);
 
   // Chat-panel state. The left rail switches between three modes:
   //  • worker mode   — when a worker is selected and we're not drafting
@@ -134,7 +115,6 @@ export function WorkerControlInner({
 
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteWorker(githubUser?.login);
-  const runMutation = useRunWorker();
 
   // Push chat context up to the persistent rail in the root layout.
   // Worker is structurally identical to Job, so we reuse the existing
@@ -300,7 +280,6 @@ export function WorkerControlInner({
                         className={cn(
                           "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                           isActive && "bg-accent/70",
-                          worker.disabled && "opacity-60",
                         )}
                       >
                         {isActive ? (
@@ -318,15 +297,6 @@ export function WorkerControlInner({
                           <span className="font-medium text-sm truncate flex-1">
                             {worker.title}
                           </span>
-                          {worker.disabled ? (
-                            <span
-                              className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-                              title="Scheduler skips this worker. Manual Run still works."
-                            >
-                              <PowerOff className="w-2.5 h-2.5" />
-                              Disabled
-                            </span>
-                          ) : null}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                           <span className="font-mono opacity-80">
@@ -337,14 +307,6 @@ export function WorkerControlInner({
                             <Calendar className="w-3 h-3" />
                             {new Date(worker.updatedAt).toLocaleDateString()}
                           </span>
-                          <ScheduleInline schedule={worker.schedule} />
-                          <LastTickInline lastTickAt={worker.lastTickAt} />
-                          {!worker.disabled ? (
-                            <NextRunInline
-                              nextEligibleAt={worker.nextEligibleAt}
-                              schedule={worker.schedule}
-                            />
-                          ) : null}
                         </div>
                       </button>
                     </li>
@@ -367,11 +329,6 @@ export function WorkerControlInner({
                 onBack={() => setSelectedSlug(null)}
                 onEdit={() => setEditingWorker(selectedWorker)}
                 onDelete={() => setPendingDelete(selectedWorker)}
-                onRun={() => setPendingRun(selectedWorker)}
-                isRunning={
-                  runMutation.isPending &&
-                  runMutation.variables?.slug === selectedWorker.slug
-                }
               />
             ) : (
               <EmptyState
@@ -410,23 +367,6 @@ export function WorkerControlInner({
           />
         ) : null}
 
-        {/* Run confirm */}
-        <ConfirmDialog
-          open={!!pendingRun}
-          title="Run this worker now?"
-          description={
-            pendingRun
-              ? `Triggers "${pendingRun.title}" (${pendingRun.slug}) immediately, bypassing its cadence guard. GitHub Actions minutes will be used. The worker's output goes to its own report or the artifacts the body declares.`
-              : ""
-          }
-          confirmLabel="Run now"
-          onConfirm={() => {
-            if (!pendingRun) return;
-            runMutation.mutate({ slug: pendingRun.slug, force: true });
-          }}
-          onClose={() => setPendingRun(null)}
-        />
-
         {/* Delete confirm */}
         <ConfirmDialog
           open={!!pendingDelete}
@@ -459,24 +399,13 @@ function WorkerDetail({
   onBack,
   onEdit,
   onDelete,
-  onRun,
-  isRunning,
 }: {
   worker: Worker;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onRun: () => void;
-  isRunning: boolean;
 }) {
   const hasBody = worker.body.trim().length > 0;
-  const { githubUser } = useGitHubIdentity();
-  const updateMutation = useUpdateWorker(worker.slug, githubUser?.login);
-  const isToggling = updateMutation.isPending;
-  const toggleDisabled = () => {
-    if (isToggling) return;
-    updateMutation.mutate({ disabled: !worker.disabled });
-  };
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -497,17 +426,8 @@ function WorkerDetail({
                 <Target className="w-3.5 h-3.5" />
                 Worker
               </div>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words inline-flex items-center gap-3 flex-wrap">
-                <span>{worker.title}</span>
-                {worker.disabled ? (
-                  <span
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-                    title="Scheduler skips this worker. Manual Run still works."
-                  >
-                    <PowerOff className="w-3 h-3" />
-                    Disabled
-                  </span>
-                ) : null}
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words">
+                {worker.title}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span className="font-mono opacity-80">{worker.slug}</span>
@@ -516,14 +436,6 @@ function WorkerDetail({
                   <Calendar className="w-3 h-3" />
                   updated {new Date(worker.updatedAt).toLocaleDateString()}
                 </span>
-                <ScheduleInline schedule={worker.schedule} />
-                <LastTickDetail lastTickAt={worker.lastTickAt} />
-                {!worker.disabled ? (
-                  <NextRunDetail
-                    nextEligibleAt={worker.nextEligibleAt}
-                    schedule={worker.schedule}
-                  />
-                ) : null}
                 <span>·</span>
                 <a
                   href={worker.htmlUrl}
@@ -538,39 +450,6 @@ function WorkerDetail({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Button
-                size="sm"
-                onClick={onRun}
-                disabled={isRunning}
-                className="w-9 px-0 bg-emerald-600 hover:bg-emerald-700 text-white"
-                title={isRunning ? "Dispatching…" : "Run worker now"}
-                aria-label="Run worker now"
-              >
-                <Play className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleDisabled}
-                disabled={isToggling}
-                title={
-                  worker.disabled
-                    ? "Enable scheduler (auto-ticks resume)"
-                    : "Disable scheduler (manual Run still works)"
-                }
-                aria-label={
-                  worker.disabled
-                    ? "Enable worker scheduler"
-                    : "Disable worker scheduler"
-                }
-                className={cn("w-9 px-0", worker.disabled && "text-amber-400")}
-              >
-                {worker.disabled ? (
-                  <PowerOff className="w-3.5 h-3.5" />
-                ) : (
-                  <Power className="w-3.5 h-3.5" />
-                )}
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -658,20 +537,18 @@ function CreateWorkerDialog({
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState(WORKER_TEMPLATE);
-  const [schedule, setSchedule] = useState<WorkerSchedule | null>(null);
 
   useEffect(() => {
     if (open) {
       setTitle("");
       setBody(initialBody && initialBody.trim() ? initialBody : WORKER_TEMPLATE);
-      setSchedule(null);
     }
   }, [open, initialBody]);
 
   const handleSubmit = () => {
     if (!title.trim() || createMutation.isPending) return;
     createMutation.mutate(
-      { title: title.trim(), body, schedule },
+      { title: title.trim(), body },
       {
         onSuccess: (worker) => onCreated(worker),
       },
@@ -700,7 +577,6 @@ function CreateWorkerDialog({
               autoFocus
             />
           </div>
-          <ScheduleSelect value={schedule} onChange={setSchedule} />
           <div className="space-y-1.5">
             <Label>Body</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={14} />
@@ -738,14 +614,10 @@ function EditWorkerDialog({
 
   const [title, setTitle] = useState(worker.title);
   const [body, setBody] = useState(worker.body || "");
-  const [schedule, setSchedule] = useState<WorkerSchedule | null>(
-    worker.schedule,
-  );
 
   useEffect(() => {
     setTitle(worker.title);
     setBody(worker.body || "");
-    setSchedule(worker.schedule);
   }, [worker]);
 
   const handleSubmit = () => {
@@ -753,11 +625,9 @@ function EditWorkerDialog({
     const patch: {
       title?: string;
       body?: string;
-      schedule?: WorkerSchedule | null;
     } = {};
     if (title !== worker.title) patch.title = title.trim();
     if (body !== worker.body) patch.body = body;
-    if (schedule !== worker.schedule) patch.schedule = schedule;
     if (Object.keys(patch).length === 0) {
       onSaved();
       return;
@@ -786,11 +656,6 @@ function EditWorkerDialog({
               autoFocus
             />
           </div>
-          <ScheduleSelect value={schedule} onChange={setSchedule} />
-          <WorkerTimingReadout
-            lastTickAt={worker.lastTickAt}
-            nextEligibleAt={worker.nextEligibleAt}
-          />
           <div className="space-y-1.5">
             <Label>Body</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={14} />
@@ -811,237 +676,6 @@ function EditWorkerDialog({
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-/**
- * Inline "last run" pill for use in the worker-list rows. Hidden when
- * the worker has never run — keeps the row dense. Refreshes every 30s.
- * Source is the commit timestamp of the sibling `<slug>.state.json`,
- * which the engine writes only when a tick actually acts.
- */
-function LastTickInline({ lastTickAt }: { lastTickAt: string | null }) {
-  const now = useNow(30_000);
-  if (!lastTickAt) return null;
-  const date = new Date(lastTickAt);
-  return (
-    <>
-      <span>·</span>
-      <span
-        className="inline-flex items-center gap-1"
-        title={`Last run: ${date.toLocaleString()}`}
-      >
-        <Clock className="w-3 h-3" />
-        last run {formatRelativePast(date, now)}
-      </span>
-    </>
-  );
-}
-
-/**
- * Inline "next run in X" pill — the actual next-eligible time the worker
- * will act, sourced from `data.nextEligibleISO` in the worker's state JSON.
- * Hidden when the value is missing or when the schedule is `manual`.
- */
-function NextRunInline({
-  nextEligibleAt,
-  schedule,
-}: {
-  nextEligibleAt: string | null;
-  schedule: WorkerSchedule | null;
-}) {
-  const now = useNow(30_000);
-  if (schedule === "manual") return null;
-  if (!nextEligibleAt) return null;
-  const date = new Date(nextEligibleAt);
-  const diffMs = date.getTime() - now.getTime();
-  const isFuture = diffMs > 0;
-  const label = isFuture
-    ? `next run in ${formatDuration(diffMs)}`
-    : "next run due now";
-  return (
-    <>
-      <span>·</span>
-      <span
-        className="inline-flex items-center gap-1"
-        title={`Next eligible run: ${date.toLocaleString()}`}
-      >
-        <Timer className="w-3 h-3" />
-        {label}
-      </span>
-    </>
-  );
-}
-
-/**
- * Detail-header counterpart for `NextRunInline`. Hides when the value
- * is missing or the schedule is `manual`.
- */
-function NextRunDetail({
-  nextEligibleAt,
-  schedule,
-}: {
-  nextEligibleAt: string | null;
-  schedule: WorkerSchedule | null;
-}) {
-  const now = useNow(30_000);
-  if (schedule === "manual") return null;
-  if (!nextEligibleAt) return null;
-  const date = new Date(nextEligibleAt);
-  const diffMs = date.getTime() - now.getTime();
-  const label =
-    diffMs > 0 ? `next run in ${formatDuration(diffMs)}` : "next run due now";
-  return (
-    <>
-      <span>·</span>
-      <span
-        className="inline-flex items-center gap-1"
-        title={`Next eligible run: ${date.toLocaleString()}`}
-      >
-        <Timer className="w-3 h-3" />
-        {label}
-      </span>
-    </>
-  );
-}
-
-/**
- * Detail-header counterpart for `LastTickInline`. Hides when the value
- * is missing.
- */
-function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
-  const now = useNow(30_000);
-  if (!lastTickAt) return null;
-  const date = new Date(lastTickAt);
-  return (
-    <>
-      <span>·</span>
-      <span
-        className="inline-flex items-center gap-1"
-        title={`Last run: ${date.toLocaleString()}`}
-      >
-        <Clock className="w-3 h-3" />
-        last run {formatRelativePast(date, now)}
-      </span>
-    </>
-  );
-}
-
-/**
- * Schedule dropdown — full cadence list:
- *
- * - **Auto** (sentinel `null`, no frontmatter): the engine ticks the worker
- *   on every cron wake; the body's cadence guard decides whether to act.
- * - Every explicit cadence (`15m` … `7d`): the engine gates ticks to that
- *   interval via the frontmatter `every:` field.
- * - **Manual only** (`every: manual`): the engine skips auto-ticks; the
- *   worker runs only when the Run button is clicked.
- */
-function ScheduleSelect({
-  value,
-  onChange,
-}: {
-  value: WorkerSchedule | null;
-  onChange: (next: WorkerSchedule | null) => void;
-}) {
-  // Sentinel because Radix Select.Item disallows empty-string values; we
-  // can't bind `null` directly to it.
-  const AUTO = "__auto__";
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor="worker-schedule">Schedule</Label>
-      <Select
-        value={value ?? AUTO}
-        onValueChange={(v) =>
-          onChange(v === AUTO ? null : (v as WorkerSchedule))
-        }
-      >
-        <SelectTrigger id="worker-schedule" className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={AUTO}>Auto</SelectItem>
-          {ALL_SCHEDULE_EVERY_OPTIONS.map((opt) => (
-            <SelectItem key={opt} value={opt}>
-              {opt === "manual"
-                ? "Manual only"
-                : `Every ${scheduleEveryLabel(opt).replace(/^every /, "")}`}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <p className="text-xs text-muted-foreground">
-        <strong>Auto</strong> — the body's cadence guard decides when to run. A
-        fixed cadence gates ticks to that interval.{" "}
-        <strong>Manual only</strong> — never auto-runs; click Run to trigger.
-      </p>
-    </div>
-  );
-}
-
-/**
- * Read-only timing readout shown inside the Edit dialog: last actual run
- * + next eligible run, both sourced from the worker's state file.
- * Refreshes every 30s.
- */
-function WorkerTimingReadout({
-  lastTickAt,
-  nextEligibleAt,
-}: {
-  lastTickAt: string | null;
-  nextEligibleAt: string | null;
-}) {
-  const now = useNow(30_000);
-  const last = lastTickAt ? new Date(lastTickAt) : null;
-  const next = nextEligibleAt ? new Date(nextEligibleAt) : null;
-  const nextLabel = next
-    ? (() => {
-        const diff = next.getTime() - now.getTime();
-        return diff > 0
-          ? `next run in ${formatDuration(diff)}`
-          : "next run due now";
-      })()
-    : null;
-  if (!last && !next) return null;
-  return (
-    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-      {last ? (
-        <span
-          className="inline-flex items-center gap-1"
-          title={last.toLocaleString()}
-        >
-          <Clock className="w-3 h-3" />
-          last run {formatRelativePast(last, now)}
-        </span>
-      ) : null}
-      {last && nextLabel && next ? <span>·</span> : null}
-      {nextLabel && next ? (
-        <span
-          className="inline-flex items-center gap-1"
-          title={next.toLocaleString()}
-        >
-          <Timer className="w-3 h-3" />
-          {nextLabel}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-/** Inline schedule pill for list rows + detail header. */
-function ScheduleInline({ schedule }: { schedule: WorkerSchedule | null }) {
-  if (!schedule) return null;
-  return (
-    <>
-      <span>·</span>
-      <span
-        className="inline-flex items-center gap-1"
-        title={`Cadence: ${scheduleEveryLabel(schedule)}`}
-      >
-        <Timer className="w-3 h-3" />
-        {scheduleEveryLabel(schedule)}
-      </span>
-    </>
   );
 }
 

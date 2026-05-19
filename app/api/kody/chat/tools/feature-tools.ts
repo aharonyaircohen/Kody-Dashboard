@@ -129,28 +129,23 @@ gap-analysis conversation.`,
   },
   {
     id: "kody-workers",
-    name: "Kody Workers (scheduled markdown workers)",
+    name: "Kody Workers (reusable persona files)",
     summary:
-      "Markdown files at .kody/workers/<slug>.md — a parallel feature to Kody Jobs.",
-    details: `A Kody Worker is a markdown file at \`.kody/workers/<slug>.md\`. Workers
-are a parallel feature to Kody Jobs with identical structure and UI (the
-Workers page mirrors the Jobs page). The engine's \`worker-scheduler\` ticks
-every worker on the same cron as jobs (via the \`worker-tick\` executable);
-manual "Run now" posts \`@kody worker-tick\`.
+      "Markdown files at .kody/workers/<slug>.md — pure reusable personas.",
+    details: `A Kody Worker is a markdown file at \`.kody/workers/<slug>.md\`. A
+worker is a pure reusable PERSONA — a markdown body describing intent,
+allowed commands, and restrictions. Workers have NO schedule, NO state,
+and NO run/tick; they're personas referenced by other flows. The Workers
+page is a pure persona editor (list / view / create / edit / delete).
 
 Format (must match existing workers in \`.kody/workers/\`):
 - H1 title
-- \`## Worker\` — purpose
+- \`## Worker\` — purpose / persona
 - \`## Allowed Commands\`
 - \`## Restrictions\`
-- \`## State\`
-
-Default template is REPORT-PRODUCER: each active tick gathers inputs, composes
-a YAML \`findings:\` report, and commits it to \`.kody/reports/<slug>.md\` via
-\`gh api PUT\`.
 
 The chat exposes the \`create_kody_worker\` tool to scaffold a new worker
-after a gap-analysis conversation.`,
+persona after a gap-analysis conversation.`,
   },
   {
     id: "memory",

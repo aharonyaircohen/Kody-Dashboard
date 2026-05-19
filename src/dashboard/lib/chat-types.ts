@@ -140,12 +140,13 @@ export type ChatContext =
   | { kind: "task"; task: import("./types").KodyTask }
   | {
       /**
-       * Chat scoped to an existing job — analogous to `task` mode.
-       * The agent is given the job's title/body/labels so it can answer
-       * questions about that specific job.
+       * Chat scoped to an existing job (or worker — a worker is now a
+       * pure persona file that's structurally a subset of a job and
+       * reuses this scope kind). The agent is given the title/body so
+       * it can answer questions about that specific job/worker.
        */
       kind: "job";
-      job: import("./api").Job;
+      job: import("./api").Job | import("./api").Worker;
     }
   | {
       kind: "job-draft";

@@ -72,6 +72,7 @@ const createJobSchema = z.object({
     .nullable()
     .optional(),
   disabled: z.boolean().optional(),
+  worker: z.string().min(1).nullable().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -101,6 +102,7 @@ export async function POST(req: NextRequest) {
       body,
       schedule,
       disabled,
+      worker,
       actorLogin,
     } = createJobSchema.parse(payload);
 
@@ -145,6 +147,7 @@ export async function POST(req: NextRequest) {
       body,
       schedule: schedule ?? null,
       disabled: disabled === true,
+      worker: worker ?? null,
     });
 
     return NextResponse.json({ job });

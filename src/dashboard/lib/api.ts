@@ -871,6 +871,13 @@ export interface Job {
    * scheduler skips this job; manual "Run now" still fires.
    */
   disabled: boolean;
+  /**
+   * Slug of the worker (persona) that executes this job, from the
+   * `worker:` frontmatter. The job owns the schedule; the worker is *who*
+   * the engine tick runs as. `null` = no worker assigned — the engine
+   * scheduler skips such jobs (every job must name an executor).
+   */
+  worker: string | null;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -896,6 +903,7 @@ export const jobsApi = {
     body: string;
     schedule?: JobSchedule | null;
     disabled?: boolean;
+    worker?: string | null;
     actorLogin?: string;
   }): Promise<Job> => {
     const res = await fetch(`${API_BASE}/jobs`, {
@@ -914,6 +922,7 @@ export const jobsApi = {
       body?: string;
       schedule?: JobSchedule | null;
       disabled?: boolean;
+      worker?: string | null;
       actorLogin?: string;
     },
   ): Promise<Job> => {
@@ -973,20 +982,6 @@ export const jobsApi = {
 
 // ============ Workers API ============
 
-/** Per-worker cadence tokens; mirrors `ScheduleEvery` in workers-frontmatter.ts. */
-export type WorkerSchedule =
-  | "15m"
-  | "30m"
-  | "1h"
-  | "2h"
-  | "6h"
-  | "12h"
-  | "1d"
-  | "3d"
-  | "7d"
-  /** Sentinel: scheduler never auto-fires; only the dashboard "Run now" button executes it. */
-  | "manual";
-
 export interface Worker {
   /** Filename without `.md` — stable identity. */
   slug: string;
@@ -994,28 +989,6 @@ export interface Worker {
   body: string;
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
-  /**
-   * Last commit timestamp of the sibling `<slug>.state.json` (ISO8601),
-   * or `null` if the worker has never run. The engine writes
-   * `<slug>.state.json` on every tick that acts.
-   */
-  lastTickAt: string | null;
-  /**
-   * UTC ISO timestamp at which this worker will next be eligible to act —
-   * read from `data.nextEligibleISO` in the state JSON. `null` if the
-   * worker has never run, or its body doesn't yet emit the field.
-   */
-  nextEligibleAt: string | null;
-  /**
-   * Per-worker cadence parsed from frontmatter. `null` = global cron wake
-   * (every 15 min). Engine-side gating ships separately.
-   */
-  schedule: WorkerSchedule | null;
-  /**
-   * Mirrors `disabled: true` in the frontmatter. When `true` the engine
-   * scheduler skips this worker; manual "Run now" still fires.
-   */
-  disabled: boolean;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -1039,8 +1012,6 @@ export const workersApi = {
     slug?: string;
     title: string;
     body: string;
-    schedule?: WorkerSchedule | null;
-    disabled?: boolean;
     actorLogin?: string;
   }): Promise<Worker> => {
     const res = await fetch(`${API_BASE}/workers`, {
@@ -1057,8 +1028,6 @@ export const workersApi = {
     data: {
       title?: string;
       body?: string;
-      schedule?: WorkerSchedule | null;
-      disabled?: boolean;
       actorLogin?: string;
     },
   ): Promise<Worker> => {
@@ -1083,34 +1052,6 @@ export const workersApi = {
       },
     );
     await handleResponse<{ success: boolean }>(res);
-  },
-
-  /**
-   * Manually trigger a single worker by posting an `@kody worker-tick`
-   * comment on the repo's "Kody control" issue. The engine's existing
-   * `issue_comment` trigger routes to the `worker-tick` executable.
-   * Defaults to `force: true` because the operator clicked "Run now" —
-   * they want it to run regardless of the body's cadence guard. Pass
-   * `force: false` to respect the guard.
-   */
-  run: async (
-    worker: { slug: string },
-    opts?: { force?: boolean },
-  ): Promise<{
-    issueNumber: number;
-    commentId: number;
-    commentUrl: string;
-    force: boolean;
-  }> => {
-    const res = await fetch(
-      `${API_BASE}/workers/${encodeURIComponent(worker.slug)}/run`,
-      {
-        method: "POST",
-        headers: buildHeaders(),
-        body: JSON.stringify({ force: opts?.force ?? true }),
-      },
-    );
-    return handleResponse(res);
   },
 };
 
