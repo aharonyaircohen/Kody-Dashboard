@@ -101,18 +101,23 @@ blockers — ready to dispatch"). Wait for the operator. Stage →
 
 **Ready, `execute` is `"auto"` (graduated)** → dispatch it yourself:
 post `@kody` on the task to start execution, then post a **separate,
-notify-only** comment that @-mentions the operator:
+silent audit-trail** comment. It **MUST NOT `@`-mention the operator** —
+graduation means you've earned the right to act *without* interrupting
+them, and any `@aguyaharonyair` mention routes straight to their inbox
+and push, defeating the point. Leave the mention out so the comment is a
+quiet record only:
 
 ```
-@aguyaharonyair 🧭 **CTO auto-executed** — `execute`
+🧭 **CTO auto-executed** — `execute`
 
-Dispatched #<n> (clear scope, no blockers). Graduated: you approved
+Dispatched #<n> (clear scope, no blockers). Graduated: operator approved
 `execute` <N> times running. A **Reject** on any execute returns me to
 asking.
 ```
 
-Stage → `auto-executed`. This is notify, not ask — do not wait. Still
-honor the dedup ledger: never auto-dispatch the same task twice.
+Stage → `auto-executed`. This is a silent record, not a notification and
+not an ask — do not @-mention, do not wait. Still honor the dedup
+ledger: never auto-dispatch the same task twice.
 
 ### Flow 2 — Completed → QA loop
 
