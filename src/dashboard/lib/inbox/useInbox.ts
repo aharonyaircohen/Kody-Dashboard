@@ -95,6 +95,8 @@ export interface UseInboxResult {
   read: InboxEntry[];
   unreadCount: number;
   isLoading: boolean;
+  /** True during any fetch, including manual refetch over cached data. */
+  isFetching: boolean;
   error: Error | null;
   refetch: () => Promise<unknown>;
   markRead: (id: string) => Promise<void>;
@@ -154,6 +156,7 @@ export function useInbox(options: { enabled?: boolean } = {}): UseInboxResult {
     read,
     unreadCount: unread.length,
     isLoading: query.isLoading,
+    isFetching: query.isFetching,
     error: (query.error as Error | null) ?? null,
     refetch: query.refetch,
     markRead: async (id) => {

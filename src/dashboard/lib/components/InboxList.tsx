@@ -307,6 +307,7 @@ export function InboxList() {
     unread,
     read,
     isLoading,
+    isFetching,
     error,
     refetch,
     markRead,
@@ -445,11 +446,11 @@ export function InboxList() {
             variant="ghost"
             size="sm"
             onClick={() => void refetch()}
-            disabled={isLoading}
+            disabled={isFetching}
             className="gap-1"
             aria-label="Refresh inbox"
           >
-            {isLoading ? (
+            {isFetching ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <RefreshCw className="w-4 h-4" />
