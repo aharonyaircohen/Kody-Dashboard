@@ -38,13 +38,13 @@ import {
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
-import { kodyApi } from "../api";
 import type { DiscussionDisabledReason, GoalDiscussionComment } from "../api";
+import {
+  useMentionRoster,
+  type MentionEntry,
+} from "../hooks/useMentionRoster";
 
-interface Mention {
-  login: string;
-  avatar_url: string;
-}
+type Mention = MentionEntry;
 
 interface GoalDiscussionProps {
   goalId: string;
@@ -264,50 +264,16 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { githubUser } = useGitHubIdentity();
 
-  // @mention autofill — uses the typed kodyApi client (which forwards the
-  // localStorage auth headers). Plain `fetch` falls back to the bot token,
-  // which isn't a collaborator on per-user repos and gets 403 → empty list.
-  const [mentions, setMentions] = useState<Mention[]>([]);
+  // @mention autofill — shared roster: collaborators + workers + self.
+  // Workers (e.g. @cto) are offered here just like in channels; a worker
+  // mention dispatches a one-shot tick server-side off the webhook.
+  const mentions = useMentionRoster({
+    login: githubUser?.login,
+    avatar_url: githubUser?.avatar_url ?? undefined,
+  });
   const [mentionQuery, setMentionQuery] = useState("");
   const [showMentions, setShowMentions] = useState(false);
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    kodyApi.collaborators
-      .list()
-      .then((collabs) => {
-        if (cancelled) return;
-        // Always include the signed-in user so they can self-mention even
-        // if the collaborators list is empty (private repos / bot-only token).
-        const merged: Mention[] = [...collabs];
-        if (
-          githubUser?.login &&
-          !merged.some((m) => m.login === githubUser.login)
-        ) {
-          merged.unshift({
-            login: githubUser.login,
-            avatar_url: githubUser.avatar_url ?? "",
-          });
-        }
-        setMentions(merged);
-      })
-      .catch((err) => {
-        console.warn("[GoalDiscussion] collaborators load failed", err);
-        // Still allow self-mention.
-        if (githubUser?.login) {
-          setMentions([
-            {
-              login: githubUser.login,
-              avatar_url: githubUser.avatar_url ?? "",
-            },
-          ]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [githubUser?.login, githubUser?.avatar_url]);
 
   const filteredMentions = mentions
     .filter((m) => m.login.toLowerCase().includes(mentionQuery.toLowerCase()))
@@ -561,6 +527,11 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
                         </AvatarFallback>
                       </Avatar>
                       <span className="text-sm">{mention.login}</span>
+                      {mention.isWorker ? (
+                        <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground border border-border rounded px-1 py-0.5">
+                          worker
+                        </span>
+                      ) : null}
                     </button>
                   ))
                 ) : (
