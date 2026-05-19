@@ -31,6 +31,44 @@ import { applyCtoBackpressure } from "../cto/backpressure";
 import { logger } from "../logger";
 import { dashboardThreadUrl, dashboardChannelUrl } from "../thread-link";
 import { deriveVapidKeys } from "./vapid-keys";
+import { INBOX_FEED_ISSUE_TITLE } from "../inbox/feed";
+import { PUSH_MANIFEST_ISSUE_TITLE } from "../push";
+import { CTO_DECISIONS_ISSUE_TITLE } from "../cto/decisions";
+
+/**
+ * Titles of the dashboard's own bookkeeping issues. These are storage
+ * scratchpads (the inbox feed, push-subscription list, CTO decision ledger)
+ * — every dashboard write edits them, which re-fires an `issues.edited`
+ * webhook whose body is full of `@login` feed entries. Routing those as
+ * mention pushes is a self-feedback loop: the user gets pinged with the raw
+ * manifest text. Never notify on them.
+ */
+const BOOKKEEPING_THREAD_TITLES = new Set<string>([
+  INBOX_FEED_ISSUE_TITLE,
+  PUSH_MANIFEST_ISSUE_TITLE,
+  CTO_DECISIONS_ISSUE_TITLE,
+]);
+
+/**
+ * Collapse comment/issue markdown to readable plain prose for an OS
+ * notification: drop code fences, blockquote markers, heading hashes, list
+ * bullets, bold/italic emphasis, and flatten `[text](url)` links to `text`.
+ * Phones render the notification body as plain text, so leaving raw markdown
+ * in makes it look like noise (`> **CTO** _auto_ …`).
+ */
+function plainSnippet(body: string, max = 180): string {
+  return body
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!?\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s*>+\s?/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/(\*\*|__|\*|_|~~)/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
 
 // GitHub login: 1–39 chars, alphanumeric or single hyphens, not starting/
 // ending with hyphen. We also bound on word boundaries so emails and
@@ -278,11 +316,7 @@ function buildPayload(
   // first (that's the distinguishing content), then the repo/title context
   // on the second line. Earlier we only showed the issue title, which made
   // every notification on the same issue look identical.
-  const snippet = ev.body
-    .replace(/```[\s\S]*?```/g, "[code]")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 180);
+  const snippet = plainSnippet(ev.body);
 
   // Channel messages deep-link into the in-app /messages view scrolled to
   // the message. Issue threads open the dashboard task view; PRs/discussions/
@@ -431,6 +465,23 @@ export async function dispatchMentionPushes(
       logger.info(
         { event: "mention_push_skip_event_shape", eventType },
         "Event type/action not routable for mention push",
+      );
+      return;
+    }
+
+    // The dashboard's own manifest issues (inbox feed, push subscriptions,
+    // CTO ledger) get edited on every write; that re-fires this webhook with
+    // a body full of `@login` feed entries. Notifying on them pings the user
+    // with raw manifest text — pure self-feedback noise. Drop them.
+    if (BOOKKEEPING_THREAD_TITLES.has(ev.title ?? "")) {
+      logger.info(
+        {
+          event: "mention_push_skip_bookkeeping",
+          eventType,
+          title: ev.title,
+          repo: ev.repoFullName,
+        },
+        "Skipped mention push on dashboard bookkeeping manifest issue",
       );
       return;
     }
