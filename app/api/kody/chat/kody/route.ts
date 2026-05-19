@@ -49,6 +49,7 @@ import { createPipelineTools } from "../tools/pipeline-tools";
 import { createRemoteTools } from "../tools/remote-tools";
 import { createBugTools } from "../tools/bug-tools";
 import { createTaskTools } from "../tools/task-tools";
+import { createGoalTools } from "../tools/goal-tools";
 import { createJobTools } from "../tools/job-tools";
 import { createWorkerTools } from "../tools/worker-tools";
 import { createMemoryTools } from "../tools/memory-tools";
@@ -516,6 +517,11 @@ export async function POST(req: NextRequest) {
         owner: repo.owner,
         repo: repo.repo,
         actorLogin: body.actorLogin ?? null,
+      }),
+      ...createGoalTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
       }),
       ...createJobTools({
         octokit,

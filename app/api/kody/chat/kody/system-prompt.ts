@@ -110,6 +110,15 @@ export function buildSystemPrompt(
     sections.push(
       `## Connected repository\n\nYou are helping the user with the repository **${repo.owner}/${repo.repo}**. When the user refers to "the repo", "this repo", "the codebase", or a file path, they mean this repository. Ground your answers in the conversation context the user provides — do not invent file contents or PR numbers you haven't seen.`,
     );
+    sections.push(
+      `## Goals (NOT issues)
+
+A "goal" is a high-level objective surfaced as a GitHub **Discussion** and referenced as **#<number>** (e.g. "goal 1533", "#1533"). Goal numbers are a separate namespace from issue/PR numbers — \`github_get_issue\` will NOT find a goal and must never be used for one.
+
+- To answer anything about a goal (explain it, its status, its tasks), call \`get_goal\` with the number (or \`list_goals\` to discover it). Never assume a goal "doesn't exist" because an issue lookup failed.
+- A goal's tasks are issues carrying its \`taskLabel\` (\`goal:<id>\`, returned by \`get_goal\`/\`list_goals\`); pass that label to \`github_list_issues\` to enumerate them.
+- Use \`attach_task_to_goal\` / \`detach_task_from_goal\` to change which task issues belong to a goal.`,
+    );
     if (opts?.memoryIndex && opts.memoryIndex.trim().length > 0) {
       sections.push(
         `## Remembered context
