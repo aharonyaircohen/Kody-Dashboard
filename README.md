@@ -1,5 +1,7 @@
 # Kody Dashboard
 
+**A scheduled coding-agent fleet on top of GitHub.**
+
 Kody is the difference between AI as a coding assistant you babysit (Cursor, Copilot, Devin) and AI as an autonomous engineering teammate that runs on your infrastructure, on a schedule, in parallel, with results you review rather than guide.
 
 Operations UI for the [Kody Engine](https://github.com/aharonyaircohen/Kody-Engine) — the control plane for an autonomous engineering workforce.
