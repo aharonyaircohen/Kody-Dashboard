@@ -14,7 +14,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
   ChevronLeft,
@@ -43,13 +43,22 @@ type NavItem = SettingsNavItem
 
 const COLLAPSED_KEY = 'kody.sidebar.collapsed'
 
-function isActive(pathname: string, item: NavItem): boolean {
-  if (item.exact) return pathname === item.href
-  return pathname === item.href || pathname.startsWith(`${item.href}/`)
+function isActive(pathname: string, search: string, item: NavItem): boolean {
+  // Hrefs may include a query string (e.g. "/jobs?tab=reports"). Compare the
+  // pathname and search portions independently so tab-scoped entries don't
+  // collide with their bare-path siblings.
+  const [hrefPath, hrefQuery = ''] = item.href.split('?')
+  if (hrefQuery) {
+    return pathname === hrefPath && search === hrefQuery
+  }
+  if (item.exact) return pathname === hrefPath && !search
+  return pathname === hrefPath || pathname.startsWith(`${hrefPath}/`)
 }
 
 export function Sidebar() {
   const pathname = usePathname() ?? '/'
+  const searchParams = useSearchParams()
+  const search = searchParams?.toString() ?? ''
   const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity()
   const { theme, setTheme } = useTheme()
   const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false)
@@ -83,7 +92,7 @@ export function Sidebar() {
 
   const renderLink = (item: NavItem) => {
     const Icon = item.icon
-    const active = isActive(pathname, item)
+    const active = isActive(pathname, search, item)
     const link = (
       <Link
         href={item.href}
