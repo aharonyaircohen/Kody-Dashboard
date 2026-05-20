@@ -322,8 +322,9 @@ function buildPayload(
   const snippet = plainSnippet(ev.body);
 
   // Channel messages deep-link into the in-app /messages view scrolled to
-  // the message. Issue threads open the dashboard task view; PRs/discussions/
-  // commits have no dashboard deep route so they open github.com.
+  // the message. Issue and PR threads open the dashboard task view (both
+  // share the same number pool on GitHub); discussions/commits have no
+  // dashboard deep route so they open github.com.
   if (ev.channel) {
     const channelName = ev.title?.replace(/^#/, "") ?? "channel";
     return JSON.stringify({

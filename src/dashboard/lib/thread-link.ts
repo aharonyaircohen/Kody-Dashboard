@@ -2,41 +2,50 @@
  * @fileType utility
  * @domain kody
  * @pattern dashboard-deep-link
- * @ai-summary Maps a GitHub issue `html_url` to the equivalent in-app
- *   dashboard task route (`/<issueNumber>`) so push notifications open
- *   inside Kody instead of github.com.
+ * @ai-summary Maps a GitHub issue/PR `html_url` to the equivalent in-app
+ *   dashboard task route (`/<number>`) so push notifications open inside
+ *   Kody instead of github.com.
  *
  *   Dashboard targets are returned as ROOT-RELATIVE paths (`/123`,
  *   `/messages?...`). They end up in a web-push payload and are resolved
  *   by the service worker against its own registration origin — i.e. the
  *   actually-deployed domain — so this works on every deployment with no
- *   `NEXT_PUBLIC_SERVER_URL` config. Cross-origin github.com URLs (non-
- *   Issue threads) are still returned absolute, unchanged.
+ *   `NEXT_PUBLIC_SERVER_URL` config. Cross-origin github.com URLs (with
+ *   no clean dashboard mapping) are still returned absolute, unchanged.
  *
- *   Only `Issue` threads have a clean dashboard target — the task page
- *   (`app/[issueNumber]/page.tsx`) is keyed by issue number alone. PRs,
- *   discussions, and commits have no equivalent deep route, so their
- *   GitHub URL is returned unchanged (callers fall back to github.com,
- *   preserving comment anchors there).
+ *   Issues and PRs share the dashboard task page (`app/[issueNumber]/
+ *   page.tsx`) because GitHub uses a shared number pool for both — the
+ *   page renders whichever artifact owns that number. Discussion and
+ *   commit URLs have no equivalent dashboard route, so their GitHub URL
+ *   is returned unchanged (callers fall back to github.com, preserving
+ *   anchors there).
  */
 import "server-only";
 
-// Matches the issue number in a GitHub issue/issue-comment html_url, e.g.
-// https://github.com/owner/repo/issues/123 or .../issues/123#issuecomment-456
-const ISSUE_PATH_RE = /\/issues\/(\d+)(?:[#?].*)?$/;
+// Matches the issue/PR number in a GitHub html_url. Covers:
+//   https://github.com/owner/repo/issues/123
+//   https://github.com/owner/repo/issues/123#issuecomment-456
+//   https://github.com/owner/repo/pull/123
+//   https://github.com/owner/repo/pull/123#issuecomment-456
+//   https://github.com/owner/repo/pull/123#discussion_r789
+//   https://github.com/owner/repo/pull/123#pullrequestreview-789
+const TASK_PATH_RE = /\/(?:issues|pull)\/(\d+)(?:[#?/].*)?$/;
 
 /**
- * Return the dashboard URL for an `Issue` thread, or the original GitHub
- * URL for any other thread type (or when the URL shape is unexpected).
+ * Return the dashboard URL for an Issue/PR thread, or the original GitHub
+ * URL for thread types with no in-app view (Discussion, Commit) or when
+ * the URL shape is unexpected.
  */
 export function dashboardThreadUrl(opts: {
   githubUrl: string | undefined;
   threadType: string;
 }): string {
   const githubUrl = opts.githubUrl ?? "";
-  if (opts.threadType !== "Issue") return githubUrl;
+  if (opts.threadType !== "Issue" && opts.threadType !== "PullRequest") {
+    return githubUrl;
+  }
 
-  const m = githubUrl.match(ISSUE_PATH_RE);
+  const m = githubUrl.match(TASK_PATH_RE);
   if (!m) return githubUrl;
 
   return `/${m[1]}`;
