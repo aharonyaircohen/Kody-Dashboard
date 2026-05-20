@@ -15,6 +15,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Bold,
+  ChevronDown,
   ChevronLeft,
   Code,
   ExternalLink,
@@ -24,11 +25,18 @@ import {
   Link2,
   List,
   Loader2,
-  Menu,
   MessageSquare,
   Plus,
   Send,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@dashboard/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
@@ -45,7 +53,6 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
 import { DiscussionsDisabledBadge } from "./GoalDiscussion";
-import { MobileMenu } from "./MobileMenu";
 import { type GoalDiscussionComment } from "../api";
 import { useMentionRoster } from "../hooks/useMentionRoster";
 
@@ -665,12 +672,16 @@ function ChannelThread({
   channelUrl,
   highlightCommentId,
   onBack,
+  onOpenChannels,
 }: {
   channelNumber: number;
   channelName: string;
   channelUrl: string;
   highlightCommentId?: number;
+  /** Exit messages entirely (back to wherever the user came from). */
   onBack?: () => void;
+  /** Mobile only — open the channel switcher sheet. */
+  onOpenChannels?: () => void;
 }) {
   const { data, isLoading, error, refetch, isFetching } =
     useChannelThread(channelNumber);
@@ -694,8 +705,8 @@ function ChannelThread({
             <button
               onClick={onBack}
               className="md:hidden -ml-1 p-1 text-muted-foreground hover:text-foreground"
-              title="Back to channels"
-              aria-label="Back to channels"
+              title="Back"
+              aria-label="Back"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -703,14 +714,23 @@ function ChannelThread({
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
             <Hash className="w-4 h-4" />
           </div>
-          <div className="min-w-0 flex flex-col">
-            <span className="font-semibold truncate text-[15px] leading-tight">
+          {/* Desktop: plain label. Mobile: tap-to-switch channel button. */}
+          <button
+            type="button"
+            onClick={onOpenChannels}
+            disabled={!onOpenChannels}
+            className="md:cursor-default md:pointer-events-none min-w-0 flex flex-col items-start text-left -my-1 py-1 rounded-md md:hover:bg-transparent hover:bg-muted/60 px-1"
+          >
+            <span className="inline-flex items-center gap-1 font-semibold truncate text-[15px] leading-tight">
               {channelName}
+              {onOpenChannels ? (
+                <ChevronDown className="md:hidden w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              ) : null}
             </span>
             <span className="text-[11px] text-muted-foreground leading-tight">
               {isFetching ? "syncing…" : "channel"}
             </span>
-          </div>
+          </button>
         </div>
         <a
           href={channelUrl}
@@ -807,7 +827,90 @@ function CreateChannelForm({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** Channel list + "new channel" affordance, used in both the desktop
+ *  sidebar and the mobile channels Sheet. */
+function ChannelListPanel({
+  channels,
+  selected,
+  onSelect,
+  creating,
+  setCreating,
+}: {
+  channels: ReadonlyArray<{ number: number; name: string }>;
+  selected: number | null;
+  onSelect: (n: number) => void;
+  creating: boolean;
+  setCreating: (next: boolean | ((prev: boolean) => boolean)) => void;
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+        <span className="text-[15px] font-semibold inline-flex items-center gap-2">
+          <MessageSquare className="w-4 h-4 text-muted-foreground" />
+          Channels
+          {channels.length > 0 ? (
+            <span className="text-xs font-normal text-muted-foreground">
+              {channels.length}
+            </span>
+          ) : null}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+          onClick={() => setCreating((v) => !v)}
+          title="New channel"
+        >
+          <Plus className="w-4 h-4" />
+        </Button>
+      </div>
+
+      {creating ? (
+        <CreateChannelForm onClose={() => setCreating(false)} />
+      ) : null}
+
+      <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+        {channels.length === 0 ? (
+          <p className="px-2 py-4 text-xs text-muted-foreground">
+            No channels yet. Tap + to create one.
+          </p>
+        ) : (
+          channels.map((c) => {
+            const active = c.number === selected;
+            return (
+              <button
+                key={c.number}
+                onClick={() => onSelect(c.number)}
+                className={cn(
+                  "group relative w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-[15px] text-left transition-colors",
+                  active
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {active ? (
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-primary" />
+                ) : null}
+                <Hash
+                  className={cn(
+                    "w-4 h-4 shrink-0",
+                    active
+                      ? "text-primary"
+                      : "text-muted-foreground/60 group-hover:text-foreground",
+                  )}
+                />
+                <span className="truncate">{c.name}</span>
+              </button>
+            );
+          })
+        )}
+      </div>
+    </>
+  );
+}
+
 export function MessagesView() {
+  const router = useRouter();
   const { data, isLoading, error, refetch } = useMessageChannels();
 
   // Deep link from a push notification / inbox entry:
@@ -828,7 +931,17 @@ export function MessagesView() {
     deepLink?.channel ?? null,
   );
   const [creating, setCreating] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [channelsSheetOpen, setChannelsSheetOpen] = useState(false);
+
+  /** Exit /messages — back to the previous history entry, or root if
+   *  the user landed here directly (deep link / push notification). */
+  const goBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/");
+    }
+  };
 
   const channels = useMemo(
     () => (data?.enabled ? data.channels : []),
@@ -883,100 +996,26 @@ export function MessagesView() {
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden bg-background md:border md:border-border md:rounded-xl md:shadow-sm">
-      <aside
-        className={cn(
-          "shrink-0 border-r border-border flex-col w-full md:w-64 bg-card/40",
-          selected !== null ? "hidden md:flex" : "flex",
-        )}
-      >
-        <div className="flex items-center justify-between gap-2 px-3 py-3 border-b border-border">
-          <div className="flex items-center gap-1 min-w-0">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="md:hidden h-8 w-8 p-0 -ml-1 shrink-0"
-              onClick={() => setMenuOpen(true)}
-              title="Menu"
-              aria-label="Open menu"
-            >
-              <Menu className="w-5 h-5" />
-            </Button>
-            <span className="text-[15px] font-semibold inline-flex items-center gap-2 truncate">
-              <MessageSquare className="w-4 h-4 text-muted-foreground" />
-              Channels
-              {channels.length > 0 ? (
-                <span className="text-xs font-normal text-muted-foreground">
-                  {channels.length}
-                </span>
-              ) : null}
-            </span>
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-foreground"
-            onClick={() => setCreating((v) => !v)}
-            title="New channel"
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
-        </div>
-
-        {creating ? (
-          <CreateChannelForm onClose={() => setCreating(false)} />
-        ) : null}
-
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-          {channels.length === 0 ? (
-            <p className="px-2 py-4 text-xs text-muted-foreground">
-              No channels yet. Create one to start the conversation.
-            </p>
-          ) : (
-            channels.map((c) => {
-              const active = c.number === selected;
-              return (
-                <button
-                  key={c.number}
-                  onClick={() => setSelected(c.number)}
-                  className={cn(
-                    "group relative w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-left transition-colors",
-                    active
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  {active ? (
-                    <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-primary" />
-                  ) : null}
-                  <Hash
-                    className={cn(
-                      "w-3.5 h-3.5 shrink-0",
-                      active
-                        ? "text-primary"
-                        : "text-muted-foreground/60 group-hover:text-foreground",
-                    )}
-                  />
-                  <span className="truncate">{c.name}</span>
-                </button>
-              );
-            })
-          )}
-        </div>
+      {/* Desktop sidebar — always visible on md+, never on mobile. */}
+      <aside className="hidden md:flex shrink-0 flex-col w-64 border-r border-border bg-card/40">
+        <ChannelListPanel
+          channels={channels}
+          selected={selected}
+          onSelect={setSelected}
+          creating={creating}
+          setCreating={setCreating}
+        />
       </aside>
 
-      <main
-        className={cn(
-          "flex-1 min-w-0",
-          selected !== null ? "flex flex-col" : "hidden md:flex md:flex-col",
-        )}
-      >
+      <main className="flex flex-col flex-1 min-w-0">
         {activeChannel ? (
           <ChannelThread
             key={activeChannel.number}
             channelNumber={activeChannel.number}
             channelName={activeChannel.name}
             channelUrl={activeChannel.url}
-            onBack={() => setSelected(null)}
+            onBack={goBack}
+            onOpenChannels={() => setChannelsSheetOpen(true)}
             highlightCommentId={
               deepLink && deepLink.channel === activeChannel.number
                 ? deepLink.commentId
@@ -984,18 +1023,64 @@ export function MessagesView() {
             }
           />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-              <MessageSquare className="w-5 h-5 text-muted-foreground" />
+          <div className="flex flex-col h-full">
+            {/* Mobile header with back + channels switcher even when no
+                channel is active, so the user is never stranded. */}
+            <div className="flex md:hidden items-center gap-1 border-b border-border bg-card/40 px-3 py-3">
+              <button
+                onClick={goBack}
+                className="-ml-1 p-1 text-muted-foreground hover:text-foreground"
+                title="Back"
+                aria-label="Back"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <span className="text-[15px] font-semibold">Messages</span>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Select or create a channel to start messaging.
-            </p>
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <MessageSquare className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {channels.length === 0
+                  ? "No channels yet — create one to start the conversation."
+                  : "Select a channel to start messaging."}
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="md:hidden"
+                onClick={() => setChannelsSheetOpen(true)}
+              >
+                Browse channels
+              </Button>
+            </div>
           </div>
         )}
       </main>
 
-      <MobileMenu open={menuOpen} onOpenChange={setMenuOpen} />
+      {/* Mobile channel switcher — replaces the old master/detail screen. */}
+      <Sheet open={channelsSheetOpen} onOpenChange={setChannelsSheetOpen}>
+        <SheetContent
+          side="left"
+          className="w-[86vw] sm:max-w-sm !p-0 !gap-0 flex flex-col md:hidden"
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Channels</SheetTitle>
+            <SheetDescription>Switch channels</SheetDescription>
+          </SheetHeader>
+          <ChannelListPanel
+            channels={channels}
+            selected={selected}
+            onSelect={(n) => {
+              setSelected(n);
+              setChannelsSheetOpen(false);
+            }}
+            creating={creating}
+            setCreating={setCreating}
+          />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
