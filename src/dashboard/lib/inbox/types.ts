@@ -123,25 +123,44 @@ function isValidEntry(x: unknown): x is InboxEntry {
   );
 }
 
-/** Strip code fences + collapse whitespace for the inbox preview.
+/** Strip code fences, markdown markup, and HTML noise for the inbox preview.
  *
  *  Inline backtick-quoted strings that look like identifiers (single-word
  *  actions such as `execute`, `qa-review`, `fix`, `approve`) are kept as-is
  *  since they carry more meaning than a generic "[code]" placeholder.
  *  Everything else (multi-word strings, strings with punctuation, file paths,
- *  etc.) is collapsed to "[code]". */
+ *  etc.) is collapsed to "[code]".
+ *
+ *  Also stripped so the preview reads as prose, not raw markdown:
+ *    - HTML comments (e.g. `<!-- kody-cmd: @kody sync --pr 1 -->` hints)
+ *    - `**bold**` / `*italic*` / `_italic_` emphasis markers
+ *    - Backslash escapes (`\[code]` → `[code]`, `\*` → `*`)
+ *    - U+FFFD replacement characters (broken emoji that render as boxes) */
 export function buildSnippet(
   body: string | null | undefined,
   max = 240,
 ): string {
   if (!body) return "";
   return body
+    // HTML comments first — they can contain `*`, `_`, backticks
+    .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/```[\s\S]*?```/g, "[code]")
+    // Unescape common markdown escapes before stripping emphasis so a
+    // literal `\[code]` becomes `[code]` instead of leaking the slash.
+    .replace(/\\([\\`*_{}[\]()#+\-.!>])/g, "$1")
     // Preserve single-word action names in backticks; collapse everything
     // else to [code]. A "word" here is alphanumerics, underscores, hyphens.
     .replace(/`([a-zA-Z0-9_-]+)`/g, (_, word) => word)
     // Collapse any remaining backtick pairs (multi-word or punctuation)
     .replace(/`[^`]*`/g, "[code]")
+    // Bold/italic emphasis — keep the inner text. `**` must precede `*`
+    // so we don't half-strip a bold pair.
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*\n]+)\*/g, "$1")
+    .replace(/(^|[\s(])_([^_\n]+)_(?=[\s.,;:!?)]|$)/g, "$1$2")
+    // Drop the Unicode replacement character — comes from emoji the
+    // sender's renderer mangled (e.g. cto.md's 🧭 compass).
+    .replace(/�/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, max);

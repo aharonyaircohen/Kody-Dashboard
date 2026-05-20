@@ -36,6 +36,7 @@ import { useInbox } from "../inbox/useInbox";
 import { cn } from "../utils";
 import { kodyApi } from "../api";
 import {
+  ctoCleanSnippet,
   detectCtoRecommendation,
   type CtoAction,
 } from "../cto/recommendation";
@@ -199,11 +200,19 @@ function Row({
               {relativeTime(entry.sentAt)}
             </span>
           </div>
-          {entry.snippet && (
-            <p className="mt-1 text-sm text-white/60 line-clamp-2">
-              {entry.snippet}
-            </p>
-          )}
+          {(() => {
+            // CTO recs duplicate the action/task chip in their snippet —
+            // strip the boilerplate so only the reason shows. Falls back
+            // to the raw cleaned snippet if no marker is present.
+            const preview = cto
+              ? ctoCleanSnippet(entry.snippet)
+              : entry.snippet;
+            return preview ? (
+              <p className="mt-1 text-sm text-white/60 line-clamp-2">
+                {preview}
+              </p>
+            ) : null;
+          })()}
           <div className="mt-1.5 flex items-center gap-2 text-[10px] text-white/40">
             <span className="truncate">{entry.repoFullName}</span>
             <span>·</span>

@@ -159,6 +159,36 @@ function asCtoAction(v: string | undefined): CtoAction | null {
     : null;
 }
 
+/**
+ * Strip CTO-specific boilerplate (marker prefix, "Confirming will run…"
+ * sentence, trailing "Confirm or dismiss…" instruction) from a *cleaned*
+ * snippet so the inbox preview shows only the reason.
+ *
+ *   "🧭 CTO recommendation — sync. PR #1405 is 15 commits behind base.
+ *    Confirming will run @kody sync --pr 1405 to rebase or merge.
+ *    Confirm or dismiss this in the dashboard inbox."
+ *      ↓
+ *   "PR #1405 is 15 commits behind base."
+ *
+ * The row already shows the action+task in the chip below, so duplicating
+ * "CTO recommendation — sync" in the preview is dead pixels. Returns the
+ * input unchanged if no marker is found (defensive: legacy bodies).
+ */
+export function ctoCleanSnippet(snippet: string): string {
+  if (!snippet) return "";
+  let out = snippet;
+  // Drop everything up to and including the marker line — the compass +
+  // "CTO recommendation — <action>" prefix. The em-dash variants (— -)
+  // and the verb token both vary, so anchor on "CTO recommendation".
+  out = out.replace(/^.*?CTO recommendation\s*[—–-]\s*[^.\s]+\s*\.?\s*/i, "");
+  // Drop the dashboard-handoff sentence the worker tacks on.
+  out = out.replace(/Confirming will run [^.]*\.\s*/i, "");
+  // Drop the trailing "Confirm or dismiss this in the dashboard inbox."
+  // (with or without surrounding underscores, already stripped by buildSnippet).
+  out = out.replace(/Confirm or dismiss this[^.]*\.?\s*$/i, "");
+  return out.trim();
+}
+
 export function detectCtoRecommendation(
   entry: InboxEntry,
 ): CtoRecommendation | null {
