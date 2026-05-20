@@ -163,17 +163,27 @@ export function ctoDecisionKey(taskNumber: number, action: string): string {
 }
 
 /**
- * Collapse the append-only log into the latest verdict per task+action.
- * The inbox uses this to swap Approve/Reject for a verdict badge once a
- * recommendation has been decided (on any device). Later log entries win,
- * so a reject-then-reapprove reflects the final state.
+ * Latest verdict per `(taskNumber, action)` with the timestamp it was
+ * recorded. Callers compare `at` against the inbox entry's `sentAt` to
+ * decide whether the verdict applies to *that* rec or only to an earlier
+ * one — a dismiss on yesterday's sync rec must not silently mark today's
+ * fresh sync rec as decided. Later log entries win.
  */
+export interface CtoLatestDecision {
+  decision: CtoDecision;
+  /** ISO timestamp of the decision (from the log entry). */
+  at: string;
+}
+
 export function latestCtoDecisions(
   manifest: CtoDecisionsManifest,
-): Record<string, CtoDecision> {
-  const out: Record<string, CtoDecision> = {};
+): Record<string, CtoLatestDecision> {
+  const out: Record<string, CtoLatestDecision> = {};
   for (const e of manifest.log) {
-    out[ctoDecisionKey(e.taskNumber, e.action)] = e.decision;
+    out[ctoDecisionKey(e.taskNumber, e.action)] = {
+      decision: e.decision,
+      at: e.at,
+    };
   }
   return out;
 }

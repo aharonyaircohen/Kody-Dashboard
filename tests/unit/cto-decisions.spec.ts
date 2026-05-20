@@ -8,6 +8,8 @@
 import { describe, expect, it } from "vitest";
 import {
   applyDecision,
+  latestCtoDecisions,
+  ctoDecisionKey,
   parseCtoDecisionsBody,
   serializeCtoDecisionsBody,
   EMPTY_CTO_DECISIONS_MANIFEST,
@@ -137,5 +139,41 @@ describe("applyDecision — graduation", () => {
     const round = parseCtoDecisionsBody(serializeCtoDecisionsBody(m));
     expect(round.actions.execute).toEqual(m.actions.execute);
     expect(round.log).toHaveLength(3);
+  });
+});
+
+describe("latestCtoDecisions — verdict + timestamp shape", () => {
+  it("returns the latest verdict per (task, action) with its timestamp", () => {
+    const at = "2026-05-20T10:47:32.000Z";
+    const m = applyDecision(EMPTY_CTO_DECISIONS_MANIFEST, {
+      taskNumber: 1574,
+      action: "sync",
+      decision: "dismiss",
+      at,
+    });
+    const latest = latestCtoDecisions(m);
+    expect(latest[ctoDecisionKey(1574, "sync")]).toEqual({
+      decision: "dismiss",
+      at,
+    });
+  });
+
+  it("later log entries supersede earlier ones for the same key", () => {
+    let m = applyDecision(EMPTY_CTO_DECISIONS_MANIFEST, {
+      taskNumber: 1574,
+      action: "sync",
+      decision: "dismiss",
+      at: "2026-05-20T10:47:32.000Z",
+    });
+    m = applyDecision(m, {
+      taskNumber: 1574,
+      action: "sync",
+      decision: "approve",
+      at: "2026-05-21T08:00:00.000Z",
+    });
+    expect(latestCtoDecisions(m)[ctoDecisionKey(1574, "sync")]).toEqual({
+      decision: "approve",
+      at: "2026-05-21T08:00:00.000Z",
+    });
   });
 });
