@@ -24,6 +24,7 @@ import {
   Link2,
   List,
   Loader2,
+  Menu,
   MessageSquare,
   Plus,
   Send,
@@ -44,6 +45,7 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
 import { DiscussionsDisabledBadge } from "./GoalDiscussion";
+import { MobileMenu } from "./MobileMenu";
 import { type GoalDiscussionComment } from "../api";
 import { useMentionRoster } from "../hooks/useMentionRoster";
 
@@ -826,6 +828,7 @@ export function MessagesView() {
     deepLink?.channel ?? null,
   );
   const [creating, setCreating] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const channels = useMemo(
     () => (data?.enabled ? data.channels : []),
@@ -886,20 +889,32 @@ export function MessagesView() {
           selected !== null ? "hidden md:flex" : "flex",
         )}
       >
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
-          <span className="text-sm font-semibold inline-flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-muted-foreground" />
-            Channels
-            {channels.length > 0 ? (
-              <span className="text-xs font-normal text-muted-foreground">
-                {channels.length}
-              </span>
-            ) : null}
-          </span>
+        <div className="flex items-center justify-between gap-2 px-3 py-3 border-b border-border">
+          <div className="flex items-center gap-1 min-w-0">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="md:hidden h-8 w-8 p-0 -ml-1 shrink-0"
+              onClick={() => setMenuOpen(true)}
+              title="Menu"
+              aria-label="Open menu"
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+            <span className="text-[15px] font-semibold inline-flex items-center gap-2 truncate">
+              <MessageSquare className="w-4 h-4 text-muted-foreground" />
+              Channels
+              {channels.length > 0 ? (
+                <span className="text-xs font-normal text-muted-foreground">
+                  {channels.length}
+                </span>
+              ) : null}
+            </span>
+          </div>
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-foreground"
             onClick={() => setCreating((v) => !v)}
             title="New channel"
           >
@@ -979,6 +994,8 @@ export function MessagesView() {
           </div>
         )}
       </main>
+
+      <MobileMenu open={menuOpen} onOpenChange={setMenuOpen} />
     </div>
   );
 }
