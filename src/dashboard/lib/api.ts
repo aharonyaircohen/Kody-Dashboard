@@ -1528,12 +1528,17 @@ export const ctoApi = {
   },
 
   /**
-   * Latest verdict per `${taskNumber}:${action}` from the trust ledger.
-   * The inbox uses this to swap Approve/Reject for a verdict badge once a
-   * recommendation has been decided on any device.
+   * Latest verdict per `${taskNumber}:${action}` from the trust ledger,
+   * carrying the timestamp it was recorded so the inbox can scope the
+   * badge to recs that pre-date the decision (a dismiss on yesterday's
+   * `sync` rec must not silently dismiss today's fresh one). Used by
+   * `verdictFor(taskNumber, action, sinceIso)`.
    */
   decisions: async (): Promise<{
-    decided: Record<string, "approve" | "reject" | "dismiss">;
+    decided: Record<
+      string,
+      { decision: "approve" | "reject" | "dismiss"; at: string }
+    >;
   }> => {
     const res = await fetch(`${API_BASE}/cto/decision`, {
       headers: buildHeaders(),

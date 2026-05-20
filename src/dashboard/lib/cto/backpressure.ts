@@ -18,7 +18,7 @@
  *   against, and are limited by, the cap.
  */
 import type { InboxFeedEntry } from "../inbox/feed";
-import { ctoDecisionKey, type CtoDecision } from "./decisions";
+import { ctoDecisionKey, type CtoLatestDecision } from "./decisions";
 
 /**
  * Hard ceiling on undecided CTO recommendations visible in the inbox at
@@ -49,23 +49,39 @@ export function ctoFeedKey(
   return { taskNumber, action: entry.ctoAction };
 }
 
-/** True when this feed entry is a CTO recommendation with no ledger verdict. */
+/**
+ * True when this feed entry is a CTO recommendation that has not been
+ * decided *for this rec*. A ledger verdict only counts if it was recorded
+ * AFTER the rec landed — an older verdict referred to a previous rec for
+ * the same (task, action) pair, not this fresh one. Treating those as
+ * decided would silently drain the pending slot the moment a re-post
+ * arrives (and is the same bug as the inbox showing pre-stamped
+ * "Dismissed" badges on every periodic re-post).
+ */
 function isPending(
   entry: InboxFeedEntry,
-  decided: Record<string, CtoDecision>,
+  decided: Record<string, CtoLatestDecision>,
 ): boolean {
   const key = ctoFeedKey(entry);
   if (!key) return false;
-  return !(ctoDecisionKey(key.taskNumber, key.action) in decided);
+  const v = decided[ctoDecisionKey(key.taskNumber, key.action)];
+  if (!v) return true;
+  const sent = Date.parse(entry.sentAt);
+  const at = Date.parse(v.at);
+  // Malformed timestamp on either side: fail closed (treat as decided) —
+  // same shape as the old behaviour, no surprise drift.
+  if (Number.isNaN(sent) || Number.isNaN(at)) return false;
+  return at < sent;
 }
 
 /**
  * How many CTO recommendations already sit in the feed undecided. `decided`
- * is `latestCtoDecisions(ledger)` — the latest verdict per task+action.
+ * is `latestCtoDecisions(ledger)` — the latest verdict per task+action,
+ * with the timestamp it was recorded so we can scope to the *current* rec.
  */
 export function countPendingCtoRecs(
   entries: InboxFeedEntry[],
-  decided: Record<string, CtoDecision>,
+  decided: Record<string, CtoLatestDecision>,
 ): number {
   return entries.reduce((n, e) => (isPending(e, decided) ? n + 1 : n), 0);
 }
@@ -81,7 +97,7 @@ export function countPendingCtoRecs(
 export function applyCtoBackpressure(
   current: InboxFeedEntry[],
   incoming: InboxFeedEntry[],
-  decided: Record<string, CtoDecision>,
+  decided: Record<string, CtoLatestDecision>,
 ): { admitted: InboxFeedEntry[]; withheld: InboxFeedEntry[] } {
   let headroom = MAX_PENDING_CTO_RECS - countPendingCtoRecs(current, decided);
   const admitted: InboxFeedEntry[] = [];

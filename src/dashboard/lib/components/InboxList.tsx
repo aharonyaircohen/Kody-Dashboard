@@ -115,7 +115,11 @@ interface RowProps {
   onToggleRead: () => void;
   onDelete: () => void;
   onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
-  verdictFor: (taskNumber: number, action: CtoAction) => CtoVerdict | null;
+  verdictFor: (
+    taskNumber: number,
+    action: CtoAction,
+    sinceIso?: string,
+  ) => CtoVerdict | null;
 }
 
 function Row({
@@ -155,7 +159,13 @@ function Row({
   const author = entry.author ? `@${entry.author}` : "Someone";
   const label = SOURCE_LABEL[entry.source];
   const cto = detectCtoRecommendation(entry);
-  const ctoVerdict = cto ? verdictFor(cto.taskNumber, cto.action) : null;
+  // Gate the verdict by entry.sentAt: a decision recorded BEFORE this rec
+  // landed belongs to an earlier rec for the same (task, action) pair, not
+  // this fresh one. Without the gate every re-post of a sync/fix-ci rec
+  // shows pre-stamped Dismissed once any past rec for that PR was dismissed.
+  const ctoVerdict = cto
+    ? verdictFor(cto.taskNumber, cto.action, entry.sentAt)
+    : null;
   const [ctoBusy, setCtoBusy] = useState<CtoVerdict | null>(null);
 
   const decide = async (verdict: CtoVerdict) => {
@@ -639,7 +649,7 @@ export function InboxList() {
             <CtoDialogActions
               action={rec.action}
               dispatchable={rec.dispatchable}
-              verdict={verdictFor(rec.taskNumber, rec.action)}
+              verdict={verdictFor(rec.taskNumber, rec.action, activeEntry.sentAt)}
               githubUrl={activeEntry.url}
               onDecide={(v) => handleCtoDecision(activeEntry, v)}
             />
@@ -775,7 +785,11 @@ interface SectionProps {
   onToggleRead: (id: string) => void;
   onDelete: (id: string) => void;
   onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
-  verdictFor: (taskNumber: number, action: CtoAction) => CtoVerdict | null;
+  verdictFor: (
+    taskNumber: number,
+    action: CtoAction,
+    sinceIso?: string,
+  ) => CtoVerdict | null;
   readSection: boolean;
 }
 
