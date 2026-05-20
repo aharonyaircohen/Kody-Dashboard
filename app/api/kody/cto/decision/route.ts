@@ -50,6 +50,7 @@ import {
   isDispatchable,
   dispatchCommand,
 } from "@dashboard/lib/cto/recommendation";
+import { dropVerdictStickyNote } from "@dashboard/lib/memory/drop-verdict-sticky";
 
 const bodySchema = z.object({
   taskNumber: z.number().int().positive(),
@@ -137,6 +138,28 @@ export async function POST(req: NextRequest) {
       }),
       { userOctokit },
     );
+
+    // Best-effort: drop a sticky note in the repo's memory inbox so the
+    // memory-writer job can file this verdict for future CEO-style proposers
+    // (so they don't re-surface what was already dismissed/rejected). A
+    // failure here must NOT roll back the verdict itself.
+    if (userOctokit) {
+      try {
+        await dropVerdictStickyNote({
+          octokit: userOctokit,
+          taskNumber,
+          action,
+          decision,
+          ...(actorLogin ? { actorLogin } : {}),
+          ...(command ? { command } : {}),
+        });
+      } catch (stickyErr) {
+        console.warn(
+          "[cto/decision] verdict sticky note drop failed (non-fatal)",
+          stickyErr,
+        );
+      }
+    }
 
     return NextResponse.json({
       ok: true,
