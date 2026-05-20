@@ -2,7 +2,7 @@
  * @fileType component
  * @domain kody
  * @pattern preview-actions
- * @ai-summary Sticky action bar for Preview: Approve UI, Approve PR, Merge, Fix, Cancel PR
+ * @ai-summary Sticky action bar for Preview: Approve (UI + auto-merge), Fix, Cancel PR
  */
 "use client";
 
@@ -20,7 +20,6 @@ import {
   Wrench,
   Loader2,
   CheckCircle,
-  GitPullRequest,
   Eye,
   Camera,
   AlertTriangle,
@@ -90,8 +89,7 @@ export function PreviewActions({
   const [showQADialog, setShowQADialog] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [isApprovingUI, setIsApprovingUI] = useState(false);
-  const [isApprovingPR, setIsApprovingPR] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
   const { githubUser } = useGitHubIdentity();
   const queryClient = useQueryClient();
 
@@ -138,19 +136,38 @@ export function PreviewActions({
     }
   };
 
-  const handleApproveUI = async () => {
-    setIsApprovingUI(true);
+  /**
+   * Single-step approval: marks both the UI and PR approved server-side,
+   * then fires the merge if the PR is already mergeable (CI green, no
+   * conflicts). When CI is still pending the MergeButton stays visible so
+   * the user can click again once checks finish — no separate "Approve PR"
+   * gate, since we don't run a separate code-review pass right now.
+   */
+  const handleApprove = async () => {
+    setIsApproving(true);
     try {
-      await tasksApi.approveUI(task.issueNumber, actorLogin);
+      await Promise.all([
+        tasksApi.approveUI(task.issueNumber, actorLogin),
+        tasksApi.approvePR(task.issueNumber, actorLogin),
+      ]);
       applyOptimisticLabel(queryClient, task.issueNumber, "ui-approved");
+      applyOptimisticLabel(queryClient, task.issueNumber, "pr-approved");
       // Backend also clears kody:needs-fix — mirror that locally so the
       // task list flips to the approved icon immediately.
       removeOptimisticLabel(queryClient, task.issueNumber, "kody:needs-fix");
-      toast.success("Preview UI approved");
+
+      const mergeableNow =
+        (ciData?.mergeable ?? false) && !hasConflicts && !ciFailed;
+      if (mergeableNow) {
+        toast.success("Approved — merging");
+        await onMerge();
+      } else {
+        toast.success("Approved — merge will run when CI passes");
+      }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to approve UI");
+      toast.error(err instanceof Error ? err.message : "Failed to approve");
     } finally {
-      setIsApprovingUI(false);
+      setIsApproving(false);
     }
   };
 
@@ -168,19 +185,6 @@ export function PreviewActions({
         err instanceof Error ? err.message : "Failed to report issue",
       );
       throw err; // re-throw so dialog keeps open
-    }
-  };
-
-  const handleApprovePR = async () => {
-    setIsApprovingPR(true);
-    try {
-      await tasksApi.approvePR(task.issueNumber, actorLogin);
-      applyOptimisticLabel(queryClient, task.issueNumber, "pr-approved");
-      toast.success("PR approved");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to approve PR");
-    } finally {
-      setIsApprovingPR(false);
     }
   };
 
@@ -232,7 +236,8 @@ export function PreviewActions({
           className="flex flex-row items-center gap-1.5"
           aria-label="Approve and merge"
         >
-          {/* Step 1: Approve UI — visible until done */}
+          {/* Approve — one button: labels UI + PR approved server-side, then
+              fires the merge if CI is already green. */}
           {isUIApproved ? (
             <Button
               variant="outline"
@@ -241,22 +246,22 @@ export function PreviewActions({
               className="gap-1.5 text-emerald-400 bg-transparent border-emerald-900/60 disabled:opacity-100"
             >
               <CheckCircle className="w-3.5 h-3.5" />
-              <span>UI Approved</span>
+              <span>Approved</span>
             </Button>
           ) : (
             <Button
               variant="outline"
               size="sm"
-              onClick={handleApproveUI}
-              disabled={isApprovingUI}
+              onClick={handleApprove}
+              disabled={isApproving}
               className="gap-1.5 cursor-pointer text-zinc-200 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50 active:scale-[0.97]"
             >
-              {isApprovingUI ? (
+              {isApproving ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
                 <CheckCircle className="w-3.5 h-3.5" />
               )}
-              <span>{isApprovingUI ? "Approving…" : "Approve UI"}</span>
+              <span>{isApproving ? "Approving…" : "Approve"}</span>
             </Button>
           )}
 
@@ -279,36 +284,9 @@ export function PreviewActions({
             </Button>
           )}
 
-          {/* Step 2: Approve PR — only visible after UI approved */}
-          {isUIApproved &&
-            (isPRApproved ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled
-                className="gap-1.5 text-emerald-400 bg-transparent border-emerald-900/60 disabled:opacity-100"
-              >
-                <CheckCircle className="w-3.5 h-3.5" />
-                <span>PR Approved</span>
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleApprovePR}
-                disabled={isApprovingPR}
-                className="gap-1.5 cursor-pointer text-zinc-200 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50 active:scale-[0.97]"
-              >
-                {isApprovingPR ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <GitPullRequest className="w-3.5 h-3.5" />
-                )}
-                <span>{isApprovingPR ? "Approving…" : "Approve PR"}</span>
-              </Button>
-            ))}
-
-          {/* Step 3: Merge — only visible after both approvals */}
+          {/* Merge — visible after Approve (which also sets pr-approved).
+              Kept as a manual fallback so the user can re-fire the merge if
+              CI was still pending at approval time. */}
           {isUIApproved && isPRApproved && !hasConflicts && !ciFailed && (
             <MergeButton
               prNumber={pr.number}
