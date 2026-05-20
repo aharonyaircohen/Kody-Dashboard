@@ -348,19 +348,23 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             </Button>
           )}
 
-          {/* Mobile chat FAB — only shows below md. */}
-          <Button
-            type="button"
-            size="icon"
-            onClick={openMobileChat}
-            className={cn(
-              "md:hidden fixed bottom-4 right-4 z-40 h-12 w-12 rounded-full shadow-lg",
-              "bg-emerald-600 hover:bg-emerald-700 text-white",
-            )}
-            aria-label="Open chat"
-          >
-            <MessageSquare className="w-5 h-5" />
-          </Button>
+          {/* Mobile chat FAB — only shows below md. Hidden on /messages
+              because it overlaps that page's own send button (and is
+              redundant: the user is already in a chat surface). */}
+          {pathname?.startsWith("/messages") ? null : (
+            <Button
+              type="button"
+              size="icon"
+              onClick={openMobileChat}
+              className={cn(
+                "md:hidden fixed bottom-4 right-4 z-40 h-12 w-12 rounded-full shadow-lg",
+                "bg-emerald-600 hover:bg-emerald-700 text-white",
+              )}
+              aria-label="Open chat"
+            >
+              <MessageSquare className="w-5 h-5" />
+            </Button>
+          )}
 
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetContent
