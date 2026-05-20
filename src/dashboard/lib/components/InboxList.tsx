@@ -20,6 +20,7 @@ import {
   Inbox as InboxIcon,
   Link2,
   Loader2,
+  MinusCircle,
   RefreshCw,
   Search,
   Trash2,
@@ -49,7 +50,23 @@ import {
   type DeepLinkType,
 } from "../inbox/deep-link";
 
-type CtoVerdict = "approve" | "reject";
+type CtoVerdict = "approve" | "reject" | "dismiss";
+
+/**
+ * Visual style + label for a settled CTO verdict badge. `dismiss` is the
+ * neutral "drain the queue" verdict — distinct grey palette so the
+ * operator can tell at a glance it didn't approve or reject.
+ */
+const VERDICT_LABEL: Record<CtoVerdict, string> = {
+  approve: "Approved",
+  reject: "Rejected",
+  dismiss: "Dismissed",
+};
+const VERDICT_CLASS: Record<CtoVerdict, string> = {
+  approve: "border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200",
+  reject: "border-rose-500/30 bg-rose-500/[0.06] text-rose-200",
+  dismiss: "border-white/15 bg-white/[0.05] text-white/70",
+};
 
 /** Case-insensitive substring match across an entry's searchable fields. */
 function matchesQuery(entry: InboxEntry, q: string): boolean {
@@ -253,18 +270,18 @@ function Row({
             <span
               className={cn(
                 "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium",
-                ctoVerdict === "approve"
-                  ? "border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200"
-                  : "border-rose-500/30 bg-rose-500/[0.06] text-rose-200",
+                VERDICT_CLASS[ctoVerdict],
               )}
               title="This recommendation was already decided"
             >
               {ctoVerdict === "approve" ? (
                 <Check className="w-3.5 h-3.5" />
-              ) : (
+              ) : ctoVerdict === "reject" ? (
                 <X className="w-3.5 h-3.5" />
+              ) : (
+                <MinusCircle className="w-3.5 h-3.5" />
               )}
-              {ctoVerdict === "approve" ? "Approved" : "Rejected"}
+              {VERDICT_LABEL[ctoVerdict]}
             </span>
           ) : (
             <>
@@ -308,6 +325,21 @@ function Row({
                   <X className="w-3.5 h-3.5" />
                 )}
                 Reject
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={ctoBusy !== null}
+                onClick={() => void decide("dismiss")}
+                title="Drain this from the inbox without approving or rejecting (no effect on graduation)"
+                className="h-7 gap-1 border border-white/15 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
+              >
+                {ctoBusy === "dismiss" ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <MinusCircle className="w-3.5 h-3.5" />
+                )}
+                Dismiss
               </Button>
             </>
           )}
@@ -423,12 +455,17 @@ export function InboxList() {
             ? `Approved — ${rec.action} dispatched on #${rec.taskNumber}`
             : `Recorded — ${rec.action} on #${rec.taskNumber} (no dashboard action; act on GitHub)`,
           {
-          description: res.stats
-            ? `${res.stats.consecutiveApprovals} in a row · ${res.stats.approvals}✓ / ${res.stats.rejections}✗`
-            : undefined,
-        });
-      } else {
+            description: res.stats
+              ? `${res.stats.consecutiveApprovals} in a row · ${res.stats.approvals}✓ / ${res.stats.rejections}✗`
+              : undefined,
+          },
+        );
+      } else if (verdict === "reject") {
         toast.success(`Rejected — #${rec.taskNumber} left as-is`);
+      } else {
+        toast.success(`Dismissed — #${rec.taskNumber} drained from inbox`, {
+          description: "No effect on graduation",
+        });
       }
       if (entry.readAt === null) await markRead(entry.id);
       // Flip the row to its verdict badge immediately (and on every other
@@ -642,18 +679,18 @@ function CtoDialogActions({
         <span
           className={cn(
             "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium",
-            verdict === "approve"
-              ? "border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200"
-              : "border-rose-500/30 bg-rose-500/[0.06] text-rose-200",
+            VERDICT_CLASS[verdict],
           )}
           title="This recommendation was already decided"
         >
           {verdict === "approve" ? (
             <Check className="w-3.5 h-3.5" />
-          ) : (
+          ) : verdict === "reject" ? (
             <X className="w-3.5 h-3.5" />
+          ) : (
+            <MinusCircle className="w-3.5 h-3.5" />
           )}
-          {verdict === "approve" ? "Approved" : "Rejected"}
+          {VERDICT_LABEL[verdict]}
         </span>
       ) : (
         <>
@@ -697,6 +734,21 @@ function CtoDialogActions({
               <X className="w-3.5 h-3.5" />
             )}
             Reject
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy !== null}
+            onClick={() => void decide("dismiss")}
+            title="Drain this from the inbox without approving or rejecting (no effect on graduation)"
+            className="h-7 gap-1 border border-white/15 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
+          >
+            {busy === "dismiss" ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <MinusCircle className="w-3.5 h-3.5" />
+            )}
+            Dismiss
           </Button>
         </>
       )}

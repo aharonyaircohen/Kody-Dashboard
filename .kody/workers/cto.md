@@ -65,15 +65,19 @@ the ledger.
 ### Backpressure — at most 10 pending recommendations
 
 The same ledger body carries a `log` array (newest last) of every
-operator decision: `{ taskNumber, action, decision, at }`. Read it
+operator decision: `{ taskNumber, action, decision, at }`. `decision` is
+one of `approve`, `reject`, or `dismiss` — **any of the three** clears
+the pending slot. (Dismiss is the operator's "drain without judging" verdict:
+it frees backpressure but leaves the verb's streak and `mode` untouched, so
+mass-dismissing stale recs cannot game graduation.) Read the log
 alongside `actions.execute.mode`.
 
 A recommendation is **pending** when you have posted it and the operator
 has not yet acted: a task in `data.tasks` whose `stage` is one of
 `backlog-flagged`, `execute-recommended`, `qa-requested`,
 `fix-recommended`, `approve-recommended`, with `lastRecAt` set, and **no**
-`log` entry for that `taskNumber` whose `at` is `>= lastRecAt`. Count
-those.
+`log` entry for that `taskNumber` whose `at` is `>= lastRecAt` (regardless
+of `decision`). Count those.
 
 **If 10 or more are pending, the operator's queue is full.** This tick:
 do **not** post any new recommendation in Flow 1 or Flow 2 — still update

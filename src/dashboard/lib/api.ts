@@ -1503,7 +1503,7 @@ export const ctoApi = {
   decide: async (input: {
     taskNumber: number;
     action?: import("./cto/recommendation").CtoAction;
-    decision: "approve" | "reject";
+    decision: "approve" | "reject" | "dismiss";
     actorLogin?: string;
     /** The exact `@kody …` command from the CTO's `kody-cmd` line. */
     command?: string;
@@ -1511,7 +1511,7 @@ export const ctoApi = {
     ok: true;
     executed: boolean;
     action: string;
-    decision: "approve" | "reject";
+    decision: "approve" | "reject" | "dismiss";
     stats: {
       approvals: number;
       rejections: number;
@@ -1533,7 +1533,7 @@ export const ctoApi = {
    * recommendation has been decided on any device.
    */
   decisions: async (): Promise<{
-    decided: Record<string, "approve" | "reject">;
+    decided: Record<string, "approve" | "reject" | "dismiss">;
   }> => {
     const res = await fetch(`${API_BASE}/cto/decision`, {
       headers: buildHeaders(),

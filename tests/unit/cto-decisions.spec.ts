@@ -86,6 +86,52 @@ describe("applyDecision — graduation", () => {
     expect(EMPTY_CTO_DECISIONS_MANIFEST).toEqual(before);
   });
 
+  it("dismiss leaves stats and graduation untouched", () => {
+    const eight = approveN(EMPTY_CTO_DECISIONS_MANIFEST, 8);
+    const after = applyDecision(eight, {
+      taskNumber: 42,
+      action: "execute",
+      decision: "dismiss",
+    });
+    expect(after.actions.execute.approvals).toBe(8);
+    expect(after.actions.execute.rejections).toBe(0);
+    expect(after.actions.execute.consecutiveApprovals).toBe(8);
+    expect(after.actions.execute.mode).toBe("ask");
+    // Two more approvals should still graduate — dismiss didn't reset the streak.
+    const graduated = approveN(after, 2);
+    expect(graduated.actions.execute.mode).toBe("auto");
+  });
+
+  it("dismiss on a graduated action keeps it 'auto' (no kill-switch)", () => {
+    const graduated = approveN(
+      EMPTY_CTO_DECISIONS_MANIFEST,
+      CTO_GRADUATION_THRESHOLD,
+    );
+    const after = applyDecision(graduated, {
+      taskNumber: 7,
+      action: "execute",
+      decision: "dismiss",
+    });
+    expect(after.actions.execute.mode).toBe("auto");
+    expect(after.actions.execute.consecutiveApprovals).toBe(
+      CTO_GRADUATION_THRESHOLD,
+    );
+  });
+
+  it("dismiss appends a log entry so the pending slot drains", () => {
+    const after = applyDecision(EMPTY_CTO_DECISIONS_MANIFEST, {
+      taskNumber: 99,
+      action: "sync",
+      decision: "dismiss",
+    });
+    expect(after.log).toHaveLength(1);
+    expect(after.log[0]).toMatchObject({
+      taskNumber: 99,
+      action: "sync",
+      decision: "dismiss",
+    });
+  });
+
   it("round-trips through serialize/parse", () => {
     const m = approveN(EMPTY_CTO_DECISIONS_MANIFEST, 3);
     const round = parseCtoDecisionsBody(serializeCtoDecisionsBody(m));

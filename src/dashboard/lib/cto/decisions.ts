@@ -34,7 +34,14 @@ export const CTO_GRADUATION_THRESHOLD = 10;
 const MANIFEST_START = "<!-- kody-cto-decisions:start -->";
 const MANIFEST_END = "<!-- kody-cto-decisions:end -->";
 
-export type CtoDecision = "approve" | "reject";
+/**
+ * `dismiss` is a neutral verdict: it marks the recommendation decided
+ * (so backpressure's pending count drops) without touching the
+ * approvals/rejections/streak — graduation is not affected either way.
+ * Use it to drain stale recommendations the operator no longer wants to
+ * act on but doesn't want to penalise the CTO over.
+ */
+export type CtoDecision = "approve" | "reject" | "dismiss";
 export type CtoActionMode = "ask" | "auto";
 
 export interface CtoActionStats {
@@ -73,7 +80,9 @@ function freshStats(): CtoActionStats {
 /**
  * Pure: return a new manifest with the decision applied. Never mutates the
  * input (immutability rule). Approve increments approvals +
- * consecutiveApprovals; reject increments rejections and resets the streak.
+ * consecutiveApprovals; reject increments rejections and resets the streak;
+ * dismiss appends a log entry only (neutral — stats/mode untouched, so the
+ * streak survives and graduation isn't gamed by mass-dismissing stale recs).
  */
 export function applyDecision(
   manifest: CtoDecisionsManifest,
@@ -81,17 +90,24 @@ export function applyDecision(
 ): CtoDecisionsManifest {
   const prev = manifest.actions[entry.action] ?? freshStats();
   const isApprove = entry.decision === "approve";
-  const consecutiveApprovals = isApprove ? prev.consecutiveApprovals + 1 : 0;
+  const isReject = entry.decision === "reject";
+  // Dismiss is a no-op against stats: keep the prior streak/mode and only log it.
+  const consecutiveApprovals = isApprove
+    ? prev.consecutiveApprovals + 1
+    : isReject
+      ? 0
+      : prev.consecutiveApprovals;
   // Graduation is deterministic and lives here (not in the LLM): cross the
-  // threshold → "auto"; any reject → back to "ask" (the kill switch).
-  const mode: CtoActionMode = !isApprove
+  // threshold on approve → "auto"; any reject → back to "ask" (the kill
+  // switch); dismiss → mode unchanged.
+  const mode: CtoActionMode = isReject
     ? "ask"
-    : consecutiveApprovals >= CTO_GRADUATION_THRESHOLD
+    : isApprove && consecutiveApprovals >= CTO_GRADUATION_THRESHOLD
       ? "auto"
       : prev.mode;
   const nextStats: CtoActionStats = {
     approvals: prev.approvals + (isApprove ? 1 : 0),
-    rejections: prev.rejections + (isApprove ? 0 : 1),
+    rejections: prev.rejections + (isReject ? 1 : 0),
     consecutiveApprovals,
     mode,
   };

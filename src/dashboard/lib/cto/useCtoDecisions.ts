@@ -22,7 +22,7 @@ import type { CtoActionable } from "./recommendation";
 export const ctoDecisionsQueryKey = (owner?: string, repo?: string) =>
   ["cto-decisions", owner ?? "", repo ?? ""] as const;
 
-type Verdict = "approve" | "reject";
+type Verdict = "approve" | "reject" | "dismiss";
 
 export interface UseCtoDecisionsResult {
   /** Latest verdict for a recommendation, or null if undecided. */

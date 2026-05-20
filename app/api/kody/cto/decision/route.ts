@@ -16,6 +16,12 @@
  *   `reject` → records the rejection only (and resets that action's
  *   consecutive-approval streak, so a single "no" blocks graduation).
  *
+ *   `dismiss` → records a neutral verdict only. Drains the inbox
+ *   backpressure slot (the entry is now "decided") **without** touching
+ *   approvals/rejections/streak/mode — for clearing stale recs the
+ *   operator doesn't want to act on but also doesn't want to penalise
+ *   the CTO over. Never dispatches a command.
+ *
  *   The ledger is what makes automation *evolve*: Phase 2 has the CTO read
  *   it each tick and stop asking once an action clears the trust threshold.
  */
@@ -48,7 +54,7 @@ import {
 const bodySchema = z.object({
   taskNumber: z.number().int().positive(),
   action: z.enum(CTO_ACTIONS).default("execute"),
-  decision: z.enum(["approve", "reject"]),
+  decision: z.enum(["approve", "reject", "dismiss"]),
   actorLogin: z.string().optional(),
   /**
    * The exact `@kody …` command to post on approve, as parsed from the
