@@ -4,10 +4,11 @@
  * @pattern settings-manager
  * @ai-summary Per-USER settings UI — only knobs scoped to this browser/user
  *   live here. Edits the optional integration fields in localStorage.kody_auth
- *   (brain, vercelBypassSecret, flyPerf) via useAuth().updateIntegrations.
- *   Per-REPO config lives elsewhere and is surfaced as links: Fly runner infra
- *   on /runner, the secrets vault on /secrets, GitHub PATs on /repos, chat
- *   models/prompts on /models and /prompts.
+ *   (brain, vercelBypassSecret) via useAuth().updateIntegrations. ALL Fly
+ *   config (including the per-user perf tier) now lives on /runner so it isn't
+ *   split across two pages — see [[feedback_settings_per_user_only]]. Other
+ *   per-REPO config is surfaced as links: secrets vault on /secrets, GitHub
+ *   PATs on /repos, chat models/prompts on /models and /prompts.
  */
 "use client";
 
@@ -31,33 +32,9 @@ import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@dashboard/ui/select";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PageShell } from "./PageShell";
-import { useAuth, type FlyPerfTier } from "../auth-context";
-
-const FLY_PERF_DEFAULT: FlyPerfTier = "medium";
-
-const FLY_PERF_LABELS: Record<FlyPerfTier, { label: string; hint: string }> = {
-  low: {
-    label: "Low — shared CPU, 2GB",
-    hint: "Cheapest. Fine for chat-only sessions; pnpm install / tsc are slower.",
-  },
-  medium: {
-    label: "Medium — performance-1x, 2GB (default)",
-    hint: "Balanced. Good for vibe coding; most build/test loops feel snappy.",
-  },
-  high: {
-    label: "High — performance-2x, 4GB",
-    hint: "Fastest. For heavy installs, parallel tests, or large repos. Costlier.",
-  },
-};
+import { useAuth } from "../auth-context";
 
 /** Section divider header — groups the cards under a quiet uppercase label. */
 function SectionHeader({ icon: Icon, label }: { icon?: LucideIcon; label: string }) {
@@ -81,12 +58,6 @@ export function SettingsManager() {
   // ─── Vercel bypass secret ───────────────────────────────────────────────
   const [vercelSecret, setVercelSecret] = useState("");
 
-  // ─── Fly Machines perf tier (per-user VM size for THIS browser's runs) ──
-  // The token, warm-pool size, and the rest of the per-repo Fly infra live on
-  // /runner — those are shared by everyone on the repo, so they don't belong
-  // on this per-user page.
-  const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT);
-
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmClearBrain, setConfirmClearBrain] = useState(false);
   const [confirmClearVercel, setConfirmClearVercel] = useState(false);
@@ -96,20 +67,13 @@ export function SettingsManager() {
     setBrainUrl(auth?.brain?.url ?? "");
     setBrainKey(auth?.brain?.apiKey ?? "");
     setVercelSecret(auth?.vercelBypassSecret ?? "");
-    setFlyPerf(auth?.flyPerf ?? FLY_PERF_DEFAULT);
-  }, [
-    auth?.brain?.url,
-    auth?.brain?.apiKey,
-    auth?.vercelBypassSecret,
-    auth?.flyPerf,
-  ]);
+  }, [auth?.brain?.url, auth?.brain?.apiKey, auth?.vercelBypassSecret]);
 
   const brainHasChanges =
     brainUrl.trim() !== (auth?.brain?.url ?? "") ||
     brainKey.trim() !== (auth?.brain?.apiKey ?? "");
   const vercelHasChanges =
     vercelSecret.trim() !== (auth?.vercelBypassSecret ?? "");
-  const flyHasChanges = flyPerf !== (auth?.flyPerf ?? FLY_PERF_DEFAULT);
 
   function saveBrain() {
     const url = brainUrl.trim();
@@ -147,13 +111,6 @@ export function SettingsManager() {
     toast.success("Vercel bypass secret cleared");
   }
 
-  function saveFly() {
-    updateIntegrations({
-      flyPerf: flyPerf === FLY_PERF_DEFAULT ? null : flyPerf,
-    });
-    toast.success("Fly performance tier saved");
-  }
-
   return (
     <PageShell
       title="Settings"
@@ -162,63 +119,6 @@ export function SettingsManager() {
       subtitle={auth?.user?.login ? `@${auth.user.login}` : undefined}
     >
       <div className="space-y-6">
-        {/* ═══ Fly runner (your sessions) ═══════════════════════════════ */}
-        <section className="space-y-3">
-          <SectionHeader icon={Rocket} label="Fly runner — your sessions" />
-          <Card className="border-white/[0.08] bg-white/[0.03]">
-            <CardContent className="p-4 space-y-4">
-              <div className="flex items-center gap-2">
-                <Rocket className="w-4 h-4 text-sky-400" />
-                <h2 className="text-sm font-semibold">Performance tier</h2>
-              </div>
-              <p className="text-xs text-white/50 -mt-2">
-                VM size for the Fly runs you start from this browser. Per-user —
-                it doesn&apos;t affect anyone else. Repo-wide Fly settings (token,
-                warm pool, LiteLLM, Brain) live on the{" "}
-                <Link href="/runner" className="text-sky-400 hover:underline">
-                  Fly Runner
-                </Link>{" "}
-                page.
-              </p>
-              <div className="space-y-2">
-                <Label htmlFor="fly-perf" className="text-xs text-white/70">
-                  Performance tier
-                </Label>
-                <Select
-                  value={flyPerf}
-                  onValueChange={(v) => setFlyPerf(v as FlyPerfTier)}
-                >
-                  <SelectTrigger
-                    id="fly-perf"
-                    className="bg-black/30 border-white/10"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">
-                      {FLY_PERF_LABELS.low.label}
-                    </SelectItem>
-                    <SelectItem value="medium">
-                      {FLY_PERF_LABELS.medium.label}
-                    </SelectItem>
-                    <SelectItem value="high">
-                      {FLY_PERF_LABELS.high.label}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[11px] text-white/45 leading-snug">
-                  {FLY_PERF_LABELS[flyPerf].hint}
-                </p>
-              </div>
-              <div className="pt-1">
-                <Button size="sm" onClick={saveFly} disabled={!flyHasChanges}>
-                  Save
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
         {/* ═══ Chat & integrations ══════════════════════════════════════ */}
         <section className="space-y-3">
           <SectionHeader icon={MessageSquare} label="Chat & integrations" />

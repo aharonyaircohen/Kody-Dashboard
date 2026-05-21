@@ -2,26 +2,37 @@
  * @fileType component
  * @domain runner
  * @pattern runner-manager
- * @ai-summary Per-repo Fly runner configuration. Owns the repo-scoped Fly
- *   infrastructure knobs that are shared across everyone on the repo (NOT
- *   per-user — those live on /settings): the warm-pool size (POOL_MIN vault
- *   secret, read by the always-on pool owner), plus read-only status for the
- *   FLY_API_TOKEN probe, the LiteLLM proxy, and Brain-on-Fly. The Fly token
- *   itself is set on /secrets; the per-user perf tier stays on /settings.
+ * @ai-summary Single home for ALL Fly.io runner configuration, split into two
+ *   clearly labeled groups by blast radius:
+ *     • Repo-wide (shared by everyone on the repo): FLY_API_TOKEN status, the
+ *       warm-pool size (POOL_MIN vault secret, read by the always-on pool
+ *       owner), LiteLLM proxy status, Brain-on-Fly.
+ *     • Your sessions (this browser only): the per-user perf tier (VM size),
+ *       stored in localStorage.kody_auth.flyPerf via useAuth.
+ *   The Fly token itself is set on /secrets. Nothing Fly-related lives on
+ *   /settings anymore — see [[feedback_settings_per_user_only]].
  */
 "use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { KeyRound, Rocket, Server } from "lucide-react";
+import { KeyRound, Rocket, Server, User, Users, type LucideIcon } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dashboard/ui/select";
 import { BrainFlyCard } from "./BrainFlyCard";
 import { LitellmFlyCard } from "./LitellmFlyCard";
 import { PageShell } from "./PageShell";
+import { useAuth, type FlyPerfTier } from "../auth-context";
 import { getStoredAuth } from "../api";
 
 /** Vault key under which the project-scoped Fly Machines token is stored. */
@@ -34,6 +45,23 @@ const POOL_MIN_VAULT_KEY = "POOL_MIN";
 const POOL_MIN_DEFAULT = 2;
 const POOL_MIN_MAX = 10;
 
+const FLY_PERF_DEFAULT: FlyPerfTier = "medium";
+
+const FLY_PERF_LABELS: Record<FlyPerfTier, { label: string; hint: string }> = {
+  low: {
+    label: "Low — shared CPU, 2GB",
+    hint: "Cheapest. Fine for chat-only sessions; pnpm install / tsc are slower.",
+  },
+  medium: {
+    label: "Medium — performance-1x, 2GB (default)",
+    hint: "Balanced. Good for vibe coding; most build/test loops feel snappy.",
+  },
+  high: {
+    label: "High — performance-2x, 4GB",
+    hint: "Fastest. For heavy installs, parallel tests, or large repos. Costlier.",
+  },
+};
+
 function vaultHeaders(): Record<string, string> {
   const auth = getStoredAuth();
   return auth
@@ -45,16 +73,38 @@ function vaultHeaders(): Record<string, string> {
     : {};
 }
 
-export function RunnerManager() {
-  // Read-only probe: is FLY_API_TOKEN present in the per-repo vault?
-  const [flyTokenConfigured, setFlyTokenConfigured] = useState(false);
+/** Group divider — labels each block by who it affects. */
+function GroupHeader({
+  icon: Icon,
+  label,
+  hint,
+}: {
+  icon: LucideIcon;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 px-1">
+      <Icon className="w-3.5 h-3.5 text-white/40" />
+      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-white/40">
+        {label}
+      </h2>
+      <span className="text-[11px] text-white/30">— {hint}</span>
+    </div>
+  );
+}
 
-  // Warm pool size — per-repo, stored as the POOL_MIN vault secret (the only
-  // store the always-on pool owner can read). Empty string = unset → engine
-  // default.
+export function RunnerManager() {
+  const { auth, updateIntegrations } = useAuth();
+
+  // ─── Repo-wide: FLY_API_TOKEN probe + warm pool size ────────────────────
+  const [flyTokenConfigured, setFlyTokenConfigured] = useState(false);
   const [poolMin, setPoolMin] = useState("");
   const [poolMinSaved, setPoolMinSaved] = useState("");
   const [poolMinSaving, setPoolMinSaving] = useState(false);
+
+  // ─── Per-user: perf tier (VM size for THIS browser's runs) ──────────────
+  const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT);
 
   const probeFlyToken = useCallback(async () => {
     const headers = vaultHeaders();
@@ -108,7 +158,20 @@ export function RunnerManager() {
     void loadPoolMin();
   }, [probeFlyToken, loadPoolMin]);
 
+  // Seed the per-user perf tier from auth (or on repo switch).
+  useEffect(() => {
+    setFlyPerf(auth?.flyPerf ?? FLY_PERF_DEFAULT);
+  }, [auth?.flyPerf]);
+
   const poolMinHasChanges = poolMin.trim() !== poolMinSaved.trim();
+  const flyHasChanges = flyPerf !== (auth?.flyPerf ?? FLY_PERF_DEFAULT);
+
+  function saveFly() {
+    updateIntegrations({
+      flyPerf: flyPerf === FLY_PERF_DEFAULT ? null : flyPerf,
+    });
+    toast.success("Fly performance tier saved");
+  }
 
   async function savePoolMin() {
     const n = Number(poolMin.trim());
@@ -148,89 +211,152 @@ export function RunnerManager() {
       title="Fly Runner"
       icon={Rocket}
       iconClassName="text-sky-400"
-      subtitle="Per-repo Fly infrastructure — shared across everyone on this repo"
+      subtitle="Fly.io runner configuration"
     >
-      <div className="space-y-4">
-        {/* ─── Fly Machines token (read-only status) ──────────────────── */}
-        <Card className="border-white/[0.08] bg-white/[0.03]">
-          <CardContent className="p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <KeyRound className="w-4 h-4 text-sky-400" />
-              <h2 className="text-sm font-semibold">Fly Machines token</h2>
-            </div>
-            <p className="text-xs text-white/50">
-              Runs chat/issue agents on Fly.io instead of GitHub Actions. Set{" "}
-              <span className="font-mono">FLY_API_TOKEN</span> on the{" "}
-              <Link href="/secrets" className="text-sky-400 hover:underline">
-                Secrets
-              </Link>{" "}
-              page — currently{" "}
-              {flyTokenConfigured ? (
-                <span className="text-emerald-300">configured</span>
-              ) : (
-                <span className="text-amber-300">not set</span>
-              )}
-              . Without it, every Fly feature below falls back to GitHub
-              Actions.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="space-y-6">
+        {/* ═══ Repo-wide ════════════════════════════════════════════════ */}
+        <section className="space-y-3">
+          <GroupHeader
+            icon={Users}
+            label="Repo-wide"
+            hint="affects everyone on this repo"
+          />
 
-        {/* ─── Warm pool size ─────────────────────────────────────────── */}
-        <Card className="border-white/[0.08] bg-white/[0.03]">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Server className="w-4 h-4 text-sky-400" />
-              <h2 className="text-sm font-semibold">Warm pool size</h2>
-            </div>
-            <p className="text-xs text-white/50">
-              Machines kept pre-booted and frozen so a chat/issue run claims one
-              instantly instead of cold-starting. {POOL_MIN_DEFAULT} by default,
-              up to {POOL_MIN_MAX}. Each warm machine is a paid Fly VM; set 0 to
-              always cold-start.{" "}
-              {flyTokenConfigured
-                ? "Resizing takes effect within ~1 minute."
-                : "Takes effect once FLY_API_TOKEN is set."}
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="pool-min" className="text-xs text-white/70">
-                Machines kept warm
-              </Label>
-              <Input
-                id="pool-min"
-                type="number"
-                min={0}
-                max={POOL_MIN_MAX}
-                step={1}
-                placeholder={`${POOL_MIN_DEFAULT} (default)`}
-                value={poolMin}
-                onChange={(e) => setPoolMin(e.target.value)}
-                className="bg-black/30 border-white/10 w-32"
-              />
-            </div>
-            <div className="pt-1">
-              <Button
-                size="sm"
-                onClick={savePoolMin}
-                disabled={!poolMinHasChanges || poolMinSaving}
-              >
-                {poolMinSaving ? "Saving…" : "Save"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          {/* Fly Machines token (read-only status) */}
+          <Card className="border-white/[0.08] bg-white/[0.03]">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-sky-400" />
+                <h2 className="text-sm font-semibold">Fly Machines token</h2>
+              </div>
+              <p className="text-xs text-white/50">
+                Runs chat/issue agents on Fly.io instead of GitHub Actions. Set{" "}
+                <span className="font-mono">FLY_API_TOKEN</span> on the{" "}
+                <Link href="/secrets" className="text-sky-400 hover:underline">
+                  Secrets
+                </Link>{" "}
+                page — currently{" "}
+                {flyTokenConfigured ? (
+                  <span className="text-emerald-300">configured</span>
+                ) : (
+                  <span className="text-amber-300">not set</span>
+                )}
+                . Without it, every Fly feature falls back to GitHub Actions.
+              </p>
+            </CardContent>
+          </Card>
 
-        {/* ─── LiteLLM proxy status (read-only) ───────────────────────── */}
-        <LitellmFlyCard
-          headers={vaultHeaders()}
-          flyTokenConfigured={flyTokenConfigured}
-        />
+          {/* Warm pool size */}
+          <Card className="border-white/[0.08] bg-white/[0.03]">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Server className="w-4 h-4 text-sky-400" />
+                <h2 className="text-sm font-semibold">Warm pool size</h2>
+              </div>
+              <p className="text-xs text-white/50">
+                Machines kept pre-booted and frozen so a chat/issue run claims
+                one instantly instead of cold-starting. {POOL_MIN_DEFAULT} by
+                default, up to {POOL_MIN_MAX}. Each warm machine is a paid Fly
+                VM; set 0 to always cold-start.{" "}
+                {flyTokenConfigured
+                  ? "Resizing takes effect within ~1 minute."
+                  : "Takes effect once FLY_API_TOKEN is set."}
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="pool-min" className="text-xs text-white/70">
+                  Machines kept warm
+                </Label>
+                <Input
+                  id="pool-min"
+                  type="number"
+                  min={0}
+                  max={POOL_MIN_MAX}
+                  step={1}
+                  placeholder={`${POOL_MIN_DEFAULT} (default)`}
+                  value={poolMin}
+                  onChange={(e) => setPoolMin(e.target.value)}
+                  className="bg-black/30 border-white/10 w-32"
+                />
+              </div>
+              <div className="pt-1">
+                <Button
+                  size="sm"
+                  onClick={savePoolMin}
+                  disabled={!poolMinHasChanges || poolMinSaving}
+                >
+                  {poolMinSaving ? "Saving…" : "Save"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* ─── Brain on Fly toggle ────────────────────────────────────── */}
-        <BrainFlyCard
-          headers={vaultHeaders()}
-          flyTokenConfigured={flyTokenConfigured}
-        />
+          {/* LiteLLM proxy status (read-only) */}
+          <LitellmFlyCard
+            headers={vaultHeaders()}
+            flyTokenConfigured={flyTokenConfigured}
+          />
+
+          {/* Brain on Fly toggle */}
+          <BrainFlyCard
+            headers={vaultHeaders()}
+            flyTokenConfigured={flyTokenConfigured}
+          />
+        </section>
+
+        {/* ═══ Your sessions ════════════════════════════════════════════ */}
+        <section className="space-y-3">
+          <GroupHeader
+            icon={User}
+            label="Your sessions"
+            hint="this browser only, doesn't affect others"
+          />
+          <Card className="border-white/[0.08] bg-white/[0.03]">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <Rocket className="w-4 h-4 text-sky-400" />
+                <h2 className="text-sm font-semibold">Performance tier</h2>
+              </div>
+              <p className="text-xs text-white/50 -mt-2">
+                VM size for the Fly runs you start from this browser.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="fly-perf" className="text-xs text-white/70">
+                  VM size
+                </Label>
+                <Select
+                  value={flyPerf}
+                  onValueChange={(v) => setFlyPerf(v as FlyPerfTier)}
+                >
+                  <SelectTrigger
+                    id="fly-perf"
+                    className="bg-black/30 border-white/10"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">
+                      {FLY_PERF_LABELS.low.label}
+                    </SelectItem>
+                    <SelectItem value="medium">
+                      {FLY_PERF_LABELS.medium.label}
+                    </SelectItem>
+                    <SelectItem value="high">
+                      {FLY_PERF_LABELS.high.label}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-white/45 leading-snug">
+                  {FLY_PERF_LABELS[flyPerf].hint}
+                </p>
+              </div>
+              <div className="pt-1">
+                <Button size="sm" onClick={saveFly} disabled={!flyHasChanges}>
+                  Save
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
       </div>
     </PageShell>
   );
