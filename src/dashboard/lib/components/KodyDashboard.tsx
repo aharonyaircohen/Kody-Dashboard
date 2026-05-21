@@ -1344,6 +1344,19 @@ export function KodyDashboard({
                   });
                 }}
                 isFetching={isFetching}
+                desktopExtras={
+                  <SimpleTooltip content="Report a Kody bug" side="bottom">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenKodyBug}
+                      aria-label="Report a Kody bug"
+                      className="gap-1"
+                    >
+                      <LifeBuoy className="w-4 h-4" />
+                    </Button>
+                  </SimpleTooltip>
+                }
               />
 
               {/* Filter Sub-header — desktop only, separate component */}
