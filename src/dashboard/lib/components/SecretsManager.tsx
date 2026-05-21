@@ -142,7 +142,9 @@ function SecretsManagerInner() {
     enabled: !!auth,
     staleTime: 30_000,
   });
-  const secrets = data ?? [];
+  // POOL_MIN is per-repo Fly config managed on /runner, not a credential —
+  // hide it here so it isn't edited in two places.
+  const secrets = (data ?? []).filter((s) => s.name !== "POOL_MIN");
 
   const upsert = useMutation({
     mutationFn: (input: { name: string; value: string }) =>

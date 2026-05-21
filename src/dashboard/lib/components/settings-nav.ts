@@ -20,6 +20,7 @@ import {
   KeyRound,
   Layers,
   MessageSquare,
+  Rocket,
   ScrollText,
   Settings as SettingsIcon,
   Settings2,
@@ -110,6 +111,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: Bell,
         description: "Browser + email alerts and routing rules.",
         tint: "text-amber-300 bg-amber-500/10",
+      },
+      {
+        href: "/runner",
+        label: "Fly Runner",
+        icon: Rocket,
+        description: "Per-repo Fly infra: warm-pool size, LiteLLM, Brain.",
+        tint: "text-sky-300 bg-sky-500/10",
       },
       {
         href: "/secrets",
