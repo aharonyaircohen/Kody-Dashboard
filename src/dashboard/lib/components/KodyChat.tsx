@@ -3151,45 +3151,32 @@ export function KodyChat({
                     // Defer the dispatch — see comment on pendingSwitchAgent.
                     pendingSwitchAgent = chunk.output;
                   }
-                  // Issue creation: any of the `create_*` / `report_bug`
+                  // Issue creation: one of the `create_*` / `report_bug`
                   // tools that returned `{ number: <positive int> }` is a
                   // newly opened GitHub issue. Capture so the post-stream
                   // handler can migrate the conversation onto that issue.
-                  // Two-tier match:
-                  //   1. Tool name in our whitelist (cheap, common case).
-                  //   2. Output shape match — `{ number, url:.../issues/...
-                  //      }` with no `prNumber` / `branch` (which would
-                  //      indicate vibe_start_execution). Saves us when
-                  //      the tool name didn't land in toolNameById
-                  //      (e.g. tool-input-available was skipped by the
-                  //      provider). Without the shape fallback, an
-                  //      otherwise-correct create_* call silently no-ops
-                  //      the transfer if the name was never captured.
+                  //
+                  // Match on tool NAME only. A shape-based fallback (any
+                  // `{ number, url:.../issues/... }`) is too broad — read
+                  // tools like `github_get_issue` / `github_list_issues`
+                  // and `github_comment_on_issue` return that exact shape
+                  // for an EXISTING issue, so during a normal analysis turn
+                  // they'd falsely flag a creation and the post-stream
+                  // handler would wipe the whole session. Creation is only
+                  // ever one of our whitelisted tools, so require the name.
                   if (
+                    name &&
+                    ISSUE_CREATION_TOOL_NAMES.has(name) &&
                     chunk.output &&
                     typeof chunk.output === "object" &&
                     "number" in chunk.output
                   ) {
-                    const out = chunk.output as {
-                      number?: unknown;
-                      url?: unknown;
-                      prNumber?: unknown;
-                      branch?: unknown;
-                    };
+                    const out = chunk.output as { number?: unknown };
                     const isIssueNumber =
                       typeof out.number === "number" &&
                       Number.isInteger(out.number) &&
                       out.number > 0;
-                    const nameMatches = !!(
-                      name && ISSUE_CREATION_TOOL_NAMES.has(name)
-                    );
-                    const shapeMatches =
-                      isIssueNumber &&
-                      typeof out.url === "string" &&
-                      out.url.includes("/issues/") &&
-                      out.prNumber === undefined &&
-                      out.branch === undefined;
-                    if (isIssueNumber && (nameMatches || shapeMatches)) {
+                    if (isIssueNumber) {
                       pendingCreatedIssue = out.number as number;
                     }
                   }
