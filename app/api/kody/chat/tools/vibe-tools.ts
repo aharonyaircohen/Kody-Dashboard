@@ -36,14 +36,25 @@ interface Ctx {
   octokit: Octokit;
   owner: string;
   repo: string;
+  /**
+   * Test-only seam. Production never passes this — the tool builds its own
+   * `BranchService` over `GitHubBranchRepo` + `GitHubFileLock` (the lines
+   * below). Integration tests inject a `BranchService` backed by an
+   * in-memory `BranchRepo` so they can exercise the real orchestration
+   * (error→code mapping, the conflict early-return, the SwitchAgentDirective
+   * shape) without nocking ~10 GitHub REST endpoints.
+   */
+  branches?: BranchService;
 }
 
 export function createVibeTools(ctx: Ctx) {
   const { octokit, owner, repo } = ctx;
-  const branches = new BranchService(
-    new GitHubBranchRepo({ octokit, owner, repo }),
-    new GitHubFileLock({ octokit, owner, repo }),
-  );
+  const branches =
+    ctx.branches ??
+    new BranchService(
+      new GitHubBranchRepo({ octokit, owner, repo }),
+      new GitHubFileLock({ octokit, owner, repo }),
+    );
 
   return {
     vibe_start_execution: tool({
