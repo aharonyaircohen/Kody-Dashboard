@@ -36,6 +36,12 @@ interface KodyHeaderProps {
 
   /** Optional slot rendered inline with desktop controls (e.g. PR badge in Vibe). */
   desktopExtras?: ReactNode;
+  /**
+   * Optional slot pinned to the trailing edge — after notifications/refresh.
+   * The dashboard puts its `⋯` overflow menu here so the kebab reads as the
+   * last item, per toolbar convention.
+   */
+  trailingExtras?: ReactNode;
   /** Optional slot rendered before the mobile hamburger (e.g. Issues button in Vibe). */
   mobileExtras?: ReactNode;
   /**
@@ -56,6 +62,7 @@ export function KodyHeader({
   onRefresh,
   isFetching,
   desktopExtras,
+  trailingExtras,
   mobileExtras,
   filterBar,
   showRefresh = true,
@@ -109,6 +116,8 @@ export function KodyHeader({
             </Button>
           </SimpleTooltip>
         )}
+
+        {trailingExtras}
       </div>
 
       {/* Mobile cluster — page-specific extras (e.g. issue picker) + hamburger. */}

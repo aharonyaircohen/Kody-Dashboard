@@ -1344,7 +1344,7 @@ export function KodyDashboard({
                 }}
                 isFetching={isFetching}
                 showRefresh={false}
-                desktopExtras={
+                trailingExtras={
                   <HeaderOverflowMenu
                     actorLogin={githubUser?.login}
                     onPublished={(n) => setSelectedIssueNumber(n)}
