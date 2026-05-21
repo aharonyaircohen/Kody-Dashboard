@@ -11,7 +11,6 @@ const JOB = {
   jobId: "vibe-issue-7-1",
   repo: "owner/name",
   issueNumber: 7,
-  githubToken: "ghp_x",
 };
 
 const ORIGINAL_KEY = process.env.KODY_MASTER_KEY;

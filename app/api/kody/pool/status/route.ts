@@ -23,6 +23,9 @@ export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  const status = await fetchPoolStatus();
+  // Pools are per-repo — report the connected repo's pool.
+  const owner = req.headers.get("x-kody-owner") ?? "";
+  const repo = req.headers.get("x-kody-repo") ?? "";
+  const status = await fetchPoolStatus(owner, repo);
   return NextResponse.json({ status });
 }

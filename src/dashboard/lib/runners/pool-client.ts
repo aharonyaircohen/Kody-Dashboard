@@ -25,13 +25,18 @@ function poolBaseUrl(): string {
   return (process.env.FLY_POOL_URL ?? DEFAULT_POOL_URL).replace(/\/+$/, "");
 }
 
+/**
+ * Slim claim request — carries NO secrets. The pool owner resolves the repo's
+ * Fly token + provider keys from that repo's vault and uses the operator
+ * GitHub token to clone, so secrets reach the runner via the vault, never over
+ * the wire (matches the dashboard's repo-scoped model).
+ */
 export interface PoolJob {
   jobId: string;
+  /** owner/name */
   repo: string;
   issueNumber: number;
-  githubToken: string;
   ref?: string;
-  allSecrets?: Record<string, string>;
   model?: string;
   sessionId?: string;
   dashboardUrl?: string;
@@ -84,17 +89,25 @@ export interface PoolStatus {
   total: number;
 }
 
-/** Read-only pool counts for the dashboard. null when unreachable/unconfigured. */
-export async function fetchPoolStatus(): Promise<PoolStatus | null> {
+/**
+ * Read-only pool counts for one repo (pools are per-repo). null when
+ * unreachable/unconfigured or the repo has no pool yet.
+ */
+export async function fetchPoolStatus(
+  owner: string,
+  repo: string,
+): Promise<PoolStatus | null> {
   const apiKey = derivePoolApiKey();
-  if (!apiKey) return null;
+  if (!apiKey || !owner || !repo) return null;
   try {
-    const res = await fetch(`${poolBaseUrl()}/pool/status`, {
+    const url = `${poolBaseUrl()}/pool/status?repo=${encodeURIComponent(`${owner}/${repo}`)}`;
+    const res = await fetch(url, {
       headers: { authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(6_000),
     });
     if (!res.ok) return null;
-    return (await res.json()) as PoolStatus;
+    const body = (await res.json()) as { status: PoolStatus | null };
+    return body.status ?? null;
   } catch {
     return null;
   }

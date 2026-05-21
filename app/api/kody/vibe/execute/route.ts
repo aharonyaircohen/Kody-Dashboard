@@ -90,16 +90,14 @@ export async function POST(req: NextRequest) {
     // (empty pool, unreachable, unconfigured) claimFromPool returns ok:false
     // and we fall through to create-fresh below — the pool is an accelerator,
     // never a hard dependency.
+    // Slim request — the pool owner reads this repo's secrets from its vault
+    // and clones with the operator token, so no secrets cross the wire.
     const claim = await claimFromPool({
       jobId: sessionId,
       repo: `${owner}/${repo}`,
       issueNumber,
-      githubToken,
       ref,
-      allSecrets,
-      model: undefined,
       sessionId,
-      dashboardUrl: undefined,
     });
     if (claim.ok) {
       logger.info(
