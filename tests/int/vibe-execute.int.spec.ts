@@ -156,6 +156,33 @@ describe("POST /api/kody/vibe/execute", () => {
     );
   });
 
+  it("tolerates a hung/failing default-branch lookup — still spawns with ref undefined", async () => {
+    // The lookup is bounded by an abort signal; on timeout octokit.repos.get
+    // rejects. The route must NOT propagate that — it logs and lets the runner
+    // fall back to main (ref undefined), so a slow GitHub can't kill the spawn.
+    const ctx = okContext();
+    ctx.context.octokit.repos.get = vi
+      .fn()
+      .mockRejectedValue(
+        new DOMException("The operation was aborted due to timeout", "TimeoutError"),
+      );
+    resolveFlyContext.mockResolvedValue(ctx);
+    claimFromPool.mockResolvedValue({ ok: false, reason: "miss" });
+    spawnRunner.mockResolvedValue({ machineId: "m", region: "iad" });
+
+    const res = await vibeExecutePOST(makeRequest({ issueNumber: 7 }));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data).toMatchObject({ ok: true, runner: "fly" });
+    // ref omitted (undefined) → runner uses its hardcoded-main fallback.
+    expect(claimFromPool).toHaveBeenCalledWith(
+      expect.objectContaining({ ref: undefined }),
+    );
+    expect(spawnRunner).toHaveBeenCalledWith(
+      expect.objectContaining({ ref: undefined }),
+    );
+  });
+
   it("returns 500 when the fallback spawn throws (surfaces the real error)", async () => {
     resolveFlyContext.mockResolvedValue(okContext());
     claimFromPool.mockResolvedValue({ ok: false, reason: "miss" });

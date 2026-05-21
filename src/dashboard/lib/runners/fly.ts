@@ -19,6 +19,15 @@ const DEFAULT_IMAGE =
   process.env.FLY_RUNNER_IMAGE ?? "registry.fly.io/kody-runner:latest";
 const DEFAULT_REGION = process.env.FLY_REGION ?? "fra";
 
+/**
+ * Hard ceiling on the machine-create call. The Fly Machines API normally
+ * answers in a few seconds; without a bound, a hung API holds the whole
+ * Vibe/start request open until the serverless runtime kills it (and the
+ * pool-miss → spawn fallback never gets to surface a clean error). On
+ * timeout the fetch rejects and the caller's catch returns 500 fast.
+ */
+const SPAWN_TIMEOUT_MS = 30_000;
+
 export interface SpawnRunnerInput {
   /** owner/name of the user's repo the engine will clone */
   repo: string;
@@ -176,14 +185,28 @@ export async function spawnRunner(
   };
 
   const url = `${FLY_API_BASE}/apps/${encodeURIComponent(app)}/machines`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(SPAWN_TIMEOUT_MS),
+    });
+  } catch (err) {
+    // Timeout (AbortSignal.timeout → TimeoutError) or network failure. Surface
+    // a clean message instead of a raw DOMException; the route turns it into a
+    // 500 so the user gets a fast failure rather than a hung request.
+    const reason = err instanceof Error ? err.message : String(err);
+    logger.error(
+      { err: reason, app, sessionId: input.sessionId },
+      "fly: spawnRunner request failed (timeout or network)",
+    );
+    throw new Error(`Fly Machines API request failed: ${reason}`);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
