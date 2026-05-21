@@ -166,20 +166,22 @@ No hardcoded provider, no vendor lock-in, at any layer.
 
 ## How it compares
 
-|                                     | Kody                          | Devin   | Copilot Workspace | Cursor  | OpenHands |
-| ----------------------------------- | ----------------------------- | ------- | ----------------- | ------- | --------- |
-| Open source                         | Yes                           | No      | No                | No      | Yes       |
-| Self-hosted                         | Yes                           | No      | No                | No      | Yes       |
-| Scheduled / autonomous runs         | Yes                           | No      | No                | No      | No        |
-| Parallel tasks                      | Yes (native)                  | Limited | No                | No      | No        |
-| Runs in your CI                     | Yes                           | No      | GitHub-locked     | No      | No        |
-| `@kody`-style ChatOps in issues/PRs | Yes                           | No      | No                | No      | No        |
-| Free-form QA agent                  | Yes                           | No      | No                | No      | No        |
-| Goal-driven jobs (autonomous loops) | Yes                           | No      | No                | No      | No        |
-| Multi-model (any provider)          | Yes (LiteLLM + OpenAI-compat) | No      | No                | Limited | Yes       |
-| Visual control plane (dashboard)    | Yes                           | Yes     | Yes               | n/a     | Yes       |
-| Per-seat pricing                    | No                            | Yes     | Yes               | Yes     | No        |
-| Audit trail in your repo            | Yes                           | No      | Partial           | No      | No        |
+|                                     | Kody                          | Devin   | Codegen | Factory.ai | Copilot Workspace | Cursor  | OpenHands |
+| ----------------------------------- | ----------------------------- | ------- | ------- | ---------- | ----------------- | ------- | --------- |
+| Open source                         | Yes                           | No      | No      | No         | No                | No      | Yes       |
+| Self-hosted                         | Yes                           | No      | No      | No         | No                | No      | Yes       |
+| Scheduled / autonomous runs         | Yes                           | No      | Limited | Limited    | No                | No      | No        |
+| Parallel tasks                      | Yes (native)                  | Limited | Yes     | Yes        | No                | No      | No        |
+| Runs in your CI                     | Yes                           | No      | No      | No         | GitHub-locked     | No      | No        |
+| `@kody`-style ChatOps in issues/PRs | Yes                           | No      | Partial | Partial    | No                | No      | No        |
+| Free-form QA agent                  | Yes                           | No      | No      | No         | No                | No      | No        |
+| Goal-driven jobs (autonomous loops) | Yes                           | No      | No      | No         | No                | No      | No        |
+| Multi-model (any provider)          | Yes (LiteLLM + OpenAI-compat) | No      | No      | Limited    | No                | Limited | Yes       |
+| Visual control plane (dashboard)    | Yes                           | Yes     | Yes     | Yes        | Yes               | n/a     | Yes       |
+| Per-seat pricing                    | No                            | Yes     | Yes     | Yes        | Yes               | Yes     | No        |
+| Audit trail in your repo            | Yes                           | No      | No      | No         | Partial           | No      | No        |
+
+Of every product in this table, Kody is the only one that is both open-source and in the scheduled-fleet category. The closest "code while you sleep" rivals — Devin, Codegen, Factory.ai — are all closed and per-seat priced; the open-source ones (OpenHands) are single-session tools, not autonomous fleets. Ownership and self-hosting is the axis the closed competitors structurally can't cross.
 
 ---
 
