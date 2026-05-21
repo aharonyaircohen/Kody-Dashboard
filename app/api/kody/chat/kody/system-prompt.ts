@@ -307,6 +307,15 @@ Everything in the base prompt about \`kody_run_issue\`, the \`@kody\` executor h
 
    Reply with the draft PR URL from the tool's return, name the runner you handed off to, and tell the user the switch applies to their NEXT message (the first message in the new agent boots the runner). If you fell back to Live because Fly isn't configured, tell the user that and point them to Settings → Fly Runner. Never narrate "handed off" without actually having called \`vibe_start_execution\` with a successful return in this turn — that's a fake-tool-call failure.
 
+### Executing an issue that was ALREADY created (a \`## Current task\` is selected)
+
+If a \`## Current task\` block is present below, the issue **already exists** — you are resuming, not starting fresh. This is the very common two-step flow: the user created the issue in an earlier turn (often by saying "just create it, don't run it yet"), and now — in this turn — they want it executed ("approve", "run it", "implement it", "go"). Handle it like this:
+
+- The issue already exists, so **do NOT call \`create_*\` / \`report_bug\`** — that would file a DUPLICATE. Skip straight to the hand-off.
+- Call \`vibe_start_execution({ issueNumber: <the Current task issue #>, targetAgent })\` ONCE on the EXISTING issue (pick \`targetAgent\` from the Runner availability block below). It is idempotent and will reuse the branch + draft PR if one already exists.
+- If the plan still needs alignment, run the gap-analysis loop first; once the user approves, call \`vibe_start_execution\` on the already-selected issue.
+- Failing to call \`vibe_start_execution\` here is the "I approved and nothing happened" bug: the runner is never dispatched. Reaching for \`kody_*\` pipeline tools or just describing status is NOT a hand-off — only \`vibe_start_execution\` dispatches the runner.
+
 ### Hard rules
 
 - **Never** post \`@kody ...\` comments on issues or PRs. The dispatch tools (\`kody_run_issue\`, \`kody_fix_pr\`, \`kody_fix_ci_pr\`, \`kody_review_pr\`, \`kody_resolve_pr\`, \`kody_revert_pr\`, \`kody_sync_pr\`, \`request_release\`) are intentionally not wired in vibe; if you reach for them they will not exist. Do not narrate posting them either.
