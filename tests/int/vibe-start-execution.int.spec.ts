@@ -226,3 +226,77 @@ describe("vibe_start_execution — error mapping (no directive, structured codes
     expect(out.action).toBeUndefined();
   });
 });
+
+describe("vibe_start_execution — scoped to a current task", () => {
+  // Reproduction for the live failure: in the two-turn flow (create issue,
+  // then approve while scoped to it), the model sometimes calls
+  // vibe_start_execution with a WRONG/hallucinated issueNumber (observed: it
+  // passed #37 while the user was on #3513). The handoff then targets the
+  // wrong issue, and the client kickoff gate (which only fires when the
+  // directive's issue matches the viewed one) blocks dispatch — so the
+  // runner never starts. When the chat is scoped to a current task, the tool
+  // must hand off THAT issue, not whatever number the model guessed.
+  function runScoped(
+    svc: BranchService,
+    currentIssueNumber: number,
+    input: { issueNumber: number; targetAgent: "kody-live" | "kody-live-fly" },
+  ) {
+    const tools = createVibeTools({
+      octokit: {} as unknown as Octokit,
+      owner: "acme",
+      repo: "widgets",
+      branches: svc,
+      currentIssueNumber,
+    });
+    const exec = (
+      tools.vibe_start_execution as unknown as {
+        execute: (i: typeof input) => Promise<Record<string, unknown>>;
+      }
+    ).execute;
+    return exec(input);
+  }
+
+  it("hands off the CURRENT task's issue, not a mismatched number from the model", async () => {
+    const repo = new FakeBranchRepo();
+    // A different, valid issue the model might mistakenly name.
+    repo.issues.set(5, { title: "Some other issue", isPullRequest: false });
+    const svc = new BranchService(repo, new FakeLock());
+
+    // User is scoped to #42; the model wrongly passes #5.
+    const out = await runScoped(svc, 42, {
+      issueNumber: 5,
+      targetAgent: "kody-live-fly",
+    });
+
+    // Must execute the issue the user is actually on (#42).
+    expect(out.branch).toBe("42-fix-the-thing");
+    expect(out.autoKickoffIssueNumber).toBe(42);
+    expect(String(out.autoKickoff)).toContain("#42");
+    expect(String(out.autoKickoff)).not.toContain("#5");
+    // It must NOT have touched the wrongly-named issue.
+    expect(repo.branches.has("5-some-other-issue")).toBe(false);
+  });
+
+  it("falls back to the model's issueNumber when there is no current scope (fresh single-turn flow)", async () => {
+    const repo = new FakeBranchRepo();
+    const svc = new BranchService(repo, new FakeLock());
+    const tools = createVibeTools({
+      octokit: {} as unknown as Octokit,
+      owner: "acme",
+      repo: "widgets",
+      branches: svc,
+      // no currentIssueNumber
+    });
+    const exec = (
+      tools.vibe_start_execution as unknown as {
+        execute: (i: {
+          issueNumber: number;
+          targetAgent: string;
+        }) => Promise<Record<string, unknown>>;
+      }
+    ).execute;
+    const out = await exec({ issueNumber: 42, targetAgent: "kody-live" });
+    expect(out.autoKickoffIssueNumber).toBe(42);
+    expect(out.branch).toBe("42-fix-the-thing");
+  });
+});

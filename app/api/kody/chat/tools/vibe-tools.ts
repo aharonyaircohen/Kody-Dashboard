@@ -45,10 +45,21 @@ interface Ctx {
    * shape) without nocking ~10 GitHub REST endpoints.
    */
   branches?: BranchService;
+  /**
+   * The issue the chat is currently scoped to (`## Current task` in the
+   * prompt), if any. When set, the tool hands off THIS issue regardless of
+   * the `issueNumber` the model passes. Reason: in the two-turn flow (create
+   * issue, then approve while scoped to it) the model sometimes calls
+   * `vibe_start_execution` with a wrong/hallucinated number (observed: #37
+   * while the user was on #3513). That mis-targets the branch/PR and the
+   * client kickoff gate then blocks dispatch, so the runner never starts.
+   * Binding to the scoped issue makes the hand-off immune to that.
+   */
+  currentIssueNumber?: number;
 }
 
 export function createVibeTools(ctx: Ctx) {
-  const { octokit, owner, repo } = ctx;
+  const { octokit, owner, repo, currentIssueNumber } = ctx;
   const branches =
     ctx.branches ??
     new BranchService(
@@ -91,11 +102,21 @@ export function createVibeTools(ctx: Ctx) {
           ),
       }),
       execute: async ({ issueNumber, slug, targetAgent }) => {
+        // When the chat is scoped to a task, hand off THAT issue — not a
+        // number the model may have guessed wrong. Drop a model-supplied slug
+        // in the override case so the branch name derives from the correct
+        // issue's title.
+        const effectiveIssueNumber = currentIssueNumber ?? issueNumber;
+        const effectiveSlug =
+          effectiveIssueNumber === issueNumber ? slug : undefined;
         try {
           // 1. Get-or-create the branch.
           let created;
           try {
-            created = await branches.getOrCreate({ issueNumber, slug });
+            created = await branches.getOrCreate({
+              issueNumber: effectiveIssueNumber,
+              slug: effectiveSlug,
+            });
           } catch (err) {
             if (err instanceof ForeignBranchError) {
               return {
@@ -150,14 +171,14 @@ export function createVibeTools(ctx: Ctx) {
             baseRef: created.baseRef,
             title: `Vibe: ${created.issueTitle}`,
             body:
-              `Vibe session for #${issueNumber}.\n\n` +
+              `Vibe session for #${effectiveIssueNumber}.\n\n` +
               `The runner will push commits to \`${created.branchName}\` as it ` +
               "implements the plan. Vercel begins cold-building this PR now so " +
               "the preview is ready by the time the runner finishes.\n\n" +
-              `Closes #${issueNumber}`,
+              `Closes #${effectiveIssueNumber}`,
           });
 
-          invalidateIssueCache(issueNumber);
+          invalidateIssueCache(effectiveIssueNumber);
 
           // The dashboard's stream parser auto-flips the active agent when
           // any tool output matches the SwitchAgentDirective shape. Embedding
@@ -176,7 +197,7 @@ export function createVibeTools(ctx: Ctx) {
           const agentName =
             targetAgent === "kody-live-fly" ? "Kody Live (Fly)" : "Kody Live";
           const autoKickoff =
-            `Implement issue #${issueNumber} now. The plan was approved in the ` +
+            `Implement issue #${effectiveIssueNumber} now. The plan was approved in the ` +
             "previous chat — do not ask for confirmation again, just read the issue " +
             "body, make the file edits it describes, commit with a clear message, " +
             "push to the existing vibe branch, and reply with the commit SHA.";
@@ -203,7 +224,7 @@ export function createVibeTools(ctx: Ctx) {
             // refetched yet), and the runner gets dispatched against
             // the wrong sessionId. Symptom: workflow_dispatch logs show
             // `vibe-<oldIssue>-...` while the PR is on the new branch.
-            autoKickoffIssueNumber: issueNumber,
+            autoKickoffIssueNumber: effectiveIssueNumber,
             branch: created.branchName,
             prNumber: pr.number,
             prUrl: pr.url,
@@ -213,7 +234,7 @@ export function createVibeTools(ctx: Ctx) {
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           logger.warn(
-            { issueNumber, slug, err: message },
+            { issueNumber, effectiveIssueNumber, slug, err: message },
             "vibe_start_execution failed",
           );
           return { error: `Failed to start vibe execution: ${message}` };
