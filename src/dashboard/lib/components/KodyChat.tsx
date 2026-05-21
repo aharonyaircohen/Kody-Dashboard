@@ -1321,12 +1321,35 @@ export function KodyChat({
   // too, which is also the correct behaviour (kody-direct, brain,
   // brain-fly, and kody-live all stop on agent flip).
   const activeSessionIdForReset = sessionHook.activeSession?.id ?? null;
+  // Track previous values so the reset effect can tell a real switch from the
+  // chat's FIRST session being created by the in-flight turn itself.
+  const prevSessionIdRef = useRef<string | null>(activeSessionIdForReset);
+  const prevAgentIdRef = useRef<string>(selectedAgentId);
   useEffect(() => {
+    const prevSession = prevSessionIdRef.current;
+    const agentChanged = selectedAgentId !== prevAgentIdRef.current;
+    prevSessionIdRef.current = activeSessionIdForReset;
+    prevAgentIdRef.current = selectedAgentId;
+
+    // BUG GUARD: sending the first message in a fresh chat (no active session)
+    // CREATES a session, flipping this id from null → new. That fired this
+    // effect and aborted the very request that triggered it, leaving a silent
+    // blank bubble. Only skip the abort for exactly that case — first session
+    // created (null → id), same agent, a kody turn already in flight. A real
+    // task switch (id → other id) or agent flip still aborts as before.
+    const firstSessionCreated =
+      prevSession === null &&
+      activeSessionIdForReset !== null &&
+      !agentChanged &&
+      !!kodyAbortRef.current;
+
     brainAbortRef.current?.abort();
-    kodyAbortRef.current?.abort();
     eventSourceRef.current?.close();
-    setLoading(false);
-    setToolCalls([]);
+    if (!firstSessionCreated) {
+      kodyAbortRef.current?.abort();
+      setLoading(false);
+      setToolCalls([]);
+    }
     // Intentionally omit the abort/setter refs from deps — they are
     // stable refs / setters, and including them would re-fire this
     // effect every render.
