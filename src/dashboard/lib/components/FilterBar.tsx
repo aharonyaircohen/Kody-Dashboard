@@ -6,7 +6,13 @@
  */
 "use client";
 
-import { forwardRef, useImperativeHandle, useRef } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { cn } from "../utils";
 import { Search, X } from "lucide-react";
 import type { SortField, SortDirection } from "../types";
@@ -135,10 +141,25 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
   ) {
     const searchInputRef = useRef<HTMLInputElement>(null);
 
+    // Search collapses to an icon button until invoked, to keep the merged
+    // header lean. It stays open while a query is present so the active filter
+    // never hides. `focusReq` re-fires the focus effect even when already open
+    // (e.g. pressing `/` twice).
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [focusReq, setFocusReq] = useState(0);
+    const showSearchInput = searchOpen || searchQuery.trim() !== "";
+
+    useEffect(() => {
+      if (focusReq > 0) searchInputRef.current?.focus();
+    }, [focusReq]);
+
+    const requestSearch = () => {
+      setSearchOpen(true);
+      setFocusReq((n) => n + 1);
+    };
+
     useImperativeHandle(ref, () => ({
-      focusSearch: () => {
-        searchInputRef.current?.focus();
-      },
+      focusSearch: requestSearch,
     }));
 
     return (
@@ -156,31 +177,48 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
           disableBacklog={disableBacklog}
         />
 
-        {/* Search input */}
-        {onSearchChange && (
-          <div className="relative flex items-center">
-            <Search className="absolute left-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search tasks…"
+        {/* Search — collapses to an icon button until clicked or `/`. */}
+        {onSearchChange &&
+          (showSearchInput ? (
+            <div className="relative flex items-center">
+              <Search className="absolute left-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => onSearchChange(e.target.value)}
+                onBlur={() => {
+                  if (searchQuery.trim() === "") setSearchOpen(false);
+                }}
+                placeholder="Search tasks…"
+                aria-label="Search tasks"
+                className="h-8 pl-8 pr-7 text-xs rounded-md bg-white/[0.04] border border-white/[0.08] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-white/20 w-40"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSearchChange("");
+                    requestSearch();
+                  }}
+                  aria-label="Clear search"
+                  className="absolute right-2 flex items-center justify-center text-muted-foreground/60 hover:text-foreground"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={requestSearch}
               aria-label="Search tasks"
-              className="h-8 pl-8 pr-7 text-xs rounded-md bg-white/[0.04] border border-white/[0.08] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-white/20 w-40"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => onSearchChange("")}
-                aria-label="Clear search"
-                className="absolute right-2 flex items-center justify-center text-muted-foreground/60 hover:text-foreground"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        )}
+              title="Search ( / )"
+              className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-white/[0.04] border border-white/[0.08] text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors shrink-0"
+            >
+              <Search className="w-3.5 h-3.5" />
+            </button>
+          ))}
 
         {/* Consolidated filter dropdown */}
         <FilterDropdown
