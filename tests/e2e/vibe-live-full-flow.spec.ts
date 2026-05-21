@@ -153,30 +153,30 @@ test.describe("Vibe — LIVE full flow against production", () => {
       }
     });
 
-    // ── 2. Switch to the in-process Gemini agent. ───────────────────────
+    // ── 2. Switch to the in-process chat agent. ─────────────────────────
     // /vibe defaults to "Kody Live" which is the long-lived RUNNER. The
     // dashboard agent that drafts the plan + creates the issue lives on
-    // the kody-direct (Gemini) backend; we have to pick it from the
-    // dropdown explicitly.
+    // the kody-direct (in-process chat) backend; we have to pick it from
+    // the dropdown explicitly.
     const agentTrigger = page
       .locator("button")
-      .filter({ hasText: /Kody Live|Kody Live \(Fly\)|Gemini|GEMINI|Brain/i })
+      .filter({ hasText: /Kody Live|Kody Live \(Fly\)|Kody|Brain/i })
       .first();
     await agentTrigger.click();
     const listbox = page.getByRole("listbox");
     await listbox.waitFor({ state: "visible", timeout: 5_000 });
-    // The tester repo's configured models render the label in uppercase
-    // ("GEMINI PRO", "GEMINI") — match strictly to avoid picking Flash
-    // (the Flash variant is too lazy for the planner workflow — it
-    // tends to skip the create_* tool call after approval).
-    const proOption = listbox.locator('[role="option"]', {
-      hasText: /GEMINI PRO/,
-    });
+    // Pick the first user-configured chat-model option that isn't the
+    // long-lived Kody Live runner or the external Brain — that's the
+    // kody-direct in-process chat agent the planner workflow needs.
+    const chatOption = listbox
+      .locator('[role="option"]')
+      .filter({ hasNotText: /Kody Live|Brain/i })
+      .first();
     await expect(
-      proOption,
-      "tester repo must have a GEMINI PRO model configured",
-    ).toHaveCount(1, { timeout: 5_000 });
-    await proOption.click();
+      chatOption,
+      "tester repo must have a chat model configured",
+    ).toBeVisible({ timeout: 5_000 });
+    await chatOption.click();
 
     // ── 3. Send the user's request. ─────────────────────────────────────
     // Once kody-direct is selected, the composer placeholder changes from
@@ -196,12 +196,12 @@ test.describe("Vibe — LIVE full flow against production", () => {
     await input.press("Enter");
 
     // ── 3. Wait for the agent to ask for approval. ─────────────────────
-    // The fixed prompt SHOULD make the agent stop after asking, but Gemini
-    // Pro occasionally violates that and creates the issue in the same
+    // The fixed prompt SHOULD make the agent stop after asking, but the
+    // model occasionally violates that and creates the issue in the same
     // turn. We accept either: wait for an approval-shaped prompt OR for
     // ?issue=N to appear in the URL (gate-violation path), whichever
     // lands first.
-    // Generous regex — Gemini Pro phrases the approval question many
+    // Generous regex — the model phrases the approval question many
     // different ways ("Approve?", "Shall I proceed?", "Want me to ship
     // this?", "Should I continue?", "Ready for me to go ahead?").
     // The common pattern is a question-mark line containing one of
@@ -227,7 +227,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
     }
 
     // Wait for navigation to ?issue=N — proxy for create_* + onIssueCreated.
-    // Generous timeout because Gemini PRO with a full tool-call chain
+    // Generous timeout because the model with a full tool-call chain
     // (research → create_* → vibe_start_execution) can take 2-3 min.
     await page.waitForURL(/\/vibe\?issue=\d+/, { timeout: 300_000 });
     const issueUrl = new URL(page.url());

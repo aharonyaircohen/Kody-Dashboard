@@ -4,7 +4,7 @@
  * @domain chat-contract
  *
  * Covers request validation + provider-key plumbing without hitting the
- * live Gemini API. The SDK call is not mocked end-to-end; we assert the
+ * live chat-model API. The SDK call is not mocked end-to-end; we assert the
  * behaviour the UI depends on: 400 on bad input, 409 + `fallback:
  * "kody-live"` when no model is resolvable or the key is missing (the UI
  * routes the turn through the Actions engine instead), auth gate before
@@ -39,8 +39,8 @@ afterEach(() => {
 
 describe("POST /api/kody/chat/kody", () => {
   it("returns 409 with fallback:kody-live when no model can be resolved", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "");
-    vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "");
+    vi.stubEnv("MY_API_KEY", "");
+    vi.stubEnv("CHAT_MODEL_API_KEY", "");
     const res = await kodyChatPOST(
       makeRequest({ messages: [{ role: "user", content: "hi" }] }),
     );
@@ -55,7 +55,7 @@ describe("POST /api/kody/chat/kody", () => {
   });
 
   it("returns 400 when messages are missing", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "dummy-key");
+    vi.stubEnv("MY_API_KEY", "dummy-key");
     const res = await kodyChatPOST(makeRequest({}));
     expect(res.status).toBe(400);
     const data = await res.json();
@@ -63,13 +63,13 @@ describe("POST /api/kody/chat/kody", () => {
   });
 
   it("returns 400 when messages array is empty", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "dummy-key");
+    vi.stubEnv("MY_API_KEY", "dummy-key");
     const res = await kodyChatPOST(makeRequest({ messages: [] }));
     expect(res.status).toBe(400);
   });
 
   it("returns 400 when all messages have empty content (after filter)", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "dummy-key");
+    vi.stubEnv("MY_API_KEY", "dummy-key");
     const res = await kodyChatPOST(
       makeRequest({
         messages: [
@@ -82,7 +82,7 @@ describe("POST /api/kody/chat/kody", () => {
   });
 
   it("returns 401 when kody auth is missing (no headers, no bot token)", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "dummy-key");
+    vi.stubEnv("MY_API_KEY", "dummy-key");
     vi.stubEnv("KODY_BOT_TOKEN", "");
     const req = new NextRequest("https://dash.test/api/kody/chat/kody", {
       method: "POST",

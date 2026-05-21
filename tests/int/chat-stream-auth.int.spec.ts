@@ -3,7 +3,7 @@
  * @testFramework vitest
  * @domain chat-contract
  *
- * Regression guard for the bug that silently broke Gemini chat in the UI:
+ * Regression guard for the bug that silently broke in-process chat in the UI:
  * EventSource can't send custom headers, so the client passes `token`,
  * `owner`, `repo` as query params. The route must promote them to the
  * x-kody-* header triplet that requireKodyAuth / getRequestAuth read.

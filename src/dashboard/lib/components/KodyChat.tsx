@@ -637,7 +637,7 @@ interface KodyChatProps {
 
 /**
  * Tools that, on success, return `{ number: <issue#>, ... }`. When any of
- * these completes in the in-process Gemini path, the surrounding chat
+ * these completes in the in-process chat path, the surrounding chat
  * transfer logic kicks in (see `pendingCreatedIssue` in `sendText`).
  */
 const ISSUE_CREATION_TOOL_NAMES = new Set<string>([
@@ -885,7 +885,7 @@ export function KodyChat({
   // Brain auto-default effect's existing gating contract intact.
   const [defaultChatEntryLoaded, setDefaultChatEntryLoaded] = useState(true);
   const brainAbortRef = useRef<AbortController | null>(null);
-  // AbortController for the in-process Gemini path (`/api/kody/chat/kody`).
+  // AbortController for the in-process chat path (`/api/kody/chat/kody`).
   // Without this the Stop button can't cancel the in-flight stream — the
   // model keeps generating, tokens keep flowing into the assistant bubble,
   // and the user has no recourse. Mirrors the Brain backend's pattern.
@@ -2376,7 +2376,7 @@ export function KodyChat({
       // dropdown choice still drives the brain and tools. The server
       // appends a TTS-friendly overlay to that agent's system prompt
       // when we set `voiceMode: true` on the request. For agents whose
-      // backend isn't the in-process Gemini path (brain, kody-engine,
+      // backend isn't the in-process chat path (brain, kody-engine,
       // kody-live), we still route through /api/kody/chat/kody for
       // voice — the kody route falls back to AGENT_KODY for those and
       // applies the overlay there.
@@ -2406,7 +2406,7 @@ export function KodyChat({
       // Build the transcript we send back to the model. Three rules:
       //
       // 1. Strip <think>…</think> blocks from any assistant content. The
-      //    chat client wraps Gemini thought summaries in those tags so
+      //    chat client wraps model thought summaries in those tags so
       //    the collapsed reasoning panel can render them, but the model
       //    should never see its own private thoughts replayed as prior
       //    "assistant" turns — it triggers a narration loop where the
@@ -2416,7 +2416,7 @@ export function KodyChat({
       //    persisted bubbles saved before the flag existed.
       // 3. Drop empty assistant bubbles (no real text after stripping).
       //    They come from aborted turns or turns where the model only
-      //    produced reasoning. Sending them back makes Gemini "continue
+      //    produced reasoning. Sending them back makes the model "continue
       //    from nothing" and often regress into apologies.
       const stripThinkingTags = (content: string): string =>
         content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
@@ -2990,7 +2990,7 @@ export function KodyChat({
 
           // The kody route streams Vercel AI SDK UI messages as SSE
           // (`data: {json}\n\n`). Parse incrementally and split into two
-          // buffers: `reasoning` (Gemini thought summaries — wrapped in
+          // buffers: `reasoning` (model thought summaries — wrapped in
           // <think>…</think> so ReasoningPanel renders them collapsed)
           // and `text` (the visible answer).
           const reader = res.body.getReader();
@@ -3280,7 +3280,7 @@ export function KodyChat({
             const target = pendingSwitchAgent;
             setSelectedAgentId(target.agentId);
             // If voice is active and the new agent isn't backed by the
-            // in-process Gemini path, close the overlay. The overlay is
+            // in-process chat path, close the overlay. The overlay is
             // appended server-side on /api/kody/chat/kody only — engine
             // and brain agents proxy to backends that don't honor the
             // voice overlay, so leaving the mic open after a switch to

@@ -30,7 +30,7 @@ function formatElapsed(seconds: number): string {
 }
 
 /**
- * The kody-direct stream wraps Gemini thought summaries in
+ * The kody-direct stream wraps model thought summaries in
  * `<think>…</think>` so the text-chat reasoning panel can render them.
  * The voice overlay has no such panel — strip the block (including any
  * unclosed mid-stream tail) so the bubble shows only the spoken answer.

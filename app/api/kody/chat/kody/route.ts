@@ -6,7 +6,7 @@
  * POST /api/kody/chat/kody
  *
  * In-process chat endpoint for the "Kody" agent. Streams replies directly
- * from the configured provider (Gemini by default) using the Vercel AI SDK.
+ * from the configured chat model using the Vercel AI SDK.
  * No GitHub Actions, no VPS, no runner cold start — the request goes
  * straight from the Vercel function to the model and back.
  *
@@ -75,8 +75,8 @@ export const maxDuration = 300;
 // At request time we read the matching secret from the vault and pick
 // the SDK based on protocol — `anthropic` for Claude's native Messages
 // API (prompt caching + thinking control), `openai` for OpenAI-compat
-// endpoints (covers Gemini, GPT, Groq, OpenRouter, Mistral, DeepSeek,
-// xAI, self-hosted LiteLLM, etc).
+// endpoints (covers most OpenAI-compatible providers — Groq, OpenRouter,
+// Mistral, DeepSeek, xAI, self-hosted LiteLLM, etc).
 //
 // If no model resolves or the key is missing, the route returns 409
 // with `fallback: "kody-live"` so the client routes the same turn
@@ -136,7 +136,7 @@ function parseFileData(
   return { data, mediaType: fallbackMime };
 }
 
-// Cap on the number of prior turns we resend to Gemini. Long histories
+// Cap on the number of prior turns we resend to the model. Long histories
 // inflate the first round-trip dramatically (especially with thinking
 // enabled and 20+ tool schemas), and older messages rarely change the
 // next answer. The user-visible chat keeps its full transcript — only
@@ -160,7 +160,7 @@ function traceError(data: object, msg: string): void {
 /**
  * Pull the provider's response body out of an AI SDK error. The SDK wraps
  * HTTP errors as `APICallError` with a `responseBody` (raw text) and a
- * `data` field (parsed JSON when available). Without this, a Gemini 400
+ * `data` field (parsed JSON when available). Without this, a provider 400
  * surfaces as a useless "Bad Request" — with it, the user sees the
  * specific validation message ("tools[7].function.parameters: ...").
  */
@@ -222,7 +222,7 @@ function extractProviderErrorMeta(error: unknown): Record<string, unknown> {
 function trimToRecent(messages: ModelMessage[]): ModelMessage[] {
   if (messages.length <= MAX_HISTORY_MESSAGES) return messages;
   const trimmed = messages.slice(-MAX_HISTORY_MESSAGES);
-  // Gemini rejects histories that don't start with a user message. Skip
+  // Some models reject histories that don't start with a user message. Skip
   // any leading assistant/system messages in the trimmed slice.
   const firstUserIdx = trimmed.findIndex((m) => m.role === "user");
   return firstUserIdx <= 0 ? trimmed : trimmed.slice(firstUserIdx);
@@ -423,8 +423,8 @@ export async function POST(req: NextRequest) {
   //
   // For VOICE turns we refuse the request instead of silently falling
   // back. Voice was the source of an actual user-visible bug: the
-  // dropdown said "brain-fly" while the mic produced a Kody/Gemini
-  // answer. The mic is also gated client-side now (see KodyChat
+  // dropdown said "brain-fly" while the mic produced an in-process
+  // chat answer. The mic is also gated client-side now (see KodyChat
   // VoiceButton), so a voice turn with a non-direct agent is either a
   // stale client or someone calling the API directly — neither should
   // be answered as Kody.
@@ -489,8 +489,8 @@ export async function POST(req: NextRequest) {
   // resolved repo; remote tools require a configured actorLogin. The
   // built-in `fetch_url` is always wired so the model can browse links.
   //
-  // We never wire provider-defined tools (Gemini's urlContext/googleSearch,
-  // Anthropic's web search, etc.) — many providers forbid combining them
+  // We never wire provider-defined tools (provider-native URL context or
+  // web search, etc.) — many providers forbid combining them
   // with custom function tools, which would silently disable everything
   // else. `fetch_url` is the universal swap-in replacement.
   const baseTools: Record<string, unknown> = {
@@ -603,7 +603,7 @@ export async function POST(req: NextRequest) {
   let stepNum = 0;
 
   // Heartbeat warnings. If no step has finished by T+30s/T+60s, log a
-  // warning so we can spot first-step stalls (Gemini taking forever before
+  // warning so we can spot first-step stalls (the model taking forever before
   // any tokens / tool calls). Cleared at first step finish, completion, or
   // any error path. Declared outside the try so the catch can clear them.
   const heartbeats: NodeJS.Timeout[] = [];
@@ -669,8 +669,8 @@ export async function POST(req: NextRequest) {
       // Anthropic via the native SDK accepts extended-thinking under a
       // stable provider-options key — wire it whenever the resolved model
       // uses that protocol. The openai-compatible SDK has no comparable
-      // stable path for Gemini's `thinking_config`; for Gemini we lean on
-      // tool-call chips (now rendered in KodyChat) to surface progress.
+      // stable path for some providers' thinking config; in that case we
+      // lean on tool-call chips (now rendered in KodyChat) to surface progress.
       // Voice mode skips reasoning entirely — the voice overlay forbids
       // reading anything other than the final answer, and the chat client
       // also drops reasoning chunks defensively in this mode.
