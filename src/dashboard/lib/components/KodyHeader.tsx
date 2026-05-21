@@ -84,13 +84,21 @@ export function KodyHeader({
           </h1>
         </div>
         <VibeToggle className="hidden sm:inline-flex" />
-        {filterBar ? (
-          <div className="hidden md:flex items-center gap-3">{filterBar}</div>
-        ) : null}
       </div>
 
-      {/* Desktop controls */}
+      {/* Desktop controls — data tools (search/filter) sit here, separated from
+          the title/Vibe identity group, then a divider before app actions. */}
       <div className="hidden md:flex items-center gap-3">
+        {filterBar ? (
+          <>
+            {filterBar}
+            <div
+              className="h-5 w-px bg-white/[0.1] mx-1"
+              aria-hidden="true"
+            />
+          </>
+        ) : null}
+
         {desktopExtras}
 
         <NotificationCenter
