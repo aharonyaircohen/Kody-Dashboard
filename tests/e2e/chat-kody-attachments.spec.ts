@@ -49,7 +49,7 @@ async function injectAuth(page: Page): Promise<void> {
 async function selectKodyAgent(page: Page): Promise<void> {
   const trigger = page
     .locator("button")
-    .filter({ hasText: /Gemini|Kody(\s|$)|Brain/ })
+    .filter({ hasText: /Kody(\s|$)|Brain/ })
     .first();
   await trigger.click();
   const listbox = page.getByRole("listbox");
@@ -108,7 +108,7 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
     page,
   }) => {
     // Capture the outgoing /api/kody/chat/kody body and reply with a
-    // simple text stream. We *don't* rely on Gemini here — we want to
+    // simple text stream. We *don't* rely on the model here — we want to
     // verify the client wire shape.
     let captured: unknown = null;
     await page.route("**/api/kody/chat/kody", async (route, req) => {

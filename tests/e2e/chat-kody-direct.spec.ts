@@ -6,8 +6,8 @@
  * @testFramework playwright
  * @domain e2e-mocked
  *
- * The real Gemini call needs the server-side GEMINI_API_KEY; covering that
- * end-to-end is left to a gated @real test.
+ * The real chat-model call needs the server-side provider API key; covering
+ * that end-to-end is left to a gated @real test.
  */
 
 import { test, expect, type Page } from "@playwright/test";
@@ -48,7 +48,7 @@ async function selectKodyAgent(page: Page): Promise<void> {
   // option inside the listbox rather than getByRole('menuitem').
   const trigger = page
     .locator("button")
-    .filter({ hasText: /Gemini|Kody(\s|$)|Brain/ })
+    .filter({ hasText: /Kody(\s|$)|Brain/ })
     .first();
   await trigger.click();
   const listbox = page.getByRole("listbox");
@@ -67,7 +67,7 @@ test.describe("Kody direct agent", () => {
     page,
   }) => {
     // Mock the direct-chat endpoint with a chunked text/plain stream so we
-    // verify the client's stream-reading path without hitting Gemini.
+    // verify the client's stream-reading path without hitting the model.
     await page.route("**/api/kody/chat/kody", async (route) =>
       route.fulfill({
         status: 200,

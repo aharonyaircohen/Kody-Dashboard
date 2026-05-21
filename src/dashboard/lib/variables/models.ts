@@ -103,8 +103,7 @@ export const ChatModelSchema = z.object({
    * "use the SDK default" (only valid for `anthropic` + api.anthropic.com,
    * which the SDK already targets). */
   baseURL: z.string().max(512).default(""),
-  /** Model id as the provider expects it on the wire (e.g.
-   * `claude-sonnet-4-6`, `gemini-2.5-flash`, `gpt-4o`). */
+  /** Model id exactly as the provider expects it on the wire. */
   modelName: z.string().min(1).max(160),
   /** Name of the secret in /secrets to read at request time. */
   apiKeySecret: z.string().min(1).max(128),

@@ -19,8 +19,8 @@ for the tradeoffs.
 Use the vault for:
 
 - **Dashboard-runtime API keys**: Gemini, Jina, OpenAI, Anthropic,
-  third-party REST tokens — anything the Vercel function reads at
-  request time.
+  OpenAI, Anthropic, third-party REST tokens — anything the Vercel
+  function reads at request time.
 - **Per-repo segregation**: each connected repo has its own vault
   file, so different projects can hold different keys.
 - **Editable secrets without redeploys**: change a value on the

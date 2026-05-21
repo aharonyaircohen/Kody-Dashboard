@@ -160,11 +160,11 @@ Follow-up: swap the in-memory cache for Vercel's Data Cache (`fetch` +
 The dashboard has **three** chat backends, picked by the UI's `selectedAgentId`
 (default `'kody'`, see [KodyChat.tsx](src/dashboard/lib/components/KodyChat.tsx)).
 Don't assume "the chat" means the engine — most user traffic hits the in-process
-Gemini path.
+chat path.
 
 | `selectedAgentId`    | Endpoint                                                       | Backend                                  | System prompt lives in                                                                   |
 | -------------------- | -------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `kody` (**default**) | [`/api/kody/chat/kody`](app/api/kody/chat/kody/route.ts)       | In-process Gemini via `@ai-sdk/google`   | [`src/dashboard/lib/agents.ts`](src/dashboard/lib/agents.ts) (`AGENT_KODY.systemPrompt`) |
+| `kody` (**default**) | [`/api/kody/chat/kody`](app/api/kody/chat/kody/route.ts)       | In-process chat model via the AI SDK     | [`src/dashboard/lib/agents.ts`](src/dashboard/lib/agents.ts) (`AGENT_KODY.systemPrompt`) |
 | `brain`              | [`/api/kody/chat/brain`](app/api/kody/chat/brain/route.ts)     | External Brain chat server (proxied)     | Brain server profile (out of repo)                                                       |
 | anything else        | [`/api/kody/chat/trigger`](app/api/kody/chat/trigger/route.ts) | GitHub Actions + `@kody-ade/kody-engine` | `kody2/src/chat/loop.ts` (`CHAT_SYSTEM_PROMPT`)                                          |
 
@@ -177,7 +177,7 @@ list of prompts; selection inserts `/<slug> ` so the user can add
 arguments before Enter. On send, `expandSlashCommand` substitutes
 `$ARGUMENTS` / `$0` / `$1` into the prompt body and ships the rendered
 text — every backend just sees a normal user message, so commands work
-identically on Gemini, Brain, and Engine.
+identically on the in-process chat model, Brain, and Engine.
 
 Two layers, merged at runtime:
 

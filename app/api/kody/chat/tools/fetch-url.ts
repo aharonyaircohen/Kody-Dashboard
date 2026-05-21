@@ -5,7 +5,8 @@
  * @ai-summary Fetches a URL via Jina Reader (r.jina.ai), which runs a
  *  headless browser server-side and returns JS-rendered page content as
  *  clean markdown. Falls through as plain HTTP for edge cases. Replaces
- *  Gemini's URL Context, which Gemini forbids mixing with custom tools.
+ *  provider-native URL context tools, which some providers forbid mixing
+ *  with custom tools.
  */
 import { tool } from "ai";
 import { z } from "zod";

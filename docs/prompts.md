@@ -3,7 +3,7 @@
 Slash commands let you reuse a saved prompt template by typing
 `/<slug>` in the chat composer. The dashboard expands the template
 client-side and sends the rendered text to whichever backend you are
-talking to (Gemini, Brain, Engine) — the model never sees the slash
+talking to (in-process chat model, Brain, Engine) — the model never sees the slash
 form, just normal text.
 
 ## How it works

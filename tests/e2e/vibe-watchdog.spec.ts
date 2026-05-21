@@ -661,7 +661,7 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     await page.waitForTimeout(2_000);
     const agentTrigger = page
       .locator("button")
-      .filter({ hasText: /Kody Live|GEMINI|Brain/i })
+      .filter({ hasText: /Kody Live|Kody|Brain/i })
       .first();
     await agentTrigger.click();
     const listbox = page.getByRole("listbox");

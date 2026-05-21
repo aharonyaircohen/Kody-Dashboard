@@ -128,13 +128,13 @@ describe("installEngine", () => {
             const variablesContent = JSON.stringify({
               LLM_MODELS: [
                 {
-                  id: "google/gemini-2.5-flash",
-                  label: "Gemini 2.5 Flash",
-                  provider: "google",
+                  id: "example/chat-model",
+                  label: "Example Chat Model",
+                  provider: "example",
                   protocol: "openai",
                   baseURL: "",
-                  modelName: "gemini-2.5-flash",
-                  apiKeySecret: "GEMINI_API_KEY",
+                  modelName: "chat-model",
+                  apiKeySecret: "MY_API_KEY",
                   enabled: true,
                   default: true,
                 },
@@ -164,7 +164,7 @@ describe("installEngine", () => {
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
       const parsed = JSON.parse(configFile!.content);
-      expect(parsed.model?.default).toBe("google/gemini-2.5-flash");
+      expect(parsed.model?.default).toBe("example/chat-model");
     });
 
     it("kody.config.json is created even when variables.json does not exist", async () => {

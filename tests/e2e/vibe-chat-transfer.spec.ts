@@ -115,13 +115,12 @@ test.describe("Vibe — chat transfer on issue create", () => {
         body: JSON.stringify({
           models: [
             {
-              id: "gemini-2.5-pro",
-              provider: "gemini",
-              modelName: "gemini-2.5-pro",
-              label: "Gemini 2.5 Pro",
-              apiKeySecret: "GEMINI_API_KEY",
-              baseURL:
-                "https://generativelanguage.googleapis.com/v1beta/openai/",
+              id: "chat-model-pro",
+              provider: "example",
+              modelName: "chat-model-pro",
+              label: "Chat Model Pro",
+              apiKeySecret: "MY_API_KEY",
+              baseURL: "https://api.example.com/v1/",
               protocol: "openai",
               enabled: true,
               isDefault: true,
@@ -293,16 +292,16 @@ test.describe("Vibe — chat transfer on issue create", () => {
       return;
     }
 
-    // Pick the user-managed Gemini model (kody-direct backend).
+    // Pick the user-managed chat model (kody-direct backend).
     const trigger = page
       .locator("button")
-      .filter({ hasText: /Gemini|Kody(\s|$)|Brain/ })
+      .filter({ hasText: /Kody(\s|$)|Brain/ })
       .first();
     await trigger.click();
     const listbox = page.getByRole("listbox");
     await listbox.waitFor({ state: "visible", timeout: 5_000 });
     await listbox
-      .getByRole("option", { name: /Gemini 2\.5 Pro/ })
+      .getByRole("option", { name: /Chat Model Pro/ })
       .click()
       .catch(async () => {
         // Fallback: pick whichever Kody option exists.
@@ -446,11 +445,11 @@ test.describe("Vibe — chat transfer on issue create", () => {
         body: JSON.stringify({
           models: [
             {
-              id: "gemini-2.5-pro",
-              provider: "gemini",
-              modelName: "gemini-2.5-pro",
-              label: "Gemini 2.5 Pro",
-              apiKeySecret: "GEMINI_API_KEY",
+              id: "chat-model-pro",
+              provider: "example",
+              modelName: "chat-model-pro",
+              label: "Chat Model Pro",
+              apiKeySecret: "MY_API_KEY",
               baseURL: "https://example/v1/",
               protocol: "openai",
               enabled: true,
@@ -511,12 +510,12 @@ test.describe("Vibe — chat transfer on issue create", () => {
 
     const trigger = page
       .locator("button")
-      .filter({ hasText: /Gemini|Kody(\s|$)|Brain/ })
+      .filter({ hasText: /Kody(\s|$)|Brain/ })
       .first();
     await trigger.click();
     const listbox = page.getByRole("listbox");
     await listbox.waitFor({ state: "visible", timeout: 5_000 });
-    await listbox.getByRole("option", { name: /Gemini 2\.5 Pro/ }).click();
+    await listbox.getByRole("option", { name: /Chat Model Pro/ }).click();
 
     const input = page
       .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
