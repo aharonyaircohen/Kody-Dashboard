@@ -26,6 +26,9 @@ import { claimFromPool } from "@dashboard/lib/runners/pool-client";
 
 export const runtime = "nodejs";
 
+/** Ceiling on the default-branch lookup; on timeout the runner falls back to main. */
+const BRANCH_LOOKUP_TIMEOUT_MS = 5_000;
+
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
@@ -75,7 +78,14 @@ export async function POST(req: NextRequest) {
   // from the active line of development.
   let ref: string | undefined;
   try {
-    const { data } = await octokit.repos.get({ owner, repo });
+    const { data } = await octokit.repos.get({
+      owner,
+      repo,
+      // Bound the lookup: a hung GitHub call must not hold the spawn open.
+      // On timeout this throws, we log, and the runner falls back to main
+      // (the existing graceful-degradation path below).
+      request: { signal: AbortSignal.timeout(BRANCH_LOOKUP_TIMEOUT_MS) },
+    });
     ref = data.default_branch;
   } catch (err) {
     logger.warn(
