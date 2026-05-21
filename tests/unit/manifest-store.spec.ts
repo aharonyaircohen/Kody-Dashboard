@@ -23,6 +23,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
 }));
 
 import { createManifestStore } from "@dashboard/lib/manifest-store";
+import { INTERNAL_ISSUE_LABEL } from "@dashboard/lib/constants";
 import {
   fetchIssues,
   fetchIssue,
@@ -126,7 +127,9 @@ describe("manifest-store · create vs update", () => {
       labels: string[];
     };
     expect(arg.title).toBe("Test Manifest");
-    expect(arg.labels).toEqual([LABEL]);
+    // Manifest issues are also tagged kody:internal so they're filtered out
+    // of normal issue views (see manifest-store create path).
+    expect(arg.labels).toEqual([LABEL, INTERNAL_ISSUE_LABEL]);
     expect(out).toMatchObject({ result: "created", issueNumber: 101 });
     expect(mInvalidate).toHaveBeenCalledWith(101);
   });
