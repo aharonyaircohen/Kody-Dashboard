@@ -57,6 +57,7 @@ import { createPlannerTools } from "../tools/planner-tools";
 import { createReleaseTools } from "../tools/release-tools";
 import { createKodyTools } from "../tools/kody-tools";
 import { createVibeTools } from "../tools/vibe-tools";
+import { applyVibeToolPolicy } from "./vibe-tool-policy";
 import { fetchUrlTool } from "../tools/fetch-url";
 import { featureTools } from "../tools/feature-tools";
 import { uiTools } from "../tools/ui-tools";
@@ -585,29 +586,14 @@ export async function POST(req: NextRequest) {
     ...extraTools,
     ...createRemoteTools(body.actorLogin ?? null),
   };
-  // Vibe mode: strip every tool that posts an `@kody ...` comment on an
-  // issue or PR. In vibe the chat IS the executor — it drives the Live/Fly
-  // runner directly and opens PRs without going through the Kody pipeline.
-  // The user can still invoke @kody manually from the dashboard UI; the
-  // model just isn't allowed to do it for them.
-  const VIBE_DISALLOWED_TOOLS = new Set<string>([
-    "kody_run_issue",
-    "kody_fix_pr",
-    "kody_fix_ci_pr",
-    "kody_review_pr",
-    "kody_resolve_pr",
-    "kody_revert_pr",
-    "kody_sync_pr",
-    "request_release",
-  ]);
-  const mergedTools = { ...baseTools, ...extraTools };
-  if (vibeMode) {
-    for (const name of VIBE_DISALLOWED_TOOLS) delete mergedTools[name];
-  } else {
-    // Outside vibe, the chat doesn't pre-create branches/PRs — that's
-    // strictly a vibe-mode parallelism trick.
-    delete mergedTools.vibe_start_execution;
-  }
+  // Vibe tool policy (see vibe-tool-policy.ts): strips the `@kody` dispatch
+  // tools in vibe mode, strips issue-creation tools once a task is scoped
+  // (so the model can't file a duplicate), and removes vibe_start_execution
+  // outside vibe.
+  const mergedTools = applyVibeToolPolicy(
+    { ...baseTools, ...extraTools },
+    { vibeMode, hasCurrentTask: body.task?.issueNumber != null },
+  );
   const tools = mergedTools as Parameters<typeof streamText>[0]["tools"];
 
   let stepNum = 0;
