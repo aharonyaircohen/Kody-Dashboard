@@ -104,10 +104,9 @@ import { useAuth } from "../auth-context";
 import { RepoManager } from "./RepoManager";
 import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
-import { SimpleTooltip } from "./SimpleTooltip";
 import { VibeToggle } from "./VibeToggle";
 import { KodyHeader } from "./KodyHeader";
-import { PageActions } from "./PageActions";
+import { HeaderOverflowMenu } from "./HeaderOverflowMenu";
 import { MobileMenu } from "./MobileMenu";
 import { PRIORITY_LEVELS, PRIORITY_META } from "../constants";
 
@@ -1344,25 +1343,21 @@ export function KodyDashboard({
                   });
                 }}
                 isFetching={isFetching}
+                showRefresh={false}
                 desktopExtras={
-                  <>
-                    <PageActions
-                      onOpenBranchCleanup={() => setShowBranchCleanup(true)}
-                      onPublished={(n) => setSelectedIssueNumber(n)}
-                      actorLogin={githubUser?.login}
-                    />
-                    <SimpleTooltip content="Report a Kody bug" side="bottom">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleOpenKodyBug}
-                        aria-label="Report a Kody bug"
-                        className="gap-1"
-                      >
-                        <LifeBuoy className="w-4 h-4" />
-                      </Button>
-                    </SimpleTooltip>
-                  </>
+                  <HeaderOverflowMenu
+                    actorLogin={githubUser?.login}
+                    onPublished={(n) => setSelectedIssueNumber(n)}
+                    onOpenBranchCleanup={() => setShowBranchCleanup(true)}
+                    onReportBug={handleOpenKodyBug}
+                    onRefresh={() => {
+                      refetch();
+                      queryClient.invalidateQueries({
+                        queryKey: goalQueryKeys.list,
+                      });
+                    }}
+                    isFetching={isFetching}
+                  />
                 }
                 filterBar={
                   <FilterBar

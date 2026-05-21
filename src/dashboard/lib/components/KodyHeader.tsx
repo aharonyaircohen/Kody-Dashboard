@@ -44,6 +44,11 @@ interface KodyHeaderProps {
    * bar instead of a separate sub-row). Vibe leaves it unset.
    */
   filterBar?: ReactNode;
+  /**
+   * Show the built-in desktop Refresh button. Defaults to true; the dashboard
+   * sets it false because Refresh lives inside its header overflow menu.
+   */
+  showRefresh?: boolean;
 }
 
 export function KodyHeader({
@@ -53,6 +58,7 @@ export function KodyHeader({
   desktopExtras,
   mobileExtras,
   filterBar,
+  showRefresh = true,
 }: KodyHeaderProps) {
   const { connectedRepo } = useGitHubIdentity();
   const {
@@ -87,20 +93,22 @@ export function KodyHeader({
           onRequestPermission={requestPermission}
         />
 
-        <SimpleTooltip content="Refresh" side="bottom">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRefresh}
-            disabled={isFetching}
-            aria-label="Refresh"
-            className="gap-1"
-          >
-            <RefreshCw
-              className={cn("w-4 h-4", isFetching && "animate-spin")}
-            />
-          </Button>
-        </SimpleTooltip>
+        {showRefresh && (
+          <SimpleTooltip content="Refresh" side="bottom">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefresh}
+              disabled={isFetching}
+              aria-label="Refresh"
+              className="gap-1"
+            >
+              <RefreshCw
+                className={cn("w-4 h-4", isFetching && "animate-spin")}
+              />
+            </Button>
+          </SimpleTooltip>
+        )}
       </div>
 
       {/* Mobile cluster — page-specific extras (e.g. issue picker) + hamburger. */}
