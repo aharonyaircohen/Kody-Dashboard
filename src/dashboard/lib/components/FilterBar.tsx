@@ -6,7 +6,14 @@
  */
 "use client";
 
-import { forwardRef, useImperativeHandle, useRef, type ReactNode } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { cn } from "../utils";
 import { Search, X } from "lucide-react";
 import type { SortField, SortDirection } from "../types";
@@ -43,8 +50,13 @@ export interface FilterBarProps {
   onSortFieldChange?: (field: SortField) => void;
   sortDirection?: SortDirection;
   onSortDirectionChange?: (direction: SortDirection) => void;
-  /** Right-aligned slot for page-level actions (Jobs, Publish, etc). */
-  rightSlot?: ReactNode;
+  /**
+   * Always-visible controls pinned to the left of the strip (e.g. the
+   * flat-list / collapse-all view toggles). These stay on screen even when
+   * the search + filter cluster is collapsed, so layout switches never cost a
+   * reveal click.
+   */
+  viewToggles?: ReactNode;
 }
 
 export interface FilterBarHandle {
@@ -132,79 +144,134 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
       onSortFieldChange,
       sortDirection = "desc",
       onSortDirectionChange,
-      rightSlot,
+      viewToggles,
     },
     ref,
   ) {
     const searchInputRef = useRef<HTMLInputElement>(null);
 
+    // The search input + filters are hidden by default behind a toggle to keep
+    // the header lean. `pendingFocus` lets `focusSearch()` (the `/` shortcut)
+    // expand the row first, then focus once the input has mounted.
+    const [expanded, setExpanded] = useState(false);
+    const [pendingFocus, setPendingFocus] = useState(false);
+
+    useEffect(() => {
+      if (expanded && pendingFocus) {
+        searchInputRef.current?.focus();
+        setPendingFocus(false);
+      }
+    }, [expanded, pendingFocus]);
+
     useImperativeHandle(ref, () => ({
       focusSearch: () => {
-        searchInputRef.current?.focus();
+        setExpanded(true);
+        setPendingFocus(true);
       },
     }));
 
+    // Surface a dot on the collapsed toggle when search or any filter is
+    // active, so a hidden filter is never a silent surprise.
+    const hasActiveFilters =
+      searchQuery.trim() !== "" ||
+      viewMode === "backlog" ||
+      dateFilter !== "all" ||
+      statusFilter !== "all" ||
+      labelFilter !== "all" ||
+      priorityFilter !== "all";
+
     return (
       <div className="flex items-center gap-3 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-white/[0.02]">
-        {/* View toggle — Running / Backlog. Hidden in goal-grouped view where
-          all tasks are shown together under their goal sections. */}
-        <ViewToggle
-          viewMode={viewMode}
-          onViewModeChange={onViewModeChange}
-          runningCount={runningCount}
-          backlogCount={backlogCount}
-          queueCount={queueCount}
-          disableBacklog={disableBacklog}
-        />
+        {/* Persistent strip: layout toggles (flat-list / collapse-all) stay
+            visible at all times so switching views never costs a reveal. */}
+        {viewToggles}
 
-        {/* Search input */}
-        {onSearchChange && (
-          <div className="relative flex items-center">
-            <Search className="absolute left-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search tasks…"
-              aria-label="Search tasks"
-              className="h-8 pl-8 pr-7 text-xs rounded-md bg-white/[0.04] border border-white/[0.08] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-white/20 w-40"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => onSearchChange("")}
-                aria-label="Clear search"
-                className="absolute right-2 flex items-center justify-center text-muted-foreground/60 hover:text-foreground"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+        {/* Right cluster: the search + filter controls collapse behind a
+            toggle, with the toggle button anchored to the right edge. */}
+        <div className="ml-auto flex items-center gap-3">
+          {expanded && (
+            <>
+              {/* View toggle — Running / Backlog. Hidden in goal-grouped view
+                  where all tasks are shown together under their goals. */}
+              <ViewToggle
+                viewMode={viewMode}
+                onViewModeChange={onViewModeChange}
+                runningCount={runningCount}
+                backlogCount={backlogCount}
+                queueCount={queueCount}
+                disableBacklog={disableBacklog}
+              />
+
+              {/* Search input */}
+              {onSearchChange && (
+                <div className="relative flex items-center">
+                  <Search className="absolute left-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => onSearchChange(e.target.value)}
+                    placeholder="Search tasks…"
+                    aria-label="Search tasks"
+                    className="h-8 pl-8 pr-7 text-xs rounded-md bg-white/[0.04] border border-white/[0.08] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-white/20 w-40"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => onSearchChange("")}
+                      aria-label="Clear search"
+                      className="absolute right-2 flex items-center justify-center text-muted-foreground/60 hover:text-foreground"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Consolidated filter dropdown */}
+              <FilterDropdown
+                dateFilter={dateFilter}
+                onDateFilterChange={onDateFilterChange}
+                statusFilter={statusFilter}
+                onStatusFilterChange={onStatusFilterChange}
+                labelFilter={labelFilter}
+                onLabelFilterChange={onLabelFilterChange}
+                availableLabels={availableLabels}
+                labelCounts={labelCounts}
+                priorityFilter={priorityFilter}
+                onPriorityFilterChange={onPriorityFilterChange}
+                statusCounts={statusCounts}
+                totalCount={totalCount}
+                sortField={sortField}
+                onSortFieldChange={onSortFieldChange}
+                sortDirection={sortDirection}
+                onSortDirectionChange={onSortDirectionChange}
+              />
+            </>
+          )}
+
+          {/* Toggle: reveal/hide the search + filter cluster (also bound to `/`). */}
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-label={
+              expanded ? "Hide search and filters" : "Show search and filters"
+            }
+            title={expanded ? "Hide search & filters" : "Search & filter ( / )"}
+            className={cn(
+              "relative inline-flex items-center justify-center h-8 w-8 rounded-md border transition-colors shrink-0",
+              expanded
+                ? "bg-white/[0.08] border-white/[0.15] text-foreground"
+                : "bg-white/[0.04] border-white/[0.08] text-muted-foreground hover:text-foreground",
             )}
-          </div>
-        )}
-
-        {/* Consolidated filter dropdown */}
-        <FilterDropdown
-          dateFilter={dateFilter}
-          onDateFilterChange={onDateFilterChange}
-          statusFilter={statusFilter}
-          onStatusFilterChange={onStatusFilterChange}
-          labelFilter={labelFilter}
-          onLabelFilterChange={onLabelFilterChange}
-          availableLabels={availableLabels}
-          labelCounts={labelCounts}
-          priorityFilter={priorityFilter}
-          onPriorityFilterChange={onPriorityFilterChange}
-          statusCounts={statusCounts}
-          totalCount={totalCount}
-          sortField={sortField}
-          onSortFieldChange={onSortFieldChange}
-          sortDirection={sortDirection}
-          onSortDirectionChange={onSortDirectionChange}
-        />
-
-        {/* Right-aligned action cluster (Jobs / Publish / Cleanup / Changelog). */}
-        {rightSlot ? <div className="ml-auto">{rightSlot}</div> : null}
+          >
+            <Search className="w-3.5 h-3.5" />
+            {!expanded && hasActiveFilters && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-[#0a0a0a]" />
+            )}
+          </button>
+        </div>
       </div>
     );
   },
