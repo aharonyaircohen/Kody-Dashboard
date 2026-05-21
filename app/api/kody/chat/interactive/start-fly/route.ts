@@ -22,6 +22,10 @@ import {
   buildMetaLine,
   writeSessionMeta,
 } from "@dashboard/lib/interactive-session";
+import {
+  applyVibePrimerToContent,
+  type VibeTaskContext,
+} from "@dashboard/lib/vibe/primer";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
 import { spawnRunner } from "@dashboard/lib/runners/fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
@@ -58,6 +62,10 @@ export async function POST(req: NextRequest) {
      * runner falls back to git-polling the session JSONL.
      */
     dashboardUrl?: string;
+    content?: string;
+    timestamp?: string;
+    vibeMode?: boolean;
+    taskContext?: VibeTaskContext;
   };
   try {
     body = await req.json();
@@ -65,7 +73,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { taskId, idleExitMs, hardCapMs, dashboardUrl } = body;
+  const { taskId, idleExitMs, hardCapMs, dashboardUrl, content, vibeMode, taskContext } =
+    body;
   if (!taskId) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
   }
@@ -98,8 +107,29 @@ export async function POST(req: NextRequest) {
 
     // Same meta-line write as the Actions path — the engine relies on it
     // to recognize interactive mode regardless of which runtime it boots in.
+    // Fold the first user turn into this same commit (see /interactive/start)
+    // so the kickoff can't be lost to a start-vs-append write race.
     const meta = buildMetaLine({ idleExitMs, hardCapMs });
-    await writeSessionMeta(octokit, owner, repo, taskId, meta);
+    const initialTurn =
+      content && content.trim().length > 0
+        ? {
+            role: "user" as const,
+            content: vibeMode
+              ? applyVibePrimerToContent(content, taskContext)
+              : content,
+            timestamp: body.timestamp ?? new Date().toISOString(),
+          }
+        : undefined;
+    await writeSessionMeta(
+      octokit,
+      owner,
+      repo,
+      taskId,
+      meta,
+      undefined,
+      undefined,
+      initialTurn,
+    );
 
     // dashboardUrl + inline HMAC token so the runner can push events
     // straight to /api/kody/events/ingest. The Fly machine's source IP

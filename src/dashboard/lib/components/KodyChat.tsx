@@ -3486,12 +3486,49 @@ export function KodyChat({
         selectedAgentId === "kody-live" ||
         selectedAgentId === "kody-live-fly"
       ) {
+        const liveUserContent =
+          currentAttachments.length > 0
+            ? currentAttachments
+                .map((a) => {
+                  const sizeStr = formatFileSize(a.size);
+                  if (a.mimeType.startsWith("image/"))
+                    return `[Image: ${a.name} (${sizeStr})]\n${a.data}`;
+                  return `[File: ${a.name} (${a.mimeType}, ${sizeStr})]\n${a.data}`;
+                })
+                .join("\n\n") + (messageContent ? `\n\n${messageContent}` : "")
+            : messageContent;
+
+        const liveTaskContext =
+          vibeMode && context?.kind === "task"
+            ? {
+                issueNumber: context.task.issueNumber,
+                ...(context.task.associatedPR
+                  ? {
+                      prNumber: context.task.associatedPR.number,
+                      branch: context.task.associatedPR.head.ref,
+                    }
+                  : {}),
+              }
+            : undefined;
+
+        // First turn into a fresh session: hand the message to /start so it's
+        // written ATOMICALLY with the meta line. Previously we started the
+        // runner then appended in a second request — the two writes raced and
+        // the turn was frequently lost, so the runner booted to an empty
+        // session and idle-exited (handoff "ran" but nothing happened, chat
+        // stuck on a spinner). When start carries the turn, skip the append.
+        let firstTurnPersistedByStart = false;
         if (
           (interactiveStateRef.current === "idle" ||
             interactiveStateRef.current === "ended") &&
           !interactiveSessionIdRef.current
         ) {
-          await startInteractiveSession();
+          await startInteractiveSession({
+            initialContent: liveUserContent,
+            initialTimestamp: timestamp,
+            taskContext: liveTaskContext,
+          });
+          firstTurnPersistedByStart = true;
         }
         const liveSessionId = interactiveSessionIdRef.current;
         const liveState = interactiveStateRef.current;
@@ -3512,23 +3549,16 @@ export function KodyChat({
           return null;
         }
 
-        const liveUserContent =
-          currentAttachments.length > 0
-            ? currentAttachments
-                .map((a) => {
-                  const sizeStr = formatFileSize(a.size);
-                  if (a.mimeType.startsWith("image/"))
-                    return `[Image: ${a.name} (${sizeStr})]\n${a.data}`;
-                  return `[File: ${a.name} (${a.mimeType}, ${sizeStr})]\n${a.data}`;
-                })
-                .join("\n\n") + (messageContent ? `\n\n${messageContent}` : "")
-            : messageContent;
-
         // Mark the session as awaiting a reply. The reducer will flip back
         // to 'ready' on chat.message or chat.done — so even if chat.done
         // never arrives (engine drops it on commit-only turns), the typing
         // indicator clears as soon as the assistant message lands.
         dispatchLive({ type: "TURN_SENT" });
+        // The first turn already rode into the session file via /start — no
+        // append needed (and appending again would duplicate it).
+        if (firstTurnPersistedByStart) {
+          return null;
+        }
         try {
           const appendRes = await fetch("/api/kody/chat/interactive/append", {
             method: "POST",
@@ -3725,7 +3755,16 @@ export function KodyChat({
   // Kody Live: warm-up the long-lived runner. Wires the dispatch + SSE
   // for an interactive session. Chat input stays disabled until the runner
   // emits chat.ready (handled in connectSSE).
-  const startInteractiveSession = useCallback(async () => {
+  const startInteractiveSession = useCallback(
+    async (opts?: {
+      initialContent?: string;
+      initialTimestamp?: string;
+      taskContext?: {
+        issueNumber: number;
+        prNumber?: number;
+        branch?: string;
+      };
+    }) => {
     const cur = liveStateRef.current.phase;
     if (cur === "booting" || cur === "ready" || cur === "awaiting") return;
 
@@ -3771,6 +3810,18 @@ export function KodyChat({
           dashboardUrl,
           idleExitMs: 5 * 60_000,
           hardCapMs: 30 * 60_000,
+          // First turn folded into the session-create commit (atomic) so the
+          // runner sees it on first read — no racy follow-up append.
+          ...(opts?.initialContent
+            ? {
+                content: opts.initialContent,
+                timestamp: opts.initialTimestamp,
+                ...(vibeMode ? { vibeMode: true } : {}),
+                ...(vibeMode && opts.taskContext
+                  ? { taskContext: opts.taskContext }
+                  : {}),
+              }
+            : {}),
         }),
       });
       if (!startRes.ok) {
@@ -3801,7 +3852,7 @@ export function KodyChat({
         },
       ]);
     }
-  }, [setMessages, selectedAgentId, startInteractivePoll, dispatchLive]);
+  }, [setMessages, selectedAgentId, startInteractivePoll, dispatchLive, vibeMode]);
 
   // Cancel a Kody Live session locally. Closes the SSE, clears the saved
   // record for the CURRENT scope, and flips state to 'idle' so the user

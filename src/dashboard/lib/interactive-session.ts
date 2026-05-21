@@ -59,9 +59,18 @@ export function buildMetaLine(
 }
 
 /**
- * Writes the meta line as the only content of the session file. Use at the
- * start of an interactive session — the runner enters its poll loop with an
- * empty turn list and waits for the first user message via append().
+ * Writes the meta line as the (initial) content of the session file. Use at
+ * the start of an interactive session.
+ *
+ * `initialTurn` (optional): when provided, the first user turn is written in
+ * the SAME commit as the meta line, so the runner sees it on its first read.
+ * This is load-bearing for the vibe auto-kickoff: previously the kickoff turn
+ * was written by a SECOND request (`/interactive/append`) right after this
+ * one, and the two writes raced on the branch HEAD — the append's turn was
+ * frequently lost, leaving a meta-only session. The runner then booted, found
+ * no turn, and idle-exited with turnsCompleted:0 (the "handoff ran but nothing
+ * happened / chat sits silent" bug). Folding the first turn into the meta
+ * write removes that race entirely.
  *
  * Concurrency: each start commits a (distinct) session file to the same
  * branch, so two starts firing at once race on the branch HEAD — the loser
@@ -78,9 +87,17 @@ export async function writeSessionMeta(
   meta: SessionMeta,
   branch: string = DEFAULT_BRANCH,
   maxRetries = 4,
+  initialTurn?: ChatTurn,
 ): Promise<void> {
   const path = sessionFilePath(sessionId);
-  const content = `${JSON.stringify(meta)}\n`;
+  const content = initialTurn
+    ? `${JSON.stringify(meta)}\n${JSON.stringify({
+        role: initialTurn.role,
+        content: initialTurn.content,
+        timestamp: initialTurn.timestamp,
+        toolCalls: initialTurn.toolCalls ?? [],
+      })}\n`
+    : `${JSON.stringify(meta)}\n`;
 
   let attempt = 0;
   while (true) {

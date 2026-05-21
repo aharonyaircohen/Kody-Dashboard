@@ -31,6 +31,10 @@ import {
   buildMetaLine,
   writeSessionMeta,
 } from "@dashboard/lib/interactive-session";
+import {
+  applyVibePrimerToContent,
+  type VibeTaskContext,
+} from "@dashboard/lib/vibe/primer";
 
 export const runtime = "nodejs";
 
@@ -57,6 +61,10 @@ export async function POST(req: NextRequest) {
     taskId?: string;
     idleExitMs?: number;
     hardCapMs?: number;
+    content?: string;
+    timestamp?: string;
+    vibeMode?: boolean;
+    taskContext?: VibeTaskContext;
   };
   try {
     body = await req.json();
@@ -64,7 +72,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { taskId, idleExitMs, hardCapMs } = body;
+  const { taskId, idleExitMs, hardCapMs, content, vibeMode, taskContext } =
+    body;
   if (!taskId) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
   }
@@ -85,7 +94,31 @@ export async function POST(req: NextRequest) {
     );
 
     const meta = buildMetaLine({ idleExitMs, hardCapMs });
-    await writeSessionMeta(octokit, owner, repo, taskId, meta);
+    // If the caller supplied the first user turn (the vibe auto-kickoff, or a
+    // first message typed before the runner is up), write it INTO the same
+    // commit as the meta line. Doing it here — instead of a follow-up
+    // /interactive/append — removes the start-vs-append write race that was
+    // dropping the kickoff turn and leaving the runner with nothing to do.
+    const initialTurn =
+      content && content.trim().length > 0
+        ? {
+            role: "user" as const,
+            content: vibeMode
+              ? applyVibePrimerToContent(content, taskContext)
+              : content,
+            timestamp: body.timestamp ?? new Date().toISOString(),
+          }
+        : undefined;
+    await writeSessionMeta(
+      octokit,
+      owner,
+      repo,
+      taskId,
+      meta,
+      undefined,
+      undefined,
+      initialTurn,
+    );
 
     // No dashboardUrl: the engine HttpSink would push events to /ingest in
     // real time, but Vercel's per-instance in-memory bus means the push
