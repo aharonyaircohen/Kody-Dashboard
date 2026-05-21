@@ -3238,13 +3238,34 @@ export function KodyChat({
             });
           }
 
-          // Terminal — mark not loading.
+          // Terminal — mark not loading. If the turn produced NOTHING visible
+          // (no answer text, no reasoning, no tool calls) and isn't handing off
+          // to a runner, surface a note instead of leaving a silent blank
+          // bubble — the user must always get feedback.
           setMessages((prev) => {
             const copy = [...prev];
             const idx = copy.findIndex(
               (m) => m.role === "assistant" && m.isLoading,
             );
-            if (idx >= 0) copy[idx] = { ...copy[idx], isLoading: false };
+            if (idx >= 0) {
+              const m = copy[idx];
+              const { reasoning, answer } = parseReasoning(m.content ?? "");
+              const hadTools = (m.toolCalls?.length ?? 0) > 0;
+              const producedNothing =
+                !answer.trim() &&
+                !reasoning.trim() &&
+                !hadTools &&
+                !pendingSwitchAgent;
+              copy[idx] = producedNothing
+                ? {
+                    ...m,
+                    isLoading: false,
+                    isError: true,
+                    content:
+                      "Kody returned no response. The model may not be configured for this repo, or it ended the turn without a reply — try again, or check Chat Models in Settings.",
+                  }
+                : { ...m, isLoading: false };
+            }
             return copy;
           });
           setLoading(false);
@@ -4976,31 +4997,38 @@ export function KodyChat({
                       }
                     />
                   )}
-                  {!msg.content && loading && i === messages.length - 1 ? (
-                    <TypingIndicator label={currentAgent.name} />
-                  ) : (
-                    (() => {
-                      const { reasoning, answer } = parseReasoning(msg.content);
-                      return (
-                        <>
-                          {reasoning && (
-                            <ReasoningPanel
-                              content={reasoning}
-                              isStreaming={!!msg.isLoading}
-                              persistKey={
-                                sessionHook.activeSession?.id && !msg.isLoading
-                                  ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
-                                  : undefined
-                              }
-                            />
-                          )}
+                  {(() => {
+                    const { reasoning, answer } = parseReasoning(msg.content);
+                    const isActive = loading && i === messages.length - 1;
+                    const hasAnswer = answer.trim().length > 0;
+                    return (
+                      <>
+                        {reasoning && (
+                          <ReasoningPanel
+                            content={reasoning}
+                            isStreaming={!!msg.isLoading}
+                            persistKey={
+                              sessionHook.activeSession?.id && !msg.isLoading
+                                ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
+                                : undefined
+                            }
+                          />
+                        )}
+                        {hasAnswer && (
                           <div className="prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words">
                             <ReactMarkdown>{answer}</ReactMarkdown>
                           </div>
-                        </>
-                      );
-                    })()
-                  )}
+                        )}
+                        {/* Never a blank bubble: while the turn is in flight and
+                            no visible answer text has arrived yet, show the
+                            thinking indicator. Covers the reasoning-only /
+                            tool-call phase where content is just <think> blocks. */}
+                        {isActive && !hasAnswer && (
+                          <TypingIndicator label={currentAgent.name} />
+                        )}
+                      </>
+                    );
+                  })()}
                   {/* Draft-mode finalize action: hand this assistant reply back
                       to the caller (JobControl) as the body of a new
                       job. Hidden while the reply is still streaming in. */}
@@ -5030,7 +5058,7 @@ export function KodyChat({
               {loading &&
                 i === messages.length - 1 &&
                 msg.role === "assistant" &&
-                msg.content && (
+                parseReasoning(msg.content).answer.trim() && (
                   <span className="inline-block ml-2 animate-pulse text-primary">
                     ●
                   </span>
