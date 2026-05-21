@@ -38,6 +38,12 @@ interface KodyHeaderProps {
   desktopExtras?: ReactNode;
   /** Optional slot rendered before the mobile hamburger (e.g. Issues button in Vibe). */
   mobileExtras?: ReactNode;
+  /**
+   * Optional desktop-only filter cluster rendered next to the title (the
+   * dashboard folds its FilterBar in here so search/filters share the top
+   * bar instead of a separate sub-row). Vibe leaves it unset.
+   */
+  filterBar?: ReactNode;
 }
 
 export function KodyHeader({
@@ -46,6 +52,7 @@ export function KodyHeader({
   isFetching,
   desktopExtras,
   mobileExtras,
+  filterBar,
 }: KodyHeaderProps) {
   const { connectedRepo } = useGitHubIdentity();
   const {
@@ -64,6 +71,9 @@ export function KodyHeader({
           </h1>
         </div>
         <VibeToggle className="hidden sm:inline-flex" />
+        {filterBar ? (
+          <div className="hidden md:flex items-center gap-3">{filterBar}</div>
+        ) : null}
       </div>
 
       {/* Desktop controls */}

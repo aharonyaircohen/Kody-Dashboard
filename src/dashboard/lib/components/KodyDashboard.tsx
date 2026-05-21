@@ -1345,57 +1345,55 @@ export function KodyDashboard({
                 }}
                 isFetching={isFetching}
                 desktopExtras={
-                  <SimpleTooltip content="Report a Kody bug" side="bottom">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleOpenKodyBug}
-                      aria-label="Report a Kody bug"
-                      className="gap-1"
-                    >
-                      <LifeBuoy className="w-4 h-4" />
-                    </Button>
-                  </SimpleTooltip>
-                }
-              />
-
-              {/* Filter Sub-header — desktop only, separate component */}
-              <div className="hidden md:block">
-                <FilterBar
-                  ref={filterBarRef}
-                  viewMode={viewMode}
-                  onViewModeChange={setViewMode}
-                  dateFilter={dateFilter}
-                  onDateFilterChange={setDateFilter}
-                  statusFilter={statusFilter}
-                  onStatusFilterChange={setStatusFilter}
-                  labelFilter={labelFilter}
-                  onLabelFilterChange={setLabelFilter}
-                  priorityFilter={priorityFilter}
-                  onPriorityFilterChange={setPriorityFilter}
-                  availableLabels={availableLabels}
-                  labelCounts={labelCounts}
-                  statusCounts={statusCounts}
-                  totalCount={totalCount}
-                  runningCount={runningCount}
-                  backlogCount={backlogCount}
-                  queueCount={queueCount}
-                  disableBacklog={taskListLayout === "grouped"}
-                  searchQuery={searchQuery}
-                  onSearchChange={handleSearchChange}
-                  sortField={sortField as SortField}
-                  onSortFieldChange={setSortField}
-                  sortDirection={sortDirection}
-                  onSortDirectionChange={setSortDirection}
-                  rightSlot={
+                  <>
                     <PageActions
                       onOpenBranchCleanup={() => setShowBranchCleanup(true)}
                       onPublished={(n) => setSelectedIssueNumber(n)}
                       actorLogin={githubUser?.login}
                     />
-                  }
-                />
-              </div>
+                    <SimpleTooltip content="Report a Kody bug" side="bottom">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleOpenKodyBug}
+                        aria-label="Report a Kody bug"
+                        className="gap-1"
+                      >
+                        <LifeBuoy className="w-4 h-4" />
+                      </Button>
+                    </SimpleTooltip>
+                  </>
+                }
+                filterBar={
+                  <FilterBar
+                    ref={filterBarRef}
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
+                    dateFilter={dateFilter}
+                    onDateFilterChange={setDateFilter}
+                    statusFilter={statusFilter}
+                    onStatusFilterChange={setStatusFilter}
+                    labelFilter={labelFilter}
+                    onLabelFilterChange={setLabelFilter}
+                    priorityFilter={priorityFilter}
+                    onPriorityFilterChange={setPriorityFilter}
+                    availableLabels={availableLabels}
+                    labelCounts={labelCounts}
+                    statusCounts={statusCounts}
+                    totalCount={totalCount}
+                    runningCount={runningCount}
+                    backlogCount={backlogCount}
+                    queueCount={queueCount}
+                    disableBacklog={taskListLayout === "grouped"}
+                    searchQuery={searchQuery}
+                    onSearchChange={handleSearchChange}
+                    sortField={sortField as SortField}
+                    onSortFieldChange={setSortField}
+                    sortDirection={sortDirection}
+                    onSortDirectionChange={setSortDirection}
+                  />
+                }
+              />
 
               {/* Error banner (rate limit / generic errors — dismissible, stale data still shown) */}
               {errorBannerMessage && (

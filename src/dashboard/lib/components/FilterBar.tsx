@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { forwardRef, useImperativeHandle, useRef, type ReactNode } from "react";
+import { forwardRef, useImperativeHandle, useRef } from "react";
 import { cn } from "../utils";
 import { Search, X } from "lucide-react";
 import type { SortField, SortDirection } from "../types";
@@ -43,8 +43,6 @@ export interface FilterBarProps {
   onSortFieldChange?: (field: SortField) => void;
   sortDirection?: SortDirection;
   onSortDirectionChange?: (direction: SortDirection) => void;
-  /** Right-aligned slot for page-level actions (Jobs, Publish, etc). */
-  rightSlot?: ReactNode;
 }
 
 export interface FilterBarHandle {
@@ -132,7 +130,6 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
       onSortFieldChange,
       sortDirection = "desc",
       onSortDirectionChange,
-      rightSlot,
     },
     ref,
   ) {
@@ -145,7 +142,9 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
     }));
 
     return (
-      <div className="flex items-center gap-3 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-white/[0.02]">
+      // Inline cluster — the host (KodyHeader) owns the row chrome now that the
+      // filter controls live in the merged top bar, not a standalone sub-row.
+      <div className="flex items-center gap-3">
         {/* View toggle — Running / Backlog. Hidden in goal-grouped view where
           all tasks are shown together under their goal sections. */}
         <ViewToggle
@@ -202,9 +201,6 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
           sortDirection={sortDirection}
           onSortDirectionChange={onSortDirectionChange}
         />
-
-        {/* Right-aligned action cluster (Jobs / Publish / Cleanup / Changelog). */}
-        {rightSlot ? <div className="ml-auto">{rightSlot}</div> : null}
       </div>
     );
   },
