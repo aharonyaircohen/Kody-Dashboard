@@ -62,6 +62,13 @@ export function buildMetaLine(
  * Writes the meta line as the only content of the session file. Use at the
  * start of an interactive session — the runner enters its poll loop with an
  * empty turn list and waits for the first user message via append().
+ *
+ * Concurrency: each start commits a (distinct) session file to the same
+ * branch, so two starts firing at once race on the branch HEAD — the loser
+ * gets a 409 ("<path> is at <sha> but expected <sha>"). Without a retry that
+ * surfaces as a 500 to the user (observed when two Vibe runs start together).
+ * We retry on 409 with a small jittered backoff so concurrent starters
+ * desynchronise and both land — same pattern appendUserTurn uses.
  */
 export async function writeSessionMeta(
   octokit: Octokit,
@@ -70,19 +77,38 @@ export async function writeSessionMeta(
   sessionId: string,
   meta: SessionMeta,
   branch: string = DEFAULT_BRANCH,
+  maxRetries = 4,
 ): Promise<void> {
   const path = sessionFilePath(sessionId);
   const content = `${JSON.stringify(meta)}\n`;
-  const sha = await getFileSha(octokit, owner, repo, path, branch);
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path,
-    message: `chat: start interactive session ${sessionId}`,
-    content: Buffer.from(content).toString("base64"),
-    ...(sha ? { sha } : {}),
-    branch,
-  });
+
+  let attempt = 0;
+  while (true) {
+    attempt += 1;
+    // Re-read the sha each attempt: a concurrent start may have created this
+    // exact file (re-run of the same sessionId), and the branch HEAD may have
+    // moved, so a stale sha would just collide again.
+    const sha = await getFileSha(octokit, owner, repo, path, branch);
+    try {
+      await octokit.repos.createOrUpdateFileContents({
+        owner,
+        repo,
+        path,
+        message: `chat: start interactive session ${sessionId}`,
+        content: Buffer.from(content).toString("base64"),
+        ...(sha ? { sha } : {}),
+        branch,
+      });
+      return;
+    } catch (err: unknown) {
+      const e = err as { status?: number };
+      if (e.status === 409 && attempt < maxRetries) {
+        await sleep(100 * attempt + Math.floor(Math.random() * 100));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 /**
@@ -138,6 +164,10 @@ export async function appendUserTurn(
 }
 
 // ─── internals ─────────────────────────────────────────────────────────────
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function getFileSha(
   octokit: Octokit,
