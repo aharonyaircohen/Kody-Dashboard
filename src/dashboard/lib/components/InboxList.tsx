@@ -274,7 +274,8 @@ function Row({
         </div>
       </div>
       {cto && (
-        <div className="mt-2.5 ml-5 flex items-center gap-2">
+        <div className="mt-2.5 ml-5 flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-wider text-amber-300/70">
             CTO · {cto.action === "other" ? "review" : cto.action}
           </span>
@@ -361,6 +362,15 @@ function Row({
                 Dismiss
               </Button>
             </>
+          )}
+          </div>
+          {cto.command && (
+            <code
+              title="The exact comment Approve will post on this task"
+              className="w-fit max-w-full truncate rounded bg-white/[0.04] px-1.5 py-0.5 font-mono text-[11px] text-white/70"
+            >
+              {cto.command}
+            </code>
           )}
         </div>
       )}
