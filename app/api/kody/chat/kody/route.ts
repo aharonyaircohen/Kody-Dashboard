@@ -551,7 +551,17 @@ export async function POST(req: NextRequest) {
       // Vibe-only: pre-create branch + draft PR so Vercel cold-builds in
       // parallel with the runner warmup. Stripped from the tool set when
       // not in vibe mode below (alongside the @kody dispatch tools).
-      ...createVibeTools({ octokit, owner: repo.owner, repo: repo.repo }),
+      // When scoped to a task, bind the hand-off to that issue so a
+      // mis-guessed issueNumber from the model can't mis-target the runner.
+      ...createVibeTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        currentIssueNumber:
+          vibeMode && body.task?.issueNumber != null
+            ? Number(body.task.issueNumber)
+            : undefined,
+      }),
       ...(goalPlannerActive && body.goal
         ? createPlannerTools({
             octokit,
