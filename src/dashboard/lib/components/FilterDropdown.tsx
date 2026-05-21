@@ -108,8 +108,10 @@ export function FilterDropdown({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          aria-label="Filters"
+          title="Filters"
           className={cn(
-            "inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium transition-colors",
+            "relative inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors shrink-0",
             "bg-white/[0.04] border border-white/[0.08] text-muted-foreground",
             "hover:bg-white/[0.06] hover:text-foreground",
             activeCount > 0 &&
@@ -117,9 +119,8 @@ export function FilterDropdown({
           )}
         >
           <Filter className="w-3.5 h-3.5" />
-          <span>Filters</span>
           {activeCount > 0 && (
-            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 text-white text-[10px] font-bold">
+            <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold ring-2 ring-[#0a0a0a]">
               {activeCount}
             </span>
           )}
