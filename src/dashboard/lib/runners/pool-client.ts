@@ -35,10 +35,17 @@ export interface PoolJob {
   jobId: string;
   /** owner/name */
   repo: string;
-  issueNumber: number;
+  /** "issue" (one-shot run, default) | "interactive" (long-lived chat runner). */
+  mode?: "issue" | "interactive";
+  /** Required for issue mode. */
+  issueNumber?: number;
+  /** Required for interactive mode (the chat session id). */
+  sessionId?: string;
+  idleExitMs?: number;
+  hardCapMs?: number;
   ref?: string;
   model?: string;
-  sessionId?: string;
+  /** Event-ingest URL (interactive runner streams chat events here). */
   dashboardUrl?: string;
 }
 

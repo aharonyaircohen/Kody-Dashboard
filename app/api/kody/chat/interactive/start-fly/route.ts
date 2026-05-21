@@ -25,6 +25,7 @@ import {
 import { mintSessionToken } from "@dashboard/lib/chat-token";
 import { spawnRunner } from "@dashboard/lib/runners/fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+import { claimFromPool } from "@dashboard/lib/runners/pool-client";
 
 export const runtime = "nodejs";
 
@@ -112,6 +113,40 @@ export async function POST(req: NextRequest) {
         taskId,
       )}&token=${token}`;
     }
+
+    // Fast path: claim a pre-booted machine from this repo's warm pool and
+    // have it boot the interactive session (~1s wake) instead of cold-starting
+    // a fresh one (~3 min). The pool owner reads the repo's secrets from its
+    // vault, so no token/secrets cross the wire. On any miss (empty pool,
+    // unreachable, repo has no FLY_API_TOKEN) we fall through to create-fresh.
+    const claim = await claimFromPool({
+      jobId: taskId,
+      repo: `${owner}/${repo}`,
+      mode: "interactive",
+      sessionId: taskId,
+      idleExitMs,
+      hardCapMs,
+      dashboardUrl: ingestUrl,
+    });
+    if (claim.ok) {
+      logger.info(
+        { taskId, machineId: claim.machineId, owner, repo },
+        "interactive-fly: claimed warm pool machine",
+      );
+      return NextResponse.json({
+        ok: true,
+        taskId,
+        mode: "interactive",
+        runner: "pool",
+        machineId: claim.machineId,
+        target: { owner, repo, branch: "main", workflow: "fly" },
+      });
+    }
+
+    logger.info(
+      { taskId, owner, repo, poolMiss: claim.reason },
+      "interactive-fly: pool miss — spawning fresh runner",
+    );
 
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
