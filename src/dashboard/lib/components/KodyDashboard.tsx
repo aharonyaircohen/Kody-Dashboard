@@ -1387,64 +1387,12 @@ export function KodyDashboard({
                   onSortFieldChange={setSortField}
                   sortDirection={sortDirection}
                   onSortDirectionChange={setSortDirection}
-                  viewToggles={
-                    <div className="flex items-center gap-1 shrink-0">
-                      {/* View toggle: grouped-by-goal vs. flat task list. The
-                          flat view is the legacy layout — useful when the
-                          user wants every task in one stream regardless of
-                          goal. */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setTaskListLayout(
-                            taskListLayout === "grouped" ? "flat" : "grouped",
-                          )
-                        }
-                        className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                        title={
-                          taskListLayout === "grouped"
-                            ? "Switch to flat task list (hide goals)"
-                            : "Switch to goal-grouped view"
-                        }
-                      >
-                        {taskListLayout === "grouped" ? (
-                          <>
-                            <List className="w-3.5 h-3.5" />
-                            Flat list
-                          </>
-                        ) : (
-                          <>
-                            <Layers className="w-3.5 h-3.5" />
-                            Group by goal
-                          </>
-                        )}
-                      </Button>
-                      {taskListLayout === "grouped" && hasMultipleGoalGroups ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={
-                            allGoalsCollapsed
-                              ? expandAllGoals
-                              : collapseAllGoals
-                          }
-                          className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          {allGoalsCollapsed ? (
-                            <>
-                              <ChevronsUpDown className="w-3.5 h-3.5" />
-                              Expand all
-                            </>
-                          ) : (
-                            <>
-                              <ChevronsDownUp className="w-3.5 h-3.5" />
-                              Collapse all
-                            </>
-                          )}
-                        </Button>
-                      ) : null}
-                    </div>
+                  rightSlot={
+                    <PageActions
+                      onOpenBranchCleanup={() => setShowBranchCleanup(true)}
+                      onPublished={(n) => setSelectedIssueNumber(n)}
+                      actorLogin={githubUser?.login}
+                    />
                   }
                 />
               </div>
@@ -1480,11 +1428,61 @@ export function KodyDashboard({
                 isFetching={isFetching}
                 dataUpdatedAt={dataUpdatedAt}
                 trailing={
-                  <PageActions
-                    onOpenBranchCleanup={() => setShowBranchCleanup(true)}
-                    onPublished={(n) => setSelectedIssueNumber(n)}
-                    actorLogin={githubUser?.login}
-                  />
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* View toggle: grouped-by-goal vs. flat task list. The
+                        flat view is the legacy layout — useful when the
+                        user wants every task in one stream regardless of
+                        goal. */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setTaskListLayout(
+                          taskListLayout === "grouped" ? "flat" : "grouped",
+                        )
+                      }
+                      className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      title={
+                        taskListLayout === "grouped"
+                          ? "Switch to flat task list (hide goals)"
+                          : "Switch to goal-grouped view"
+                      }
+                    >
+                      {taskListLayout === "grouped" ? (
+                        <>
+                          <List className="w-3.5 h-3.5" />
+                          Flat list
+                        </>
+                      ) : (
+                        <>
+                          <Layers className="w-3.5 h-3.5" />
+                          Group by goal
+                        </>
+                      )}
+                    </Button>
+                    {taskListLayout === "grouped" && hasMultipleGoalGroups ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={
+                          allGoalsCollapsed ? expandAllGoals : collapseAllGoals
+                        }
+                        className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        {allGoalsCollapsed ? (
+                          <>
+                            <ChevronsUpDown className="w-3.5 h-3.5" />
+                            Expand all
+                          </>
+                        ) : (
+                          <>
+                            <ChevronsDownUp className="w-3.5 h-3.5" />
+                            Collapse all
+                          </>
+                        )}
+                      </Button>
+                    ) : null}
+                  </div>
                 }
               />
 
