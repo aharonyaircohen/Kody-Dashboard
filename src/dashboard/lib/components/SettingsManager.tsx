@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@dashboard/ui/select";
 import { BrainFlyCard } from "./BrainFlyCard";
+import { LitellmFlyCard } from "./LitellmFlyCard";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PageShell } from "./PageShell";
 import { useAuth, type FlyPerfTier } from "../auth-context";
@@ -348,6 +349,12 @@ export function SettingsManager() {
             </div>
           </CardContent>
         </Card>
+
+        {/* ─── LiteLLM proxy status ───────────────────────────────────── */}
+        <LitellmFlyCard
+          headers={vaultHeaders()}
+          flyTokenConfigured={flyTokenConfigured}
+        />
 
         {/* ─── Brain on Fly toggle ────────────────────────────────────── */}
         <BrainFlyCard
