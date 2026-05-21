@@ -15,6 +15,9 @@ export default defineConfig({
     alias: {
       "@": resolve(__dirname, "./src"),
       "@dashboard": resolve(__dirname, "./src/dashboard"),
+      // `server-only` throws outside an RSC build — stub it so server-only
+      // utilities (vapid-keys, pool-keys) are unit-testable.
+      "server-only": resolve(__dirname, "./tests/stubs/server-only.ts"),
     },
   },
 });

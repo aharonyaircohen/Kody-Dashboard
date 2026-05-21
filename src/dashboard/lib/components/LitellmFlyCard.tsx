@@ -48,6 +48,14 @@ interface StatusResponse {
   error?: string;
 }
 
+interface PoolStatus {
+  min: number;
+  free: number;
+  booting: number;
+  claimsInFlight: number;
+  total: number;
+}
+
 function pillClasses(state: LitellmFlyState): string {
   switch (state) {
     case "running":
@@ -85,6 +93,7 @@ export function LitellmFlyCard({
   const [state, setState] = useState<LitellmFlyState>("unknown");
   const [app, setApp] = useState<string | null>(null);
   const [machineCount, setMachineCount] = useState<number | null>(null);
+  const [pool, setPool] = useState<PoolStatus | null>(null);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -92,19 +101,29 @@ export function LitellmFlyCard({
       setState("off");
       setApp(null);
       setMachineCount(null);
+      setPool(null);
       return;
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/kody/litellm/status", { headers });
-      if (!res.ok) {
+      const [statusRes, poolRes] = await Promise.all([
+        fetch("/api/kody/litellm/status", { headers }),
+        fetch("/api/kody/pool/status", { headers }),
+      ]);
+      if (!statusRes.ok) {
         setState("unknown");
-        return;
+      } else {
+        const body = (await statusRes.json()) as StatusResponse;
+        setState(body.state ?? "unknown");
+        setApp(body.app ?? null);
+        setMachineCount(body.machineCount ?? null);
       }
-      const body = (await res.json()) as StatusResponse;
-      setState(body.state ?? "unknown");
-      setApp(body.app ?? null);
-      setMachineCount(body.machineCount ?? null);
+      if (poolRes.ok) {
+        const body = (await poolRes.json()) as { status: PoolStatus | null };
+        setPool(body.status ?? null);
+      } else {
+        setPool(null);
+      }
     } catch {
       setState("unknown");
     } finally {
@@ -169,6 +188,19 @@ export function LitellmFlyCard({
             {machineCount != null && machineCount > 0
               ? ` · ${machineCount} machine${machineCount === 1 ? "" : "s"}`
               : ""}
+          </div>
+        )}
+        {pool && (
+          <div className="flex items-center gap-3 pt-1 border-t border-white/[0.06] text-[11px]">
+            <span className="text-white/50 font-medium">Warm pool</span>
+            <span className="text-emerald-300/90">{pool.free} ready</span>
+            {pool.booting > 0 && (
+              <span className="text-amber-300/80">{pool.booting} warming</span>
+            )}
+            {pool.claimsInFlight > 0 && (
+              <span className="text-sky-300/80">{pool.claimsInFlight} claiming</span>
+            )}
+            <span className="text-white/35 ml-auto">target {pool.min}</span>
           </div>
         )}
       </CardContent>
