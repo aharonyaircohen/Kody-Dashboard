@@ -98,7 +98,21 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
     let streamCompletions = 0;
     await page.route("**/api/kody/chat/kody", async (route: Route) => {
       const turn = streamCompletions + 1;
-      log(`STREAM#${turn} start`);
+      // Did this turn carry the current-issue scope to the server? If not,
+      // the server can't bind the hand-off to the right issue.
+      let reqTask: unknown = null;
+      let reqVibe: unknown = undefined;
+      try {
+        const rb = route.request().postDataJSON() as {
+          task?: { issueNumber?: number };
+          vibeMode?: boolean;
+        };
+        reqTask = rb?.task ? { issueNumber: rb.task.issueNumber } : null;
+        reqVibe = rb?.vibeMode;
+      } catch {
+        /* non-JSON */
+      }
+      log(`STREAM#${turn} start REQ task=${JSON.stringify(reqTask)} vibeMode=${reqVibe}`);
       let resp;
       try {
         resp = await page.request.fetch(route.request(), { timeout: 600_000 });
@@ -209,6 +223,22 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
       body: await page.screenshot({ fullPage: false }),
       contentType: "image/png",
     });
+
+    // Diagnostic: poll for up to 25s for the composer to enter task scope
+    // (placeholder flips to "Ask about task #N..."). Tells us whether the
+    // scope flip is merely slow (timing) or never happens (structural).
+    let placeholderAtT2 = "";
+    for (let i = 0; i < 13; i++) {
+      placeholderAtT2 =
+        (await page
+          .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
+          .first()
+          .getAttribute("placeholder")
+          .catch(() => "")) ?? "";
+      if (/task #\d+/i.test(placeholderAtT2)) break;
+      await page.waitForTimeout(2_000);
+    }
+    log(`composer placeholder before TURN 2 (after polling): "${placeholderAtT2}"`);
 
     // TURN 2 — approve execution while ALREADY scoped to issue N. THIS is
     // where the user reports the session vanishing and nothing happening.
