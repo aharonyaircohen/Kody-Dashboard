@@ -1659,6 +1659,36 @@ export const messagesApi = {
   },
 };
 
+// ============ Kody bug reports (filed into the dashboard's own repo) ============
+
+export interface KodyBugReportInput {
+  title: string;
+  area: string;
+  severity: string;
+  whatHappened: string;
+  steps?: string;
+  expected?: string;
+  where?: string;
+  reporterLogin?: string;
+  diagnostics?: Record<string, string | undefined>;
+}
+
+export interface KodyBugReportResult {
+  success: boolean;
+  issue: { number: number; title: string; html_url: string };
+}
+
+export const kodyBugsApi = {
+  report: async (data: KodyBugReportInput): Promise<KodyBugReportResult> => {
+    const res = await fetch(`${API_BASE}/report-kody-bug`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse(res);
+  },
+};
+
 // ============ Combined API ============
 
 export const kodyApi = {
@@ -1680,4 +1710,5 @@ export const kodyApi = {
   vibe: vibeApi,
   cto: ctoApi,
   activity: activityApi,
+  kodyBugs: kodyBugsApi,
 };

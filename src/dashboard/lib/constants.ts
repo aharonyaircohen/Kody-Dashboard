@@ -88,6 +88,36 @@ export const GITHUB_OWNER = process.env.GITHUB_OWNER?.trim() ?? "";
 export const GITHUB_REPO = process.env.GITHUB_REPO?.trim() ?? "";
 
 /**
+ * Where "report a Kody bug" issues are filed — the dashboard's OWN public
+ * repo, NOT the consumer's connected repo. Hardcoded (not env) to keep the
+ * env-var surface tiny; forks point this at their own repo. Any logged-in
+ * GitHub user can open an issue on a public repo, so the reporter's own PAT
+ * works without them being a collaborator.
+ */
+export const KODY_REPORT_TARGET = {
+  owner: "aharonyaircohen",
+  repo: "Kody-Dashboard",
+} as const;
+
+/** Components a Kody bug can be attributed to (becomes an `area:*` label). */
+export const KODY_BUG_AREAS = [
+  "dashboard",
+  "engine",
+  "chat",
+  "runners",
+  "other",
+] as const;
+export type KodyBugArea = (typeof KODY_BUG_AREAS)[number];
+
+/** Severity for a Kody bug (becomes a `severity:*` label). */
+export const KODY_BUG_SEVERITIES = [
+  "blocker",
+  "major",
+  "minor",
+] as const;
+export type KodyBugSeverity = (typeof KODY_BUG_SEVERITIES)[number];
+
+/**
  * Read the connected repo from localStorage kody_auth.
  * Falls back to GITHUB_OWNER/GITHUB_REPO env vars if not set.
  */

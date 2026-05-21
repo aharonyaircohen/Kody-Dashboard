@@ -21,6 +21,7 @@ import type { Goal } from "../api";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { EditTaskDialog } from "./EditTaskDialog";
 import { BugReportDialog } from "./BugReportDialog";
+import { KodyBugReportDialog } from "./KodyBugReportDialog";
 import { KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
 import { BranchCleanupDialog } from "./BranchCleanupDialog";
 import { PublishButton } from "./PublishButton";
@@ -54,6 +55,7 @@ import {
 import {
   MessageSquare,
   Bug,
+  LifeBuoy,
   Menu,
   RefreshCw,
   AlertCircle,
@@ -111,7 +113,7 @@ import { PRIORITY_LEVELS, PRIORITY_META } from "../constants";
 
 interface KodyDashboardProps {
   initialIssueNumber?: number;
-  initialModal?: "new" | "bug" | "chat";
+  initialModal?: "new" | "bug" | "chat" | "kody-bug";
 }
 
 export function KodyDashboard({
@@ -127,6 +129,7 @@ export function KodyDashboard({
   );
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showBugDialog, setShowBugDialog] = useState(false);
+  const [showKodyBugDialog, setShowKodyBugDialog] = useState(false);
   const [editingTask, setEditingTask] = useState<KodyTask | null>(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
@@ -227,7 +230,9 @@ export function KodyDashboard({
     // (/new, /bug). The modal owns the foreground; background list will
     // refresh on close via invalidation.
     refetchInterval:
-      selectedIssueNumber || showCreateDialog || showBugDialog ? false : "auto",
+      selectedIssueNumber || showCreateDialog || showBugDialog || showKodyBugDialog
+        ? false
+        : "auto",
   });
 
   // Default-branch CI roll-up — banner uses this as its primary signal so
@@ -691,6 +696,7 @@ export function KodyDashboard({
       showCreateDialog ||
       !!editingTask ||
       showBugDialog ||
+      showKodyBugDialog ||
       showBranchCleanup ||
       showPreview ||
       showShortcutsHelp ||
@@ -789,10 +795,11 @@ export function KodyDashboard({
   const isPreviewUrl = () => /\/\d+\/preview/.test(window.location.pathname);
 
   // Helper: detect modal route from URL
-  const getModalFromUrl = (): "new" | "bug" | "chat" | null => {
+  const getModalFromUrl = (): "new" | "bug" | "chat" | "kody-bug" | null => {
     const path = window.location.pathname;
     if (path === "/new") return "new";
     if (path === "/bug") return "bug";
+    if (path === "/report-kody-bug") return "kody-bug";
     if (path === "/chat") return "chat";
     return null;
   };
@@ -898,6 +905,16 @@ export function KodyDashboard({
     pushKodyBase();
   }, []);
 
+  const handleOpenKodyBug = useCallback(() => {
+    setShowKodyBugDialog(true);
+    window.history.pushState(null, "", "/report-kody-bug");
+  }, []);
+
+  const handleCloseKodyBug = useCallback(() => {
+    setShowKodyBugDialog(false);
+    pushKodyBase();
+  }, []);
+
   const handleReportBugInGoal = useCallback((goal: Goal | null) => {
     setPresetGoalForBug(goal);
     setShowBugDialog(true);
@@ -947,6 +964,7 @@ export function KodyDashboard({
       if (modal) {
         if (modal === "new") setShowCreateDialog(true);
         else if (modal === "bug") setShowBugDialog(true);
+        else if (modal === "kody-bug") setShowKodyBugDialog(true);
         else if (modal === "chat") openMobileChat();
         return;
       }
@@ -982,6 +1000,7 @@ export function KodyDashboard({
       // Close all modals first
       setShowCreateDialog(false);
       setShowBugDialog(false);
+      setShowKodyBugDialog(false);
       setShowPreview(false);
 
       // Check for modal routes
@@ -989,6 +1008,7 @@ export function KodyDashboard({
       if (modal) {
         if (modal === "new") setShowCreateDialog(true);
         else if (modal === "bug") setShowBugDialog(true);
+        else if (modal === "kody-bug") setShowKodyBugDialog(true);
         else if (modal === "chat") openMobileChat();
         return;
       }
@@ -1705,6 +1725,17 @@ export function KodyDashboard({
                     <Bug className="w-4 h-4 text-muted-foreground" />
                     Report Bug
                   </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2 h-11"
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      handleOpenKodyBug();
+                    }}
+                  >
+                    <LifeBuoy className="w-4 h-4 text-muted-foreground" />
+                    Report a Kody bug
+                  </Button>
                 </div>
               </div>
             </>
@@ -1796,6 +1827,12 @@ export function KodyDashboard({
           presetLabels={
             presetGoalForBug ? [`goal:${presetGoalForBug.id}`] : undefined
           }
+        />
+
+        {/* Kody Bug Report Dialog — files into the Kody repo, not the connected one */}
+        <KodyBugReportDialog
+          open={showKodyBugDialog}
+          onClose={handleCloseKodyBug}
         />
 
         {/* Keyboard Shortcuts Dialog */}
