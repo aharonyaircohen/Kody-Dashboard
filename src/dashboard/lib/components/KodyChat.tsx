@@ -489,6 +489,10 @@ import {
   clearTaskChatLocal,
 } from "../task-chat-local";
 import {
+  pickVibeRequestIssueNumber,
+  type RecentVibeIssue,
+} from "../vibe/recent-issue";
+import {
   loadJobChatLocal,
   saveJobChatLocal,
   clearJobChatLocal,
@@ -1191,6 +1195,12 @@ export function KodyChat({
   // a post-dispatch read in the same tick sees the new value.
   const interactiveSessionIdRef = useRef<string | null>(null);
   const interactiveStateRef = useRef<LivePhase>("idle");
+  // The vibe issue this chat JUST created (set in the issue-creation transfer
+  // below). Used to scope the immediately-following turns to that issue while
+  // the page's task scope (context.kind === "task") catches up — without it,
+  // the turn right after creation carries no issue and the server can't bind
+  // the runner hand-off to the right one. See lib/vibe/recent-issue.ts.
+  const recentVibeIssueRef = useRef<RecentVibeIssue | null>(null);
   const interactiveTargetRef = useRef<{ owner: string; repo: string } | null>(
     null,
   );
@@ -2907,7 +2917,18 @@ export function KodyChat({
                   }
                 : undefined,
             }
-          : undefined;
+          : // Bridge: if we JUST created a vibe issue but the task scope hasn't
+            // propagated yet, still scope this turn to that issue so the server
+            // can bind the hand-off (and strip create tools) correctly.
+            (() => {
+              const bridged = pickVibeRequestIssueNumber({
+                selectedTaskIssueNumber: null,
+                vibeMode: vibeMode === true,
+                recent: recentVibeIssueRef.current,
+                nowMs: Date.now(),
+              });
+              return bridged != null ? { issueNumber: bridged } : undefined;
+            })();
 
         // Build the user-turn content. If we have attachments, send them as
         // structured parts (text + image) so the model sees real images,
@@ -3412,6 +3433,13 @@ export function KodyChat({
             flushSync(() => {
               setMessages(() => []);
             });
+            // Remember the just-created issue so the NEXT turn(s) scope to it
+            // even if the page's task-scope flip hasn't propagated yet (the
+            // "turn 2 carries no issue → wrong hand-off" bug).
+            recentVibeIssueRef.current = {
+              issueNumber: newIssueNumber,
+              at: Date.now(),
+            };
             try {
               onIssueCreated(newIssueNumber);
             } catch {
