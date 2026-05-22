@@ -24,6 +24,7 @@ import {
   type BrainDutyContext,
   type BrainTaskContext,
 } from "@dashboard/lib/brain-proxy";
+import { withPageContext } from "@dashboard/lib/chat/page-context";
 
 export const runtime = "nodejs";
 // Hold the proxy open up to Vercel's ceiling; the proxy itself closes ~30s
@@ -60,6 +61,8 @@ export async function POST(req: NextRequest) {
     voiceMode?: boolean;
     resumeSince?: number;
     resumeText?: string;
+    /** Noun phrase for the page the user is viewing (see page-context.ts). */
+    currentPage?: string;
   };
   try {
     body = await req.json();
@@ -93,7 +96,9 @@ export async function POST(req: NextRequest) {
     brainUrl,
     brainKey,
     chatId,
-    message: message ?? "",
+    // Brain has no ambient-context slot; prefix the page onto the user
+    // message (skip on resume, which carries no new message).
+    message: isResume ? "" : withPageContext(message ?? "", body.currentPage),
     taskContext: body.taskContext,
     attachments: body.attachments,
     dutyDraft: body.dutyDraft,

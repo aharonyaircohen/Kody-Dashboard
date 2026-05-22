@@ -28,6 +28,7 @@ import {
   applyVibePrimerToContent,
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
+import { withPageContext } from "@dashboard/lib/chat/page-context";
 
 export const runtime = "nodejs";
 
@@ -56,6 +57,8 @@ export async function POST(req: NextRequest) {
     timestamp?: string;
     vibeMode?: boolean;
     taskContext?: VibeTaskContext;
+    /** Noun phrase for the page the user is viewing (see page-context.ts). */
+    currentPage?: string;
   };
   try {
     body = await req.json();
@@ -63,7 +66,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { taskId, content, timestamp, vibeMode, taskContext } = body;
+  const { taskId, content, timestamp, vibeMode, taskContext, currentPage } =
+    body;
   if (!taskId)
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
   if (!content || typeof content !== "string") {
@@ -82,9 +86,12 @@ export async function POST(req: NextRequest) {
   // Vibe primer is server-only — the dashboard never shows it. The
   // long-lived runner reads each user turn from the session JSONL on
   // its next pull, so the primer must travel with the turn content.
-  const effectiveContent = vibeMode
-    ? applyVibePrimerToContent(content, taskContext)
-    : content;
+  // Page context rides along the same way: the runner has no system slot
+  // for "what page is the user on", so it goes in the turn.
+  const effectiveContent = withPageContext(
+    vibeMode ? applyVibePrimerToContent(content, taskContext) : content,
+    currentPage,
+  );
 
   try {
     const turnTimestamp = timestamp ?? new Date().toISOString();

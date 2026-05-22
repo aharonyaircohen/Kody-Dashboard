@@ -328,6 +328,12 @@ export async function POST(req: NextRequest) {
     /** Currently-viewed report on /reports — scopes the chat to advise on it. */
     report?: { slug: string; title: string; body: string };
     /**
+     * The dashboard page the user is currently viewing, as a noun phrase
+     * (e.g. "the Variables page (/variables)"). Surfaced as a `## Current
+     * page` system section so "what am I looking at?" resolves.
+     */
+    currentPage?: string;
+    /**
      * Which agent persona to use for the system prompt. Defaults to `kody`.
      * Any agent whose backend is `kody-direct` is served natively here;
      * agents whose backend is the engine, brain, or kody-live don't have
@@ -482,6 +488,7 @@ export async function POST(req: NextRequest) {
       goalPlanner: goalPlannerActive,
       goal: goalPlannerActive ? body.goal : undefined,
       report: body.report,
+      currentPage: body.currentPage,
       memoryIndex,
       vibeMode,
       flyConfigured,

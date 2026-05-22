@@ -30,6 +30,7 @@ import {
   applyVibePrimerToMessages,
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
+import { applyPageContextToLastUser } from "@dashboard/lib/chat/page-context";
 import { Buffer } from "buffer";
 
 export const runtime = "nodejs";
@@ -89,6 +90,8 @@ export async function POST(req: NextRequest) {
     dashboardUrl?: string;
     vibeMode?: boolean;
     taskContext?: VibeTaskContext;
+    /** Noun phrase for the page the user is viewing (see page-context.ts). */
+    currentPage?: string;
   };
   try {
     body = await req.json();
@@ -102,10 +105,16 @@ export async function POST(req: NextRequest) {
     dashboardUrl,
     vibeMode,
     taskContext,
+    currentPage,
   } = body;
-  const messages = vibeMode
+  const primedMessages = vibeMode
     ? applyVibePrimerToMessages(rawMessages, taskContext)
     : rawMessages;
+  // The engine has no system slot for ambient context — it replies to the
+  // latest user turn using the JSONL as history. So prefix the page context
+  // onto that turn (immutably). Only the current turn carries it; prior turns
+  // stay clean, and it re-derives as the user navigates.
+  const messages = applyPageContextToLastUser(primedMessages, currentPage);
 
   if (!taskId) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });

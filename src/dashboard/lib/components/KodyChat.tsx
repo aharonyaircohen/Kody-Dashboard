@@ -663,8 +663,21 @@ export function KodyChat({
   knownGoals,
   onDirectToGoal,
 }: KodyChatProps) {
-  // Current route — drives the page-aware composer placeholder.
+  // Current route — drives the page-aware composer placeholder AND tells the
+  // model which dashboard page the user is looking at ("what am I viewing?").
   const pathname = usePathname();
+  const pageLabel = navLabelForPath(pathname);
+  // Noun phrase passed to the backends. The client owns nav labels; each
+  // route owns how it frames this (system section vs. user-turn prefix).
+  const currentPage = pathname
+    ? pageLabel
+      ? `the ${pageLabel} page (${pathname})`
+      : `the page at ${pathname}`
+    : null;
+  // Read at send-time from inside send callbacks (which may close over a stale
+  // render), so a ref always reflects the page the user is on right now.
+  const currentPageRef = useRef<string | null>(currentPage);
+  currentPageRef.current = currentPage;
   // Context-kind derivations.
   const selectedTask: KodyTask | null =
     context?.kind === "task" ? context.task : null;
@@ -2522,6 +2535,11 @@ export function KodyChat({
                   : {
                       chatId: brainChatId,
                       message: messageContent,
+                      // Brain has no ambient-context slot either; the route
+                      // prefixes this onto the forwarded user message.
+                      ...(currentPageRef.current
+                        ? { currentPage: currentPageRef.current }
+                        : {}),
                       ...(taskContext ? { taskContext } : {}),
                       ...(selectedDuty
                         ? {
@@ -2875,6 +2893,11 @@ export function KodyChat({
               // so a stale value falls back to the configured default.
               ...(selectedModelId ? { model: selectedModelId } : {}),
               ...(actorLogin ? { actorLogin } : {}),
+              // The dashboard page the user is on, so "what am I viewing?"
+              // resolves. Surfaced as a `## Current page` system section.
+              ...(currentPageRef.current
+                ? { currentPage: currentPageRef.current }
+                : {}),
               ...(isDraftMode ? { dutyDraft: true } : {}),
               ...(selectedDuty
                 ? {
@@ -3482,6 +3505,11 @@ export function KodyChat({
               taskId: liveSessionId,
               content: liveUserContent,
               timestamp,
+              // Same as the trigger path: the live runner reads the turn from
+              // the session JSONL, so page context travels in the turn.
+              ...(currentPageRef.current
+                ? { currentPage: currentPageRef.current }
+                : {}),
               ...(vibeMode ? { vibeMode: true } : {}),
               ...(vibeMode && context?.kind === "task"
                 ? {
@@ -3562,6 +3590,11 @@ export function KodyChat({
               typeof window !== "undefined"
                 ? window.location.origin
                 : undefined,
+            // Engine has no system slot for ambient context; the route
+            // prefixes this onto the latest user turn the engine reads.
+            ...(currentPageRef.current
+              ? { currentPage: currentPageRef.current }
+              : {}),
             ...(vibeMode ? { vibeMode: true } : {}),
             ...(vibeMode && context?.kind === "task"
               ? {
@@ -4348,7 +4381,7 @@ export function KodyChat({
   // Generate placeholder based on mode. The generic (non-task/duty/draft)
   // case is page-aware: on any sidebar page, hint that Kody can answer about
   // that page — Kody knows every dashboard concept, not just duties/tasks.
-  const pageLabel = navLabelForPath(pathname);
+  // `pageLabel` is derived once at the top of the component.
   const genericPlaceholder = pageLabel
     ? `Ask Kody about ${pageLabel}...`
     : `Ask Kody about any page, duty, or feature...`;

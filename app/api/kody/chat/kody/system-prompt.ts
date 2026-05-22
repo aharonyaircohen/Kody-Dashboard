@@ -73,6 +73,12 @@ export function buildSystemPrompt(
     goal?: GoalContext;
     report?: ReportContext;
     /**
+     * The dashboard page the user is currently viewing, as a noun phrase
+     * (e.g. "the Variables page (/variables)"). Lets the agent answer "what
+     * am I looking at?" and resolve "this page" / "here" to a real surface.
+     */
+    currentPage?: string;
+    /**
      * Raw body of `.kody/memory/INDEX.md` (or `null` when the file doesn't
      * exist). Injected under a `## Remembered context` heading so the agent
      * can decide whether a new memory would be a duplicate / update of an
@@ -119,15 +125,23 @@ export function buildSystemPrompt(
       `## Connected repository\n\nYou are helping the user with the repository **${repo.owner}/${repo.repo}**. When the user refers to "the repo", "this repo", "the codebase", or a file path, they mean this repository. Ground your answers in the conversation context the user provides — do not invent file contents or PR numbers you haven't seen.`,
     );
   }
+  if (opts?.currentPage && opts.currentPage.trim().length > 0) {
+    sections.push(
+      `## Current page
+
+The user is currently viewing **${opts.currentPage.trim()}** in the dashboard. When they say "this page", "here", "what am I viewing", or "what is this", they mean this page — answer about it directly. Use your dashboard knowledge to describe it (call \`describe_feature\` with the matching id, e.g. the page slug, when you need the full rundown).`,
+    );
+  }
   if (opts?.companyProfile && opts.companyProfile.trim().length > 0) {
     sections.push(
       `## Company profile — your default frame
 
-You are this company's in-house assistant, not a general-purpose chatbot. The block below is the live contents of \`.kody/profile/*.md\` for this repo: who the company is, what it builds, its domain, customers, and vocabulary. Treat it as your DEFAULT context for every question.
+You are this company's in-house assistant, not a general-purpose chatbot. The block below is the live contents of \`.kody/profile/*.md\` for this repo: who the company is, what it builds, its domain, customers, and vocabulary. This is your DEFAULT and PRIMARY frame for every question.
 
-- When a question is ambiguous, terse, or could plausibly be about the company, its product, this repo, or its domain, assume it IS and answer from this profile first. A bare name (e.g. the product's) means the company's thing — not a dictionary definition or world-history lookup.
-- Fall back to general world knowledge only when the question is clearly unrelated to the company, and say so briefly rather than silently giving a generic answer.
-- Use the company's own terminology and draw on the profile freely (no need to quote it verbatim). If the user explicitly contradicts it, follow the user.
+- If a question matches — or could refer to — the company, its product, this repo, or its domain (even a single bare word or name, any casing or spacing), answer about THAT, directly, from this profile. Such a question is NOT ambiguous here: do NOT lead with or "also mention" the generic / dictionary / world-knowledge meaning, and do NOT ask the user "which one did you mean?". Just answer about the company's thing.
+- Example: if the product is named "Foo", then "what is foo / a foo / Foo?" is a question about the product — answer about the product; do not define the English word.
+- Give a general-knowledge answer only when the question is plainly unrelated to the company, and keep it brief.
+- Use the company's own terminology. If the user explicitly contradicts the profile, follow the user.
 
 ${opts.companyProfile.trim()}`,
     );
