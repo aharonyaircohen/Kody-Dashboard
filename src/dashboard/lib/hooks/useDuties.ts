@@ -60,6 +60,7 @@ export function useCreateDuty(actorLogin?: string) {
       schedule?: DutySchedule | null;
       disabled?: boolean;
       staff?: string | null;
+      mentions?: string[];
     }
   >({
     mutationFn: (data) =>
@@ -89,6 +90,7 @@ export function useUpdateDuty(slug: string, actorLogin?: string) {
       schedule?: DutySchedule | null;
       disabled?: boolean;
       staff?: string | null;
+      mentions?: string[];
     }
   >({
     mutationFn: (data) =>

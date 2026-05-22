@@ -73,8 +73,19 @@ const createDutySchema = z.object({
     .optional(),
   disabled: z.boolean().optional(),
   staff: z.string().min(1).nullable().optional(),
+  mentions: z.array(z.string()).optional(),
   actorLogin: z.string().optional(),
 });
+
+/**
+ * Clean a client-supplied mentions list before it hits the frontmatter
+ * serializer: drop a leading `@`, trim whitespace, drop empties. Keeps the
+ * stored `mentions:` line in the exact format the engine expects.
+ */
+function normalizeMentions(mentions?: string[]): string[] {
+  if (!mentions) return [];
+  return mentions.map((m) => m.trim().replace(/^@/, "")).filter((m) => m.length > 0);
+}
 
 function slugifyTitle(title: string): string {
   return title
@@ -103,6 +114,7 @@ export async function POST(req: NextRequest) {
       schedule,
       disabled,
       staff,
+      mentions,
       actorLogin,
     } = createDutySchema.parse(payload);
 
@@ -148,6 +160,7 @@ export async function POST(req: NextRequest) {
       schedule: schedule ?? null,
       disabled: disabled === true,
       staff: staff ?? null,
+      mentions: normalizeMentions(mentions),
     });
 
     return NextResponse.json({ duty });

@@ -64,6 +64,29 @@ describe("splitFrontmatter", () => {
     expect(splitFrontmatter("---\nstaff: \"my-bot\"\n---\nx").frontmatter.staff).toBe("my-bot");
     expect(splitFrontmatter("---\nstaff: 'my-bot'\n---\nx").frontmatter.staff).toBe("my-bot");
   });
+
+  it("parses mentions as a comma-separated login list", () => {
+    expect(
+      splitFrontmatter("---\nmentions: aguyaharonyair, alice\n---\nx").frontmatter
+        .mentions,
+    ).toEqual(["aguyaharonyair", "alice"]);
+  });
+
+  it("strips a leading @ and trims each mention", () => {
+    expect(
+      splitFrontmatter("---\nmentions: @alice ,  @bob\n---\nx").frontmatter
+        .mentions,
+    ).toEqual(["alice", "bob"]);
+  });
+
+  it("drops empty mention slots and omits the field when none remain", () => {
+    expect(
+      splitFrontmatter("---\nmentions: alice,, ,\n---\nx").frontmatter.mentions,
+    ).toEqual(["alice"]);
+    expect(
+      splitFrontmatter("---\nmentions:   ,  \n---\nx").frontmatter.mentions,
+    ).toBeUndefined();
+  });
 });
 
 describe("joinFrontmatter", () => {
@@ -81,8 +104,32 @@ describe("joinFrontmatter", () => {
     expect(joinFrontmatter({ disabled: true }, "body")).toContain("disabled: true");
   });
 
+  it("emits mentions as a comma-joined line after staff, no @", () => {
+    const fm: TickFrontmatter = { staff: "bot", mentions: ["alice", "bob"] };
+    expect(joinFrontmatter(fm, "body")).toBe(
+      "---\nstaff: bot\nmentions: alice, bob\n---\n\nbody",
+    );
+  });
+
+  it("omits the mentions line when the array is empty", () => {
+    expect(joinFrontmatter({ mentions: [] }, "body")).toBe("body");
+    expect(joinFrontmatter({ every: "1h", mentions: [] }, "body")).toBe(
+      "---\nevery: 1h\n---\n\nbody",
+    );
+  });
+
   it("round-trips through splitFrontmatter", () => {
     const fm: TickFrontmatter = { every: "7d", staff: "weekly", disabled: true };
+    const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
+    expect(frontmatter).toEqual(fm);
+  });
+
+  it("round-trips mentions through splitFrontmatter", () => {
+    const fm: TickFrontmatter = {
+      every: "1d",
+      staff: "weekly",
+      mentions: ["alice", "bob"],
+    };
     const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
     expect(frontmatter).toEqual(fm);
   });
