@@ -9,9 +9,9 @@
  *   the company.
  *
  *   Each file may carry a tiny YAML frontmatter block with a single
- *   `for:` field (`chat` | `qa` | `all`) — the consumer scope that
- *   decides who loads the section. Legacy files have NO frontmatter; they
- *   default to `chat` so existing data keeps flowing to the chat prompt
+ *   `audience:` field — an inline list (`[chat, qa]`) of the consumers
+ *   that load the section. Legacy files have NO frontmatter; they
+ *   default to `[chat]` so existing data keeps flowing to the chat prompt
  *   unchanged (see `profile/frontmatter.ts`).
  *
  *   The chat-scoped bodies are injected into the kody-direct chat
@@ -30,7 +30,7 @@ import { getOctokit, getOwner, getRepo } from "../github-client";
 import {
   splitProfileFrontmatter,
   joinProfileFrontmatter,
-  type ProfileScope,
+  type ProfileAudience,
 } from "./frontmatter";
 
 const PROFILE_DIR = ".kody/profile";
@@ -44,10 +44,10 @@ export interface ProfileFile {
    */
   body: string;
   /**
-   * Consumer scope from `for:` frontmatter. `chat` (default for legacy
-   * frontmatter-less files), `qa`, or `all`.
+   * Consumers from `audience:` frontmatter. Defaults to `["chat"]` for
+   * legacy frontmatter-less files. Always non-empty.
    */
-  for: ProfileScope;
+  audience: ProfileAudience[];
   /** Git blob sha. Required for update/delete. */
   sha: string;
   /** Last commit timestamp affecting this file. */
@@ -150,7 +150,7 @@ export async function listProfileFiles(): Promise<ProfileFile[]> {
         return {
           slug,
           body: body.replace(/^\s+/, ""),
-          for: frontmatter.for,
+          audience: frontmatter.audience,
           sha,
           updatedAt,
           htmlUrl: buildHtmlUrl(slug, branch),
@@ -193,7 +193,7 @@ export async function readProfileFile(
     return {
       slug,
       body: body.replace(/^\s+/, ""),
-      for: frontmatter.for,
+      audience: frontmatter.audience,
       sha: data.sha,
       updatedAt,
       htmlUrl: buildHtmlUrl(slug, branch),
@@ -207,10 +207,10 @@ export async function readProfileFile(
 interface WriteOptions {
   octokit: Octokit;
   slug: string;
-  /** Section markdown (frontmatter-free); the `for:` block is re-attached here. */
+  /** Section markdown (frontmatter-free); the `audience:` block is re-attached here. */
   body: string;
-  /** Consumer scope persisted in `for:` frontmatter. */
-  for: ProfileScope;
+  /** Consumers persisted in `audience:` frontmatter (inline list). */
+  audience: ProfileAudience[];
   sha?: string;
   message?: string;
 }
@@ -225,7 +225,7 @@ export async function writeProfileFile(
   }
   const filePath = `${PROFILE_DIR}/${opts.slug}.md`;
   const withFrontmatter = joinProfileFrontmatter(
-    { for: opts.for },
+    { audience: opts.audience },
     opts.body,
   );
   const content = withFrontmatter.endsWith("\n")
@@ -290,11 +290,11 @@ function cacheKey(): string {
 }
 
 /**
- * Concatenate the chat-scoped profile files into a single markdown block
- * for the chat system prompt, each section prefixed with its slug as a
- * `###` heading. Only sections whose `for` is `chat` or `all` are
+ * Concatenate the chat-audience profile files into a single markdown
+ * block for the chat system prompt, each section prefixed with its slug
+ * as a `###` heading. Only sections whose `audience` includes `chat` are
  * included — `qa`-only sections are skipped so they never reach the chat
- * prompt. Returns `null` when no chat-scoped sections exist. 60s
+ * prompt. Returns `null` when no chat-audience sections exist. 60s
  * in-process cache (same TTL as the instructions loader); callers treat
  * `null` as "no profile".
  */
@@ -306,7 +306,7 @@ export async function loadProfileForPrompt(): Promise<string | null> {
   }
   const files = await listProfileFiles();
   const prompt = files
-    .filter((f) => f.for === "chat" || f.for === "all")
+    .filter((f) => f.audience.includes("chat"))
     .map((f) => `### ${f.slug}\n\n${f.body.trim()}`)
     .join("\n\n")
     .trim();
