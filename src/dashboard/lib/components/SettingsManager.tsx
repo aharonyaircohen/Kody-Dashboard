@@ -33,6 +33,7 @@ import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { DefaultChatCard } from "./DefaultChatCard";
 import { PageShell } from "./PageShell";
 import { useAuth } from "../auth-context";
 
@@ -122,6 +123,9 @@ export function SettingsManager() {
         {/* ═══ Chat & integrations ══════════════════════════════════════ */}
         <section className="space-y-3">
           <SectionHeader icon={MessageSquare} label="Chat & integrations" />
+
+          {/* Default chat (which assistant loads on open) */}
+          <DefaultChatCard />
 
           {/* Brain server */}
           <Card className="border-white/[0.08] bg-white/[0.03]">

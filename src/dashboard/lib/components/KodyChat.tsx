@@ -23,94 +23,13 @@ import {
   CheckCircle2,
   Loader2,
   ChevronDown,
-  Star,
   PanelLeftClose,
   Maximize2,
   Minimize2,
 } from "lucide-react";
-import { AGENT_KODY, AGENTS, type AgentId, type AgentConfig } from "../agents";
-
-/**
- * Dropdown entry shape. `key` is a stable React key and a selection token
- * combining agent id + optional gateway model id. Static agents (kody-live,
- * brain) have `modelId: null`; user-managed gateway models share the
- * agentId `kody` and supply their own `modelId`.
- */
-export interface ChatDropdownEntry {
-  key: string;
-  agentId: AgentId;
-  modelId: string | null;
-  name: string;
-  description: string;
-  icon: AgentConfig["icon"];
-}
-
-export interface ChatModelEntry {
-  id: string;
-  label: string;
-  enabled?: boolean;
-  speech?: boolean;
-  default?: boolean;
-}
-
-function buildAgentList(
-  brainConfigured: boolean,
-  flyConfigured: boolean,
-  brainFlyChatEnabled: boolean,
-  models: ChatModelEntry[],
-): ChatDropdownEntry[] {
-  const entries: ChatDropdownEntry[] = []
-  // Live is intentionally absent from the chat picker. It still exists as
-  // the vibe execution backend (see vibe_start_execution → switch_agent
-  // directive), but users don't pick it manually — the runner choice is
-  // derived from Settings → Fly Runner (Fly token present → kody-live-fly,
-  // else kody-live). Keeping it out of the picker removes the confusion
-  // between Brain (chat) and Live (action).
-  // Brain row: offer Brain on Fly only when the repo has FLY_API_TOKEN
-  // *and* the per-repo `brainFlyChatEnabled` toggle is on (Settings →
-  // Brain on Fly, default off). Fly task *execution* is independent and
-  // still keys off FLY_API_TOKEN alone — this flag is chat-only.
-  // Otherwise fall back to the manual Brain (URL+key via Settings or
-  // server-wide via BRAIN_CHAT_URL env). Same single-slot rule as Live
-  // — surface one or the other, never both.
-  if (flyConfigured && brainFlyChatEnabled) {
-    const brainFly = AGENTS["brain-fly"];
-    entries.push({
-      key: "brain-fly",
-      agentId: "brain-fly",
-      modelId: null,
-      name: brainFly.name,
-      description: brainFly.description,
-      icon: brainFly.icon,
-    });
-  } else if (brainConfigured) {
-    const brain = AGENTS.brain;
-    entries.push({
-      key: "brain",
-      agentId: "brain",
-      modelId: null,
-      name: brain.name,
-      description: brain.description,
-      icon: brain.icon,
-    });
-  }
-  // One dropdown row per enabled user-managed model. All route through
-  // the in-process gateway path (`/api/kody/chat/kody`) with the model id
-  // forwarded in the request body.
-  const kody = AGENTS.kody;
-  for (const m of models) {
-    if (m.enabled === false) continue;
-    entries.push({
-      key: `kody:${m.id}`,
-      agentId: "kody",
-      modelId: m.id,
-      name: m.label,
-      description: m.id,
-      icon: kody.icon,
-    });
-  }
-  return entries;
-}
+import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
+import { buildAgentList, type ChatModelEntry } from "../chat/agent-entries";
+import { readDefaultChatEntry } from "../chat/default-entry";
 import { getStoredAuth, getStoredBrainConfig, getStoredFlyPerf } from "../api";
 import { useAuth } from "../auth-context";
 import { toast } from "sonner";
@@ -133,11 +52,6 @@ function authHeaders(): Record<string, string> {
         "x-kody-repo": auth.repo,
       }
     : {};
-}
-
-/** Persist the default chat dropdown entry key (per-user, localStorage) */
-async function persistDefaultChatEntry(key: string): Promise<void> {
-  writeDefaultChatEntry(key);
 }
 
 /**
@@ -229,43 +143,6 @@ function liveSessionStorageKey(): string {
   }
 }
 
-// The default chat dropdown entry is a *per-user* preference (each person
-// picks their own starting agent), so it lives in localStorage — repo-scoped
-// the same way live sessions are, so a default chosen for repo A doesn't
-// bleed into repo B. Previously this was repo-shared in `.kody/dashboard.json`,
-// which meant one user's pick silently changed the default for everyone.
-const DEFAULT_CHAT_ENTRY_KEY_BASE = "kody-default-chat-entry";
-
-function defaultChatEntryStorageKey(): string {
-  if (typeof window === "undefined") return DEFAULT_CHAT_ENTRY_KEY_BASE;
-  try {
-    const raw = window.localStorage.getItem("kody_auth");
-    if (!raw) return DEFAULT_CHAT_ENTRY_KEY_BASE;
-    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
-    if (!auth.owner || !auth.repo) return DEFAULT_CHAT_ENTRY_KEY_BASE;
-    return `${DEFAULT_CHAT_ENTRY_KEY_BASE}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
-  } catch {
-    return DEFAULT_CHAT_ENTRY_KEY_BASE;
-  }
-}
-
-function readDefaultChatEntry(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage.getItem(defaultChatEntryStorageKey());
-  } catch {
-    return null;
-  }
-}
-
-function writeDefaultChatEntry(key: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(defaultChatEntryStorageKey(), key);
-  } catch {
-    // localStorage unavailable/full — non-fatal, the pick just won't persist.
-  }
-}
 
 /** Stable identifier for a chat "scope" — task vs global. */
 export type LiveScopeKey = string;
@@ -881,9 +758,12 @@ export function KodyChat({
   // Brain-Fly, or `kody:<modelId>`), a per-user preference persisted in
   // localStorage (repo-scoped). Read synchronously on mount. Separate from a
   // model's own `default` flag, which governs server-side gateway resolution.
-  const [defaultChatEntryKey, setDefaultChatEntryKeyState] = useState<
-    string | null
-  >(() => readDefaultChatEntry());
+  // Read-only here: the default is now chosen in Settings → "Default chat"
+  // and written to the same repo-scoped localStorage key. The chat picker
+  // only consumes it (apply-on-load below); it no longer sets it.
+  const [defaultChatEntryKey] = useState<string | null>(() =>
+    readDefaultChatEntry(),
+  );
   // localStorage is synchronous, so the key is known on first render — the
   // apply-on-load effect can run immediately. The flag stays only to keep the
   // Brain auto-default effect's existing gating contract intact.
@@ -4580,9 +4460,6 @@ export function KodyChat({
                     return <Icon className="w-5 h-5" aria-label={headerName} />;
                   })()}
                   <span className="font-semibold text-base">{headerName}</span>
-                  {currentEntry && currentEntry.key === defaultChatEntryKey && (
-                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" aria-label="Default chat" />
-                  )}
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="14"
@@ -4614,9 +4491,8 @@ export function KodyChat({
                   const isSelected =
                     a.agentId === selectedAgentId &&
                     (a.modelId ?? null) === selectedModelId;
-                  const isDefault = a.key === defaultChatEntryKey;
                   return (
-                    <li key={a.key} className="relative">
+                    <li key={a.key}>
                       <button
                         type="button"
                         onClick={() => {
@@ -4639,40 +4515,13 @@ export function KodyChat({
                             />
                           );
                         })()}
-                        <span className="flex flex-col flex-1 min-w-0 pr-24">
-                          <span className="font-medium flex items-center gap-1.5">
-                            {a.name}
-                            {isDefault && (
-                              <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" aria-label="Default chat" />
-                            )}
-                          </span>
+                        <span className="flex flex-col flex-1 min-w-0">
+                          <span className="font-medium">{a.name}</span>
                           <span className="text-xs text-muted-foreground">
                             {a.description}
                           </span>
                         </span>
                       </button>
-                      {!isDefault && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const prev = defaultChatEntryKey;
-                            // Optimistic: the star moves immediately, roll
-                            // back if the persist fails.
-                            setDefaultChatEntryKeyState(a.key);
-                            persistDefaultChatEntry(a.key).catch(() => {
-                              setDefaultChatEntryKeyState(prev);
-                              toast.error("Failed to set default chat");
-                            });
-                            setAgentMenuOpen(false);
-                          }}
-                          title="Make this the default chat on load"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border border-border bg-background text-muted-foreground hover:text-amber-500 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-                        >
-                          <Star className="w-3 h-3" aria-hidden="true" />
-                          Set default
-                        </button>
-                      )}
                     </li>
                   );
                 })}
