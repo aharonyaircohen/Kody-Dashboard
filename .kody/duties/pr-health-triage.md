@@ -1,6 +1,7 @@
 ---
 every: 15m
 staff: cto
+mentions: aguyaharonyair
 ---
 
 # PR health
@@ -133,11 +134,10 @@ is always `@kody <verb> --pr <n>`.
 
 ## Comment formats
 
-**Operator handle.** Before posting the first recommendation comment of
-the tick, read `github.operator` from `kody.config.json`
-(`jq -r .github.operator kody.config.json`) — that GitHub login is the
-operator. Substitute it for `<operator>` below. The operator handle is
-never hardcoded in this job; future operators only change the config.
+**Operator handle.** The engine substitutes `{{mentions}}` (the duty's
+`mentions:` frontmatter) on the recommendation's first line. Use the literal
+token `{{mentions}}` below — never hardcode a handle or read it from config;
+future operators only change the duty's `mentions:` list in the dashboard.
 
 **Recommendation** (verb not graduated). One terse, machine-greppable
 comment. It MUST `@`-mention the operator on the first line (that mention
@@ -146,7 +146,7 @@ command on a single `kody-cmd` line (that is what the inbox **Approve**
 button posts verbatim):
 
 ```
-@<operator> 🧭 **CTO recommendation** — `<verb>`
+{{mentions}} 🧭 **CTO recommendation** — `<verb>`
 
 <one or two sentences: what's wrong with PR #<n> and what confirming will do>
 
@@ -158,7 +158,7 @@ _Confirm or dismiss this in the dashboard inbox. The CTO will not act on its own
 **Auto-run** (verb graduated). Post `@kody <verb> --pr <n>` on the PR,
 then a **separate, silent audit-trail** comment. It **MUST NOT
 `@`-mention the operator** — graduation means you've earned the right to
-act *without* interrupting them, and any `@<operator>` mention routes
+act *without* interrupting them, and any operator mention routes
 straight to their inbox and push, defeating the point. Leave the mention
 out so the comment is a quiet record only:
 
