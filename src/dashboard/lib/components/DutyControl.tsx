@@ -59,7 +59,10 @@ import { useStaff } from "../hooks/useStaff";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useNow } from "../hooks/useNow";
 import { formatDuration, formatRelativePast } from "../duties-schedule";
-import { scheduleEveryLabel } from "../duties-frontmatter";
+import {
+  scheduleEveryLabel,
+  ALL_SCHEDULE_EVERY_OPTIONS,
+} from "../duties-frontmatter";
 import type { Duty, DutySchedule } from "../api";
 import { DUTY_TEMPLATE } from "../duty-template";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -952,18 +955,20 @@ function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
 }
 
 /**
- * Schedule dropdown — two options only:
+ * Schedule dropdown. Options, in order:
  *
  * - **Auto** (sentinel `null`, no frontmatter): the engine ticks the duty
  *   on every cron wake; the body's cadence guard decides whether to act.
- *   This is the default for every duty in this repo's convention.
+ *   This is the default for every new duty.
+ * - **Fixed cadences** (`every: 15m` … `every: 7d`): the engine gates the
+ *   duty to that interval — it won't act more often than the chosen period,
+ *   regardless of what the body says.
  * - **Manual only** (`every: manual`): the engine skips auto-ticks; the
  *   duty runs only when the Run button is clicked.
  *
- * Granular cadences (`every: 1d`, `every: 7d`, …) are still parsed and
- * honored by the engine if a duty's frontmatter declares them, but the
- * UI doesn't expose them — the body-cadence convention makes them
- * redundant in this codebase.
+ * `ALL_SCHEDULE_EVERY_OPTIONS` is the single source of truth (`15m`…`7d`,
+ * then `manual`); the API schema and frontmatter serializer accept the
+ * same set, so every value here round-trips to `every:` in the file.
  */
 function ScheduleSelect({
   value,
@@ -979,19 +984,28 @@ function ScheduleSelect({
     <div className="space-y-1.5">
       <Label htmlFor="duty-schedule">Schedule</Label>
       <Select
-        value={value === "manual" ? "manual" : AUTO}
-        onValueChange={(v) => onChange(v === AUTO ? null : "manual")}
+        value={value ?? AUTO}
+        onValueChange={(v) =>
+          onChange(v === AUTO ? null : (v as DutySchedule))
+        }
       >
         <SelectTrigger id="duty-schedule" className="w-full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={AUTO}>Auto</SelectItem>
-          <SelectItem value="manual">Manual only</SelectItem>
+          {ALL_SCHEDULE_EVERY_OPTIONS.map((opt) => (
+            <SelectItem key={opt} value={opt}>
+              {opt === "manual"
+                ? "Manual only"
+                : `Every ${scheduleEveryLabel(opt).replace(/^every /, "")}`}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        <strong>Auto</strong> — the body's cadence guard decides when to run.{" "}
+        <strong>Auto</strong> — the body&apos;s cadence guard decides when to
+        run. A <strong>fixed cadence</strong> caps how often it can act.{" "}
         <strong>Manual only</strong> — never auto-runs; click Run to trigger.
       </p>
     </div>
