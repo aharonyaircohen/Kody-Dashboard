@@ -14,12 +14,7 @@
  * them via the three custom headers above.
  */
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createUserOctokit,
-  getOwner,
-  getRepo,
-} from "@dashboard/lib/github-client";
-import { getInstallationOctokit } from "@dashboard/lib/auth/github-app";
+import { createUserOctokit } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import type { Octokit } from "@octokit/rest";
 
@@ -94,12 +89,11 @@ export async function requireKodyAuth(
  * Get a per-request Octokit instance.
  *
  * Priority:
- * 1. Client token from x-kody-token header (localStorage auth) — keeps writes
- *    attributed to the actual user.
- * 2. GitHub App installation token for the connected repo (acts as kody[bot],
- *    its own rate-limit bucket) — replaces the shared env PAT for server-side
- *    calls (cron / webhooks) that have no logged-in user.
- * 3. Env token fallback (App unconfigured / not installed on the repo).
+ * 1. Client token from x-kody-token header (localStorage auth)
+ * 2. Env token fallback (CI / token-only deployments)
+ *
+ * Callers should prefer the header token so operations are attributed
+ * to the actual user rather than the bot account.
  */
 export async function getUserOctokit(
   req: NextRequest,
@@ -110,30 +104,13 @@ export async function getUserOctokit(
     return createUserOctokit(headerAuth.token);
   }
 
-  // 2. GitHub App installation token for the request's repo, when known.
-  const owner = safe(getOwner);
-  const repo = safe(getRepo);
-  if (owner && repo) {
-    const appOctokit = await getInstallationOctokit(owner, repo);
-    if (appOctokit) return appOctokit;
-  }
-
-  // 3. Env token fallback
+  // 2. Env token fallback
   const envToken = getEnvToken();
   if (envToken) {
     return createUserOctokit(envToken);
   }
 
   return null;
-}
-
-/** Read repo context without throwing if it isn't set on this request. */
-function safe(fn: () => string): string | null {
-  try {
-    return fn() || null;
-  } catch {
-    return null;
-  }
 }
 
 // ─── Verified actor identity (resolve the PAT → its GitHub user) ──────────────
