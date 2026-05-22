@@ -12,10 +12,9 @@ import {
   getRequestAuth,
 } from "@dashboard/lib/auth";
 import {
-  invalidateVariablesCache,
   listVariables,
   readVariables,
-  writeVariables,
+  updateVariables,
 } from "@dashboard/lib/variables/store";
 import { logger } from "@dashboard/lib/logger";
 
@@ -42,24 +41,23 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
   try {
-    const { doc, sha } = await readVariables(octokit, auth.owner, auth.repo, {
+    const existing = await readVariables(octokit, auth.owner, auth.repo, {
       force: true,
     });
-    if (!(name in doc.variables)) {
+    if (!(name in existing.doc.variables)) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    const nextVars = { ...doc.variables };
-    delete nextVars[name];
-    const next = { ...doc, variables: nextVars };
-    await writeVariables(
+    const { doc: next } = await updateVariables(
       octokit,
       auth.owner,
       auth.repo,
-      next,
-      sha,
+      (doc) => {
+        const nextVars = { ...doc.variables };
+        delete nextVars[name];
+        return { ...doc, variables: nextVars };
+      },
       `chore(variables): delete ${name}`,
     );
-    invalidateVariablesCache(auth.owner, auth.repo);
     return NextResponse.json({ ok: true, variables: listVariables(next) });
   } catch (err) {
     logger.error(
