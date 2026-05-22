@@ -5,12 +5,6 @@ staff: qa
 
 # QA Changelog Verification
 
-# QA Changelog Verification
-
-# QA Changelog Verification
-
-# QA Changelog Verification
-
 ## Job
 
 Verify every shipped-but-unverified scenario in `CHANGELOG.md` against the live

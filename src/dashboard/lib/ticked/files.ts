@@ -144,19 +144,24 @@ function deriveTitle(body: string, slug: string): string {
 
 function stripLeadingH1(body: string): string {
   // The first H1 is the title (rendered separately in the detail header).
-  // Strip *every* leading H1 block, not just one: past round-trips could
-  // have prepended the title multiple times, and any surviving leading H1
-  // would render as a duplicate title in the body card.
-  let trimmed = body.replace(/^﻿/, "");
+  // Strip *every* leading H1 block — past round-trips could have prepended
+  // the title multiple times, and any surviving leading H1 renders as a
+  // duplicate title in the body card.
+  //
+  // Critically, skip leading blank lines before each check: the body handed
+  // to us starts with the blank line that follows the frontmatter `---`, so
+  // a naive `lines[0]` test sees "" and strips nothing.
+  const lines = body.replace(/^﻿/, "").split("\n");
+  let i = 0;
   for (;;) {
-    const lines = trimmed.split("\n");
-    if (lines.length > 0 && /^#\s+.+/.test(lines[0]!)) {
-      trimmed = lines.slice(1).join("\n").replace(/^\n+/, "");
+    while (i < lines.length && lines[i]!.trim() === "") i++;
+    if (i < lines.length && /^#\s+.+/.test(lines[i]!)) {
+      i++;
     } else {
       break;
     }
   }
-  return trimmed;
+  return lines.slice(i).join("\n");
 }
 
 /**
