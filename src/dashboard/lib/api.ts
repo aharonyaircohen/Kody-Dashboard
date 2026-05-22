@@ -878,6 +878,12 @@ export interface Duty {
    * scheduler skips such duties (every duty must name an executor).
    */
   staff: string | null;
+  /**
+   * GitHub logins this duty's output should `@`-mention, parsed from the
+   * `mentions:` frontmatter (comma-separated, no `@`). Empty array when the
+   * key is absent.
+   */
+  mentions: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -904,6 +910,7 @@ export const dutiesApi = {
     schedule?: DutySchedule | null;
     disabled?: boolean;
     staff?: string | null;
+    mentions?: string[];
     actorLogin?: string;
   }): Promise<Duty> => {
     const res = await fetch(`${API_BASE}/duties`, {
@@ -923,6 +930,7 @@ export const dutiesApi = {
       schedule?: DutySchedule | null;
       disabled?: boolean;
       staff?: string | null;
+      mentions?: string[];
       actorLogin?: string;
     },
   ): Promise<Duty> => {

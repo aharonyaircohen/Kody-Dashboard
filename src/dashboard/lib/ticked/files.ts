@@ -71,6 +71,12 @@ export interface TickFile {
    * duty's staff picker; the engine scheduler skips duties with no staff.
    */
   staff: string | null;
+  /**
+   * GitHub logins this file's output should `@`-mention, parsed from the
+   * `mentions:` frontmatter (comma-separated, no `@`). Empty array when the
+   * key is absent. The dashboard reads it to render/seed the mentions input.
+   */
+  mentions: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -95,6 +101,11 @@ export interface TickWriteOptions {
    * writes no `staff:` line. Only duties set this; staff files never do.
    */
   staff?: string | null;
+  /**
+   * GitHub logins to emit as the `mentions:` frontmatter (comma-separated,
+   * no `@`). Empty / absent writes no `mentions:` line.
+   */
+  mentions?: string[];
   /** SHA of the existing blob; omit on create. */
   sha?: string;
   /** Commit message override. */
@@ -274,6 +285,7 @@ function buildFileContent(
   schedule: ScheduleEvery | null,
   disabled: boolean,
   staff: string | null,
+  mentions: string[],
 ): string {
   // Strip any leading H1 the caller's body already carries so we never
   // double the title — `# ${title}` is the single canonical heading.
@@ -285,6 +297,7 @@ function buildFileContent(
   const fm: TickFrontmatter = {};
   if (schedule) fm.every = schedule;
   if (staff) fm.staff = staff;
+  if (mentions.length > 0) fm.mentions = mentions;
   if (disabled) fm.disabled = true;
   return joinFrontmatter(fm, titled);
 }
@@ -381,6 +394,7 @@ export function createTickedFiles(
             schedule: frontmatter.every ?? null,
             disabled: frontmatter.disabled === true,
             staff: frontmatter.staff ?? null,
+            mentions: frontmatter.mentions ?? [],
             htmlUrl: buildHtmlUrl(slug, branch),
           } satisfies TickFile;
         } catch {
@@ -440,6 +454,7 @@ export function createTickedFiles(
         schedule: frontmatter.every ?? null,
         disabled: frontmatter.disabled === true,
         staff: frontmatter.staff ?? null,
+        mentions: frontmatter.mentions ?? [],
         htmlUrl: buildHtmlUrl(slug, branch),
       };
     } catch (error: unknown) {
@@ -465,6 +480,7 @@ export function createTickedFiles(
       opts.schedule ?? null,
       opts.disabled === true,
       opts.staff ?? null,
+      opts.mentions ?? [],
     );
     const message =
       opts.message ??

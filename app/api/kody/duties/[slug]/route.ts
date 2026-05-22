@@ -70,8 +70,17 @@ const updateDutySchema = z.object({
     .optional(),
   disabled: z.boolean().optional(),
   staff: z.string().min(1).nullable().optional(),
+  mentions: z.array(z.string()).optional(),
   actorLogin: z.string().optional(),
 });
+
+/**
+ * Clean a client-supplied mentions list before it hits the frontmatter
+ * serializer: drop a leading `@`, trim whitespace, drop empties.
+ */
+function normalizeMentions(mentions: string[]): string[] {
+  return mentions.map((m) => m.trim().replace(/^@/, "")).filter((m) => m.length > 0);
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -96,7 +105,7 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, body, schedule, disabled, staff, actorLogin } =
+    const { title, body, schedule, disabled, staff, mentions, actorLogin } =
       updateDutySchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
@@ -121,6 +130,12 @@ export async function PATCH(
       schedule: schedule === undefined ? existing.schedule : schedule,
       disabled: disabled === undefined ? existing.disabled : disabled,
       staff: staff === undefined ? existing.staff : staff,
+      // Read-merge: omitting `mentions` preserves the existing list rather
+      // than clearing it. An explicit `[]` clears it.
+      mentions:
+        mentions === undefined
+          ? existing.mentions
+          : normalizeMentions(mentions),
       sha: existing.sha,
     });
 

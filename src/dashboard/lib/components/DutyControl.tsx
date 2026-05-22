@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  AtSign,
   Calendar,
   Clock,
   ExternalLink,
@@ -75,6 +76,31 @@ function newDraftId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * Parse the raw "Mentions" text field into a clean login list: split on
+ * commas, trim, strip an optional leading `@`, drop empties. Matches the
+ * frontmatter serializer's contract so the stored `mentions:` line is exact.
+ */
+function parseMentionsInput(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((m) => m.trim().replace(/^@/, ""))
+    .filter((m) => m.length > 0);
+}
+
+/** Render a stored mentions list back into the comma-separated text field. */
+function formatMentionsInput(mentions: string[]): string {
+  return mentions.join(", ");
+}
+
+/** Order-insensitive equality for two login lists. */
+function sameMentions(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((v, i) => v === sortedB[i]);
 }
 
 interface DutyControlProps {
@@ -700,6 +726,7 @@ function CreateDutyDialog({
   const [body, setBody] = useState(DUTY_TEMPLATE);
   const [schedule, setSchedule] = useState<DutySchedule | null>(null);
   const [staff, setStaff] = useState<string | null>(null);
+  const [mentions, setMentions] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -707,13 +734,20 @@ function CreateDutyDialog({
       setBody(initialBody && initialBody.trim() ? initialBody : DUTY_TEMPLATE);
       setSchedule(null);
       setStaff(null);
+      setMentions("");
     }
   }, [open, initialBody]);
 
   const handleSubmit = () => {
     if (!title.trim() || createMutation.isPending) return;
     createMutation.mutate(
-      { title: title.trim(), body, schedule, staff },
+      {
+        title: title.trim(),
+        body,
+        schedule,
+        staff,
+        mentions: parseMentionsInput(mentions),
+      },
       {
         onSuccess: (duty) => onCreated(duty),
       },
@@ -744,6 +778,7 @@ function CreateDutyDialog({
           </div>
           <ScheduleSelect value={schedule} onChange={setSchedule} />
           <StaffSelect value={staff} onChange={setStaff} />
+          <MentionsInput value={mentions} onChange={setMentions} />
           <div className="space-y-1.5">
             <Label>Body</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={14} />
@@ -783,12 +818,14 @@ function EditDutyDialog({
   const [body, setBody] = useState(duty.body || "");
   const [schedule, setSchedule] = useState<DutySchedule | null>(duty.schedule);
   const [staff, setStaff] = useState<string | null>(duty.staff);
+  const [mentions, setMentions] = useState(formatMentionsInput(duty.mentions));
 
   useEffect(() => {
     setTitle(duty.title);
     setBody(duty.body || "");
     setSchedule(duty.schedule);
     setStaff(duty.staff);
+    setMentions(formatMentionsInput(duty.mentions));
   }, [duty]);
 
   const handleSubmit = () => {
@@ -798,11 +835,15 @@ function EditDutyDialog({
       body?: string;
       schedule?: DutySchedule | null;
       staff?: string | null;
+      mentions?: string[];
     } = {};
     if (title !== duty.title) patch.title = title.trim();
     if (body !== duty.body) patch.body = body;
     if (schedule !== duty.schedule) patch.schedule = schedule;
     if (staff !== duty.staff) patch.staff = staff;
+    const nextMentions = parseMentionsInput(mentions);
+    if (!sameMentions(nextMentions, duty.mentions))
+      patch.mentions = nextMentions;
     if (Object.keys(patch).length === 0) {
       onSaved();
       return;
@@ -833,6 +874,7 @@ function EditDutyDialog({
           </div>
           <ScheduleSelect value={schedule} onChange={setSchedule} />
           <StaffSelect value={staff} onChange={setStaff} />
+          <MentionsInput value={mentions} onChange={setMentions} />
           <DutyTimingReadout
             lastTickAt={duty.lastTickAt}
             nextEligibleAt={duty.nextEligibleAt}
@@ -1091,6 +1133,40 @@ function StaffSelect({
             you pick one.
           </span>
         )}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * "Mentions" input — a comma-separated list of GitHub logins the duty's
+ * output should `@`-mention. Stored as the `mentions:` frontmatter line
+ * (no `@`); the engine pings the listed users in the duty's report. The
+ * raw text is normalized on save (split, trim, strip leading `@`, drop
+ * empties) so users can type `@alice, bob` freely.
+ */
+function MentionsInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="duty-mentions" className="flex items-center gap-1.5">
+        <AtSign className="w-3.5 h-3.5 text-muted-foreground" />
+        Mentions
+      </Label>
+      <Input
+        id="duty-mentions"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="e.g. aguyaharonyair, alice"
+      />
+      <p className="text-xs text-muted-foreground">
+        Comma-separated GitHub logins to <strong>@</strong>-mention in this
+        duty&apos;s output. Leave blank for none.
       </p>
     </div>
   );

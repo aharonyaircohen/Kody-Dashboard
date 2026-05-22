@@ -63,6 +63,13 @@ export interface TickFrontmatter {
    * carry it. A duty with no `staff:` is skipped by the engine scheduler.
    */
   staff?: string;
+  /**
+   * GitHub logins this file's output should `@`-mention. Stored as a
+   * comma-separated list on one line (`mentions: alice, bob`), no leading
+   * `@`. The engine reads it to ping the listed users in the duty's report.
+   * Absent / empty array = no mentions (the line is omitted on write).
+   */
+  mentions?: string[];
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -188,6 +195,14 @@ function parseFlatYaml(text: string): TickFrontmatter {
       else if (lower === "false") out.disabled = false;
     } else if (key === "staff" && value.length > 0) {
       out.staff = value;
+    } else if (key === "mentions") {
+      // Comma-separated logins on one line; trim, strip an optional leading
+      // `@`, drop empties. Only set the field when at least one login remains.
+      const mentions = value
+        .split(",")
+        .map((m) => m.trim().replace(/^@/, ""))
+        .filter((m) => m.length > 0);
+      if (mentions.length > 0) out.mentions = mentions;
     }
     // Unknown keys silently dropped on read — they round-trip via the
     // raw body if callers preserve it. We don't surface them on the
@@ -200,6 +215,10 @@ function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
   const lines: string[] = [];
   if (frontmatter.every) lines.push(`every: ${frontmatter.every}`);
   if (frontmatter.staff) lines.push(`staff: ${frontmatter.staff}`);
+  // Comma-separated logins on one line, no leading `@`. Omitted when empty
+  // so an unchanged file stays byte-identical.
+  if (frontmatter.mentions?.length)
+    lines.push(`mentions: ${frontmatter.mentions.join(", ")}`);
   // Only emit `disabled: true` — the default (enabled) leaves the line
   // out so an unchanged ticked file stays byte-identical.
   if (frontmatter.disabled === true) lines.push(`disabled: true`);
