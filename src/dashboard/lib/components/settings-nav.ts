@@ -48,6 +48,9 @@ export interface SettingsNavItem {
  * Shared so the Sidebar, CommandPalette (and eventually MobileMenu) render
  * one list instead of drifting copies.
  */
+/** Heading shown above the primary surfaces in the expanded sidebar rail. */
+export const PRIMARY_NAV_TITLE = "Workspace" as const;
+
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
   { href: "/", label: "Dashboard", icon: Home, exact: true },
   { href: "/duties", label: "Duties", icon: Layers, exact: true },
