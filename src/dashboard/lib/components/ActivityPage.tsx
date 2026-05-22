@@ -457,19 +457,32 @@ function FeedView({ active }: { active: boolean }) {
 function LogView({ active }: { active: boolean }) {
   const { data, isLoading, error } = useActivityLog(active);
   const [query, setQuery] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+
+  const allEntries: ActionLogEntry[] = useMemo(
+    () => data?.entries ?? [],
+    [data],
+  );
+
+  // Distinct action verbs present, for the filter dropdown.
+  const actionTypes = useMemo(
+    () => [...new Set(allEntries.map((e) => e.type))].sort(),
+    [allEntries],
+  );
 
   const entries = useMemo(() => {
-    let all: ActionLogEntry[] = data?.entries ?? [];
+    let all = allEntries;
+    if (actionFilter) all = all.filter((e) => e.type === actionFilter);
     const q = query.trim().toLowerCase();
     if (q)
       all = all.filter((e) =>
-        [e.type, e.target, e.actor, e.repo ?? "", e.detail ?? ""]
+        [e.type, e.target, e.actor, e.repo ?? "", e.detail ?? "", e.duty ?? "", e.staff ?? ""]
           .join(" ")
           .toLowerCase()
           .includes(q),
       );
     return all;
-  }, [data, query]);
+  }, [allEntries, query, actionFilter]);
 
   return (
     <div className="mt-2">
@@ -485,10 +498,22 @@ function LogView({ active }: { active: boolean }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search actions, target, actor…"
+            placeholder="Search actions, target, actor, duty…"
             className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
           />
         </div>
+        <select
+          value={actionFilter}
+          onChange={(e) => setActionFilter(e.target.value)}
+          className="rounded-md border border-white/[0.08] bg-white/[0.02] py-1 px-2 text-xs text-white/70 focus:border-white/20 focus:outline-none"
+        >
+          <option value="">All actions</option>
+          {actionTypes.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
         <span className="ml-auto text-[10px] text-white/35">
           {data ? `${entries.length} of ${data.total} actions` : ""}
           {data?.computedAt && ` · updated ${relTime(data.computedAt)}`}
@@ -500,7 +525,7 @@ function LogView({ active }: { active: boolean }) {
         </p>
       ) : entries.length === 0 ? (
         <p className="text-xs text-white/40 italic py-6 text-center">
-          No dashboard actions recorded yet on this server instance.
+          No dashboard actions recorded yet.
         </p>
       ) : (
         <ul className="space-y-1.5">
@@ -509,19 +534,49 @@ function LogView({ active }: { active: boolean }) {
               key={e.id}
               className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
             >
-              <span className="mt-px shrink-0 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-200/80">
+              <span
+                className={cn(
+                  "mt-px shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                  e.outcome === "error"
+                    ? "bg-rose-500/15 text-rose-200/80"
+                    : e.outcome === "denied"
+                      ? "bg-amber-500/15 text-amber-200/80"
+                      : "bg-sky-500/15 text-sky-200/80",
+                )}
+              >
                 {e.type}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="text-sm truncate">
-                  <span className="font-mono text-white/80">{e.target}</span>
+                  {e.resourceUrl ? (
+                    <a
+                      href={e.resourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-mono text-sky-300/80 hover:underline"
+                    >
+                      {e.target}
+                    </a>
+                  ) : (
+                    <span className="font-mono text-white/80">{e.target}</span>
+                  )}
                   {e.detail && (
                     <span className="text-white/50"> — {e.detail}</span>
                   )}
                 </div>
-                <div className="text-[10px] text-white/40 truncate">
-                  by {e.actor}
-                  {e.repo && <> · {e.repo}</>}
+                <div className="flex flex-wrap items-center gap-x-1.5 text-[10px] text-white/40 truncate">
+                  <span>by {e.actor}</span>
+                  {e.duty && (
+                    <span className="rounded bg-violet-500/15 px-1 text-violet-200/80">
+                      duty: {e.duty}
+                    </span>
+                  )}
+                  {e.staff && (
+                    <span className="rounded bg-emerald-500/15 px-1 text-emerald-200/80">
+                      staff: {e.staff}
+                    </span>
+                  )}
+                  {e.repo && <span>· {e.repo}</span>}
                 </div>
               </div>
               <div
@@ -535,11 +590,11 @@ function LogView({ active }: { active: boolean }) {
         </ul>
       )}
       <p className="mt-6 text-[10px] text-white/30">
-        Dashboard-native actions (task actions, vault writes, push
-        subscribe) that never spawn a GitHub Actions run, so Runs/Feed
-        can&apos;t see them. Recorded in memory per server instance — free,
-        no GitHub API budget; history resets on redeploy and isn&apos;t
-        shared across instances.
+        Dashboard actions (duty runs/edits, task actions, vault writes,
+        staff/prompt/goal changes) attributed to the verified GitHub user who
+        made them. Persisted durably in the repo&apos;s audit-log issue
+        (newest {150} kept) and merged with this instance&apos;s in-memory
+        ring — survives redeploys and is shared across instances.
       </p>
     </div>
   );

@@ -25,6 +25,7 @@ import {
   deleteDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
+import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(
   req: NextRequest,
@@ -139,6 +140,14 @@ export async function PATCH(
       sha: existing.sha,
     });
 
+    recordAudit(req, {
+      action: "duty.update",
+      resource: slug,
+      duty: slug,
+      staff: duty.staff ?? null,
+      detail: "edited duty",
+    });
+
     return NextResponse.json({ duty });
   } catch (error: any) {
     console.error("[Duties] Error updating duty:", error);
@@ -207,6 +216,14 @@ export async function DELETE(
     }
 
     await deleteDutyFile(userOctokit, slug);
+
+    recordAudit(req, {
+      action: "duty.delete",
+      resource: slug,
+      duty: slug,
+      staff: existing.staff ?? null,
+      detail: "deleted duty",
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

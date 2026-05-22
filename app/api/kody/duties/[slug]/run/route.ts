@@ -25,6 +25,7 @@ import {
 } from "@dashboard/lib/auth";
 import { isValidSlug } from "@dashboard/lib/duties-files";
 import { findOrCreateControlIssue } from "@dashboard/lib/control-issue";
+import { recordAudit } from "@dashboard/lib/activity/audit";
 
 const runSchema = z.object({
   force: z.boolean().optional().default(true),
@@ -86,6 +87,13 @@ export async function POST(
       repo,
       issue_number: issueNumber,
       body,
+    });
+    recordAudit(req, {
+      action: "duty.run",
+      resource: slug,
+      duty: slug,
+      resourceUrl: comment.html_url,
+      detail: payload.force ? "manual run (force)" : "manual run",
     });
     return NextResponse.json({
       ok: true,

@@ -25,6 +25,7 @@ import {
   writePromptFile,
   isValidSlug,
 } from "@dashboard/lib/prompts";
+import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -121,6 +122,12 @@ export async function POST(req: NextRequest) {
       description,
       argumentHint,
       body,
+    });
+
+    recordAudit(req, {
+      action: "prompt.create",
+      resource: slug,
+      detail: `created prompt /${slug}`,
     });
 
     return NextResponse.json({ prompt });

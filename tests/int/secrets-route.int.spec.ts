@@ -31,11 +31,11 @@ const store = vi.hoisted(() => ({
   invalidateVaultCache: vi.fn<(owner: string, repo: string) => void>(),
 }));
 const cfg = vi.hoisted(() => ({ isVaultConfigured: vi.fn(() => true) }));
-const act = vi.hoisted(() => ({ recordAction: vi.fn() }));
+const act = vi.hoisted(() => ({ recordAudit: vi.fn() }));
 
 vi.mock("@dashboard/lib/auth", () => auth);
 vi.mock("@dashboard/lib/vault/crypto", () => cfg);
-vi.mock("@dashboard/lib/activity/action-log", () => act);
+vi.mock("@dashboard/lib/activity/audit", () => act);
 vi.mock("@dashboard/lib/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
@@ -159,8 +159,9 @@ describe("POST /api/kody/secrets", () => {
     expect(writtenDoc.secrets.NEW_KEY.updatedBy).toBe("alice");
 
     expect(store.invalidateVaultCache).toHaveBeenCalledWith("acme", "widgets");
-    expect(act.recordAction).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "vault.write", target: "NEW_KEY" }),
+    expect(act.recordAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: "vault.write", resource: "NEW_KEY" }),
     );
 
     // ... but the HTTP response carries only metadata, never any value.

@@ -24,6 +24,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
+import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   goalStatePath,
   type GoalRunState,
@@ -288,6 +289,13 @@ export async function PUT(
         );
       }
     }
+
+    recordAudit(req, {
+      action: "goal.state",
+      resource: id,
+      outcome: "ok",
+      detail: `set goal state → ${parsed.data.state}`,
+    });
 
     return NextResponse.json({ state: next, engineDispatched }, { status: 200 });
   } catch (err) {

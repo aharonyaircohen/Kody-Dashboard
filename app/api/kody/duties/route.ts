@@ -26,6 +26,7 @@ import {
   writeDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
+import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -161,6 +162,14 @@ export async function POST(req: NextRequest) {
       disabled: disabled === true,
       staff: staff ?? null,
       mentions: normalizeMentions(mentions),
+    });
+
+    recordAudit(req, {
+      action: "duty.create",
+      resource: slug,
+      duty: slug,
+      staff: staff ?? null,
+      detail: `created duty "${title}"${schedule ? ` (${schedule})` : ""}`,
     });
 
     return NextResponse.json({ duty });

@@ -26,6 +26,7 @@ import {
   deleteStaffFile,
   isValidSlug,
 } from "@dashboard/lib/staff-files";
+import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(
   req: NextRequest,
@@ -116,6 +117,13 @@ export async function PATCH(
       sha: existing.sha,
     });
 
+    recordAudit(req, {
+      action: "staff.update",
+      resource: slug,
+      staff: slug,
+      detail: "edited staff",
+    });
+
     return NextResponse.json({ staffMember });
   } catch (error: any) {
     console.error("[Staff] Error updating staff member:", error);
@@ -185,6 +193,13 @@ export async function DELETE(
     }
 
     await deleteStaffFile(userOctokit, slug);
+
+    recordAudit(req, {
+      action: "staff.delete",
+      resource: slug,
+      staff: slug,
+      detail: "deleted staff",
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

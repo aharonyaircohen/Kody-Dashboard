@@ -27,6 +27,7 @@ import {
   isValidSlug,
   listPrompts,
 } from "@dashboard/lib/prompts";
+import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(
   req: NextRequest,
@@ -125,6 +126,11 @@ export async function PATCH(
         body: body ?? existing.body,
         sha: existing.sha,
       });
+      recordAudit(req, {
+        action: "prompt.update",
+        resource: slug,
+        detail: `edited prompt /${slug}`,
+      });
       return NextResponse.json({ prompt });
     }
 
@@ -143,6 +149,11 @@ export async function PATCH(
           : (argumentHint ?? ""),
       body: body ?? builtin.body,
       message: `feat(prompts): override built-in ${slug}`,
+    });
+    recordAudit(req, {
+      action: "prompt.update",
+      resource: slug,
+      detail: `forked built-in prompt /${slug}`,
     });
     return NextResponse.json({ prompt });
   } catch (error: any) {
@@ -221,6 +232,11 @@ export async function DELETE(
     }
 
     await deletePromptFile(userOctokit, slug);
+    recordAudit(req, {
+      action: "prompt.delete",
+      resource: slug,
+      detail: `deleted prompt /${slug}`,
+    });
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("[Prompts] Error deleting prompt:", error);
