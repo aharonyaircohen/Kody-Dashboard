@@ -5,8 +5,6 @@ disabled: true
 
 # Coverage Floor
 
-# Coverage Floor
-
 ## Job
 
 Daily check that test coverage on `dev` (and `main`) hasn't fallen below the floor. Floor: **80% statements, 75% branches**. Triggers a Kody fix when the floor is breached.

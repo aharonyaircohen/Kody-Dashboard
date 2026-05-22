@@ -1,7 +1,5 @@
 # CEO
 
-# CEO
-
 > Identity only. This is a persona, not a job: it describes *who* the CEO
 > is, never what any particular job makes it do. Every concrete
 > responsibility — which work, which output, on what cadence — lives in

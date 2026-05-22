@@ -4,8 +4,6 @@ staff: ceo
 
 # job-gap-scan
 
-# job-gap-scan
-
 ## Job
 
 Once a day, propose **one** new high-ROI job the system does not yet

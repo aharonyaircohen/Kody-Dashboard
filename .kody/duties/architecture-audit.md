@@ -6,10 +6,6 @@ disabled: true
 
 # Architecture Audit
 
-# Architecture Audit
-
-# Architecture Audit
-
 ## Jobs
 
 Periodic **architecture-health sweep** of the codebase — boundaries and coupling, not line-level style. The job itself cannot run shell beyond `gh`, so it opens a tracking issue delegating the analysis to a Kody executable in CI and tracks the result.

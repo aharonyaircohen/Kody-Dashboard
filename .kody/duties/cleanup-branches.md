@@ -5,8 +5,6 @@ staff: kody
 
 # clean up branches
 
-# clean up branches
-
 ## Job
 
 Delete stale task branches: any branch whose linked task issue is **closed**, **done**, or **failed**. Keep every branch that belongs to an open or in-progress task.

@@ -5,8 +5,6 @@ disabled: true
 
 # Doc Drift
 
-# Doc Drift
-
 ## Job
 
 Read the latest doc-drift scanner report and open one tracking issue per unescalated finding. The job does **not** scan — it only consumes `.kody/reports/doc-drift.md` and orchestrates the issue lifecycle. The scanner that produces the report file is a separate primitive (TBD).

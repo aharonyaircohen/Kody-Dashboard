@@ -5,8 +5,6 @@ staff: coo
 
 # task-memory-extractor
 
-# task-memory-extractor
-
 ## Job
 
 Scan `.kody/tasks/*/memory-recs.json` files (written by executors at

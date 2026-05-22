@@ -5,8 +5,6 @@ disabled: true
 
 # Dead Code Sweep
 
-# Dead Code Sweep
-
 ## Job
 
 Monthly cleanup of unused exports, files, and dependencies. Runs `knip` / `ts-prune` / `depcheck` (via `/kody chore`) and opens **separate PRs per category** so review stays bounded.

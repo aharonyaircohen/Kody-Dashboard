@@ -5,8 +5,6 @@ staff: kody
 
 # publish a release
 
-# publish a release
-
 ## Job
 
 On demand, cut a new release. Open a release-request issue titled `Release: <UTC date>` (body: who triggered it and the date), then post `@kody release` on that issue so the release orchestrator runs **prepare → merge PR → publish → deploy**.

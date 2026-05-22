@@ -5,8 +5,6 @@ disabled: true
 
 # redispatch
 
-# redispatch
-
 ## Job
 
 For every open issue that kody is actively working on but appears stuck: post the comment `@kody resume` on the issue so the engine re-dispatches from its last persisted state. Otherwise do nothing.

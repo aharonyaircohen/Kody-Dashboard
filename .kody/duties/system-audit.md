@@ -5,8 +5,6 @@ staff: coo
 
 # System Audit
 
-# System Audit
-
 ## Job
 
 Audit the coordination of jobs and workers in `.kody/`. Walk the

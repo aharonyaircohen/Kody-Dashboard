@@ -4,8 +4,6 @@ staff: kody
 
 # Security Audit
 
-# Security Audit
-
 ## Job
 
 Daily **security posture sweep** — three layers, delegated to a Kody executable in CI (the job itself cannot run shell beyond `gh`, so it opens a tracking issue and tracks the result):

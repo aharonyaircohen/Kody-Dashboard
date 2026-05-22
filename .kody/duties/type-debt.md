@@ -5,8 +5,6 @@ disabled: true
 
 # Type Debt Tracker
 
-# Type Debt Tracker
-
 ## Job
 
 Weekly tracking of TypeScript escape hatches: occurrences of `any`, `@ts-ignore`, `@ts-expect-error`, and `@ts-nocheck` across `src/**` and `tests/**`. Trends matter more than absolute counts — flag when growth exceeds 5% week-over-week.

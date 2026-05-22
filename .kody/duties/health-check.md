@@ -5,8 +5,6 @@ disabled: true
 
 # Kody Health Check
 
-# Kody Health Check
-
 ## Job 
 
 Daily digest of **tasks already assigned to Kody** — any open issue carrying an active `kody:*` lifecycle label other than `kody:done` — that **haven't been updated in the last 6 hours**. Purely diagnostic: never re-kicks, closes, or relabels anything. The operator reads the digest and decides what (if anything) to nudge.

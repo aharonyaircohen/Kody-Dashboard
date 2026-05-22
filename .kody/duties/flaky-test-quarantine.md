@@ -5,8 +5,6 @@ disabled: true
 
 # Flaky Test Quarantine
 
-# Flaky Test Quarantine
-
 ## Job
 
 Detect and quarantine flaky tests by watching CI failure patterns on `dev` and `main`.

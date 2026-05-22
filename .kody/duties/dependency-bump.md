@@ -5,8 +5,6 @@ disabled: true
 
 # Dependency Bump
 
-# Dependency Bump
-
 ## Job
 
 Weekly tracking of stale production dependencies. One bump PR in flight at a time — never let bumps pile up.
