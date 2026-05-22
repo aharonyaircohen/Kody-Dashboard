@@ -4,11 +4,20 @@
  * @pattern ai-sdk-tool
  * @ai-summary Lets the assistant answer "what is X in the dashboard?" without
  *  guessing from training data. Static feature catalog + auto-derived entries
- *  for every agent in src/dashboard/lib/agents.ts so descriptions never drift.
+ *  for every agent in src/dashboard/lib/agents.ts AND every page in the shared
+ *  settings-nav sidebar, so descriptions never drift and new pages teach chat
+ *  about themselves automatically.
  */
 import { tool } from "ai";
 import { z } from "zod";
 import { AGENTS, type AgentConfig } from "@dashboard/lib/agents";
+import {
+  HOME_NAV_ITEM,
+  PRIMARY_NAV_ITEMS,
+  PRIMARY_NAV_TITLE,
+  SETTINGS_NAV_SECTIONS,
+  type SettingsNavItem,
+} from "@dashboard/lib/components/settings-nav";
 
 export interface FeatureEntry {
   id: string;
@@ -239,9 +248,63 @@ function featureFromAgent(agent: AgentConfig): FeatureEntry {
   };
 }
 
+/**
+ * Nav pages whose concept is already described by a richer hand-written entry
+ * above. We skip auto-deriving these so there's one canonical answer per
+ * concept (the deep one wins). Keyed by exact nav href.
+ */
+const NAV_HREF_TO_HANDWRITTEN: Readonly<Record<string, string>> = {
+  "/": "task-dashboard",
+  "/secrets": "secrets-vault",
+  "/duties": "kody-duties",
+  "/staff": "kody-staff",
+};
+
+function kebab(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function featureFromNav(item: SettingsNavItem, section: string): FeatureEntry {
+  const desc = item.description?.trim() ?? "";
+  return {
+    id: `page:${kebab(item.label)}`,
+    name: `${item.label} (${item.href})`,
+    summary: desc || `The ${item.label} page.`,
+    details:
+      `The ${item.label} page lives under the "${section}" group of the sidebar.\n\n` +
+      `Route: \`${item.href}\`` +
+      (desc ? `\n\n${desc}` : ""),
+  };
+}
+
+function buildNavEntries(): FeatureEntry[] {
+  const sourced: { item: SettingsNavItem; section: string }[] = [
+    { item: HOME_NAV_ITEM, section: PRIMARY_NAV_TITLE },
+    ...PRIMARY_NAV_ITEMS.map((item) => ({ item, section: PRIMARY_NAV_TITLE })),
+    ...SETTINGS_NAV_SECTIONS.flatMap((s) =>
+      s.items.map((item) => ({ item, section: s.title })),
+    ),
+  ];
+
+  const seen = new Set<string>();
+  const entries: FeatureEntry[] = [];
+  for (const { item, section } of sourced) {
+    if (NAV_HREF_TO_HANDWRITTEN[item.href]) continue; // covered by a deeper entry
+    const entry = featureFromNav(item, section);
+    if (seen.has(entry.id)) continue; // dedupe duplicate labels
+    seen.add(entry.id);
+    entries.push(entry);
+  }
+  return entries;
+}
+
 function buildCatalog(): FeatureEntry[] {
   const agentEntries = Object.values(AGENTS).map(featureFromAgent);
-  return [...HAND_WRITTEN_FEATURES, ...agentEntries];
+  const navEntries = buildNavEntries();
+  return [...HAND_WRITTEN_FEATURES, ...navEntries, ...agentEntries];
 }
 
 const CATALOG: ReadonlyArray<FeatureEntry> = buildCatalog();
