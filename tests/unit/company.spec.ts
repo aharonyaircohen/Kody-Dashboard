@@ -9,8 +9,6 @@
  *     portable shape, dropping repo-specific fields and built-in prompts.
  *   - `applyCompanyBundle`: skip-vs-overwrite collision handling, per-
  *     collection tallies, and instructions outcomes.
- *   - `rewriteStaffKey`: the migration's `worker:` → `staff:` frontmatter
- *     rewrite (frontmatter only, never the body).
  *
  * Every cross-module dependency is mocked at its import boundary — no
  * GitHub, no network.
@@ -60,8 +58,6 @@ vi.mock("@dashboard/lib/instructions/files", () => ({
 vi.mock("@dashboard/lib/github-client", () => ({
   getOwner: h.getOwner,
   getRepo: h.getRepo,
-  invalidateDutiesCache: vi.fn(),
-  invalidateStaffCache: vi.fn(),
 }));
 
 import {
@@ -71,7 +67,6 @@ import {
 } from "@dashboard/lib/company/types";
 import { buildCompanyBundle } from "@dashboard/lib/company/export";
 import { applyCompanyBundle } from "@dashboard/lib/company/import";
-import { rewriteStaffKey } from "@dashboard/lib/company/migrate";
 
 const octokit = {} as never;
 
@@ -281,28 +276,5 @@ describe("applyCompanyBundle", () => {
     );
     expect(result.instructions).toBe("absent");
     expect(h.writeInstructionsFile).not.toHaveBeenCalled();
-  });
-});
-
-describe("rewriteStaffKey (migration)", () => {
-  it("rewrites worker: → staff: inside frontmatter", () => {
-    const src = "---\nevery: 1d\nworker: ceo\ndisabled: true\n---\n\n# job\nbody\n";
-    const out = rewriteStaffKey(src);
-    expect(out).toContain("staff: ceo");
-    expect(out).not.toMatch(/^worker:/m);
-    // body + other keys untouched
-    expect(out).toContain("every: 1d");
-    expect(out).toContain("# job\nbody");
-  });
-
-  it("leaves a body line that merely says worker: alone", () => {
-    const src = "---\nevery: 1d\n---\n\n# duty\nthe worker: should stay\n";
-    const out = rewriteStaffKey(src);
-    expect(out).toContain("the worker: should stay");
-  });
-
-  it("is a no-op when there is no frontmatter", () => {
-    const src = "# duty\nworker: not-frontmatter\n";
-    expect(rewriteStaffKey(src)).toBe(src);
   });
 });

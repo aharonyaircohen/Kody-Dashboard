@@ -1699,7 +1699,6 @@ import type {
   CompanyImportMode,
   CompanyImportResult,
 } from "./company/types";
-import type { CompanyMigrationResult } from "./company/migrate";
 
 export const companyApi = {
   /** Export the connected repo's staff/duties/prompts/instructions bundle. */
@@ -1724,17 +1723,6 @@ export const companyApi = {
       body: JSON.stringify({ bundle, mode, ...(actorLogin && { actorLogin }) }),
     });
     const data = await handleResponse<{ result: CompanyImportResult }>(res);
-    return data.result;
-  },
-
-  /** One-time legacy folder migration (.kody/jobs|workers → duties|staff). */
-  migrate: async (actorLogin?: string): Promise<CompanyMigrationResult> => {
-    const res = await fetch(`${API_BASE}/company/migrate`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify({ ...(actorLogin && { actorLogin }) }),
-    });
-    const data = await handleResponse<{ result: CompanyMigrationResult }>(res);
     return data.result;
   },
 };
