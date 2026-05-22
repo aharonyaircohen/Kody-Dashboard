@@ -64,7 +64,7 @@ import {
   scheduleEveryLabel,
   ALL_SCHEDULE_EVERY_OPTIONS,
 } from "../duties-frontmatter";
-import type { Duty, DutySchedule } from "../api";
+import { getStoredAuth, type Duty, type DutySchedule } from "../api";
 import { DUTY_TEMPLATE } from "../duty-template";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
@@ -1165,7 +1165,16 @@ function MentionsInput({
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/kody/collaborators")
+    const auth = getStoredAuth();
+    fetch("/api/kody/collaborators", {
+      headers: auth
+        ? {
+            "x-kody-token": auth.token,
+            "x-kody-owner": auth.owner,
+            "x-kody-repo": auth.repo,
+          }
+        : {},
+    })
       .then((r) => (r.ok ? r.json() : { collaborators: [] }))
       .then((d) => {
         if (!cancelled) setCollaborators(d.collaborators ?? []);
