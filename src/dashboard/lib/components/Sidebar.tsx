@@ -32,11 +32,18 @@ import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { SimpleTooltip } from './SimpleTooltip'
 import { InboxBadge } from './InboxBadge'
 import {
+  HOME_NAV_ITEM,
   PRIMARY_NAV_ITEMS,
   PRIMARY_NAV_TITLE,
   SETTINGS_NAV_SECTIONS,
   type SettingsNavItem,
 } from './settings-nav'
+
+/** Pull just the `text-…` color token out of an item's `tint` (which is a
+ *  combined "text-X bg-Y" chip class) so the rail can color the bare icon. */
+function iconTintClass(item: SettingsNavItem): string | undefined {
+  return item.tint?.split(' ').find((c) => c.startsWith('text-'))
+}
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION
 
@@ -108,7 +115,7 @@ export function Sidebar() {
             : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
         )}
       >
-        <Icon className="w-4 h-4 shrink-0" />
+        <Icon className={cn('w-4 h-4 shrink-0', iconTintClass(item))} />
         {!collapsed && <span className="truncate">{item.label}</span>}
         {item.href === '/inbox' && (
           <InboxBadge
@@ -168,11 +175,21 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
+        {/* Dashboard — the landing/overview, standalone above the grouped
+            work surfaces (it isn't a peer of Duties/Staff/Reports). */}
+        {renderLink(HOME_NAV_ITEM)}
+
         <div className="space-y-1">
           {!collapsed && (
-            <p className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+            <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
               {PRIMARY_NAV_TITLE}
             </p>
+          )}
+          {collapsed && (
+            <div
+              className="my-2 mx-3 border-t border-white/[0.06]"
+              aria-hidden="true"
+            />
           )}
           {PRIMARY_NAV_ITEMS.map((item) => renderLink(item))}
         </div>
@@ -184,7 +201,7 @@ export function Sidebar() {
         {SETTINGS_NAV_SECTIONS.map((section) => (
           <div key={section.title} className="space-y-1">
             {!collapsed && (
-              <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+              <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                 {section.title}
               </p>
             )}

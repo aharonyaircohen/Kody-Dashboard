@@ -48,22 +48,59 @@ export interface SettingsNavItem {
  * Shared so the Sidebar, CommandPalette (and eventually MobileMenu) render
  * one list instead of drifting copies.
  */
+/** Home/landing — rendered standalone at the very top of the rail, above
+ *  the grouped "Workspace" surfaces. It's the overview you land on, not a
+ *  work surface, so it sits apart from Duties/Staff/Reports. */
+export const HOME_NAV_ITEM: SettingsNavItem = {
+  href: "/",
+  label: "Dashboard",
+  icon: Home,
+  exact: true,
+  tint: "text-emerald-300 bg-emerald-500/10",
+};
+
 /** Heading shown above the primary surfaces in the expanded sidebar rail. */
 export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
-  { href: "/", label: "Dashboard", icon: Home, exact: true },
-  { href: "/duties", label: "Duties", icon: Layers, exact: true },
-  { href: "/duties?tab=reports", label: "Reports", icon: FileText },
-  { href: "/staff", label: "Staff", icon: Users },
-  { href: "/messages", label: "Messages", icon: MessageSquare },
+  {
+    href: "/duties",
+    label: "Duties",
+    icon: Layers,
+    exact: true,
+    tint: "text-amber-300 bg-amber-500/10",
+  },
+  {
+    href: "/duties?tab=reports",
+    label: "Reports",
+    icon: FileText,
+    tint: "text-sky-300 bg-sky-500/10",
+  },
+  {
+    href: "/staff",
+    label: "Staff",
+    icon: Users,
+    tint: "text-violet-300 bg-violet-500/10",
+  },
+  {
+    href: "/messages",
+    label: "Messages",
+    icon: MessageSquare,
+    tint: "text-cyan-300 bg-cyan-500/10",
+  },
   {
     href: "/activity",
     label: "Activity",
     icon: Activity,
     description: "Engine run health — queue depth, throughput, failures.",
+    tint: "text-rose-300 bg-rose-500/10",
   },
-  { href: "/changelog", label: "Changelog", icon: History },
+  {
+    href: "/changelog",
+    label: "Changelog",
+    icon: History,
+    tint: "text-fuchsia-300 bg-fuchsia-500/10",
+  },
 ] as const;
 
 export interface SettingsNavSection {

@@ -32,7 +32,11 @@ import {
 import { useTheme } from "@dashboard/providers/Theme";
 import { cn } from "@dashboard/lib/utils/ui";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import { PRIMARY_NAV_ITEMS, SETTINGS_NAV_SECTIONS } from "./settings-nav";
+import {
+  HOME_NAV_ITEM,
+  PRIMARY_NAV_ITEMS,
+  SETTINGS_NAV_SECTIONS,
+} from "./settings-nav";
 
 interface Command {
   id: string;
@@ -86,7 +90,7 @@ export function CommandPalette() {
     };
 
     const navCommands: Command[] = [
-      ...PRIMARY_NAV_ITEMS.map((item) => ({
+      ...[HOME_NAV_ITEM, ...PRIMARY_NAV_ITEMS].map((item) => ({
         id: `nav:${item.href}`,
         label: item.label,
         group: "Go to",
