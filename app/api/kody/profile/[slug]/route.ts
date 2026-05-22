@@ -61,10 +61,15 @@ export async function GET(
   }
 }
 
-const updateProfileSchema = z.object({
-  body: z.string().min(1),
-  actorLogin: z.string().optional(),
-});
+const updateProfileSchema = z
+  .object({
+    body: z.string().min(1).optional(),
+    for: z.enum(["chat", "qa", "all"]).optional(),
+    actorLogin: z.string().optional(),
+  })
+  .refine((v) => v.body !== undefined || v.for !== undefined, {
+    message: "At least one of `body` or `for` must be provided.",
+  });
 
 export async function PATCH(
   req: NextRequest,
@@ -84,7 +89,7 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { body, actorLogin } = updateProfileSchema.parse(payload);
+    const { body, for: scope, actorLogin } = updateProfileSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -105,10 +110,13 @@ export async function PATCH(
       );
     }
 
+    // Partial update: keep whichever field the caller omitted. `body` and
+    // `for` are independent — changing scope alone leaves the text intact.
     const profile = await writeProfileFile({
       octokit: userOctokit,
       slug,
-      body,
+      body: body ?? existing.body,
+      for: scope ?? existing.for,
       sha: existing.sha,
     });
     return NextResponse.json({ profile });

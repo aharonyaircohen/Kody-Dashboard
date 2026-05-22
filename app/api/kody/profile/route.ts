@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
 const createProfileSchema = z.object({
   slug: z.string().min(1).max(64),
   body: z.string().min(1),
+  for: z.enum(["chat", "qa", "all"]).default("chat"),
   actorLogin: z.string().optional(),
 });
 
@@ -77,7 +78,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    const { slug, body, actorLogin } = createProfileSchema.parse(payload);
+    const {
+      slug,
+      body,
+      for: scope,
+      actorLogin,
+    } = createProfileSchema.parse(payload);
 
     if (!isValidSlug(slug)) {
       return NextResponse.json(
@@ -120,6 +126,7 @@ export async function POST(req: NextRequest) {
       octokit: userOctokit,
       slug,
       body,
+      for: scope,
     });
 
     return NextResponse.json({ profile });
