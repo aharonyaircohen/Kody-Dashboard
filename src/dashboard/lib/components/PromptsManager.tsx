@@ -25,6 +25,7 @@ import {
   FileText,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
+import { ListSearch } from "./ListSearch";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
@@ -189,6 +190,18 @@ function PromptsManagerInner() {
     isNew: boolean;
   } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return prompts;
+    return prompts.filter(
+      (p) =>
+        p.slug.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q) ||
+        p.argumentHint.toLowerCase().includes(q) ||
+        p.body.toLowerCase().includes(q),
+    );
+  }, [prompts, search]);
 
   return (
     <PageShell
@@ -260,8 +273,24 @@ function PromptsManagerInner() {
           </Card>
         )}
 
+        {!isLoading && !error && prompts.length > 0 && (
+          <ListSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search prompts…"
+            ariaLabel="Search prompts"
+            accent="violet"
+          />
+        )}
+
+        {!isLoading && !error && prompts.length > 0 && filtered.length === 0 && (
+          <p className="text-sm text-white/50 px-1">
+            No prompt matches your search.
+          </p>
+        )}
+
         <ul className="space-y-2">
-          {prompts.map((p) => (
+          {filtered.map((p) => (
             <li key={p.slug}>
               <Card className="border-white/[0.08] bg-white/[0.03]">
                 <CardContent className="p-3 flex items-start justify-between gap-3">

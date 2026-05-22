@@ -66,6 +66,7 @@ import {
 import type { Duty, DutySchedule } from "../api";
 import { DUTY_TEMPLATE } from "../duty-template";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { PageHeader } from "./PageShell";
 import { useChatScope } from "./ChatRailShell";
@@ -118,6 +119,19 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
     () => duties.find((m) => m.slug === selectedSlug) ?? null,
     [duties, selectedSlug],
   );
+
+  const [search, setSearch] = useState("");
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return duties;
+    return duties.filter(
+      (d) =>
+        d.slug.toLowerCase().includes(q) ||
+        d.title.toLowerCase().includes(q) ||
+        d.body.toLowerCase().includes(q) ||
+        (d.staff?.toLowerCase().includes(q) ?? false),
+    );
+  }, [duties, search]);
 
   useEffect(() => {
     if (!selectedSlug && duties.length > 0) {
@@ -272,6 +286,17 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
               selectedDuty && "hidden md:block",
             )}
           >
+            {duties.length > 0 ? (
+              <div className="sticky top-0 z-10 bg-background/95 backdrop-blur px-3 md:px-4 py-2 md:py-3 border-b border-border">
+                <ListSearch
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Search duties…"
+                  ariaLabel="Search duties"
+                  accent="emerald"
+                />
+              </div>
+            ) : null}
             {isLoading ? (
               <EmptyState icon={<FileText />} title="Loading duties…" />
             ) : duties.length === 0 ? (
@@ -280,9 +305,15 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
                 title="No duties yet"
                 hint="Create your first duty to describe the intent, system prompt, and restrictions."
               />
+            ) : filtered.length === 0 ? (
+              <EmptyState
+                icon={<Target />}
+                title="No matching duties"
+                hint="No duty matches your search. Try a different term."
+              />
             ) : (
               <ul className="divide-y divide-border">
-                {duties.map((duty) => {
+                {filtered.map((duty) => {
                   const isActive = selectedSlug === duty.slug;
                   return (
                     <li key={duty.slug}>
@@ -485,10 +516,6 @@ function DutyDetail({
           </Button>
           <header className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
-              <div className="inline-flex items-center gap-2 text-xs text-emerald-400 font-medium uppercase tracking-wider">
-                <Target className="w-3.5 h-3.5" />
-                Duty
-              </div>
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words inline-flex items-center gap-3 flex-wrap">
                 <span>{duty.title}</span>
                 {duty.disabled ? (
