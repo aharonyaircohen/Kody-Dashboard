@@ -7,7 +7,7 @@
  *   tracks whether a goal is being actively driven by the engine. One file
  *   per goal at `.kody/goals/<id>/state.json` keeps engine and dashboard
  *   writes from racing on the manifest, and matches the per-entity-file
- *   convention the engine uses for jobs.
+ *   convention the engine uses for duties.
  */
 
 /**
@@ -42,12 +42,12 @@ export interface GoalRunState {
   mergeApproved?: boolean;
   /**
    * "Let Kody manage this goal end-to-end." When true, the `goal-manager`
-   * worker (`.kody/workers/goal-manager.md`) picks the goal up: decomposes
+   * staff member (`.kody/staff/goal-manager.md`) picks the goal up: decomposes
    * it into task issues, lets `goal-tick` execute them, verifies the
    * end-to-end journey with `qa-engineer`, recovers stalls, and leaves a
    * single open deliverable PR for a human to merge. Absent/false → the
-   * worker ignores the goal entirely. Written only by the dashboard's
-   * `/goals/<id>/manage` endpoint; the engine/worker only reads it.
+   * staff member ignores the goal entirely. Written only by the dashboard's
+   * `/goals/<id>/manage` endpoint; the engine/staff only reads it.
    */
   managed?: boolean;
   /**

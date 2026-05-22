@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern cto-backpressure-gate
  * @ai-summary Code-enforced cap on **pending** CTO recommendations in the
- *   inbox. The `cto.md` worker is told to stop at 10, but that is prose an
+ *   inbox. The `cto.md` staff member is told to stop at 10, but that is prose an
  *   LLM re-counts every tick from a ledger — it drifts and over-posts. This
  *   module makes the cap deterministic at the one server-side write point
  *   (the webhook → inbox-feed append): a CTO recommendation entry is only
@@ -22,7 +22,7 @@ import { ctoDecisionKey, type CtoLatestDecision } from "./decisions";
 
 /**
  * Hard ceiling on undecided CTO recommendations visible in the inbox at
- * once. Mirrors the "at most 10 pending" rule in `.kody/workers/cto.md`,
+ * once. Mirrors the "at most 10 pending" rule in `.kody/staff/cto.md`,
  * but enforced here so it actually holds.
  */
 export const MAX_PENDING_CTO_RECS = 10;

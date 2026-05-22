@@ -396,7 +396,7 @@ async function recordInboxFeed(
 
   setGitHubContext(owner, repo, token);
   try {
-    // Code-enforced cap on pending CTO recommendations. The cto.md worker is
+    // Code-enforced cap on pending CTO recommendations. The cto.md staff member is
     // told to stop at 10 but counts by hand each tick and drifts; this gate
     // makes it deterministic at the single write point. Both reads are
     // cached (ETag/304) — no extra GitHub budget on the webhook path.

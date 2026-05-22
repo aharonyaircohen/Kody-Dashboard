@@ -20,7 +20,7 @@ export interface TaskContext {
   associatedPR?: { number?: number; state?: string; html_url?: string };
 }
 
-export interface JobContext {
+export interface DutyContext {
   number?: number;
   title?: string;
   body?: string;
@@ -67,8 +67,8 @@ export function buildSystemPrompt(
   repo: { owner: string; repo: string } | null,
   task: TaskContext | undefined,
   opts?: {
-    jobDraft?: boolean;
-    job?: JobContext;
+    dutyDraft?: boolean;
+    duty?: DutyContext;
     goalPlanner?: boolean;
     goal?: GoalContext;
     report?: ReportContext;
@@ -147,20 +147,20 @@ ${truncateMemoryIndex(opts.memoryIndex.trim())}`,
       );
     }
   }
-  if (opts?.job) {
-    const m = opts.job;
-    const lines: string[] = ["## Current job"];
-    if (m.number != null) lines.push(`- Job #${m.number}`);
+  if (opts?.duty) {
+    const m = opts.duty;
+    const lines: string[] = ["## Current duty"];
+    if (m.number != null) lines.push(`- Duty #${m.number}`);
     if (m.title) lines.push(`- Title: ${m.title}`);
     if (m.state) lines.push(`- State: ${m.state}`);
     if (m.labels?.length) lines.push(`- Labels: ${m.labels.join(", ")}`);
     if (m.body) {
       const bodyPreview =
         m.body.length > 2000 ? `${m.body.slice(0, 2000)}…` : m.body;
-      lines.push(`\n### Job body\n\n${bodyPreview}`);
+      lines.push(`\n### Duty body\n\n${bodyPreview}`);
     }
     lines.push(
-      "\nThe user is chatting about **this specific job**. A Kody job is a GitHub issue (label `kody:job`) whose body describes intent, system prompt, allowed commands, and restrictions. Answer their questions grounded in the job body above — do NOT claim the job does not exist. If they want to edit the job, help them draft changes to the markdown body.",
+      "\nThe user is chatting about **this specific duty**. A Kody duty is a markdown file at `.kody/duties/<slug>.md` whose body describes intent, system prompt, allowed commands, and restrictions. Answer their questions grounded in the duty body above — do NOT claim the duty does not exist. If they want to edit the duty, help them draft changes to the markdown body.",
     );
     sections.push(lines.join("\n"));
   }
@@ -228,25 +228,25 @@ If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create th
 `);
     sections.push(lines.join("\n"));
   }
-  if (opts?.jobDraft) {
+  if (opts?.dutyDraft) {
     sections.push(
-      `## Job drafting mode
+      `## Duty drafting mode
 
-The user is **drafting a new Kody job** — they are not asking about an existing one. A Kody job is a GitHub issue (labelled \`kody:job\`) whose markdown body describes:
+The user is **drafting a new Kody duty** — they are not asking about an existing one. A Kody duty is a markdown file at \`.kody/duties/<slug>.md\` whose body describes:
 
-- **Intent** — what the job should accomplish
-- **System prompt** — how Kody should behave when the job runs
+- **Intent** — what the duty should accomplish
+- **System prompt** — how Kody should behave when the duty runs
 - **Allowed commands / tools** — what Kody is permitted to do
 - **Restrictions** — what Kody must not do
 
-Your job: **interview the user about every aspect of this job until you reach a shared understanding** — do not draft until they signal they're ready. Ask short, concrete questions one turn at a time, drilling into goal, inputs, outputs, constraints, edge cases, success criteria, allowed tools, and restrictions. Prefer one focused question per turn over multi-part checklists. When the user explicitly says they're ready (or asks you to draft), produce a clean, copy-ready markdown draft with the four sections — Intent, System prompt, Allowed commands / tools, Restrictions — so they can hit **Use as job** on your reply to turn it into a real job. Never claim a job already exists; there is no current job to look up.`,
+Your job: **interview the user about every aspect of this duty until you reach a shared understanding** — do not draft until they signal they're ready. Ask short, concrete questions one turn at a time, drilling into goal, inputs, outputs, constraints, edge cases, success criteria, allowed tools, and restrictions. Prefer one focused question per turn over multi-part checklists. When the user explicitly says they're ready (or asks you to draft), produce a clean, copy-ready markdown draft with the four sections — Intent, System prompt, Allowed commands / tools, Restrictions — so they can hit **Use as duty** on your reply to turn it into a real duty. Never claim a duty already exists; there is no current duty to look up.`,
     );
   }
   if (opts?.report) {
     const r = opts.report;
     const lines: string[] = ["## Current report"];
     lines.push(
-      `The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files at \`.kody/reports/<slug>.md\` produced by Kody jobs and other engine pipelines — diagnostic output, never the source of truth for code.`,
+      `The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files at \`.kody/reports/<slug>.md\` produced by Kody duties and other engine pipelines — diagnostic output, never the source of truth for code.`,
     );
     const bodyPreview =
       r.body.length > 4000 ? `${r.body.slice(0, 4000)}…` : r.body;

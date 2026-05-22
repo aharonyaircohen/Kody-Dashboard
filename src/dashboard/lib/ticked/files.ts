@@ -3,12 +3,12 @@
  * @domain kody
  * @pattern ticked-files
  * @ai-summary One implementation of the "ticked markdown file" store —
- *   read/write `<dir>/<slug>.md` via the GitHub contents API. Jobs and
- *   workers are the same mechanism (a markdown file the engine's
+ *   read/write `<dir>/<slug>.md` via the GitHub contents API. Duties and
+ *   staff are the same mechanism (a markdown file the engine's
  *   job-tick chain enumerates and ticks); they differ only by directory,
  *   commit scope, and which cache to invalidate. `createTickedFiles`
- *   binds those three and returns the file API; `jobs-files.ts` /
- *   `workers-files.ts` are thin presets over it.
+ *   binds those three and returns the file API; `duties-files.ts` /
+ *   `staff-files.ts` are thin presets over it.
  *
  *   One file per definition. Path is the source of truth for identity
  *   (slug), file body is the markdown. Metadata (title, lastModified,
@@ -65,12 +65,12 @@ export interface TickFile {
    */
   disabled: boolean;
   /**
-   * Assigned worker (persona) slug from the `worker:` frontmatter, or
-   * `null` if none. Job-only in practice — workers are personas and never
-   * declare a worker. The dashboard reads this to render/seed the job's
-   * worker picker; the engine scheduler skips jobs with no worker.
+   * Assigned staff member (persona) slug from the `staff:` frontmatter, or
+   * `null` if none. Duty-only in practice — staff are personas and never
+   * declare a staff member. The dashboard reads this to render/seed the
+   * duty's staff picker; the engine scheduler skips duties with no staff.
    */
-  worker: string | null;
+  staff: string | null;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -91,17 +91,17 @@ export interface TickWriteOptions {
    */
   disabled?: boolean;
   /**
-   * Worker (persona) slug to emit as `worker:` frontmatter. `null`/absent
-   * writes no `worker:` line. Only jobs set this; worker files never do.
+   * Staff member (persona) slug to emit as `staff:` frontmatter. `null`/absent
+   * writes no `staff:` line. Only duties set this; staff files never do.
    */
-  worker?: string | null;
+  staff?: string | null;
   /** SHA of the existing blob; omit on create. */
   sha?: string;
   /** Commit message override. */
   message?: string;
 }
 
-/** Config that distinguishes one ticked-file kind (e.g. jobs) from another. */
+/** Config that distinguishes one ticked-file kind (e.g. duties) from another. */
 export interface TickedFilesConfig {
   /** Repo-relative directory holding the `.md` definitions. */
   dir: string;
@@ -260,20 +260,20 @@ function buildFileContent(
   body: string,
   schedule: ScheduleEvery | null,
   disabled: boolean,
-  worker: string | null,
+  staff: string | null,
 ): string {
   const trimmedBody = body.replace(/^\s+/, "");
   const titled = `# ${title.trim()}\n\n${trimmedBody}${trimmedBody.endsWith("\n") ? "" : "\n"}`;
   const fm: TickFrontmatter = {};
   if (schedule) fm.every = schedule;
-  if (worker) fm.worker = worker;
+  if (staff) fm.staff = staff;
   if (disabled) fm.disabled = true;
   return joinFrontmatter(fm, titled);
 }
 
 /**
  * Bind a directory, commit scope, and cache invalidator to produce the
- * file API for one ticked-file kind. Jobs and workers each call this
+ * file API for one ticked-file kind. Duties and staff each call this
  * once with their own config.
  */
 export function createTickedFiles(
@@ -362,7 +362,7 @@ export function createTickedFiles(
             nextEligibleAt,
             schedule: frontmatter.every ?? null,
             disabled: frontmatter.disabled === true,
-            worker: frontmatter.worker ?? null,
+            staff: frontmatter.staff ?? null,
             htmlUrl: buildHtmlUrl(slug, branch),
           } satisfies TickFile;
         } catch {
@@ -410,7 +410,7 @@ export function createTickedFiles(
         nextEligibleAt,
         schedule: frontmatter.every ?? null,
         disabled: frontmatter.disabled === true,
-        worker: frontmatter.worker ?? null,
+        staff: frontmatter.staff ?? null,
         htmlUrl: buildHtmlUrl(slug, branch),
       };
     } catch (error: unknown) {
@@ -435,7 +435,7 @@ export function createTickedFiles(
       opts.body,
       opts.schedule ?? null,
       opts.disabled === true,
-      opts.worker ?? null,
+      opts.staff ?? null,
     );
     const message =
       opts.message ??

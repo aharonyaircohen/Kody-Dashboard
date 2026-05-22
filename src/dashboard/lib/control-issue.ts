@@ -5,8 +5,8 @@
  * @ai-summary Shared helper for the repo's single "Kody control" issue —
  *   the audit-trail issue the dashboard posts `@kody <subcommand>` comments
  *   on to manually dispatch engine executables (the engine fires on
- *   `issue_comment` and routes to the named executable). Used by Job
- *   "Run now" and by worker @mentions ("ask"); both reuse the same issue
+ *   `issue_comment` and routes to the named executable). Used by Duty
+ *   "Run now" and by staff @mentions ("ask"); both reuse the same issue
  *   so the dispatch trail lives in one place.
  */
 
@@ -18,7 +18,7 @@ export const CONTROL_TITLE = "Kody control";
 const CONTROL_BODY = [
   "Audit trail for manual `@kody` dispatches from the dashboard.",
   "",
-  'Each comment below was a manual dispatch (Job "Run now", or a worker',
+  'Each comment below was a manual dispatch (Duty "Run now", or a staff',
   "@mention in a message). The engine fires on `issue_comment` and routes",
   "to the named executable.",
   "",

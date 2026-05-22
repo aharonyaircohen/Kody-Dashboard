@@ -826,10 +826,10 @@ export const remoteApi = {
   },
 };
 
-// ============ Jobs API ============
+// ============ Duties API ============
 
-/** Per-job cadence tokens; mirrors `ScheduleEvery` in jobs-frontmatter.ts. */
-export type JobSchedule =
+/** Per-duty cadence tokens; mirrors `ScheduleEvery` in duties-frontmatter.ts. */
+export type DutySchedule =
   | "15m"
   | "30m"
   | "1h"
@@ -842,7 +842,7 @@ export type JobSchedule =
   /** Sentinel: scheduler never auto-fires; only the dashboard "Run now" button executes it. */
   | "manual";
 
-export interface Job {
+export interface Duty {
   /** Filename without `.md` — stable identity. */
   slug: string;
   title: string;
@@ -851,68 +851,68 @@ export interface Job {
   updatedAt: string;
   /**
    * Last commit timestamp of the sibling `<slug>.state.json` (ISO8601),
-   * or `null` if the job has never run. The engine writes
+   * or `null` if the duty has never run. The engine writes
    * `<slug>.state.json` on every tick that acts.
    */
   lastTickAt: string | null;
   /**
-   * UTC ISO timestamp at which this job will next be eligible to act —
+   * UTC ISO timestamp at which this duty will next be eligible to act —
    * read from `data.nextEligibleISO` in the state JSON. `null` if the
-   * job has never run, or its body doesn't yet emit the field.
+   * duty has never run, or its body doesn't yet emit the field.
    */
   nextEligibleAt: string | null;
   /**
-   * Per-job cadence parsed from frontmatter. `null` = global cron wake
+   * Per-duty cadence parsed from frontmatter. `null` = global cron wake
    * (every 15 min). Engine-side gating ships separately.
    */
-  schedule: JobSchedule | null;
+  schedule: DutySchedule | null;
   /**
    * Mirrors `disabled: true` in the frontmatter. When `true` the engine
-   * scheduler skips this job; manual "Run now" still fires.
+   * scheduler skips this duty; manual "Run now" still fires.
    */
   disabled: boolean;
   /**
-   * Slug of the worker (persona) that executes this job, from the
-   * `worker:` frontmatter. The job owns the schedule; the worker is *who*
-   * the engine tick runs as. `null` = no worker assigned — the engine
-   * scheduler skips such jobs (every job must name an executor).
+   * Slug of the staff member (persona) that executes this duty, from the
+   * `staff:` frontmatter. The duty owns the schedule; the staff member is
+   * *who* the engine tick runs as. `null` = no staff assigned — the engine
+   * scheduler skips such duties (every duty must name an executor).
    */
-  worker: string | null;
+  staff: string | null;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
 
-export const jobsApi = {
-  list: async (): Promise<Job[]> => {
-    const res = await fetch(`${API_BASE}/jobs`, { headers: buildHeaders() });
-    const data = await handleResponse<{ jobs: Job[] }>(res);
-    return data.jobs;
+export const dutiesApi = {
+  list: async (): Promise<Duty[]> => {
+    const res = await fetch(`${API_BASE}/duties`, { headers: buildHeaders() });
+    const data = await handleResponse<{ duties: Duty[] }>(res);
+    return data.duties;
   },
 
-  get: async (slug: string): Promise<Job> => {
-    const res = await fetch(`${API_BASE}/jobs/${encodeURIComponent(slug)}`, {
+  get: async (slug: string): Promise<Duty> => {
+    const res = await fetch(`${API_BASE}/duties/${encodeURIComponent(slug)}`, {
       headers: buildHeaders(),
     });
-    const data = await handleResponse<{ job: Job }>(res);
-    return data.job;
+    const data = await handleResponse<{ duty: Duty }>(res);
+    return data.duty;
   },
 
   create: async (data: {
     slug?: string;
     title: string;
     body: string;
-    schedule?: JobSchedule | null;
+    schedule?: DutySchedule | null;
     disabled?: boolean;
-    worker?: string | null;
+    staff?: string | null;
     actorLogin?: string;
-  }): Promise<Job> => {
-    const res = await fetch(`${API_BASE}/jobs`, {
+  }): Promise<Duty> => {
+    const res = await fetch(`${API_BASE}/duties`, {
       method: "POST",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ job: Job }>(res);
-    return payload.job;
+    const payload = await handleResponse<{ duty: Duty }>(res);
+    return payload.duty;
   },
 
   update: async (
@@ -920,19 +920,19 @@ export const jobsApi = {
     data: {
       title?: string;
       body?: string;
-      schedule?: JobSchedule | null;
+      schedule?: DutySchedule | null;
       disabled?: boolean;
-      worker?: string | null;
+      staff?: string | null;
       actorLogin?: string;
     },
-  ): Promise<Job> => {
-    const res = await fetch(`${API_BASE}/jobs/${encodeURIComponent(slug)}`, {
+  ): Promise<Duty> => {
+    const res = await fetch(`${API_BASE}/duties/${encodeURIComponent(slug)}`, {
       method: "PATCH",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ job: Job }>(res);
-    return payload.job;
+    const payload = await handleResponse<{ duty: Duty }>(res);
+    return payload.duty;
   },
 
   remove: async (slug: string, actorLogin?: string): Promise<void> => {
@@ -940,7 +940,7 @@ export const jobsApi = {
     if (actorLogin) params.set("actorLogin", actorLogin);
     const suffix = params.toString() ? `?${params}` : "";
     const res = await fetch(
-      `${API_BASE}/jobs/${encodeURIComponent(slug)}${suffix}`,
+      `${API_BASE}/duties/${encodeURIComponent(slug)}${suffix}`,
       {
         method: "DELETE",
         headers: buildHeaders(),
@@ -950,7 +950,7 @@ export const jobsApi = {
   },
 
   /**
-   * Manually trigger a single job by posting an `@kody job-tick` comment
+   * Manually trigger a single duty by posting an `@kody job-tick` comment
    * on the repo's "Kody control" issue. The engine's existing
    * `issue_comment` trigger routes to job-tick. Defaults to `force: true`
    * because the operator clicked "Run now" — they want it to run regardless
@@ -960,7 +960,7 @@ export const jobsApi = {
    * required, no fake chat session, no overloaded sessionId.
    */
   run: async (
-    job: { slug: string },
+    duty: { slug: string },
     opts?: { force?: boolean },
   ): Promise<{
     issueNumber: number;
@@ -969,7 +969,7 @@ export const jobsApi = {
     force: boolean;
   }> => {
     const res = await fetch(
-      `${API_BASE}/jobs/${encodeURIComponent(job.slug)}/run`,
+      `${API_BASE}/duties/${encodeURIComponent(duty.slug)}/run`,
       {
         method: "POST",
         headers: buildHeaders(),
@@ -980,9 +980,9 @@ export const jobsApi = {
   },
 };
 
-// ============ Workers API ============
+// ============ Staff API ============
 
-export interface Worker {
+export interface Staff {
   /** Filename without `.md` — stable identity. */
   slug: string;
   title: string;
@@ -993,19 +993,19 @@ export interface Worker {
   htmlUrl: string;
 }
 
-export const workersApi = {
-  list: async (): Promise<Worker[]> => {
-    const res = await fetch(`${API_BASE}/workers`, { headers: buildHeaders() });
-    const data = await handleResponse<{ workers: Worker[] }>(res);
-    return data.workers;
+export const staffApi = {
+  list: async (): Promise<Staff[]> => {
+    const res = await fetch(`${API_BASE}/staff`, { headers: buildHeaders() });
+    const data = await handleResponse<{ staff: Staff[] }>(res);
+    return data.staff;
   },
 
-  get: async (slug: string): Promise<Worker> => {
-    const res = await fetch(`${API_BASE}/workers/${encodeURIComponent(slug)}`, {
+  get: async (slug: string): Promise<Staff> => {
+    const res = await fetch(`${API_BASE}/staff/${encodeURIComponent(slug)}`, {
       headers: buildHeaders(),
     });
-    const data = await handleResponse<{ worker: Worker }>(res);
-    return data.worker;
+    const data = await handleResponse<{ staffMember: Staff }>(res);
+    return data.staffMember;
   },
 
   create: async (data: {
@@ -1013,14 +1013,14 @@ export const workersApi = {
     title: string;
     body: string;
     actorLogin?: string;
-  }): Promise<Worker> => {
-    const res = await fetch(`${API_BASE}/workers`, {
+  }): Promise<Staff> => {
+    const res = await fetch(`${API_BASE}/staff`, {
       method: "POST",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ worker: Worker }>(res);
-    return payload.worker;
+    const payload = await handleResponse<{ staffMember: Staff }>(res);
+    return payload.staffMember;
   },
 
   update: async (
@@ -1030,14 +1030,14 @@ export const workersApi = {
       body?: string;
       actorLogin?: string;
     },
-  ): Promise<Worker> => {
-    const res = await fetch(`${API_BASE}/workers/${encodeURIComponent(slug)}`, {
+  ): Promise<Staff> => {
+    const res = await fetch(`${API_BASE}/staff/${encodeURIComponent(slug)}`, {
       method: "PATCH",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ worker: Worker }>(res);
-    return payload.worker;
+    const payload = await handleResponse<{ staffMember: Staff }>(res);
+    return payload.staffMember;
   },
 
   remove: async (slug: string, actorLogin?: string): Promise<void> => {
@@ -1045,7 +1045,7 @@ export const workersApi = {
     if (actorLogin) params.set("actorLogin", actorLogin);
     const suffix = params.toString() ? `?${params}` : "";
     const res = await fetch(
-      `${API_BASE}/workers/${encodeURIComponent(slug)}${suffix}`,
+      `${API_BASE}/staff/${encodeURIComponent(slug)}${suffix}`,
       {
         method: "DELETE",
         headers: buildHeaders(),
@@ -1700,8 +1700,8 @@ export const kodyApi = {
   workflows: workflowsApi,
   ci: ciApi,
   remote: remoteApi,
-  jobs: jobsApi,
-  workers: workersApi,
+  duties: dutiesApi,
+  staff: staffApi,
   reports: reportsApi,
   goals: goalsApi,
   messages: messagesApi,

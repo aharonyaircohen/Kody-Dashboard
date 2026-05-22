@@ -109,12 +109,12 @@ export const BUILTIN_PROMPTS: readonly BuiltinPrompt[] = [
       "Summarize the state, flag anything that looks wrong or stuck, and suggest the next concrete action.",
   },
   {
-    slug: "job",
-    description: "Draft a scheduled Kody job",
+    slug: "duty",
+    description: "Draft a scheduled Kody duty",
     argumentHint: "<what should it do>",
     body:
-      "Draft a Kody job that does the following: $ARGUMENTS.\n\n" +
-      "Output the markdown for `.kody/jobs/<slug>.md` with `every:` frontmatter (pick a reasonable cadence), " +
+      "Draft a Kody duty that does the following: $ARGUMENTS.\n\n" +
+      "Output the markdown for `.kody/duties/<slug>.md` with `every:` frontmatter (pick a reasonable cadence), " +
       "a clear H1 title, a short context section, and step-by-step instructions. " +
       "End the body with the `## State` block that emits `nextEligibleISO`.",
   },

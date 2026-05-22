@@ -18,7 +18,7 @@ import { useChangelog } from "../hooks/useChangelog";
 import { PageHeader } from "./PageShell";
 
 interface ChangelogViewProps {
-  /** Render without the built-in PageHeader (e.g. when hosted in JobsPageTabs). */
+  /** Render without the built-in PageHeader (e.g. when hosted in DutiesPageTabs). */
   embedded?: boolean;
 }
 

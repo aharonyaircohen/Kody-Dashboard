@@ -1,14 +1,14 @@
 /**
  * @fileType component
  * @domain kody
- * @pattern worker-control-page
- * @ai-summary Worker Control — list, view, create, edit, and delete workers.
- *   A worker is a pure reusable PERSONA file at `.kody/workers/<slug>.md`
- *   in the connected repo: a markdown body describing the worker's intent,
- *   allowed commands, and restrictions. Workers have no schedule, no state,
- *   and no run/tick — they're personas referenced by other flows. The chat
- *   rail reuses the existing job/job-draft scope kinds (Worker is
- *   structurally identical to Job).
+ * @pattern staff-control-page
+ * @ai-summary Staff Control — list, view, create, edit, and delete staff.
+ *   A staff member is a pure reusable PERSONA file at `.kody/staff/<slug>.md`
+ *   in the connected repo: a markdown body describing the staff member's
+ *   intent, allowed commands, and restrictions. Staff have no schedule, no
+ *   state, and no run/tick — they're personas referenced by other flows.
+ *   The chat rail reuses the existing duty/duty-draft scope kinds (a staff
+ *   member is structurally identical to a duty).
  */
 "use client";
 
@@ -39,14 +39,14 @@ import {
 import { AuthGuard } from "../auth-guard";
 import { cn } from "../utils";
 import {
-  useCreateWorker,
-  useDeleteWorker,
-  useWorkers,
-  useUpdateWorker,
-} from "../hooks/useWorkers";
+  useCreateStaff,
+  useDeleteStaff,
+  useStaff,
+  useUpdateStaff,
+} from "../hooks/useStaff";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import type { Worker } from "../api";
-import { WORKER_TEMPLATE } from "../worker-template";
+import type { Staff } from "../api";
+import { STAFF_TEMPLATE } from "../staff-template";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { PageHeader } from "./PageShell";
@@ -58,41 +58,41 @@ function newDraftId(): string {
     : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-interface WorkerControlProps {
-  /** Render without the built-in PageHeader (e.g. when hosted in WorkersPageTabs). */
+interface StaffControlProps {
+  /** Render without the built-in PageHeader (e.g. when hosted in StaffPageTabs). */
   embedded?: boolean;
 }
 
-export function WorkerControl({ embedded = false }: WorkerControlProps = {}) {
+export function StaffControl({ embedded = false }: StaffControlProps = {}) {
   return (
     <AuthGuard>
-      <WorkerControlInner embedded={embedded} />
+      <StaffControlInner embedded={embedded} />
     </AuthGuard>
   );
 }
 
-export function WorkerControlInner({
+export function StaffControlInner({
   embedded = false,
-}: WorkerControlProps = {}) {
+}: StaffControlProps = {}) {
   const {
-    data: workers = [],
+    data: staff = [],
     isLoading,
     isFetching,
     refetch,
     error,
-  } = useWorkers();
+  } = useStaff();
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<Worker | null>(null);
+  const [editingMember, setEditingMember] = useState<Staff | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Staff | null>(null);
 
   // Chat-panel state. The left rail switches between three modes:
-  //  • worker mode   — when a worker is selected and we're not drafting
-  //  • draft mode     — when "Draft new worker" is active (rotates draftId)
-  //  • disabled       — neither (e.g. no workers yet)
+  //  • staff mode    — when a staff member is selected and we're not drafting
+  //  • draft mode     — when "Draft new staff member" is active (rotates draftId)
+  //  • disabled       — neither (e.g. no staff yet)
   // `draftPrefill` carries an assistant reply the user picked via
-  // "Use as worker" into CreateWorkerDialog.
+  // "Use as staff" into CreateStaffDialog.
   const [isDrafting, setIsDrafting] = useState(false);
   const [draftId, setDraftId] = useState<string>(() => newDraftId());
   const [draftPrefill, setDraftPrefill] = useState<string | null>(null);
@@ -102,42 +102,42 @@ export function WorkerControlInner({
   };
   const cancelDraft = () => setIsDrafting(false);
 
-  const selectedWorker = useMemo(
-    () => workers.find((m) => m.slug === selectedSlug) ?? null,
-    [workers, selectedSlug],
+  const selectedMember = useMemo(
+    () => staff.find((m) => m.slug === selectedSlug) ?? null,
+    [staff, selectedSlug],
   );
 
   useEffect(() => {
-    if (!selectedSlug && workers.length > 0) {
-      setSelectedSlug(workers[0].slug);
+    if (!selectedSlug && staff.length > 0) {
+      setSelectedSlug(staff[0].slug);
     }
-  }, [workers, selectedSlug]);
+  }, [staff, selectedSlug]);
 
   const { githubUser } = useGitHubIdentity();
-  const deleteMutation = useDeleteWorker(githubUser?.login);
+  const deleteMutation = useDeleteStaff(githubUser?.login);
 
   // Push chat context up to the persistent rail in the root layout.
-  // Worker is structurally identical to Job, so we reuse the existing
-  // job / job-draft scope kinds — the chat just needs the file's
+  // A staff member is structurally identical to a duty, so we reuse the
+  // existing duty / duty-draft scope kinds — the chat just needs the file's
   // title/body to answer questions or draft a new one.
   const { setScope } = useChatScope();
   useEffect(() => {
     setScope(
       isDrafting
         ? {
-            kind: "job-draft",
+            kind: "duty-draft",
             draftId,
             onFinalize: (assistantContent) => {
               setDraftPrefill(assistantContent);
               setShowCreate(true);
             },
           }
-        : selectedWorker
-          ? { kind: "job", job: selectedWorker }
+        : selectedMember
+          ? { kind: "duty", duty: selectedMember }
           : null,
     );
     return () => setScope(null);
-  }, [isDrafting, draftId, selectedWorker, setScope]);
+  }, [isDrafting, draftId, selectedMember, setScope]);
 
   return (
     <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
@@ -146,14 +146,14 @@ export function WorkerControlInner({
         {embedded ? (
           <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-black/20">
             <span className="text-xs text-muted-foreground mr-auto">
-              {workers.length} {workers.length === 1 ? "worker" : "workers"}
+              {staff.length} {staff.length === 1 ? "member" : "staff"}
             </span>
             <Button
               variant="outline"
               size="sm"
               onClick={() => refetch()}
               disabled={isFetching}
-              aria-label="Refresh workers"
+              aria-label="Refresh staff"
             >
               <RefreshCw
                 className={cn("w-4 h-4", isFetching && "animate-spin")}
@@ -165,10 +165,10 @@ export function WorkerControlInner({
                 size="sm"
                 onClick={cancelDraft}
                 className="gap-1"
-                title="Stop drafting; chat returns to the selected worker"
+                title="Stop drafting; chat returns to the selected staff member"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">Back to worker</span>
+                <span className="hidden sm:inline">Back to staff</span>
               </Button>
             ) : (
               <Button
@@ -176,7 +176,7 @@ export function WorkerControlInner({
                 size="sm"
                 onClick={startNewDraft}
                 className="gap-1"
-                title="Chat with Kody to scope a brand-new worker"
+                title="Chat with Kody to scope a brand-new staff member"
               >
                 <Sparkles className="w-4 h-4" />
                 <span className="hidden sm:inline">Draft new</span>
@@ -188,15 +188,15 @@ export function WorkerControlInner({
               className="gap-1"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New worker</span>
+              <span className="hidden sm:inline">New member</span>
             </Button>
           </div>
         ) : (
           <PageHeader
-            title="Worker Control"
+            title="Staff Control"
             icon={Target}
             iconClassName="text-emerald-400"
-            subtitle={`${workers.length} ${workers.length === 1 ? "worker" : "workers"}`}
+            subtitle={`${staff.length} ${staff.length === 1 ? "member" : "staff"}`}
             actions={
               <>
                 <Button
@@ -204,7 +204,7 @@ export function WorkerControlInner({
                   size="sm"
                   onClick={() => refetch()}
                   disabled={isFetching}
-                  aria-label="Refresh workers"
+                  aria-label="Refresh staff"
                 >
                   <RefreshCw
                     className={cn("w-4 h-4", isFetching && "animate-spin")}
@@ -216,10 +216,10 @@ export function WorkerControlInner({
                     size="sm"
                     onClick={cancelDraft}
                     className="gap-1"
-                    title="Stop drafting; chat returns to the selected worker"
+                    title="Stop drafting; chat returns to the selected staff member"
                   >
                     <ArrowLeft className="w-4 h-4" />
-                    <span className="hidden sm:inline">Back to worker</span>
+                    <span className="hidden sm:inline">Back to staff</span>
                   </Button>
                 ) : (
                   <Button
@@ -227,7 +227,7 @@ export function WorkerControlInner({
                     size="sm"
                     onClick={startNewDraft}
                     className="gap-1"
-                    title="Chat with Kody to scope a brand-new worker"
+                    title="Chat with Kody to scope a brand-new staff member"
                   >
                     <Sparkles className="w-4 h-4" />
                     <span className="hidden sm:inline">Draft new</span>
@@ -239,7 +239,7 @@ export function WorkerControlInner({
                   className="gap-1"
                 >
                   <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">New worker</span>
+                  <span className="hidden sm:inline">New member</span>
                 </Button>
               </>
             }
@@ -248,35 +248,35 @@ export function WorkerControlInner({
 
         {error ? (
           <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
-            Failed to load workers: {(error as Error).message}
+            Failed to load staff: {(error as Error).message}
           </div>
         ) : null}
 
         <div className="flex-1 min-h-0 flex">
-          {/* Middle: worker list */}
+          {/* Middle: staff list */}
           <aside
             className={cn(
               "w-full md:w-80 md:border-r md:border-border overflow-y-auto",
-              selectedWorker && "hidden md:block",
+              selectedMember && "hidden md:block",
             )}
           >
             {isLoading ? (
-              <EmptyState icon={<FileText />} title="Loading workers…" />
-            ) : workers.length === 0 ? (
+              <EmptyState icon={<FileText />} title="Loading staff…" />
+            ) : staff.length === 0 ? (
               <EmptyState
                 icon={<Target />}
-                title="No workers yet"
-                hint="Create your first worker to describe the intent, system prompt, and restrictions."
+                title="No staff yet"
+                hint="Create your first staff member to describe the intent, system prompt, and restrictions."
               />
             ) : (
               <ul className="divide-y divide-border">
-                {workers.map((worker) => {
-                  const isActive = selectedSlug === worker.slug;
+                {staff.map((member) => {
+                  const isActive = selectedSlug === member.slug;
                   return (
-                    <li key={worker.slug}>
+                    <li key={member.slug}>
                       <button
                         type="button"
-                        onClick={() => setSelectedSlug(worker.slug)}
+                        onClick={() => setSelectedSlug(member.slug)}
                         className={cn(
                           "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                           isActive && "bg-accent/70",
@@ -295,17 +295,17 @@ export function WorkerControlInner({
                             )}
                           />
                           <span className="font-medium text-sm truncate flex-1">
-                            {worker.title}
+                            {member.title}
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                           <span className="font-mono opacity-80">
-                            {worker.slug}
+                            {member.slug}
                           </span>
                           <span>·</span>
                           <span className="inline-flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            {new Date(worker.updatedAt).toLocaleDateString()}
+                            {new Date(member.updatedAt).toLocaleDateString()}
                           </span>
                         </div>
                       </button>
@@ -316,68 +316,68 @@ export function WorkerControlInner({
             )}
           </aside>
 
-          {/* Right: worker detail */}
+          {/* Right: staff detail */}
           <section
             className={cn(
               "flex-1 min-w-0 overflow-y-auto",
-              !selectedWorker && "hidden md:block",
+              !selectedMember && "hidden md:block",
             )}
           >
-            {selectedWorker ? (
-              <WorkerDetail
-                worker={selectedWorker}
+            {selectedMember ? (
+              <StaffDetail
+                member={selectedMember}
                 onBack={() => setSelectedSlug(null)}
-                onEdit={() => setEditingWorker(selectedWorker)}
-                onDelete={() => setPendingDelete(selectedWorker)}
+                onEdit={() => setEditingMember(selectedMember)}
+                onDelete={() => setPendingDelete(selectedMember)}
               />
             ) : (
               <EmptyState
                 icon={<Target />}
-                title="Select a worker"
-                hint="Pick a worker from the list to see its intent and system prompt."
+                title="Select a staff member"
+                hint="Pick a staff member from the list to see its intent and system prompt."
               />
             )}
           </section>
         </div>
 
         {/* Create */}
-        <CreateWorkerDialog
+        <CreateStaffDialog
           open={showCreate}
           initialBody={draftPrefill}
           onClose={() => {
             setShowCreate(false);
             setDraftPrefill(null);
           }}
-          onCreated={(worker) => {
-            setSelectedSlug(worker.slug);
+          onCreated={(member) => {
+            setSelectedSlug(member.slug);
             setShowCreate(false);
             setDraftPrefill(null);
             // Drop out of draft mode so the chat is now scoped to the
-            // newly-created worker instead of the old draft session.
+            // newly-created staff member instead of the old draft session.
             setIsDrafting(false);
           }}
         />
 
         {/* Edit */}
-        {editingWorker ? (
-          <EditWorkerDialog
-            worker={editingWorker}
-            onClose={() => setEditingWorker(null)}
-            onSaved={() => setEditingWorker(null)}
+        {editingMember ? (
+          <EditStaffDialog
+            member={editingMember}
+            onClose={() => setEditingMember(null)}
+            onSaved={() => setEditingMember(null)}
           />
         ) : null}
 
         {/* Delete confirm */}
         <ConfirmDialog
           open={!!pendingDelete}
-          title="Delete this worker?"
+          title="Delete this staff member?"
           description={
             pendingDelete
-              ? `Worker "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/workers/ via a commit on the default branch.`
+              ? `Staff member "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/staff/ via a commit on the default branch.`
               : ""
           }
           variant="destructive"
-          confirmLabel="Delete worker"
+          confirmLabel="Delete member"
           onConfirm={() => {
             if (!pendingDelete) return;
             const target = pendingDelete;
@@ -394,18 +394,18 @@ export function WorkerControlInner({
   );
 }
 
-function WorkerDetail({
-  worker,
+function StaffDetail({
+  member,
   onBack,
   onEdit,
   onDelete,
 }: {
-  worker: Worker;
+  member: Staff;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const hasBody = worker.body.trim().length > 0;
+  const hasBody = member.body.trim().length > 0;
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -418,27 +418,27 @@ function WorkerDetail({
             className="md:hidden gap-1 -ml-2 text-muted-foreground"
           >
             <ArrowLeft className="w-4 h-4" />
-            All workers
+            All staff
           </Button>
           <header className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
               <div className="inline-flex items-center gap-2 text-xs text-emerald-400 font-medium uppercase tracking-wider">
                 <Target className="w-3.5 h-3.5" />
-                Worker
+                Staff
               </div>
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words">
-                {worker.title}
+                {member.title}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-                <span className="font-mono opacity-80">{worker.slug}</span>
+                <span className="font-mono opacity-80">{member.slug}</span>
                 <span>·</span>
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  updated {new Date(worker.updatedAt).toLocaleDateString()}
+                  updated {new Date(member.updatedAt).toLocaleDateString()}
                 </span>
                 <span>·</span>
                 <a
-                  href={worker.htmlUrl}
+                  href={member.htmlUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
@@ -455,8 +455,8 @@ function WorkerDetail({
                 size="sm"
                 onClick={onEdit}
                 className="w-9 px-0"
-                title="Edit worker"
-                aria-label="Edit worker"
+                title="Edit staff member"
+                aria-label="Edit staff member"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
@@ -465,8 +465,8 @@ function WorkerDetail({
                 size="sm"
                 onClick={onDelete}
                 className="w-9 px-0 text-red-400"
-                title="Delete worker"
-                aria-label="Delete worker"
+                title="Delete staff member"
+                aria-label="Delete staff member"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
@@ -477,7 +477,7 @@ function WorkerDetail({
           {hasBody ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{worker.body}</ReactMarkdown>
+                <ReactMarkdown>{member.body}</ReactMarkdown>
               </div>
             </div>
           ) : null}
@@ -497,7 +497,7 @@ function WorkerDetail({
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Use <span className="font-medium text-foreground">Edit</span> to
-                describe the worker&apos;s intent, system prompt, allowed
+                describe the staff member&apos;s intent, system prompt, allowed
                 commands, and restrictions.
               </p>
             </div>
@@ -508,7 +508,7 @@ function WorkerDetail({
               className="gap-1.5 mt-1"
             >
               <Pencil className="w-3.5 h-3.5" />
-              Edit worker
+              Edit staff member
             </Button>
           </div>
         </div>
@@ -517,7 +517,7 @@ function WorkerDetail({
   );
 }
 
-function CreateWorkerDialog({
+function CreateStaffDialog({
   open,
   initialBody,
   onClose,
@@ -526,22 +526,22 @@ function CreateWorkerDialog({
   open: boolean;
   /**
    * Optional pre-filled body (e.g. from a "Draft with Kody" chat). When
-   * provided, replaces the default WORKER_TEMPLATE starter.
+   * provided, replaces the default STAFF_TEMPLATE starter.
    */
   initialBody?: string | null;
   onClose: () => void;
-  onCreated: (worker: Worker) => void;
+  onCreated: (member: Staff) => void;
 }) {
   const { githubUser } = useGitHubIdentity();
-  const createMutation = useCreateWorker(githubUser?.login);
+  const createMutation = useCreateStaff(githubUser?.login);
 
   const [title, setTitle] = useState("");
-  const [body, setBody] = useState(WORKER_TEMPLATE);
+  const [body, setBody] = useState(STAFF_TEMPLATE);
 
   useEffect(() => {
     if (open) {
       setTitle("");
-      setBody(initialBody && initialBody.trim() ? initialBody : WORKER_TEMPLATE);
+      setBody(initialBody && initialBody.trim() ? initialBody : STAFF_TEMPLATE);
     }
   }, [open, initialBody]);
 
@@ -550,7 +550,7 @@ function CreateWorkerDialog({
     createMutation.mutate(
       { title: title.trim(), body },
       {
-        onSuccess: (worker) => onCreated(worker),
+        onSuccess: (member) => onCreated(member),
       },
     );
   };
@@ -559,18 +559,18 @@ function CreateWorkerDialog({
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>New worker</DialogTitle>
+          <DialogTitle>New staff member</DialogTitle>
           <DialogDescription>
-            Describe the worker&apos;s intent, system prompt, allowed commands,
-            and restrictions.
+            Describe the staff member&apos;s intent, system prompt, allowed
+            commands, and restrictions.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="worker-title">Title</Label>
+            <Label htmlFor="staff-title">Title</Label>
             <Input
-              id="worker-title"
+              id="staff-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Release notes manager"
@@ -592,7 +592,7 @@ function CreateWorkerDialog({
             onClick={handleSubmit}
             disabled={!title.trim() || createMutation.isPending}
           >
-            {createMutation.isPending ? "Creating…" : "Create worker"}
+            {createMutation.isPending ? "Creating…" : "Create member"}
           </Button>
         </div>
       </DialogContent>
@@ -600,25 +600,25 @@ function CreateWorkerDialog({
   );
 }
 
-function EditWorkerDialog({
-  worker,
+function EditStaffDialog({
+  member,
   onClose,
   onSaved,
 }: {
-  worker: Worker;
+  member: Staff;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { githubUser } = useGitHubIdentity();
-  const updateMutation = useUpdateWorker(worker.slug, githubUser?.login);
+  const updateMutation = useUpdateStaff(member.slug, githubUser?.login);
 
-  const [title, setTitle] = useState(worker.title);
-  const [body, setBody] = useState(worker.body || "");
+  const [title, setTitle] = useState(member.title);
+  const [body, setBody] = useState(member.body || "");
 
   useEffect(() => {
-    setTitle(worker.title);
-    setBody(worker.body || "");
-  }, [worker]);
+    setTitle(member.title);
+    setBody(member.body || "");
+  }, [member]);
 
   const handleSubmit = () => {
     if (!title.trim() || updateMutation.isPending) return;
@@ -626,8 +626,8 @@ function EditWorkerDialog({
       title?: string;
       body?: string;
     } = {};
-    if (title !== worker.title) patch.title = title.trim();
-    if (body !== worker.body) patch.body = body;
+    if (title !== member.title) patch.title = title.trim();
+    if (body !== member.body) patch.body = body;
     if (Object.keys(patch).length === 0) {
       onSaved();
       return;
@@ -639,18 +639,18 @@ function EditWorkerDialog({
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit worker `{worker.slug}`</DialogTitle>
+          <DialogTitle>Edit staff member `{member.slug}`</DialogTitle>
           <DialogDescription>
-            Update the worker&apos;s title or body. Saving commits the file to
-            the default branch.
+            Update the staff member&apos;s title or body. Saving commits the file
+            to the default branch.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="edit-worker-title">Title</Label>
+            <Label htmlFor="edit-staff-title">Title</Label>
             <Input
-              id="edit-worker-title"
+              id="edit-staff-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               autoFocus

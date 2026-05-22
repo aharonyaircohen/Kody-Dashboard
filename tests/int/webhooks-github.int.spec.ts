@@ -28,7 +28,7 @@ const ipv = vi.hoisted(() => ({
 const side = vi.hoisted(() => ({
   dispatchNotifications: vi.fn(async () => {}),
   dispatchMentionPushes: vi.fn(async () => {}),
-  dispatchWorkerMentions: vi.fn(async () => {}),
+  dispatchStaffMentions: vi.fn(async () => {}),
   applyVerdictFromComment: vi.fn(async () => {}),
   handlePrMerged: vi.fn(async () => {}),
   handleReleasePublished: vi.fn(async () => {}),
@@ -45,8 +45,8 @@ vi.mock("@dashboard/lib/notifications-dispatch", () => ({
 vi.mock("@dashboard/lib/push/mention-dispatch", () => ({
   dispatchMentionPushes: side.dispatchMentionPushes,
 }));
-vi.mock("@dashboard/lib/push/worker-mention-dispatch", () => ({
-  dispatchWorkerMentions: side.dispatchWorkerMentions,
+vi.mock("@dashboard/lib/push/staff-mention-dispatch", () => ({
+  dispatchStaffMentions: side.dispatchStaffMentions,
 }));
 vi.mock("@dashboard/lib/ui-verify/apply-label", () => ({
   applyVerdictFromComment: side.applyVerdictFromComment,
@@ -157,11 +157,11 @@ describe("POST /api/webhooks/github — side effects", () => {
     );
   });
 
-  it("fans the payload out to notifications + mention + worker dispatch", async () => {
+  it("fans the payload out to notifications + mention + staff dispatch", async () => {
     await POST(makeReq("issues", { issue: { number: 5 } }));
     expect(side.dispatchNotifications).toHaveBeenCalledTimes(1);
     expect(side.dispatchMentionPushes).toHaveBeenCalledTimes(1);
-    expect(side.dispatchWorkerMentions).toHaveBeenCalledTimes(1);
+    expect(side.dispatchStaffMentions).toHaveBeenCalledTimes(1);
   });
 });
 

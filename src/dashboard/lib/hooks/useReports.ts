@@ -4,7 +4,7 @@
  * @pattern reports-hooks
  * @ai-summary React Query hooks for system reports. Backed by
  *   `.kody/reports/<slug>.md` files in the connected repo via the
- *   GitHub contents API. Read-only — reports are produced by Kody jobs.
+ *   GitHub contents API. Read-only — reports are produced by Kody duties.
  */
 "use client";
 

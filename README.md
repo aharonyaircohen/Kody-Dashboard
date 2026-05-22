@@ -6,7 +6,7 @@ Kody is the difference between AI as a coding assistant you babysit (Cursor, Cop
 
 Operations UI for the [Kody Engine](https://github.com/aharonyaircohen/Kody-Engine) — the control plane for an autonomous engineering workforce.
 
-Monitor tasks, schedule autonomous jobs, run agents in parallel, approve gates, review PRs and reports, and chat with Kody — all from a single web interface.
+Monitor tasks, schedule autonomous duties, run agents in parallel, approve gates, review PRs and reports, and chat with Kody — all from a single web interface.
 
 **New here?** Read [WHY-KODY.md](./WHY-KODY.md) for what this platform is, who it's for, and why it exists.
 
@@ -39,7 +39,7 @@ Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where 
 ## Features
 
 - Task board (inbox → spec → building → review → done) with drag-and-drop
-- Job scheduler — markdown-defined jobs in `.kody/jobs/`, ticked off as they run
+- Duty scheduler — markdown-defined duties in `.kody/duties/`, ticked off as they run
 - Parallel task execution — each task is its own GitHub Actions workflow run
 - PR viewer with file diffs, CI status, and gate approvals
 - Live previews — per-task Fly.io preview environments
@@ -98,7 +98,7 @@ pnpm test         # Run tests
 
 ```
 app/
-  api/kody/           # Task, PR, chat, job, secrets endpoints
+  api/kody/           # Task, PR, chat, duty, secrets endpoints
   api/oauth/          # GitHub OAuth flow
   api/webhooks/       # GitHub webhook receiver
   [issueNumber]/      # Task detail pages
@@ -111,7 +111,7 @@ src/dashboard/lib/
   auth/               # GitHub OAuth + session
   vault/              # Per-repo encrypted secrets
   webhooks/           # GitHub webhook handlers + registration
-  changelog/          # Job report aggregation
+  changelog/          # Duty report aggregation
   notifications/      # Desktop + in-app
 ```
 

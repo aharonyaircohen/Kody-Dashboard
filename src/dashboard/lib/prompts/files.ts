@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern prompts-files
  * @ai-summary Read/write prompt files under `.kody/prompts/<slug>.md`
- *   via the GitHub contents API. Same shape as `jobs-files.ts`:
+ *   via the GitHub contents API. Same shape as `duties-files.ts`:
  *   filename is the slug, frontmatter holds description/argument-hint,
  *   body is the prompt template that gets substituted with $ARGUMENTS.
  *

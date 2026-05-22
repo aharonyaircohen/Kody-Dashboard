@@ -6,7 +6,7 @@
  *   `managed` boolean into `.kody/goals/<id>/state.json`. When enabling on
  *   a goal that was never started, it also creates the state file as
  *   `active` + `managed` and dispatches the engine so both `goal-tick`
- *   and the `goal-manager` worker pick it up within seconds. Separate
+ *   and the `goal-manager` staff member pick it up within seconds. Separate
  *   from the state route on purpose: that route's contract is
  *   "start/pause the runner"; this one carries the autonomy intent.
  */
@@ -144,7 +144,7 @@ export async function POST(
       : null;
 
     // Enabling management on a never-started goal implies it should run:
-    // seed an active state so goal-tick AND the worker both engage. A
+    // seed an active state so goal-tick AND the staff member both engage. A
     // done goal can't be re-managed (the deliverable PR is already open).
     if (!previous && !parsed.data.managed) {
       return NextResponse.json(
@@ -187,7 +187,7 @@ export async function POST(
 
     // Take effect now, not on the next cron. Dispatch on the repo's
     // default branch (a stale main can carry an outdated kody.yml).
-    // Non-fatal: the worker/goal-tick crons are the backstop.
+    // Non-fatal: the staff/goal-tick crons are the backstop.
     let engineDispatched = false;
     if (parsed.data.managed && next.state === "active") {
       try {

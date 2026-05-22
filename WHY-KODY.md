@@ -64,13 +64,13 @@ Each flow is a transition table — postflight hooks dispatch the next executabl
 | `kody spec --issue N`    | research → plan (terminates at plan, no code) |
 | `kody chore --issue N`   | run → review → (fix loop)                     |
 
-### Jobs, watches, managers
+### Duties, watches, managers
 
-A **job** is a stateful, bounded goal expressed as a GitHub issue labelled `kody:job`. A **watch** is a stateless repeating loop. A **manager** is a job whose goal is overseeing other jobs.
+A **duty** is a stateful, bounded goal expressed as a markdown file under `.kody/duties/`. A **watch** is a stateless repeating loop. A **manager** is a duty whose goal is overseeing other duties.
 
-`job-scheduler` runs on cron (default every 5 minutes), finds every open `kody:job` issue, and calls `job-tick` once per issue. The tick agent reads the issue body (human-owned prose) and a state comment (bot-owned JSON), decides the next step, and updates state. Children spawn via `gh workflow run`.
+`job-scheduler` runs on cron (default every 5 minutes), finds every duty file under `.kody/duties/`, and calls `job-tick` once per duty. The tick agent reads the duty body (human-owned prose) and a state file (bot-owned JSON), decides the next step, and updates state. Children spawn via `gh workflow run`.
 
-This is how Kody runs **autonomously without supervision**. You file a goal as an issue, label it `kody:job`, and the scheduler keeps making progress every five minutes until the goal is done. Manager jobs let you set up org-wide policies (e.g. "keep dependencies fresh across all repos") without any external orchestrator.
+This is how Kody runs **autonomously without supervision**. You file a goal as a duty under `.kody/duties/`, and the scheduler keeps making progress every five minutes until the goal is done. Manager duties let you set up org-wide policies (e.g. "keep dependencies fresh across all repos") without any external orchestrator.
 
 ### Built-in deterministic commands
 
@@ -94,7 +94,7 @@ The engine handles the agent work. The dashboard turns it into a managed platfor
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Task board**                       | Kanban view (inbox → spec → building → review → done) across all engine activity. Drag to change status, click to drill in.                                                                                         |
 | **Parallel run monitoring**          | Watch 10 agents work on 10 tasks at once, live, in one view. CLI can't do this.                                                                                                                                     |
-| **Job scheduler UI**                 | Markdown-defined jobs in `.kody/jobs/`, ticked off in the dashboard as they complete. Visual cron without leaving the app.                                                                                          |
+| **Duty scheduler UI**                | Markdown-defined duties in `.kody/duties/`, ticked off in the dashboard as they complete. Visual cron without leaving the app.                                                                                      |
 | **Live preview management**          | Per-task Fly.io preview environments, with per-repo Fly tokens managed in Settings (never deployment env vars).                                                                                                     |
 | **PR viewer**                        | File diffs, CI status, gate approvals — all inline, no GitHub roundtrip.                                                                                                                                            |
 | **Provider-agnostic chat**           | Configure any LLM (Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, custom endpoints) per model entry. Two protocols, your keys.                                                                      |
@@ -112,7 +112,7 @@ The dashboard never bypasses GitHub — every state change is a real issue/PR/wo
 
 ### Scheduled, autonomous, reporting
 
-Agents run on cron, not on prompt. Define a job once, get output forever — as PRs you review, issues you triage, or markdown reports in the changelog. **Renovate and Dependabot are single-purpose; Kody is a general autonomous-agent runtime.**
+Agents run on cron, not on prompt. Define a duty once, get output forever — as PRs you review, issues you triage, or markdown reports in the changelog. **Renovate and Dependabot are single-purpose; Kody is a general autonomous-agent runtime.**
 
 Real use cases:
 
@@ -175,7 +175,7 @@ No hardcoded provider, no vendor lock-in, at any layer.
 | Runs in your CI                     | Yes                           | No      | No      | No         | GitHub-locked     | No      | No        |
 | `@kody`-style ChatOps in issues/PRs | Yes                           | No      | Partial | Partial    | No                | No      | No        |
 | Free-form QA agent                  | Yes                           | No      | No      | No         | No                | No      | No        |
-| Goal-driven jobs (autonomous loops) | Yes                           | No      | No      | No         | No                | No      | No        |
+| Goal-driven duties (autonomous loops) | Yes                         | No      | No      | No         | No                | No      | No        |
 | Multi-model (any provider)          | Yes (LiteLLM + OpenAI-compat) | No      | No      | Limited    | No                | Limited | Yes       |
 | Visual control plane (dashboard)    | Yes                           | Yes     | Yes     | Yes        | Yes               | n/a     | Yes       |
 | Per-seat pricing                    | No                            | Yes     | Yes     | Yes        | Yes               | Yes     | No        |
@@ -194,7 +194,7 @@ Of every product in this table, Kody is the only one that is both open-source an
 │                          │       │                              │
 │   Visual control plane:  │       │   Autonomous agent runtime:  │
 │   - Task board           │       │   - `kody` CLI               │
-│   - Job scheduler UI     │       │   - Claude Agent SDK         │
+│   - Duty scheduler UI    │       │   - Claude Agent SDK         │
 │   - Parallel monitoring  │       │   - Multi-model (LiteLLM)    │
 │   - PR viewer            │       │   - Auto-discovered          │
 │   - Provider-agnostic    │       │     executables              │

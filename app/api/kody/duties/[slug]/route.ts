@@ -1,9 +1,9 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern jobs-api
- * @ai-summary Job detail API — GET reads a single job file, PATCH
- *   updates the title/body, DELETE removes the file. Backed by `.kody/jobs/<slug>.md`
+ * @pattern duties-api
+ * @ai-summary Duty detail API — GET reads a single duty file, PATCH
+ *   updates the title/body, DELETE removes the file. Backed by `.kody/duties/<slug>.md`
  *   via the GitHub contents API.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -20,11 +20,11 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  readJobFile,
-  writeJobFile,
-  deleteJobFile,
+  readDutyFile,
+  writeDutyFile,
+  deleteDutyFile,
   isValidSlug,
-} from "@dashboard/lib/jobs-files";
+} from "@dashboard/lib/duties-files";
 
 export async function GET(
   req: NextRequest,
@@ -42,17 +42,17 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const job = await readJobFile(slug);
-    if (!job) {
+    const duty = await readDutyFile(slug);
+    if (!duty) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    return NextResponse.json({ job });
+    return NextResponse.json({ duty });
   } catch (error: any) {
-    console.error("[Jobs] Error fetching job:", error);
+    console.error("[Duties] Error fetching duty:", error);
     return NextResponse.json(
       {
         error: "fetch_failed",
-        message: error?.message ?? "Failed to fetch job",
+        message: error?.message ?? "Failed to fetch duty",
       },
       { status: 500 },
     );
@@ -61,7 +61,7 @@ export async function GET(
   }
 }
 
-const updateJobSchema = z.object({
+const updateDutySchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
   schedule: z
@@ -69,7 +69,7 @@ const updateJobSchema = z.object({
     .nullable()
     .optional(),
   disabled: z.boolean().optional(),
-  worker: z.string().min(1).nullable().optional(),
+  staff: z.string().min(1).nullable().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -90,14 +90,14 @@ export async function PATCH(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    const existing = await readJobFile(slug);
+    const existing = await readDutyFile(slug);
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
     const payload = await req.json();
-    const { title, body, schedule, disabled, worker, actorLogin } =
-      updateJobSchema.parse(payload);
+    const { title, body, schedule, disabled, staff, actorLogin } =
+      updateDutySchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -107,26 +107,26 @@ export async function PATCH(
       return NextResponse.json(
         {
           error: "no_user_token",
-          message: "A signed-in GitHub token is required to commit job files.",
+          message: "A signed-in GitHub token is required to commit duty files.",
         },
         { status: 401 },
       );
     }
 
-    const job = await writeJobFile({
+    const duty = await writeDutyFile({
       octokit: userOctokit,
       slug,
       title: title ?? existing.title,
       body: body ?? existing.body,
       schedule: schedule === undefined ? existing.schedule : schedule,
       disabled: disabled === undefined ? existing.disabled : disabled,
-      worker: worker === undefined ? existing.worker : worker,
+      staff: staff === undefined ? existing.staff : staff,
       sha: existing.sha,
     });
 
-    return NextResponse.json({ job });
+    return NextResponse.json({ duty });
   } catch (error: any) {
-    console.error("[Jobs] Error updating job:", error);
+    console.error("[Duties] Error updating duty:", error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -143,7 +143,7 @@ export async function PATCH(
     return NextResponse.json(
       {
         error: "update_failed",
-        message: error?.message ?? "Failed to update job",
+        message: error?.message ?? "Failed to update duty",
       },
       { status: 500 },
     );
@@ -169,7 +169,7 @@ export async function DELETE(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    const existing = await readJobFile(slug);
+    const existing = await readDutyFile(slug);
     if (!existing) {
       return NextResponse.json({ success: true, alreadyMissing: true });
     }
@@ -185,17 +185,17 @@ export async function DELETE(
       return NextResponse.json(
         {
           error: "no_user_token",
-          message: "A signed-in GitHub token is required to delete job files.",
+          message: "A signed-in GitHub token is required to delete duty files.",
         },
         { status: 401 },
       );
     }
 
-    await deleteJobFile(userOctokit, slug);
+    await deleteDutyFile(userOctokit, slug);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("[Jobs] Error deleting job:", error);
+    console.error("[Duties] Error deleting duty:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
@@ -205,7 +205,7 @@ export async function DELETE(
     return NextResponse.json(
       {
         error: "delete_failed",
-        message: error?.message ?? "Failed to delete job",
+        message: error?.message ?? "Failed to delete duty",
       },
       { status: 500 },
     );

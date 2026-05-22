@@ -4,7 +4,7 @@
  * @pattern reports-page
  * @ai-summary Reports view — list and read system reports under
  *   `.kody/reports/<slug>.md`. Read-only. Mobile-first responsive layout
- *   that mirrors JobControl: master/detail with a back button on small
+ *   that mirrors DutyControl: master/detail with a back button on small
  *   viewports.
  */
 "use client";
@@ -32,7 +32,7 @@ import { useChatScope } from "./ChatRailShell";
 import { PageHeader } from "./PageShell";
 
 interface ReportsViewProps {
-  /** Render without the built-in PageHeader (e.g. when hosted in JobsPageTabs). */
+  /** Render without the built-in PageHeader (e.g. when hosted in DutiesPageTabs). */
   embedded?: boolean;
 }
 
@@ -184,7 +184,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
               <EmptyState
                 icon={<FileText />}
                 title="No reports yet"
-                hint="Reports appear here once Kody jobs (doc-drift, coverage-floor, etc.) commit them under .kody/reports/."
+                hint="Reports appear here once Kody duties (doc-drift, coverage-floor, etc.) commit them under .kody/reports/."
               />
             ) : filtered.length === 0 ? (
               <EmptyState
@@ -404,7 +404,7 @@ function ReportDetail({
                 Empty report
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                The job that produces this report hasn&apos;t written content
+                The duty that produces this report hasn&apos;t written content
                 yet.
               </p>
             </div>

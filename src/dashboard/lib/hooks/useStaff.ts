@@ -1,10 +1,10 @@
 /**
  * @fileType hook
  * @domain kody
- * @pattern worker-control-hooks
- * @ai-summary React Query hooks for the Worker Control page.
- *   Backed by `.kody/workers/<slug>.md` files in the connected repo via
- *   the contents API. Duplicated from useJobs.ts.
+ * @pattern staff-control-hooks
+ * @ai-summary React Query hooks for the Staff Control page.
+ *   Backed by `.kody/staff/<slug>.md` files in the connected repo via
+ *   the contents API. Duplicated from useDuties.ts.
  */
 "use client";
 
@@ -12,21 +12,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   kodyApi,
-  type Worker,
+  type Staff,
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
 } from "../api";
 
-export const workerQueryKeys = {
-  list: ["kody-workers"] as const,
-  detail: (slug: string) => ["kody-worker", slug] as const,
+export const staffQueryKeys = {
+  list: ["kody-staff"] as const,
+  detail: (slug: string) => ["kody-staff-member", slug] as const,
 };
 
-export function useWorkers() {
+export function useStaff() {
   return useQuery({
-    queryKey: workerQueryKeys.list,
-    queryFn: () => kodyApi.workers.list(),
+    queryKey: staffQueryKeys.list,
+    queryFn: () => kodyApi.staff.list(),
     enabled: !!getStoredAuth(),
     staleTime: 30_000,
     retry: (failureCount, error) => {
@@ -37,20 +37,20 @@ export function useWorkers() {
   });
 }
 
-export function useWorker(slug: string | null) {
+export function useStaffMember(slug: string | null) {
   return useQuery({
-    queryKey: workerQueryKeys.detail(slug ?? ""),
-    queryFn: () => kodyApi.workers.get(slug!),
+    queryKey: staffQueryKeys.detail(slug ?? ""),
+    queryFn: () => kodyApi.staff.get(slug!),
     enabled: !!getStoredAuth() && !!slug,
     staleTime: 30_000,
   });
 }
 
-export function useCreateWorker(actorLogin?: string) {
+export function useCreateStaff(actorLogin?: string) {
   const queryClient = useQueryClient();
 
   return useMutation<
-    Worker,
+    Staff,
     Error,
     {
       slug?: string;
@@ -59,25 +59,27 @@ export function useCreateWorker(actorLogin?: string) {
     }
   >({
     mutationFn: (data) =>
-      kodyApi.workers.create({
+      kodyApi.staff.create({
         ...data,
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workerQueryKeys.list });
-      toast.success("Worker created");
+      queryClient.invalidateQueries({ queryKey: staffQueryKeys.list });
+      toast.success("Staff member created");
     },
     onError: (error) => {
-      toast.error("Failed to create worker", { description: error.message });
+      toast.error("Failed to create staff member", {
+        description: error.message,
+      });
     },
   });
 }
 
-export function useUpdateWorker(slug: string, actorLogin?: string) {
+export function useUpdateStaff(slug: string, actorLogin?: string) {
   const queryClient = useQueryClient();
 
   return useMutation<
-    Worker,
+    Staff,
     Error,
     {
       title?: string;
@@ -85,33 +87,37 @@ export function useUpdateWorker(slug: string, actorLogin?: string) {
     }
   >({
     mutationFn: (data) =>
-      kodyApi.workers.update(slug, {
+      kodyApi.staff.update(slug, {
         ...data,
         ...(actorLogin && { actorLogin }),
       }),
-    onSuccess: (worker) => {
-      queryClient.invalidateQueries({ queryKey: workerQueryKeys.list });
-      queryClient.setQueryData(workerQueryKeys.detail(slug), worker);
-      toast.success("Worker updated");
+    onSuccess: (staffMember) => {
+      queryClient.invalidateQueries({ queryKey: staffQueryKeys.list });
+      queryClient.setQueryData(staffQueryKeys.detail(slug), staffMember);
+      toast.success("Staff member updated");
     },
     onError: (error) => {
-      toast.error("Failed to update worker", { description: error.message });
+      toast.error("Failed to update staff member", {
+        description: error.message,
+      });
     },
   });
 }
 
-export function useDeleteWorker(actorLogin?: string) {
+export function useDeleteStaff(actorLogin?: string) {
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, string>({
-    mutationFn: (slug) => kodyApi.workers.remove(slug, actorLogin),
+    mutationFn: (slug) => kodyApi.staff.remove(slug, actorLogin),
     onSuccess: (_, slug) => {
-      queryClient.invalidateQueries({ queryKey: workerQueryKeys.list });
-      queryClient.removeQueries({ queryKey: workerQueryKeys.detail(slug) });
-      toast.success("Worker deleted");
+      queryClient.invalidateQueries({ queryKey: staffQueryKeys.list });
+      queryClient.removeQueries({ queryKey: staffQueryKeys.detail(slug) });
+      toast.success("Staff member deleted");
     },
     onError: (error) => {
-      toast.error("Failed to delete worker", { description: error.message });
+      toast.error("Failed to delete staff member", {
+        description: error.message,
+      });
     },
   });
 }

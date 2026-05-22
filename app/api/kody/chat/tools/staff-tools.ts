@@ -2,13 +2,13 @@
  * @fileType tool
  * @domain kody
  * @pattern ai-sdk-tool
- * @ai-summary Worker-creation tool for the kody-direct chat agent. Writes a
- *   `.kody/workers/<slug>.md` file via the same `writeWorkerFile` helper the
- *   dashboard's POST /api/kody/workers endpoint uses. A worker is a pure
+ * @ai-summary Staff-creation tool for the kody-direct chat agent. Writes a
+ *   `.kody/staff/<slug>.md` file via the same `writeStaffFile` helper the
+ *   dashboard's POST /api/kody/staff endpoint uses. A staff member is a pure
  *   reusable PERSONA: a markdown body describing intent, allowed commands,
- *   and restrictions. Workers have no schedule, no state, and no run/tick —
- *   they're personas referenced by other flows. Format mirrors the worker
- *   template (Worker / Allowed Commands / Restrictions).
+ *   and restrictions. Staff have no schedule, no state, and no run/tick —
+ *   they're personas referenced by other flows. Format mirrors the staff
+ *   template (Staff / Allowed Commands / Restrictions).
  *
  *   The model should NOT call this on the first turn — it must gap-
  *   analyze and ask the user questions until the persona is well-specified.
@@ -18,10 +18,10 @@ import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@dashboard/lib/logger";
 import {
-  readWorkerFile,
-  writeWorkerFile,
+  readStaffFile,
+  writeStaffFile,
   isValidSlug,
-} from "@dashboard/lib/workers-files";
+} from "@dashboard/lib/staff-files";
 
 interface Ctx {
   octokit: Octokit;
@@ -31,7 +31,7 @@ interface Ctx {
   actorLogin: string | null;
 }
 
-interface WorkerInput {
+interface StaffInput {
   title: string;
   slug?: string;
   purpose: string;
@@ -50,17 +50,17 @@ function slugifyTitle(title: string): string {
 }
 
 /**
- * Render the default persona worker body. The model fills in the variable
- * parts (purpose, allowed commands, restrictions). A worker is a reusable
- * persona — no cadence, no state, no tick.
+ * Render the default persona staff body. The model fills in the variable
+ * parts (purpose, allowed commands, restrictions). A staff member is a
+ * reusable persona — no cadence, no state, no tick.
  */
-function buildWorkerBody(input: WorkerInput): string {
+function buildStaffBody(input: StaffInput): string {
   const extraCmds = input.extraAllowedCommands ?? [];
   const extraRest = input.extraRestrictions ?? [];
 
   let body = "";
 
-  body += `## Worker\n\n`;
+  body += `## Staff\n\n`;
   body += `${input.purpose.trim()}\n\n`;
 
   body += `## Allowed Commands\n\n`;
@@ -82,11 +82,13 @@ function buildWorkerBody(input: WorkerInput): string {
   return body;
 }
 
-export const createKodyWorkerInputSchema = z.object({
+export const createKodyStaffInputSchema = z.object({
   title: z
     .string()
     .min(1)
-    .describe("Human-readable worker title. Becomes the H1 of the worker file."),
+    .describe(
+      "Human-readable staff title. Becomes the H1 of the staff file.",
+    ),
   slug: z
     .string()
     .optional()
@@ -98,66 +100,66 @@ export const createKodyWorkerInputSchema = z.object({
     .string()
     .min(1)
     .describe(
-      "One to three sentences describing the worker persona — what it is, what it does, " +
+      "One to three sentences describing the staff persona — what it is, what it does, " +
         "and how it should behave. No implementation details.",
     ),
   extraAllowedCommands: z
     .array(z.string().min(1))
     .optional()
     .describe(
-      "Optional shell commands the worker persona may run (e.g. " +
+      "Optional shell commands the staff persona may run (e.g. " +
         '"`gh pr list`", "`gh run list`"). Each item becomes a bullet under "Allowed Commands".',
     ),
   extraRestrictions: z
     .array(z.string().min(1))
     .optional()
     .describe(
-      'Optional restriction bullets to append (e.g. "Never comment on PRs from this worker.").',
+      'Optional restriction bullets to append (e.g. "Never comment on PRs from this staff member.").',
     ),
 });
 
-export function createWorkerTools(ctx: Ctx) {
+export function createStaffTools(ctx: Ctx) {
   const { octokit, owner, repo, actorLogin } = ctx;
   const repoRef = `${owner}/${repo}`;
 
   return {
-    create_kody_worker: tool({
+    create_kody_staff: tool({
       description:
-        `Create a new Kody Worker in ${repoRef} by committing a markdown file at ` +
-        "`.kody/workers/<slug>.md`. A worker is a pure reusable PERSONA — a " +
+        `Create a new Kody Staff member in ${repoRef} by committing a markdown file at ` +
+        "`.kody/staff/<slug>.md`. A staff member is a pure reusable PERSONA — a " +
         "markdown body describing intent, allowed commands, and restrictions. " +
-        "Workers have no schedule, no state, and no run/tick; they're personas " +
+        "Staff have no schedule, no state, and no run/tick; they're personas " +
         "referenced by other flows.\n\n" +
         "BEFORE CALLING: gather title, purpose, and (optionally) allowed " +
         "commands and restrictions. Ask the user clarifying questions in small " +
         "batches until the persona is well-specified — never invent behavior. " +
         "Show the proposed markdown body for approval before calling.\n\n" +
         "Returns the new file's slug, title, and html URL on success.",
-      inputSchema: createKodyWorkerInputSchema,
+      inputSchema: createKodyStaffInputSchema,
       execute: async (input) => {
         const slug = (input.slug ?? slugifyTitle(input.title)).toLowerCase();
         if (!slug || !isValidSlug(slug)) {
           return {
             error: "invalid_slug",
             message:
-              "Worker slug must be lowercase letters, digits, dashes, or underscores (max 64 chars). " +
+              "Staff slug must be lowercase letters, digits, dashes, or underscores (max 64 chars). " +
               `Got "${slug}".`,
           };
         }
 
         try {
-          const existing = await readWorkerFile(slug);
+          const existing = await readStaffFile(slug);
           if (existing) {
             return {
               error: "slug_taken",
-              message: `Worker "${slug}" already exists at ${existing.htmlUrl}. Pick a different slug.`,
+              message: `Staff member "${slug}" already exists at ${existing.htmlUrl}. Pick a different slug.`,
               existingHtmlUrl: existing.htmlUrl,
             };
           }
 
-          const body = buildWorkerBody(input);
-          const message = `feat(workers): add ${slug}${actorLogin ? ` (via chat by @${actorLogin})` : ""}`;
-          const worker = await writeWorkerFile({
+          const body = buildStaffBody(input);
+          const message = `feat(staff): add ${slug}${actorLogin ? ` (via chat by @${actorLogin})` : ""}`;
+          const staffMember = await writeStaffFile({
             octokit,
             slug,
             title: input.title,
@@ -167,28 +169,28 @@ export function createWorkerTools(ctx: Ctx) {
 
           logger.info(
             { owner, repo, slug, actorLogin },
-            "create_kody_worker: created worker file",
+            "create_kody_staff: created staff file",
           );
 
           return {
-            slug: worker.slug,
-            title: worker.title,
-            htmlUrl: worker.htmlUrl,
+            slug: staffMember.slug,
+            title: staffMember.title,
+            htmlUrl: staffMember.htmlUrl,
             note:
-              "Worker persona committed at `.kody/workers/<slug>.md`. It can " +
+              "Staff persona committed at `.kody/staff/<slug>.md`. It can " +
               "now be referenced by other flows.",
           };
         } catch (err) {
           logger.warn(
             { err, owner, repo, slug, title: input.title },
-            "create_kody_worker failed",
+            "create_kody_staff failed",
           );
           return {
             error: "create_failed",
             message:
               err instanceof Error
                 ? err.message
-                : "Failed to create worker file",
+                : "Failed to create staff file",
           };
         }
       },

@@ -140,16 +140,16 @@ export type ChatContext =
   | { kind: "task"; task: import("./types").KodyTask }
   | {
       /**
-       * Chat scoped to an existing job (or worker — a worker is now a
-       * pure persona file that's structurally a subset of a job and
+       * Chat scoped to an existing duty (or staff member — a staff member
+       * is a pure persona file that's structurally a subset of a duty and
        * reuses this scope kind). The agent is given the title/body so
-       * it can answer questions about that specific job/worker.
+       * it can answer questions about that specific duty/staff member.
        */
-      kind: "job";
-      job: import("./api").Job | import("./api").Worker;
+      kind: "duty";
+      duty: import("./api").Duty | import("./api").Staff;
     }
   | {
-      kind: "job-draft";
+      kind: "duty-draft";
       /**
        * Stable session id used to anchor SSE / engine sessions for this
        * draft. Generated client-side when the draft is opened; the chat
@@ -158,8 +158,8 @@ export type ChatContext =
       draftId: string;
       /**
        * Fired when the user picks a specific assistant response as the
-       * basis for a new job. The consumer should pop its own "create
-       * job" UI (e.g. pre-filled dialog) with this body.
+       * basis for a new duty. The consumer should pop its own "create
+       * duty" UI (e.g. pre-filled dialog) with this body.
        */
       onFinalize?: (assistantContent: string) => void;
     }

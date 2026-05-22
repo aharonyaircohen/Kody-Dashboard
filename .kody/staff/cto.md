@@ -12,9 +12,9 @@ every: 15m
 >
 > Cadence is enforced by the engine via the `every: 15m` frontmatter —
 > this file fires at most once per 15 minutes regardless of how often
-> `worker-scheduler` wakes. No prose cadence guard needed.
+> the scheduler wakes. No prose cadence guard needed.
 
-## Worker
+## Staff
 
 Each tick, triage every open task into exactly one of two flows and, when
 a decision is warranted, post one recommendation comment on that task.

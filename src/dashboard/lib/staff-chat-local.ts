@@ -1,13 +1,13 @@
 /**
  * @fileType lib
  * @domain kody
- * @pattern worker-chat-local-cache
+ * @pattern staff-chat-local-cache
  *
- * localStorage-backed persistence for worker-scoped chat messages, keyed by
- * worker slug. Mirrors `job-chat-local.ts` shape.
+ * localStorage-backed persistence for staff-scoped chat messages, keyed by
+ * staff slug. Mirrors `duty-chat-local.ts` shape.
  *
- * Why local-only: workers are markdown files with no per-worker branch
- * (unlike tasks), and there is no server-side worker-chat persistence API.
+ * Why local-only: staff are markdown files with no per-member branch
+ * (unlike tasks), and there is no server-side staff-chat persistence API.
  * Reloads would otherwise wipe the conversation. Local cache covers
  * single-device continuity; cross-device sync would need a dedicated
  * load/save endpoint (deferred — the per-device case covers ~all real usage).
@@ -15,11 +15,11 @@
 
 import type { ChatMessage } from "./chat-types";
 
-const KEY_PREFIX = "kody-worker-chat-";
+const KEY_PREFIX = "kody-staff-chat-";
 
 /**
  * Read the connected repo from localStorage.kody_auth so cache keys are
- * scoped per repo — worker slug "foo" in repo A must not share a localStorage
+ * scoped per repo — staff slug "foo" in repo A must not share a localStorage
  * slot with the same slug in repo B. Falls back to an unscoped key when no
  * repo is known (e.g. logged out / SSR).
  */
@@ -40,7 +40,7 @@ function key(slug: string): string {
   return `${KEY_PREFIX}${repoScope()}${slug}`;
 }
 
-export function loadWorkerChatLocal(slug: string): ChatMessage[] {
+export function loadStaffChatLocal(slug: string): ChatMessage[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(key(slug));
@@ -52,7 +52,7 @@ export function loadWorkerChatLocal(slug: string): ChatMessage[] {
   }
 }
 
-export function saveWorkerChatLocal(
+export function saveStaffChatLocal(
   slug: string,
   messages: ChatMessage[],
 ): void {
@@ -68,7 +68,7 @@ export function saveWorkerChatLocal(
   }
 }
 
-export function clearWorkerChatLocal(slug: string): void {
+export function clearStaffChatLocal(slug: string): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(key(slug));

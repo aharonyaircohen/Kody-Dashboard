@@ -6,7 +6,7 @@
  *   in-process Kody agent would receive on a NEUTRAL chat turn —
  *   base agent prompt + connected-repo block + research-first
  *   rules + memory index + user instructions overlay. Per-turn
- *   blocks (current task, job, vibe, voice overlay) are excluded
+ *   blocks (current task, duty, vibe, voice overlay) are excluded
  *   because they only exist in the context of a live chat session.
  *
  *   This is read-only debug visibility for the /instructions page.

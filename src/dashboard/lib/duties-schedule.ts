@@ -1,11 +1,11 @@
 /**
  * @fileType util
  * @domain kody
- * @pattern jobs-schedule
- * @ai-summary Job preset over the shared ticked-schedule helpers. The
+ * @pattern duties-schedule
+ * @ai-summary Duty preset over the shared ticked-schedule helpers. The
  *   "next tick" math and relative-time formatting are kind-agnostic;
  *   the one implementation lives in `ticked/schedule.ts`. Re-exported
- *   here so existing importers don't change.
+ *   here so importers stay stable.
  */
 
 export {

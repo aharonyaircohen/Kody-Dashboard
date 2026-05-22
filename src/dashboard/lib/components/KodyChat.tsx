@@ -370,10 +370,10 @@ import {
   type RecentVibeIssue,
 } from "../vibe/recent-issue";
 import {
-  loadJobChatLocal,
-  saveJobChatLocal,
-  clearJobChatLocal,
-} from "../job-chat-local";
+  loadDutyChatLocal,
+  saveDutyChatLocal,
+  clearDutyChatLocal,
+} from "../duty-chat-local";
 import { isSwitchAgentDirective } from "@dashboard/lib/chat-ui-actions";
 
 interface Message {
@@ -454,7 +454,7 @@ interface Attachment {
 interface KodyChatProps {
   /**
    * What this chat is "about". Today only task-scoped chat is supported;
-   * the discriminated union leaves room for other kinds (e.g. job
+   * the discriminated union leaves room for other kinds (e.g. duty
    * drafting) to be added in later phases without touching every access
    * site in this component.
    *
@@ -664,11 +664,11 @@ export function KodyChat({
   // Context-kind derivations.
   const selectedTask: KodyTask | null =
     context?.kind === "task" ? context.task : null;
-  const selectedJob = context?.kind === "job" ? context.job : null;
+  const selectedDuty = context?.kind === "duty" ? context.duty : null;
   const draftId: string | null =
-    context?.kind === "job-draft" ? context.draftId : null;
+    context?.kind === "duty-draft" ? context.draftId : null;
   const onFinalizeDraft =
-    context?.kind === "job-draft" ? context.onFinalize : undefined;
+    context?.kind === "duty-draft" ? context.onFinalize : undefined;
   // Goal-planner mode: chat scoped to a Goal, used for the "Plan this goal"
   // workflow (Pass 1 list-in-chat → user approves → Pass 2 create issues).
   const plannerGoal = context?.kind === "goal-planner" ? context.goal : null;
@@ -694,15 +694,15 @@ export function KodyChat({
   // Draft-scoped messages (ephemeral — no persistence). Cleared whenever a
   // new draft session opens (fresh draftId).
   const [draftMessages, setDraftMessages] = useState<Message[]>([]);
-  // Job-scoped messages keyed by job issue number. Ephemeral (lives
-  // for the React session) — switching between jobs preserves each
+  // Duty-scoped messages keyed by duty slug. Ephemeral (lives
+  // for the React session) — switching between duties preserves each
   // thread so users can jump around without losing context. Persistence
   // across reloads would need a dedicated save/load API; deferred.
-  const [jobMessagesBySlug, setJobMessagesBySlug] = useState<
+  const [dutyMessagesBySlug, setDutyMessagesBySlug] = useState<
     Record<string, Message[]>
   >({});
   // Goal-planner messages keyed by sessionId (one session per "Plan this
-  // goal" launch). Ephemeral — same lifetime as jobMessagesBySlug.
+  // goal" launch). Ephemeral — same lifetime as dutyMessagesBySlug.
   const [plannerMessagesBySession, setPlannerMessagesBySession] = useState<
     Record<string, Message[]>
   >({});
@@ -1253,20 +1253,20 @@ export function KodyChat({
 
   // Mode discriminator. Exactly one of these is true at a time.
   const isTaskMode = !!selectedTask;
-  const isJobMode = !!selectedJob;
+  const isDutyMode = !!selectedDuty;
   const isDraftMode = !!draftId;
   const isPlannerMode = !!plannerGoal && !!plannerSessionId;
   const isGlobalMode =
-    !isTaskMode && !isJobMode && !isDraftMode && !isPlannerMode;
+    !isTaskMode && !isDutyMode && !isDraftMode && !isPlannerMode;
 
   // Current messages — four stores, picked by mode.
-  //  • task mode    → `taskMessages`        (loaded/saved via API)
-  //  • job mode → `jobMessagesBySlug[slug]` (ephemeral, per job)
-  //  • draft mode   → `draftMessages`       (ephemeral React state)
-  //  • global mode  → `sessionHook`         (localStorage-backed)
-  const jobSlug: string | null = selectedJob?.slug ?? null;
-  const currentJobMessages: Message[] =
-    jobSlug != null ? (jobMessagesBySlug[jobSlug] ?? []) : [];
+  //  • task mode    → `taskMessages`         (loaded/saved via API)
+  //  • duty mode → `dutyMessagesBySlug[slug]` (ephemeral, per duty)
+  //  • draft mode   → `draftMessages`        (ephemeral React state)
+  //  • global mode  → `sessionHook`          (localStorage-backed)
+  const dutySlug: string | null = selectedDuty?.slug ?? null;
+  const currentDutyMessages: Message[] =
+    dutySlug != null ? (dutyMessagesBySlug[dutySlug] ?? []) : [];
   const currentPlannerMessages: Message[] =
     plannerSessionId != null
       ? (plannerMessagesBySession[plannerSessionId] ?? [])
@@ -1274,8 +1274,8 @@ export function KodyChat({
 
   const messages: Message[] = isTaskMode
     ? taskMessages
-    : isJobMode
-      ? currentJobMessages
+    : isDutyMode
+      ? currentDutyMessages
       : isDraftMode
         ? draftMessages
         : isPlannerMode
@@ -1288,12 +1288,12 @@ export function KodyChat({
         setTaskMessages((prev) =>
           typeof updater === "function" ? updater(prev) : updater,
         );
-      } else if (isJobMode && jobSlug != null) {
-        setJobMessagesBySlug((prev) => {
-          const prevForJob = prev[jobSlug] ?? [];
+      } else if (isDutyMode && dutySlug != null) {
+        setDutyMessagesBySlug((prev) => {
+          const prevForDuty = prev[dutySlug] ?? [];
           const next =
-            typeof updater === "function" ? updater(prevForJob) : updater;
-          return { ...prev, [jobSlug]: next };
+            typeof updater === "function" ? updater(prevForDuty) : updater;
+          return { ...prev, [dutySlug]: next };
         });
       } else if (isDraftMode) {
         setDraftMessages((prev) =>
@@ -1318,8 +1318,8 @@ export function KodyChat({
     },
     [
       isTaskMode,
-      isJobMode,
-      jobSlug,
+      isDutyMode,
+      dutySlug,
       isDraftMode,
       isPlannerMode,
       plannerSessionId,
@@ -1861,7 +1861,7 @@ export function KodyChat({
   );
 
   // Open SSE whenever we have a scoped session id — task id for task mode,
-  // `job-{number}` for job mode, draft id for job drafting.
+  // `duty-{slug}` for duty mode, draft id for duty drafting.
   // Global-mode streams are opened on demand inside the send path.
   //
   // Tab-visibility gate: the server-side SSE handler polls GitHub every 3s as
@@ -1873,7 +1873,7 @@ export function KodyChat({
   useEffect(() => {
     const sid =
       selectedTask?.id ??
-      (jobSlug != null ? `job-${jobSlug}` : null) ??
+      (dutySlug != null ? `duty-${dutySlug}` : null) ??
       draftId ??
       null;
     if (!sid) {
@@ -1907,7 +1907,7 @@ export function KodyChat({
       document.removeEventListener("visibilitychange", handleVisibility);
       close();
     };
-  }, [selectedTask?.id, jobSlug, draftId, connectSSE]);
+  }, [selectedTask?.id, dutySlug, draftId, connectSSE]);
 
   // Reset the ephemeral draft buffer whenever a new draft session opens.
   useEffect(() => {
@@ -2045,40 +2045,40 @@ export function KodyChat({
     }
   }, [taskMessages, isTaskMode, loading, saveTaskChat]);
 
-  // Hydrate job chat from localStorage on slug change. We only hydrate
+  // Hydrate duty chat from localStorage on slug change. We only hydrate
   // when the in-memory entry for this slug is `undefined` (never seen
   // this session) — once the user starts adding messages, the in-memory
   // store is the source of truth and we don't reread from disk.
   useEffect(() => {
-    if (!isJobMode || !jobSlug) return;
-    if (jobMessagesBySlug[jobSlug] !== undefined) return;
-    const local = loadJobChatLocal(jobSlug);
+    if (!isDutyMode || !dutySlug) return;
+    if (dutyMessagesBySlug[dutySlug] !== undefined) return;
+    const local = loadDutyChatLocal(dutySlug);
     if (local.length === 0) return;
-    setJobMessagesBySlug((prev) => {
-      if (prev[jobSlug] !== undefined) return prev;
-      return { ...prev, [jobSlug]: local.map(chatToMessage) };
+    setDutyMessagesBySlug((prev) => {
+      if (prev[dutySlug] !== undefined) return prev;
+      return { ...prev, [dutySlug]: local.map(chatToMessage) };
     });
-  }, [isJobMode, jobSlug, jobMessagesBySlug]);
+  }, [isDutyMode, dutySlug, dutyMessagesBySlug]);
 
-  // Persist job chat on every change. localStorage write is sync and cheap;
+  // Persist duty chat on every change. localStorage write is sync and cheap;
   // no need to debounce. An empty array clears the entry so a deleted /
   // reset thread doesn't haunt future visits.
   useEffect(() => {
-    if (!isJobMode || !jobSlug) return;
-    const msgs = currentJobMessages;
+    if (!isDutyMode || !dutySlug) return;
+    const msgs = currentDutyMessages;
     if (msgs.length === 0) {
-      clearJobChatLocal(jobSlug);
+      clearDutyChatLocal(dutySlug);
       return;
     }
-    saveJobChatLocal(
-      jobSlug,
+    saveDutyChatLocal(
+      dutySlug,
       msgs.map((m) => ({
         role: m.role,
         text: m.content,
         timestamp: m.timestamp || new Date().toISOString(),
       })),
     );
-  }, [isJobMode, jobSlug, currentJobMessages]);
+  }, [isDutyMode, dutySlug, currentDutyMessages]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -2369,7 +2369,7 @@ export function KodyChat({
       // splitting user/assistant across two sessions.
       const resolveSessionId = (): string => {
         if (selectedTask) return selectedTask.id;
-        if (jobSlug != null) return `job-${jobSlug}`;
+        if (dutySlug != null) return `duty-${dutySlug}`;
         if (draftId) return draftId;
         return sessionHook.activeSession?.id ?? sessionHook.createSession();
       };
@@ -2437,10 +2437,10 @@ export function KodyChat({
         })();
         const brainLogicalKey = selectedTask
           ? `${repoScope}::task-${selectedTask.id}`
-          : selectedJob
-            ? `${repoScope}::job-${selectedJob.slug}`
+          : selectedDuty
+            ? `${repoScope}::duty-${selectedDuty.slug}`
             : draftId
-              ? `${repoScope}::job-draft-${draftId}`
+              ? `${repoScope}::duty-draft-${draftId}`
               : `${repoScope}::global-${brainSessionId}`;
         const brainChatId = stickyBrainChatId(
           brainLogicalKey,
@@ -2519,19 +2519,19 @@ export function KodyChat({
                       chatId: brainChatId,
                       message: messageContent,
                       ...(taskContext ? { taskContext } : {}),
-                      ...(selectedJob
+                      ...(selectedDuty
                         ? {
-                            jobContext: {
-                              slug: selectedJob.slug,
-                              title: selectedJob.title,
-                              body: selectedJob.body,
+                            dutyContext: {
+                              slug: selectedDuty.slug,
+                              title: selectedDuty.title,
+                              body: selectedDuty.body,
                             },
                           }
                         : {}),
                       ...(brainAttachments.length > 0
                         ? { attachments: brainAttachments }
                         : {}),
-                      ...(isDraftMode ? { jobDraft: true } : {}),
+                      ...(isDraftMode ? { dutyDraft: true } : {}),
                       // Voice modality. Brain forwards this to the upstream
                       // chat server, which is responsible for appending the
                       // voice overlay to its system prompt for this turn.
@@ -2871,13 +2871,13 @@ export function KodyChat({
               // so a stale value falls back to the configured default.
               ...(selectedModelId ? { model: selectedModelId } : {}),
               ...(actorLogin ? { actorLogin } : {}),
-              ...(isDraftMode ? { jobDraft: true } : {}),
-              ...(selectedJob
+              ...(isDraftMode ? { dutyDraft: true } : {}),
+              ...(selectedDuty
                 ? {
-                    job: {
-                      slug: selectedJob.slug,
-                      title: selectedJob.title,
-                      body: selectedJob.body,
+                    duty: {
+                      slug: selectedDuty.slug,
+                      title: selectedDuty.title,
+                      body: selectedDuty.body,
                     },
                   }
                 : {}),
@@ -3613,8 +3613,8 @@ export function KodyChat({
     },
     [
       selectedTask,
-      selectedJob,
-      jobSlug,
+      selectedDuty,
+      dutySlug,
       draftId,
       isDraftMode,
       isPlannerMode,
@@ -4354,10 +4354,10 @@ export function KodyChat({
       ? `Give Kody instructions...`
       : isTaskMode
         ? `Ask about task #${selectedTask?.issueNumber}...`
-        : isJobMode
-          ? `Ask about job \`${selectedJob?.slug ?? ""}\`...`
+        : isDutyMode
+          ? `Ask about duty \`${selectedDuty?.slug ?? ""}\`...`
           : isDraftMode
-            ? `Describe the job you want Kody to run...`
+            ? `Describe the duty you want Kody to run...`
             : `Ask Kody...`;
 
   // Send is always enabled for Kody Live (button morphs into start/stop on
@@ -4555,10 +4555,10 @@ export function KodyChat({
 
           {/* Right: Action buttons (session sidebar, task history) */}
           <div className="flex items-center gap-1">
-            {/* New chat — visible in job + draft modes (global has its own
+            {/* New chat — visible in duty + draft modes (global has its own
                 Chats sidebar; task mode persists to the task). Clears the
                 active scope's ephemeral buffer so the user can start over. */}
-            {(isJobMode || isDraftMode || isPlannerMode) &&
+            {(isDutyMode || isDraftMode || isPlannerMode) &&
               messages.length > 0 && (
                 <button
                   onClick={() => {
@@ -4650,7 +4650,7 @@ export function KodyChat({
           </div>
         </div>
 
-        {/* Context bar: task, job, job draft, or global */}
+        {/* Context bar: task, duty, duty draft, or global */}
         <div className="mt-1 sm:mt-2">
           {isTaskMode && selectedTask ? (
             <div className="flex items-center gap-2 text-sm">
@@ -4661,20 +4661,20 @@ export function KodyChat({
                 {selectedTask.title}
               </span>
             </div>
-          ) : isJobMode && selectedJob ? (
+          ) : isDutyMode && selectedDuty ? (
             <div className="flex items-center gap-2 text-sm">
               <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 rounded font-medium inline-flex items-center gap-1">
                 <Target className="w-3 h-3" />
-                {selectedJob.slug}
+                {selectedDuty.slug}
               </span>
               <span className="truncate text-muted-foreground">
-                {selectedJob.title}
+                {selectedDuty.title}
               </span>
             </div>
           ) : isDraftMode ? (
             <div className="text-sm text-emerald-400 flex items-center gap-1.5">
               <Target className="w-3 h-3" />
-              Drafting a new job
+              Drafting a new duty
             </div>
           ) : isPlannerMode && plannerGoal ? (
             <div className="flex items-center gap-2 text-sm">
@@ -4793,27 +4793,27 @@ export function KodyChat({
                   </li>
                 </ul>
               </>
-            ) : isJobMode && selectedJob ? (
+            ) : isDutyMode && selectedDuty ? (
               <>
                 <p className="font-medium text-foreground">
-                  Chat about `{selectedJob.slug}`
+                  Chat about `{selectedDuty.slug}`
                 </p>
                 <p className="text-sm mt-1 max-w-sm mx-auto">
-                  Ask anything about this job&apos;s intent, scope, or rules.
-                  Each job has its own thread.
+                  Ask anything about this duty&apos;s intent, scope, or rules.
+                  Each duty has its own thread.
                 </p>
               </>
             ) : isDraftMode ? (
               <>
                 <p className="font-medium text-foreground">
-                  Let&apos;s plan a new job
+                  Let&apos;s plan a new duty
                 </p>
                 <p className="text-sm mt-1">
                   Describe what you want Kody to do. I&apos;ll help scope the
                   intent, allowed commands, and restrictions. When a draft looks
                   good, pick
-                  <span className="font-medium"> Use as job</span> to turn it
-                  into a real job.
+                  <span className="font-medium"> Use as duty</span> to turn it
+                  into a real duty.
                 </p>
               </>
             ) : isPlannerMode && plannerGoal ? (
@@ -4981,8 +4981,8 @@ export function KodyChat({
                     );
                   })()}
                   {/* Draft-mode finalize action: hand this assistant reply back
-                      to the caller (JobControl) as the body of a new
-                      job. Hidden while the reply is still streaming in. */}
+                      to the caller (DutyControl) as the body of a new
+                      duty. Hidden while the reply is still streaming in. */}
                   {isDraftMode &&
                     onFinalizeDraft &&
                     !msg.isLoading &&
@@ -4991,10 +4991,10 @@ export function KodyChat({
                         type="button"
                         onClick={() => onFinalizeDraft(msg.content)}
                         className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-                        title="Use this response as the body of a new job"
+                        title="Use this response as the body of a new duty"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        Use as job
+                        Use as duty
                       </button>
                     )}
                 </>

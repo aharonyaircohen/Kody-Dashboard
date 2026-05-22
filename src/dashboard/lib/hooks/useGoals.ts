@@ -2,7 +2,7 @@
  * @fileType hook
  * @domain kody
  * @pattern goals-hooks
- * @ai-summary React Query hooks for the Goals feature. Mirrors useJobs:
+ * @ai-summary React Query hooks for the Goals feature. Mirrors useDuties:
  *   list query + create/update/delete mutations.
  */
 "use client";

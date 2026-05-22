@@ -1,13 +1,13 @@
 /**
  * @fileType component
  * @domain kody
- * @pattern workers-page-tabs
- * @ai-summary Tabbed shell for the Workers page — mirrors JobsPageTabs.
- *   Hosts Worker Control under a single route. Only the Workers tab is
+ * @pattern staff-page-tabs
+ * @ai-summary Tabbed shell for the Staff page — mirrors DutiesPageTabs.
+ *   Hosts Staff Control under a single route. Only the Staff tab is
  *   present: the Reports tab is intentionally omitted because reports
- *   live at `.kody/reports/` and are already surfaced on the Jobs page —
+ *   live at `.kody/reports/` and are already surfaced on the Duties page —
  *   duplicating them here would show the same data twice. Active tab is
- *   mirrored to the URL (`?tab=`) for parity with the Jobs shell.
+ *   mirrored to the URL (`?tab=`) for parity with the Duties shell.
  */
 "use client";
 
@@ -18,21 +18,21 @@ import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
 import { cn } from "@dashboard/lib/utils/ui";
-import { WorkerControl } from "./WorkerControl";
+import { StaffControl } from "./StaffControl";
 import { VibeToggle } from "./VibeToggle";
 import { SimpleTooltip } from "./SimpleTooltip";
 
-type Tab = "workers";
+type Tab = "staff";
 
-const TABS: { id: Tab; label: string }[] = [{ id: "workers", label: "Workers" }];
+const TABS: { id: Tab; label: string }[] = [{ id: "staff", label: "Staff" }];
 
 function parseTab(_value: string | null | undefined): Tab {
-  return "workers";
+  return "staff";
 }
 
-export function WorkersPageTabs() {
+export function StaffPageTabs() {
   const router = useRouter();
-  const pathname = usePathname() ?? "/workers";
+  const pathname = usePathname() ?? "/staff";
   const searchParams = useSearchParams();
   const [active, setActive] = useState<Tab>(() =>
     parseTab(searchParams?.get("tab")),
@@ -72,7 +72,7 @@ export function WorkersPageTabs() {
           </SimpleTooltip>
           <div
             role="tablist"
-            aria-label="Workers view"
+            aria-label="Staff view"
             className="flex items-center gap-1"
           >
             {TABS.map((tab) => {
@@ -83,7 +83,7 @@ export function WorkersPageTabs() {
                   type="button"
                   role="tab"
                   aria-selected={isActive}
-                  aria-controls={`workers-tab-panel-${tab.id}`}
+                  aria-controls={`staff-tab-panel-${tab.id}`}
                   onClick={() => onSelect(tab.id)}
                   className={cn(
                     "relative px-3 py-2 text-sm font-medium transition-colors",
@@ -105,11 +105,11 @@ export function WorkersPageTabs() {
       </div>
 
       <div
-        id={`workers-tab-panel-${active}`}
+        id={`staff-tab-panel-${active}`}
         role="tabpanel"
         className="flex-1 min-h-0 overflow-hidden"
       >
-        <WorkerControl embedded />
+        <StaffControl embedded />
       </div>
     </div>
   );

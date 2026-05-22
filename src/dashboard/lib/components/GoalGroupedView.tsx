@@ -694,12 +694,12 @@ export function GoalGroupedView({
 }
 
 /**
- * "Let Kody manage this goal" toggle. When on, the `goal-manager` worker
- * owns the goal end-to-end: it decomposes it into tasks, lets the engine
+ * "Let Kody manage this goal" toggle. When on, the `goal-manager` staff
+ * member owns the goal end-to-end: it decomposes it into tasks, lets the engine
  * build them, verifies the end-to-end journey with `qa-engineer`,
  * recovers stalled tasks, and leaves ONE open deliverable PR for a human
  * to merge (the engine never auto-merges). Always available — managing a
- * goal with no tasks is the point (the worker writes the task list).
+ * goal with no tasks is the point (the staff member writes the task list).
  */
 function ManageGoalButton({ goal }: { goal: Goal }) {
   const { githubUser } = useGitHubIdentity();
