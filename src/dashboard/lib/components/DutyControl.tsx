@@ -1145,6 +1145,13 @@ function StaffSelect({
  * raw text is normalized on save (split, trim, strip leading `@`, drop
  * empties) so users can type `@alice, bob` freely.
  */
+/**
+ * Comma-separated GitHub logins with collaborator autocomplete. The login
+ * being typed is the text after the last comma; matching repo collaborators
+ * (from `/api/kody/collaborators`, the same source as the comment composer)
+ * are suggested and complete that token on click / Enter / Tab. Storage stays
+ * the plain comma-separated string — `parseMentionsInput` is unchanged.
+ */
 function MentionsInput({
   value,
   onChange,
@@ -1152,18 +1159,128 @@ function MentionsInput({
   value: string;
   onChange: (next: string) => void;
 }) {
+  const [collaborators, setCollaborators] = useState<{ login: string }[]>([]);
+  const [open, setOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/kody/collaborators")
+      .then((r) => (r.ok ? r.json() : { collaborators: [] }))
+      .then((d) => {
+        if (!cancelled) setCollaborators(d.collaborators ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const lastComma = value.lastIndexOf(",");
+  const head = lastComma >= 0 ? value.slice(0, lastComma + 1) : "";
+  const token = value
+    .slice(lastComma + 1)
+    .trim()
+    .replace(/^@/, "")
+    .toLowerCase();
+
+  const chosen = useMemo(
+    () =>
+      new Set(
+        value
+          .split(",")
+          .map((s) => s.trim().replace(/^@/, "").toLowerCase())
+          .filter(Boolean),
+      ),
+    [value],
+  );
+
+  const suggestions = useMemo(
+    () =>
+      collaborators
+        .filter(
+          (c) =>
+            !chosen.has(c.login.toLowerCase()) ||
+            c.login.toLowerCase() === token,
+        )
+        .filter((c) => token.length === 0 || c.login.toLowerCase().includes(token))
+        .slice(0, 6),
+    [collaborators, chosen, token],
+  );
+
+  const showList = open && suggestions.length > 0;
+
+  function choose(login: string) {
+    onChange(`${head ? `${head} ` : ""}${login}, `);
+    setOpen(false);
+    setActiveIdx(0);
+  }
+
   return (
     <div className="space-y-1.5">
       <Label htmlFor="duty-mentions" className="flex items-center gap-1.5">
         <AtSign className="w-3.5 h-3.5 text-muted-foreground" />
         Mentions
       </Label>
-      <Input
-        id="duty-mentions"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="e.g. aguyaharonyair, alice"
-      />
+      <div className="relative">
+        <Input
+          id="duty-mentions"
+          value={value}
+          autoComplete="off"
+          placeholder="e.g. aguyaharonyair, alice"
+          onChange={(e) => {
+            onChange(e.target.value);
+            setOpen(true);
+            setActiveIdx(0);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onKeyDown={(e) => {
+            if (!showList) return;
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setActiveIdx((i) => (i + 1) % suggestions.length);
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setActiveIdx(
+                (i) => (i - 1 + suggestions.length) % suggestions.length,
+              );
+            } else if (e.key === "Enter" || e.key === "Tab") {
+              const sel = suggestions[activeIdx] ?? suggestions[0];
+              if (sel) {
+                e.preventDefault();
+                choose(sel.login);
+              }
+            } else if (e.key === "Escape") {
+              setOpen(false);
+            }
+          }}
+        />
+        {showList && (
+          <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-popover py-1 shadow-md">
+            {suggestions.map((c, i) => (
+              <li key={c.login}>
+                <button
+                  type="button"
+                  className={`flex w-full items-center gap-2 px-2 py-1 text-left text-sm ${
+                    i === activeIdx
+                      ? "bg-accent text-accent-foreground"
+                      : "hover:bg-accent/50"
+                  }`}
+                  onMouseEnter={() => setActiveIdx(i)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    choose(c.login);
+                  }}
+                >
+                  <AtSign className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>{c.login}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       <p className="text-xs text-muted-foreground">
         Comma-separated GitHub logins to <strong>@</strong>-mention in this
         duty&apos;s output. Leave blank for none.
