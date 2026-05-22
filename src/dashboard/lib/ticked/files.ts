@@ -143,10 +143,18 @@ function deriveTitle(body: string, slug: string): string {
 }
 
 function stripLeadingH1(body: string): string {
-  const trimmed = body.replace(/^﻿/, "");
-  const lines = trimmed.split("\n");
-  if (lines.length > 0 && /^#\s+.+/.test(lines[0]!)) {
-    return lines.slice(1).join("\n").replace(/^\n+/, "");
+  // The first H1 is the title (rendered separately in the detail header).
+  // Strip *every* leading H1 block, not just one: past round-trips could
+  // have prepended the title multiple times, and any surviving leading H1
+  // would render as a duplicate title in the body card.
+  let trimmed = body.replace(/^﻿/, "");
+  for (;;) {
+    const lines = trimmed.split("\n");
+    if (lines.length > 0 && /^#\s+.+/.test(lines[0]!)) {
+      trimmed = lines.slice(1).join("\n").replace(/^\n+/, "");
+    } else {
+      break;
+    }
   }
   return trimmed;
 }
@@ -262,8 +270,13 @@ function buildFileContent(
   disabled: boolean,
   staff: string | null,
 ): string {
-  const trimmedBody = body.replace(/^\s+/, "");
-  const titled = `# ${title.trim()}\n\n${trimmedBody}${trimmedBody.endsWith("\n") ? "" : "\n"}`;
+  // Strip any leading H1 the caller's body already carries so we never
+  // double the title — `# ${title}` is the single canonical heading.
+  const trimmedBody = stripLeadingH1(body.replace(/^\s+/, ""));
+  const titled =
+    trimmedBody.length > 0
+      ? `# ${title.trim()}\n\n${trimmedBody}${trimmedBody.endsWith("\n") ? "" : "\n"}`
+      : `# ${title.trim()}\n`;
   const fm: TickFrontmatter = {};
   if (schedule) fm.every = schedule;
   if (staff) fm.staff = staff;
