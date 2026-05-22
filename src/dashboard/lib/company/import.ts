@@ -36,7 +36,7 @@ function emptyCounts(): CompanyImportCounts {
 }
 
 interface TickWriter {
-  read: (slug: string) => Promise<TickFile | null>;
+  read: (slug: string, octokit?: Octokit) => Promise<TickFile | null>;
   write: (opts: TickWriteOptions) => Promise<TickFile>;
 }
 
@@ -56,7 +56,10 @@ async function importTickCollection(
   const counts = emptyCounts();
   for (const entry of entries) {
     try {
-      const existing = await writer.read(entry.slug);
+      // Pin the existence check to the SAME user octokit as the write — the
+      // per-request global may be cleared by a concurrent request mid-import
+      // (→ env-token fallback → 401 "Bad credentials" on every entry after).
+      const existing = await writer.read(entry.slug, octokit);
       if (existing && mode === "skip") {
         counts.skipped++;
         continue;
@@ -91,7 +94,7 @@ async function importPrompts(
   const counts = emptyCounts();
   for (const entry of entries) {
     try {
-      const existing = await readPromptFile(entry.slug);
+      const existing = await readPromptFile(entry.slug, octokit);
       if (existing && mode === "skip") {
         counts.skipped++;
         continue;
@@ -148,7 +151,7 @@ export async function applyCompanyBundle(
   let instructions: CompanyImportResult["instructions"] = "absent";
   if (bundle.instructions && bundle.instructions.trim().length > 0) {
     try {
-      const existing = await readInstructionsFile();
+      const existing = await readInstructionsFile(octokit);
       if (existing && mode === "skip") {
         instructions = "skipped";
       } else {

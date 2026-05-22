@@ -177,9 +177,12 @@ export async function listRepoPromptFiles(): Promise<{
   return { prompts: nonNull, builtinsDisabled };
 }
 
-export async function readPromptFile(slug: string): Promise<PromptFile | null> {
+export async function readPromptFile(
+  slug: string,
+  octokitOverride?: Octokit,
+): Promise<PromptFile | null> {
   if (!isValidSlug(slug)) return null;
-  const octokit = getOctokit();
+  const octokit = octokitOverride ?? getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);
   const filePath = `${PROMPTS_DIR}/${slug}.md`;
 
@@ -254,7 +257,9 @@ export async function writePromptFile(opts: WriteOptions): Promise<PromptFile> {
   });
 
   invalidatePromptsCache(opts.slug);
-  const refreshed = await readPromptFile(opts.slug);
+  // Confirm with the same octokit that wrote — not the per-request global,
+  // which a concurrent request may have cleared (→ 401 "Bad credentials").
+  const refreshed = await readPromptFile(opts.slug, opts.octokit);
   if (!refreshed) {
     throw new Error(
       "writePromptFile: file was written but could not be re-read",

@@ -378,10 +378,21 @@ export function createTickedFiles(
 
   /**
    * Read a single file by slug. Returns `null` if it does not exist.
+   *
+   * `octokitOverride` lets a caller (e.g. `writeFile`'s post-write confirm)
+   * pin the read to a specific, known-good Octokit instead of the mutable
+   * per-request global. This matters under concurrency: a parallel request's
+   * `clearGitHubContext()` nulls the shared `_octokit`, after which
+   * `getOctokit()` falls back to the env token and reads 401 ("Bad
+   * credentials"). Passing the same octokit that performed the write keeps
+   * the operation self-consistent.
    */
-  async function readFile(slug: string): Promise<TickFile | null> {
+  async function readFile(
+    slug: string,
+    octokitOverride?: Octokit,
+  ): Promise<TickFile | null> {
     if (!isValidSlug(slug)) return null;
-    const octokit = getOctokit();
+    const octokit = octokitOverride ?? getOctokit();
     const branch = await getDefaultBranch(octokit).catch(() => null);
     const filePath = `${dir}/${slug}.md`;
 
@@ -451,7 +462,11 @@ export function createTickedFiles(
     });
 
     invalidateCache(opts.slug);
-    const refreshed = await readFile(opts.slug);
+    // Confirm with the SAME octokit that performed the write — never the
+    // per-request global, which a concurrent request may have cleared
+    // (→ env-token fallback → 401 "Bad credentials" on an otherwise
+    // successful write). See readFile's `octokitOverride`.
+    const refreshed = await readFile(opts.slug, opts.octokit);
     if (!refreshed) {
       throw new Error(
         `writeFile: ${commitScope} file was written but could not be re-read`,

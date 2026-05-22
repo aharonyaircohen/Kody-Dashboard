@@ -58,8 +58,10 @@ function buildHtmlUrl(branch: string | null): string {
   return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${INSTRUCTIONS_PATH}`;
 }
 
-export async function readInstructionsFile(): Promise<InstructionsFile | null> {
-  const octokit = getOctokit();
+export async function readInstructionsFile(
+  octokitOverride?: Octokit,
+): Promise<InstructionsFile | null> {
+  const octokit = octokitOverride ?? getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);
   try {
     const { data } = await octokit.repos.getContent({
@@ -108,7 +110,9 @@ export async function writeInstructionsFile(
   });
 
   invalidateInstructionsPromptCache();
-  const refreshed = await readInstructionsFile();
+  // Confirm with the same octokit that wrote — not the per-request global,
+  // which a concurrent request may have cleared (→ 401 "Bad credentials").
+  const refreshed = await readInstructionsFile(opts.octokit);
   if (!refreshed) {
     throw new Error(
       "writeInstructionsFile: file was written but could not be re-read",
