@@ -16,7 +16,7 @@ vi.mock("@dashboard/lib/issue-attachments", () => ({
 
 import {
   buildDecoratedMessage,
-  formatJobContext,
+  formatDutyContext,
   formatTaskContext,
   streamBrainChat,
 } from "@dashboard/lib/brain-proxy";
@@ -65,24 +65,24 @@ describe("formatTaskContext", () => {
   });
 });
 
-describe("formatJobContext", () => {
+describe("formatDutyContext", () => {
   it("returns null when number is missing", () => {
-    expect(formatJobContext(undefined)).toBeNull();
-    expect(formatJobContext({ title: "no number" })).toBeNull();
+    expect(formatDutyContext(undefined)).toBeNull();
+    expect(formatDutyContext({ title: "no number" })).toBeNull();
   });
 
-  it("renders a job with title, state, labels, and body", () => {
-    const out = formatJobContext({
+  it("renders a duty with title, state, labels, and body", () => {
+    const out = formatDutyContext({
       number: 7,
       title: "Weekly cleanup",
       state: "open",
-      labels: ["kody:job"],
+      labels: ["kody:duty"],
       body: "Body text.",
     })!;
     expect(out).toContain("#7 — Weekly cleanup");
     expect(out).toContain("State: open");
-    expect(out).toContain("kody:job");
-    expect(out).toContain("[Job body]\nBody text.");
+    expect(out).toContain("kody:duty");
+    expect(out).toContain("[Duty body]\nBody text.");
     expect(out).toContain("grounded in the body above");
   });
 });
@@ -92,14 +92,14 @@ describe("buildDecoratedMessage", () => {
     expect(buildDecoratedMessage("hi", {})).toBe("hi");
   });
 
-  it("combines draft + job + task preambles in the documented order", () => {
+  it("combines draft + duty + task preambles in the documented order", () => {
     const out = buildDecoratedMessage("user text", {
-      jobDraft: true,
-      jobContext: { number: 1, title: "J" },
+      dutyDraft: true,
+      dutyContext: { number: 1, title: "J" },
       taskContext: { issueNumber: 2, title: "T" },
     });
-    const draftIdx = out.indexOf("Job drafting mode");
-    const jobIdx = out.indexOf("[Current job]");
+    const draftIdx = out.indexOf("Duty drafting mode");
+    const jobIdx = out.indexOf("[Current duty]");
     const taskIdx = out.indexOf("[Current task context]");
     const userIdx = out.indexOf("[User]\nuser text");
     expect(draftIdx).toBeGreaterThan(-1);
@@ -376,13 +376,13 @@ describe("streamBrainChat — SSE translation", () => {
       chatId: "c1",
       message: "user message",
       taskContext: { issueNumber: 42, title: "Fix it" },
-      jobContext: { number: 7, title: "Daily report" },
+      dutyContext: { number: 7, title: "Daily report" },
     });
     const body = JSON.parse(calls[0]!.init!.body as string) as {
       message: string;
     };
     expect(body.message).toContain("[Current task context]");
-    expect(body.message).toContain("[Current job]");
+    expect(body.message).toContain("[Current duty]");
     expect(body.message).toContain("[User]\nuser message");
   });
 

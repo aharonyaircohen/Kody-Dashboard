@@ -4,7 +4,7 @@
  * @pattern reports-api
  * @ai-summary Reports API — GET lists system reports under
  *   `.kody/reports/<slug>.md` in the connected repo. Read-only:
- *   reports are produced by Kody jobs, not edited from the dashboard.
+ *   reports are produced by Kody duties, not edited from the dashboard.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

@@ -4,7 +4,7 @@
  * @domain e2e
  *
  * The deep e2e suite is concentrated on chat + vibe; whole feature pages
- * (Activity, Inbox, Jobs, Workers, Secrets, Notifications, Models, Prompts,
+ * (Activity, Inbox, Duties, Staff, Secrets, Notifications, Models, Prompts,
  * Reports, Settings, Runner, …) had no "does it even mount" guard. This
  * parametrized smoke visits each authenticated route and asserts the page
  * renders without a crash or a critical console error — the cheapest broad
@@ -30,9 +30,9 @@ const ROUTES = [
   "/activity",
   "/changelog",
   "/chat",
+  "/duties",
   "/inbox",
   "/instructions",
-  "/jobs",
   "/messages",
   "/models",
   "/new",
@@ -44,9 +44,9 @@ const ROUTES = [
   "/scenario",
   "/secrets",
   "/settings",
+  "/staff",
   "/variables",
   "/vibe",
-  "/workers",
 ] as const;
 
 // Noise we never want to fail a render-smoke on (extensions, transient

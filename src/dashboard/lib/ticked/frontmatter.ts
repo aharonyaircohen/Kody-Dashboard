@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern ticked-frontmatter
  * @ai-summary Tiny YAML-frontmatter parser/serializer shared by every
- *   "ticked markdown" feature (jobs, workers, and any future kind). A
+ *   "ticked markdown" feature (duties, staff, and any future kind). A
  *   ticked file is allowed to start with a `---\n…\n---\n` block carrying
  *   flat scalar key/value pairs (no nesting). Today the only recognized
  *   fields are `every:` (per-file cadence) and `disabled:`, but the
@@ -12,8 +12,8 @@
  *
  *   No `gray-matter` dep on purpose — the format is intentionally
  *   restricted (flat, scalar values only) and a 30-line parser keeps
- *   the bundle small. `jobs-frontmatter.ts` / `workers-frontmatter.ts`
- *   are thin re-export shims over this single implementation.
+ *   the bundle small. `duties-frontmatter.ts` is a thin re-export shim
+ *   over this single implementation.
  */
 
 /** Allowed cadence tokens. Engine cron fires every 15 min; finer values round up. */
@@ -57,12 +57,12 @@ export interface TickFrontmatter {
    */
   disabled?: boolean;
   /**
-   * Slug of the worker (persona) under `.kody/workers/<worker>.md` that
-   * executes this job. Jobs own the schedule; the worker is *who* the tick
-   * runs as. Only meaningful on job files — worker files never carry it.
-   * A job with no `worker:` is skipped by the engine scheduler.
+   * Slug of the staff member (persona) under `.kody/staff/<staff>.md` that
+   * executes this duty. Duties own the schedule; the staff member is *who*
+   * the tick runs as. Only meaningful on duty files — staff files never
+   * carry it. A duty with no `staff:` is skipped by the engine scheduler.
    */
-  worker?: string;
+  staff?: string;
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -186,8 +186,8 @@ function parseFlatYaml(text: string): TickFrontmatter {
       const lower = value.toLowerCase();
       if (lower === "true") out.disabled = true;
       else if (lower === "false") out.disabled = false;
-    } else if (key === "worker" && value.length > 0) {
-      out.worker = value;
+    } else if (key === "staff" && value.length > 0) {
+      out.staff = value;
     }
     // Unknown keys silently dropped on read — they round-trip via the
     // raw body if callers preserve it. We don't surface them on the
@@ -199,7 +199,7 @@ function parseFlatYaml(text: string): TickFrontmatter {
 function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
   const lines: string[] = [];
   if (frontmatter.every) lines.push(`every: ${frontmatter.every}`);
-  if (frontmatter.worker) lines.push(`worker: ${frontmatter.worker}`);
+  if (frontmatter.staff) lines.push(`staff: ${frontmatter.staff}`);
   // Only emit `disabled: true` — the default (enabled) leaves the line
   // out so an unchanged ticked file stays byte-identical.
   if (frontmatter.disabled === true) lines.push(`disabled: true`);

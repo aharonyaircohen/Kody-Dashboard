@@ -5,7 +5,7 @@
  * @ai-summary Persistent left navigation rail for the Kody dashboard.
  *   Desktop only (hidden below md). Collapsible (64px ↔ 220px) with
  *   localStorage persistence. Top-level entries are the primary surfaces
- *   (Dashboard, Jobs, Workers); configuration screens are sourced from
+ *   (Dashboard, Duties, Staff); configuration screens are sourced from
  *   the shared `SETTINGS_NAV_SECTIONS` so new pages added there appear
  *   here automatically. Mobile keeps the existing in-header hamburger
  *   menu (MobileMenu) — this rail is the desktop replacement for the
@@ -44,7 +44,7 @@ type NavItem = SettingsNavItem
 const COLLAPSED_KEY = 'kody.sidebar.collapsed'
 
 function isActive(pathname: string, search: string, item: NavItem): boolean {
-  // Hrefs may include a query string (e.g. "/jobs?tab=reports"). Compare the
+  // Hrefs may include a query string (e.g. "/duties?tab=reports"). Compare the
   // pathname and search portions independently so tab-scoped entries don't
   // collide with their bare-path siblings.
   const [hrefPath, hrefQuery = ''] = item.href.split('?')

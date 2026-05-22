@@ -5,7 +5,7 @@
  * @ai-summary CRUD UI for slash-command prompts stored at
  *   `.kody/prompts/<slug>.md` in the connected repo. Dashboard ships
  *   built-ins (`/plan`, `/review`, `/explain`, `/issue`, `/goal`,
- *   `/analyze`, `/job`); editing a built-in forks it into the repo so
+ *   `/analyze`, `/duty`); editing a built-in forks it into the repo so
  *   the repo wins by slug.
  */
 "use client";

@@ -1,8 +1,10 @@
 /**
  * Unit tests for the ticked-markdown frontmatter parser
- * (src/dashboard/lib/ticked/frontmatter.ts). Every job/worker file's
- * schedule + worker binding is decoded here; a parse bug silently changes
- * whether (and as whom) a job auto-fires. Pure logic, was at ~4% coverage.
+ * (src/dashboard/lib/ticked/frontmatter.ts). Every duty/staff file's
+ * schedule + staff binding is decoded here; a parse bug silently changes
+ * whether (and as whom) a duty auto-fires. The persona-binding key on the
+ * wire is `staff:` — that's what the engine reads (loadJobFromFile,
+ * dispatchJobFileTicks). Pure logic.
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -21,12 +23,12 @@ describe("splitFrontmatter", () => {
     expect(body).toBe("# Just a heading\n");
   });
 
-  it("parses every / disabled / worker and strips the block from the body", () => {
-    const raw = "---\nevery: 1h\nworker: triage-bot\ndisabled: true\n---\nDo the thing\n";
+  it("parses every / disabled / staff and strips the block from the body", () => {
+    const raw = "---\nevery: 1h\nstaff: triage-bot\ndisabled: true\n---\nDo the thing\n";
     const { frontmatter, body } = splitFrontmatter(raw);
     expect(frontmatter).toEqual({
       every: "1h",
-      worker: "triage-bot",
+      staff: "triage-bot",
       disabled: true,
     });
     expect(body).toBe("Do the thing\n");
@@ -59,8 +61,8 @@ describe("splitFrontmatter", () => {
   });
 
   it("strips surrounding quotes from values", () => {
-    expect(splitFrontmatter("---\nworker: \"my-bot\"\n---\nx").frontmatter.worker).toBe("my-bot");
-    expect(splitFrontmatter("---\nworker: 'my-bot'\n---\nx").frontmatter.worker).toBe("my-bot");
+    expect(splitFrontmatter("---\nstaff: \"my-bot\"\n---\nx").frontmatter.staff).toBe("my-bot");
+    expect(splitFrontmatter("---\nstaff: 'my-bot'\n---\nx").frontmatter.staff).toBe("my-bot");
   });
 });
 
@@ -70,9 +72,9 @@ describe("joinFrontmatter", () => {
   });
 
   it("emits a block with fields in a stable order, omitting disabled:false", () => {
-    const fm: TickFrontmatter = { every: "2h", worker: "bot", disabled: false };
+    const fm: TickFrontmatter = { every: "2h", staff: "bot", disabled: false };
     const out = joinFrontmatter(fm, "body");
-    expect(out).toBe("---\nevery: 2h\nworker: bot\n---\n\nbody");
+    expect(out).toBe("---\nevery: 2h\nstaff: bot\n---\n\nbody");
   });
 
   it("emits disabled:true explicitly", () => {
@@ -80,7 +82,7 @@ describe("joinFrontmatter", () => {
   });
 
   it("round-trips through splitFrontmatter", () => {
-    const fm: TickFrontmatter = { every: "7d", worker: "weekly", disabled: true };
+    const fm: TickFrontmatter = { every: "7d", staff: "weekly", disabled: true };
     const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
     expect(frontmatter).toEqual(fm);
   });

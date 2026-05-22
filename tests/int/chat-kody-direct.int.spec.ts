@@ -127,40 +127,40 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toBe("base");
   });
 
-  it("appends a job-drafting block when opts.jobDraft is set", async () => {
+  it("appends a duty-drafting block when opts.dutyDraft is set", async () => {
     const { buildSystemPrompt } =
       await import("../../app/api/kody/chat/kody/system-prompt");
     const prompt = buildSystemPrompt("base", null, undefined, {
-      jobDraft: true,
+      dutyDraft: true,
     });
-    expect(prompt).toContain("Job drafting mode");
-    expect(prompt).toContain("drafting a new Kody job");
-    expect(prompt).toContain("Use as job");
+    expect(prompt).toContain("Duty drafting mode");
+    expect(prompt).toContain("drafting a new Kody duty");
+    expect(prompt).toContain("Use as duty");
   });
 
-  it("omits the job-drafting block by default", async () => {
+  it("omits the duty-drafting block by default", async () => {
     const { buildSystemPrompt } =
       await import("../../app/api/kody/chat/kody/system-prompt");
     const prompt = buildSystemPrompt("base", null, undefined);
-    expect(prompt).not.toContain("Job drafting mode");
+    expect(prompt).not.toContain("Duty drafting mode");
   });
 
-  it("appends a current-job block when opts.job is set", async () => {
+  it("appends a current-duty block when opts.duty is set", async () => {
     const { buildSystemPrompt } =
       await import("../../app/api/kody/chat/kody/system-prompt");
     const prompt = buildSystemPrompt("base", null, undefined, {
-      job: {
+      duty: {
         number: 7,
         title: "Auto-triage stale issues",
         body: "## Intent\nClose stale issues",
         state: "open",
-        labels: ["kody:job"],
+        labels: ["kody:duty"],
       },
     });
-    expect(prompt).toContain("Current job");
-    expect(prompt).toContain("Job #7");
+    expect(prompt).toContain("Current duty");
+    expect(prompt).toContain("Duty #7");
     expect(prompt).toContain("Auto-triage stale issues");
     expect(prompt).toContain("Close stale issues");
-    expect(prompt).toContain("kody:job");
+    expect(prompt).toContain("kody:duty");
   });
 });

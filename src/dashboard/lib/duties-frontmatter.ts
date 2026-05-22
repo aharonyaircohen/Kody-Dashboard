@@ -1,12 +1,12 @@
 /**
  * @fileType util
  * @domain kody
- * @pattern jobs-frontmatter
- * @ai-summary Job preset over the shared ticked-frontmatter parser.
- *   Jobs and workers use the identical flat-YAML frontmatter format;
+ * @pattern duties-frontmatter
+ * @ai-summary Duty preset over the shared ticked-frontmatter parser.
+ *   Duties and staff use the identical flat-YAML frontmatter format;
  *   the one implementation lives in `ticked/frontmatter.ts`. This file
- *   re-exports it under the legacy `JobFrontmatter` name so existing
- *   importers don't change.
+ *   re-exports it under the `DutyFrontmatter` name so importers stay
+ *   stable.
  */
 
 export {
@@ -19,5 +19,5 @@ export {
 } from "./ticked/frontmatter";
 export type {
   ScheduleEvery,
-  TickFrontmatter as JobFrontmatter,
+  TickFrontmatter as DutyFrontmatter,
 } from "./ticked/frontmatter";

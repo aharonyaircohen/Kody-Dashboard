@@ -1,8 +1,8 @@
 /**
  * @fileType component
  * @domain kody
- * @pattern jobs-page-tabs
- * @ai-summary Tabbed shell for the Jobs page — renders Job Control or
+ * @pattern duties-page-tabs
+ * @ai-summary Tabbed shell for the Duties page — renders Duty Control or
  *   Reports under a single route. Active tab is mirrored to the URL
  *   (`?tab=reports`) so it survives reloads and shares cleanly.
  */
@@ -15,25 +15,25 @@ import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
 import { cn } from "@dashboard/lib/utils/ui";
-import { JobControl } from "./JobControl";
+import { DutyControl } from "./DutyControl";
 import { ReportsView } from "./ReportsView";
 import { VibeToggle } from "./VibeToggle";
 import { SimpleTooltip } from "./SimpleTooltip";
 
-type Tab = "jobs" | "reports";
+type Tab = "duties" | "reports";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "jobs", label: "Jobs" },
-  { id: "reports", label: "Job Reports" },
+  { id: "duties", label: "Duties" },
+  { id: "reports", label: "Duty Reports" },
 ];
 
 function parseTab(value: string | null | undefined): Tab {
-  return value === "reports" ? "reports" : "jobs";
+  return value === "reports" ? "reports" : "duties";
 }
 
-export function JobsPageTabs() {
+export function DutiesPageTabs() {
   const router = useRouter();
-  const pathname = usePathname() ?? "/jobs";
+  const pathname = usePathname() ?? "/duties";
   const searchParams = useSearchParams();
   const [active, setActive] = useState<Tab>(() =>
     parseTab(searchParams?.get("tab")),
@@ -48,7 +48,7 @@ export function JobsPageTabs() {
     (id: Tab) => {
       setActive(id);
       const params = new URLSearchParams(searchParams?.toString() ?? "");
-      if (id === "jobs") params.delete("tab");
+      if (id === "duties") params.delete("tab");
       else params.set("tab", id);
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
@@ -74,7 +74,7 @@ export function JobsPageTabs() {
           </SimpleTooltip>
           <div
             role="tablist"
-            aria-label="Jobs view"
+            aria-label="Duties view"
             className="flex items-center gap-1"
           >
             {TABS.map((tab) => {
@@ -85,7 +85,7 @@ export function JobsPageTabs() {
                   type="button"
                   role="tab"
                   aria-selected={isActive}
-                  aria-controls={`jobs-tab-panel-${tab.id}`}
+                  aria-controls={`duties-tab-panel-${tab.id}`}
                   onClick={() => onSelect(tab.id)}
                   className={cn(
                     "relative px-3 py-2 text-sm font-medium transition-colors",
@@ -107,11 +107,15 @@ export function JobsPageTabs() {
       </div>
 
       <div
-        id={`jobs-tab-panel-${active}`}
+        id={`duties-tab-panel-${active}`}
         role="tabpanel"
         className="flex-1 min-h-0 overflow-hidden"
       >
-        {active === "jobs" ? <JobControl embedded /> : <ReportsView embedded />}
+        {active === "duties" ? (
+          <DutyControl embedded />
+        ) : (
+          <ReportsView embedded />
+        )}
       </div>
     </div>
   );

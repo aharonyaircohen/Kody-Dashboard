@@ -2,27 +2,28 @@
  * @fileType tool
  * @domain kody
  * @pattern ai-sdk-tool
- * @ai-summary Job-creation tool for the kody-direct chat agent. Writes a
- *   `.kody/jobs/<slug>.md` file via the same `writeJobFile` helper the
- *   dashboard's POST /api/kody/jobs endpoint uses. Default body follows
+ * @ai-summary Duty-creation tool for the kody-direct chat agent. Writes a
+ *   `.kody/duties/<slug>.md` file via the same `writeDutyFile` helper the
+ *   dashboard's POST /api/kody/duties endpoint uses. Default body follows
  *   the report-producer template: each tick gathers inputs, composes a
  *   YAML findings report, and commits it to `.kody/reports/<slug>.md`
- *   via `gh api PUT`. Format mirrors existing jobs (Job / Allowed
- *   Commands / Restrictions / State).
+ *   via `gh api PUT`. Format mirrors existing duties (Job / Allowed
+ *   Commands / Restrictions / State — the `## Job` heading is parsed by
+ *   the engine's job-tick executor, so its text stays literal).
  *
  *   The model should NOT call this on the first turn — it must gap-
- *   analyze and ask the user questions until the job is well-specified.
- *   See the "Creating Kody jobs" block in AGENT_KODY.systemPrompt.
+ *   analyze and ask the user questions until the duty is well-specified.
+ *   See the "Creating Kody duties" block in AGENT_KODY.systemPrompt.
  */
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@dashboard/lib/logger";
 import {
-  readJobFile,
-  writeJobFile,
+  readDutyFile,
+  writeDutyFile,
   isValidSlug,
-} from "@dashboard/lib/jobs-files";
+} from "@dashboard/lib/duties-files";
 
 interface Ctx {
   octokit: Octokit;
@@ -32,7 +33,7 @@ interface Ctx {
   actorLogin: string | null;
 }
 
-interface JobInput {
+interface DutyInput {
   title: string;
   slug?: string;
   purpose: string;
@@ -58,12 +59,12 @@ function bullets(items: string[]): string {
 }
 
 /**
- * Render the default report-producer job body. The model fills in the
+ * Render the default report-producer duty body. The model fills in the
  * variable parts (purpose, cadence, inputs, report schema). Commands and
  * restrictions match the engine's job-tick constraints (Bash + Read +
  * `gh` only — no Write tool, so the report is committed via `gh api PUT`).
  */
-function buildJobBody(slug: string, input: JobInput): string {
+function buildDutyBody(slug: string, input: DutyInput): string {
   const cadence = Math.max(1, Math.round(input.cadenceHours));
   const inputBullets =
     input.inputs.length > 0 ? bullets(input.inputs) : "- _Not specified_";
@@ -131,11 +132,11 @@ function buildJobBody(slug: string, input: JobInput): string {
   return body;
 }
 
-export const createKodyJobInputSchema = z.object({
+export const createKodyDutyInputSchema = z.object({
   title: z
     .string()
     .min(1)
-    .describe("Human-readable job title. Becomes the H1 of the job file."),
+    .describe("Human-readable duty title. Becomes the H1 of the duty file."),
   slug: z
     .string()
     .optional()
@@ -147,7 +148,7 @@ export const createKodyJobInputSchema = z.object({
     .string()
     .min(1)
     .describe(
-      "One to three sentences describing what the job scans/observes and what report it produces. " +
+      "One to three sentences describing what the duty scans/observes and what report it produces. " +
         "No implementation details — those go in `inputs` and `reportSchema`.",
     ),
   cadenceHours: z
@@ -162,7 +163,7 @@ export const createKodyJobInputSchema = z.object({
     .array(z.string().min(1))
     .min(1)
     .describe(
-      "Concrete data sources / commands the job runs to gather inputs. Each item is one bullet — " +
+      "Concrete data sources / commands the duty runs to gather inputs. Each item is one bullet — " +
         'e.g. "`gh pr list --state open --json number,title,createdAt`" or ' +
         '"`gh api repos/{owner}/{repo}/actions/runs?status=failure&per_page=20`".',
     ),
@@ -170,7 +171,7 @@ export const createKodyJobInputSchema = z.object({
     .string()
     .min(1)
     .describe(
-      "YAML fragment describing the `findings:` array shape that the job will produce. Indented as it " +
+      "YAML fragment describing the `findings:` array shape that the duty will produce. Indented as it " +
         'will appear inside the YAML frontmatter — e.g. "  - id: <stable id>\\n    severity: ' +
         '<high|medium|low>\\n    title: \\"...\\"\\n    data: { ... }". Do NOT include the slug or ' +
         "generatedAt fields — those are added automatically.",
@@ -179,64 +180,64 @@ export const createKodyJobInputSchema = z.object({
     .array(z.string().min(1))
     .optional()
     .describe(
-      "Optional additional shell commands the job may run beyond `gh api` (e.g. " +
+      "Optional additional shell commands the duty may run beyond `gh api` (e.g. " +
         '"`gh pr list`", "`gh run list`"). Each item becomes a bullet under "Allowed Commands".',
     ),
   extraRestrictions: z
     .array(z.string().min(1))
     .optional()
     .describe(
-      'Optional additional restriction bullets to append (e.g. "Never comment on PRs from this job.").',
+      'Optional additional restriction bullets to append (e.g. "Never comment on PRs from this duty.").',
     ),
 });
 
-export function createJobTools(ctx: Ctx) {
+export function createDutyTools(ctx: Ctx) {
   const { octokit, owner, repo, actorLogin } = ctx;
   const repoRef = `${owner}/${repo}`;
 
   return {
-    create_kody_job: tool({
+    create_kody_duty: tool({
       description:
-        `Create a new Kody Job in ${repoRef} by committing a markdown file at ` +
-        "`.kody/jobs/<slug>.md`. The default template is a REPORT-PRODUCER: each " +
+        `Create a new Kody Duty in ${repoRef} by committing a markdown file at ` +
+        "`.kody/duties/<slug>.md`. The default template is a REPORT-PRODUCER: each " +
         "tick gathers inputs, composes a YAML findings report, and commits it to " +
         "`.kody/reports/<slug>.md` via `gh api PUT` (the engine's job-tick " +
         "executable only has Bash + Read, so reports are committed via API, not " +
-        "the working tree). The kody engine's job-scheduler ticks every job in " +
-        "`.kody/jobs/` on a 5-minute cron; each job's own cadence guard decides " +
+        "the working tree). The kody engine's job-scheduler ticks every duty in " +
+        "`.kody/duties/` on a 5-minute cron; each duty's own cadence guard decides " +
         "whether to take action.\n\n" +
         "BEFORE CALLING: gather title, purpose, cadenceHours, inputs (data sources " +
         "as concrete `gh` commands), and reportSchema (YAML fragment for the " +
         "`findings:` array). Ask the user clarifying questions in small batches " +
         "until each field is well-specified — never invent inputs or schema. Show " +
         "the proposed markdown body for approval before calling.\n\n" +
-        "Returns the new file's slug, title, and html URL on success. The job " +
+        "Returns the new file's slug, title, and html URL on success. The duty " +
         "starts ticking on the next 5-min cron wake; no manual dispatch required.",
-      inputSchema: createKodyJobInputSchema,
+      inputSchema: createKodyDutyInputSchema,
       execute: async (input) => {
         const slug = (input.slug ?? slugifyTitle(input.title)).toLowerCase();
         if (!slug || !isValidSlug(slug)) {
           return {
             error: "invalid_slug",
             message:
-              "Job slug must be lowercase letters, digits, dashes, or underscores (max 64 chars). " +
+              "Duty slug must be lowercase letters, digits, dashes, or underscores (max 64 chars). " +
               `Got "${slug}".`,
           };
         }
 
         try {
-          const existing = await readJobFile(slug);
+          const existing = await readDutyFile(slug);
           if (existing) {
             return {
               error: "slug_taken",
-              message: `Job "${slug}" already exists at ${existing.htmlUrl}. Pick a different slug.`,
+              message: `Duty "${slug}" already exists at ${existing.htmlUrl}. Pick a different slug.`,
               existingHtmlUrl: existing.htmlUrl,
             };
           }
 
-          const body = buildJobBody(slug, input);
-          const message = `feat(jobs): add ${slug}${actorLogin ? ` (via chat by @${actorLogin})` : ""}`;
-          const job = await writeJobFile({
+          const body = buildDutyBody(slug, input);
+          const message = `feat(duties): add ${slug}${actorLogin ? ` (via chat by @${actorLogin})` : ""}`;
+          const duty = await writeDutyFile({
             octokit,
             slug,
             title: input.title,
@@ -246,26 +247,26 @@ export function createJobTools(ctx: Ctx) {
 
           logger.info(
             { owner, repo, slug, cadenceHours: input.cadenceHours, actorLogin },
-            "create_kody_job: created job file",
+            "create_kody_duty: created duty file",
           );
 
           return {
-            slug: job.slug,
-            title: job.title,
-            htmlUrl: job.htmlUrl,
+            slug: duty.slug,
+            title: duty.title,
+            htmlUrl: duty.htmlUrl,
             note:
-              "Job file committed. The kody engine's job-scheduler will pick it up on the next " +
+              "Duty file committed. The kody engine's job-scheduler will pick it up on the next " +
               "5-min cron tick. The first action runs once the cadence guard allows it.",
           };
         } catch (err) {
           logger.warn(
             { err, owner, repo, slug, title: input.title },
-            "create_kody_job failed",
+            "create_kody_duty failed",
           );
           return {
             error: "create_failed",
             message:
-              err instanceof Error ? err.message : "Failed to create job file",
+              err instanceof Error ? err.message : "Failed to create duty file",
           };
         }
       },

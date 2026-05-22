@@ -1,13 +1,15 @@
 /**
  * @fileType utility
  * @domain kody
- * @pattern worker-mention-dispatch
+ * @pattern staff-mention-dispatch
  * @ai-summary Server-only sibling of `dispatchMentionPushes`. Turns any
- *   GitHub-backed comment that @mentions a worker persona into a one-shot
+ *   GitHub-backed comment that @mentions a staff persona into a one-shot
  *   `worker-ask` tick — so `@cto` works the same in messages, goals,
  *   tasks, previews, PR/issue comments, and reviews, from one place. The
- *   worker's reply is posted back into the exact thread it was mentioned
- *   in. Never throws; logs and swallows so the webhook still ACKs.
+ *   staff member's reply is posted back into the exact thread it was
+ *   mentioned in. Never throws; logs and swallows so the webhook still ACKs.
+ *   (`worker-ask` is the unchanged engine executable name; the dashboard
+ *   feature noun is "staff".)
  *
  *   Why server-side (not per-surface client wiring): every listed surface
  *   is a GitHub comment under the hood and already flows through this
@@ -17,21 +19,21 @@
 import "server-only";
 import { Octokit } from "@octokit/rest";
 import { setGitHubContext, clearGitHubContext } from "../github-client";
-import { listWorkerFiles } from "../workers-files";
+import { listStaffFiles } from "../staff-files";
 import {
   dispatchWorkerAsk,
   type WorkerAskReply,
 } from "../control-issue";
-import { extractWorkerMentions } from "../mentions/worker-mentions";
+import { extractStaffMentions } from "../mentions/staff-mentions";
 import { logger } from "../logger";
 
-interface WorkerDispatchEvent {
+interface StaffDispatchEvent {
   repoFullName: string;
   body: string;
   author?: string;
   /** True when the comment was authored by a bot/app — skip to avoid loops. */
   authorIsBot: boolean;
-  /** Where the worker should post its reply. */
+  /** Where the staff member should post its reply. */
   reply: WorkerAskReply;
 }
 
@@ -50,14 +52,14 @@ function userOf(v: unknown): { login?: string; isBot: boolean } {
 
 /**
  * Extract the body + reply target for every webhook event type that can
- * carry an @worker mention. `issue:<n>` covers PRs too (the issues comment
+ * carry an @staff mention. `issue:<n>` covers PRs too (the issues comment
  * API serves both). `commit_comment` is intentionally unsupported — there
  * is no clean single-thread reply target for it.
  */
 function extractEvent(
   eventType: string,
   payload: Record<string, unknown>,
-): WorkerDispatchEvent | null {
+): StaffDispatchEvent | null {
   const repoFullName =
     typeof asRecord(payload.repository)?.full_name === "string"
       ? (asRecord(payload.repository)!.full_name as string)
@@ -172,7 +174,7 @@ function extractEvent(
  * Entry point — call fire-and-forget from the webhook receiver alongside
  * `dispatchMentionPushes`.
  */
-export async function dispatchWorkerMentions(
+export async function dispatchStaffMentions(
   eventType: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
@@ -180,7 +182,7 @@ export async function dispatchWorkerMentions(
     const ev = extractEvent(eventType, payload);
     if (!ev || !ev.body) return;
 
-    // Loop guard: the worker posts its reply as a comment in the same
+    // Loop guard: the staff member posts its reply as a comment in the same
     // thread. Skip bot/app authors and any body still carrying the
     // worker-ask directive so a reply can never re-trigger a run.
     if (ev.authorIsBot) return;
@@ -195,26 +197,26 @@ export async function dispatchWorkerMentions(
       process.env.GH_PAT;
     if (!token) {
       logger.warn(
-        { event: "worker_mention_no_token" },
-        "No bot token — cannot resolve workers / dispatch worker-ask",
+        { event: "staff_mention_no_token" },
+        "No bot token — cannot resolve staff / dispatch worker-ask",
       );
       return;
     }
 
-    // Resolve this repo's worker roster (per-repo `.kody/workers/`), so a
+    // Resolve this repo's staff roster (per-repo `.kody/staff/`), so a
     // newly-connected repo works with zero setup.
     let slugs: string[] = [];
     setGitHubContext(owner, repo, token);
     try {
-      slugs = (await listWorkerFiles()).map((w) => w.slug);
+      slugs = (await listStaffFiles()).map((w) => w.slug);
     } catch (err) {
       logger.warn(
         {
-          event: "worker_mention_roster_failed",
+          event: "staff_mention_roster_failed",
           error: err instanceof Error ? err.message : String(err),
           repo: ev.repoFullName,
         },
-        "Worker roster read failed — skipping worker dispatch",
+        "Staff roster read failed — skipping staff dispatch",
       );
       return;
     } finally {
@@ -222,7 +224,7 @@ export async function dispatchWorkerMentions(
     }
     if (slugs.length === 0) return;
 
-    const targeted = extractWorkerMentions(ev.body, slugs);
+    const targeted = extractStaffMentions(ev.body, slugs);
     if (targeted.length === 0) return;
 
     const octokit = new Octokit({ auth: token });
@@ -235,7 +237,7 @@ export async function dispatchWorkerMentions(
         });
         logger.info(
           {
-            event: "worker_mention_dispatched",
+            event: "staff_mention_dispatched",
             slug,
             repo: ev.repoFullName,
             replyKind: ev.reply.kind,
@@ -247,7 +249,7 @@ export async function dispatchWorkerMentions(
       } catch (err) {
         logger.warn(
           {
-            event: "worker_mention_dispatch_failed",
+            event: "staff_mention_dispatch_failed",
             slug,
             error: err instanceof Error ? err.message : String(err),
             repo: ev.repoFullName,
@@ -259,10 +261,10 @@ export async function dispatchWorkerMentions(
   } catch (err) {
     logger.error(
       {
-        event: "worker_mention_crashed",
+        event: "staff_mention_crashed",
         error: err instanceof Error ? err.message : String(err),
       },
-      "dispatchWorkerMentions threw — swallowing so webhook still ACKs",
+      "dispatchStaffMentions threw — swallowing so webhook still ACKs",
     );
   }
 }

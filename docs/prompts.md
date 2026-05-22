@@ -94,7 +94,7 @@ Migrate the SearchBar component from React to Vue.
 | `/issue`    | Research → draft → create an issue, then offer to run with Kody. |
 | `/goal`     | Draft a new goal (motivation + metric + milestone).              |
 | `/analyze`  | Analyze whatever you're viewing (issue, PR, run).                |
-| `/job`      | Draft a `.kody/jobs/<slug>.md` scheduled job.                    |
+| `/duty`     | Draft a `.kody/duties/<slug>.md` scheduled duty.                 |
 | `/init`     | Install the Kody engine in the connected repo.                   |
 
 Fork any of them to customize the wording for your repo.

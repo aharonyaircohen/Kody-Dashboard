@@ -264,8 +264,8 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { githubUser } = useGitHubIdentity();
 
-  // @mention autofill — shared roster: collaborators + workers + self.
-  // Workers (e.g. @cto) are offered here just like in channels; a worker
+  // @mention autofill — shared roster: collaborators + staff + self.
+  // Staff (e.g. @cto) are offered here just like in channels; a staff
   // mention dispatches a one-shot tick server-side off the webhook.
   const mentions = useMentionRoster({
     login: githubUser?.login,
@@ -527,9 +527,9 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
                         </AvatarFallback>
                       </Avatar>
                       <span className="text-sm">{mention.login}</span>
-                      {mention.isWorker ? (
+                      {mention.isStaff ? (
                         <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground border border-border rounded px-1 py-0.5">
-                          worker
+                          staff
                         </span>
                       ) : null}
                     </button>

@@ -104,17 +104,17 @@ session ID and an inline HMAC token. The engine streams events back to
 Each stage's status is committed to a per-task \`status.json\` on the work branch.`,
   },
   {
-    id: "kody-jobs",
-    name: "Kody Jobs (scheduled markdown jobs)",
+    id: "kody-duties",
+    name: "Kody Duties (scheduled markdown duties)",
     summary:
-      "Markdown files at .kody/jobs/<slug>.md that the engine job-scheduler ticks every 5 minutes.",
-    details: `A Kody Job is a markdown file at \`.kody/jobs/<slug>.md\` that the engine's
-job-scheduler ticks every 5 minutes. Each job's own \`Cadence guard\` decides
+      "Markdown files at .kody/duties/<slug>.md that the engine job-scheduler ticks every 5 minutes.",
+    details: `A Kody Duty is a markdown file at \`.kody/duties/<slug>.md\` that the engine's
+job-scheduler ticks every 5 minutes. Each duty's own \`Cadence guard\` decides
 whether to take action on a given tick.
 
-Format (must match existing jobs in \`.kody/jobs/\`):
+Format (must match existing duties in \`.kody/duties/\`):
 - H1 title
-- \`## Job\` — purpose
+- \`## Job\` — purpose (the engine's job-tick executor parses this heading, so its text stays literal)
 - \`## Allowed Commands\`
 - \`## Restrictions\`
 - \`## State\`
@@ -124,27 +124,27 @@ a YAML \`findings:\` report, and commits it to \`.kody/reports/<slug>.md\` via
 \`gh api PUT\` (the job-tick executable only has Bash + Read tools — reports
 are committed via the contents API, not the working tree).
 
-The chat exposes the \`create_kody_job\` tool to scaffold a new job after a
+The chat exposes the \`create_kody_duty\` tool to scaffold a new duty after a
 gap-analysis conversation.`,
   },
   {
-    id: "kody-workers",
-    name: "Kody Workers (reusable persona files)",
+    id: "kody-staff",
+    name: "Kody Staff (reusable persona files)",
     summary:
-      "Markdown files at .kody/workers/<slug>.md — pure reusable personas.",
-    details: `A Kody Worker is a markdown file at \`.kody/workers/<slug>.md\`. A
-worker is a pure reusable PERSONA — a markdown body describing intent,
-allowed commands, and restrictions. Workers have NO schedule, NO state,
-and NO run/tick; they're personas referenced by other flows. The Workers
+      "Markdown files at .kody/staff/<slug>.md — pure reusable personas.",
+    details: `A Kody Staff member is a markdown file at \`.kody/staff/<slug>.md\`. A
+staff member is a pure reusable PERSONA — a markdown body describing intent,
+allowed commands, and restrictions. Staff have NO schedule, NO state,
+and NO run/tick; they're personas referenced by other flows. The Staff
 page is a pure persona editor (list / view / create / edit / delete).
 
-Format (must match existing workers in \`.kody/workers/\`):
+Format (must match existing staff in \`.kody/staff/\`):
 - H1 title
-- \`## Worker\` — purpose / persona
+- \`## Staff\` — purpose / persona
 - \`## Allowed Commands\`
 - \`## Restrictions\`
 
-The chat exposes the \`create_kody_worker\` tool to scaffold a new worker
+The chat exposes the \`create_kody_staff\` tool to scaffold a new staff
 persona after a gap-analysis conversation.`,
   },
   {

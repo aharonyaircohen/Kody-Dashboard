@@ -1,11 +1,11 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern workers-api
- * @ai-summary Worker detail API — GET reads a single worker file, PATCH
+ * @pattern staff-api
+ * @ai-summary Staff detail API — GET reads a single staff file, PATCH
  *   updates the title/body, DELETE removes the file. Backed by
- *   `.kody/workers/<slug>.md` via the GitHub contents API. Duplicated
- *   from the jobs detail API.
+ *   `.kody/staff/<slug>.md` via the GitHub contents API. Duplicated
+ *   from the duties detail API.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -21,11 +21,11 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  readWorkerFile,
-  writeWorkerFile,
-  deleteWorkerFile,
+  readStaffFile,
+  writeStaffFile,
+  deleteStaffFile,
   isValidSlug,
-} from "@dashboard/lib/workers-files";
+} from "@dashboard/lib/staff-files";
 
 export async function GET(
   req: NextRequest,
@@ -43,17 +43,17 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const worker = await readWorkerFile(slug);
-    if (!worker) {
+    const staffMember = await readStaffFile(slug);
+    if (!staffMember) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    return NextResponse.json({ worker });
+    return NextResponse.json({ staffMember });
   } catch (error: any) {
-    console.error("[Workers] Error fetching worker:", error);
+    console.error("[Staff] Error fetching staff member:", error);
     return NextResponse.json(
       {
         error: "fetch_failed",
-        message: error?.message ?? "Failed to fetch worker",
+        message: error?.message ?? "Failed to fetch staff member",
       },
       { status: 500 },
     );
@@ -62,7 +62,7 @@ export async function GET(
   }
 }
 
-const updateWorkerSchema = z.object({
+const updateStaffSchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
   actorLogin: z.string().optional(),
@@ -85,13 +85,13 @@ export async function PATCH(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    const existing = await readWorkerFile(slug);
+    const existing = await readStaffFile(slug);
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
     const payload = await req.json();
-    const { title, body, actorLogin } = updateWorkerSchema.parse(payload);
+    const { title, body, actorLogin } = updateStaffSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -102,13 +102,13 @@ export async function PATCH(
         {
           error: "no_user_token",
           message:
-            "A signed-in GitHub token is required to commit worker files.",
+            "A signed-in GitHub token is required to commit staff files.",
         },
         { status: 401 },
       );
     }
 
-    const worker = await writeWorkerFile({
+    const staffMember = await writeStaffFile({
       octokit: userOctokit,
       slug,
       title: title ?? existing.title,
@@ -116,9 +116,9 @@ export async function PATCH(
       sha: existing.sha,
     });
 
-    return NextResponse.json({ worker });
+    return NextResponse.json({ staffMember });
   } catch (error: any) {
-    console.error("[Workers] Error updating worker:", error);
+    console.error("[Staff] Error updating staff member:", error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -135,7 +135,7 @@ export async function PATCH(
     return NextResponse.json(
       {
         error: "update_failed",
-        message: error?.message ?? "Failed to update worker",
+        message: error?.message ?? "Failed to update staff member",
       },
       { status: 500 },
     );
@@ -161,7 +161,7 @@ export async function DELETE(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    const existing = await readWorkerFile(slug);
+    const existing = await readStaffFile(slug);
     if (!existing) {
       return NextResponse.json({ success: true, alreadyMissing: true });
     }
@@ -178,17 +178,17 @@ export async function DELETE(
         {
           error: "no_user_token",
           message:
-            "A signed-in GitHub token is required to delete worker files.",
+            "A signed-in GitHub token is required to delete staff files.",
         },
         { status: 401 },
       );
     }
 
-    await deleteWorkerFile(userOctokit, slug);
+    await deleteStaffFile(userOctokit, slug);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("[Workers] Error deleting worker:", error);
+    console.error("[Staff] Error deleting staff member:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
@@ -198,7 +198,7 @@ export async function DELETE(
     return NextResponse.json(
       {
         error: "delete_failed",
-        message: error?.message ?? "Failed to delete worker",
+        message: error?.message ?? "Failed to delete staff member",
       },
       { status: 500 },
     );

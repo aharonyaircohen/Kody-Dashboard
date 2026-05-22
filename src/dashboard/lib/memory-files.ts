@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern memory-files
  * @ai-summary Memory file storage — read/write `.kody/memory/<id>.md` and
- *   `.kody/memory/INDEX.md` via the GitHub contents API. Mirrors the jobs-
+ *   `.kody/memory/INDEX.md` via the GitHub contents API. Mirrors the duties-
  *   files pattern: filename is identity, body is markdown, frontmatter
  *   carries metadata (name, description, type, created). The INDEX file
  *   is a one-line-per-entry pointer file injected into the chat system
@@ -103,7 +103,7 @@ interface RawFrontmatter {
 
 /**
  * Tiny scalar-only YAML parser, scoped to memory frontmatter. We keep the
- * surface small on purpose — the Kody jobs frontmatter helper has a similar
+ * surface small on purpose — the Kody duties frontmatter helper has a similar
  * design. Strings may be unquoted, single-quoted, or double-quoted; values
  * with special characters (`:`, `#`, leading whitespace) MUST be quoted.
  */

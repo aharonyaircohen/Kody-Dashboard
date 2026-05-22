@@ -10,7 +10,7 @@
  *
  * Both endpoints share the same wire protocol with the upstream Brain server
  * — `POST {brainUrl}/chats/{chatId}/messages` with `X-Api-Key`, SSE response —
- * so the body decoration (task/job preambles, attachment merging) and the
+ * so the body decoration (task/duty preambles, attachment merging) and the
  * SSE translation into the dashboard's `chat.message | chat.tool_use |
  * chat.done | chat.error` shape live here in one place.
  *
@@ -41,7 +41,7 @@ export interface BrainAttachment {
   data?: string;
 }
 
-export interface BrainJobContext {
+export interface BrainDutyContext {
   number?: number;
   title?: string;
   body?: string;
@@ -56,8 +56,8 @@ export interface BrainChatRequest {
   message: string;
   taskContext?: BrainTaskContext;
   attachments?: BrainAttachment[];
-  jobDraft?: boolean;
-  jobContext?: BrainJobContext;
+  dutyDraft?: boolean;
+  dutyContext?: BrainDutyContext;
   /** owner/name of the user's repo (forwarded so Brain can clone a worktree). */
   repo?: string;
   /**
@@ -108,7 +108,7 @@ export interface BrainChatRequest {
 /**
  * Output-only style overlay: makes Brain answer in plain, simple terms.
  * Appended LAST in the decorated message so its formatting rules win by
- * recency over the repo/task/job preambles (same reasoning as the voice
+ * recency over the repo/task/duty preambles (same reasoning as the voice
  * overlay). It reshapes OUTPUT only — no mention of tools or persona.
  */
 export const PLAIN_LANGUAGE_PREAMBLE = `[Answer style]
@@ -169,22 +169,22 @@ export function formatTaskContext(
   return parts.join("\n");
 }
 
-export function formatJobContext(
-  mc: BrainJobContext | undefined,
+export function formatDutyContext(
+  mc: BrainDutyContext | undefined,
 ): string | null {
   if (!mc || mc.number == null) return null;
   const parts: string[] = [];
-  parts.push(`[Current job]`);
-  parts.push(`- Job: #${mc.number}${mc.title ? ` — ${mc.title}` : ""}`);
+  parts.push(`[Current duty]`);
+  parts.push(`- Duty: #${mc.number}${mc.title ? ` — ${mc.title}` : ""}`);
   if (mc.state) parts.push(`- State: ${mc.state}`);
   if (mc.labels?.length) parts.push(`- Labels: ${mc.labels.join(", ")}`);
   if (mc.body) {
     const truncated =
       mc.body.length > 1500 ? `${mc.body.slice(0, 1500)}…` : mc.body;
-    parts.push(`\n[Job body]\n${truncated}`);
+    parts.push(`\n[Duty body]\n${truncated}`);
   }
   parts.push(
-    "\nThe user is chatting about this specific job. A Kody job is a GitHub issue (label kody:job) whose body describes intent, system prompt, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the job does not exist.",
+    "\nThe user is chatting about this specific duty. A Kody duty is a markdown file at `.kody/duties/<slug>.md` whose body describes intent, system prompt, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the duty does not exist.",
   );
   return parts.join("\n");
 }
@@ -193,8 +193,8 @@ export function buildDecoratedMessage(
   message: string,
   opts: {
     taskContext?: BrainTaskContext;
-    jobContext?: BrainJobContext;
-    jobDraft?: boolean;
+    dutyContext?: BrainDutyContext;
+    dutyDraft?: boolean;
     repo?: string;
     plainLanguage?: boolean;
   },
@@ -207,16 +207,16 @@ export function buildDecoratedMessage(
     ? `[Repository]\nThe user has ${opts.repo} selected in the dashboard. All questions are about this repository unless they say otherwise — inspect its code/issues/PRs for context and refer to it by name.\n\nBefore making any code change or fix, first explain what you intend to change and why, then STOP and wait for the user to explicitly approve. Do NOT edit, commit, or push in the same turn as the explanation — the approval ask must be the last thing you do that turn. Only after the user says go: make the change, commit with a clear conventional-commit message, and push to the working branch as the final step — don't leave approved changes uncommitted.`
     : null;
   const taskPreamble = formatTaskContext(opts.taskContext);
-  const jobPreamble = formatJobContext(opts.jobContext);
-  const draftPreamble = opts.jobDraft
-    ? `[Job drafting mode]
-The user is drafting a new Kody job — there is no existing job to look up. A Kody job is a GitHub issue (labelled kody:job) whose markdown body describes intent, system prompt, allowed commands, and restrictions. Ask concrete scoping questions one turn at a time, then produce a copy-ready markdown draft with those four sections so the user can click "Use as job" on your reply.`
+  const dutyPreamble = formatDutyContext(opts.dutyContext);
+  const draftPreamble = opts.dutyDraft
+    ? `[Duty drafting mode]
+The user is drafting a new Kody duty — there is no existing duty to look up. A Kody duty is a markdown file at \`.kody/duties/<slug>.md\` whose body describes intent, system prompt, allowed commands, and restrictions. Ask concrete scoping questions one turn at a time, then produce a copy-ready markdown draft with those four sections so the user can click "Use as duty" on your reply.`
     : null;
   // Style overlay goes LAST so its output rules win by recency over the
-  // repo/task/job context blocks above it.
+  // repo/task/duty context blocks above it.
   const stylePreamble = opts.plainLanguage ? PLAIN_LANGUAGE_PREAMBLE : null;
   const preamble =
-    [repoPreamble, draftPreamble, jobPreamble, taskPreamble, stylePreamble]
+    [repoPreamble, draftPreamble, dutyPreamble, taskPreamble, stylePreamble]
       .filter(Boolean)
       .join("\n\n") || null;
   return preamble ? `${preamble}\n\n[User]\n${message}` : message;
@@ -239,8 +239,8 @@ export async function streamBrainChat(
 ): Promise<Response> {
   const decoratedMessage = buildDecoratedMessage(input.message, {
     taskContext: input.taskContext,
-    jobContext: input.jobContext,
-    jobDraft: input.jobDraft,
+    dutyContext: input.dutyContext,
+    dutyDraft: input.dutyDraft,
     repo: input.repo,
     plainLanguage: input.plainLanguage,
   });

@@ -41,7 +41,7 @@ import { resolveChatModel } from "../resolve-model";
 import {
   buildSystemPrompt,
   type GoalContext,
-  type JobContext,
+  type DutyContext,
   type TaskContext,
 } from "./system-prompt";
 import { createGitHubTools } from "../tools/github-tools";
@@ -50,8 +50,8 @@ import { createRemoteTools } from "../tools/remote-tools";
 import { createBugTools } from "../tools/bug-tools";
 import { createTaskTools } from "../tools/task-tools";
 import { createGoalTools } from "../tools/goal-tools";
-import { createJobTools } from "../tools/job-tools";
-import { createWorkerTools } from "../tools/worker-tools";
+import { createDutyTools } from "../tools/duty-tools";
+import { createStaffTools } from "../tools/staff-tools";
 import { createMemoryTools } from "../tools/memory-tools";
 import { createPlannerTools } from "../tools/planner-tools";
 import { createReleaseTools } from "../tools/release-tools";
@@ -313,10 +313,10 @@ export async function POST(req: NextRequest) {
     task?: TaskContext;
     /** GitHub login of the requester — gates remote_* tools. Optional. */
     actorLogin?: string;
-    /** When true, append a job-drafting block to the system prompt. */
-    jobDraft?: boolean;
-    /** Current job context — scopes the chat to a specific job issue. */
-    job?: JobContext;
+    /** When true, append a duty-drafting block to the system prompt. */
+    dutyDraft?: boolean;
+    /** Current duty context — scopes the chat to a specific duty file. */
+    duty?: DutyContext;
     /**
      * When true, append the goal-planning block to the system prompt and
      * wire the planner tools (`create_task_for_goal`). `goal` must be set.
@@ -466,8 +466,8 @@ export async function POST(req: NextRequest) {
     repo ? { owner: repo.owner, repo: repo.repo } : null,
     body.task,
     {
-      jobDraft: body.jobDraft === true,
-      job: body.job,
+      dutyDraft: body.dutyDraft === true,
+      duty: body.duty,
       goalPlanner: goalPlannerActive,
       goal: goalPlannerActive ? body.goal : undefined,
       report: body.report,
@@ -524,13 +524,13 @@ export async function POST(req: NextRequest) {
         owner: repo.owner,
         repo: repo.repo,
       }),
-      ...createJobTools({
+      ...createDutyTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
         actorLogin: body.actorLogin ?? null,
       }),
-      ...createWorkerTools({
+      ...createStaffTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,

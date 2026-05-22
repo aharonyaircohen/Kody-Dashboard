@@ -153,29 +153,29 @@ export function invalidateIssueCache(issueNumber?: number): void {
 }
 
 /**
- * Invalidate cache entries for job files. Pass a slug to scope to one
- * job, or omit to clear the listing cache (e.g. on bulk changes).
+ * Invalidate cache entries for duty files. Pass a slug to scope to one
+ * duty, or omit to clear the listing cache (e.g. on bulk changes).
  */
-export function invalidateJobsCache(slug?: string): void {
+export function invalidateDutiesCache(slug?: string): void {
   if (typeof slug === "string" && slug.length > 0) {
-    // Repo-scoped key shape: `job:owner:repo:slug`. Wipe across repos.
-    invalidateCache("job:");
+    // Repo-scoped key shape: `duty:owner:repo:slug`. Wipe across repos.
+    invalidateCache("duty:");
   }
-  invalidateCache("jobs:");
+  invalidateCache("duties:");
 }
 
 /**
- * Invalidate cache entries for worker files. Pass a slug to scope to one
- * worker, or omit to clear the listing cache (e.g. on bulk changes).
- * Mirrors `invalidateJobsCache` — workers are an independent feature
- * stored at `.kody/workers/<slug>.md`.
+ * Invalidate cache entries for staff files. Pass a slug to scope to one
+ * staff member, or omit to clear the listing cache (e.g. on bulk changes).
+ * Mirrors `invalidateDutiesCache` — staff are an independent feature
+ * stored at `.kody/staff/<slug>.md`.
  */
-export function invalidateWorkersCache(slug?: string): void {
+export function invalidateStaffCache(slug?: string): void {
   if (typeof slug === "string" && slug.length > 0) {
-    // Repo-scoped key shape: `worker:owner:repo:slug`. Wipe across repos.
-    invalidateCache("worker:");
+    // Repo-scoped key shape: `staff:owner:repo:slug`. Wipe across repos.
+    invalidateCache("staff:");
   }
-  invalidateCache("workers:");
+  invalidateCache("staff:");
 }
 
 /**
@@ -850,7 +850,7 @@ export async function getStatusFromArtifact(
  *
  * Caching:
  * - Default TTL is `CACHE_TTL.tasks` (2min). Pass `ttl` to shorten it for
- *   endpoints that need fresher data (e.g. goals manifest, jobs detail).
+ *   endpoints that need fresher data (e.g. goals manifest, duties detail).
  * - When the TTL expires, the cached ETag is replayed via `If-None-Match`.
  *   GitHub returns 304 (free, doesn't count against the rate limit) when the
  *   issue is unchanged, and we just refresh the TTL on the existing payload.
@@ -935,7 +935,7 @@ export async function fetchIssue(
  *
  * Caching:
  * - Default TTL is `CACHE_TTL.tasks` (2min). Pass `ttl` to shorten it for
- *   endpoints that need fresher data (e.g. goals/jobs list).
+ *   endpoints that need fresher data (e.g. goals/duties list).
  * - Post-TTL revalidation replays the cached ETag via `If-None-Match`. GitHub
  *   returns 304 (free, doesn't count against the rate limit) when the listing
  *   is unchanged, and the TTL is refreshed on the existing payload.

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern reports-files
  * @ai-summary Read-only access to system reports under `.kody/reports/<slug>.md`
- *   in the connected repo. Reports are produced by Kody jobs (doc-drift,
+ *   in the connected repo. Reports are produced by Kody duties (doc-drift,
  *   coverage-floor, etc.) — the dashboard surfaces them as a health view.
  *   No write operations: the engine owns this directory.
  */

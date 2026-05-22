@@ -4,8 +4,8 @@
  * @pattern cto-recommendation-detect
  * @ai-summary Pure detector: given an inbox entry, decide whether it is a
  *   CTO recommendation and, if so, extract the task number + the *actual*
- *   action the CTO named. The CTO worker leads every recommendation comment
- *   with `🧭 **CTO recommendation** — \`<action>\`` (see .kody/workers/cto.md);
+ *   action the CTO named. The CTO staff member leads every recommendation comment
+ *   with `🧭 **CTO recommendation** — \`<action>\`` (see .kody/staff/cto.md);
  *   the inbox snippet has code fences stripped, so we match the prose marker
  *   and read the verb that follows it — never defaulting to `execute`.
  *
@@ -19,7 +19,7 @@
 import type { InboxEntry } from "../inbox/types";
 
 /**
- * Every action the CTO worker may emit (see cto.md "Restrictions"), plus
+ * Every action the CTO staff member may emit (see cto.md "Restrictions"), plus
  * `other` — a catch-all for marker-bearing comments whose verb we can't
  * parse (legacy / free-form recs). `other` is non-dispatchable and lives in
  * its own ledger bucket, so an unparsed rec stays visible (Reject + GitHub
@@ -181,7 +181,7 @@ export function ctoCleanSnippet(snippet: string): string {
   // "CTO recommendation — <action>" prefix. The em-dash variants (— -)
   // and the verb token both vary, so anchor on "CTO recommendation".
   out = out.replace(/^.*?CTO recommendation\s*[—–-]\s*[^.\s]+\s*\.?\s*/i, "");
-  // Drop the dashboard-handoff sentence the worker tacks on.
+  // Drop the dashboard-handoff sentence the staff member tacks on.
   out = out.replace(/Confirming will run [^.]*\.\s*/i, "");
   // Drop the trailing "Confirm or dismiss this in the dashboard inbox."
   // (with or without surrounding underscores, already stripped by buildSnippet).

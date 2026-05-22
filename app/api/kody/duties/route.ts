@@ -1,9 +1,9 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern jobs-api
- * @ai-summary Job Control API — GET lists jobs, POST creates one.
- *   A job is a markdown file at `.kody/jobs/<slug>.md` in the
+ * @pattern duties-api
+ * @ai-summary Duty Control API — GET lists duties, POST creates one.
+ *   A duty is a markdown file at `.kody/duties/<slug>.md` in the
  *   connected repo. The kody engine's job-scheduler enumerates the same
  *   directory and ticks each file every cron wake.
  */
@@ -21,11 +21,11 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listJobFiles,
-  readJobFile,
-  writeJobFile,
+  listDutyFiles,
+  readDutyFile,
+  writeDutyFile,
   isValidSlug,
-} from "@dashboard/lib/jobs-files";
+} from "@dashboard/lib/duties-files";
 
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -36,10 +36,10 @@ export async function GET(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
-    const jobs = await listJobFiles();
-    return NextResponse.json({ jobs });
+    const duties = await listDutyFiles();
+    return NextResponse.json({ duties });
   } catch (error: any) {
-    console.error("[Jobs] Error fetching jobs:", error);
+    console.error("[Duties] Error fetching duties:", error);
 
     if (error?.status === 401) {
       return NextResponse.json(
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { jobs: [], error: error?.message || "Failed to fetch jobs" },
+      { duties: [], error: error?.message || "Failed to fetch duties" },
       { status: 500 },
     );
   } finally {
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const createJobSchema = z.object({
+const createDutySchema = z.object({
   slug: z.string().min(1).max(64).optional(),
   title: z.string().min(1),
   body: z.string().default(""),
@@ -72,7 +72,7 @@ const createJobSchema = z.object({
     .nullable()
     .optional(),
   disabled: z.boolean().optional(),
-  worker: z.string().min(1).nullable().optional(),
+  staff: z.string().min(1).nullable().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -102,9 +102,9 @@ export async function POST(req: NextRequest) {
       body,
       schedule,
       disabled,
-      worker,
+      staff,
       actorLogin,
-    } = createJobSchema.parse(payload);
+    } = createDutySchema.parse(payload);
 
     const slug = requestedSlug ?? slugifyTitle(title);
     if (!slug || !isValidSlug(slug)) {
@@ -112,16 +112,16 @@ export async function POST(req: NextRequest) {
         {
           error: "invalid_slug",
           message:
-            "Job slug must be lowercase letters, digits, dashes, or underscores.",
+            "Duty slug must be lowercase letters, digits, dashes, or underscores.",
         },
         { status: 400 },
       );
     }
 
-    const existing = await readJobFile(slug);
+    const existing = await readDutyFile(slug);
     if (existing) {
       return NextResponse.json(
-        { error: "slug_taken", message: `Job "${slug}" already exists.` },
+        { error: "slug_taken", message: `Duty "${slug}" already exists.` },
         { status: 409 },
       );
     }
@@ -134,25 +134,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "no_user_token",
-          message: "A signed-in GitHub token is required to commit job files.",
+          message: "A signed-in GitHub token is required to commit duty files.",
         },
         { status: 401 },
       );
     }
 
-    const job = await writeJobFile({
+    const duty = await writeDutyFile({
       octokit: userOctokit,
       slug,
       title,
       body,
       schedule: schedule ?? null,
       disabled: disabled === true,
-      worker: worker ?? null,
+      staff: staff ?? null,
     });
 
-    return NextResponse.json({ job });
+    return NextResponse.json({ duty });
   } catch (error: any) {
-    console.error("[Jobs] Error creating job:", error);
+    console.error("[Duties] Error creating duty:", error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: "create_failed",
-        message: error?.message ?? "Failed to create job",
+        message: error?.message ?? "Failed to create duty",
       },
       { status: 500 },
     );

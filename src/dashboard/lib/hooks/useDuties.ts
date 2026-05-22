@@ -1,10 +1,10 @@
 /**
  * @fileType hook
  * @domain kody
- * @pattern job-control-hooks
- * @ai-summary React Query hooks for the Job Control page.
- *   Backed by `.kody/jobs/<slug>.md` files in the connected repo via the
- *   contents API; jobs are no longer GitHub issues.
+ * @pattern duty-control-hooks
+ * @ai-summary React Query hooks for the Duty Control page.
+ *   Backed by `.kody/duties/<slug>.md` files in the connected repo via the
+ *   contents API; duties are no longer GitHub issues.
  */
 "use client";
 
@@ -12,22 +12,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   kodyApi,
-  type Job,
-  type JobSchedule,
+  type Duty,
+  type DutySchedule,
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
 } from "../api";
 
-export const jobQueryKeys = {
-  list: ["kody-jobs"] as const,
-  detail: (slug: string) => ["kody-job", slug] as const,
+export const dutyQueryKeys = {
+  list: ["kody-duties"] as const,
+  detail: (slug: string) => ["kody-duty", slug] as const,
 };
 
-export function useJobs() {
+export function useDuties() {
   return useQuery({
-    queryKey: jobQueryKeys.list,
-    queryFn: () => kodyApi.jobs.list(),
+    queryKey: dutyQueryKeys.list,
+    queryFn: () => kodyApi.duties.list(),
     enabled: !!getStoredAuth(),
     staleTime: 30_000,
     retry: (failureCount, error) => {
@@ -38,76 +38,76 @@ export function useJobs() {
   });
 }
 
-export function useJob(slug: string | null) {
+export function useDuty(slug: string | null) {
   return useQuery({
-    queryKey: jobQueryKeys.detail(slug ?? ""),
-    queryFn: () => kodyApi.jobs.get(slug!),
+    queryKey: dutyQueryKeys.detail(slug ?? ""),
+    queryFn: () => kodyApi.duties.get(slug!),
     enabled: !!getStoredAuth() && !!slug,
     staleTime: 30_000,
   });
 }
 
-export function useCreateJob(actorLogin?: string) {
+export function useCreateDuty(actorLogin?: string) {
   const queryClient = useQueryClient();
 
   return useMutation<
-    Job,
+    Duty,
     Error,
     {
       slug?: string;
       title: string;
       body: string;
-      schedule?: JobSchedule | null;
+      schedule?: DutySchedule | null;
       disabled?: boolean;
-      worker?: string | null;
+      staff?: string | null;
     }
   >({
     mutationFn: (data) =>
-      kodyApi.jobs.create({
+      kodyApi.duties.create({
         ...data,
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: jobQueryKeys.list });
-      toast.success("Job created");
+      queryClient.invalidateQueries({ queryKey: dutyQueryKeys.list });
+      toast.success("Duty created");
     },
     onError: (error) => {
-      toast.error("Failed to create job", { description: error.message });
+      toast.error("Failed to create duty", { description: error.message });
     },
   });
 }
 
-export function useUpdateJob(slug: string, actorLogin?: string) {
+export function useUpdateDuty(slug: string, actorLogin?: string) {
   const queryClient = useQueryClient();
 
   return useMutation<
-    Job,
+    Duty,
     Error,
     {
       title?: string;
       body?: string;
-      schedule?: JobSchedule | null;
+      schedule?: DutySchedule | null;
       disabled?: boolean;
-      worker?: string | null;
+      staff?: string | null;
     }
   >({
     mutationFn: (data) =>
-      kodyApi.jobs.update(slug, {
+      kodyApi.duties.update(slug, {
         ...data,
         ...(actorLogin && { actorLogin }),
       }),
-    onSuccess: (job) => {
-      queryClient.invalidateQueries({ queryKey: jobQueryKeys.list });
-      queryClient.setQueryData(jobQueryKeys.detail(slug), job);
-      toast.success("Job updated");
+    onSuccess: (duty) => {
+      queryClient.invalidateQueries({ queryKey: dutyQueryKeys.list });
+      queryClient.setQueryData(dutyQueryKeys.detail(slug), duty);
+      toast.success("Duty updated");
     },
     onError: (error) => {
-      toast.error("Failed to update job", { description: error.message });
+      toast.error("Failed to update duty", { description: error.message });
     },
   });
 }
 
-export function useRunJob() {
+export function useRunDuty() {
   return useMutation<
     {
       issueNumber: number;
@@ -118,31 +118,31 @@ export function useRunJob() {
     Error,
     { slug: string; force?: boolean }
   >({
-    mutationFn: ({ slug, force }) => kodyApi.jobs.run({ slug }, { force }),
+    mutationFn: ({ slug, force }) => kodyApi.duties.run({ slug }, { force }),
     onSuccess: (data) => {
-      toast.success(data.force ? "Job triggered (force)" : "Job triggered", {
+      toast.success(data.force ? "Duty triggered (force)" : "Duty triggered", {
         description:
           "Dispatch comment posted — the engine starts a run now (not on the cron tick).",
       });
     },
     onError: (error) => {
-      toast.error("Failed to dispatch job", { description: error.message });
+      toast.error("Failed to dispatch duty", { description: error.message });
     },
   });
 }
 
-export function useDeleteJob(actorLogin?: string) {
+export function useDeleteDuty(actorLogin?: string) {
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, string>({
-    mutationFn: (slug) => kodyApi.jobs.remove(slug, actorLogin),
+    mutationFn: (slug) => kodyApi.duties.remove(slug, actorLogin),
     onSuccess: (_, slug) => {
-      queryClient.invalidateQueries({ queryKey: jobQueryKeys.list });
-      queryClient.removeQueries({ queryKey: jobQueryKeys.detail(slug) });
-      toast.success("Job deleted");
+      queryClient.invalidateQueries({ queryKey: dutyQueryKeys.list });
+      queryClient.removeQueries({ queryKey: dutyQueryKeys.detail(slug) });
+      toast.success("Duty deleted");
     },
     onError: (error) => {
-      toast.error("Failed to delete job", { description: error.message });
+      toast.error("Failed to delete duty", { description: error.message });
     },
   });
 }

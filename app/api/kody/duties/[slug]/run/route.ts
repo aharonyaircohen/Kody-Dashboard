@@ -1,13 +1,15 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern job-run
- * @ai-summary POST /api/kody/jobs/:slug/run — manually trigger a single
- *   job by posting an `@kody job-tick --job <slug> [--force]` comment on
+ * @pattern duty-run
+ * @ai-summary POST /api/kody/duties/:slug/run — manually trigger a single
+ *   duty by posting an `@kody job-tick --job <slug> [--force]` comment on
  *   the repo's "Kody control" issue. The engine's existing `issue_comment`
- *   trigger fires kody.yml; the dispatcher routes to `job-tick`.
+ *   trigger fires kody.yml; the dispatcher routes to `job-tick`. (The
+ *   `job-tick` executable name and `--job` flag are an unchanged engine
+ *   command contract — only the dashboard feature noun became "duty".)
  *
- *   Why a comment, not a chat-trigger fake: jobs are autonomous primitives,
+ *   Why a comment, not a chat-trigger fake: duties are autonomous primitives,
  *   not chat sessions. This path uses three established conventions
  *   (`@kody <subcommand>`, `job-tick --job <slug>`, `issue_comment` trigger)
  *   without overloading any of them — and crucially without needing
@@ -21,7 +23,7 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
-import { isValidSlug } from "@dashboard/lib/jobs-files";
+import { isValidSlug } from "@dashboard/lib/duties-files";
 import { findOrCreateControlIssue } from "@dashboard/lib/control-issue";
 
 const runSchema = z.object({
@@ -93,7 +95,7 @@ export async function POST(
       force: payload.force,
     });
   } catch (err: any) {
-    console.error("[jobs/run] dispatch failed", err);
+    console.error("[duties/run] dispatch failed", err);
     return NextResponse.json(
       {
         error: "dispatch_failed",

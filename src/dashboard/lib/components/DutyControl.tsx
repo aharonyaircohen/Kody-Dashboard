@@ -1,10 +1,10 @@
 /**
  * @fileType component
  * @domain kody
- * @pattern job-control-page
- * @ai-summary Job Control — list, view, create, edit, and delete jobs.
- *   A job is a markdown file at `.kody/jobs/<slug>.md` in the
- *   connected repo whose body describes the job's intent, allowed
+ * @pattern duty-control-page
+ * @ai-summary Duty Control — list, view, create, edit, and delete duties.
+ *   A duty is a markdown file at `.kody/duties/<slug>.md` in the
+ *   connected repo whose body describes the duty's intent, allowed
  *   commands, and restrictions.
  */
 "use client";
@@ -49,19 +49,19 @@ import {
 import { AuthGuard } from "../auth-guard";
 import { cn } from "../utils";
 import {
-  useCreateJob,
-  useDeleteJob,
-  useJobs,
-  useRunJob,
-  useUpdateJob,
-} from "../hooks/useJobs";
-import { useWorkers } from "../hooks/useWorkers";
+  useCreateDuty,
+  useDeleteDuty,
+  useDuties,
+  useRunDuty,
+  useUpdateDuty,
+} from "../hooks/useDuties";
+import { useStaff } from "../hooks/useStaff";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useNow } from "../hooks/useNow";
-import { formatDuration, formatRelativePast } from "../jobs-schedule";
-import { scheduleEveryLabel } from "../jobs-frontmatter";
-import type { Job, JobSchedule } from "../api";
-import { JOB_TEMPLATE } from "../job-template";
+import { formatDuration, formatRelativePast } from "../duties-schedule";
+import { scheduleEveryLabel } from "../duties-frontmatter";
+import type { Duty, DutySchedule } from "../api";
+import { DUTY_TEMPLATE } from "../duty-template";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { PageHeader } from "./PageShell";
@@ -73,34 +73,35 @@ function newDraftId(): string {
     : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-interface JobControlProps {
-  /** Render without the built-in PageHeader (e.g. when hosted in JobsPageTabs). */
+interface DutyControlProps {
+  /** Render without the built-in PageHeader (e.g. when hosted in DutiesPageTabs). */
   embedded?: boolean;
 }
 
-export function JobControl({ embedded = false }: JobControlProps = {}) {
+export function DutyControl({ embedded = false }: DutyControlProps = {}) {
   return (
     <AuthGuard>
-      <JobControlInner embedded={embedded} />
+      <DutyControlInner embedded={embedded} />
     </AuthGuard>
   );
 }
 
-export function JobControlInner({ embedded = false }: JobControlProps = {}) {
-  const { data: jobs = [], isLoading, isFetching, refetch, error } = useJobs();
+export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
+  const { data: duties = [], isLoading, isFetching, refetch, error } =
+    useDuties();
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [editingJob, setEditingJob] = useState<Job | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<Job | null>(null);
-  const [pendingRun, setPendingRun] = useState<Job | null>(null);
+  const [editingDuty, setEditingDuty] = useState<Duty | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Duty | null>(null);
+  const [pendingRun, setPendingRun] = useState<Duty | null>(null);
 
   // Chat-panel state. The left rail switches between three modes:
-  //  • job mode  — when a job is selected and we're not drafting
-  //  • draft mode    — when "Draft new job" is active (rotates draftId)
-  //  • disabled      — neither (e.g. no jobs yet)
+  //  • duty mode  — when a duty is selected and we're not drafting
+  //  • draft mode    — when "Draft new duty" is active (rotates draftId)
+  //  • disabled      — neither (e.g. no duties yet)
   // `draftPrefill` carries an assistant reply the user picked via
-  // "Use as job" into CreateJobDialog.
+  // "Use as duty" into CreateDutyDialog.
   const [isDrafting, setIsDrafting] = useState(false);
   const [draftId, setDraftId] = useState<string>(() => newDraftId());
   const [draftPrefill, setDraftPrefill] = useState<string | null>(null);
@@ -110,42 +111,42 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
   };
   const cancelDraft = () => setIsDrafting(false);
 
-  const selectedJob = useMemo(
-    () => jobs.find((m) => m.slug === selectedSlug) ?? null,
-    [jobs, selectedSlug],
+  const selectedDuty = useMemo(
+    () => duties.find((m) => m.slug === selectedSlug) ?? null,
+    [duties, selectedSlug],
   );
 
   useEffect(() => {
-    if (!selectedSlug && jobs.length > 0) {
-      setSelectedSlug(jobs[0].slug);
+    if (!selectedSlug && duties.length > 0) {
+      setSelectedSlug(duties[0].slug);
     }
-  }, [jobs, selectedSlug]);
+  }, [duties, selectedSlug]);
 
   const { githubUser } = useGitHubIdentity();
-  const deleteMutation = useDeleteJob(githubUser?.login);
-  const runMutation = useRunJob();
+  const deleteMutation = useDeleteDuty(githubUser?.login);
+  const runMutation = useRunDuty();
 
   // Push chat context up to the persistent rail in the root layout.
-  // The chat's context follows the user's intent: drafting a new job,
+  // The chat's context follows the user's intent: drafting a new duty,
   // or chatting about the currently selected one. Clear on unmount.
   const { setScope } = useChatScope();
   useEffect(() => {
     setScope(
       isDrafting
         ? {
-            kind: "job-draft",
+            kind: "duty-draft",
             draftId,
             onFinalize: (assistantContent) => {
               setDraftPrefill(assistantContent);
               setShowCreate(true);
             },
           }
-        : selectedJob
-          ? { kind: "job", job: selectedJob }
+        : selectedDuty
+          ? { kind: "duty", duty: selectedDuty }
           : null,
     );
     return () => setScope(null);
-  }, [isDrafting, draftId, selectedJob, setScope]);
+  }, [isDrafting, draftId, selectedDuty, setScope]);
 
   return (
     <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
@@ -154,14 +155,14 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
         {embedded ? (
           <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-black/20">
             <span className="text-xs text-muted-foreground mr-auto">
-              {jobs.length} {jobs.length === 1 ? "job" : "jobs"}
+              {duties.length} {duties.length === 1 ? "duty" : "duties"}
             </span>
             <Button
               variant="outline"
               size="sm"
               onClick={() => refetch()}
               disabled={isFetching}
-              aria-label="Refresh jobs"
+              aria-label="Refresh duties"
             >
               <RefreshCw
                 className={cn("w-4 h-4", isFetching && "animate-spin")}
@@ -173,10 +174,10 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
                 size="sm"
                 onClick={cancelDraft}
                 className="gap-1"
-                title="Stop drafting; chat returns to the selected job"
+                title="Stop drafting; chat returns to the selected duty"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">Back to job</span>
+                <span className="hidden sm:inline">Back to duty</span>
               </Button>
             ) : (
               <Button
@@ -184,7 +185,7 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
                 size="sm"
                 onClick={startNewDraft}
                 className="gap-1"
-                title="Chat with Kody to scope a brand-new job"
+                title="Chat with Kody to scope a brand-new duty"
               >
                 <Sparkles className="w-4 h-4" />
                 <span className="hidden sm:inline">Draft new</span>
@@ -196,15 +197,15 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
               className="gap-1"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New job</span>
+              <span className="hidden sm:inline">New duty</span>
             </Button>
           </div>
         ) : (
           <PageHeader
-            title="Job Control"
+            title="Duty Control"
             icon={Target}
             iconClassName="text-emerald-400"
-            subtitle={`${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}`}
+            subtitle={`${duties.length} ${duties.length === 1 ? "duty" : "duties"}`}
             actions={
               <>
                 <Button
@@ -212,7 +213,7 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
                   size="sm"
                   onClick={() => refetch()}
                   disabled={isFetching}
-                  aria-label="Refresh jobs"
+                  aria-label="Refresh duties"
                 >
                   <RefreshCw
                     className={cn("w-4 h-4", isFetching && "animate-spin")}
@@ -224,10 +225,10 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
                     size="sm"
                     onClick={cancelDraft}
                     className="gap-1"
-                    title="Stop drafting; chat returns to the selected job"
+                    title="Stop drafting; chat returns to the selected duty"
                   >
                     <ArrowLeft className="w-4 h-4" />
-                    <span className="hidden sm:inline">Back to job</span>
+                    <span className="hidden sm:inline">Back to duty</span>
                   </Button>
                 ) : (
                   <Button
@@ -235,7 +236,7 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
                     size="sm"
                     onClick={startNewDraft}
                     className="gap-1"
-                    title="Chat with Kody to scope a brand-new job"
+                    title="Chat with Kody to scope a brand-new duty"
                   >
                     <Sparkles className="w-4 h-4" />
                     <span className="hidden sm:inline">Draft new</span>
@@ -247,7 +248,7 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
                   className="gap-1"
                 >
                   <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">New job</span>
+                  <span className="hidden sm:inline">New duty</span>
                 </Button>
               </>
             }
@@ -256,39 +257,39 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
 
         {error ? (
           <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
-            Failed to load jobs: {(error as Error).message}
+            Failed to load duties: {(error as Error).message}
           </div>
         ) : null}
 
         <div className="flex-1 min-h-0 flex">
-          {/* Middle: job list */}
+          {/* Middle: duty list */}
           <aside
             className={cn(
               "w-full md:w-80 md:border-r md:border-border overflow-y-auto",
-              selectedJob && "hidden md:block",
+              selectedDuty && "hidden md:block",
             )}
           >
             {isLoading ? (
-              <EmptyState icon={<FileText />} title="Loading jobs…" />
-            ) : jobs.length === 0 ? (
+              <EmptyState icon={<FileText />} title="Loading duties…" />
+            ) : duties.length === 0 ? (
               <EmptyState
                 icon={<Target />}
-                title="No jobs yet"
-                hint="Create your first job to describe the intent, system prompt, and restrictions."
+                title="No duties yet"
+                hint="Create your first duty to describe the intent, system prompt, and restrictions."
               />
             ) : (
               <ul className="divide-y divide-border">
-                {jobs.map((job) => {
-                  const isActive = selectedSlug === job.slug;
+                {duties.map((duty) => {
+                  const isActive = selectedSlug === duty.slug;
                   return (
-                    <li key={job.slug}>
+                    <li key={duty.slug}>
                       <button
                         type="button"
-                        onClick={() => setSelectedSlug(job.slug)}
+                        onClick={() => setSelectedSlug(duty.slug)}
                         className={cn(
                           "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                           isActive && "bg-accent/70",
-                          job.disabled && "opacity-60",
+                          duty.disabled && "opacity-60",
                         )}
                       >
                         {isActive ? (
@@ -304,12 +305,12 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
                             )}
                           />
                           <span className="font-medium text-sm truncate flex-1">
-                            {job.title}
+                            {duty.title}
                           </span>
-                          {job.disabled ? (
+                          {duty.disabled ? (
                             <span
                               className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-                              title="Scheduler skips this job. Manual Run still works."
+                              title="Scheduler skips this duty. Manual Run still works."
                             >
                               <PowerOff className="w-2.5 h-2.5" />
                               Disabled
@@ -318,19 +319,19 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                           <span className="font-mono opacity-80">
-                            {job.slug}
+                            {duty.slug}
                           </span>
                           <span>·</span>
                           <span className="inline-flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            {new Date(job.updatedAt).toLocaleDateString()}
+                            {new Date(duty.updatedAt).toLocaleDateString()}
                           </span>
-                          <ScheduleInline schedule={job.schedule} />
-                          <LastTickInline lastTickAt={job.lastTickAt} />
-                          {!job.disabled ? (
+                          <ScheduleInline schedule={duty.schedule} />
+                          <LastTickInline lastTickAt={duty.lastTickAt} />
+                          {!duty.disabled ? (
                             <NextRunInline
-                              nextEligibleAt={job.nextEligibleAt}
-                              schedule={job.schedule}
+                              nextEligibleAt={duty.nextEligibleAt}
+                              schedule={duty.schedule}
                             />
                           ) : null}
                         </div>
@@ -342,69 +343,69 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
             )}
           </aside>
 
-          {/* Right: job detail */}
+          {/* Right: duty detail */}
           <section
             className={cn(
               "flex-1 min-w-0 overflow-y-auto",
-              !selectedJob && "hidden md:block",
+              !selectedDuty && "hidden md:block",
             )}
           >
-            {selectedJob ? (
-              <JobDetail
-                job={selectedJob}
+            {selectedDuty ? (
+              <DutyDetail
+                duty={selectedDuty}
                 onBack={() => setSelectedSlug(null)}
-                onEdit={() => setEditingJob(selectedJob)}
-                onDelete={() => setPendingDelete(selectedJob)}
-                onRun={() => setPendingRun(selectedJob)}
+                onEdit={() => setEditingDuty(selectedDuty)}
+                onDelete={() => setPendingDelete(selectedDuty)}
+                onRun={() => setPendingRun(selectedDuty)}
                 isRunning={
                   runMutation.isPending &&
-                  runMutation.variables?.slug === selectedJob.slug
+                  runMutation.variables?.slug === selectedDuty.slug
                 }
               />
             ) : (
               <EmptyState
                 icon={<Target />}
-                title="Select a job"
-                hint="Pick a job from the list to see its intent and system prompt."
+                title="Select a duty"
+                hint="Pick a duty from the list to see its intent and system prompt."
               />
             )}
           </section>
         </div>
 
         {/* Create */}
-        <CreateJobDialog
+        <CreateDutyDialog
           open={showCreate}
           initialBody={draftPrefill}
           onClose={() => {
             setShowCreate(false);
             setDraftPrefill(null);
           }}
-          onCreated={(job) => {
-            setSelectedSlug(job.slug);
+          onCreated={(duty) => {
+            setSelectedSlug(duty.slug);
             setShowCreate(false);
             setDraftPrefill(null);
             // Drop out of draft mode so the chat is now scoped to the
-            // newly-created job instead of the old draft session.
+            // newly-created duty instead of the old draft session.
             setIsDrafting(false);
           }}
         />
 
         {/* Edit */}
-        {editingJob ? (
-          <EditJobDialog
-            job={editingJob}
-            onClose={() => setEditingJob(null)}
-            onSaved={() => setEditingJob(null)}
+        {editingDuty ? (
+          <EditDutyDialog
+            duty={editingDuty}
+            onClose={() => setEditingDuty(null)}
+            onSaved={() => setEditingDuty(null)}
           />
         ) : null}
 
         {/* Run confirm */}
         <ConfirmDialog
           open={!!pendingRun}
-          title="Run this job now?"
+          title="Run this duty now?"
           description={
             pendingRun
-              ? `Triggers "${pendingRun.title}" (${pendingRun.slug}) immediately, bypassing its cadence guard. GitHub Actions minutes will be used. The job's output goes to its own report or the artifacts the body declares.`
+              ? `Triggers "${pendingRun.title}" (${pendingRun.slug}) immediately, bypassing its cadence guard. GitHub Actions minutes will be used. The duty's output goes to its own report or the artifacts the body declares.`
               : ""
           }
           confirmLabel="Run now"
@@ -418,14 +419,14 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
         {/* Delete confirm */}
         <ConfirmDialog
           open={!!pendingDelete}
-          title="Delete this job?"
+          title="Delete this duty?"
           description={
             pendingDelete
-              ? `Job "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/jobs/ via a commit on the default branch.`
+              ? `Duty "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/duties/ via a commit on the default branch.`
               : ""
           }
           variant="destructive"
-          confirmLabel="Delete job"
+          confirmLabel="Delete duty"
           onConfirm={() => {
             if (!pendingDelete) return;
             const target = pendingDelete;
@@ -442,28 +443,28 @@ export function JobControlInner({ embedded = false }: JobControlProps = {}) {
   );
 }
 
-function JobDetail({
-  job,
+function DutyDetail({
+  duty,
   onBack,
   onEdit,
   onDelete,
   onRun,
   isRunning,
 }: {
-  job: Job;
+  duty: Duty;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onRun: () => void;
   isRunning: boolean;
 }) {
-  const hasBody = job.body.trim().length > 0;
+  const hasBody = duty.body.trim().length > 0;
   const { githubUser } = useGitHubIdentity();
-  const updateMutation = useUpdateJob(job.slug, githubUser?.login);
+  const updateMutation = useUpdateDuty(duty.slug, githubUser?.login);
   const isToggling = updateMutation.isPending;
   const toggleDisabled = () => {
     if (isToggling) return;
-    updateMutation.mutate({ disabled: !job.disabled });
+    updateMutation.mutate({ disabled: !duty.disabled });
   };
   return (
     <article className="min-h-full">
@@ -477,20 +478,20 @@ function JobDetail({
             className="md:hidden gap-1 -ml-2 text-muted-foreground"
           >
             <ArrowLeft className="w-4 h-4" />
-            All jobs
+            All duties
           </Button>
           <header className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
               <div className="inline-flex items-center gap-2 text-xs text-emerald-400 font-medium uppercase tracking-wider">
                 <Target className="w-3.5 h-3.5" />
-                Job
+                Duty
               </div>
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words inline-flex items-center gap-3 flex-wrap">
-                <span>{job.title}</span>
-                {job.disabled ? (
+                <span>{duty.title}</span>
+                {duty.disabled ? (
                   <span
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-                    title="Scheduler skips this job. Manual Run still works."
+                    title="Scheduler skips this duty. Manual Run still works."
                   >
                     <PowerOff className="w-3 h-3" />
                     Disabled
@@ -498,41 +499,41 @@ function JobDetail({
                 ) : null}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-                <span className="font-mono opacity-80">{job.slug}</span>
+                <span className="font-mono opacity-80">{duty.slug}</span>
                 <span>·</span>
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  updated {new Date(job.updatedAt).toLocaleDateString()}
+                  updated {new Date(duty.updatedAt).toLocaleDateString()}
                 </span>
                 <span>·</span>
-                {job.worker ? (
+                {duty.staff ? (
                   <span
                     className="inline-flex items-center gap-1"
-                    title={`Runs as the ${job.worker} worker persona`}
+                    title={`Runs as the ${duty.staff} staff persona`}
                   >
                     <User className="w-3 h-3" />
-                    {job.worker}
+                    {duty.staff}
                   </span>
                 ) : (
                   <span
                     className="inline-flex items-center gap-1 text-amber-400"
-                    title="No worker assigned — the engine scheduler skips this job"
+                    title="No staff assigned — the engine scheduler skips this duty"
                   >
                     <User className="w-3 h-3" />
-                    no worker
+                    no staff
                   </span>
                 )}
-                <ScheduleInline schedule={job.schedule} />
-                <LastTickDetail lastTickAt={job.lastTickAt} />
-                {!job.disabled ? (
+                <ScheduleInline schedule={duty.schedule} />
+                <LastTickDetail lastTickAt={duty.lastTickAt} />
+                {!duty.disabled ? (
                   <NextRunDetail
-                    nextEligibleAt={job.nextEligibleAt}
-                    schedule={job.schedule}
+                    nextEligibleAt={duty.nextEligibleAt}
+                    schedule={duty.schedule}
                   />
                 ) : null}
                 <span>·</span>
                 <a
-                  href={job.htmlUrl}
+                  href={duty.htmlUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
@@ -549,8 +550,8 @@ function JobDetail({
                 onClick={onRun}
                 disabled={isRunning}
                 className="w-9 px-0 bg-emerald-600 hover:bg-emerald-700 text-white"
-                title={isRunning ? "Dispatching…" : "Run job now"}
-                aria-label="Run job now"
+                title={isRunning ? "Dispatching…" : "Run duty now"}
+                aria-label="Run duty now"
               >
                 <Play className="w-3.5 h-3.5" />
               </Button>
@@ -560,19 +561,21 @@ function JobDetail({
                 onClick={toggleDisabled}
                 disabled={isToggling}
                 title={
-                  job.disabled
+                  duty.disabled
                     ? "Enable scheduler (auto-ticks resume)"
                     : "Disable scheduler (manual Run still works)"
                 }
                 aria-label={
-                  job.disabled ? "Enable job scheduler" : "Disable job scheduler"
+                  duty.disabled
+                    ? "Enable duty scheduler"
+                    : "Disable duty scheduler"
                 }
                 className={cn(
                   "w-9 px-0",
-                  job.disabled && "text-amber-400",
+                  duty.disabled && "text-amber-400",
                 )}
               >
-                {job.disabled ? (
+                {duty.disabled ? (
                   <PowerOff className="w-3.5 h-3.5" />
                 ) : (
                   <Power className="w-3.5 h-3.5" />
@@ -583,8 +586,8 @@ function JobDetail({
                 size="sm"
                 onClick={onEdit}
                 className="w-9 px-0"
-                title="Edit job"
-                aria-label="Edit job"
+                title="Edit duty"
+                aria-label="Edit duty"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
@@ -593,8 +596,8 @@ function JobDetail({
                 size="sm"
                 onClick={onDelete}
                 className="w-9 px-0 text-red-400"
-                title="Delete job"
-                aria-label="Delete job"
+                title="Delete duty"
+                aria-label="Delete duty"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
@@ -605,7 +608,7 @@ function JobDetail({
           {hasBody ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{job.body}</ReactMarkdown>
+                <ReactMarkdown>{duty.body}</ReactMarkdown>
               </div>
             </div>
           ) : null}
@@ -625,7 +628,7 @@ function JobDetail({
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Use <span className="font-medium text-foreground">Edit</span> to
-                describe the job&apos;s intent, system prompt, allowed commands,
+                describe the duty&apos;s intent, system prompt, allowed commands,
                 and restrictions.
               </p>
             </div>
@@ -636,7 +639,7 @@ function JobDetail({
               className="gap-1.5 mt-1"
             >
               <Pencil className="w-3.5 h-3.5" />
-              Edit job
+              Edit duty
             </Button>
           </div>
         </div>
@@ -645,7 +648,7 @@ function JobDetail({
   );
 }
 
-function CreateJobDialog({
+function CreateDutyDialog({
   open,
   initialBody,
   onClose,
@@ -654,35 +657,35 @@ function CreateJobDialog({
   open: boolean;
   /**
    * Optional pre-filled body (e.g. from a "Draft with Kody" chat). When
-   * provided, replaces the default JOB_TEMPLATE starter.
+   * provided, replaces the default DUTY_TEMPLATE starter.
    */
   initialBody?: string | null;
   onClose: () => void;
-  onCreated: (job: Job) => void;
+  onCreated: (duty: Duty) => void;
 }) {
   const { githubUser } = useGitHubIdentity();
-  const createMutation = useCreateJob(githubUser?.login);
+  const createMutation = useCreateDuty(githubUser?.login);
 
   const [title, setTitle] = useState("");
-  const [body, setBody] = useState(JOB_TEMPLATE);
-  const [schedule, setSchedule] = useState<JobSchedule | null>(null);
-  const [worker, setWorker] = useState<string | null>(null);
+  const [body, setBody] = useState(DUTY_TEMPLATE);
+  const [schedule, setSchedule] = useState<DutySchedule | null>(null);
+  const [staff, setStaff] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setTitle("");
-      setBody(initialBody && initialBody.trim() ? initialBody : JOB_TEMPLATE);
+      setBody(initialBody && initialBody.trim() ? initialBody : DUTY_TEMPLATE);
       setSchedule(null);
-      setWorker(null);
+      setStaff(null);
     }
   }, [open, initialBody]);
 
   const handleSubmit = () => {
     if (!title.trim() || createMutation.isPending) return;
     createMutation.mutate(
-      { title: title.trim(), body, schedule, worker },
+      { title: title.trim(), body, schedule, staff },
       {
-        onSuccess: (job) => onCreated(job),
+        onSuccess: (duty) => onCreated(duty),
       },
     );
   };
@@ -691,18 +694,18 @@ function CreateJobDialog({
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>New job</DialogTitle>
+          <DialogTitle>New duty</DialogTitle>
           <DialogDescription>
-            Describe the job&apos;s intent, system prompt, allowed commands, and
+            Describe the duty&apos;s intent, system prompt, allowed commands, and
             restrictions.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="job-title">Title</Label>
+            <Label htmlFor="duty-title">Title</Label>
             <Input
-              id="job-title"
+              id="duty-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Release notes manager"
@@ -710,7 +713,7 @@ function CreateJobDialog({
             />
           </div>
           <ScheduleSelect value={schedule} onChange={setSchedule} />
-          <WorkerSelect value={worker} onChange={setWorker} />
+          <StaffSelect value={staff} onChange={setStaff} />
           <div className="space-y-1.5">
             <Label>Body</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={14} />
@@ -726,7 +729,7 @@ function CreateJobDialog({
             onClick={handleSubmit}
             disabled={!title.trim() || createMutation.isPending}
           >
-            {createMutation.isPending ? "Creating…" : "Create job"}
+            {createMutation.isPending ? "Creating…" : "Create duty"}
           </Button>
         </div>
       </DialogContent>
@@ -734,42 +737,42 @@ function CreateJobDialog({
   );
 }
 
-function EditJobDialog({
-  job,
+function EditDutyDialog({
+  duty,
   onClose,
   onSaved,
 }: {
-  job: Job;
+  duty: Duty;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { githubUser } = useGitHubIdentity();
-  const updateMutation = useUpdateJob(job.slug, githubUser?.login);
+  const updateMutation = useUpdateDuty(duty.slug, githubUser?.login);
 
-  const [title, setTitle] = useState(job.title);
-  const [body, setBody] = useState(job.body || "");
-  const [schedule, setSchedule] = useState<JobSchedule | null>(job.schedule);
-  const [worker, setWorker] = useState<string | null>(job.worker);
+  const [title, setTitle] = useState(duty.title);
+  const [body, setBody] = useState(duty.body || "");
+  const [schedule, setSchedule] = useState<DutySchedule | null>(duty.schedule);
+  const [staff, setStaff] = useState<string | null>(duty.staff);
 
   useEffect(() => {
-    setTitle(job.title);
-    setBody(job.body || "");
-    setSchedule(job.schedule);
-    setWorker(job.worker);
-  }, [job]);
+    setTitle(duty.title);
+    setBody(duty.body || "");
+    setSchedule(duty.schedule);
+    setStaff(duty.staff);
+  }, [duty]);
 
   const handleSubmit = () => {
     if (!title.trim() || updateMutation.isPending) return;
     const patch: {
       title?: string;
       body?: string;
-      schedule?: JobSchedule | null;
-      worker?: string | null;
+      schedule?: DutySchedule | null;
+      staff?: string | null;
     } = {};
-    if (title !== job.title) patch.title = title.trim();
-    if (body !== job.body) patch.body = body;
-    if (schedule !== job.schedule) patch.schedule = schedule;
-    if (worker !== job.worker) patch.worker = worker;
+    if (title !== duty.title) patch.title = title.trim();
+    if (body !== duty.body) patch.body = body;
+    if (schedule !== duty.schedule) patch.schedule = schedule;
+    if (staff !== duty.staff) patch.staff = staff;
     if (Object.keys(patch).length === 0) {
       onSaved();
       return;
@@ -781,28 +784,28 @@ function EditJobDialog({
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit job `{job.slug}`</DialogTitle>
+          <DialogTitle>Edit duty `{duty.slug}`</DialogTitle>
           <DialogDescription>
-            Update the job&apos;s title or body. Saving commits the file to the
+            Update the duty&apos;s title or body. Saving commits the file to the
             default branch.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="edit-job-title">Title</Label>
+            <Label htmlFor="edit-duty-title">Title</Label>
             <Input
-              id="edit-job-title"
+              id="edit-duty-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               autoFocus
             />
           </div>
           <ScheduleSelect value={schedule} onChange={setSchedule} />
-          <WorkerSelect value={worker} onChange={setWorker} />
-          <JobTimingReadout
-            lastTickAt={job.lastTickAt}
-            nextEligibleAt={job.nextEligibleAt}
+          <StaffSelect value={staff} onChange={setStaff} />
+          <DutyTimingReadout
+            lastTickAt={duty.lastTickAt}
+            nextEligibleAt={duty.nextEligibleAt}
           />
           <div className="space-y-1.5">
             <Label>Body</Label>
@@ -828,8 +831,8 @@ function EditJobDialog({
 }
 
 /**
- * Inline "last run" pill for use in the job-list rows. Hidden when
- * the job has never run — keeps the row dense. Refreshes every 30s.
+ * Inline "last run" pill for use in the duty-list rows. Hidden when
+ * the duty has never run — keeps the row dense. Refreshes every 30s.
  * Source is the commit timestamp of the sibling `<slug>.state.json`,
  * which the engine writes only when a tick actually acts.
  */
@@ -852,9 +855,9 @@ function LastTickInline({ lastTickAt }: { lastTickAt: string | null }) {
 }
 
 /**
- * Inline "next run in X" pill — the actual next-eligible time the job
- * will act, sourced from `data.nextEligibleISO` in the job's state JSON.
- * Hidden when the value is missing (job hasn't run yet, or its body
+ * Inline "next run in X" pill — the actual next-eligible time the duty
+ * will act, sourced from `data.nextEligibleISO` in the duty's state JSON.
+ * Hidden when the value is missing (duty hasn't run yet, or its body
  * doesn't emit the field) or when the schedule is `manual` — in that
  * case the `ScheduleInline` pill already says "manual only", which is
  * the whole story.
@@ -864,7 +867,7 @@ function NextRunInline({
   schedule,
 }: {
   nextEligibleAt: string | null;
-  schedule: JobSchedule | null;
+  schedule: DutySchedule | null;
 }) {
   const now = useNow(30_000);
   if (schedule === "manual") return null;
@@ -899,7 +902,7 @@ function NextRunDetail({
   schedule,
 }: {
   nextEligibleAt: string | null;
-  schedule: JobSchedule | null;
+  schedule: DutySchedule | null;
 }) {
   const now = useNow(30_000);
   if (schedule === "manual") return null;
@@ -925,7 +928,7 @@ function NextRunDetail({
 /**
  * Detail-header counterpart for `LastTickInline`. Hides when the value
  * is missing — `lastTickAt` is the commit timestamp of `<slug>.state.json`
- * on GitHub, which only exists for repos using the `contents-api` job-state
+ * on GitHub, which only exists for repos using the `contents-api` duty-state
  * backend. Repos on `local-file` keep state on the runner only, so a null
  * value means "the dashboard can't see it", not "never run". Saying "never
  * run" misleads more than it informs.
@@ -951,14 +954,14 @@ function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
 /**
  * Schedule dropdown — two options only:
  *
- * - **Auto** (sentinel `null`, no frontmatter): the engine ticks the job
+ * - **Auto** (sentinel `null`, no frontmatter): the engine ticks the duty
  *   on every cron wake; the body's cadence guard decides whether to act.
- *   This is the default for every job in this repo's convention.
+ *   This is the default for every duty in this repo's convention.
  * - **Manual only** (`every: manual`): the engine skips auto-ticks; the
- *   job runs only when the Run button is clicked.
+ *   duty runs only when the Run button is clicked.
  *
  * Granular cadences (`every: 1d`, `every: 7d`, …) are still parsed and
- * honored by the engine if a job's frontmatter declares them, but the
+ * honored by the engine if a duty's frontmatter declares them, but the
  * UI doesn't expose them — the body-cadence convention makes them
  * redundant in this codebase.
  */
@@ -966,20 +969,20 @@ function ScheduleSelect({
   value,
   onChange,
 }: {
-  value: JobSchedule | null;
-  onChange: (next: JobSchedule | null) => void;
+  value: DutySchedule | null;
+  onChange: (next: DutySchedule | null) => void;
 }) {
   // Sentinel because Radix Select.Item disallows empty-string values; we
   // can't bind `null` directly to it.
   const AUTO = "__auto__";
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="job-schedule">Schedule</Label>
+      <Label htmlFor="duty-schedule">Schedule</Label>
       <Select
         value={value === "manual" ? "manual" : AUTO}
         onValueChange={(v) => onChange(v === AUTO ? null : "manual")}
       >
-        <SelectTrigger id="job-schedule" className="w-full">
+        <SelectTrigger id="duty-schedule" className="w-full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -996,38 +999,40 @@ function ScheduleSelect({
 }
 
 /**
- * Worker (persona) picker. A job is *what* runs on a schedule; the worker
- * it names is *who* runs it — the engine injects that persona ahead of the
- * job body. Every job must name a worker: the engine scheduler skips jobs
- * with none, so the picker warns when unset and offers the personas under
- * `.kody/workers/`.
+ * Staff (persona) picker. A duty is *what* runs on a schedule; the staff
+ * member it names is *who* runs it — the engine injects that persona ahead
+ * of the duty body. Every duty must name a staff member: the engine
+ * scheduler skips duties with none, so the picker warns when unset and
+ * offers the personas under `.kody/staff/`.
  */
-function WorkerSelect({
+function StaffSelect({
   value,
   onChange,
 }: {
   value: string | null;
   onChange: (next: string | null) => void;
 }) {
-  const { data: workers, isLoading } = useWorkers();
+  const { data: staff, isLoading } = useStaff();
   // Radix Select.Item disallows empty-string values; bind `null` to a
   // sentinel instead.
   const NONE = "__none__";
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="job-worker">Worker</Label>
+      <Label htmlFor="duty-staff">Staff</Label>
       <Select
         value={value ?? NONE}
         onValueChange={(v) => onChange(v === NONE ? null : v)}
       >
-        <SelectTrigger id="job-worker" className="w-full">
+        <SelectTrigger id="duty-staff" className="w-full">
           <SelectValue
-            placeholder={isLoading ? "Loading workers…" : "Select a worker"}
+            placeholder={
+              isLoading ? "Loading staff…" : "Select a staff member"
+            }
           />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={NONE}>None (job won&apos;t run)</SelectItem>
-          {(workers ?? []).map((w) => (
+          <SelectItem value={NONE}>None (duty won&apos;t run)</SelectItem>
+          {(staff ?? []).map((w) => (
             <SelectItem key={w.slug} value={w.slug}>
               {w.title} ({w.slug})
             </SelectItem>
@@ -1041,7 +1046,7 @@ function WorkerSelect({
           </>
         ) : (
           <span className="text-amber-400">
-            No worker assigned — the engine scheduler will skip this job until
+            No staff assigned — the engine scheduler will skip this duty until
             you pick one.
           </span>
         )}
@@ -1052,11 +1057,11 @@ function WorkerSelect({
 
 /**
  * Read-only timing readout shown inside the Edit dialog: last actual run
- * + next eligible run, both sourced from the job's state file. Helpful
- * for jobs whose cadence lives in the body prose (not frontmatter), so
+ * + next eligible run, both sourced from the duty's state file. Helpful
+ * for duties whose cadence lives in the body prose (not frontmatter), so
  * the dropdown above can't honestly express it. Refreshes every 30s.
  */
-function JobTimingReadout({
+function DutyTimingReadout({
   lastTickAt,
   nextEligibleAt,
 }: {
@@ -1075,9 +1080,9 @@ function JobTimingReadout({
       })()
     : null;
   // Both signals come from `<slug>.state.json` on GitHub, which only exists
-  // for repos on the `contents-api` job-state backend. Hide the readout
+  // for repos on the `contents-api` duty-state backend. Hide the readout
   // entirely when neither is reachable — saying "never run / next run
-  // unknown" on every job misleads more than it informs.
+  // unknown" on every duty misleads more than it informs.
   if (!last && !next) return null;
   return (
     <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -1105,7 +1110,7 @@ function JobTimingReadout({
 }
 
 /** Inline schedule pill for list rows + detail header. */
-function ScheduleInline({ schedule }: { schedule: JobSchedule | null }) {
+function ScheduleInline({ schedule }: { schedule: DutySchedule | null }) {
   if (!schedule) return null;
   return (
     <>

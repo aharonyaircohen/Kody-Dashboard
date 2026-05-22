@@ -5,7 +5,7 @@
  * @ai-summary Types + body parse/serialize for the `kody:cto-decisions`
  *   manifest issue. This is the dashboard-owned trust ledger: every
  *   Approve/Reject the operator makes on a CTO recommendation is tallied
- *   here. Kept separate from the engine-owned `.kody/workers/cto.state.json`
+ *   here. Kept separate from the engine-owned `.kody/staff/cto.state.json`
  *   so dashboard decisions and engine tick-state never race or co-mingle.
  *
  *   Phase 1 only writes it. Phase 2 (graduation) has the CTO read
@@ -194,7 +194,7 @@ export function serializeCtoDecisionsBody(
   const preamble =
     "> Kody CTO decisions ledger — the dashboard writes the JSON block below\n" +
     "> whenever an operator approves or rejects a CTO recommendation. The CTO\n" +
-    "> worker reads it each tick to decide when to stop asking (graduation).\n\n";
+    "> staff member reads it each tick to decide when to stop asking (graduation).\n\n";
   const json = JSON.stringify(manifest, null, 2);
   return `${preamble}${MANIFEST_START}\n\n\`\`\`json\n${json}\n\`\`\`\n\n${MANIFEST_END}\n`;
 }
