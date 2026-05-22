@@ -579,6 +579,15 @@ function DutyDetail({
                     no staff
                   </span>
                 )}
+                {duty.mentions && duty.mentions.length > 0 ? (
+                  <span
+                    className="inline-flex items-center gap-1"
+                    title="@-mentions these GitHub logins in its output"
+                  >
+                    <AtSign className="w-3 h-3" />
+                    {duty.mentions.map((m) => `@${m}`).join(", ")}
+                  </span>
+                ) : null}
                 <ScheduleInline schedule={duty.schedule} />
                 <LastTickDetail lastTickAt={duty.lastTickAt} />
                 {!duty.disabled ? (
