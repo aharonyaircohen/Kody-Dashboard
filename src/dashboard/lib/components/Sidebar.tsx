@@ -33,6 +33,7 @@ import { SimpleTooltip } from './SimpleTooltip'
 import { InboxBadge } from './InboxBadge'
 import {
   PRIMARY_NAV_ITEMS,
+  PRIMARY_NAV_TITLE,
   SETTINGS_NAV_SECTIONS,
   type SettingsNavItem,
 } from './settings-nav'
@@ -167,7 +168,14 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {PRIMARY_NAV_ITEMS.map((item) => renderLink(item))}
+        <div className="space-y-1">
+          {!collapsed && (
+            <p className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+              {PRIMARY_NAV_TITLE}
+            </p>
+          )}
+          {PRIMARY_NAV_ITEMS.map((item) => renderLink(item))}
+        </div>
 
         {/* Configuration surfaces, sourced from the shared settings-nav so
             new pages appear here and in the mobile menu automatically.
