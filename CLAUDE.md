@@ -158,15 +158,16 @@ Follow-up: swap the in-memory cache for Vercel's Data Cache (`fetch` +
 ## Chat flow
 
 The dashboard has **three** chat backends, picked by the UI's `selectedAgentId`
-(default `'kody'`, see [KodyChat.tsx](src/dashboard/lib/components/KodyChat.tsx)).
-Don't assume "the chat" means the engine — most user traffic hits the in-process
-chat path.
+(a fresh composer initializes to `'kody-live'` — `lockedAgentId ?? "kody-live"`
+in [KodyChat.tsx](src/dashboard/lib/components/KodyChat.tsx) — unless the host
+pins one). The in-process `kody` path is the fast, no-runner option and the
+fallback when an id doesn't resolve (`getAgent()` → `AGENT_KODY`).
 
 | `selectedAgentId`    | Endpoint                                                       | Backend                                  | System prompt lives in                                                                   |
 | -------------------- | -------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `kody` (**default**) | [`/api/kody/chat/kody`](app/api/kody/chat/kody/route.ts)       | In-process chat model via the AI SDK     | [`src/dashboard/lib/agents.ts`](src/dashboard/lib/agents.ts) (`AGENT_KODY.systemPrompt`) |
-| `brain`              | [`/api/kody/chat/brain`](app/api/kody/chat/brain/route.ts)     | External Brain chat server (proxied)     | Brain server profile (out of repo)                                                       |
-| anything else        | [`/api/kody/chat/trigger`](app/api/kody/chat/trigger/route.ts) | GitHub Actions + `@kody-ade/kody-engine` | `kody2/src/chat/loop.ts` (`CHAT_SYSTEM_PROMPT`)                                          |
+| `kody`                          | [`/api/kody/chat/kody`](app/api/kody/chat/kody/route.ts)       | In-process chat model via the AI SDK     | [`src/dashboard/lib/agents.ts`](src/dashboard/lib/agents.ts) (`AGENT_KODY.systemPrompt`) |
+| `brain` / `brain-fly`           | [`/api/kody/chat/brain`](app/api/kody/chat/brain/route.ts)     | External Brain chat server (proxied)     | Brain server profile (out of repo)                                                       |
+| `kody-live` (**default**), else | [`/api/kody/chat/trigger`](app/api/kody/chat/trigger/route.ts) | GitHub Actions + `@kody-ade/kody-engine` | `kody2/src/chat/loop.ts` (`CHAT_SYSTEM_PROMPT`)                                          |
 
 The legacy `/api/kody/chat` endpoint is deprecated and returns 410.
 
