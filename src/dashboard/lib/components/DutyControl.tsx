@@ -11,6 +11,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   AtSign,
   Calendar,
@@ -60,6 +61,10 @@ import { useStaff } from "../hooks/useStaff";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useNow } from "../hooks/useNow";
 import { formatDuration, formatRelativePast } from "../duties-schedule";
+import {
+  dutyScheduleHealth,
+  summarizeDutyHealth,
+} from "../duties/schedule-health";
 import {
   scheduleEveryLabel,
   ALL_SCHEDULE_EVERY_OPTIONS,
@@ -321,6 +326,7 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
                   ariaLabel="Search duties"
                   accent="emerald"
                 />
+                <DutyHealthSummaryBar duties={duties} />
               </div>
             ) : null}
             {isLoading ? (
@@ -375,7 +381,9 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
                               <PowerOff className="w-2.5 h-2.5" />
                               Disabled
                             </span>
-                          ) : null}
+                          ) : (
+                            <DutyHealthBadge duty={duty} />
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                           <span className="font-mono opacity-80">
@@ -917,6 +925,69 @@ function EditDutyDialog({
  * Source is the commit timestamp of the sibling `<slug>.state.json`,
  * which the engine writes only when a tick actually acts.
  */
+/**
+ * Row pill that escalates a duty's raw timestamps into an actionable
+ * warning: amber "Overdue" (next-eligible passed beyond the cron window) or
+ * red "Never run" (scheduled, old enough to have run, no state file yet).
+ * Renders nothing for healthy/manual duties.
+ */
+function DutyHealthBadge({ duty }: { duty: Duty }) {
+  const now = useNow(30_000);
+  const health = dutyScheduleHealth(duty, now.getTime());
+  if (health === "overdue") {
+    return (
+      <span
+        className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-amber-500/15 text-amber-300 border border-amber-500/25"
+        title="Past its next-eligible time by more than the cron window — the scheduler may be stuck."
+      >
+        <AlertTriangle className="w-2.5 h-2.5" />
+        Overdue
+      </span>
+    );
+  }
+  if (health === "never") {
+    return (
+      <span
+        className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-rose-500/15 text-rose-300 border border-rose-500/25"
+        title="Scheduled and old enough to have run, but the engine has never recorded a tick."
+      >
+        <AlertTriangle className="w-2.5 h-2.5" />
+        Never run
+      </span>
+    );
+  }
+  return null;
+}
+
+/** Compact "N overdue · M never run" bar; hidden when everything is healthy. */
+function DutyHealthSummaryBar({ duties }: { duties: Duty[] }) {
+  const now = useNow(30_000);
+  const { overdue, never } = summarizeDutyHealth(duties, now.getTime());
+  if (overdue === 0 && never === 0) return null;
+  return (
+    <div className="mt-2 flex items-center gap-3 text-[11px]">
+      {overdue > 0 ? (
+        <span
+          className="inline-flex items-center gap-1 text-amber-300"
+          title="Duties past their next-eligible time beyond the cron window"
+        >
+          <AlertTriangle className="w-3 h-3" />
+          {overdue} overdue
+        </span>
+      ) : null}
+      {never > 0 ? (
+        <span
+          className="inline-flex items-center gap-1 text-rose-300"
+          title="Scheduled duties that have never recorded a tick"
+        >
+          <AlertTriangle className="w-3 h-3" />
+          {never} never run
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 function LastTickInline({ lastTickAt }: { lastTickAt: string | null }) {
   const now = useNow(30_000);
   if (!lastTickAt) return null;

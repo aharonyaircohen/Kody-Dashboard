@@ -12,7 +12,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   afterFns: [] as Array<() => unknown>,
-  appendDurable: vi.fn(async () => true),
+  appendDurable: vi.fn<(events: unknown[], octokit?: unknown) => Promise<boolean>>(
+    async () => true,
+  ),
   getRequestAuth: vi.fn(),
   resolveActor: vi.fn(),
   setGitHubContext: vi.fn(),
@@ -96,10 +98,10 @@ describe("recordAudit", () => {
     });
 
     expect(h.appendDurable).toHaveBeenCalledTimes(1);
-    expect(h.appendDurable.mock.calls[0][0][0]).toMatchObject({
-      type: "duty.run",
-      actor: "alice",
-    });
+    const firstBatch = h.appendDurable.mock.calls[0]?.[0] as
+      | Array<Record<string, unknown>>
+      | undefined;
+    expect(firstBatch?.[0]).toMatchObject({ type: "duty.run", actor: "alice" });
   });
 
   it("falls back to actor 'unknown' and skips the durable write with no auth", async () => {
