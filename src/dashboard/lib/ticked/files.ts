@@ -51,6 +51,14 @@ export interface TickFile {
    */
   nextEligibleAt: string | null;
   /**
+   * Coarse result of the most recent tick — `data.lastOutcome` in the state
+   * JSON, stamped by the engine from the agent result. `null` when never run
+   * or running an engine that predates the field.
+   */
+  lastOutcome: "completed" | "failed" | null;
+  /** Wall-clock of the most recent tick (ms) — `data.lastDurationMs`, or null. */
+  lastDurationMs: number | null;
+  /**
    * Per-file cadence, parsed from the frontmatter `every:` field.
    * `null` means "every cron wake" (the engine's 15-minute cron).
    * Engine-side gating ships separately — the dashboard always shows
@@ -246,18 +254,33 @@ async function fetchLastCommitDateOrNull(
   }
 }
 
+export interface TickStateFields {
+  /** `data.nextEligibleISO` — when the file next becomes eligible to act. */
+  nextEligibleAt: string | null;
+  /** `data.lastOutcome` — the engine stamps the agent's coarse result. */
+  lastOutcome: "completed" | "failed" | null;
+  /** `data.lastDurationMs` — wall-clock of the last agent run. */
+  lastDurationMs: number | null;
+}
+
+const EMPTY_TICK_STATE: TickStateFields = {
+  nextEligibleAt: null,
+  lastOutcome: null,
+  lastDurationMs: null,
+};
+
 /**
- * Fetch and parse `<slug>.state.json` to extract `data.nextEligibleISO` —
- * the ISO timestamp at which the file will next be eligible to act per
- * its cadence guard. The agent emits this field at the end of every
- * tick; see each definition's `## State` section. Missing file or
- * missing field → null.
+ * Fetch and parse `<slug>.state.json` for the dashboard-relevant fields the
+ * engine stamps each tick: `nextEligibleISO` (cadence guard), and — since the
+ * Phase 3 engine change — `lastOutcome` / `lastDurationMs` (the last run's
+ * result + duration). One fetch + parse yields all three. Missing file or
+ * fields → nulls.
  */
-async function fetchNextEligibleAt(
+async function fetchTickState(
   octokit: Octokit,
   dir: string,
   slug: string,
-): Promise<string | null> {
+): Promise<TickStateFields> {
   try {
     const { data } = await octokit.repos.getContent({
       owner: getOwner(),
@@ -265,17 +288,32 @@ async function fetchNextEligibleAt(
       path: `${dir}/${slug}.state.json`,
     });
     if (Array.isArray(data) || !("content" in data) || !data.content)
-      return null;
+      return EMPTY_TICK_STATE;
     const raw = Buffer.from(data.content, "base64").toString("utf-8");
     const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed || typeof parsed !== "object") return EMPTY_TICK_STATE;
     const inner = (parsed as { data?: unknown }).data;
-    if (!inner || typeof inner !== "object") return null;
-    const value = (inner as { nextEligibleISO?: unknown }).nextEligibleISO;
-    return typeof value === "string" && value.length > 0 ? value : null;
+    if (!inner || typeof inner !== "object") return EMPTY_TICK_STATE;
+    const d = inner as {
+      nextEligibleISO?: unknown;
+      lastOutcome?: unknown;
+      lastDurationMs?: unknown;
+    };
+    return {
+      nextEligibleAt:
+        typeof d.nextEligibleISO === "string" && d.nextEligibleISO.length > 0
+          ? d.nextEligibleISO
+          : null,
+      lastOutcome:
+        d.lastOutcome === "completed" || d.lastOutcome === "failed"
+          ? d.lastOutcome
+          : null,
+      lastDurationMs:
+        typeof d.lastDurationMs === "number" ? d.lastDurationMs : null,
+    };
   } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return null;
-    return null;
+    if ((error as { status?: number })?.status === 404) return EMPTY_TICK_STATE;
+    return EMPTY_TICK_STATE;
   }
 }
 
@@ -371,7 +409,7 @@ export function createTickedFiles(
           const raw = Buffer.from(data.content, "base64").toString("utf-8");
           const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
           const hasState = stateSlugs.has(slug);
-          const [updatedAt, lastTickAt, nextEligibleAt] = await Promise.all([
+          const [updatedAt, lastTickAt, tickState] = await Promise.all([
             fetchLastCommitDate(octokit, filePath),
             hasState
               ? fetchLastCommitDateOrNull(
@@ -380,8 +418,8 @@ export function createTickedFiles(
                 )
               : Promise.resolve(null),
             hasState
-              ? fetchNextEligibleAt(octokit, dir, slug)
-              : Promise.resolve(null),
+              ? fetchTickState(octokit, dir, slug)
+              : Promise.resolve(EMPTY_TICK_STATE),
           ]);
           return {
             slug,
@@ -390,7 +428,9 @@ export function createTickedFiles(
             sha,
             updatedAt,
             lastTickAt,
-            nextEligibleAt,
+            nextEligibleAt: tickState.nextEligibleAt,
+            lastOutcome: tickState.lastOutcome,
+            lastDurationMs: tickState.lastDurationMs,
             schedule: frontmatter.every ?? null,
             disabled: frontmatter.disabled === true,
             staff: frontmatter.staff ?? null,
@@ -438,10 +478,10 @@ export function createTickedFiles(
         return null;
       const raw = Buffer.from(data.content, "base64").toString("utf-8");
       const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
-      const [updatedAt, lastTickAt, nextEligibleAt] = await Promise.all([
+      const [updatedAt, lastTickAt, tickState] = await Promise.all([
         fetchLastCommitDate(octokit, filePath),
         fetchLastCommitDateOrNull(octokit, `${dir}/${slug}.state.json`),
-        fetchNextEligibleAt(octokit, dir, slug),
+        fetchTickState(octokit, dir, slug),
       ]);
       return {
         slug,
@@ -450,7 +490,9 @@ export function createTickedFiles(
         sha: data.sha,
         updatedAt,
         lastTickAt,
-        nextEligibleAt,
+        nextEligibleAt: tickState.nextEligibleAt,
+        lastOutcome: tickState.lastOutcome,
+        lastDurationMs: tickState.lastDurationMs,
         schedule: frontmatter.every ?? null,
         disabled: frontmatter.disabled === true,
         staff: frontmatter.staff ?? null,

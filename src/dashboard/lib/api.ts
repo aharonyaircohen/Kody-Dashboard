@@ -862,6 +862,14 @@ export interface Duty {
    */
   nextEligibleAt: string | null;
   /**
+   * Coarse result of the most recent tick — `data.lastOutcome` in the state
+   * JSON, stamped by the engine from the agent result. `null` when never run
+   * or on an engine that predates the field.
+   */
+  lastOutcome: "completed" | "failed" | null;
+  /** Wall-clock of the most recent tick (ms) — `data.lastDurationMs`, or null. */
+  lastDurationMs: number | null;
+  /**
    * Per-duty cadence parsed from frontmatter. `null` = global cron wake
    * (every 15 min). Engine-side gating ships separately.
    */

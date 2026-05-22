@@ -395,7 +395,11 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
                             {new Date(duty.updatedAt).toLocaleDateString()}
                           </span>
                           <ScheduleInline schedule={duty.schedule} />
-                          <LastTickInline lastTickAt={duty.lastTickAt} />
+                          <LastTickInline
+                            lastTickAt={duty.lastTickAt}
+                            lastOutcome={duty.lastOutcome}
+                            lastDurationMs={duty.lastDurationMs}
+                          />
                           {!duty.disabled ? (
                             <NextRunInline
                               nextEligibleAt={duty.nextEligibleAt}
@@ -597,7 +601,11 @@ function DutyDetail({
                   </span>
                 ) : null}
                 <ScheduleInline schedule={duty.schedule} />
-                <LastTickDetail lastTickAt={duty.lastTickAt} />
+                <LastTickDetail
+                  lastTickAt={duty.lastTickAt}
+                  lastOutcome={duty.lastOutcome}
+                  lastDurationMs={duty.lastDurationMs}
+                />
                 {!duty.disabled ? (
                   <NextRunDetail
                     nextEligibleAt={duty.nextEligibleAt}
@@ -988,7 +996,39 @@ function DutyHealthSummaryBar({ duties }: { duties: Duty[] }) {
   );
 }
 
-function LastTickInline({ lastTickAt }: { lastTickAt: string | null }) {
+/**
+ * Outcome + duration suffix for the "last run …" text. Only the failure case
+ * is colored (red) — success is the silent default. Both come from the
+ * engine-stamped `data.lastOutcome` / `data.lastDurationMs` (Phase 3).
+ */
+function RunResultSuffix({
+  outcome,
+  durationMs,
+}: {
+  outcome?: "completed" | "failed" | null;
+  durationMs?: number | null;
+}) {
+  return (
+    <>
+      {outcome === "failed" ? (
+        <span className="text-rose-400 font-medium">· failed</span>
+      ) : null}
+      {typeof durationMs === "number" && durationMs > 0 ? (
+        <span className="opacity-70">· {formatDuration(durationMs)}</span>
+      ) : null}
+    </>
+  );
+}
+
+function LastTickInline({
+  lastTickAt,
+  lastOutcome,
+  lastDurationMs,
+}: {
+  lastTickAt: string | null;
+  lastOutcome?: "completed" | "failed" | null;
+  lastDurationMs?: number | null;
+}) {
   const now = useNow(30_000);
   if (!lastTickAt) return null;
   const date = new Date(lastTickAt);
@@ -1001,6 +1041,7 @@ function LastTickInline({ lastTickAt }: { lastTickAt: string | null }) {
       >
         <Clock className="w-3 h-3" />
         last run {formatRelativePast(date, now)}
+        <RunResultSuffix outcome={lastOutcome} durationMs={lastDurationMs} />
       </span>
     </>
   );
@@ -1085,7 +1126,15 @@ function NextRunDetail({
  * value means "the dashboard can't see it", not "never run". Saying "never
  * run" misleads more than it informs.
  */
-function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
+function LastTickDetail({
+  lastTickAt,
+  lastOutcome,
+  lastDurationMs,
+}: {
+  lastTickAt: string | null;
+  lastOutcome?: "completed" | "failed" | null;
+  lastDurationMs?: number | null;
+}) {
   const now = useNow(30_000);
   if (!lastTickAt) return null;
   const date = new Date(lastTickAt);
@@ -1098,6 +1147,7 @@ function LastTickDetail({ lastTickAt }: { lastTickAt: string | null }) {
       >
         <Clock className="w-3 h-3" />
         last run {formatRelativePast(date, now)}
+        <RunResultSuffix outcome={lastOutcome} durationMs={lastDurationMs} />
       </span>
     </>
   );
