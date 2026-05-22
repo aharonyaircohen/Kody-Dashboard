@@ -43,8 +43,6 @@ import { VibeDefaultPreviewField } from "./VibeDefaultPreviewField";
 import { PreviewActions } from "./PreviewActions";
 import { CIStatusBadge } from "./CIStatusBadge";
 import { KodyHeader } from "./KodyHeader";
-import { PageActions } from "./PageActions";
-import { BranchCleanupDialog } from "./BranchCleanupDialog";
 import { MobileMenu } from "./MobileMenu";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { TaskDetail } from "./TaskDetail";
@@ -126,7 +124,6 @@ export function VibePage() {
   const { githubUser } = useGitHubIdentity();
   const { setScope, setOnIssueCreated } = useChatScope();
 
-  const [showBranchCleanup, setShowBranchCleanup] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Selection is URL-driven (`/vibe?issue=N`) so refreshes and shared
@@ -451,11 +448,6 @@ export function VibePage() {
             {selectedTask?.associatedPR ? (
               <CIStatusBadge prNumber={selectedTask.associatedPR.number} />
             ) : null}
-            <PageActions
-              onOpenBranchCleanup={() => setShowBranchCleanup(true)}
-              onPublished={(n) => setSelectedIssueNumber(n)}
-              actorLogin={githubUser?.login}
-            />
           </div>
         }
         mobileExtras={
@@ -688,12 +680,6 @@ export function VibePage() {
           )}
         </section>
       </div>
-
-      {/* Branch cleanup — shared dialog driven by the Cleanup button in KodyHeader. */}
-      <BranchCleanupDialog
-        open={showBranchCleanup}
-        onClose={() => setShowBranchCleanup(false)}
-      />
 
       {/* Mobile menu — shared component; we just slot in the vibe-only
           "Open issues" entry as the workspace primary action. */}

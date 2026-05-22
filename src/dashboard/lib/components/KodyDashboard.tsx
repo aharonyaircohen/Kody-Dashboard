@@ -23,8 +23,6 @@ import { EditTaskDialog } from "./EditTaskDialog";
 import { BugReportDialog } from "./BugReportDialog";
 import { KodyBugReportDialog } from "./KodyBugReportDialog";
 import { KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
-import { BranchCleanupDialog } from "./BranchCleanupDialog";
-import { PublishButton } from "./PublishButton";
 import { useChatScope } from "./ChatRailShell";
 import type { ChatContext } from "../chat-types";
 import { KodyStatusBanner } from "./KodyStatusBanner";
@@ -62,7 +60,6 @@ import {
   X as XIcon,
   Sun,
   Moon,
-  GitBranch,
   Github,
   Layers,
   FileText,
@@ -133,7 +130,6 @@ export function KodyDashboard({
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [duplicateSource, setDuplicateSource] = useState<KodyTask | null>(null);
-  const [showBranchCleanup, setShowBranchCleanup] = useState(false);
   const [dateFilter, setDateFilter] = useState<string>("30d");
   const [labelFilter, setLabelFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
@@ -696,7 +692,6 @@ export function KodyDashboard({
       !!editingTask ||
       showBugDialog ||
       showKodyBugDialog ||
-      showBranchCleanup ||
       showPreview ||
       showShortcutsHelp ||
       showMobileMenu ||
@@ -1346,9 +1341,6 @@ export function KodyDashboard({
                 showRefresh={false}
                 trailingExtras={
                   <HeaderOverflowMenu
-                    actorLogin={githubUser?.login}
-                    onPublished={(n) => setSelectedIssueNumber(n)}
-                    onOpenBranchCleanup={() => setShowBranchCleanup(true)}
                     onReportBug={handleOpenKodyBug}
                     onRefresh={() => {
                       refetch();
@@ -1669,24 +1661,6 @@ export function KodyDashboard({
                   Actions
                 </div>
                 <div className="space-y-1.5">
-                  <div onClick={() => setShowMobileMenu(false)}>
-                    <PublishButton
-                      actorLogin={githubUser?.login}
-                      onPublished={(n) => setSelectedIssueNumber(n)}
-                      triggerClassName="w-full justify-start gap-2 h-11"
-                    />
-                  </div>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start gap-2 h-11"
-                    onClick={() => {
-                      setShowMobileMenu(false);
-                      setShowBranchCleanup(true);
-                    }}
-                  >
-                    <GitBranch className="w-4 h-4 text-muted-foreground" />
-                    Cleanup branches
-                  </Button>
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-2 h-11"
@@ -1845,12 +1819,6 @@ export function KodyDashboard({
         <KeyboardShortcutsDialog
           open={showShortcutsHelp}
           onClose={() => setShowShortcutsHelp(false)}
-        />
-
-        {/* Branch Cleanup Dialog */}
-        <BranchCleanupDialog
-          open={showBranchCleanup}
-          onClose={() => setShowBranchCleanup(false)}
         />
 
         {/* Goal-first: inline goal dialogs */}
