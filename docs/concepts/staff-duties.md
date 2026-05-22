@@ -185,15 +185,27 @@ GitHub rate-limit budget.
 
 ## A note on cron cadence
 
-The dashboard hard-codes the cron interval as **15 minutes**
-(`CRON_INTERVAL_MS` in [`ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts),
-mirroring `*/15 * * * *` in the engine's `templates/kody.yml`) and uses it
-only to render "next scheduled tick" estimates. The engine's
-`job-scheduler` profile (`src/executables/job-scheduler/profile.json`)
-declares `*/5 * * * *`. The duty's `every:` guard is the real cadence
-control; the wake interval is just the resolution at which due duties get
-picked up. If the wake interval ever becomes per-repo configurable, expose
-it through the API rather than hard-coding it in the dashboard.
+Three cron numbers are in play, and they're consistent once you see how they
+relate:
+
+- **The wake** — `templates/kody.yml` triggers the engine on `*/15 * * * *`,
+  i.e. **every 15 minutes**. This is the canonical cadence. (Its inline
+  comment says "every 30 minutes" — that comment is stale; the cron is the
+  truth.)
+- **Per-executable eligibility** — on each wake, `runScheduledFanOut` fires
+  every scheduled "watch" whose own `schedule` cron matches the wake window.
+  `job-scheduler` declares `*/5 * * * *` — a *maximum* eligible cadence, not a
+  second clock. Every 15-minute wake is also a multiple of 5, so `*/5` matches
+  every wake, and job-scheduler effectively runs once per wake (15 min). If the
+  wake were ever made faster, that `*/5` would let it run as often as every 5
+  minutes — that's what it reserves.
+- **The dashboard mirror** — `CRON_INTERVAL_MS` (15m) in
+  [`ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts) mirrors the
+  `*/15` wake purely to render "next tick" estimates.
+
+So the effective cadence is **15 minutes**, gated further per duty by its
+`every:` frontmatter. The only genuine inconsistency is the stale "30 minutes"
+comment in `kody.yml`.
 
 ## File reference
 

@@ -47,12 +47,15 @@ One doc per dashboard-managed store / capability.
 
 ## Known doc-vs-code flags (follow-ups)
 
-Surfaced while writing the docs — code inconsistencies, not doc errors:
+Surfaced while writing the docs:
 
-- **Chat default**: `KodyChat.tsx` initializes `selectedAgentId` to
+- **Chat default**: ✅ fixed — `KodyChat.tsx` initializes `selectedAgentId` to
   `lockedAgentId ?? "kody-live"`, so the default agent is `kody-live`, not
-  `kody`. CLAUDE.md's "Chat flow" table still says `kody` — stale, worth fixing.
-- **Cron cadence**: the dashboard hard-codes a 15-min tick
-  (`ticked/schedule.ts`), `templates/kody.yml` comments say "every 30
-  minutes" while its cron is `*/15`, and `job-scheduler/profile.json`
-  declares `*/5`. These disagree — reconcile in the engine.
+  `kody`. CLAUDE.md's "Chat flow" section was updated to match.
+- **Cron cadence**: ✅ reconciled (no behavior bug). The wake is `*/15` (15
+  min, canonical); `job-scheduler`'s `*/5` is a *max eligible* cadence that
+  matches every 15-min wake; the dashboard's 15m mirror is correct. The only
+  stale artifact is the `templates/kody.yml` comment that says "every 30
+  minutes" — it should read "15 minutes". (Left for the engine repo; not edited
+  here per the no-touch-kody.yml rule.) See
+  [Staff & Duties → cron cadence](concepts/staff-duties.md).
