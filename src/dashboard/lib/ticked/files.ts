@@ -170,7 +170,7 @@ function stripLeadingH1(body: string): string {
  * humanized slug; body is everything after the H1 (or the whole post-
  * frontmatter remainder).
  */
-function parseTickedMarkdown(
+export function parseTickedMarkdown(
   raw: string,
   slug: string,
 ): { title: string; body: string; frontmatter: TickFrontmatter } {
