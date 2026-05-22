@@ -17,7 +17,6 @@ import {
   Download,
   Upload,
   Loader2,
-  ArrowRightLeft,
   Users,
   ListChecks,
   Bot,
@@ -57,7 +56,6 @@ function CompanyManagerInner() {
 
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [migrating, setMigrating] = useState(false);
   const [mode, setMode] = useState<CompanyImportMode>("skip");
   const [lastImport, setLastImport] = useState<CompanyImportResult | null>(null);
 
@@ -113,24 +111,6 @@ function CompanyManagerInner() {
     } finally {
       setImporting(false);
       if (fileInput.current) fileInput.current.value = "";
-    }
-  }
-
-  async function handleMigrate() {
-    setMigrating(true);
-    try {
-      const result = await kodyApi.company.migrate(actorLogin);
-      if (result.noop) {
-        toast.success("Nothing to migrate — no legacy folders found.");
-      } else {
-        toast.success(
-          `Migrated ${result.duties.moved} duties and ${result.staff.moved} staff files.`,
-        );
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Migration failed");
-    } finally {
-      setMigrating(false);
     }
   }
 
@@ -264,43 +244,6 @@ function CompanyManagerInner() {
           <Included icon={Bot} label="Prompts" />
           <Included icon={ScrollText} label="Instructions" />
         </div>
-
-        {/* Legacy migration */}
-        <Card className="border-amber-500/20 bg-amber-950/10">
-          <CardContent className="p-4 flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="font-medium text-white/90 flex items-center gap-2">
-                <ArrowRightLeft className="w-4 h-4 text-amber-400" />
-                Migrate legacy folders
-              </p>
-              <p className="text-xs text-white/50 mt-1 max-w-xl">
-                One-time move of this repo&apos;s old{" "}
-                <code className="text-white/55">.kody/jobs</code> →{" "}
-                <code className="text-white/55">.kody/duties</code> and{" "}
-                <code className="text-white/55">.kody/workers</code> →{" "}
-                <code className="text-white/55">.kody/staff</code> (rewriting{" "}
-                <code className="text-white/55">worker:</code> →{" "}
-                <code className="text-white/55">staff:</code>). Run once after
-                upgrading the engine. Safe to re-run.
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleMigrate}
-              disabled={migrating}
-            >
-              {migrating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                  Migrating…
-                </>
-              ) : (
-                "Migrate"
-              )}
-            </Button>
-          </CardContent>
-        </Card>
       </div>
     </PageShell>
   );
