@@ -11,6 +11,7 @@ import {
   Activity,
   Bell,
   Bot,
+  Building2,
   Cpu,
   FileText,
   Github,
@@ -98,6 +99,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "Workspace",
     items: [
+      {
+        href: "/company",
+        label: "Company",
+        icon: Building2,
+        description:
+          "Import/export your staff, duties, prompts, and instructions as a portable bundle.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
       {
         href: "/inbox",
         label: "Inbox",
