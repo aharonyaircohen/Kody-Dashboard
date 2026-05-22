@@ -2,10 +2,10 @@
  * @fileType component
  * @domain kody
  * @pattern multi-repo-manager
- * @ai-summary CRUD UI for the multi-repo list. Each repo carries its own
- *   GitHub PAT, stored client-side in localStorage (kody_auth.repos[]).
- *   The originally-logged-in repo is marked `isLogin` and cannot be removed
- *   without a full logout.
+ * @ai-summary CRUD UI for the multi-repo list. Repos are connected by signing
+ *   in with the Kody GitHub App; the resulting user token is stored
+ *   client-side in localStorage (kody_auth.repos[]). The originally-logged-in
+ *   repo is marked `isLogin` and cannot be removed without a full logout.
  */
 "use client";
 
@@ -17,7 +17,6 @@ import {
   ExternalLink,
   Github,
   Loader2,
-  Lock,
   Plus,
   Star,
   Trash2,
@@ -34,9 +33,6 @@ import {
   readPendingOAuth,
   type PendingOAuth,
 } from "../auth/pending-oauth";
-
-const TOKEN_DOC_URL =
-  "https://github.com/settings/tokens/new?description=Kody+Dashboard&scopes=repo,workflow,admin:repo_hook";
 
 interface AddRepoResponse {
   ok: boolean;
@@ -108,7 +104,6 @@ export function RepoManager() {
   const { auth, addRepo, removeRepo, setCurrentRepo } = useAuth();
 
   const [repoInput, setRepoInput] = useState("");
-  const [token, setToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingOAuth, setPendingOAuth] = useState<PendingOAuth | null>(null);
@@ -143,10 +138,9 @@ export function RepoManager() {
       );
       return;
     }
-    // Prefer the GitHub App sign-in token; fall back to a pasted PAT.
-    const trimmedToken = pendingOAuth?.token ?? token.trim();
+    const trimmedToken = pendingOAuth?.token;
     if (!trimmedToken) {
-      setError("Sign in with GitHub or paste a personal access token");
+      setError("Sign in with GitHub to connect a repository");
       return;
     }
 
@@ -180,7 +174,6 @@ export function RepoManager() {
       );
 
       setRepoInput("");
-      setToken("");
       clearPendingOAuth();
       setPendingOAuth(null);
       if (data.webhook.ok) {
@@ -219,8 +212,8 @@ export function RepoManager() {
       <div className="space-y-6">
         <p className="text-sm text-white/60">
           {isBootstrap
-            ? "Welcome. Connect a GitHub repository with a personal access token to start using the dashboard. The token stays in this browser only — nothing is sent to a Kody backend."
-            : "Connect additional GitHub repositories to this dashboard. Each repo uses its own personal access token, stored in this browser only. Switching the current repo reloads the dashboard so all data is fresh."}
+            ? "Welcome. Sign in with GitHub to connect a repository and start using the dashboard. Your sign-in stays in this browser only — nothing is sent to a Kody backend."
+            : "Connect additional GitHub repositories to this dashboard. Sign in with GitHub for each one. Switching the current repo reloads the dashboard so all data is fresh."}
         </p>
 
         {/* Repo list — hidden until at least one repo is connected. */}
@@ -311,31 +304,20 @@ export function RepoManager() {
               </h2>
             </div>
             <form onSubmit={handleAdd} className="space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="repoInput">Repository</Label>
-                <Input
-                  id="repoInput"
-                  type="text"
-                  placeholder="https://github.com/owner/repo  or  owner/repo"
-                  value={repoInput}
-                  onChange={(e) => setRepoInput(e.target.value)}
-                  required
-                />
-              </div>
-
-              {pendingOAuth ? (
-                <div className="flex items-center gap-2 rounded border border-emerald-500/20 bg-emerald-500/10 p-2 text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  <span>
-                    Signed in as{" "}
-                    <strong>@{pendingOAuth.login}</strong>
-                  </span>
+              {error && (
+                <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
+                  {error}
                 </div>
-              ) : (
+              )}
+
+              {!pendingOAuth ? (
                 <>
+                  <p className="text-xs text-muted-foreground">
+                    Sign in with GitHub to connect a repository — no token
+                    needed.
+                  </p>
                   <Button
                     type="button"
-                    variant="secondary"
                     className="w-full gap-2"
                     onClick={() => {
                       window.location.href = "/api/auth/github/start";
@@ -344,65 +326,43 @@ export function RepoManager() {
                     <Github className="w-4 h-4" />
                     Sign in with GitHub
                   </Button>
-
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="h-px flex-1 bg-border" />
-                    or use a token
-                    <span className="h-px flex-1 bg-border" />
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 rounded border border-emerald-500/20 bg-emerald-500/10 p-2 text-sm">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span>
+                      Signed in as <strong>@{pendingOAuth.login}</strong>
+                    </span>
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="token" className="flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5" />
-                      Personal access token
-                    </Label>
+                    <Label htmlFor="repoInput">Repository</Label>
                     <Input
-                      id="token"
-                      type="password"
-                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                      value={token}
-                      onChange={(e) => setToken(e.target.value)}
+                      id="repoInput"
+                      type="text"
+                      placeholder="https://github.com/owner/repo  or  owner/repo"
+                      value={repoInput}
+                      onChange={(e) => setRepoInput(e.target.value)}
+                      required
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Needs <code className="bg-muted px-1 rounded">repo</code>,{" "}
-                      <code className="bg-muted px-1 rounded">workflow</code>, and{" "}
-                      <code className="bg-muted px-1 rounded">
-                        admin:repo_hook
-                      </code>{" "}
-                      scopes.{" "}
-                      <a
-                        href={TOKEN_DOC_URL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline hover:text-foreground"
-                      >
-                        Generate one here
-                      </a>
-                      .
-                    </p>
                   </div>
+
+                  <Button type="submit" disabled={submitting} className="gap-2">
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Validating…
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        {isBootstrap ? "Connect repository" : "Add repository"}
+                      </>
+                    )}
+                  </Button>
                 </>
               )}
-
-              {error && (
-                <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
-                  {error}
-                </div>
-              )}
-
-              <Button type="submit" disabled={submitting} className="gap-2">
-                {submitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Validating…
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4" />
-                    {isBootstrap ? "Connect repository" : "Add repository"}
-                  </>
-                )}
-              </Button>
             </form>
           </CardContent>
         </Card>
