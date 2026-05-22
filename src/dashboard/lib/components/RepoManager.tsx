@@ -10,7 +10,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   CheckCircle2,
@@ -29,6 +29,11 @@ import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useAuth, type KodyRepoEntry } from "../auth-context";
+import {
+  clearPendingOAuth,
+  readPendingOAuth,
+  type PendingOAuth,
+} from "../auth/pending-oauth";
 
 const TOKEN_DOC_URL =
   "https://github.com/settings/tokens/new?description=Kody+Dashboard&scopes=repo,workflow,admin:repo_hook";
@@ -106,10 +111,21 @@ export function RepoManager() {
   const [token, setToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingOAuth, setPendingOAuth] = useState<PendingOAuth | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<{
     index: number;
     entry: KodyRepoEntry;
   } | null>(null);
+
+  // Pick up a GitHub App sign-in handed over by /auth/complete, and surface
+  // any error the callback redirected back with.
+  useEffect(() => {
+    setPendingOAuth(readPendingOAuth());
+    const oauthError = new URLSearchParams(window.location.search).get(
+      "oauth_error",
+    );
+    if (oauthError) setError(`Sign-in failed: ${oauthError}`);
+  }, []);
 
   // Empty-state mode: when `auth` is null this is the very first repo the user
   // is adding. The list section is skipped and `addRepo` bootstraps the entire
@@ -127,9 +143,10 @@ export function RepoManager() {
       );
       return;
     }
-    const trimmedToken = token.trim();
+    // Prefer the GitHub App sign-in token; fall back to a pasted PAT.
+    const trimmedToken = pendingOAuth?.token ?? token.trim();
     if (!trimmedToken) {
-      setError("Personal access token is required");
+      setError("Sign in with GitHub or paste a personal access token");
       return;
     }
 
@@ -164,6 +181,8 @@ export function RepoManager() {
 
       setRepoInput("");
       setToken("");
+      clearPendingOAuth();
+      setPendingOAuth(null);
       if (data.webhook.ok) {
         toast.success(`Added ${data.repository.fullName}`, {
           description: data.webhook.created
@@ -304,35 +323,66 @@ export function RepoManager() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="token" className="flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5" />
-                  Personal access token
-                </Label>
-                <Input
-                  id="token"
-                  type="password"
-                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  Needs <code className="bg-muted px-1 rounded">repo</code>,{" "}
-                  <code className="bg-muted px-1 rounded">workflow</code>, and{" "}
-                  <code className="bg-muted px-1 rounded">admin:repo_hook</code>{" "}
-                  scopes.{" "}
-                  <a
-                    href={TOKEN_DOC_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-foreground"
+              {pendingOAuth ? (
+                <div className="flex items-center gap-2 rounded border border-emerald-500/20 bg-emerald-500/10 p-2 text-sm">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  <span>
+                    Signed in as{" "}
+                    <strong>@{pendingOAuth.login}</strong>
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full gap-2"
+                    onClick={() => {
+                      window.location.href = "/api/auth/github/start";
+                    }}
                   >
-                    Generate one here
-                  </a>
-                  .
-                </p>
-              </div>
+                    <Github className="w-4 h-4" />
+                    Sign in with GitHub
+                  </Button>
+
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="h-px flex-1 bg-border" />
+                    or use a token
+                    <span className="h-px flex-1 bg-border" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="token" className="flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5" />
+                      Personal access token
+                    </Label>
+                    <Input
+                      id="token"
+                      type="password"
+                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                      value={token}
+                      onChange={(e) => setToken(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Needs <code className="bg-muted px-1 rounded">repo</code>,{" "}
+                      <code className="bg-muted px-1 rounded">workflow</code>, and{" "}
+                      <code className="bg-muted px-1 rounded">
+                        admin:repo_hook
+                      </code>{" "}
+                      scopes.{" "}
+                      <a
+                        href={TOKEN_DOC_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline hover:text-foreground"
+                      >
+                        Generate one here
+                      </a>
+                      .
+                    </p>
+                  </div>
+                </>
+              )}
 
               {error && (
                 <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
