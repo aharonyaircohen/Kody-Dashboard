@@ -1,18 +1,20 @@
 /**
- * Tests for the code-enforced pending-CTO-recommendation cap. The cto.md
- * worker is *told* to stop at 10 but counts by hand and drifts; this gate
- * makes the cap deterministic at the inbox-feed write point. Pure logic,
- * so it's exhaustively tested here.
+ * Tests for the code-enforced pending-recommendation cap. The staff personas
+ * are *told* to stop at 10 but count by hand and drift; this gate makes the
+ * cap deterministic at the inbox-feed write point. The cap is applied **per
+ * staff slug** so a chatty CTO can't crowd QA's recs out of the queue. Pure
+ * logic, so it's exhaustively tested here.
  */
 import { describe, expect, it } from "vitest";
 import {
   MAX_PENDING_CTO_RECS,
   countPendingCtoRecs,
+  countPendingByStaff,
   applyCtoBackpressure,
   ctoFeedKey,
 } from "@dashboard/lib/cto/backpressure";
 import {
-  ctoDecisionKey,
+  staffDecisionKey,
   type CtoLatestDecision,
 } from "@dashboard/lib/cto/decisions";
 import type { InboxFeedEntry } from "@dashboard/lib/inbox/feed";
@@ -31,7 +33,11 @@ function decidedFuture(
 
 const REPO = "acme/widgets";
 
-function ctoRec(taskNumber: number, action = "execute"): InboxFeedEntry {
+function rec(
+  taskNumber: number,
+  action = "execute",
+  staff = "cto",
+): InboxFeedEntry {
   return {
     id: `aguyaharonyair:https://github.com/${REPO}/issues/${taskNumber}#c${taskNumber}`,
     login: "aguyaharonyair",
@@ -39,11 +45,17 @@ function ctoRec(taskNumber: number, action = "execute"): InboxFeedEntry {
     repoFullName: REPO,
     threadType: "Issue",
     title: `Task ${taskNumber}`,
-    snippet: "CTO recommendation",
+    snippet: "recommendation",
     url: `https://github.com/${REPO}/issues/${taskNumber}#issuecomment-${taskNumber}`,
     sentAt: new Date(2026, 0, 1, 0, taskNumber).toISOString(),
     ctoAction: action,
+    ctoStaff: staff,
   };
+}
+
+/** CTO rec — keeps the original helper name for the unchanged-behaviour tests. */
+function ctoRec(taskNumber: number, action = "execute"): InboxFeedEntry {
+  return rec(taskNumber, action, "cto");
 }
 
 function plainMention(n: number): InboxFeedEntry {
@@ -63,14 +75,25 @@ function plainMention(n: number): InboxFeedEntry {
 const NO_DECISIONS: Record<string, CtoLatestDecision> = {};
 
 describe("ctoFeedKey", () => {
-  it("resolves a CTO rec entry to its task+action", () => {
-    expect(ctoFeedKey(ctoRec(42, "fix"))).toEqual({
+  it("resolves a rec entry to its staff+task+action", () => {
+    expect(ctoFeedKey(rec(42, "fix", "qa"))).toEqual({
+      staff: "qa",
       taskNumber: 42,
       action: "fix",
     });
   });
 
-  it("returns null for a plain (non-CTO) mention", () => {
+  it("defaults a rec with no ctoStaff to the CTO slug", () => {
+    const e = { ...ctoRec(42, "fix") };
+    delete e.ctoStaff;
+    expect(ctoFeedKey(e)).toEqual({
+      staff: "cto",
+      taskNumber: 42,
+      action: "fix",
+    });
+  });
+
+  it("returns null for a plain (non-rec) mention", () => {
     expect(ctoFeedKey(plainMention(7))).toBeNull();
   });
 
@@ -80,31 +103,47 @@ describe("ctoFeedKey", () => {
   });
 });
 
-describe("countPendingCtoRecs", () => {
-  it("counts only undecided CTO recs", () => {
+describe("countPendingCtoRecs / countPendingByStaff", () => {
+  it("counts only undecided recs (total)", () => {
     const entries = [ctoRec(1), ctoRec(2), plainMention(3), ctoRec(4)];
     expect(countPendingCtoRecs(entries, NO_DECISIONS)).toBe(3);
   });
 
+  it("buckets pending counts by staff slug", () => {
+    const entries = [
+      rec(1, "execute", "cto"),
+      rec(2, "execute", "cto"),
+      rec(3, "fix", "qa"),
+      plainMention(4),
+    ];
+    const byStaff = countPendingByStaff(entries, NO_DECISIONS);
+    expect(byStaff.get("cto")).toBe(2);
+    expect(byStaff.get("qa")).toBe(1);
+  });
+
   it("excludes recs whose verdict is newer than the rec (settles this rec)", () => {
-    // Recs are minted with sentAt in early-2026; verdictFuture is 2099 so it
-    // post-dates them — i.e. the operator settled THIS rec.
     const decidedMap: Record<string, CtoLatestDecision> = {
-      [ctoDecisionKey(1, "execute")]: decidedFuture("approve"),
-      [ctoDecisionKey(4, "execute")]: decidedFuture("reject"),
+      [staffDecisionKey("cto", 1, "execute")]: decidedFuture("approve"),
+      [staffDecisionKey("cto", 4, "execute")]: decidedFuture("reject"),
     };
     const entries = [ctoRec(1), ctoRec(2), ctoRec(4)];
     expect(countPendingCtoRecs(entries, decidedMap)).toBe(1);
   });
 
   it("ignores stale verdicts that pre-date the rec (still pending)", () => {
-    // The verdict was recorded in 2025 — but the rec arrived in 2026.
-    // That verdict belonged to an earlier rec for the same (task, action);
-    // today's rec is fresh and must still count as pending.
     const stale: Record<string, CtoLatestDecision> = {
-      [ctoDecisionKey(1, "execute")]: decided("dismiss"),
+      [staffDecisionKey("cto", 1, "execute")]: decided("dismiss"),
     };
     expect(countPendingCtoRecs([ctoRec(1)], stale)).toBe(1);
+  });
+
+  it("a verdict for a DIFFERENT staff member doesn't settle this rec", () => {
+    // A future-dated verdict exists, but under the QA slug — the CTO's rec on
+    // the same task+action must still count as pending.
+    const decidedMap: Record<string, CtoLatestDecision> = {
+      [staffDecisionKey("qa", 1, "execute")]: decidedFuture("approve"),
+    };
+    expect(countPendingCtoRecs([rec(1, "execute", "cto")], decidedMap)).toBe(1);
   });
 });
 
@@ -121,7 +160,7 @@ describe("applyCtoBackpressure", () => {
     expect(withheld).toHaveLength(0);
   });
 
-  it("admits CTO recs only up to the headroom", () => {
+  it("admits recs only up to that staff member's headroom", () => {
     const current = Array.from({ length: 8 }, (_, i) => ctoRec(i + 1));
     const incoming = [ctoRec(101), ctoRec(102), ctoRec(103), ctoRec(104)];
     const { admitted, withheld } = applyCtoBackpressure(
@@ -129,12 +168,12 @@ describe("applyCtoBackpressure", () => {
       incoming,
       NO_DECISIONS,
     );
-    expect(admitted).toHaveLength(2); // 10 - 8 pending
+    expect(admitted).toHaveLength(2); // 10 - 8 pending (cto)
     expect(withheld).toHaveLength(2);
     expect(withheld.map((e) => ctoFeedKey(e)?.taskNumber)).toEqual([103, 104]);
   });
 
-  it("withholds everything when already at the cap", () => {
+  it("withholds everything when that staff member is already at the cap", () => {
     const current = Array.from({ length: MAX_PENDING_CTO_RECS }, (_, i) =>
       ctoRec(i + 1),
     );
@@ -147,15 +186,32 @@ describe("applyCtoBackpressure", () => {
     expect(withheld).toHaveLength(1);
   });
 
+  it("a full CTO queue does NOT block QA's recs (per-staff budgets)", () => {
+    // CTO is at its cap; QA has an empty queue — QA's recs must still flow.
+    const current = Array.from({ length: MAX_PENDING_CTO_RECS }, (_, i) =>
+      rec(i + 1, "execute", "cto"),
+    );
+    const incoming = [
+      rec(200, "execute", "cto"), // CTO — withheld (cap full)
+      rec(201, "fix", "qa"), // QA — admitted (own budget)
+      rec(202, "fix", "qa"), // QA — admitted
+    ];
+    const { admitted, withheld } = applyCtoBackpressure(
+      current,
+      incoming,
+      NO_DECISIONS,
+    );
+    expect(admitted.map((e) => ctoFeedKey(e)?.staff)).toEqual(["qa", "qa"]);
+    expect(withheld.map((e) => ctoFeedKey(e)?.staff)).toEqual(["cto"]);
+  });
+
   it("frees a slot once the operator decides — the queue drains", () => {
     const current = Array.from({ length: MAX_PENDING_CTO_RECS }, (_, i) =>
       ctoRec(i + 1),
     );
-    // Verdicts dated in the future relative to ctoRec's sentAt → bind to
-    // the current recs and drain those two slots.
     const decidedMap: Record<string, CtoLatestDecision> = {
-      [ctoDecisionKey(1, "execute")]: decidedFuture("approve"),
-      [ctoDecisionKey(2, "execute")]: decidedFuture("reject"),
+      [staffDecisionKey("cto", 1, "execute")]: decidedFuture("approve"),
+      [staffDecisionKey("cto", 2, "execute")]: decidedFuture("reject"),
     };
     const { admitted, withheld } = applyCtoBackpressure(
       current,
@@ -167,27 +223,22 @@ describe("applyCtoBackpressure", () => {
   });
 
   it("a stale dismiss does NOT free a slot — fresh re-post still counts as pending", () => {
-    // Operator dismissed an old sync rec on PR #1 yesterday; today the
-    // pr-health job re-posted a fresh sync rec on PR #1. The new rec must
-    // hold its slot until the operator decides AGAIN.
     const current = Array.from({ length: MAX_PENDING_CTO_RECS - 1 }, (_, i) =>
       ctoRec(i + 1),
     );
     const stale: Record<string, CtoLatestDecision> = {
-      [ctoDecisionKey(1, "execute")]: decided("dismiss"),
+      [staffDecisionKey("cto", 1, "execute")]: decided("dismiss"),
     };
     const { admitted, withheld } = applyCtoBackpressure(
       current,
       [ctoRec(200), ctoRec(201)],
       stale,
     );
-    // Only one headroom slot (9 pending in current, stale dismiss does
-    // not free PR #1) → first new rec admitted, second withheld.
     expect(admitted).toHaveLength(1);
     expect(withheld).toHaveLength(1);
   });
 
-  it("lets mixed traffic through: mentions pass, recs gated", () => {
+  it("lets mixed traffic through: mentions pass, recs gated per staff", () => {
     const current = Array.from({ length: 9 }, (_, i) => ctoRec(i + 1));
     const incoming = [
       plainMention(50),

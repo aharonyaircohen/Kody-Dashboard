@@ -170,7 +170,7 @@ describe("cto-decisions · no-noop + cached read", () => {
         action: "execute",
         decision: "approve",
       });
-      return { next, result: next.actions.execute.approvals };
+      return { next, result: next.staff.cto.execute.approvals };
     });
     // No `kind` discriminant — it's the outcome shape directly.
     expect(out).toMatchObject({ result: 1, issueNumber: 101 });
@@ -185,7 +185,7 @@ describe("cto-decisions · no-noop + cached read", () => {
     });
     wire(serializeCtoDecisionsBody(m));
     const ledger = await readCtoDecisions();
-    expect(ledger.actions.execute.approvals).toBe(1);
+    expect(ledger.staff.cto.execute.approvals).toBe(1);
     expect(mFetchIssues).toHaveBeenCalledWith(
       expect.not.objectContaining({ noCache: true }),
     );

@@ -18,12 +18,17 @@
  *   against, and are limited by, the cap.
  */
 import type { InboxFeedEntry } from "../inbox/feed";
-import { ctoDecisionKey, type CtoLatestDecision } from "./decisions";
+import {
+  staffDecisionKey,
+  DEFAULT_STAFF_SLUG,
+  type CtoLatestDecision,
+} from "./decisions";
 
 /**
- * Hard ceiling on undecided CTO recommendations visible in the inbox at
- * once. Mirrors the "at most 10 pending" rule in `.kody/staff/cto.md`,
- * but enforced here so it actually holds.
+ * Hard ceiling on undecided recommendations visible in the inbox at once,
+ * applied **per staff member** — a chatty CTO can't crowd QA's recs out of
+ * the operator's queue. Mirrors the "at most 10 pending" rule in
+ * `.kody/staff/*.md`, but enforced here so it actually holds.
  */
 export const MAX_PENDING_CTO_RECS = 10;
 
@@ -36,17 +41,22 @@ function issueNumberFromUrl(url: string): number | null {
 }
 
 /**
- * The `(taskNumber, action)` a CTO recommendation feed entry decides on, or
- * `null` when the entry is not a resolvable CTO recommendation (a plain
- * mention, or a marker comment whose verb/issue we can't recover).
+ * The `(staff, taskNumber, action)` a recommendation feed entry decides on,
+ * or `null` when the entry is not a resolvable recommendation (a plain
+ * mention, or a marker comment whose verb/issue we can't recover). Legacy
+ * entries with no `ctoStaff` default to the CTO slug.
  */
 export function ctoFeedKey(
   entry: InboxFeedEntry,
-): { taskNumber: number; action: string } | null {
+): { staff: string; taskNumber: number; action: string } | null {
   if (!entry.ctoAction) return null;
   const taskNumber = issueNumberFromUrl(entry.url);
   if (taskNumber === null) return null;
-  return { taskNumber, action: entry.ctoAction };
+  return {
+    staff: entry.ctoStaff ?? DEFAULT_STAFF_SLUG,
+    taskNumber,
+    action: entry.ctoAction,
+  };
 }
 
 /**
@@ -64,7 +74,7 @@ function isPending(
 ): boolean {
   const key = ctoFeedKey(entry);
   if (!key) return false;
-  const v = decided[ctoDecisionKey(key.taskNumber, key.action)];
+  const v = decided[staffDecisionKey(key.staff, key.taskNumber, key.action)];
   if (!v) return true;
   const sent = Date.parse(entry.sentAt);
   const at = Date.parse(v.at);
@@ -75,9 +85,28 @@ function isPending(
 }
 
 /**
- * How many CTO recommendations already sit in the feed undecided. `decided`
- * is `latestCtoDecisions(ledger)` — the latest verdict per task+action,
- * with the timestamp it was recorded so we can scope to the *current* rec.
+ * Undecided recommendations already in the feed, counted **per staff slug**.
+ * `decided` is `latestCtoDecisions(ledger)` — the latest verdict per
+ * staff+task+action, with the timestamp it was recorded so we can scope to
+ * the *current* rec.
+ */
+export function countPendingByStaff(
+  entries: InboxFeedEntry[],
+  decided: Record<string, CtoLatestDecision>,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const e of entries) {
+    if (!isPending(e, decided)) continue;
+    const key = ctoFeedKey(e);
+    if (!key) continue;
+    counts.set(key.staff, (counts.get(key.staff) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Total undecided recommendations across all staff. Retained for logging /
+ * back-compat; the cap itself is enforced per-staff via `countPendingByStaff`.
  */
 export function countPendingCtoRecs(
   entries: InboxFeedEntry[],
@@ -87,10 +116,12 @@ export function countPendingCtoRecs(
 }
 
 /**
- * Split `incoming` into the entries that may be appended now and the CTO
- * recommendations withheld because the operator's queue is already full.
- * Non-CTO entries always pass. CTO recommendations are admitted oldest-first
- * only up to the remaining headroom (`MAX_PENDING_CTO_RECS - current`).
+ * Split `incoming` into the entries that may be appended now and the
+ * recommendations withheld because that staff member's queue is already full.
+ * Non-recommendation entries always pass. Recommendations are admitted
+ * oldest-first up to each staff member's own remaining headroom
+ * (`MAX_PENDING_CTO_RECS - that staff's pending count`), so one noisy staff
+ * member can't starve another's queue.
  *
  * Pure — never mutates its inputs (immutability rule).
  */
@@ -99,18 +130,20 @@ export function applyCtoBackpressure(
   incoming: InboxFeedEntry[],
   decided: Record<string, CtoLatestDecision>,
 ): { admitted: InboxFeedEntry[]; withheld: InboxFeedEntry[] } {
-  let headroom = MAX_PENDING_CTO_RECS - countPendingCtoRecs(current, decided);
+  const pending = countPendingByStaff(current, decided);
   const admitted: InboxFeedEntry[] = [];
   const withheld: InboxFeedEntry[] = [];
 
   for (const entry of incoming) {
-    if (!ctoFeedKey(entry)) {
-      admitted.push(entry); // not a CTO rec — never gated
+    const key = ctoFeedKey(entry);
+    if (!key) {
+      admitted.push(entry); // not a recommendation — never gated
       continue;
     }
-    if (headroom > 0) {
+    const used = pending.get(key.staff) ?? 0;
+    if (used < MAX_PENDING_CTO_RECS) {
       admitted.push(entry);
-      headroom -= 1;
+      pending.set(key.staff, used + 1);
     } else {
       withheld.push(entry);
     }

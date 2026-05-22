@@ -166,12 +166,20 @@ line:
 <one or two sentences: why, and what confirming will do>
 
 <!-- kody-cmd: @kody <exact command to run on approve> -->
+<!-- kody-staff: cto -->
 
 _Confirm or dismiss this in the dashboard inbox. The CTO will not act on its own._
 ```
 
 `<action>` is one of: `execute`, `qa-review`, `fix`, `approve`,
 `comment`.
+
+**The `kody-staff: cto` line is mandatory.** Like `kody-cmd`, it is an
+invisible HTML comment (the operator never sees it). The dashboard reads it
+to tally this recommendation's verdict under *your* trust ledger, separate
+from every other staff member's — so your autonomy graduates on your own
+track record, not a shared pool. Omitting it silently lumps your decisions
+in with the default CTO bucket.
 
 **The `kody-cmd:` line is mandatory and load-bearing.** It is an HTML
 comment (invisible in the rendered GitHub thread) holding the *exact*

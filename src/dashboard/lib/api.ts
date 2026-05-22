@@ -1501,15 +1501,18 @@ export const vibeApi = {
  */
 export const ctoApi = {
   decide: async (input: {
+    /** Emitting staff slug; scopes the trust ledger per staff (default "cto"). */
+    staff?: string;
     taskNumber: number;
     action?: import("./cto/recommendation").CtoAction;
     decision: "approve" | "reject" | "dismiss";
     actorLogin?: string;
-    /** The exact `@kody …` command from the CTO's `kody-cmd` line. */
+    /** The exact `@kody …` command from the staff member's `kody-cmd` line. */
     command?: string;
   }): Promise<{
     ok: true;
     executed: boolean;
+    staff: string;
     action: string;
     decision: "approve" | "reject" | "dismiss";
     stats: {
@@ -1528,11 +1531,11 @@ export const ctoApi = {
   },
 
   /**
-   * Latest verdict per `${taskNumber}:${action}` from the trust ledger,
-   * carrying the timestamp it was recorded so the inbox can scope the
+   * Latest verdict per `${staff}:${taskNumber}:${action}` from the trust
+   * ledger, carrying the timestamp it was recorded so the inbox can scope the
    * badge to recs that pre-date the decision (a dismiss on yesterday's
    * `sync` rec must not silently dismiss today's fresh one). Used by
-   * `verdictFor(taskNumber, action, sinceIso)`.
+   * `verdictFor(staff, taskNumber, action, sinceIso)`.
    */
   decisions: async (): Promise<{
     decided: Record<
@@ -1689,6 +1692,53 @@ export const kodyBugsApi = {
   },
 };
 
+// ============ Company import/export API ============
+
+import type {
+  CompanyBundle,
+  CompanyImportMode,
+  CompanyImportResult,
+} from "./company/types";
+import type { CompanyMigrationResult } from "./company/migrate";
+
+export const companyApi = {
+  /** Export the connected repo's staff/duties/prompts/instructions bundle. */
+  export: async (): Promise<CompanyBundle> => {
+    const res = await fetch(`${API_BASE}/company`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    const data = await handleResponse<{ bundle: CompanyBundle }>(res);
+    return data.bundle;
+  },
+
+  /** Apply an uploaded bundle to the connected repo. */
+  import: async (
+    bundle: CompanyBundle,
+    mode: CompanyImportMode,
+    actorLogin?: string,
+  ): Promise<CompanyImportResult> => {
+    const res = await fetch(`${API_BASE}/company`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({ bundle, mode, ...(actorLogin && { actorLogin }) }),
+    });
+    const data = await handleResponse<{ result: CompanyImportResult }>(res);
+    return data.result;
+  },
+
+  /** One-time legacy folder migration (.kody/jobs|workers → duties|staff). */
+  migrate: async (actorLogin?: string): Promise<CompanyMigrationResult> => {
+    const res = await fetch(`${API_BASE}/company/migrate`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({ ...(actorLogin && { actorLogin }) }),
+    });
+    const data = await handleResponse<{ result: CompanyMigrationResult }>(res);
+    return data.result;
+  },
+};
+
 // ============ Combined API ============
 
 export const kodyApi = {
@@ -1702,6 +1752,7 @@ export const kodyApi = {
   remote: remoteApi,
   duties: dutiesApi,
   staff: staffApi,
+  company: companyApi,
   reports: reportsApi,
   goals: goalsApi,
   messages: messagesApi,

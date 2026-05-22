@@ -235,13 +235,13 @@ describe.skipIf(!enabled)("manifest helpers · COMPLETE live verification", () =
         action,
         decision: "approve",
       });
-      return { next, result: next.actions[action].approvals };
+      return { next, result: next.staff.cto[action].approvals };
     });
     expect(out.result).toBe(1);
     expect("kind" in out).toBe(false); // never a noop union
 
     const ledger = await readCtoDecisions();
-    expect(ledger.actions[action]?.approvals).toBe(1);
+    expect(ledger.staff.cto[action]?.approvals).toBe(1);
   }, 90_000);
 
   it("inbox-feed: append adds; dup append returns 0; empty returns 0", async () => {

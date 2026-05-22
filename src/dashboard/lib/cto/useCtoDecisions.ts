@@ -4,7 +4,7 @@
  * @domain kody
  * @pattern cto-decisions-client
  * @ai-summary TanStack Query binding over GET /api/kody/cto/decision.
- *   Exposes the latest verdict per `${taskNumber}:${action}` plus a
+ *   Exposes the latest verdict per `${staff}:${taskNumber}:${action}` plus a
  *   typed lookup so the inbox can show a verdict badge instead of
  *   Approve/Reject once a recommendation was decided on any device.
  *
@@ -24,7 +24,7 @@ import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth-context";
 import { kodyApi } from "../api";
-import { ctoDecisionKey, type CtoLatestDecision } from "./decisions";
+import { staffDecisionKey, type CtoLatestDecision } from "./decisions";
 import type { CtoActionable } from "./recommendation";
 
 export const ctoDecisionsQueryKey = (owner?: string, repo?: string) =>
@@ -39,6 +39,7 @@ export interface UseCtoDecisionsResult {
    * BEFORE this rec was posted is not applied to it.
    */
   verdictFor: (
+    staff: string,
     taskNumber: number,
     action: CtoActionable,
     sinceIso?: string,
@@ -64,8 +65,8 @@ export function useCtoDecisions(): UseCtoDecisionsResult {
   const decided = useMemo(() => query.data ?? {}, [query.data]);
 
   return {
-    verdictFor: (taskNumber, action, sinceIso) => {
-      const v = decided[ctoDecisionKey(taskNumber, action)];
+    verdictFor: (staff, taskNumber, action, sinceIso) => {
+      const v = decided[staffDecisionKey(staff, taskNumber, action)];
       if (!v) return null;
       if (sinceIso) {
         const since = Date.parse(sinceIso);

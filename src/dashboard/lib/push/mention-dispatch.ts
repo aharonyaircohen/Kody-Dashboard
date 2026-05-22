@@ -24,7 +24,11 @@ import type { PushSubscriptionRecord } from "../push";
 import { appendInboxFeed, readInboxFeed } from "../inbox/feed-server";
 import { feedEntryId, type InboxFeedEntry } from "../inbox/feed";
 import { buildSnippet } from "../inbox/types";
-import { parseCtoAction, parseCtoCommand } from "../cto/recommendation";
+import {
+  parseCtoAction,
+  parseCtoCommand,
+  parseCtoStaff,
+} from "../cto/recommendation";
 import { readCtoDecisions } from "../cto/decisions-server";
 import { latestCtoDecisions } from "../cto/decisions";
 import { applyCtoBackpressure } from "../cto/backpressure";
@@ -379,6 +383,7 @@ async function recordInboxFeed(
   // the snippet collapses them to `[code]` and loses it.
   const ctoAction = parseCtoAction(ev.body ?? "");
   const ctoCommand = parseCtoCommand(ev.body ?? "");
+  const ctoStaff = parseCtoStaff(ev.body ?? "");
   const entries: InboxFeedEntry[] = mentions.map((login) => ({
     id: feedEntryId(login, url),
     login,
@@ -392,6 +397,7 @@ async function recordInboxFeed(
     sentAt,
     ...(ctoAction ? { ctoAction } : {}),
     ...(ctoCommand ? { ctoCommand } : {}),
+    ...(ctoStaff ? { ctoStaff } : {}),
   }));
 
   setGitHubContext(owner, repo, token);

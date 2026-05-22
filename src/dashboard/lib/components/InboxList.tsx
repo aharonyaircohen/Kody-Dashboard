@@ -116,6 +116,7 @@ interface RowProps {
   onDelete: () => void;
   onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
   verdictFor: (
+    staff: string,
     taskNumber: number,
     action: CtoAction,
     sinceIso?: string,
@@ -164,7 +165,7 @@ function Row({
   // this fresh one. Without the gate every re-post of a sync/fix-ci rec
   // shows pre-stamped Dismissed once any past rec for that PR was dismissed.
   const ctoVerdict = cto
-    ? verdictFor(cto.taskNumber, cto.action, entry.sentAt)
+    ? verdictFor(cto.staff, cto.taskNumber, cto.action, entry.sentAt)
     : null;
   const [ctoBusy, setCtoBusy] = useState<CtoVerdict | null>(null);
 
@@ -472,6 +473,7 @@ export function InboxList() {
     if (!rec) return;
     try {
       const res = await kodyApi.cto.decide({
+        staff: rec.staff,
         taskNumber: rec.taskNumber,
         action: rec.action,
         ...(rec.command ? { command: rec.command } : {}),
@@ -659,7 +661,12 @@ export function InboxList() {
             <CtoDialogActions
               action={rec.action}
               dispatchable={rec.dispatchable}
-              verdict={verdictFor(rec.taskNumber, rec.action, activeEntry.sentAt)}
+              verdict={verdictFor(
+                rec.staff,
+                rec.taskNumber,
+                rec.action,
+                activeEntry.sentAt,
+              )}
               githubUrl={activeEntry.url}
               onDecide={(v) => handleCtoDecision(activeEntry, v)}
             />
@@ -796,6 +803,7 @@ interface SectionProps {
   onDelete: (id: string) => void;
   onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
   verdictFor: (
+    staff: string,
     taskNumber: number,
     action: CtoAction,
     sinceIso?: string,

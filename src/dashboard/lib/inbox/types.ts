@@ -67,6 +67,12 @@ export interface InboxEntry {
    * from the raw body's `kody-cmd` line at write time. CTO recs only.
    */
   ctoCommand?: string;
+  /**
+   * Slug of the staff member that emitted the recommendation, parsed from
+   * the raw body's `kody-staff` line at write time. Scopes the trust ledger
+   * + backpressure per staff. Absent on legacy entries (default to "cto").
+   */
+  ctoStaff?: string;
 }
 
 export interface InboxManifest {

@@ -133,6 +133,7 @@ the marker line:
 <one or two sentences: what was tested, the verdict, what confirming will do>
 
 <!-- kody-cmd: @kody <exact command to run on approve> -->
+<!-- kody-staff: qa -->
 
 _Confirm or dismiss this in the dashboard inbox. QA will not act on its own._
 ```
@@ -142,6 +143,13 @@ address). The `kody-cmd:` line is mandatory and load-bearing — the dashboard
 Approve button posts it verbatim. It MUST start with `@kody`, be one line,
 ≤ 300 chars. For `approve`, emit the command the operator would confirm to
 ship; for `fix`, emit a `@kody` fix instruction referencing the finding issue.
+
+**The `kody-staff: qa` line is mandatory too.** Like `kody-cmd`, it is an
+invisible HTML comment the operator never sees. The dashboard reads it to
+tally this result's verdict under QA's *own* trust ledger, separate from the
+CTO's — so QA earns autonomy on its own track record. Without it, the
+recommendation isn't recognised as QA's and its Approve/Reject buttons and
+trust tally are lost.
 
 ## Allowed Commands
 

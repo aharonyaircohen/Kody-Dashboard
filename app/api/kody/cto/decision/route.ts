@@ -44,7 +44,11 @@ import {
   mutateCtoDecisions,
   readCtoDecisions,
 } from "@dashboard/lib/cto/decisions-server";
-import { applyDecision, latestCtoDecisions } from "@dashboard/lib/cto/decisions";
+import {
+  applyDecision,
+  latestCtoDecisions,
+  DEFAULT_STAFF_SLUG,
+} from "@dashboard/lib/cto/decisions";
 import {
   CTO_ACTIONS,
   isDispatchable,
@@ -55,6 +59,16 @@ const bodySchema = z.object({
   taskNumber: z.number().int().positive(),
   action: z.enum(CTO_ACTIONS).default("execute"),
   decision: z.enum(["approve", "reject", "dismiss"]),
+  /**
+   * Slug of the staff member whose rec this verdict decides. Scopes the trust
+   * ledger per staff. Defaults to the CTO so legacy clients (which don't send
+   * it) keep landing under the CTO's ledger slice.
+   */
+  staff: z
+    .string()
+    .max(40)
+    .regex(/^[a-z0-9][a-z0-9-]*$/i)
+    .default(DEFAULT_STAFF_SLUG),
   actorLogin: z.string().optional(),
   /**
    * The exact `@kody …` command to post on approve, as parsed from the
@@ -89,7 +103,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "bad_json" }, { status: 400 });
     }
 
-    const { taskNumber, action, decision, actorLogin } = payload;
+    const { taskNumber, action, decision, actorLogin, staff } = payload;
     const requested = payload.command?.trim();
 
     if (actorLogin) {
@@ -128,6 +142,7 @@ export async function POST(req: NextRequest) {
     const { manifest } = await mutateCtoDecisions(
       (current) => ({
         next: applyDecision(current, {
+          staff,
           taskNumber,
           action,
           decision,
@@ -141,9 +156,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       executed,
+      staff,
       action,
       decision,
-      stats: manifest.actions[action] ?? null,
+      stats: manifest.staff[staff]?.[action] ?? null,
     });
   } catch (err: unknown) {
     const message =

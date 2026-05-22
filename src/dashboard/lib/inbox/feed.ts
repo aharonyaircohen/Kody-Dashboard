@@ -48,10 +48,12 @@ export interface InboxFeedEntry {
   url: string;
   /** ISO timestamp the webhook produced this entry. */
   sentAt: string;
-  /** CTO action verb parsed from the raw comment body (CTO recs only). */
+  /** Action verb parsed from the raw comment body (recs only). */
   ctoAction?: string;
   /** Exact `@kody …` command from the raw body's `kody-cmd` line. */
   ctoCommand?: string;
+  /** Emitting staff slug from the raw body's `kody-staff` line (recs only). */
+  ctoStaff?: string;
 }
 
 export interface InboxFeedManifest {
@@ -124,21 +126,24 @@ export function feedEntryId(login: string, url: string): string {
 }
 
 /**
- * Collapse key for a CTO recommendation entry: `(login, repo, task#)`.
- * The CTO re-posts a fresh recommendation *comment* for the same task every
- * tick — each has a unique comment URL, so id-dedup can't catch it and the
- * inbox grows without bound. Keying recs by the *task* they're about (not
+ * Collapse key for a recommendation entry: `(login, repo, staff, task#)`.
+ * A staff member re-posts a fresh recommendation *comment* for the same task
+ * every tick — each has a unique comment URL, so id-dedup can't catch it and
+ * the inbox grows without bound. Keying recs by the *task* they're about (not
  * which comment carried them, and deliberately NOT the action verb — the
- * parsed verb drifts across re-posts and cto.md guarantees one live rec per
- * task) lets the newest rec supersede every prior one for that task.
- * Returns null for anything without `ctoAction` (not a recommendation) — it
- * keeps plain id-dedup, so every distinct mention is its own entry.
+ * parsed verb drifts across re-posts and each persona guarantees one live rec
+ * per task) lets the newest rec supersede every prior one for that task. The
+ * **staff slug is part of the key** so a CTO rec and a QA rec on the same task
+ * stay distinct instead of one clobbering the other. Returns null for anything
+ * without `ctoAction` (not a recommendation) — it keeps plain id-dedup, so
+ * every distinct mention is its own entry.
  */
 export function ctoFeedKey(entry: {
   login?: string;
   repoFullName: string;
   url: string;
   ctoAction?: string;
+  ctoStaff?: string;
   title?: string;
   snippet?: string;
 }): string | null {
@@ -154,7 +159,9 @@ export function ctoFeedKey(entry: {
   const m = entry.url.match(/\/(?:issues|pull|discussions)\/(\d+)/);
   if (!m) return null;
   // The shared feed mixes logins, so it scopes the key by login; a
-  // per-user gist is already single-login and omits it.
+  // per-user gist is already single-login and omits it. Legacy entries with
+  // no slug collapse under "cto" — they were all the CTO's.
   const prefix = entry.login ? `${entry.login}:` : "";
-  return `${prefix}${entry.repoFullName.toLowerCase()}:${m[1]}`;
+  const staff = entry.ctoStaff ?? "cto";
+  return `${prefix}${entry.repoFullName.toLowerCase()}:${staff}:${m[1]}`;
 }

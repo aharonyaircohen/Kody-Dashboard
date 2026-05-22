@@ -3,11 +3,15 @@
  * @domain kody
  * @pattern cto-recommendation-detect
  * @ai-summary Pure detector: given an inbox entry, decide whether it is a
- *   CTO recommendation and, if so, extract the task number + the *actual*
- *   action the CTO named. The CTO staff member leads every recommendation comment
- *   with `🧭 **CTO recommendation** — \`<action>\`` (see .kody/staff/cto.md);
- *   the inbox snippet has code fences stripped, so we match the prose marker
- *   and read the verb that follows it — never defaulting to `execute`.
+ *   staff recommendation and, if so, extract the emitting staff slug, the
+ *   task number, and the *actual* action named. Every staff member leads its
+ *   recommendation comment with a prose marker (`🧭 **CTO recommendation** —
+ *   \`<action>\``, `🧪 **QA result** — \`<action>\``, …) AND a machine-readable
+ *   `<!-- kody-staff: <slug> -->` HTML comment (see .kody/staff/*.md). The
+ *   slug line is the deterministic identity signal — it survives any persona's
+ *   wording and is stripped from the inbox snippet (buildSnippet drops HTML
+ *   comments), so the operator never sees it. Legacy recs that predate the
+ *   slug line fall back to the CTO marker and default to the `cto` slug.
  *
  *   Only `execute`/`fix` are *dispatchable* from the dashboard: both resolve
  *   to the engine's single write path (an `@kody` comment on the task — for
@@ -17,6 +21,7 @@
  *   approving can never silently post the wrong command.
  */
 import type { InboxEntry } from "../inbox/types";
+import { DEFAULT_STAFF_SLUG } from "./decisions";
 
 /**
  * Every action the CTO staff member may emit (see cto.md "Restrictions"), plus
@@ -75,6 +80,18 @@ export function parseCtoCommand(rawBody: string): string | null {
   return cmd;
 }
 
+/**
+ * Read the emitting staff slug from a rec's `<!-- kody-staff: <slug> -->`
+ * line — the deterministic identity signal every staff persona now writes
+ * (sibling to `kody-cmd`). Slugs are lowercase `[a-z0-9-]`. Returns null when
+ * absent (legacy recs predate the line; the caller defaults them to the CTO).
+ * The HTML comment is stripped from the inbox snippet, so it's never shown.
+ */
+export function parseCtoStaff(rawBody: string): string | null {
+  const m = rawBody.match(/<!--\s*kody-staff:\s*([a-z0-9][a-z0-9-]*)\s*-->/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
 export function isDispatchable(action: CtoAction): boolean {
   return action in FALLBACK_COMMAND;
 }
@@ -85,6 +102,8 @@ export function dispatchCommand(action: CtoAction): string | null {
 }
 
 export interface CtoRecommendation {
+  /** Slug of the staff member that emitted the rec (legacy → "cto"). */
+  staff: string;
   taskNumber: number;
   action: CtoAction;
   /** The exact `@kody …` command Approve will post, or null if none. */
@@ -136,14 +155,15 @@ function parseAction(haystack: string): CtoAction | null {
 }
 
 /**
- * Parse the CTO action from a *raw* comment body (backticks intact) at
- * inbox-write time. This is the reliable path: the 240-char plain-text
- * snippet collapses backtick spans to `[code]`, so the verb on the marker
- * line is often gone by the time the client sees it. Returns null when the
- * body isn't a CTO recommendation. Stored on the entry as `ctoAction`.
+ * Parse the recommendation action from a *raw* comment body (backticks
+ * intact) at inbox-write time. This is the reliable path: the 240-char
+ * plain-text snippet collapses backtick spans to `[code]`, so the verb on the
+ * marker line is often gone by the time the client sees it. A body is a
+ * recommendation if it carries the explicit `kody-staff` line (any persona)
+ * OR the legacy CTO marker. Returns null otherwise. Stored as `ctoAction`.
  */
 export function parseCtoAction(rawBody: string): CtoAction | null {
-  if (!MARKER.test(rawBody)) return null;
+  if (!parseCtoStaff(rawBody) && !MARKER.test(rawBody)) return null;
   // Marker present ⇒ it IS a recommendation. Mirror detectCtoRecommendation:
   // an unrecoverable verb is `other` (non-dispatchable), never null. If this
   // returned null the entry would carry no `ctoAction`, and BOTH the pending
@@ -226,5 +246,9 @@ export function detectCtoRecommendation(
       ? stored
       : (dispatchCommand(action) ?? null);
 
-  return { taskNumber, action, command, dispatchable: command !== null };
+  // Staff slug parsed at write time wins; legacy entries (CTO marker, no
+  // slug line) default to the CTO so their trust keeps accruing under `cto`.
+  const staff = entry.ctoStaff ?? DEFAULT_STAFF_SLUG;
+
+  return { staff, taskNumber, action, command, dispatchable: command !== null };
 }

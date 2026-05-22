@@ -8,9 +8,11 @@
  *   here. Kept separate from the engine-owned `.kody/staff/cto.state.json`
  *   so dashboard decisions and engine tick-state never race or co-mingle.
  *
- *   Phase 1 only writes it. Phase 2 (graduation) has the CTO read
- *   `actions[<action>].consecutiveApprovals` each tick and flip an action
- *   from "ask" to "auto" once it clears a threshold with zero rejections.
+ *   Phase 1 only writes it. Phase 2 (graduation) has each staff member read
+ *   `staff[<slug>][<action>].consecutiveApprovals` each tick and flip an
+ *   action from "ask" to "auto" once it clears a threshold with zero
+ *   rejections. Trust is per-staff: one staff member graduating an action
+ *   never grants another staff member autonomy on the same verb.
  *
  *   Serialization mirrors push.ts: a JSON block fenced between two HTML
  *   comment markers in the issue body.
@@ -44,7 +46,14 @@ const MANIFEST_END = "<!-- kody-cto-decisions:end -->";
 export type CtoDecision = "approve" | "reject" | "dismiss";
 export type CtoActionMode = "ask" | "auto";
 
-export interface CtoActionStats {
+/**
+ * Staff slug a verdict belongs to when none is recorded. Every rec written
+ * before the ledger gained a staff dimension was the CTO's, so legacy
+ * manifests + log entries migrate under this slug.
+ */
+export const DEFAULT_STAFF_SLUG = "cto";
+
+export interface StaffActionStats {
   approvals: number;
   rejections: number;
   /** Resets to 0 on any reject. Drives Phase 2 graduation. */
@@ -53,7 +62,12 @@ export interface CtoActionStats {
   mode: CtoActionMode;
 }
 
+/** Back-compat alias — the stats shape is staff-agnostic. */
+export type CtoActionStats = StaffActionStats;
+
 export interface CtoDecisionLogEntry {
+  /** Slug of the staff member whose recommendation this verdict decided. */
+  staff: string;
   taskNumber: number;
   action: string;
   decision: CtoDecision;
@@ -63,13 +77,18 @@ export interface CtoDecisionLogEntry {
 
 export interface CtoDecisionsManifest {
   version: typeof CTO_DECISIONS_MANIFEST_VERSION;
-  actions: Record<string, CtoActionStats>;
+  /**
+   * Trust stats nested by staff slug → action verb. Each staff member earns
+   * (and loses) autonomy independently — a chatty CTO graduating `execute`
+   * never grants QA autonomy on its own `execute`.
+   */
+  staff: Record<string, Record<string, StaffActionStats>>;
   log: CtoDecisionLogEntry[];
 }
 
 export const EMPTY_CTO_DECISIONS_MANIFEST: CtoDecisionsManifest = {
   version: CTO_DECISIONS_MANIFEST_VERSION,
-  actions: {},
+  staff: {},
   log: [],
 };
 
@@ -86,9 +105,15 @@ function freshStats(): CtoActionStats {
  */
 export function applyDecision(
   manifest: CtoDecisionsManifest,
-  entry: Omit<CtoDecisionLogEntry, "at"> & { at?: string },
+  entry: Omit<CtoDecisionLogEntry, "at" | "staff"> & {
+    at?: string;
+    /** Emitting staff slug; legacy callers omit it → DEFAULT_STAFF_SLUG. */
+    staff?: string;
+  },
 ): CtoDecisionsManifest {
-  const prev = manifest.actions[entry.action] ?? freshStats();
+  const staff = entry.staff ?? DEFAULT_STAFF_SLUG;
+  const prevStaff = manifest.staff[staff] ?? {};
+  const prev = prevStaff[entry.action] ?? freshStats();
   const isApprove = entry.decision === "approve";
   const isReject = entry.decision === "reject";
   // Dismiss is a no-op against stats: keep the prior streak/mode and only log it.
@@ -105,13 +130,14 @@ export function applyDecision(
     : isApprove && consecutiveApprovals >= CTO_GRADUATION_THRESHOLD
       ? "auto"
       : prev.mode;
-  const nextStats: CtoActionStats = {
+  const nextStats: StaffActionStats = {
     approvals: prev.approvals + (isApprove ? 1 : 0),
     rejections: prev.rejections + (isReject ? 1 : 0),
     consecutiveApprovals,
     mode,
   };
   const logEntry: CtoDecisionLogEntry = {
+    staff,
     taskNumber: entry.taskNumber,
     action: entry.action,
     decision: entry.decision,
@@ -120,7 +146,10 @@ export function applyDecision(
   };
   return {
     version: CTO_DECISIONS_MANIFEST_VERSION,
-    actions: { ...manifest.actions, [entry.action]: nextStats },
+    staff: {
+      ...manifest.staff,
+      [staff]: { ...prevStaff, [entry.action]: nextStats },
+    },
     log: [...manifest.log, logEntry].slice(-CTO_DECISIONS_LOG_MAX),
   };
 }
@@ -146,20 +175,39 @@ export function parseCtoDecisionsBody(
   if (!json) return structuredClone(EMPTY_CTO_DECISIONS_MANIFEST);
 
   try {
-    const parsed = JSON.parse(json) as Partial<CtoDecisionsManifest>;
-    return {
-      version: CTO_DECISIONS_MANIFEST_VERSION,
-      actions: parsed.actions ?? {},
-      log: Array.isArray(parsed.log) ? parsed.log : [],
+    const parsed = JSON.parse(json) as Partial<CtoDecisionsManifest> & {
+      /** Legacy pre-staff shape: a flat action→stats map (all CTO's). */
+      actions?: Record<string, StaffActionStats>;
     };
+    // Migrate the legacy flat `actions` map under the CTO slug; a current
+    // manifest already carries the nested `staff` map and wins.
+    const staff =
+      parsed.staff && typeof parsed.staff === "object"
+        ? parsed.staff
+        : parsed.actions && typeof parsed.actions === "object"
+          ? { [DEFAULT_STAFF_SLUG]: parsed.actions }
+          : {};
+    // Legacy log entries predate the `staff` field — stamp them as the CTO's.
+    const log = Array.isArray(parsed.log)
+      ? parsed.log.map((e) => ({ ...e, staff: e.staff ?? DEFAULT_STAFF_SLUG }))
+      : [];
+    return { version: CTO_DECISIONS_MANIFEST_VERSION, staff, log };
   } catch {
     return structuredClone(EMPTY_CTO_DECISIONS_MANIFEST);
   }
 }
 
-/** Stable key for "has this task's action been decided" lookups. */
-export function ctoDecisionKey(taskNumber: number, action: string): string {
-  return `${taskNumber}:${action}`;
+/**
+ * Stable key for "has this staff member's task+action been decided" lookups.
+ * Scoped by staff so a CTO and a QA rec on the *same* task+action don't share
+ * a verdict slot.
+ */
+export function staffDecisionKey(
+  staff: string,
+  taskNumber: number,
+  action: string,
+): string {
+  return `${staff}:${taskNumber}:${action}`;
 }
 
 /**
@@ -180,10 +228,11 @@ export function latestCtoDecisions(
 ): Record<string, CtoLatestDecision> {
   const out: Record<string, CtoLatestDecision> = {};
   for (const e of manifest.log) {
-    out[ctoDecisionKey(e.taskNumber, e.action)] = {
-      decision: e.decision,
-      at: e.at,
-    };
+    out[staffDecisionKey(e.staff ?? DEFAULT_STAFF_SLUG, e.taskNumber, e.action)] =
+      {
+        decision: e.decision,
+        at: e.at,
+      };
   }
   return out;
 }
@@ -192,9 +241,10 @@ export function serializeCtoDecisionsBody(
   manifest: CtoDecisionsManifest,
 ): string {
   const preamble =
-    "> Kody CTO decisions ledger — the dashboard writes the JSON block below\n" +
-    "> whenever an operator approves or rejects a CTO recommendation. The CTO\n" +
-    "> staff member reads it each tick to decide when to stop asking (graduation).\n\n";
+    "> Kody staff decisions ledger — the dashboard writes the JSON block below\n" +
+    "> whenever an operator approves or rejects a staff recommendation. Trust is\n" +
+    "> tracked per staff slug (`staff.<slug>.<action>`); each staff member reads\n" +
+    "> its own slice each tick to decide when to stop asking (graduation).\n\n";
   const json = JSON.stringify(manifest, null, 2);
   return `${preamble}${MANIFEST_START}\n\n\`\`\`json\n${json}\n\`\`\`\n\n${MANIFEST_END}\n`;
 }
