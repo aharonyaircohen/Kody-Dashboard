@@ -6,13 +6,14 @@
  *   delete profile sections. A section is a markdown file at
  *   `.kody/profile/<slug>.md` in the connected repo: the slug is the
  *   section name (e.g. `mission`, `products`) and the body is factual
- *   context about the company. Each section carries a `for:` scope
- *   (Chat | QA | All) that decides which consumer loads it — chat-scoped
- *   sections feed the kody chat system prompt; qa-scoped sections do not.
+ *   context about the company. Each section carries an `audience:` list
+ *   (Chat and/or QA) that decides which consumers load it — chat-audience
+ *   sections feed the kody chat system prompt; qa-audience sections do not.
  *
  *   Mirrors StaffControl's layout/UX (ListSearch + inline ReactMarkdown
  *   view + MarkdownEditor dialogs), minus any schedule UI — profile
- *   sections are not scheduled — plus a per-section scope selector/badge.
+ *   sections are not scheduled — plus a per-section audience multi-select
+ *   and badges.
  */
 "use client";
 
@@ -40,13 +41,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@dashboard/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@dashboard/ui/select";
 import { AuthGuard } from "../auth-guard";
 import { cn } from "../utils";
 import {
@@ -56,7 +50,7 @@ import {
   useUpdateProfile,
 } from "../hooks/useProfile";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import type { ProfileScope, ProfileSection } from "../api";
+import type { ProfileAudience, ProfileSection } from "../api";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -64,31 +58,42 @@ import { PageHeader } from "./PageShell";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
-const SCOPE_OPTIONS: { value: ProfileScope; label: string; hint: string }[] = [
+const AUDIENCE_OPTIONS: {
+  value: ProfileAudience;
+  label: string;
+  hint: string;
+}[] = [
   { value: "chat", label: "Chat", hint: "Loaded into the Kody chat prompt" },
-  { value: "qa", label: "QA", hint: "Loaded only by the QA consumer" },
-  { value: "all", label: "All", hint: "Loaded by every consumer" },
+  { value: "qa", label: "QA", hint: "Loaded by the QA consumer" },
 ];
 
-function scopeLabel(scope: ProfileScope): string {
-  return SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? scope;
+function audienceLabel(audience: ProfileAudience): string {
+  return AUDIENCE_OPTIONS.find((o) => o.value === audience)?.label ?? audience;
 }
 
-const SCOPE_BADGE_CLASS: Record<ProfileScope, string> = {
+const AUDIENCE_BADGE_CLASS: Record<ProfileAudience, string> = {
   chat: "bg-teal-500/15 text-teal-300 border-teal-500/30",
   qa: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  all: "bg-sky-500/15 text-sky-300 border-sky-500/30",
 };
 
-function ScopeBadge({ scope }: { scope: ProfileScope }) {
+/** Render a badge per audience member, in canonical (chat-first) order. */
+function AudienceBadges({ audience }: { audience: ProfileAudience[] }) {
+  const ordered = AUDIENCE_OPTIONS.map((o) => o.value).filter((v) =>
+    audience.includes(v),
+  );
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-        SCOPE_BADGE_CLASS[scope],
-      )}
-    >
-      {scopeLabel(scope)}
+    <span className="inline-flex items-center gap-1">
+      {ordered.map((value) => (
+        <span
+          key={value}
+          className={cn(
+            "inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+            AUDIENCE_BADGE_CLASS[value],
+          )}
+        >
+          {audienceLabel(value)}
+        </span>
+      ))}
     </span>
   );
 }
@@ -264,7 +269,7 @@ export function ProfileControlInner({
                           <span className="font-mono text-sm truncate flex-1">
                             {section.slug}
                           </span>
-                          <ScopeBadge scope={section.for} />
+                          <AudienceBadges audience={section.audience} />
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                           <span className="inline-flex items-center gap-1">
@@ -298,7 +303,7 @@ export function ProfileControlInner({
               <EmptyState
                 icon={<Building />}
                 title="Select a section"
-                hint="Pick a section from the list to see its content and scope."
+                hint="Pick a section from the list to see its content and audience."
               />
             )}
           </section>
@@ -383,7 +388,7 @@ function ProfileDetail({
                 <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words font-mono">
                   {section.slug}
                 </h1>
-                <ScopeBadge scope={section.for} />
+                <AudienceBadges audience={section.audience} />
               </div>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span className="inline-flex items-center gap-1">
@@ -469,33 +474,71 @@ function ProfileDetail({
   );
 }
 
-function ScopeSelect({
+/**
+ * Multi-select audience control: one toggle per consumer (Chat, QA). At
+ * least one must stay selected — clicking the last active toggle is a
+ * no-op so the caller never receives an empty list.
+ */
+function AudienceSelect({
   value,
   onChange,
-  id,
 }: {
-  value: ProfileScope;
-  onChange: (next: ProfileScope) => void;
-  id?: string;
+  value: ProfileAudience[];
+  onChange: (next: ProfileAudience[]) => void;
 }) {
+  const toggle = (member: ProfileAudience) => {
+    const active = value.includes(member);
+    if (active) {
+      if (value.length === 1) return; // keep at least one selected
+      onChange(value.filter((v) => v !== member));
+      return;
+    }
+    // Re-derive in canonical (chat-first) order on add.
+    const next = AUDIENCE_OPTIONS.map((o) => o.value).filter(
+      (v) => value.includes(v) || v === member,
+    );
+    onChange(next);
+  };
+
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as ProfileScope)}>
-      <SelectTrigger id={id}>
-        <SelectValue placeholder="Scope" />
-      </SelectTrigger>
-      <SelectContent>
-        {SCOPE_OPTIONS.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value}>
-            <span className="flex flex-col">
-              <span>{opt.label}</span>
+    <div className="flex flex-col gap-1.5">
+      {AUDIENCE_OPTIONS.map((opt) => {
+        const active = value.includes(opt.value);
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="checkbox"
+            aria-checked={active}
+            onClick={() => toggle(opt.value)}
+            className={cn(
+              "flex items-start gap-2 rounded-md border px-2.5 py-1.5 text-left transition-colors",
+              active
+                ? "border-teal-500/40 bg-teal-500/10"
+                : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04]",
+            )}
+          >
+            <span
+              className={cn(
+                "mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border text-[9px] font-bold",
+                active
+                  ? "border-teal-400 bg-teal-400 text-black"
+                  : "border-white/30 text-transparent",
+              )}
+              aria-hidden
+            >
+              ✓
+            </span>
+            <span className="flex flex-col leading-tight">
+              <span className="text-sm">{opt.label}</span>
               <span className="text-[11px] text-muted-foreground">
                 {opt.hint}
               </span>
             </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -515,14 +558,14 @@ function CreateProfileDialog({
 
   const [slug, setSlug] = useState("");
   const [body, setBody] = useState("");
-  const [scope, setScope] = useState<ProfileScope>("chat");
+  const [audience, setAudience] = useState<ProfileAudience[]>(["chat"]);
   const [touchedSlug, setTouchedSlug] = useState(false);
 
   useEffect(() => {
     if (open) {
       setSlug("");
       setBody("");
-      setScope("chat");
+      setAudience(["chat"]);
       setTouchedSlug(false);
     }
   }, [open]);
@@ -537,12 +580,17 @@ function CreateProfileDialog({
   })();
 
   const bodyError = body.trim().length === 0 ? "Required" : null;
-  const canSave = !!slug && !slugError && !bodyError && !createMutation.isPending;
+  const canSave =
+    !!slug &&
+    !slugError &&
+    !bodyError &&
+    audience.length > 0 &&
+    !createMutation.isPending;
 
   const handleSubmit = () => {
     if (!canSave) return;
     createMutation.mutate(
-      { slug, body, for: scope },
+      { slug, body, audience },
       { onSuccess: (section) => onCreated(section) },
     );
   };
@@ -555,32 +603,30 @@ function CreateProfileDialog({
           <DialogDescription>
             Stored at .kody/profile/&lt;slug&gt;.md. The slug is the section
             name Kody sees (e.g. mission, products, customers); the body is
-            plain markdown describing it. Scope decides which consumer loads
-            it.
+            plain markdown describing it. Audience decides which consumers
+            load it.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px] gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="profile-slug">Slug (section name)</Label>
-              <Input
-                id="profile-slug"
-                value={slug}
-                onChange={(e) => setSlug(e.target.value.toLowerCase())}
-                onBlur={() => setTouchedSlug(true)}
-                placeholder="mission"
-                className="font-mono"
-                autoFocus
-              />
-              {slugError ? (
-                <p className="text-xs text-rose-300">{slugError}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="profile-scope">Scope</Label>
-              <ScopeSelect id="profile-scope" value={scope} onChange={setScope} />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="profile-slug">Slug (section name)</Label>
+            <Input
+              id="profile-slug"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value.toLowerCase())}
+              onBlur={() => setTouchedSlug(true)}
+              placeholder="mission"
+              className="font-mono"
+              autoFocus
+            />
+            {slugError ? (
+              <p className="text-xs text-rose-300">{slugError}</p>
+            ) : null}
+          </div>
+          <div className="space-y-1.5">
+            <Label>Audience</Label>
+            <AudienceSelect value={audience} onChange={setAudience} />
           </div>
           <div className="space-y-1.5">
             <Label>Body</Label>
@@ -617,20 +663,24 @@ function EditProfileDialog({
   const updateMutation = useUpdateProfile(section.slug, githubUser?.login);
 
   const [body, setBody] = useState(section.body || "");
-  const [scope, setScope] = useState<ProfileScope>(section.for);
+  const [audience, setAudience] = useState<ProfileAudience[]>(section.audience);
 
   useEffect(() => {
     setBody(section.body || "");
-    setScope(section.for);
+    setAudience(section.audience);
   }, [section]);
 
   const bodyError = body.trim().length === 0 ? "Required" : null;
 
+  const audienceChanged =
+    audience.length !== section.audience.length ||
+    audience.some((a) => !section.audience.includes(a));
+
   const handleSubmit = () => {
-    if (bodyError || updateMutation.isPending) return;
-    const patch: { body?: string; for?: ProfileScope } = {};
+    if (bodyError || audience.length === 0 || updateMutation.isPending) return;
+    const patch: { body?: string; audience?: ProfileAudience[] } = {};
     if (body !== section.body) patch.body = body;
-    if (scope !== section.for) patch.for = scope;
+    if (audienceChanged) patch.audience = audience;
     if (Object.keys(patch).length === 0) {
       onSaved();
       return;
@@ -644,19 +694,15 @@ function EditProfileDialog({
         <DialogHeader>
           <DialogTitle>Edit section `{section.slug}`</DialogTitle>
           <DialogDescription>
-            Update the section body or scope. Saving commits the file to the
-            default branch.
+            Update the section body or audience. Saving commits the file to
+            the default branch.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
-          <div className="space-y-1.5 max-w-[200px]">
-            <Label htmlFor="edit-profile-scope">Scope</Label>
-            <ScopeSelect
-              id="edit-profile-scope"
-              value={scope}
-              onChange={setScope}
-            />
+          <div className="space-y-1.5 max-w-[280px]">
+            <Label>Audience</Label>
+            <AudienceSelect value={audience} onChange={setAudience} />
           </div>
           <div className="space-y-1.5">
             <Label>Body</Label>

@@ -1066,16 +1066,16 @@ export const staffApi = {
 
 // ============ Company Profile API ============
 
-/** Consumer scope for a profile section: who loads it. */
-export type ProfileScope = "chat" | "qa" | "all";
+/** A single consumer that may load a profile section. */
+export type ProfileAudience = "chat" | "qa";
 
 export interface ProfileSection {
   /** Filename without `.md` — stable identity, also the section heading. */
   slug: string;
   /** Section markdown (frontmatter-free). */
   body: string;
-  /** Consumer scope from `for:` frontmatter (`chat` default for legacy files). */
-  for: ProfileScope;
+  /** Consumers from `audience:` frontmatter (`["chat"]` default for legacy files). */
+  audience: ProfileAudience[];
   /** Git blob sha. */
   sha: string;
   /** Last commit timestamp affecting this file (ISO8601). */
@@ -1103,7 +1103,7 @@ export const profileApi = {
   create: async (data: {
     slug: string;
     body: string;
-    for: ProfileScope;
+    audience: ProfileAudience[];
     actorLogin?: string;
   }): Promise<ProfileSection> => {
     const res = await fetch(`${API_BASE}/profile`, {
@@ -1119,7 +1119,7 @@ export const profileApi = {
     slug: string,
     data: {
       body?: string;
-      for?: ProfileScope;
+      audience?: ProfileAudience[];
       actorLogin?: string;
     },
   ): Promise<ProfileSection> => {
