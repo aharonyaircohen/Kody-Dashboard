@@ -1,8 +1,9 @@
 ---
-staff: qa
 every: 30m
-disabled: true
+staff: qa
 ---
+
+# QA Changelog Verification
 
 # QA Changelog Verification
 
