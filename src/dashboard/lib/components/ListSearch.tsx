@@ -15,6 +15,7 @@ const ACCENT_RING = {
   sky: "focus:ring-sky-500/40",
   emerald: "focus:ring-emerald-500/40",
   violet: "focus:ring-violet-500/40",
+  teal: "focus:ring-teal-500/40",
 } as const;
 
 export function ListSearch({

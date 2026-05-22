@@ -103,6 +103,14 @@ export function buildSystemPrompt(
      * this builder in route.ts.
      */
     userInstructions?: string | null;
+    /**
+     * Concatenated bodies of `.kody/profile/*.md` (or `null` when the repo
+     * has none). Factual "who the company is / what it does" context the
+     * agent should treat as background — injected near the TOP (after the
+     * connected-repo block) so it frames everything, unlike `userInstructions`
+     * which is appended LAST as a behavioral override.
+     */
+    companyProfile?: string | null;
   },
 ): string {
   const sections: string[] = [base];
@@ -110,6 +118,17 @@ export function buildSystemPrompt(
     sections.push(
       `## Connected repository\n\nYou are helping the user with the repository **${repo.owner}/${repo.repo}**. When the user refers to "the repo", "this repo", "the codebase", or a file path, they mean this repository. Ground your answers in the conversation context the user provides — do not invent file contents or PR numbers you haven't seen.`,
     );
+  }
+  if (opts?.companyProfile && opts.companyProfile.trim().length > 0) {
+    sections.push(
+      `## Company profile
+
+The block below is the live contents of \`.kody/profile/*.md\` for this repo — factual context describing the company you work for (who it is, what it ships, who its customers are, what it values). Treat it as authoritative background and ground your answers in it; don't restate it unprompted, and defer to the conversation when the two conflict.
+
+${opts.companyProfile.trim()}`,
+    );
+  }
+  if (repo) {
     sections.push(
       `## Goals (NOT issues)
 

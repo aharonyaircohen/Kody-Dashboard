@@ -63,6 +63,7 @@ import { featureTools } from "../tools/feature-tools";
 import { uiTools } from "../tools/ui-tools";
 import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files";
 import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
+import { loadProfileForPrompt } from "@dashboard/lib/profile/files";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -392,6 +393,7 @@ export async function POST(req: NextRequest) {
   // for GitHub tools are still created separately below to avoid races.
   let memoryIndex: string | null = null;
   let userInstructions: string | null = null;
+  let companyProfile: string | null = null;
   if (repo) {
     setGitHubContext(repo.owner, repo.repo, repo.token);
     try {
@@ -410,6 +412,15 @@ export async function POST(req: NextRequest) {
       traceWarn(
         { traceId, err: err instanceof Error ? err.message : String(err) },
         "kody-direct: user instructions load failed (continuing without them)",
+      );
+    }
+    try {
+      companyProfile = await loadProfileForPrompt();
+    } catch (err) {
+      // Company profile is best-effort; never block the chat. Log and continue.
+      traceWarn(
+        { traceId, err: err instanceof Error ? err.message : String(err) },
+        "kody-direct: company profile load failed (continuing without it)",
       );
     }
   }
@@ -475,6 +486,7 @@ export async function POST(req: NextRequest) {
       vibeMode,
       flyConfigured,
       userInstructions,
+      companyProfile,
     },
   );
 

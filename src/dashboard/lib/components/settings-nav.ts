@@ -11,6 +11,7 @@ import {
   Activity,
   Bell,
   Bot,
+  Building,
   Building2,
   Cpu,
   FileText,
@@ -93,6 +94,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description:
           "Tone, length, and behavior preferences appended to every chat turn.",
         tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
+        href: "/profile",
+        label: "Company Profile",
+        icon: Building,
+        description:
+          "Markdown sections describing your company — fed to Kody on every chat turn.",
+        tint: "text-teal-300 bg-teal-500/10",
       },
     ],
   },
