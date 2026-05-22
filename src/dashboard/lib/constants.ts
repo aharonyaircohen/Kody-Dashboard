@@ -450,4 +450,14 @@ export const INTERNAL_ISSUE_LABELS = [
   "kody:cto-decisions",
   "kody:goals-manifest",
   "kody:push-subscriptions",
+  "kody:audit-log",
 ] as const;
+
+/**
+ * Discovery label for the durable audit-log manifest issue (the "who did
+ * what" trail surfaced on the Activity → Log tab). Stored in an issue body
+ * as a bounded ring via the shared manifest-store CAS, written with the
+ * acting user's own PAT so it draws on their personal rate budget.
+ */
+export const AUDIT_LOG_LABEL = "kody:audit-log";
+export const AUDIT_LOG_ISSUE_TITLE = "Kody Audit Log (do not edit)";

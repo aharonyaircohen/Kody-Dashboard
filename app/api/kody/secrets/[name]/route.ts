@@ -18,7 +18,7 @@ import {
   writeVault,
 } from "@dashboard/lib/vault/store";
 import { isVaultConfigured } from "@dashboard/lib/vault/crypto";
-import { recordAction } from "@dashboard/lib/activity/action-log";
+import { recordAudit } from "@dashboard/lib/activity/audit";
 import { logger } from "@dashboard/lib/logger";
 
 interface RouteContext {
@@ -68,10 +68,9 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
       `chore(vault): delete ${name}`,
     );
     invalidateVaultCache(auth.owner, auth.repo);
-    recordAction({
-      type: "vault.delete",
-      target: name,
-      repo: `${auth.owner}/${auth.repo}`,
+    recordAudit(req, {
+      action: "vault.delete",
+      resource: name,
       detail: "delete secret",
     });
     return NextResponse.json({ ok: true, secrets: listSecretMetadata(next) });

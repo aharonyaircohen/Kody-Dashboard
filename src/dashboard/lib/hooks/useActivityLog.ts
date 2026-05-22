@@ -2,9 +2,10 @@
  * @fileType hook
  * @domain kody
  * @pattern use-activity-log
- * @ai-summary Polls the dashboard-native action log. The endpoint is a
- *   pure in-memory read (no GitHub calls), so a 30s poll is free and safe
- *   — no rate-limit concern, unlike the run/feed paths.
+ * @ai-summary Polls the dashboard audit log. The endpoint merges this
+ *   instance's in-memory ring with the durable audit-log manifest issue,
+ *   read through the cached/ETag path — so a 30s poll mostly hits cache or
+ *   a free 304 and stays within the ≥15s rate-limit rule.
  */
 import { useQuery } from "@tanstack/react-query";
 import { kodyApi } from "../api";

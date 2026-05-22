@@ -38,6 +38,7 @@ import {
   type GoalsManifest,
 } from "@dashboard/lib/goals";
 import { mutateGoalsManifest } from "@dashboard/lib/goals-server";
+import { recordAudit } from "@dashboard/lib/activity/audit";
 
 const GOAL_LABEL_COLOR = "38bdf8"; // Tailwind sky-400
 
@@ -238,6 +239,12 @@ export async function POST(req: NextRequest) {
       // Non-fatal — the add-label action route will ensure on-demand too
       console.warn("[Goals] ensureLabel failed (continuing):", labelErr);
     }
+
+    recordAudit(req, {
+      action: "goal.create",
+      resource: newGoal.id,
+      detail: `created goal "${newGoal.name}"`,
+    });
 
     return NextResponse.json({ goal: newGoal });
   } catch (error: any) {
