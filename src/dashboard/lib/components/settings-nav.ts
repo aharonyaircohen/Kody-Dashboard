@@ -71,7 +71,7 @@ export interface SettingsNavSection {
 
 export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
-    title: "Chat",
+    title: "Agent",
     items: [
       {
         href: "/models",
@@ -95,6 +95,11 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
           "Tone, length, and behavior preferences appended to every chat turn.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
+    ],
+  },
+  {
+    title: "Company",
+    items: [
       {
         href: "/profile",
         label: "Company Profile",
@@ -103,33 +108,19 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
           "Markdown sections describing your company — fed to Kody on every chat turn.",
         tint: "text-teal-300 bg-teal-500/10",
       },
+      {
+        href: "/company",
+        label: "Import / Export",
+        icon: Building2,
+        description:
+          "Move your staff, duties, prompts, and instructions between repos as a portable bundle.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
     ],
   },
   {
-    title: "Workspace",
+    title: "Infrastructure",
     items: [
-      {
-        href: "/company",
-        label: "Company",
-        icon: Building2,
-        description:
-          "Import/export your staff, duties, prompts, and instructions as a portable bundle.",
-        tint: "text-emerald-300 bg-emerald-500/10",
-      },
-      {
-        href: "/inbox",
-        label: "Inbox",
-        icon: Inbox,
-        description: "Durable list of @mentions and review requests.",
-        tint: "text-amber-300 bg-amber-500/10",
-      },
-      {
-        href: "/notifications",
-        label: "Notifications",
-        icon: Bell,
-        description: "Browser + email alerts and routing rules.",
-        tint: "text-amber-300 bg-amber-500/10",
-      },
       {
         href: "/runner",
         label: "Fly Runner",
@@ -158,6 +149,30 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description: "Connected GitHub repos and tokens.",
         tint: "text-zinc-300 bg-white/[0.08]",
       },
+    ],
+  },
+  {
+    title: "Alerts",
+    items: [
+      {
+        href: "/inbox",
+        label: "Inbox",
+        icon: Inbox,
+        description: "Durable list of @mentions and review requests.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
+      {
+        href: "/notifications",
+        label: "Notifications",
+        icon: Bell,
+        description: "Browser + email alerts and routing rules.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
+    ],
+  },
+  {
+    title: "General",
+    items: [
       {
         href: "/settings",
         label: "Settings",
