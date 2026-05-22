@@ -53,6 +53,33 @@ interface DashboardConfigResponse {
   config: { version: 1; defaultPreviewUrl?: string };
 }
 
+// Optimistic pins for just-created issues, kept at MODULE scope (not a
+// component ref) so they survive a VibePage remount. Navigating to
+// `?issue=N` after creating the issue remounts VibePage, which would reset a
+// `useRef` pin to empty — leaving `selectedTask` null, the chat scope stuck
+// on "global", and the runner hand-off unable to bind to the new issue.
+// Keyed by issue number with a TTL so stale pins can't leak.
+const OPTIMISTIC_PIN_TTL_MS = 120_000;
+const optimisticTaskPins = new Map<number, { task: KodyTask; at: number }>();
+function writeOptimisticPin(issueNumber: number, task: KodyTask): void {
+  optimisticTaskPins.set(issueNumber, { task, at: Date.now() });
+}
+function readOptimisticPin(issueNumber: number): KodyTask | null {
+  const entry = optimisticTaskPins.get(issueNumber);
+  if (!entry) return null;
+  if (Date.now() - entry.at > OPTIMISTIC_PIN_TTL_MS) {
+    optimisticTaskPins.delete(issueNumber);
+    return null;
+  }
+  return entry.task;
+}
+function dropOptimisticPin(issueNumber: number): void {
+  optimisticTaskPins.delete(issueNumber);
+}
+function optimisticPinKeys(): number[] {
+  return Array.from(optimisticTaskPins.keys());
+}
+
 async function fetchDashboardConfig(): Promise<DashboardConfigResponse> {
   const auth = getStoredAuth();
   if (!auth) throw new NoTokenError("No auth");
@@ -193,7 +220,6 @@ export function VibePage() {
   // session — symptom: kickoff `/append` never fires, runner idles,
   // PR stays empty. Pinning the new issue here keeps `selectedTask`
   // populated until the real fetch confirms the issue is present.
-  const pinnedNewTasksRef = useRef<Map<number, KodyTask>>(new Map());
   // Render counter — force a re-render after the ref updates so the
   // memo below picks up the new pin without waiting for a parent
   // state change. Keeps the pin path side-effect free in the listener.
@@ -212,20 +238,27 @@ export function VibePage() {
       // issue (deferred to a useEffect to avoid mutating in render).
       return real;
     }
-    return pinnedNewTasksRef.current.get(selectedIssueNumber) ?? null;
+    return readOptimisticPin(selectedIssueNumber);
     // pinnedRev is in the dep array so React picks up pinned-map
-    // changes (the ref mutation alone isn't observable).
+    // changes (the module-map mutation alone isn't observable).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIssueNumber, tasks, pinnedRev]);
 
   // Drop pins for issues that have now appeared in the real fetch.
   // We do this outside the memo so render stays pure.
   useEffect(() => {
-    if (!tasks || pinnedNewTasksRef.current.size === 0) return;
+    if (!tasks || optimisticTaskPins.size === 0) return;
     let removed = false;
-    for (const issueNumber of Array.from(pinnedNewTasksRef.current.keys())) {
-      if (tasks.some((t) => t.issueNumber === issueNumber)) {
-        pinnedNewTasksRef.current.delete(issueNumber);
+    for (const issueNumber of optimisticPinKeys()) {
+      const inTasks = tasks.find((t) => t.issueNumber === issueNumber);
+      // Drop the pin only when a REAL task object shows up — NOT the synthetic
+      // we ourselves inserted into the query cache. Comparing by identity is
+      // load-bearing: dropping on mere presence makes our own optimistic
+      // insert trigger the removal, after which the next (still-lagging)
+      // refetch returns a list without the issue and selectedTask goes null —
+      // the chat scope never flips and the runner hand-off can't bind.
+      if (inTasks && inTasks !== readOptimisticPin(issueNumber)) {
+        dropOptimisticPin(issueNumber);
         removed = true;
       }
     }
@@ -285,10 +318,9 @@ export function VibePage() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      // Pin the synthetic outside the react-query cache so it survives
-      // refetches that return stale lists (without the new issue). The
-      // memo above merges this pin with whatever's in the cache.
-      pinnedNewTasksRef.current.set(issueNumber, synthetic);
+      // Pin the synthetic at module scope so it survives the remount that
+      // navigating to `?issue=N` triggers (a useRef pin would be wiped).
+      writeOptimisticPin(issueNumber, synthetic);
       setPinnedRev((r) => r + 1);
       // Also write into the cache so list views render the new row
       // without waiting on the next poll. Both paths converge once the

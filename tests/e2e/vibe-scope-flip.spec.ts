@@ -58,13 +58,6 @@ test.describe("Vibe — page must flip to task scope after creating an issue", (
     page,
   }) => {
     const NEW_ISSUE = 4242;
-    page.on("console", (msg) => {
-      const t = msg.text();
-      if (t.includes("[vibe-debug]")) {
-        // eslint-disable-next-line no-console
-        console.log(`BROWSER ${t}`);
-      }
-    });
 
     // The crux: tasks list NEVER contains the new issue (simulates GitHub
     // propagation lag). Scope can only come from the optimistic pin.
