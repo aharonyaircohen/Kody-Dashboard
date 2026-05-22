@@ -8,7 +8,7 @@
  *   what the company is and does.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { ProfileManager } from "@dashboard/lib/components/ProfileManager";
+import { ProfileControl } from "@dashboard/lib/components/ProfileControl";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";
@@ -24,7 +24,7 @@ export const metadata = buildKodyMetadata({
 export default function ProfilePage() {
   return (
     <AuthGuard>
-      <ProfileManager />
+      <ProfileControl />
     </AuthGuard>
   );
 }

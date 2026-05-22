@@ -4,12 +4,17 @@
  * @pattern profile-files
  * @ai-summary Read/write company-profile files under
  *   `.kody/profile/<slug>.md` via the GitHub contents API. Multi-file
- *   like prompts, but each file is plain free-form markdown with NO
- *   frontmatter (like `instructions.md`) — the slug is the section name
- *   (e.g. `mission`, `products`, `customers`) and the body is factual
- *   context describing the company.
+ *   like prompts: the slug is the section name (e.g. `mission`,
+ *   `products`, `customers`) and the body is factual context describing
+ *   the company.
  *
- *   The concatenated bodies are injected into the kody-direct chat
+ *   Each file may carry a tiny YAML frontmatter block with a single
+ *   `for:` field (`chat` | `qa` | `all`) — the consumer scope that
+ *   decides who loads the section. Legacy files have NO frontmatter; they
+ *   default to `chat` so existing data keeps flowing to the chat prompt
+ *   unchanged (see `profile/frontmatter.ts`).
+ *
+ *   The chat-scoped bodies are injected into the kody-direct chat
  *   system prompt under a `## Company profile` heading (see
  *   `loadProfileForPrompt`), so every persona inherits company facts
  *   without restating them. Deliberately NOT part of the Company
@@ -22,14 +27,27 @@
 
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "../github-client";
+import {
+  splitProfileFrontmatter,
+  joinProfileFrontmatter,
+  type ProfileScope,
+} from "./frontmatter";
 
 const PROFILE_DIR = ".kody/profile";
 
 export interface ProfileFile {
   /** Filename without `.md` — stable identity, also the section heading. */
   slug: string;
-  /** Free-form markdown body describing this slice of the company. */
+  /**
+   * Free-form markdown body describing this slice of the company.
+   * Frontmatter is stripped — this is the section text only.
+   */
   body: string;
+  /**
+   * Consumer scope from `for:` frontmatter. `chat` (default for legacy
+   * frontmatter-less files), `qa`, or `all`.
+   */
+  for: ProfileScope;
   /** Git blob sha. Required for update/delete. */
   sha: string;
   /** Last commit timestamp affecting this file. */
@@ -124,13 +142,15 @@ export async function listProfileFiles(): Promise<ProfileFile[]> {
         });
         if (Array.isArray(data) || !("content" in data) || !data.content)
           return null;
-        const body = Buffer.from(data.content, "base64")
+        const raw = Buffer.from(data.content, "base64")
           .toString("utf-8")
           .replace(/^\s+/, "");
+        const { frontmatter, body } = splitProfileFrontmatter(raw);
         const updatedAt = await fetchLastCommitDate(octokit, filePath);
         return {
           slug,
-          body,
+          body: body.replace(/^\s+/, ""),
+          for: frontmatter.for,
           sha,
           updatedAt,
           htmlUrl: buildHtmlUrl(slug, branch),
@@ -165,13 +185,15 @@ export async function readProfileFile(
     });
     if (Array.isArray(data) || !("content" in data) || !data.content)
       return null;
-    const body = Buffer.from(data.content, "base64")
+    const raw = Buffer.from(data.content, "base64")
       .toString("utf-8")
       .replace(/^\s+/, "");
+    const { frontmatter, body } = splitProfileFrontmatter(raw);
     const updatedAt = await fetchLastCommitDate(octokit, filePath);
     return {
       slug,
-      body,
+      body: body.replace(/^\s+/, ""),
+      for: frontmatter.for,
       sha: data.sha,
       updatedAt,
       htmlUrl: buildHtmlUrl(slug, branch),
@@ -185,7 +207,10 @@ export async function readProfileFile(
 interface WriteOptions {
   octokit: Octokit;
   slug: string;
+  /** Section markdown (frontmatter-free); the `for:` block is re-attached here. */
   body: string;
+  /** Consumer scope persisted in `for:` frontmatter. */
+  for: ProfileScope;
   sha?: string;
   message?: string;
 }
@@ -199,8 +224,13 @@ export async function writeProfileFile(
     );
   }
   const filePath = `${PROFILE_DIR}/${opts.slug}.md`;
-  const trimmed = opts.body.trimStart();
-  const content = trimmed.endsWith("\n") ? trimmed : `${trimmed}\n`;
+  const withFrontmatter = joinProfileFrontmatter(
+    { for: opts.for },
+    opts.body,
+  );
+  const content = withFrontmatter.endsWith("\n")
+    ? withFrontmatter
+    : `${withFrontmatter}\n`;
   const message =
     opts.message ??
     `${opts.sha ? "chore" : "feat"}(profile): ${opts.sha ? "update" : "add"} ${opts.slug}`;
@@ -260,9 +290,11 @@ function cacheKey(): string {
 }
 
 /**
- * Concatenate every profile file into a single markdown block for the
- * chat system prompt, each section prefixed with its slug as a `###`
- * heading. Returns `null` when the repo has no profile files. 60s
+ * Concatenate the chat-scoped profile files into a single markdown block
+ * for the chat system prompt, each section prefixed with its slug as a
+ * `###` heading. Only sections whose `for` is `chat` or `all` are
+ * included — `qa`-only sections are skipped so they never reach the chat
+ * prompt. Returns `null` when no chat-scoped sections exist. 60s
  * in-process cache (same TTL as the instructions loader); callers treat
  * `null` as "no profile".
  */
@@ -274,6 +306,7 @@ export async function loadProfileForPrompt(): Promise<string | null> {
   }
   const files = await listProfileFiles();
   const prompt = files
+    .filter((f) => f.for === "chat" || f.for === "all")
     .map((f) => `### ${f.slug}\n\n${f.body.trim()}`)
     .join("\n\n")
     .trim();

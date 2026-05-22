@@ -1064,6 +1064,92 @@ export const staffApi = {
 
 };
 
+// ============ Company Profile API ============
+
+/** Consumer scope for a profile section: who loads it. */
+export type ProfileScope = "chat" | "qa" | "all";
+
+export interface ProfileSection {
+  /** Filename without `.md` — stable identity, also the section heading. */
+  slug: string;
+  /** Section markdown (frontmatter-free). */
+  body: string;
+  /** Consumer scope from `for:` frontmatter (`chat` default for legacy files). */
+  for: ProfileScope;
+  /** Git blob sha. */
+  sha: string;
+  /** Last commit timestamp affecting this file (ISO8601). */
+  updatedAt: string;
+  /** Convenience link to the file on github.com. */
+  htmlUrl: string;
+}
+
+export const profileApi = {
+  list: async (): Promise<ProfileSection[]> => {
+    const res = await fetch(`${API_BASE}/profile`, { headers: buildHeaders() });
+    const data = await handleResponse<{ profile: ProfileSection[] }>(res);
+    return data.profile ?? [];
+  },
+
+  get: async (slug: string): Promise<ProfileSection> => {
+    const res = await fetch(
+      `${API_BASE}/profile/${encodeURIComponent(slug)}`,
+      { headers: buildHeaders() },
+    );
+    const data = await handleResponse<{ profile: ProfileSection }>(res);
+    return data.profile;
+  },
+
+  create: async (data: {
+    slug: string;
+    body: string;
+    for: ProfileScope;
+    actorLogin?: string;
+  }): Promise<ProfileSection> => {
+    const res = await fetch(`${API_BASE}/profile`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ profile: ProfileSection }>(res);
+    return payload.profile;
+  },
+
+  update: async (
+    slug: string,
+    data: {
+      body?: string;
+      for?: ProfileScope;
+      actorLogin?: string;
+    },
+  ): Promise<ProfileSection> => {
+    const res = await fetch(
+      `${API_BASE}/profile/${encodeURIComponent(slug)}`,
+      {
+        method: "PATCH",
+        headers: buildHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+    const payload = await handleResponse<{ profile: ProfileSection }>(res);
+    return payload.profile;
+  },
+
+  remove: async (slug: string, actorLogin?: string): Promise<void> => {
+    const params = new URLSearchParams();
+    if (actorLogin) params.set("actorLogin", actorLogin);
+    const suffix = params.toString() ? `?${params}` : "";
+    const res = await fetch(
+      `${API_BASE}/profile/${encodeURIComponent(slug)}${suffix}`,
+      {
+        method: "DELETE",
+        headers: buildHeaders(),
+      },
+    );
+    await handleResponse<{ success: boolean }>(res);
+  },
+};
+
 // ============ Reports API ============
 
 export interface Report {
@@ -1748,6 +1834,7 @@ export const kodyApi = {
   remote: remoteApi,
   duties: dutiesApi,
   staff: staffApi,
+  profile: profileApi,
   company: companyApi,
   reports: reportsApi,
   goals: goalsApi,
