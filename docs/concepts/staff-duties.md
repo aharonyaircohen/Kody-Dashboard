@@ -53,7 +53,7 @@ So:
 ## Duty frontmatter
 
 A duty is markdown with an optional flat-YAML frontmatter block. Only
-three keys are recognized (others are preserved but ignored by the
+four keys are recognized (others are preserved but ignored by the
 dashboard). See [`.kody/duties/security-audit.md`](../../.kody/duties/security-audit.md)
 for a full example.
 
@@ -62,6 +62,7 @@ for a full example.
 staff: kody
 every: 1d
 disabled: false
+mentions: aguyaharonyair, alice
 ---
 
 # Security Audit
@@ -83,6 +84,13 @@ disabled: false
   the line out so an unchanged file stays byte-identical. Manual "Run now"
   still fires a disabled duty — disabling blocks autonomous execution, not
   deliberate user action.
+- **`mentions:`** — comma-separated GitHub logins the duty's output should
+  `@`-mention (e.g. its recommendation comments). The engine injects them as
+  the `{{mentions}}` prompt token, and that `@`-mention is what routes a
+  duty's comment into the operator's dashboard inbox + push. Editable on the
+  Duties page (with collaborator autocomplete) and shown read-only in the duty
+  view. Replaces the old per-repo `github.operator` config. Absent = mentions
+  no one.
 
 Staff files carry no recognized frontmatter — they're identity only.
 
