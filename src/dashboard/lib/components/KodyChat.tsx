@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { usePathname } from "next/navigation";
+import { navLabelForPath } from "./settings-nav";
 import {
   liveReducer,
   initialLiveState,
@@ -661,6 +663,8 @@ export function KodyChat({
   knownGoals,
   onDirectToGoal,
 }: KodyChatProps) {
+  // Current route — drives the page-aware composer placeholder.
+  const pathname = usePathname();
   // Context-kind derivations.
   const selectedTask: KodyTask | null =
     context?.kind === "task" ? context.task : null;
@@ -4341,7 +4345,13 @@ export function KodyChat({
           ? "cancel"
           : "start";
 
-  // Generate placeholder based on mode
+  // Generate placeholder based on mode. The generic (non-task/duty/draft)
+  // case is page-aware: on any sidebar page, hint that Kody can answer about
+  // that page — Kody knows every dashboard concept, not just duties/tasks.
+  const pageLabel = navLabelForPath(pathname);
+  const genericPlaceholder = pageLabel
+    ? `Ask Kody about ${pageLabel}...`
+    : `Ask Kody about any page, duty, or feature...`;
   const placeholder = isKodyLive
     ? interactiveState === "idle" || interactiveState === "ended"
       ? "Click Start to warm up the runner."
@@ -4349,7 +4359,9 @@ export function KodyChat({
         ? selectedAgentId === "kody-live-fly"
           ? "Booting runner — ~45-60s on Fly..."
           : "Booting runner — ~90s on GitHub Actions..."
-        : "Ask Kody (live runner)..."
+        : pageLabel
+          ? `Ask Kody (live runner) about ${pageLabel}...`
+          : "Ask Kody (live runner)..."
     : isKodyWaiting
       ? `Give Kody instructions...`
       : isTaskMode
@@ -4358,7 +4370,7 @@ export function KodyChat({
           ? `Ask about duty \`${selectedDuty?.slug ?? ""}\`...`
           : isDraftMode
             ? `Describe the duty you want Kody to run...`
-            : `Ask Kody...`;
+            : genericPlaceholder;
 
   // Send is always enabled for Kody Live (button morphs into start/stop on
   // empty input). For other agents, only enabled when there's content.

@@ -230,6 +230,43 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   },
 ] as const;
 
+/** Every nav item, flattened — home + primary + all section items. */
+const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
+  HOME_NAV_ITEM,
+  ...PRIMARY_NAV_ITEMS,
+  ...SETTINGS_NAV_SECTIONS.flatMap((section) => section.items),
+];
+
+/** Strip a query string off an href so "/duties?tab=reports" → "/duties". */
+function navPath(href: string): string {
+  const q = href.indexOf("?");
+  return q === -1 ? href : href.slice(0, q);
+}
+
+/**
+ * Resolve the human label for the page at `pathname` (e.g. "/variables" →
+ * "Variables", "/secrets/docs" → "Secrets"). Matches the deepest nav path that
+ * the pathname falls under; home ("/") matches only exactly. Returns null when
+ * no sidebar page owns the route (e.g. /vibe, /scenario). Single source of
+ * truth so callers don't hard-code page names.
+ */
+export function navLabelForPath(pathname: string): string | null {
+  let best: { label: string; len: number } | null = null;
+  for (const item of ALL_NAV_ITEMS) {
+    const path = navPath(item.href);
+    if (path === "/") {
+      if (pathname === "/") return item.label;
+      continue;
+    }
+    if (pathname === path || pathname.startsWith(`${path}/`)) {
+      if (!best || path.length > best.len) {
+        best = { label: item.label, len: path.length };
+      }
+    }
+  }
+  return best?.label ?? null;
+}
+
 /** Icon used by the drawer trigger button (kept here so we don't need to
  *  re-export from lucide elsewhere). */
 export { Sparkles as SettingsDrawerSparkles };
