@@ -17,16 +17,7 @@
 import { type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Bot,
-  FileText,
-  Github,
-  Layers,
-  LogOut,
-  MessageSquare,
-  ScrollText,
-  Sparkles,
-} from "lucide-react";
+import { Github, LogOut, Sparkles } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import {
@@ -39,7 +30,12 @@ import {
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { cn } from "../utils";
 import { SimpleTooltip } from "./SimpleTooltip";
-import { SETTINGS_NAV_SECTIONS } from "./settings-nav";
+import {
+  HOME_NAV_ITEM,
+  PRIMARY_NAV_ITEMS,
+  PRIMARY_NAV_TITLE,
+  SETTINGS_NAV_SECTIONS,
+} from "./settings-nav";
 import { InboxBadge } from "./InboxBadge";
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
@@ -73,6 +69,7 @@ export function MobileMenu({
   const vibeHint = onVibe ? "Back to list" : "Preview · Chat · Ship";
 
   const close = () => onOpenChange(false);
+  const HomeIcon = HOME_NAV_ITEM.icon;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -173,90 +170,78 @@ export function MobileMenu({
           </Link>
         </div>
 
-        {/* Workspace — page-specific primary action + Duties/Staff/Reports tiles. */}
+        {/* Workspace — page-specific primary action + the shared primary nav
+            surfaces. Rendered from HOME_NAV_ITEM + PRIMARY_NAV_ITEMS (same
+            source as the desktop rail) so the two can't drift; Dashboard
+            leads as a full-width card, the rest tile in a 2-col grid. */}
         <div className="px-4 pt-4">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-2 px-1">
-            Workspace
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-2 px-1">
+            {PRIMARY_NAV_TITLE}
           </div>
           {workspacePrimary}
+          <Link
+            href={HOME_NAV_ITEM.href}
+            onClick={close}
+            className="flex items-center gap-3 p-3 mt-2 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
+          >
+            <span
+              className={cn(
+                "inline-flex h-8 w-8 items-center justify-center rounded-md shrink-0",
+                HOME_NAV_ITEM.tint,
+              )}
+            >
+              <HomeIcon className="w-4 h-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">
+                {HOME_NAV_ITEM.label}
+              </span>
+              {HOME_NAV_ITEM.description && (
+                <span className="block text-[11px] text-muted-foreground truncate">
+                  {HOME_NAV_ITEM.description}
+                </span>
+              )}
+            </span>
+          </Link>
           <div className="grid grid-cols-2 gap-2 mt-2">
-            <Link
-              href="/duties"
-              onClick={close}
-              className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
-            >
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/10">
-                <Layers className="w-4 h-4 text-amber-300" />
-              </span>
-              <span className="text-sm font-medium">Duties</span>
-              <span className="text-[11px] text-muted-foreground">
-                Run and edit
-              </span>
-            </Link>
-            <Link
-              href="/staff"
-              onClick={close}
-              className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
-            >
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-violet-500/10">
-                <Bot className="w-4 h-4 text-violet-300" />
-              </span>
-              <span className="text-sm font-medium">Staff</span>
-              <span className="text-[11px] text-muted-foreground">
-                Run and edit
-              </span>
-            </Link>
-            <Link
-              href="/messages"
-              onClick={close}
-              className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
-            >
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-emerald-500/10">
-                <MessageSquare className="w-4 h-4 text-emerald-300" />
-              </span>
-              <span className="text-sm font-medium">Messages</span>
-              <span className="text-[11px] text-muted-foreground">
-                Team chat
-              </span>
-            </Link>
-            <Link
-              href="/duties?tab=reports"
-              onClick={close}
-              className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
-            >
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-sky-500/10">
-                <FileText className="w-4 h-4 text-sky-300" />
-              </span>
-              <span className="text-sm font-medium">Reports</span>
-              <span className="text-[11px] text-muted-foreground">
-                Duty outputs
-              </span>
-            </Link>
-            <Link
-              href="/changelog"
-              onClick={close}
-              className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
-            >
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-emerald-500/10">
-                <ScrollText className="w-4 h-4 text-emerald-300" />
-              </span>
-              <span className="text-sm font-medium">Changelog</span>
-              <span className="text-[11px] text-muted-foreground">
-                What shipped
-              </span>
-            </Link>
+            {PRIMARY_NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={close}
+                  className="flex flex-col items-start gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
+                >
+                  <span
+                    className={cn(
+                      "inline-flex h-8 w-8 items-center justify-center rounded-md",
+                      item.tint,
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                  </span>
+                  <span className="text-sm font-medium">{item.label}</span>
+                  {item.description && (
+                    <span className="text-[11px] text-muted-foreground line-clamp-2">
+                      {item.description}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
           </div>
         </div>
 
         {/* Settings — always expanded. */}
         <div className="px-4 pt-4">
-          <div className="px-1 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/70">
+          <div className="px-1 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/80">
             Settings
           </div>
           <div className="space-y-3 mt-1">
             {SETTINGS_NAV_SECTIONS.map((section) => (
                 <div key={section.title}>
-                  <p className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                  <p className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground/80">
                     {section.title}
                   </p>
                   <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.04]">

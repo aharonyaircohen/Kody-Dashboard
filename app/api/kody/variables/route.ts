@@ -16,11 +16,9 @@ import {
   getRequestAuth,
 } from "@dashboard/lib/auth";
 import {
-  invalidateVariablesCache,
   listVariables,
   readVariables,
-  writeVariables,
-  type VariablesDocument,
+  updateVariables,
 } from "@dashboard/lib/variables/store";
 import { logger } from "@dashboard/lib/logger";
 
@@ -99,29 +97,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
   try {
-    const { doc, sha } = await readVariables(octokit, auth.owner, auth.repo, {
-      force: true,
-    });
-    const next: VariablesDocument = {
-      ...doc,
-      variables: {
-        ...doc.variables,
-        [parsed.data.name]: {
-          value: parsed.data.value,
-          updatedAt: new Date().toISOString(),
-          updatedBy: actorLogin,
-        },
-      },
-    };
-    await writeVariables(
+    const { doc: next } = await updateVariables(
       octokit,
       auth.owner,
       auth.repo,
-      next,
-      sha,
+      (doc) => ({
+        ...doc,
+        variables: {
+          ...doc.variables,
+          [parsed.data.name]: {
+            value: parsed.data.value,
+            updatedAt: new Date().toISOString(),
+            updatedBy: actorLogin,
+          },
+        },
+      }),
       `chore(variables): upsert ${parsed.data.name}`,
     );
-    invalidateVariablesCache(auth.owner, auth.repo);
     return NextResponse.json({ ok: true, variables: listVariables(next) });
   } catch (err) {
     logger.error(

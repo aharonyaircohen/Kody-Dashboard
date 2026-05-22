@@ -56,6 +56,7 @@ export const HOME_NAV_ITEM: SettingsNavItem = {
   label: "Dashboard",
   icon: Home,
   exact: true,
+  description: "Pipelines, tasks, and run health at a glance.",
   tint: "text-emerald-300 bg-emerald-500/10",
 };
 
@@ -68,24 +69,28 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     label: "Duties",
     icon: Layers,
     exact: true,
+    description: "Run and edit recurring duties.",
     tint: "text-amber-300 bg-amber-500/10",
   },
   {
     href: "/duties?tab=reports",
     label: "Reports",
     icon: FileText,
+    description: "Outputs from duty runs.",
     tint: "text-sky-300 bg-sky-500/10",
   },
   {
     href: "/staff",
     label: "Staff",
     icon: Users,
+    description: "Personas that execute your duties.",
     tint: "text-violet-300 bg-violet-500/10",
   },
   {
     href: "/messages",
     label: "Messages",
     icon: MessageSquare,
+    description: "Team chat history.",
     tint: "text-cyan-300 bg-cyan-500/10",
   },
   {
@@ -99,6 +104,7 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     href: "/changelog",
     label: "Changelog",
     icon: History,
+    description: "What shipped, version by version.",
     tint: "text-fuchsia-300 bg-fuchsia-500/10",
   },
 ] as const;

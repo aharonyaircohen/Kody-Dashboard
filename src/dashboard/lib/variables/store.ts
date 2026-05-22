@@ -164,6 +164,45 @@ export function invalidateVariablesCache(owner: string, repo: string): void {
   CACHE.delete(cacheKey(owner, repo));
 }
 
+/**
+ * Read-modify-write helper with 409 (SHA conflict) retry. `mutate` is a pure
+ * function returning the new document from the freshly-read one; it runs again
+ * on each retry against the latest SHA, so concurrent writes to *different*
+ * keys don't clobber each other. Mirrors the changelog store's
+ * `updateChangelog`. Non-409 errors (and `mutate` throwing) propagate
+ * immediately. Returns the written document.
+ */
+export async function updateVariables(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  mutate: (doc: VariablesDocument) => VariablesDocument,
+  commitMessage: string,
+  maxAttempts = 3,
+): Promise<{ doc: VariablesDocument }> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const { doc, sha } = await readVariables(octokit, owner, repo, {
+      force: true,
+    });
+    const next = mutate(doc);
+    try {
+      await writeVariables(octokit, owner, repo, next, sha, commitMessage);
+      invalidateVariablesCache(owner, repo);
+      return { doc: next };
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (status === 409 && attempt < maxAttempts) {
+        invalidateVariablesCache(owner, repo);
+        await new Promise((r) => setTimeout(r, 150 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+  // Unreachable: the loop either returns or throws.
+  throw new Error("variables: write failed after retries");
+}
+
 export function listVariables(doc: VariablesDocument): Array<{
   name: string;
   value: string;
