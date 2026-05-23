@@ -7,8 +7,12 @@ import { describe, it, expect } from "vitest";
 import {
   parseInboxFeedBody,
   serializeInboxFeedBody,
+  capFeedEntries,
   feedEntryId,
   EMPTY_INBOX_FEED_MANIFEST,
+  INBOX_FEED_MAX_ENTRIES,
+  INBOX_FEED_MAX_BODY_CHARS,
+  type InboxFeedEntry,
   type InboxFeedManifest,
 } from "@dashboard/lib/inbox/feed";
 
@@ -33,6 +37,35 @@ describe("feedEntryId", () => {
     expect(feedEntryId("alice", "https://x/1")).toBe(
       feedEntryId("alice", "https://x/1"),
     );
+  });
+});
+
+describe("capFeedEntries (body-size budget)", () => {
+  const big = (i: number): InboxFeedEntry => ({
+    ...entry,
+    id: `u:${i}`,
+    url: `https://github.com/o/r/issues/${i}#c${i}`,
+    title: `Recommendation number ${i} with a fairly long descriptive title`,
+    snippet: "x".repeat(120),
+    sentAt: new Date(2026, 0, 1, 0, 0, i).toISOString(),
+  });
+
+  it("keeps the whole list when it already fits", () => {
+    const few = [big(1), big(2), big(3)];
+    expect(capFeedEntries(few)).toHaveLength(3);
+  });
+
+  it("trims oldest entries so the serialized body stays under the limit", () => {
+    const many = Array.from({ length: INBOX_FEED_MAX_ENTRIES + 100 }, (_, i) =>
+      big(i),
+    );
+    const kept = capFeedEntries(many);
+    expect(kept.length).toBeLessThan(many.length);
+    expect(kept.length).toBeLessThanOrEqual(INBOX_FEED_MAX_ENTRIES);
+    const body = serializeInboxFeedBody({ version: 1, entries: kept });
+    expect(body.length).toBeLessThanOrEqual(INBOX_FEED_MAX_BODY_CHARS);
+    // Newest-first input → the head (newest) is what survives.
+    expect(kept[0].id).toBe("u:0");
   });
 });
 

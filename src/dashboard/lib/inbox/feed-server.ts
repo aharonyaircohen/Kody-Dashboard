@@ -22,7 +22,7 @@ import {
   EMPTY_INBOX_FEED_MANIFEST,
   INBOX_FEED_LABEL,
   INBOX_FEED_ISSUE_TITLE,
-  INBOX_FEED_MAX_ENTRIES,
+  capFeedEntries,
   ctoFeedKey,
   parseInboxFeedBody,
   serializeInboxFeedBody,
@@ -114,7 +114,7 @@ export async function appendInboxFeed(
       );
       const next: InboxFeedManifest = {
         version: 1,
-        entries: all.slice(0, INBOX_FEED_MAX_ENTRIES),
+        entries: capFeedEntries(all),
       };
       return { next, result: fresh.length };
     },

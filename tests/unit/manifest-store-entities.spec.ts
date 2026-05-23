@@ -31,6 +31,7 @@ import { appendInboxFeed, readInboxFeed } from "@dashboard/lib/inbox/feed-server
 import {
   serializeInboxFeedBody,
   INBOX_FEED_MAX_ENTRIES,
+  INBOX_FEED_MAX_BODY_CHARS,
   type InboxFeedEntry,
 } from "@dashboard/lib/inbox/feed";
 import {
@@ -130,8 +131,11 @@ describe("inbox-feed · appendInboxFeed", () => {
     expect(mUpdateIssue).not.toHaveBeenCalled();
   });
 
-  it("FIFO-caps at INBOX_FEED_MAX_ENTRIES, newest kept", async () => {
+  it("caps the serialized body under GitHub's limit, newest kept", async () => {
     wire(null);
+    // Far more entries than can fit the byte budget — the body cap, not the
+    // count cap, is what trims here (this is the bug that silently froze the
+    // feed once it bloated past GitHub's 65536-char issue-body limit).
     const many = Array.from({ length: INBOX_FEED_MAX_ENTRIES + 50 }, (_, i) =>
       entry({
         id: `u:${i}`,
@@ -143,9 +147,14 @@ describe("inbox-feed · appendInboxFeed", () => {
     expect(added).toBe(INBOX_FEED_MAX_ENTRIES + 50);
 
     const arg = mCreateIssue.mock.calls[0][0] as { body: string };
+    // The written body must stay within budget...
+    expect(arg.body.length).toBeLessThanOrEqual(INBOX_FEED_MAX_BODY_CHARS);
     const parsed = JSON.parse(arg.body.match(/```json\n([\s\S]*?)\n```/)![1]);
-    expect(parsed.entries).toHaveLength(INBOX_FEED_MAX_ENTRIES);
-    // Sorted desc by sentAt → the highest-second entry survives, oldest drop.
+    // ...which means fewer than we fed in were kept, but never more than the
+    // count cap.
+    expect(parsed.entries.length).toBeLessThanOrEqual(INBOX_FEED_MAX_ENTRIES);
+    expect(parsed.entries.length).toBeLessThan(INBOX_FEED_MAX_ENTRIES + 50);
+    // Sorted desc by sentAt → the newest entry survives, oldest drop.
     expect(parsed.entries[0].id).toBe(`u:${INBOX_FEED_MAX_ENTRIES + 49}`);
   });
 

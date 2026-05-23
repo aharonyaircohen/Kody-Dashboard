@@ -94,6 +94,9 @@ vi.mock("@dashboard/lib/push", () => ({
   PUSH_MANIFEST_ISSUE_TITLE: "kody:push-subscriptions",
 }));
 vi.mock("@dashboard/lib/control-issue", () => ({ CONTROL_TITLE: "kody:control" }));
+vi.mock("@dashboard/lib/vault/bootstrap", () => ({
+  resolveVaultGithubToken: vi.fn().mockResolvedValue("bot-token"),
+}));
 
 import {
   extractMentions,

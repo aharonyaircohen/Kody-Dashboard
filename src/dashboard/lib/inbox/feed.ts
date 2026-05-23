@@ -27,8 +27,18 @@ export const INBOX_FEED_START = "<!-- kody-inbox-feed-start -->";
 export const INBOX_FEED_END = "<!-- kody-inbox-feed-end -->";
 export const INBOX_FEED_ISSUE_TITLE = "Kody Inbox Feed";
 /** Hand-off buffer cap. Big enough to absorb a multi-user mention burst
- *  between client polls; clients dedupe into their own 200-entry gists. */
+ *  between client polls; clients dedupe into their own 200-entry gists.
+ *  This is only a secondary bound — the real limit is the body-char budget
+ *  below, which is what GitHub actually enforces. */
 export const INBOX_FEED_MAX_ENTRIES = 500;
+/**
+ * Hard ceiling on the serialized issue-body length. GitHub rejects issue
+ * bodies over 65536 chars with a 422; a rejected PATCH then reads back
+ * unchanged and the CAS loop reports a bogus "write conflict" — which is
+ * exactly how the feed silently stopped appending once it bloated past the
+ * limit. We keep well under 65536 so the preamble + fence markers always fit.
+ */
+export const INBOX_FEED_MAX_BODY_CHARS = 60000;
 
 export interface InboxFeedEntry {
   /** Stable opaque id — `${login}:${url}`. Re-deliveries dedupe; a new
@@ -118,6 +128,29 @@ export function serializeInboxFeedBody(manifest: InboxFeedManifest): string {
     "> into its private inbox gist. Edited automatically.\n\n";
   const json = JSON.stringify(manifest, null, 2);
   return `${preamble}${INBOX_FEED_START}\n\n\`\`\`json\n${json}\n\`\`\`\n\n${INBOX_FEED_END}\n`;
+}
+
+/**
+ * Cap a *newest-first* entry list so the serialized body stays within GitHub's
+ * issue-body limit. Trims the oldest entries until both bounds are satisfied:
+ * the entry-count cap and `INBOX_FEED_MAX_BODY_CHARS`. The byte budget is the
+ * binding constraint — fat CTO-recommendation entries blow it long before the
+ * count cap. Self-healing: an already-oversized feed shrinks to fit on the
+ * next append, which makes the PATCH succeed again.
+ */
+export function capFeedEntries(entries: InboxFeedEntry[]): InboxFeedEntry[] {
+  let kept = entries.slice(0, INBOX_FEED_MAX_ENTRIES);
+  while (
+    kept.length > 0 &&
+    serializeInboxFeedBody({ version: 1, entries: kept }).length >
+      INBOX_FEED_MAX_BODY_CHARS
+  ) {
+    // Drop ~10% of the oldest tail per pass (min 1) so we converge in a few
+    // iterations instead of one-at-a-time on a badly bloated feed.
+    const drop = Math.max(1, Math.floor(kept.length * 0.1));
+    kept = kept.slice(0, kept.length - drop);
+  }
+  return kept;
 }
 
 /** Stable per-(login, thread/comment) id so re-deliveries dedupe. */
