@@ -673,7 +673,7 @@ function CreateDocDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>New doc</DialogTitle>
           <DialogDescription>
@@ -710,7 +710,7 @@ function CreateDocDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={10} />
+            <MarkdownEditor value={body} onChange={setBody} rows={16} />
             {bodyError ? (
               <p className="text-xs text-rose-300">{bodyError}</p>
             ) : null}
@@ -771,7 +771,7 @@ function EditDocDialog({
 
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>Edit doc `{doc.slug}`</DialogTitle>
           <DialogDescription>
@@ -791,7 +791,7 @@ function EditDocDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={10} />
+            <MarkdownEditor value={body} onChange={setBody} rows={16} />
             {bodyError ? (
               <p className="text-xs text-rose-300">{bodyError}</p>
             ) : null}
