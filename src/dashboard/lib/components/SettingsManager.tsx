@@ -268,7 +268,7 @@ export function SettingsManager() {
                 >
                   <Link href="/prompts">
                     <Bot className="w-4 h-4" />
-                    Slash prompts
+                    Slash commands
                   </Link>
                 </Button>
                 <Button
