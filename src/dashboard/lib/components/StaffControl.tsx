@@ -46,6 +46,7 @@ import {
 } from "../hooks/useStaff";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import type { Staff } from "../api";
+import { KODY_CHAT_STAFF } from "../profile/frontmatter";
 import { STAFF_TEMPLATE } from "../staff-template";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
@@ -57,6 +58,27 @@ function newDraftId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * Kody — the built-in chat persona. Always present in the staff list and
+ * never editable or removable (it lives in code, not a `.kody/staff/*.md`
+ * file). Identified by the `kody` slug; `isBuiltinStaff` gates the UI.
+ */
+const BUILTIN_KODY_STAFF: Staff = {
+  slug: KODY_CHAT_STAFF,
+  title: "Kody",
+  body:
+    "Kody is the built-in assistant persona — the staff member the in-process " +
+    "chat runs as. It is always available and can't be edited or removed here. " +
+    "Attach Company Profile docs to Kody to inject them into every chat turn.",
+  updatedAt: "",
+  htmlUrl: "",
+};
+
+/** True for built-in const staff (no file, no edit/delete). */
+function isBuiltinStaff(slug: string): boolean {
+  return slug === KODY_CHAT_STAFF;
 }
 
 interface StaffControlProps {
@@ -76,12 +98,22 @@ export function StaffControlInner({
   embedded = false,
 }: StaffControlProps = {}) {
   const {
-    data: staff = [],
+    data: rawStaff = [],
     isLoading,
     isFetching,
     refetch,
     error,
   } = useStaff();
+
+  // Kody is always first and never removable; repo staff follow (any stray
+  // `kody.md` file is dropped so the const wins).
+  const staff = useMemo(
+    () => [
+      BUILTIN_KODY_STAFF,
+      ...rawStaff.filter((m) => !isBuiltinStaff(m.slug)),
+    ],
+    [rawStaff],
+  );
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -333,10 +365,14 @@ export function StaffControlInner({
                             {member.slug}
                           </span>
                           <span>·</span>
-                          <span className="inline-flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(member.updatedAt).toLocaleDateString()}
-                          </span>
+                          {isBuiltinStaff(member.slug) ? (
+                            <span>Built-in</span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(member.updatedAt).toLocaleDateString()}
+                            </span>
+                          )}
                         </div>
                       </button>
                     </li>
@@ -436,6 +472,7 @@ function StaffDetail({
   onDelete: () => void;
 }) {
   const hasBody = member.body.trim().length > 0;
+  const isBuiltin = isBuiltinStaff(member.slug);
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -457,46 +494,61 @@ function StaffDetail({
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span className="font-mono opacity-80">{member.slug}</span>
-                <span>·</span>
-                <span className="inline-flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  updated {new Date(member.updatedAt).toLocaleDateString()}
-                </span>
-                <span>·</span>
-                <a
-                  href={member.htmlUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
-                  title="Open on GitHub"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  GitHub
-                </a>
+                {isBuiltin ? (
+                  <>
+                    <span>·</span>
+                    <span>Built-in persona</span>
+                  </>
+                ) : (
+                  <>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      updated {new Date(member.updatedAt).toLocaleDateString()}
+                    </span>
+                    <span>·</span>
+                    <a
+                      href={member.htmlUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                      title="Open on GitHub"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      GitHub
+                    </a>
+                  </>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onEdit}
-                className="w-9 px-0"
-                title="Edit staff member"
-                aria-label="Edit staff member"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onDelete}
-                className="w-9 px-0 text-red-400"
-                title="Delete staff member"
-                aria-label="Delete staff member"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
-            </div>
+            {isBuiltin ? (
+              <span className="shrink-0 inline-flex items-center rounded border border-teal-500/30 bg-teal-500/10 px-2 py-1 text-[11px] font-medium text-teal-300">
+                Built-in · permanent
+              </span>
+            ) : (
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onEdit}
+                  className="w-9 px-0"
+                  title="Edit staff member"
+                  aria-label="Edit staff member"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onDelete}
+                  className="w-9 px-0 text-red-400"
+                  title="Delete staff member"
+                  aria-label="Delete staff member"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            )}
           </header>
 
           {/* Description card inside the hero when present */}

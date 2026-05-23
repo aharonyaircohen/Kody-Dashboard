@@ -622,14 +622,16 @@ function StaffSelect({
         onClick={toggleAll}
       />
       <div className="h-px bg-white/[0.06] my-0.5" />
-      {shown.map((opt) => (
-        <StaffToggle
-          key={opt.slug}
-          option={opt}
-          active={!allActive && value.includes(opt.slug)}
-          onClick={() => toggleSpecific(opt.slug)}
-        />
-      ))}
+      <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+        {shown.map((opt) => (
+          <StaffToggle
+            key={opt.slug}
+            option={opt}
+            active={!allActive && value.includes(opt.slug)}
+            onClick={() => toggleSpecific(opt.slug)}
+          />
+        ))}
+      </div>
       <p className="text-[11px] text-muted-foreground px-0.5 pt-0.5">
         {allActive
           ? "All staff — every staff member is attached to this doc."
