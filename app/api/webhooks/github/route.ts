@@ -285,9 +285,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         "dispatchNotifications threw — should have been caught internally",
       );
     });
-    // Push @mentions to the mentioned users' devices. Independent of the
-    // rules engine: this routes by GitHub login, not by per-repo rules.
-    dispatchMentionPushes(eventType, obj).catch((err: unknown) => {
+    // Push @mentions to the mentioned users' devices + record the inbox feed.
+    // AWAIT it: on Vercel serverless, fire-and-forget work is killed once the
+    // response is sent, so the (vault-token + manifest-write) save must finish
+    // before we return or the inbox entry is silently lost.
+    await dispatchMentionPushes(eventType, obj).catch((err: unknown) => {
       logger.error(
         {
           event: "mention_push_dispatch_crashed",
