@@ -1831,6 +1831,28 @@ export const companyApi = {
     const data = await handleResponse<{ result: CompanyImportResult }>(res);
     return data.result;
   },
+
+  /** The operator list (`github.operators`) — who recommendation duties
+   * @-mention so their comments land in the inbox. */
+  operators: {
+    get: async (): Promise<string[]> => {
+      const res = await fetch(`${API_BASE}/company/operators`, {
+        headers: buildHeaders(),
+        cache: "no-store",
+      });
+      const data = await handleResponse<{ operators: string[] }>(res);
+      return data.operators;
+    },
+    set: async (operators: string[], actorLogin?: string): Promise<string[]> => {
+      const res = await fetch(`${API_BASE}/company/operators`, {
+        method: "PUT",
+        headers: buildHeaders(),
+        body: JSON.stringify({ operators, ...(actorLogin && { actorLogin }) }),
+      });
+      const data = await handleResponse<{ operators: string[] }>(res);
+      return data.operators;
+    },
+  },
 };
 
 // ============ Combined API ============
