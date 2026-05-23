@@ -721,7 +721,7 @@ function CreateProfileDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={10} />
+            <MarkdownEditor value={body} onChange={setBody} rows={16} />
             {bodyError ? (
               <p className="text-xs text-rose-300">{bodyError}</p>
             ) : null}
@@ -802,7 +802,7 @@ function EditProfileDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={10} />
+            <MarkdownEditor value={body} onChange={setBody} rows={16} />
             {bodyError ? (
               <p className="text-xs text-rose-300">{bodyError}</p>
             ) : null}
