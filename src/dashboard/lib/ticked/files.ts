@@ -18,6 +18,7 @@
 
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "../github-client";
+import { STATE_BRANCH } from "../state-branch";
 import {
   joinFrontmatter,
   splitFrontmatter,
@@ -237,12 +238,15 @@ async function fetchLastCommitDate(
 async function fetchLastCommitDateOrNull(
   octokit: Octokit,
   filePath: string,
+  ref?: string,
 ): Promise<string | null> {
   try {
     const { data } = await octokit.repos.listCommits({
       owner: getOwner(),
       repo: getRepo(),
       path: filePath,
+      // State files live on the state branch — look up their history there.
+      ...(ref ? { sha: ref } : {}),
       per_page: 1,
     });
     if (data.length === 0) return null;
@@ -286,6 +290,9 @@ async function fetchTickState(
       owner: getOwner(),
       repo: getRepo(),
       path: `${dir}/${slug}.state.json`,
+      // Engine writes per-tick state to the dedicated state branch, not the
+      // default branch (where the `.md` definition lives). 404 → never ran.
+      ref: STATE_BRANCH,
     });
     if (Array.isArray(data) || !("content" in data) || !data.content)
       return EMPTY_TICK_STATE;
@@ -387,9 +394,24 @@ export function createTickedFiles(
 
     // Build a set of slugs that have a sibling `.state.json` so we only
     // pay for a commit-history fetch when the engine has actually ticked
-    // the file at least once.
+    // the file at least once. State files live on the dedicated state
+    // branch, not here — list that branch's copy of the dir to find them.
+    let stateEntries: Array<{ name: string; type: string }> = [];
+    try {
+      const { data } = await octokit.repos.getContent({
+        owner: getOwner(),
+        repo: getRepo(),
+        path: dir,
+        ref: STATE_BRANCH,
+      });
+      if (Array.isArray(data))
+        stateEntries = data as Array<{ name: string; type: string }>;
+    } catch (error: unknown) {
+      // 404 = state branch or dir doesn't exist yet (nothing ticked).
+      if ((error as { status?: number })?.status !== 404) throw error;
+    }
     const stateSlugs = new Set(
-      entries
+      stateEntries
         .filter((e) => e.type === "file" && e.name.endsWith(".state.json"))
         .map((e) => e.name.slice(0, -".state.json".length))
         .filter((s) => s.length > 0),
@@ -415,6 +437,7 @@ export function createTickedFiles(
               ? fetchLastCommitDateOrNull(
                   octokit,
                   `${dir}/${slug}.state.json`,
+                  STATE_BRANCH,
                 )
               : Promise.resolve(null),
             hasState
@@ -480,7 +503,7 @@ export function createTickedFiles(
       const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
       const [updatedAt, lastTickAt, tickState] = await Promise.all([
         fetchLastCommitDate(octokit, filePath),
-        fetchLastCommitDateOrNull(octokit, `${dir}/${slug}.state.json`),
+        fetchLastCommitDateOrNull(octokit, `${dir}/${slug}.state.json`, STATE_BRANCH),
         fetchTickState(octokit, dir, slug),
       ]);
       return {
