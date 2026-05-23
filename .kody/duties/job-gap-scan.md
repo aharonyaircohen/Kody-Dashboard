@@ -1,5 +1,6 @@
 ---
 staff: ceo
+disabled: true
 ---
 
 # job-gap-scan
