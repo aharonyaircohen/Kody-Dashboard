@@ -26,6 +26,10 @@ import {
   writeProfileFile,
   isValidSlug,
 } from "@dashboard/lib/profile/files";
+import { KODY_CHAT_STAFF } from "@dashboard/lib/profile/frontmatter";
+
+/** A staff slug (profile slug shape) or the `*` all-staff wildcard. */
+const STAFF_TOKEN_RE = /^(\*|[a-z0-9][a-z0-9_-]{0,63})$/;
 
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -64,10 +68,8 @@ export async function GET(req: NextRequest) {
 const createProfileSchema = z.object({
   slug: z.string().min(1).max(64),
   body: z.string().min(1),
-  audience: z
-    .array(z.enum(["chat", "qa"]))
-    .nonempty()
-    .default(["chat"]),
+  // May be empty — an unassigned doc owned by no staff member.
+  staff: z.array(z.string().regex(STAFF_TOKEN_RE)).default([KODY_CHAT_STAFF]),
   actorLogin: z.string().optional(),
 });
 
@@ -81,7 +83,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    const { slug, body, audience, actorLogin } =
+    const { slug, body, staff, actorLogin } =
       createProfileSchema.parse(payload);
 
     if (!isValidSlug(slug)) {
@@ -125,7 +127,7 @@ export async function POST(req: NextRequest) {
       octokit: userOctokit,
       slug,
       body,
-      audience,
+      staff,
     });
 
     return NextResponse.json({ profile });
