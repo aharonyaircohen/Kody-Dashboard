@@ -1,6 +1,7 @@
 ---
 every: manual
 staff: kody
+disabled: true
 ---
 
 # publish a release
