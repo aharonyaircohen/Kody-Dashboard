@@ -1072,12 +1072,12 @@ export const staffApi = {
 
 };
 
-// ============ Documentation API ============
+// ============ Context API ============
 
-export interface Doc {
-  /** Filename without `.md` — stable identity, also the doc heading. */
+export interface ContextEntry {
+  /** Filename without `.md` — stable identity, also the entry heading. */
   slug: string;
-  /** Doc markdown (frontmatter-free). */
+  /** Entry markdown (frontmatter-free). */
   body: string;
   /** Owning staff-member slugs from `staff:` frontmatter (`["kody"]` default for legacy files). */
   staff: string[];
@@ -1089,19 +1089,19 @@ export interface Doc {
   htmlUrl: string;
 }
 
-export const docsApi = {
-  list: async (): Promise<Doc[]> => {
-    const res = await fetch(`${API_BASE}/docs`, { headers: buildHeaders() });
-    const data = await handleResponse<{ docs: Doc[] }>(res);
-    return data.docs ?? [];
+export const contextApi = {
+  list: async (): Promise<ContextEntry[]> => {
+    const res = await fetch(`${API_BASE}/context`, { headers: buildHeaders() });
+    const data = await handleResponse<{ entries: ContextEntry[] }>(res);
+    return data.entries ?? [];
   },
 
-  get: async (slug: string): Promise<Doc> => {
-    const res = await fetch(`${API_BASE}/docs/${encodeURIComponent(slug)}`, {
+  get: async (slug: string): Promise<ContextEntry> => {
+    const res = await fetch(`${API_BASE}/context/${encodeURIComponent(slug)}`, {
       headers: buildHeaders(),
     });
-    const data = await handleResponse<{ doc: Doc }>(res);
-    return data.doc;
+    const data = await handleResponse<{ entry: ContextEntry }>(res);
+    return data.entry;
   },
 
   create: async (data: {
@@ -1109,14 +1109,14 @@ export const docsApi = {
     body: string;
     staff: string[];
     actorLogin?: string;
-  }): Promise<Doc> => {
-    const res = await fetch(`${API_BASE}/docs`, {
+  }): Promise<ContextEntry> => {
+    const res = await fetch(`${API_BASE}/context`, {
       method: "POST",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ doc: Doc }>(res);
-    return payload.doc;
+    const payload = await handleResponse<{ entry: ContextEntry }>(res);
+    return payload.entry;
   },
 
   update: async (
@@ -1126,14 +1126,14 @@ export const docsApi = {
       staff?: string[];
       actorLogin?: string;
     },
-  ): Promise<Doc> => {
-    const res = await fetch(`${API_BASE}/docs/${encodeURIComponent(slug)}`, {
+  ): Promise<ContextEntry> => {
+    const res = await fetch(`${API_BASE}/context/${encodeURIComponent(slug)}`, {
       method: "PATCH",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ doc: Doc }>(res);
-    return payload.doc;
+    const payload = await handleResponse<{ entry: ContextEntry }>(res);
+    return payload.entry;
   },
 
   remove: async (slug: string, actorLogin?: string): Promise<void> => {
@@ -1141,7 +1141,7 @@ export const docsApi = {
     if (actorLogin) params.set("actorLogin", actorLogin);
     const suffix = params.toString() ? `?${params}` : "";
     const res = await fetch(
-      `${API_BASE}/docs/${encodeURIComponent(slug)}${suffix}`,
+      `${API_BASE}/context/${encodeURIComponent(slug)}${suffix}`,
       {
         method: "DELETE",
         headers: buildHeaders(),
@@ -1846,7 +1846,7 @@ export const kodyApi = {
   remote: remoteApi,
   duties: dutiesApi,
   staff: staffApi,
-  docs: docsApi,
+  context: contextApi,
   company: companyApi,
   reports: reportsApi,
   goals: goalsApi,

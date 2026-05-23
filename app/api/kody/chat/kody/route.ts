@@ -63,7 +63,7 @@ import { featureTools } from "../tools/feature-tools";
 import { uiTools } from "../tools/ui-tools";
 import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files";
 import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
-import { loadDocsForPrompt } from "@dashboard/lib/docs/files";
+import { loadContextForPrompt } from "@dashboard/lib/context/files";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -397,7 +397,7 @@ export async function POST(req: NextRequest) {
   // for GitHub tools are still created separately below to avoid races.
   let memoryIndex: string | null = null;
   let userInstructions: string | null = null;
-  let docs: string | null = null;
+  let context: string | null = null;
   if (repo) {
     setGitHubContext(repo.owner, repo.repo, repo.token);
     try {
@@ -419,12 +419,12 @@ export async function POST(req: NextRequest) {
       );
     }
     try {
-      docs = await loadDocsForPrompt();
+      context = await loadContextForPrompt();
     } catch (err) {
-      // Docs are best-effort; never block the chat. Log and continue.
+      // Context is best-effort; never block the chat. Log and continue.
       traceWarn(
         { traceId, err: err instanceof Error ? err.message : String(err) },
-        "kody-direct: docs load failed (continuing without them)",
+        "kody-direct: context load failed (continuing without it)",
       );
     }
   }
@@ -490,7 +490,7 @@ export async function POST(req: NextRequest) {
       vibeMode,
       flyConfigured,
       userInstructions,
-      docs,
+      context,
     },
   );
 

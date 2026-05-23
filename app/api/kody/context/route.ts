@@ -1,9 +1,9 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern docs-api
- * @ai-summary Documentation API — GET lists doc files
- *   (`.kody/docs/<slug>.md`), POST creates a new one. Docs owned by the
+ * @pattern context-api
+ * @ai-summary Context API — GET lists context entries
+ *   (`.kody/context/<slug>.md`), POST creates a new one. Entries owned by the
  *   built-in `kody` staff are injected into the kody-direct chat system
  *   prompt so the agent knows what the company is and does.
  */
@@ -21,14 +21,14 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listDocFiles,
-  readDocFile,
-  writeDocFile,
+  listContextFiles,
+  readContextFile,
+  writeContextFile,
   isValidSlug,
-} from "@dashboard/lib/docs/files";
-import { KODY_CHAT_STAFF } from "@dashboard/lib/docs/frontmatter";
+} from "@dashboard/lib/context/files";
+import { KODY_CHAT_STAFF } from "@dashboard/lib/context/frontmatter";
 
-/** A staff slug (doc slug shape) or the `*` all-staff wildcard. */
+/** A staff slug (entry slug shape) or the `*` all-staff wildcard. */
 const STAFF_TOKEN_RE = /^(\*|[a-z0-9][a-z0-9_-]{0,63})$/;
 
 export async function GET(req: NextRequest) {
@@ -40,10 +40,10 @@ export async function GET(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
-    const docs = await listDocFiles();
-    return NextResponse.json({ docs });
+    const entries = await listContextFiles();
+    return NextResponse.json({ entries });
   } catch (error: any) {
-    console.error("[Docs] Error listing docs:", error);
+    console.error("[Context] Error listing context:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       );
     }
     return NextResponse.json(
-      { docs: [], error: error?.message || "Failed to list docs" },
+      { entries: [], error: error?.message || "Failed to list context" },
       { status: 500 },
     );
   } finally {
@@ -65,10 +65,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const createDocSchema = z.object({
+const createContextSchema = z.object({
   slug: z.string().min(1).max(64),
   body: z.string().min(1),
-  // May be empty — an unassigned doc owned by no staff member.
+  // May be empty — an unassigned entry owned by no staff member.
   staff: z.array(z.string().regex(STAFF_TOKEN_RE)).default([KODY_CHAT_STAFF]),
   actorLogin: z.string().optional(),
 });
@@ -83,25 +83,26 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    const { slug, body, staff, actorLogin } = createDocSchema.parse(payload);
+    const { slug, body, staff, actorLogin } =
+      createContextSchema.parse(payload);
 
     if (!isValidSlug(slug)) {
       return NextResponse.json(
         {
           error: "invalid_slug",
           message:
-            "Doc slug must be lowercase letters, digits, dashes, or underscores.",
+            "Context slug must be lowercase letters, digits, dashes, or underscores.",
         },
         { status: 400 },
       );
     }
 
-    const existing = await readDocFile(slug);
+    const existing = await readContextFile(slug);
     if (existing) {
       return NextResponse.json(
         {
           error: "slug_taken",
-          message: `Doc "${slug}" already exists.`,
+          message: `Context entry "${slug}" already exists.`,
         },
         { status: 409 },
       );
@@ -115,22 +116,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "no_user_token",
-          message: "A signed-in GitHub token is required to commit doc files.",
+          message:
+            "A signed-in GitHub token is required to commit context files.",
         },
         { status: 401 },
       );
     }
 
-    const doc = await writeDocFile({
+    const entry = await writeContextFile({
       octokit: userOctokit,
       slug,
       body,
       staff,
     });
 
-    return NextResponse.json({ doc });
+    return NextResponse.json({ entry });
   } catch (error: any) {
-    console.error("[Docs] Error creating doc:", error);
+    console.error("[Context] Error creating context entry:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "validation_error", details: error.issues },
@@ -146,7 +148,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: "create_failed",
-        message: error?.message ?? "Failed to create doc",
+        message: error?.message ?? "Failed to create context entry",
       },
       { status: 500 },
     );

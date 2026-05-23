@@ -1,20 +1,22 @@
 /**
  * @fileType component
- * @domain docs
- * @pattern docs-control-page
- * @ai-summary Documentation Control — list, view, create, edit, and delete
- *   docs. A doc is a markdown file at `.kody/docs/<slug>.md` in the connected
- *   repo: the slug is the doc name (e.g. `company-profile`, `mission`,
- *   `products`) and the body is free-form markdown — company facts,
- *   guidelines, a persona playbook, etc. Each doc carries a `staff:` list of
- *   staff-member slugs that own it, deciding which consumers load it: docs
+ * @domain context
+ * @pattern context-control-page
+ * @ai-summary Context Control — list, view, create, edit, and delete context
+ *   entries. An entry is a markdown file at `.kody/context/<slug>.md` in the
+ *   connected repo: the slug is the entry name (e.g. `company-profile`,
+ *   `mission`, `products`) and the body is free-form markdown — curated
+ *   context you write FOR Kody (company facts, brand, persona briefs).
+ *   Reference docs that already live in the repo (README, DESIGN_SYSTEM.md)
+ *   belong in the repo, not here. Each entry carries a `staff:` list of
+ *   staff-member slugs that own it, deciding which consumers load it: entries
  *   owned by the built-in `kody` staff feed the kody chat system prompt;
- *   `qa-engineer` docs feed the engine QA preflight. An empty list means the
- *   doc is unassigned (loaded by nobody).
+ *   `qa-engineer` entries feed the engine QA preflight. An empty list means
+ *   the entry is unassigned (loaded by nobody).
  *
  *   Mirrors StaffControl's layout/UX (ListSearch + inline ReactMarkdown
- *   view + MarkdownEditor dialogs), minus any schedule UI — docs are not
- *   scheduled — plus a per-doc staff multi-select and badges.
+ *   view + MarkdownEditor dialogs), minus any schedule UI — entries are not
+ *   scheduled — plus a per-entry staff multi-select and badges.
  */
 "use client";
 
@@ -52,15 +54,15 @@ import {
 import { AuthGuard } from "../auth-guard";
 import { cn } from "../utils";
 import {
-  useCreateDoc,
-  useDeleteDoc,
-  useDocs,
-  useUpdateDoc,
-} from "../hooks/useDocs";
+  useCreateContextEntry,
+  useDeleteContextEntry,
+  useContextEntries,
+  useUpdateContextEntry,
+} from "../hooks/useContextEntries";
 import { useStaff } from "../hooks/useStaff";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import type { Doc } from "../api";
-import { KODY_CHAT_STAFF, QA_STAFF, ALL_STAFF } from "../docs/frontmatter";
+import type { ContextEntry } from "../api";
+import { KODY_CHAT_STAFF, QA_STAFF, ALL_STAFF } from "../context/frontmatter";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -128,7 +130,7 @@ function useStaffOptions(): StaffOption[] {
 
 /**
  * Render a badge per owning staff member. An empty list renders a single
- * muted "Unassigned" badge — the doc is owned by nobody, loaded by no
+ * muted "Unassigned" badge — the entry is owned by nobody, loaded by no
  * consumer.
  */
 function StaffBadges({ staff }: { staff: string[] }) {
@@ -156,61 +158,65 @@ function StaffBadges({ staff }: { staff: string[] }) {
   );
 }
 
-interface DocsControlProps {
+interface ContextControlProps {
   /** Render without the built-in PageHeader (e.g. when hosted in tabs). */
   embedded?: boolean;
 }
 
-export function DocsControl({ embedded = false }: DocsControlProps = {}) {
+export function ContextControl({
+  embedded = false,
+}: ContextControlProps = {}) {
   return (
     <AuthGuard>
-      <DocsControlInner embedded={embedded} />
+      <ContextControlInner embedded={embedded} />
     </AuthGuard>
   );
 }
 
-export function DocsControlInner({ embedded = false }: DocsControlProps = {}) {
+export function ContextControlInner({
+  embedded = false,
+}: ContextControlProps = {}) {
   const {
-    data: docs = [],
+    data: entries = [],
     isLoading,
     isFetching,
     refetch,
     error,
-  } = useDocs();
+  } = useContextEntries();
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [editingDoc, setEditingDoc] = useState<Doc | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<Doc | null>(null);
+  const [editingEntry, setEditingEntry] = useState<ContextEntry | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ContextEntry | null>(null);
 
-  const selectedDoc = useMemo(
-    () => docs.find((s) => s.slug === selectedSlug) ?? null,
-    [docs, selectedSlug],
+  const selectedEntry = useMemo(
+    () => entries.find((s) => s.slug === selectedSlug) ?? null,
+    [entries, selectedSlug],
   );
 
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return docs;
-    return docs.filter(
+    if (!q) return entries;
+    return entries.filter(
       (s) =>
         s.slug.toLowerCase().includes(q) || s.body.toLowerCase().includes(q),
     );
-  }, [docs, search]);
+  }, [entries, search]);
 
   const existingSlugs = useMemo(
-    () => new Set(docs.map((s) => s.slug)),
-    [docs],
+    () => new Set(entries.map((s) => s.slug)),
+    [entries],
   );
 
   useEffect(() => {
-    if (!selectedSlug && docs.length > 0) {
-      setSelectedSlug(docs[0].slug);
+    if (!selectedSlug && entries.length > 0) {
+      setSelectedSlug(entries[0].slug);
     }
-  }, [docs, selectedSlug]);
+  }, [entries, selectedSlug]);
 
   const { githubUser } = useGitHubIdentity();
-  const deleteMutation = useDeleteDoc(githubUser?.login);
+  const deleteMutation = useDeleteContextEntry(githubUser?.login);
 
   const headerActions = (
     <>
@@ -219,13 +225,13 @@ export function DocsControlInner({ embedded = false }: DocsControlProps = {}) {
         size="sm"
         onClick={() => refetch()}
         disabled={isFetching}
-        aria-label="Refresh docs"
+        aria-label="Refresh context"
       >
         <RefreshCw className={cn("w-4 h-4", isFetching && "animate-spin")} />
       </Button>
       <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
         <Plus className="w-4 h-4" />
-        <span className="hidden sm:inline">New doc</span>
+        <span className="hidden sm:inline">New entry</span>
       </Button>
     </>
   );
@@ -236,68 +242,70 @@ export function DocsControlInner({ embedded = false }: DocsControlProps = {}) {
         {embedded ? (
           <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-black/20">
             <span className="text-xs text-muted-foreground mr-auto">
-              {docs.length} {docs.length === 1 ? "doc" : "docs"}
+              {entries.length} {entries.length === 1 ? "entry" : "entries"}
             </span>
             {headerActions}
           </div>
         ) : (
           <PageHeader
-            title="Documentation"
+            title="Context"
             icon={FileText}
             iconClassName="text-teal-400"
-            subtitle={`${docs.length} ${docs.length === 1 ? "doc" : "docs"}`}
+            subtitle={`${entries.length} ${
+              entries.length === 1 ? "entry" : "entries"
+            }`}
             actions={headerActions}
           />
         )}
 
         {error ? (
           <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
-            Failed to load docs: {(error as Error).message}
+            Failed to load context: {(error as Error).message}
           </div>
         ) : null}
 
         <div className="flex-1 min-h-0 flex">
-          {/* Middle: doc list */}
+          {/* Middle: entry list */}
           <aside
             className={cn(
               "w-full md:w-80 md:border-r md:border-border overflow-y-auto",
-              selectedDoc && "hidden md:block",
+              selectedEntry && "hidden md:block",
             )}
           >
-            {docs.length > 0 ? (
+            {entries.length > 0 ? (
               <div className="sticky top-0 z-10 bg-background/95 backdrop-blur px-3 md:px-4 py-2 md:py-3 border-b border-border">
                 <ListSearch
                   value={search}
                   onChange={setSearch}
-                  placeholder="Search docs…"
-                  ariaLabel="Search docs"
+                  placeholder="Search context…"
+                  ariaLabel="Search context"
                   accent="teal"
                 />
               </div>
             ) : null}
             {isLoading ? (
-              <EmptyState icon={<FileText />} title="Loading docs…" />
-            ) : docs.length === 0 ? (
+              <EmptyState icon={<FileText />} title="Loading context…" />
+            ) : entries.length === 0 ? (
               <EmptyState
                 icon={<FileText />}
-                title="No docs yet"
-                hint="Create your first doc — company facts, guidelines, tone, or a persona playbook."
+                title="No context yet"
+                hint="Create your first entry — company facts, brand, tone, or a persona brief you want Kody to know."
               />
             ) : filtered.length === 0 ? (
               <EmptyState
                 icon={<FileText />}
-                title="No matching docs"
-                hint="No doc matches your search. Try a different term."
+                title="No matching entries"
+                hint="No entry matches your search. Try a different term."
               />
             ) : (
               <ul className="divide-y divide-border">
-                {filtered.map((doc) => {
-                  const isActive = selectedSlug === doc.slug;
+                {filtered.map((entry) => {
+                  const isActive = selectedSlug === entry.slug;
                   return (
-                    <li key={doc.slug}>
+                    <li key={entry.slug}>
                       <button
                         type="button"
-                        onClick={() => setSelectedSlug(doc.slug)}
+                        onClick={() => setSelectedSlug(entry.slug)}
                         className={cn(
                           "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                           isActive && "bg-accent/70",
@@ -316,14 +324,14 @@ export function DocsControlInner({ embedded = false }: DocsControlProps = {}) {
                             )}
                           />
                           <span className="font-mono text-sm truncate flex-1">
-                            {doc.slug}
+                            {entry.slug}
                           </span>
-                          <StaffBadges staff={doc.staff} />
+                          <StaffBadges staff={entry.staff} />
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                           <span className="inline-flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            {new Date(doc.updatedAt).toLocaleDateString()}
+                            {new Date(entry.updatedAt).toLocaleDateString()}
                           </span>
                         </div>
                       </button>
@@ -334,61 +342,61 @@ export function DocsControlInner({ embedded = false }: DocsControlProps = {}) {
             )}
           </aside>
 
-          {/* Right: doc detail */}
+          {/* Right: entry detail */}
           <section
             className={cn(
               "flex-1 min-w-0 overflow-y-auto",
-              !selectedDoc && "hidden md:block",
+              !selectedEntry && "hidden md:block",
             )}
           >
-            {selectedDoc ? (
-              <DocDetail
-                doc={selectedDoc}
+            {selectedEntry ? (
+              <EntryDetail
+                entry={selectedEntry}
                 onBack={() => setSelectedSlug(null)}
-                onEdit={() => setEditingDoc(selectedDoc)}
-                onDelete={() => setPendingDelete(selectedDoc)}
+                onEdit={() => setEditingEntry(selectedEntry)}
+                onDelete={() => setPendingDelete(selectedEntry)}
               />
             ) : (
               <EmptyState
                 icon={<FileText />}
-                title="Select a doc"
-                hint="Pick a doc from the list to see its content and owning staff."
+                title="Select an entry"
+                hint="Pick an entry from the list to see its content and owning staff."
               />
             )}
           </section>
         </div>
 
         {/* Create */}
-        <CreateDocDialog
+        <CreateEntryDialog
           open={showCreate}
           existingSlugs={existingSlugs}
           onClose={() => setShowCreate(false)}
-          onCreated={(doc) => {
-            setSelectedSlug(doc.slug);
+          onCreated={(entry) => {
+            setSelectedSlug(entry.slug);
             setShowCreate(false);
           }}
         />
 
         {/* Edit */}
-        {editingDoc ? (
-          <EditDocDialog
-            doc={editingDoc}
-            onClose={() => setEditingDoc(null)}
-            onSaved={() => setEditingDoc(null)}
+        {editingEntry ? (
+          <EditEntryDialog
+            entry={editingEntry}
+            onClose={() => setEditingEntry(null)}
+            onSaved={() => setEditingEntry(null)}
           />
         ) : null}
 
         {/* Delete confirm */}
         <ConfirmDialog
           open={!!pendingDelete}
-          title="Delete this doc?"
+          title="Delete this context entry?"
           description={
             pendingDelete
-              ? `Doc "${pendingDelete.slug}" will be removed from .kody/docs/ via a commit on the default branch.`
+              ? `Entry "${pendingDelete.slug}" will be removed from .kody/context/ via a commit on the default branch.`
               : ""
           }
           variant="destructive"
-          confirmLabel="Delete doc"
+          confirmLabel="Delete entry"
           onConfirm={() => {
             if (!pendingDelete) return;
             const target = pendingDelete;
@@ -405,18 +413,18 @@ export function DocsControlInner({ embedded = false }: DocsControlProps = {}) {
   );
 }
 
-function DocDetail({
-  doc,
+function EntryDetail({
+  entry,
   onBack,
   onEdit,
   onDelete,
 }: {
-  doc: Doc;
+  entry: ContextEntry;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const hasBody = doc.body.trim().length > 0;
+  const hasBody = entry.body.trim().length > 0;
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -429,24 +437,24 @@ function DocDetail({
             className="md:hidden gap-1 -ml-2 text-muted-foreground"
           >
             <ArrowLeft className="w-4 h-4" />
-            All docs
+            All entries
           </Button>
           <header className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words font-mono">
-                  {doc.slug}
+                  {entry.slug}
                 </h1>
-                <StaffBadges staff={doc.staff} />
+                <StaffBadges staff={entry.staff} />
               </div>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  updated {new Date(doc.updatedAt).toLocaleDateString()}
+                  updated {new Date(entry.updatedAt).toLocaleDateString()}
                 </span>
                 <span>·</span>
                 <a
-                  href={doc.htmlUrl}
+                  href={entry.htmlUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
@@ -463,8 +471,8 @@ function DocDetail({
                 size="sm"
                 onClick={onEdit}
                 className="w-9 px-0"
-                title="Edit doc"
-                aria-label="Edit doc"
+                title="Edit entry"
+                aria-label="Edit entry"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
@@ -473,8 +481,8 @@ function DocDetail({
                 size="sm"
                 onClick={onDelete}
                 className="w-9 px-0 text-red-400"
-                title="Delete doc"
-                aria-label="Delete doc"
+                title="Delete entry"
+                aria-label="Delete entry"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
@@ -484,7 +492,7 @@ function DocDetail({
           {hasBody ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{doc.body}</ReactMarkdown>
+                <ReactMarkdown>{entry.body}</ReactMarkdown>
               </div>
             </div>
           ) : null}
@@ -504,7 +512,7 @@ function DocDetail({
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Use <span className="font-medium text-foreground">Edit</span> to
-                write this doc.
+                write this entry.
               </p>
             </div>
             <Button
@@ -514,7 +522,7 @@ function DocDetail({
               className="gap-1.5 mt-1"
             >
               <Pencil className="w-3.5 h-3.5" />
-              Edit doc
+              Edit entry
             </Button>
           </div>
         </div>
@@ -534,8 +542,9 @@ function staffSummary(value: string[], options: StaffOption[]): string {
 }
 
 /**
- * Attach a doc to staff members via a compact dropdown. The relation is the
- * only thing stored: each selected staff member owns the doc. Three shapes:
+ * Attach an entry to staff members via a compact dropdown. The relation is
+ * the only thing stored: each selected staff member owns the entry. Three
+ * shapes:
  *   - one or more specific staff members,
  *   - "All staff" (the `*` wildcard) — mutually exclusive with specifics, and
  *   - none selected → "Unassigned" (owned by nobody).
@@ -612,7 +621,7 @@ function StaffSelect({
       </DropdownMenu>
       <p className="text-[11px] text-muted-foreground px-0.5">
         {allActive
-          ? "All staff — every staff member is attached to this doc."
+          ? "All staff — every staff member is attached to this entry."
           : value.length === 0
             ? "Unassigned — not attached to any staff member."
             : "Attached to each selected staff member."}
@@ -621,7 +630,7 @@ function StaffSelect({
   );
 }
 
-function CreateDocDialog({
+function CreateEntryDialog({
   open,
   existingSlugs,
   onClose,
@@ -630,10 +639,10 @@ function CreateDocDialog({
   open: boolean;
   existingSlugs: Set<string>;
   onClose: () => void;
-  onCreated: (doc: Doc) => void;
+  onCreated: (entry: ContextEntry) => void;
 }) {
   const { githubUser } = useGitHubIdentity();
-  const createMutation = useCreateDoc(githubUser?.login);
+  const createMutation = useCreateContextEntry(githubUser?.login);
   const staffOptions = useStaffOptions();
 
   const [slug, setSlug] = useState("");
@@ -667,28 +676,28 @@ function CreateDocDialog({
     if (!canSave) return;
     createMutation.mutate(
       { slug, body, staff },
-      { onSuccess: (doc) => onCreated(doc) },
+      { onSuccess: (entry) => onCreated(entry) },
     );
   };
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>New doc</DialogTitle>
+          <DialogTitle>New context entry</DialogTitle>
           <DialogDescription>
-            Stored at .kody/docs/&lt;slug&gt;.md. The slug is the doc name Kody
-            sees (e.g. company-profile, mission, products); the body is plain
-            markdown. Staff decides which consumers load it — leave all
-            unchecked to keep the doc unassigned.
+            Stored at .kody/context/&lt;slug&gt;.md. The slug is the entry name
+            Kody sees (e.g. company-profile, mission, products); the body is
+            plain markdown. Staff decides which consumers load it — leave all
+            unchecked to keep the entry unassigned.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="doc-slug">Slug (doc name)</Label>
+            <Label htmlFor="entry-slug">Slug (entry name)</Label>
             <Input
-              id="doc-slug"
+              id="entry-slug"
               value={slug}
               onChange={(e) => setSlug(e.target.value.toLowerCase())}
               onBlur={() => setTouchedSlug(true)}
@@ -710,7 +719,7 @@ function CreateDocDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={16} />
+            <MarkdownEditor value={body} onChange={setBody} rows={10} />
             {bodyError ? (
               <p className="text-xs text-rose-300">{bodyError}</p>
             ) : null}
@@ -722,7 +731,7 @@ function CreateDocDialog({
             Cancel
           </Button>
           <Button size="sm" onClick={handleSubmit} disabled={!canSave}>
-            {createMutation.isPending ? "Creating…" : "Create doc"}
+            {createMutation.isPending ? "Creating…" : "Create entry"}
           </Button>
         </div>
       </DialogContent>
@@ -730,37 +739,37 @@ function CreateDocDialog({
   );
 }
 
-function EditDocDialog({
-  doc,
+function EditEntryDialog({
+  entry,
   onClose,
   onSaved,
 }: {
-  doc: Doc;
+  entry: ContextEntry;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { githubUser } = useGitHubIdentity();
-  const updateMutation = useUpdateDoc(doc.slug, githubUser?.login);
+  const updateMutation = useUpdateContextEntry(entry.slug, githubUser?.login);
   const staffOptions = useStaffOptions();
 
-  const [body, setBody] = useState(doc.body || "");
-  const [staff, setStaff] = useState<string[]>(doc.staff);
+  const [body, setBody] = useState(entry.body || "");
+  const [staff, setStaff] = useState<string[]>(entry.staff);
 
   useEffect(() => {
-    setBody(doc.body || "");
-    setStaff(doc.staff);
-  }, [doc]);
+    setBody(entry.body || "");
+    setStaff(entry.staff);
+  }, [entry]);
 
   const bodyError = body.trim().length === 0 ? "Required" : null;
 
   const staffChanged =
-    staff.length !== doc.staff.length ||
-    staff.some((s) => !doc.staff.includes(s));
+    staff.length !== entry.staff.length ||
+    staff.some((s) => !entry.staff.includes(s));
 
   const handleSubmit = () => {
     if (bodyError || updateMutation.isPending) return;
     const patch: { body?: string; staff?: string[] } = {};
-    if (body !== doc.body) patch.body = body;
+    if (body !== entry.body) patch.body = body;
     if (staffChanged) patch.staff = staff;
     if (Object.keys(patch).length === 0) {
       onSaved();
@@ -771,12 +780,12 @@ function EditDocDialog({
 
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit doc `{doc.slug}`</DialogTitle>
+          <DialogTitle>Edit entry `{entry.slug}`</DialogTitle>
           <DialogDescription>
-            Update the doc body or owning staff. Saving commits the file to the
-            default branch.
+            Update the entry body or owning staff. Saving commits the file to
+            the default branch.
           </DialogDescription>
         </DialogHeader>
 
@@ -791,7 +800,7 @@ function EditDocDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={16} />
+            <MarkdownEditor value={body} onChange={setBody} rows={10} />
             {bodyError ? (
               <p className="text-xs text-rose-300">{bodyError}</p>
             ) : null}

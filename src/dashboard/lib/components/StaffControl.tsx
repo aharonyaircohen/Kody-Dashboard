@@ -46,7 +46,7 @@ import {
 } from "../hooks/useStaff";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import type { Staff } from "../api";
-import { KODY_CHAT_STAFF } from "../docs/frontmatter";
+import { KODY_CHAT_STAFF } from "../context/frontmatter";
 import { STAFF_TEMPLATE } from "../staff-template";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
@@ -65,7 +65,7 @@ const BUILTIN_KODY_STAFF: Staff = {
   body:
     "Kody is the built-in assistant persona — the staff member the in-process " +
     "chat runs as. It is always available and can't be edited or removed here. " +
-    "Attach Company Profile docs to Kody to inject them into every chat turn.",
+    "Attach Context entries to Kody to inject them into every chat turn.",
   updatedAt: "",
   htmlUrl: "",
 };

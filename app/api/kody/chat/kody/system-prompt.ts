@@ -109,13 +109,13 @@ export function buildSystemPrompt(
      */
     userInstructions?: string | null;
     /**
-     * Concatenated bodies of the `kody`-owned `.kody/docs/*.md` files (or
+     * Concatenated bodies of the `kody`-owned `.kody/context/*.md` entries (or
      * `null` when the repo has none). Factual "who the company is / what it
      * does" context the agent should treat as background — injected near the
      * TOP (after the connected-repo block) so it frames everything, unlike
      * `userInstructions` which is appended LAST as a behavioral override.
      */
-    docs?: string | null;
+    context?: string | null;
   },
 ): string {
   const sections: string[] = [base];
@@ -131,18 +131,18 @@ export function buildSystemPrompt(
 The user is currently viewing **${opts.currentPage.trim()}** in the dashboard. When they say "this page", "here", "what am I viewing", or "what is this", they mean this page — answer about it directly. Use your dashboard knowledge to describe it (call \`describe_feature\` with the matching id, e.g. the page slug, when you need the full rundown).`,
     );
   }
-  if (opts?.docs && opts.docs.trim().length > 0) {
+  if (opts?.context && opts.context.trim().length > 0) {
     sections.push(
-      `## Documentation — your default frame
+      `## Context — your default frame
 
-You are this company's in-house assistant, not a general-purpose chatbot. The block below is the live contents of the \`kody\`-owned \`.kody/docs/*.md\` files for this repo: who the company is, what it builds, its domain, customers, and vocabulary. This is your DEFAULT and PRIMARY frame for every question.
+You are this company's in-house assistant, not a general-purpose chatbot. The block below is the live contents of the \`kody\`-owned \`.kody/context/*.md\` entries for this repo: who the company is, what it builds, its domain, customers, and vocabulary. This is your DEFAULT and PRIMARY frame for every question.
 
-- If a question matches — or could refer to — the company, its product, this repo, or its domain (even a single bare word or name, any casing or spacing), answer about THAT, directly, from these docs. Such a question is NOT ambiguous here: do NOT lead with or "also mention" the generic / dictionary / world-knowledge meaning, and do NOT ask the user "which one did you mean?". Just answer about the company's thing.
+- If a question matches — or could refer to — the company, its product, this repo, or its domain (even a single bare word or name, any casing or spacing), answer about THAT, directly, from this context. Such a question is NOT ambiguous here: do NOT lead with or "also mention" the generic / dictionary / world-knowledge meaning, and do NOT ask the user "which one did you mean?". Just answer about the company's thing.
 - Example: if the product is named "Foo", then "what is foo / a foo / Foo?" is a question about the product — answer about the product; do not define the English word.
 - Give a general-knowledge answer only when the question is plainly unrelated to the company, and keep it brief.
-- Use the company's own terminology. If the user explicitly contradicts the docs, follow the user.
+- Use the company's own terminology. If the user explicitly contradicts this context, follow the user.
 
-${opts.docs.trim()}`,
+${opts.context.trim()}`,
     );
   }
   if (repo) {
