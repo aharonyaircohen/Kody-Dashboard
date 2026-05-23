@@ -53,7 +53,17 @@ const appendSchema = z.object({
 
 function gistScopeError(err: unknown): NextResponse | null {
   const msg = err instanceof Error ? err.message : String(err);
-  if (/gist/i.test(msg) && /(scope|forbidden|404|403)/i.test(msg)) {
+  const status = (err as { status?: number } | null)?.status;
+  // GitHub answers a gist write from a token without the `gist` scope with a
+  // bare 404 "Not Found" (not a 403) — so match the 404/"not found" shape and
+  // the raw status too, or this surfaces as an opaque 500 the user can't act
+  // on. Any 403/404 against a gist endpoint is overwhelmingly a missing scope.
+  const looksLikeGist = /gist/i.test(msg);
+  const scopeSignal =
+    /(scope|forbidden|not\s*found|404|403)/i.test(msg) ||
+    status === 403 ||
+    status === 404;
+  if (looksLikeGist && scopeSignal) {
     return NextResponse.json(
       {
         error: "gist_scope_missing",
