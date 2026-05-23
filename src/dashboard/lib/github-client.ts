@@ -18,6 +18,11 @@ import {
   ALL_STAGES,
 } from "./constants";
 import { isProtectedBranch } from "./branches";
+import {
+  parseActivityJsonl,
+  sortActivityNewestFirst,
+  type CompanyActivityRecord,
+} from "./activity/company";
 import type {
   KodyPipelineStatus,
   GitHubIssue,
@@ -1944,156 +1949,88 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
 }
 
 /**
- * A pull request as it appears in the "Autonomous" activity feed — Kody's
- * own work product (opened, merged, or closed), newest-updated first.
+ * Read the engine-authored Company Activity log — recent
+ * `.kody/activity/<date>.jsonl` files committed by `appendCompanyActivity`.
+ * Lists the dir, reads the newest few day-files, parses + merges newest-first.
+ * Each file is ETag/304-cached (rate-limit rule #2). Returns [] when the dir
+ * doesn't exist yet (no engine ticks recorded).
  */
-export interface RecentPR {
-  number: number;
-  title: string;
-  state: "open" | "merged" | "closed";
-  author: string | null;
-  createdAt: string;
-  mergedAt: string | null;
-  closedAt: string | null;
-  updatedAt: string;
-  url: string;
-}
+const ACTIVITY_DIR = ".kody/activity";
+const ACTIVITY_DAY_FILES = 3;
 
-interface RecentPRsGraphQL {
-  repository: {
-    pullRequests: {
-      nodes: Array<{
-        number: number;
-        title: string;
-        state: "OPEN" | "MERGED" | "CLOSED";
-        url: string;
-        createdAt: string;
-        mergedAt: string | null;
-        closedAt: string | null;
-        updatedAt: string;
-        author: { login: string } | null;
-      }>;
-    };
-  };
-}
-
-/**
- * Fetch the most recently-updated PRs across all states in one GraphQL call —
- * the data behind the Activity → Auto tab. Same rate-limit story as
- * `fetchOpenPRs`: TTL cache + in-flight dedup + stale-on-error fallback
- * (GraphQL has no ETag/304).
- */
-const inflightRecentPRs = new Map<string, Promise<RecentPR[]>>();
-
-export async function fetchRecentPRs(): Promise<RecentPR[]> {
-  const cacheKey = `recent-prs:${getOwner()}:${getRepo()}`;
-  const cached = getCached<RecentPR[]>(cacheKey);
-  if (cached) return cached;
-
-  const existing = inflightRecentPRs.get(cacheKey);
-  if (existing) return existing;
-
-  const stale = getStale<RecentPR[]>(cacheKey);
+export async function fetchCompanyActivity(
+  limit = 100,
+): Promise<CompanyActivityRecord[]> {
   const octokit = getOctokit();
+  const owner = getOwner();
+  const repo = getRepo();
 
-  const query = `
-    query RecentPRs($owner: String!, $repo: String!) {
-      repository(owner: $owner, name: $repo) {
-        pullRequests(first: 30, orderBy: { field: UPDATED_AT, direction: DESC }) {
-          nodes { number title state url createdAt mergedAt closedAt updatedAt author { login } }
-        }
-      }
-    }
-  `;
-
-  const promise = (async () => {
-    try {
-      const data = await octokit.graphql<RecentPRsGraphQL>(query, {
-        owner: getOwner(),
-        repo: getRepo(),
-      });
-      const prs: RecentPR[] = data.repository.pullRequests.nodes.map((pr) => ({
-        number: pr.number,
-        title: pr.title,
-        state: pr.state.toLowerCase() as RecentPR["state"],
-        author: pr.author?.login ?? null,
-        createdAt: pr.createdAt,
-        mergedAt: pr.mergedAt,
-        closedAt: pr.closedAt,
-        updatedAt: pr.updatedAt,
-        url: pr.url,
-      }));
-      setCache(cacheKey, CACHE_TTL.prs, prs);
-      return prs;
-    } catch (err) {
-      if (stale) {
-        setCache(cacheKey, Math.min(CACHE_TTL.prs, 60_000), stale.data);
-        return stale.data;
-      }
-      throw err;
-    } finally {
-      inflightRecentPRs.delete(cacheKey);
-    }
-  })();
-
-  inflightRecentPRs.set(cacheKey, promise);
-  return promise;
-}
-
-/** A commit as it appears in the "Autonomous" activity feed. */
-export interface RecentCommit {
-  sha: string;
-  /** First line of the commit message. */
-  message: string;
-  author: string | null;
-  date: string;
-  url: string;
-}
-
-/**
- * Recent commits on the default branch — the "pushed" events in the Auto
- * feed. ETag/304-cached (rate-limit rule #2): unchanged history revalidates
- * for free.
- */
-export async function fetchRecentCommits(): Promise<RecentCommit[]> {
-  const cacheKey = `recent-commits:${getOwner()}:${getRepo()}`;
-  const cached = getCached<RecentCommit[]>(cacheKey);
-  if (cached) return cached;
-
-  const stale = getStale<RecentCommit[]>(cacheKey);
-  const octokit = getOctokit();
-
+  // List the activity dir (ETag-cached). 404 = nothing recorded yet.
+  const listKey = `activity-dir:${owner}:${repo}`;
+  const listStale = getStale<string[]>(listKey);
+  let files: string[] = listStale?.data ?? [];
   try {
-    const response = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      per_page: 30,
-      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+    const res = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: ACTIVITY_DIR,
+      headers: listStale?.etag ? { "If-None-Match": listStale.etag } : undefined,
     });
-    const newEtag = (response.headers as Record<string, string | undefined>)
-      ?.etag;
-    const commits: RecentCommit[] = response.data.map((c) => ({
-      sha: c.sha,
-      message:
-        (c.commit.message || "").split("\n")[0]?.trim() || c.sha.slice(0, 7),
-      author: c.author?.login ?? c.commit.author?.name ?? null,
-      date:
-        c.commit.author?.date ??
-        c.commit.committer?.date ??
-        new Date().toISOString(),
-      url: c.html_url,
-    }));
-    setCache(cacheKey, CACHE_TTL.prs, commits, { etag: newEtag });
-    return commits;
+    const etag = (res.headers as Record<string, string | undefined>)?.etag;
+    if (Array.isArray(res.data)) {
+      files = res.data
+        .filter((e) => e.type === "file" && e.name.endsWith(".jsonl"))
+        .map((e) => e.name);
+      setCache(listKey, CACHE_TTL.tasks, files, { etag });
+    }
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
-    if (status === 304 && stale) {
-      setCache(cacheKey, CACHE_TTL.prs, stale.data, { etag: stale.etag });
-      return stale.data;
+    if (status === 304 && listStale) {
+      setCache(listKey, CACHE_TTL.tasks, listStale.data, { etag: listStale.etag });
+      files = listStale.data;
+    } else if (status === 404) {
+      return [];
+    } else if (!listStale) {
+      return [];
     }
-    if (stale) return stale.data;
-    return [];
   }
+
+  // Newest day-files first (filenames are YYYY-MM-DD.jsonl → lexicographic).
+  const recent = [...files].sort().reverse().slice(0, ACTIVITY_DAY_FILES);
+
+  const perFile = await Promise.all(
+    recent.map(async (name) => {
+      const path = `${ACTIVITY_DIR}/${name}`;
+      const key = `activity-file:${owner}:${repo}:${name}`;
+      const stale = getStale<CompanyActivityRecord[]>(key);
+      try {
+        const res = await octokit.repos.getContent({
+          owner,
+          repo,
+          path,
+          headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+        });
+        const etag = (res.headers as Record<string, string | undefined>)?.etag;
+        const data = res.data;
+        if (!Array.isArray(data) && "content" in data && data.content) {
+          const text = Buffer.from(data.content, "base64").toString("utf-8");
+          const recs = parseActivityJsonl(text);
+          setCache(key, CACHE_TTL.tasks, recs, { etag });
+          return recs;
+        }
+      } catch (error: unknown) {
+        const status = (error as { status?: number })?.status;
+        if (status === 304 && stale) {
+          setCache(key, CACHE_TTL.tasks, stale.data, { etag: stale.etag });
+          return stale.data;
+        }
+        if (stale) return stale.data;
+      }
+      return [];
+    }),
+  );
+
+  return sortActivityNewestFirst(perFile.flat()).slice(0, limit);
 }
 
 /**

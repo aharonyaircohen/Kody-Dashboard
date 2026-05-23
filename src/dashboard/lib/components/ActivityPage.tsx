@@ -16,8 +16,6 @@ import {
   Bot,
   CheckCircle2,
   ExternalLink,
-  GitCommit,
-  GitPullRequest,
   Loader2,
   RefreshCw,
   Search,
@@ -35,7 +33,7 @@ import { useActivity } from "../hooks/useActivity";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import { useActivityLog } from "../hooks/useActivityLog";
 import { useAutonomousActivity } from "../hooks/useAutonomousActivity";
-import { cn } from "../utils";
+import { cn, formatDuration } from "../utils";
 import type { ActivityRun } from "../activity/types";
 import type { ActionLogEntry } from "../activity/action-log";
 import type {
@@ -458,37 +456,36 @@ function FeedView({ active }: { active: boolean }) {
   );
 }
 
-function autoVerbBadge(verb: "opened" | "merged" | "closed" | "pushed"): string {
-  if (verb === "merged") return "bg-violet-500/15 text-violet-200/80";
-  if (verb === "opened") return "bg-emerald-500/15 text-emerald-200/80";
-  if (verb === "closed") return "bg-rose-500/15 text-rose-200/80";
-  return "bg-sky-500/15 text-sky-200/80"; // pushed
+function autoTriggerBadge(trigger: "schedule" | "manual" | "event"): string {
+  if (trigger === "schedule") return "bg-sky-500/15 text-sky-200/80";
+  if (trigger === "manual") return "bg-amber-500/15 text-amber-200/80";
+  return "bg-white/[0.06] text-white/60";
 }
 
 /**
- * "Auto" tab — a feed of the ACTIONS Kody took on its own: opened / merged /
- * closed PRs and pushed commits, newest first. This is the engine's work
- * product, which the dashboard action Log never captures. Read from GitHub
- * via cached queries.
+ * "Auto" tab — the Company Activity feed: named, attributed actions the
+ * engine performed (a staff member ran a duty, why, and the result), written
+ * by the engine to `.kody/activity/*.jsonl`. NOT derived from commits/PRs —
+ * those carry no staff/duty/purpose.
  */
 function AutoView({ active }: { active: boolean }) {
   const { data, isLoading, error } = useAutonomousActivity(active);
   const [query, setQuery] = useState("");
-  const [kind, setKind] = useState<"all" | "pr" | "commit">("all");
+  const [onlyFailed, setOnlyFailed] = useState(false);
 
-  const events = useMemo(() => {
-    let all = data?.events ?? [];
-    if (kind !== "all") all = all.filter((e) => e.kind === kind);
+  const records = useMemo(() => {
+    let all = data?.records ?? [];
+    if (onlyFailed) all = all.filter((r) => r.outcome === "failed");
     const q = query.trim().toLowerCase();
     if (q)
-      all = all.filter((e) =>
-        [e.text, e.actor ?? "", e.ref, e.verb]
+      all = all.filter((r) =>
+        [r.action, r.staff ?? "", r.staffTitle ?? "", r.duty, r.trigger]
           .join(" ")
           .toLowerCase()
           .includes(q),
       );
     return all;
-  }, [data, query, kind]);
+  }, [data, query, onlyFailed]);
 
   return (
     <div className="mt-2">
@@ -498,98 +495,105 @@ function AutoView({ active }: { active: boolean }) {
         </div>
       )}
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1">
-          {(["all", "pr", "commit"] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setKind(k)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs transition-colors",
-                kind === k
-                  ? "bg-white/[0.08] text-white"
-                  : "text-white/50 hover:text-white hover:bg-white/[0.04]",
-              )}
-            >
-              {k === "all" ? "All" : k === "pr" ? "PRs" : "Commits"}
-            </button>
-          ))}
-        </div>
+        <button
+          type="button"
+          onClick={() => setOnlyFailed((v) => !v)}
+          className={cn(
+            "rounded-md px-2.5 py-1 text-xs transition-colors",
+            onlyFailed
+              ? "bg-rose-500/15 text-rose-200"
+              : "text-white/50 hover:text-white hover:bg-white/[0.04]",
+          )}
+        >
+          Failed only
+        </button>
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search actions, commit, author…"
+            placeholder="Search action, staff, duty…"
             className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
           />
         </div>
         <span className="ml-auto text-[10px] text-white/35">
-          {data ? `${events.length} actions` : ""}
+          {data ? `${records.length} actions` : ""}
           {data?.computedAt && ` · updated ${relTime(data.computedAt)}`}
         </span>
       </div>
       {isLoading ? (
         <p className="text-xs text-white/40 italic py-6 text-center">
-          Loading autonomous activity…
+          Loading company activity…
         </p>
-      ) : events.length === 0 ? (
+      ) : records.length === 0 ? (
         <p className="text-xs text-white/40 italic py-6 text-center">
-          Nothing autonomous yet — no PRs or commits from Kody in this repo.
+          No autonomous activity yet — appears once a duty runs on the updated
+          engine.
         </p>
       ) : (
         <ul className="space-y-1.5">
-          {events.map((e) => (
+          {records.map((r, i) => (
             <li
-              key={e.id}
+              key={`${r.ts}-${r.duty}-${i}`}
               className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
             >
-              <span
-                className={cn(
-                  "mt-px shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                  autoVerbBadge(e.verb),
-                )}
-              >
-                {e.kind === "pr" ? (
-                  <GitPullRequest className="w-2.5 h-2.5" />
+              <span className="mt-0.5 shrink-0">
+                {r.outcome === "failed" ? (
+                  <XCircle className="w-4 h-4 text-rose-400" />
+                ) : r.outcome === "completed" ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 ) : (
-                  <GitCommit className="w-2.5 h-2.5" />
+                  <Clock className="w-4 h-4 text-white/40" />
                 )}
-                {e.verb}
               </span>
               <div className="min-w-0 flex-1">
-                <div className="text-sm truncate">
-                  <a
-                    href={e.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:underline"
-                  >
-                    <span className="font-mono text-white/40">{e.ref}</span>{" "}
-                    <span className="text-white/80">{e.text}</span>
-                  </a>
+                <div className="text-sm truncate text-white/85">
+                  {r.action}
                 </div>
-                {e.actor && (
-                  <div className="text-[10px] text-white/40 truncate">
-                    by {e.actor}
-                  </div>
-                )}
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-white/40">
+                  {r.staffTitle || r.staff ? (
+                    <span className="rounded bg-emerald-500/15 px-1 text-emerald-200/80">
+                      {r.staffTitle ?? r.staff}
+                    </span>
+                  ) : null}
+                  <span className="rounded bg-violet-500/15 px-1 text-violet-200/80">
+                    duty: {r.duty}
+                  </span>
+                  <span
+                    className={cn("rounded px-1", autoTriggerBadge(r.trigger))}
+                  >
+                    {r.trigger}
+                  </span>
+                  {typeof r.durationMs === "number" && r.durationMs > 0 ? (
+                    <span>· {formatDuration(r.durationMs)}</span>
+                  ) : null}
+                  {r.runUrl ? (
+                    <a
+                      href={r.runUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-0.5 text-sky-300/70 hover:underline"
+                    >
+                      run <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  ) : null}
+                </div>
               </div>
               <div
                 className="shrink-0 text-right text-[11px] text-white/40 tabular-nums"
-                title={fmtExactTime(e.at)}
+                title={fmtExactTime(r.ts)}
               >
-                {fmtExactTime(e.at)}
+                {fmtExactTime(r.ts)}
               </div>
             </li>
           ))}
         </ul>
       )}
       <p className="mt-6 text-[10px] text-white/30">
-        What Kody did on its own — PRs it opened, merged, or closed, and
-        commits it pushed. Each line is one action, newest first. The Log tab
-        shows dashboard actions; this shows the engine&apos;s autonomous work.
+        Company activity — each line is one action the engine took: which staff
+        member ran which duty, why (schedule / manual), and the result. Written
+        by the engine; the Log tab shows dashboard actions instead.
       </p>
     </div>
   );
