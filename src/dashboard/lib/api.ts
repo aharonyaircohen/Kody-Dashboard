@@ -1680,9 +1680,9 @@ export const activityApi = {
     });
     return handleResponse(res);
   },
-  /** Kody's autonomous actions — opened/merged/closed PRs + pushed commits. */
+  /** Company activity — engine-authored, attributed actions (duty runs). */
   autonomous: async (): Promise<{
-    events: import("./activity/autonomous").AutonomousEvent[];
+    records: import("./activity/company").CompanyActivityRecord[];
     total: number;
     computedAt?: string;
   }> => {
