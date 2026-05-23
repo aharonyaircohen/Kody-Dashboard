@@ -4,7 +4,7 @@ staff: cto
 mentions: aguyaharonyair
 ---
 
-# QA Merge Gate
+# Approval Gate
 
 > Executed by the **CTO** persona. Every 15 minutes, look at the **QA goals'
 > deliverable PRs**, verify each one passes a fresh QA pass, drop duplicates,
@@ -110,7 +110,7 @@ the exact command on a single `kody-cmd` line (the inbox **Approve** button
 posts it verbatim):
 
 ```
-{{mentions}} ✅ **CTO QA-merge** — `approve`
+{{mentions}} ✅ **CTO approval** — `approve`
 
 QA PR #<n> ("<title>") passed a fresh QA pass. Approving squash-merges it into
 the default branch.
@@ -127,7 +127,7 @@ the problem and the operator closes the PR manually. Omitting the `kody-cmd`
 also means the inbox shows no Approve/auto button — reject-only by design:
 
 ```
-{{mentions}} 🚫 **CTO QA-merge** — `reject`
+{{mentions}} 🚫 **CTO approval** — `reject`
 
 QA PR #<n> ("<title>") <duplicates already-merged PR #<m> | failed QA: #<finding>>.
 Recommend closing it without merging.
