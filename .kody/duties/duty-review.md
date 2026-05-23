@@ -1,6 +1,7 @@
 ---
 every: 6h
 staff: coo
+disabled: true
 ---
 
 # Duty Review
