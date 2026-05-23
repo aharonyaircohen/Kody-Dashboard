@@ -9,14 +9,15 @@
  *   the company.
  *
  *   Each file may carry a tiny YAML frontmatter block with a single
- *   `audience:` field — an inline list (`[chat, qa]`) of the consumers
- *   that load the section. Legacy files have NO frontmatter; they
- *   default to `[chat]` so existing data keeps flowing to the chat prompt
- *   unchanged (see `profile/frontmatter.ts`).
+ *   `staff:` field — an inline list (`[kody, qa-engineer]`) of the
+ *   staff-member slugs that own the section. Legacy files use `audience:`
+ *   or have NO frontmatter; both are mapped on read (`chat` → `kody`,
+ *   `qa` → `qa-engineer`, frontmatter-less → `[kody]`) so existing data
+ *   keeps flowing unchanged (see `profile/frontmatter.ts`).
  *
- *   The chat-scoped bodies are injected into the kody-direct chat
- *   system prompt under a `## Company profile` heading (see
- *   `loadProfileForPrompt`), so every persona inherits company facts
+ *   Sections owned by the built-in chat staff (`kody`) are injected into
+ *   the kody-direct chat system prompt under a `## Company profile`
+ *   heading (see `loadProfileForPrompt`), so every persona inherits facts
  *   without restating them. Deliberately NOT part of the Company
  *   export/import bundle (that decision is still open).
  *
@@ -30,7 +31,8 @@ import { getOctokit, getOwner, getRepo } from "../github-client";
 import {
   splitProfileFrontmatter,
   joinProfileFrontmatter,
-  type ProfileAudience,
+  KODY_CHAT_STAFF,
+  ALL_STAFF,
 } from "./frontmatter";
 
 const PROFILE_DIR = ".kody/profile";
@@ -44,10 +46,11 @@ export interface ProfileFile {
    */
   body: string;
   /**
-   * Consumers from `audience:` frontmatter. Defaults to `["chat"]` for
-   * legacy frontmatter-less files. Always non-empty.
+   * Staff-member slugs that own this section, from `staff:` frontmatter.
+   * Defaults to `["kody"]` (the built-in chat staff) for legacy
+   * frontmatter-less files. Always non-empty.
    */
-  audience: ProfileAudience[];
+  staff: string[];
   /** Git blob sha. Required for update/delete. */
   sha: string;
   /** Last commit timestamp affecting this file. */
@@ -150,7 +153,7 @@ export async function listProfileFiles(): Promise<ProfileFile[]> {
         return {
           slug,
           body: body.replace(/^\s+/, ""),
-          audience: frontmatter.audience,
+          staff: frontmatter.staff,
           sha,
           updatedAt,
           htmlUrl: buildHtmlUrl(slug, branch),
@@ -193,7 +196,7 @@ export async function readProfileFile(
     return {
       slug,
       body: body.replace(/^\s+/, ""),
-      audience: frontmatter.audience,
+      staff: frontmatter.staff,
       sha: data.sha,
       updatedAt,
       htmlUrl: buildHtmlUrl(slug, branch),
@@ -207,10 +210,10 @@ export async function readProfileFile(
 interface WriteOptions {
   octokit: Octokit;
   slug: string;
-  /** Section markdown (frontmatter-free); the `audience:` block is re-attached here. */
+  /** Section markdown (frontmatter-free); the `staff:` block is re-attached here. */
   body: string;
-  /** Consumers persisted in `audience:` frontmatter (inline list). */
-  audience: ProfileAudience[];
+  /** Owning staff-member slugs persisted in `staff:` frontmatter (inline list). */
+  staff: string[];
   sha?: string;
   message?: string;
 }
@@ -225,7 +228,7 @@ export async function writeProfileFile(
   }
   const filePath = `${PROFILE_DIR}/${opts.slug}.md`;
   const withFrontmatter = joinProfileFrontmatter(
-    { audience: opts.audience },
+    { staff: opts.staff },
     opts.body,
   );
   const content = withFrontmatter.endsWith("\n")
@@ -290,13 +293,13 @@ function cacheKey(): string {
 }
 
 /**
- * Concatenate the chat-audience profile files into a single markdown
- * block for the chat system prompt, each section prefixed with its slug
- * as a `###` heading. Only sections whose `audience` includes `chat` are
- * included — `qa`-only sections are skipped so they never reach the chat
- * prompt. Returns `null` when no chat-audience sections exist. 60s
- * in-process cache (same TTL as the instructions loader); callers treat
- * `null` as "no profile".
+ * Concatenate the chat-staff profile files into a single markdown block
+ * for the chat system prompt, each section prefixed with its slug as a
+ * `###` heading. Only sections owned by the built-in chat staff (`kody`)
+ * or the `*` all-staff wildcard are included — sections attached only to
+ * other staff (e.g. `qa-engineer`) are skipped so they never reach the chat
+ * prompt. Returns `null` when no such sections exist. 60s in-process cache
+ * (same TTL as the instructions loader); callers treat `null` as "no profile".
  */
 export async function loadProfileForPrompt(): Promise<string | null> {
   const key = cacheKey();
@@ -306,7 +309,9 @@ export async function loadProfileForPrompt(): Promise<string | null> {
   }
   const files = await listProfileFiles();
   const prompt = files
-    .filter((f) => f.audience.includes("chat"))
+    .filter(
+      (f) => f.staff.includes(KODY_CHAT_STAFF) || f.staff.includes(ALL_STAFF),
+    )
     .map((f) => `### ${f.slug}\n\n${f.body.trim()}`)
     .join("\n\n")
     .trim();

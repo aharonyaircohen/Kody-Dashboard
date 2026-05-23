@@ -1074,16 +1074,13 @@ export const staffApi = {
 
 // ============ Company Profile API ============
 
-/** A single consumer that may load a profile section. */
-export type ProfileAudience = "chat" | "qa";
-
 export interface ProfileSection {
   /** Filename without `.md` — stable identity, also the section heading. */
   slug: string;
   /** Section markdown (frontmatter-free). */
   body: string;
-  /** Consumers from `audience:` frontmatter (`["chat"]` default for legacy files). */
-  audience: ProfileAudience[];
+  /** Owning staff-member slugs from `staff:` frontmatter (`["kody"]` default for legacy files). */
+  staff: string[];
   /** Git blob sha. */
   sha: string;
   /** Last commit timestamp affecting this file (ISO8601). */
@@ -1111,7 +1108,7 @@ export const profileApi = {
   create: async (data: {
     slug: string;
     body: string;
-    audience: ProfileAudience[];
+    staff: string[];
     actorLogin?: string;
   }): Promise<ProfileSection> => {
     const res = await fetch(`${API_BASE}/profile`, {
@@ -1127,7 +1124,7 @@ export const profileApi = {
     slug: string,
     data: {
       body?: string;
-      audience?: ProfileAudience[];
+      staff?: string[];
       actorLogin?: string;
     },
   ): Promise<ProfileSection> => {

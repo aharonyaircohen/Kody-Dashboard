@@ -4,68 +4,84 @@
  * @pattern profile-frontmatter
  * @ai-summary YAML frontmatter parser/serializer for company-profile
  *   files (`.kody/profile/<slug>.md`). The single recognized field is
- *   `audience:` — the list of consumers that load the section: `chat`
- *   (the in-process kody chat system prompt) and/or `qa` (the QA
- *   consumer). Written as an inline YAML list on one line
- *   (`audience: [chat, qa]`) because the kody engine parses it with a
- *   simple inline-list reader — keep it inline, comma-separated, square
- *   brackets. Flat keys only — same ~30-line parser shape as
- *   `prompts/frontmatter.ts` and `ticked/frontmatter.ts`; no
- *   `gray-matter` dep on purpose.
+ *   `staff:` — the list of staff-member slugs that own the section. Each
+ *   consumer loads the sections attached to *its* staff member:
+ *     - the in-process kody chat loads sections attached to the built-in
+ *       chat staff (`kody`), and
+ *     - the engine's QA preflight loads sections attached to `qa-engineer`.
+ *   Written as an inline YAML list on one line (`staff: [kody, qa-engineer]`)
+ *   because the kody engine parses it with a simple inline-list reader —
+ *   keep it inline, comma-separated, square brackets. Flat keys only — same
+ *   ~30-line parser shape as `prompts/frontmatter.ts` and
+ *   `ticked/frontmatter.ts`; no `gray-matter` dep on purpose.
  *
- *   Profile files historically had NO frontmatter (the whole file was
- *   the section). A frontmatter-less file therefore defaults to
- *   `[chat]` so existing data keeps flowing to the chat prompt
- *   unchanged.
+ *   Legacy files used an `audience:` list of consumers (`chat` / `qa`) or
+ *   had NO frontmatter at all. Both are mapped on read so existing data
+ *   keeps flowing: `chat` → `kody`, `qa` → `qa-engineer`, and a
+ *   frontmatter-less file defaults to `[kody]` (legacy = chat-only).
  */
 
-/** A single consumer that may load a profile section. */
-export type ProfileAudience = "chat" | "qa";
+/** Slug of the built-in chat staff member — the persona the in-process kody chat runs as. Constant, not a `.kody/staff/*.md` file. */
+export const KODY_CHAT_STAFF = "kody";
 
-/** Default when a profile file carries no `audience:` — preserves legacy behavior. */
-export const DEFAULT_PROFILE_AUDIENCE: readonly ProfileAudience[] = ["chat"];
+/** Slug of the QA staff member the engine's QA/ui-review preflight runs as. */
+export const QA_STAFF = "qa-engineer";
 
-const PROFILE_AUDIENCE_VALUES: readonly ProfileAudience[] = [
-  "chat",
-  "qa",
-] as const;
+/**
+ * Wildcard token: a doc owned by `*` is loaded by *every* consumer (chat,
+ * QA, and any future staff). Canonicalized to a lone `["*"]` — it never
+ * coexists with specific slugs.
+ */
+export const ALL_STAFF = "*";
 
-export const ALL_PROFILE_AUDIENCES = PROFILE_AUDIENCE_VALUES;
+/**
+ * Default `staff:` for a profile file with no frontmatter — preserves the
+ * legacy "frontmatter-less file feeds the chat prompt" behavior.
+ */
+export const DEFAULT_PROFILE_STAFF: readonly string[] = [KODY_CHAT_STAFF];
+
+/** Map a legacy `audience:` token to its staff-member slug equivalent. */
+const LEGACY_AUDIENCE_TO_STAFF: Record<string, string> = {
+  chat: KODY_CHAT_STAFF,
+  qa: QA_STAFF,
+};
+
+/** Same slug shape as profile/staff/duty slugs. */
+const STAFF_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 export interface ProfileFrontmatter {
   /**
-   * Consumers that load this section. Absent on disk = `["chat"]` (the
-   * legacy default), applied by `splitProfileFrontmatter`. Always
-   * non-empty and deduped.
+   * Staff-member slugs that own this section. Absent on disk = `["kody"]`
+   * (the legacy chat default), applied by `splitProfileFrontmatter`. An
+   * explicit empty list (`staff: []`) is a valid "unassigned" doc — owned
+   * by nobody, loaded by no consumer. Deduped, order-preserving.
    */
-  audience: ProfileAudience[];
+  staff: string[];
 }
 
-/** True if the value is a recognized profile audience token. */
-export function isProfileAudience(value: unknown): value is ProfileAudience {
-  return (
-    typeof value === "string" &&
-    (PROFILE_AUDIENCE_VALUES as readonly string[]).includes(value)
-  );
+/** True if the value is a syntactically valid staff slug. */
+export function isStaffSlug(value: unknown): value is string {
+  return typeof value === "string" && STAFF_SLUG_RE.test(value);
 }
 
-/** Human-readable label for an audience token. */
-export function profileAudienceLabel(audience: ProfileAudience): string {
-  switch (audience) {
-    case "chat":
-      return "Chat";
-    case "qa":
-      return "QA";
-  }
+/** True if the value is a real staff slug OR the `*` all-staff wildcard. */
+function isStaffToken(value: string): boolean {
+  return value === ALL_STAFF || STAFF_SLUG_RE.test(value);
+}
+
+/** Dedupe; collapse to a lone `["*"]` when the all-staff wildcard is present. */
+function canonicalizeStaff(values: readonly string[]): string[] {
+  const out = dedupe(values);
+  return out.includes(ALL_STAFF) ? [ALL_STAFF] : out;
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 /**
  * Parse the leading frontmatter block (if any) from a raw profile file.
- * `audience` defaults to `["chat"]` when the block is missing or omits
- * the key, so existing frontmatter-less files keep going to the chat
- * prompt.
+ * `staff` defaults to `["kody"]` when the block is missing or names no
+ * recognizable staff, so frontmatter-less files keep going to the chat
+ * prompt. A legacy `audience:` list is mapped onto staff slugs.
  */
 export function splitProfileFrontmatter(raw: string): {
   frontmatter: ProfileFrontmatter;
@@ -74,7 +90,7 @@ export function splitProfileFrontmatter(raw: string): {
   const match = FRONTMATTER_RE.exec(raw);
   if (!match) {
     return {
-      frontmatter: { audience: [...DEFAULT_PROFILE_AUDIENCE] },
+      frontmatter: { staff: [...DEFAULT_PROFILE_STAFF] },
       body: raw,
     };
   }
@@ -84,18 +100,17 @@ export function splitProfileFrontmatter(raw: string): {
 }
 
 /**
- * Re-attach a frontmatter block to a body. The `audience:` line is
- * always emitted (even for the `["chat"]` default) as an inline YAML
- * list — `audience: [chat, qa]` — which the kody engine's inline-list
- * parser understands. Keep this format inline, comma-separated, square
- * brackets.
+ * Re-attach a frontmatter block to a body. The `staff:` line is always
+ * emitted (even for the `["kody"]` default) as an inline YAML list —
+ * `staff: [kody, qa-engineer]` — which the kody engine's inline-list parser
+ * understands. Keep this format inline, comma-separated, square brackets.
  */
 export function joinProfileFrontmatter(
   frontmatter: ProfileFrontmatter,
   body: string,
 ): string {
-  const audience = normalizeAudience(frontmatter.audience);
-  const lines = [`audience: [${audience.join(", ")}]`];
+  const staff = normalizeStaff(frontmatter.staff);
+  const lines = [`staff: [${staff.join(", ")}]`];
   return `---\n${lines.join("\n")}\n---\n\n${body.replace(/^\s+/, "")}`;
 }
 
@@ -104,7 +119,11 @@ export function joinProfileFrontmatter(
 // ────────────────────────────────────────────────────────────────────
 
 function parseFlatYaml(text: string): ProfileFrontmatter {
-  let audience: ProfileAudience[] | null = null;
+  // An explicit `staff:` line wins — even when empty (`staff: []` is a valid
+  // "unassigned" doc, owned by nobody and loaded by no consumer). The legacy
+  // `audience:` mapping is only consulted when no `staff:` line is present.
+  let staff: string[] | null = null;
+  let legacyStaff: string[] | null = null;
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) continue;
@@ -112,45 +131,52 @@ function parseFlatYaml(text: string): ProfileFrontmatter {
     if (colon < 0) continue;
     const key = line.slice(0, colon).trim();
     const value = line.slice(colon + 1).trim();
-    // Canonical key plus a trivial tolerance for the legacy `for:` scalar.
-    if (key === "audience" || key === "for") {
-      const parsed = parseAudienceValue(value);
-      if (parsed.length > 0) audience = parsed;
+    if (key === "staff") {
+      staff = canonicalizeStaff(parseSlugList(value)); // may be [] → unassigned
+    } else if (key === "audience" || key === "for") {
+      const mapped = parseSlugList(value)
+        .map((t) => LEGACY_AUDIENCE_TO_STAFF[t])
+        .filter((s): s is string => Boolean(s));
+      if (mapped.length > 0) legacyStaff = dedupe(mapped);
     }
     // Unknown keys silently dropped on read.
   }
-  return { audience: audience ?? [...DEFAULT_PROFILE_AUDIENCE] };
+  return { staff: staff ?? legacyStaff ?? [...DEFAULT_PROFILE_STAFF] };
 }
 
 /**
- * Parse an audience value — either an inline list (`[chat, qa]`) or a
- * bare scalar (`qa`). Unknown tokens (including the dropped `all`) are
- * ignored. Result is deduped, order-preserving.
+ * Parse a slug list — either an inline list (`[a, b]`) or a bare scalar
+ * (`a`). Tokens are lowercased; invalid slugs are dropped. Result is
+ * deduped, order-preserving.
  */
-function parseAudienceValue(value: string): ProfileAudience[] {
-  const inner = value.startsWith("[") && value.endsWith("]")
-    ? value.slice(1, -1)
-    : value;
+function parseSlugList(value: string): string[] {
+  const inner =
+    value.startsWith("[") && value.endsWith("]") ? value.slice(1, -1) : value;
   const tokens = inner
     .split(",")
-    .map((t) => stripQuotes(t.trim()))
+    .map((t) => stripQuotes(t.trim()).toLowerCase())
     .filter((t) => t.length > 0);
-  const out: ProfileAudience[] = [];
+  const out: string[] = [];
   for (const token of tokens) {
-    if (isProfileAudience(token) && !out.includes(token)) out.push(token);
+    if (isStaffToken(token) && !out.includes(token)) out.push(token);
   }
   return out;
 }
 
-/** Dedupe and guarantee a non-empty audience, falling back to the default. */
-function normalizeAudience(
-  audience: readonly ProfileAudience[],
-): ProfileAudience[] {
-  const out: ProfileAudience[] = [];
-  for (const a of audience) {
-    if (isProfileAudience(a) && !out.includes(a)) out.push(a);
-  }
-  return out.length > 0 ? out : [...DEFAULT_PROFILE_AUDIENCE];
+/**
+ * Drop invalid tokens, dedupe, and collapse the `*` wildcard to `["*"]`.
+ * May return `[]` — an explicit empty list is a valid "unassigned" doc, so
+ * we do NOT fall back to the default here (the frontmatter-less default
+ * lives in `splitProfileFrontmatter`).
+ */
+function normalizeStaff(staff: readonly string[]): string[] {
+  return canonicalizeStaff(staff.filter(isStaffToken));
+}
+
+function dedupe(values: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const v of values) if (!out.includes(v)) out.push(v);
+  return out;
 }
 
 function stripQuotes(value: string): string {

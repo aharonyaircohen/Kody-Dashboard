@@ -61,14 +61,18 @@ export async function GET(
   }
 }
 
+/** A staff slug (profile slug shape) or the `*` all-staff wildcard. */
+const STAFF_TOKEN_RE = /^(\*|[a-z0-9][a-z0-9_-]{0,63})$/;
+
 const updateProfileSchema = z
   .object({
     body: z.string().min(1).optional(),
-    audience: z.array(z.enum(["chat", "qa"])).nonempty().optional(),
+    // May be empty — an unassigned doc owned by no staff member.
+    staff: z.array(z.string().regex(STAFF_TOKEN_RE)).optional(),
     actorLogin: z.string().optional(),
   })
-  .refine((v) => v.body !== undefined || v.audience !== undefined, {
-    message: "At least one of `body` or `audience` must be provided.",
+  .refine((v) => v.body !== undefined || v.staff !== undefined, {
+    message: "At least one of `body` or `staff` must be provided.",
   });
 
 export async function PATCH(
@@ -89,7 +93,7 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { body, audience, actorLogin } = updateProfileSchema.parse(payload);
+    const { body, staff, actorLogin } = updateProfileSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -111,13 +115,13 @@ export async function PATCH(
     }
 
     // Partial update: keep whichever field the caller omitted. `body` and
-    // `audience` are independent — changing the audience alone leaves the
+    // `staff` are independent — changing the staff list alone leaves the
     // text intact.
     const profile = await writeProfileFile({
       octokit: userOctokit,
       slug,
       body: body ?? existing.body,
-      audience: audience ?? existing.audience,
+      staff: staff ?? existing.staff,
       sha: existing.sha,
     });
     return NextResponse.json({ profile });

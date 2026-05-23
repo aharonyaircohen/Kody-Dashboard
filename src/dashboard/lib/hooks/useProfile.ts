@@ -4,8 +4,8 @@
  * @pattern profile-control-hooks
  * @ai-summary React Query hooks for the Company Profile page.
  *   Backed by `.kody/profile/<slug>.md` files in the connected repo via
- *   the contents API. Each section carries an `audience:` list (chat
- *   and/or qa) that decides which consumers load it. Mirrors useStaff.ts.
+ *   the contents API. Each section carries a `staff:` list of staff-member
+ *   slugs that own it, deciding which consumers load it. Mirrors useStaff.ts.
  */
 "use client";
 
@@ -13,7 +13,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   kodyApi,
-  type ProfileAudience,
   type ProfileSection,
   NoTokenError,
   SessionExpiredError,
@@ -57,7 +56,7 @@ export function useCreateProfile(actorLogin?: string) {
     {
       slug: string;
       body: string;
-      audience: ProfileAudience[];
+      staff: string[];
     }
   >({
     mutationFn: (data) =>
@@ -85,7 +84,7 @@ export function useUpdateProfile(slug: string, actorLogin?: string) {
     Error,
     {
       body?: string;
-      audience?: ProfileAudience[];
+      staff?: string[];
     }
   >({
     mutationFn: (data) =>
