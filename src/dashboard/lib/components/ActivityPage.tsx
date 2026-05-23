@@ -13,8 +13,10 @@ import Link from "next/link";
 import {
   Activity as ActivityIcon,
   AlertTriangle,
+  Bot,
   CheckCircle2,
   ExternalLink,
+  GitPullRequest,
   Loader2,
   RefreshCw,
   Search,
@@ -31,6 +33,7 @@ import { useAuth } from "../auth-context";
 import { useActivity } from "../hooks/useActivity";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import { useActivityLog } from "../hooks/useActivityLog";
+import { useAutonomousActivity } from "../hooks/useAutonomousActivity";
 import { cn } from "../utils";
 import type { ActivityRun } from "../activity/types";
 import type { ActionLogEntry } from "../activity/action-log";
@@ -43,7 +46,7 @@ import type {
 import { ACTIVITY_CATEGORY_LABELS } from "../activity/categorize";
 
 type RunFilter = "all" | "active" | "failed";
-type ActivityTab = "log" | "runs" | "feed";
+type ActivityTab = "log" | "auto" | "runs" | "feed";
 
 const FEED_SOURCE_STYLES: Record<FeedSource, string> = {
   engine: "bg-sky-500/15 text-sky-200/80",
@@ -454,6 +457,119 @@ function FeedView({ active }: { active: boolean }) {
   );
 }
 
+function autoStateBadge(state: "open" | "merged" | "closed"): string {
+  if (state === "merged")
+    return "bg-violet-500/15 text-violet-200/80";
+  if (state === "open") return "bg-emerald-500/15 text-emerald-200/80";
+  return "bg-rose-500/15 text-rose-200/80";
+}
+
+/**
+ * "Auto" tab — Kody's autonomous work product (the PRs it opens / merges /
+ * closes on its own), which the dashboard action log never sees. Read from
+ * GitHub via the cached recent-PRs query.
+ */
+function AutoView({ active }: { active: boolean }) {
+  const { data, isLoading, error } = useAutonomousActivity(active);
+  const [query, setQuery] = useState("");
+
+  const prs = useMemo(() => {
+    let all = data?.prs ?? [];
+    const q = query.trim().toLowerCase();
+    if (q)
+      all = all.filter((p) =>
+        [p.title, p.author ?? "", `#${p.number}`, p.state]
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+      );
+    return all;
+  }, [data, query]);
+
+  return (
+    <div className="mt-2">
+      {error && (
+        <div className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/[0.06] p-3 text-xs text-rose-200">
+          {error instanceof Error ? error.message : "Failed to load"}
+        </div>
+      )}
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search PRs, author…"
+            className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
+          />
+        </div>
+        <span className="ml-auto text-[10px] text-white/35">
+          {data ? `${prs.length} of ${data.total} PRs` : ""}
+          {data?.computedAt && ` · updated ${relTime(data.computedAt)}`}
+        </span>
+      </div>
+      {isLoading ? (
+        <p className="text-xs text-white/40 italic py-6 text-center">
+          Loading autonomous activity…
+        </p>
+      ) : prs.length === 0 ? (
+        <p className="text-xs text-white/40 italic py-6 text-center">
+          No pull requests found in this repo yet.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {prs.map((p) => (
+            <li
+              key={p.number}
+              className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
+            >
+              <span
+                className={cn(
+                  "mt-px shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium capitalize",
+                  autoStateBadge(p.state),
+                )}
+              >
+                <GitPullRequest className="w-2.5 h-2.5" />
+                {p.state}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm truncate">
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:underline"
+                  >
+                    <span className="font-mono text-white/40">#{p.number}</span>{" "}
+                    <span className="text-white/80">{p.title}</span>
+                  </a>
+                </div>
+                {p.author && (
+                  <div className="text-[10px] text-white/40 truncate">
+                    by {p.author}
+                  </div>
+                )}
+              </div>
+              <div
+                className="shrink-0 text-right text-[11px] text-white/40 tabular-nums"
+                title={fmtExactTime(p.updatedAt)}
+              >
+                {fmtExactTime(p.updatedAt)}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-6 text-[10px] text-white/30">
+        What Kody did on its own — pull requests it opened, merged, or closed.
+        Read from GitHub (cached), newest-updated first. The Log tab shows
+        dashboard actions; this shows the engine&apos;s autonomous output.
+      </p>
+    </div>
+  );
+}
+
 function LogView({ active }: { active: boolean }) {
   const { data, isLoading, error } = useActivityLog(active);
   const [query, setQuery] = useState("");
@@ -682,7 +798,7 @@ export function ActivityPage() {
       )}
 
       <div className="mb-4 flex items-center gap-1">
-        {(["log", "runs", "feed"] as ActivityTab[]).map((t) => (
+        {(["log", "auto", "runs", "feed"] as ActivityTab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -696,15 +812,25 @@ export function ActivityPage() {
           >
             {t === "runs" ? (
               <ActivityIcon className="w-3.5 h-3.5" />
+            ) : t === "auto" ? (
+              <Bot className="w-3.5 h-3.5" />
             ) : (
               <ScrollText className="w-3.5 h-3.5" />
             )}
-            {t === "log" ? "Log" : t === "runs" ? "Runs" : "Feed"}
+            {t === "log"
+              ? "Log"
+              : t === "auto"
+                ? "Auto"
+                : t === "runs"
+                  ? "Runs"
+                  : "Feed"}
           </button>
         ))}
       </div>
 
       {tab === "log" && <LogView active={tab === "log"} />}
+
+      {tab === "auto" && <AutoView active={tab === "auto"} />}
 
       {tab === "feed" && <FeedView active={tab === "feed"} />}
 
