@@ -301,7 +301,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // @staff mentions → one-shot worker-ask tick, reply back in-thread.
     // Same GitHub-backed surfaces as mention push (messages, goals, tasks,
     // previews, PR/issue comments, reviews) — one hook covers them all.
-    dispatchStaffMentions(eventType, obj).catch((err: unknown) => {
+    await dispatchStaffMentions(eventType, obj).catch((err: unknown) => {
       logger.error(
         {
           event: "staff_mention_dispatch_crashed",
