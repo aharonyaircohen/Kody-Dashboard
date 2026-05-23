@@ -39,6 +39,7 @@ import { logger } from "@dashboard/lib/logger";
 import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
 import { dispatchStaffMentions } from "@dashboard/lib/push/staff-mention-dispatch";
+import { dispatchDutyFailures } from "@dashboard/lib/push/duty-failure-dispatch";
 import { applyVerdictFromComment } from "@dashboard/lib/ui-verify/apply-label";
 import {
   handlePrMerged,
@@ -308,6 +309,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           error: err instanceof Error ? err.message : String(err),
         },
         "dispatchStaffMentions threw — should have been caught internally",
+      );
+    });
+    // Failed duty run → inbox entry for every operator. Triggered by the
+    // engine's activity-log commit to the state branch (a `push` event), so
+    // a silent cron failure surfaces without any engine change. Awaited for
+    // the same serverless reason as the mention feed write above.
+    await dispatchDutyFailures(eventType, obj).catch((err: unknown) => {
+      logger.error(
+        {
+          event: "duty_failure_dispatch_crashed",
+          error: err instanceof Error ? err.message : String(err),
+        },
+        "dispatchDutyFailures threw — should have been caught internally",
       );
     });
   }
