@@ -67,7 +67,6 @@ export function buildSystemPrompt(
   repo: { owner: string; repo: string } | null,
   task: TaskContext | undefined,
   opts?: {
-    dutyDraft?: boolean;
     duty?: DutyContext;
     goalPlanner?: boolean;
     goal?: GoalContext;
@@ -110,13 +109,13 @@ export function buildSystemPrompt(
      */
     userInstructions?: string | null;
     /**
-     * Concatenated bodies of `.kody/profile/*.md` (or `null` when the repo
-     * has none). Factual "who the company is / what it does" context the
-     * agent should treat as background — injected near the TOP (after the
-     * connected-repo block) so it frames everything, unlike `userInstructions`
-     * which is appended LAST as a behavioral override.
+     * Concatenated bodies of the `kody`-owned `.kody/docs/*.md` files (or
+     * `null` when the repo has none). Factual "who the company is / what it
+     * does" context the agent should treat as background — injected near the
+     * TOP (after the connected-repo block) so it frames everything, unlike
+     * `userInstructions` which is appended LAST as a behavioral override.
      */
-    companyProfile?: string | null;
+    docs?: string | null;
   },
 ): string {
   const sections: string[] = [base];
@@ -132,18 +131,18 @@ export function buildSystemPrompt(
 The user is currently viewing **${opts.currentPage.trim()}** in the dashboard. When they say "this page", "here", "what am I viewing", or "what is this", they mean this page — answer about it directly. Use your dashboard knowledge to describe it (call \`describe_feature\` with the matching id, e.g. the page slug, when you need the full rundown).`,
     );
   }
-  if (opts?.companyProfile && opts.companyProfile.trim().length > 0) {
+  if (opts?.docs && opts.docs.trim().length > 0) {
     sections.push(
-      `## Company profile — your default frame
+      `## Documentation — your default frame
 
-You are this company's in-house assistant, not a general-purpose chatbot. The block below is the live contents of \`.kody/profile/*.md\` for this repo: who the company is, what it builds, its domain, customers, and vocabulary. This is your DEFAULT and PRIMARY frame for every question.
+You are this company's in-house assistant, not a general-purpose chatbot. The block below is the live contents of the \`kody\`-owned \`.kody/docs/*.md\` files for this repo: who the company is, what it builds, its domain, customers, and vocabulary. This is your DEFAULT and PRIMARY frame for every question.
 
-- If a question matches — or could refer to — the company, its product, this repo, or its domain (even a single bare word or name, any casing or spacing), answer about THAT, directly, from this profile. Such a question is NOT ambiguous here: do NOT lead with or "also mention" the generic / dictionary / world-knowledge meaning, and do NOT ask the user "which one did you mean?". Just answer about the company's thing.
+- If a question matches — or could refer to — the company, its product, this repo, or its domain (even a single bare word or name, any casing or spacing), answer about THAT, directly, from these docs. Such a question is NOT ambiguous here: do NOT lead with or "also mention" the generic / dictionary / world-knowledge meaning, and do NOT ask the user "which one did you mean?". Just answer about the company's thing.
 - Example: if the product is named "Foo", then "what is foo / a foo / Foo?" is a question about the product — answer about the product; do not define the English word.
 - Give a general-knowledge answer only when the question is plainly unrelated to the company, and keep it brief.
-- Use the company's own terminology. If the user explicitly contradicts the profile, follow the user.
+- Use the company's own terminology. If the user explicitly contradicts the docs, follow the user.
 
-${opts.companyProfile.trim()}`,
+${opts.docs.trim()}`,
     );
   }
   if (repo) {
@@ -264,20 +263,6 @@ If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create th
 - The Kody pipeline is NOT auto-triggered. The user runs \`@kody\` themselves when they want execution to start.
 `);
     sections.push(lines.join("\n"));
-  }
-  if (opts?.dutyDraft) {
-    sections.push(
-      `## Duty drafting mode
-
-The user is **drafting a new Kody duty** — they are not asking about an existing one. A Kody duty is a markdown file at \`.kody/duties/<slug>.md\` whose body describes:
-
-- **Intent** — what the duty should accomplish
-- **System prompt** — how Kody should behave when the duty runs
-- **Allowed commands / tools** — what Kody is permitted to do
-- **Restrictions** — what Kody must not do
-
-Your job: **interview the user about every aspect of this duty until you reach a shared understanding** — do not draft until they signal they're ready. Ask short, concrete questions one turn at a time, drilling into goal, inputs, outputs, constraints, edge cases, success criteria, allowed tools, and restrictions. Prefer one focused question per turn over multi-part checklists. When the user explicitly says they're ready (or asks you to draft), produce a clean, copy-ready markdown draft with the four sections — Intent, System prompt, Allowed commands / tools, Restrictions — so they can hit **Use as duty** on your reply to turn it into a real duty. Never claim a duty already exists; there is no current duty to look up.`,
-    );
   }
   if (opts?.report) {
     const r = opts.report;

@@ -56,7 +56,6 @@ export interface BrainChatRequest {
   message: string;
   taskContext?: BrainTaskContext;
   attachments?: BrainAttachment[];
-  dutyDraft?: boolean;
   dutyContext?: BrainDutyContext;
   /** owner/name of the user's repo (forwarded so Brain can clone a worktree). */
   repo?: string;
@@ -194,7 +193,6 @@ export function buildDecoratedMessage(
   opts: {
     taskContext?: BrainTaskContext;
     dutyContext?: BrainDutyContext;
-    dutyDraft?: boolean;
     repo?: string;
     plainLanguage?: boolean;
   },
@@ -208,15 +206,11 @@ export function buildDecoratedMessage(
     : null;
   const taskPreamble = formatTaskContext(opts.taskContext);
   const dutyPreamble = formatDutyContext(opts.dutyContext);
-  const draftPreamble = opts.dutyDraft
-    ? `[Duty drafting mode]
-The user is drafting a new Kody duty — there is no existing duty to look up. A Kody duty is a markdown file at \`.kody/duties/<slug>.md\` whose body describes intent, system prompt, allowed commands, and restrictions. Ask concrete scoping questions one turn at a time, then produce a copy-ready markdown draft with those four sections so the user can click "Use as duty" on your reply.`
-    : null;
   // Style overlay goes LAST so its output rules win by recency over the
   // repo/task/duty context blocks above it.
   const stylePreamble = opts.plainLanguage ? PLAIN_LANGUAGE_PREAMBLE : null;
   const preamble =
-    [repoPreamble, draftPreamble, dutyPreamble, taskPreamble, stylePreamble]
+    [repoPreamble, dutyPreamble, taskPreamble, stylePreamble]
       .filter(Boolean)
       .join("\n\n") || null;
   return preamble ? `${preamble}\n\n[User]\n${message}` : message;
@@ -240,7 +234,6 @@ export async function streamBrainChat(
   const decoratedMessage = buildDecoratedMessage(input.message, {
     taskContext: input.taskContext,
     dutyContext: input.dutyContext,
-    dutyDraft: input.dutyDraft,
     repo: input.repo,
     plainLanguage: input.plainLanguage,
   });

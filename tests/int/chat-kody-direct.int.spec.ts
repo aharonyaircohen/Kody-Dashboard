@@ -127,24 +127,6 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toBe("base");
   });
 
-  it("appends a duty-drafting block when opts.dutyDraft is set", async () => {
-    const { buildSystemPrompt } =
-      await import("../../app/api/kody/chat/kody/system-prompt");
-    const prompt = buildSystemPrompt("base", null, undefined, {
-      dutyDraft: true,
-    });
-    expect(prompt).toContain("Duty drafting mode");
-    expect(prompt).toContain("drafting a new Kody duty");
-    expect(prompt).toContain("Use as duty");
-  });
-
-  it("omits the duty-drafting block by default", async () => {
-    const { buildSystemPrompt } =
-      await import("../../app/api/kody/chat/kody/system-prompt");
-    const prompt = buildSystemPrompt("base", null, undefined);
-    expect(prompt).not.toContain("Duty drafting mode");
-  });
-
   it("appends a current-duty block when opts.duty is set", async () => {
     const { buildSystemPrompt } =
       await import("../../app/api/kody/chat/kody/system-prompt");

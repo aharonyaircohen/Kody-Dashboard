@@ -77,12 +77,6 @@ import { MarkdownEditor } from "./MarkdownEditor";
 import { PageHeader } from "./PageShell";
 import { useChatScope } from "./ChatRailShell";
 
-function newDraftId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 /**
  * Parse the raw "Mentions" text field into a clean login list: split on
  * commas, trim, strip an optional leading `@`, drop empties. Matches the
@@ -131,21 +125,6 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
   const [pendingDelete, setPendingDelete] = useState<Duty | null>(null);
   const [pendingRun, setPendingRun] = useState<Duty | null>(null);
 
-  // Chat-panel state. The left rail switches between three modes:
-  //  • duty mode  — when a duty is selected and we're not drafting
-  //  • draft mode    — when "Draft new duty" is active (rotates draftId)
-  //  • disabled      — neither (e.g. no duties yet)
-  // `draftPrefill` carries an assistant reply the user picked via
-  // "Use as duty" into CreateDutyDialog.
-  const [isDrafting, setIsDrafting] = useState(false);
-  const [draftId, setDraftId] = useState<string>(() => newDraftId());
-  const [draftPrefill, setDraftPrefill] = useState<string | null>(null);
-  const startNewDraft = () => {
-    setIsDrafting(true);
-    setDraftId(newDraftId());
-  };
-  const cancelDraft = () => setIsDrafting(false);
-
   const selectedDuty = useMemo(
     () => duties.find((m) => m.slug === selectedSlug) ?? null,
     [duties, selectedSlug],
@@ -175,26 +154,13 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
   const runMutation = useRunDuty();
 
   // Push chat context up to the persistent rail in the root layout.
-  // The chat's context follows the user's intent: drafting a new duty,
-  // or chatting about the currently selected one. Clear on unmount.
+  // The chat's context follows the currently selected duty (or nothing).
+  // Clear on unmount.
   const { setScope } = useChatScope();
   useEffect(() => {
-    setScope(
-      isDrafting
-        ? {
-            kind: "duty-draft",
-            draftId,
-            onFinalize: (assistantContent) => {
-              setDraftPrefill(assistantContent);
-              setShowCreate(true);
-            },
-          }
-        : selectedDuty
-          ? { kind: "duty", duty: selectedDuty }
-          : null,
-    );
+    setScope(selectedDuty ? { kind: "duty", duty: selectedDuty } : null);
     return () => setScope(null);
-  }, [isDrafting, draftId, selectedDuty, setScope]);
+  }, [selectedDuty, setScope]);
 
   return (
     <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
@@ -216,29 +182,6 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
                 className={cn("w-4 h-4", isFetching && "animate-spin")}
               />
             </Button>
-            {isDrafting ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={cancelDraft}
-                className="gap-1"
-                title="Stop drafting; chat returns to the selected duty"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">Back to duty</span>
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={startNewDraft}
-                className="gap-1"
-                title="Chat with Kody to scope a brand-new duty"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span className="hidden sm:inline">Draft new</span>
-              </Button>
-            )}
             <Button
               size="sm"
               onClick={() => setShowCreate(true)}
@@ -267,29 +210,6 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
                     className={cn("w-4 h-4", isFetching && "animate-spin")}
                   />
                 </Button>
-                {isDrafting ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={cancelDraft}
-                    className="gap-1"
-                    title="Stop drafting; chat returns to the selected duty"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                    <span className="hidden sm:inline">Back to duty</span>
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={startNewDraft}
-                    className="gap-1"
-                    title="Chat with Kody to scope a brand-new duty"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span className="hidden sm:inline">Draft new</span>
-                  </Button>
-                )}
                 <Button
                   size="sm"
                   onClick={() => setShowCreate(true)}
@@ -447,18 +367,10 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
         {/* Create */}
         <CreateDutyDialog
           open={showCreate}
-          initialBody={draftPrefill}
-          onClose={() => {
-            setShowCreate(false);
-            setDraftPrefill(null);
-          }}
+          onClose={() => setShowCreate(false)}
           onCreated={(duty) => {
             setSelectedSlug(duty.slug);
             setShowCreate(false);
-            setDraftPrefill(null);
-            // Drop out of draft mode so the chat is now scoped to the
-            // newly-created duty instead of the old draft session.
-            setIsDrafting(false);
           }}
         />
 
@@ -731,16 +643,10 @@ function DutyDetail({
 
 function CreateDutyDialog({
   open,
-  initialBody,
   onClose,
   onCreated,
 }: {
   open: boolean;
-  /**
-   * Optional pre-filled body (e.g. from a "Draft with Kody" chat). When
-   * provided, replaces the default DUTY_TEMPLATE starter.
-   */
-  initialBody?: string | null;
   onClose: () => void;
   onCreated: (duty: Duty) => void;
 }) {
@@ -756,12 +662,12 @@ function CreateDutyDialog({
   useEffect(() => {
     if (open) {
       setTitle("");
-      setBody(initialBody && initialBody.trim() ? initialBody : DUTY_TEMPLATE);
+      setBody(DUTY_TEMPLATE);
       setSchedule(null);
       setStaff(null);
       setMentions("");
     }
-  }, [open, initialBody]);
+  }, [open]);
 
   const handleSubmit = () => {
     if (!title.trim() || createMutation.isPending) return;

@@ -63,7 +63,7 @@ import { featureTools } from "../tools/feature-tools";
 import { uiTools } from "../tools/ui-tools";
 import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files";
 import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
-import { loadProfileForPrompt } from "@dashboard/lib/profile/files";
+import { loadDocsForPrompt } from "@dashboard/lib/docs/files";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -314,8 +314,6 @@ export async function POST(req: NextRequest) {
     task?: TaskContext;
     /** GitHub login of the requester — gates remote_* tools. Optional. */
     actorLogin?: string;
-    /** When true, append a duty-drafting block to the system prompt. */
-    dutyDraft?: boolean;
     /** Current duty context — scopes the chat to a specific duty file. */
     duty?: DutyContext;
     /**
@@ -399,7 +397,7 @@ export async function POST(req: NextRequest) {
   // for GitHub tools are still created separately below to avoid races.
   let memoryIndex: string | null = null;
   let userInstructions: string | null = null;
-  let companyProfile: string | null = null;
+  let docs: string | null = null;
   if (repo) {
     setGitHubContext(repo.owner, repo.repo, repo.token);
     try {
@@ -421,12 +419,12 @@ export async function POST(req: NextRequest) {
       );
     }
     try {
-      companyProfile = await loadProfileForPrompt();
+      docs = await loadDocsForPrompt();
     } catch (err) {
-      // Company profile is best-effort; never block the chat. Log and continue.
+      // Docs are best-effort; never block the chat. Log and continue.
       traceWarn(
         { traceId, err: err instanceof Error ? err.message : String(err) },
-        "kody-direct: company profile load failed (continuing without it)",
+        "kody-direct: docs load failed (continuing without them)",
       );
     }
   }
@@ -483,7 +481,6 @@ export async function POST(req: NextRequest) {
     repo ? { owner: repo.owner, repo: repo.repo } : null,
     body.task,
     {
-      dutyDraft: body.dutyDraft === true,
       duty: body.duty,
       goalPlanner: goalPlannerActive,
       goal: goalPlannerActive ? body.goal : undefined,
@@ -493,7 +490,7 @@ export async function POST(req: NextRequest) {
       vibeMode,
       flyConfigured,
       userInstructions,
-      companyProfile,
+      docs,
     },
   );
 

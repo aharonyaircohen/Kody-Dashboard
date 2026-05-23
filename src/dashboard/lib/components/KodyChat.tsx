@@ -22,7 +22,6 @@ import {
   MessageSquare,
   History,
   Target,
-  CheckCircle2,
   Loader2,
   ChevronDown,
   PanelLeftClose,
@@ -682,10 +681,6 @@ export function KodyChat({
   const selectedTask: KodyTask | null =
     context?.kind === "task" ? context.task : null;
   const selectedDuty = context?.kind === "duty" ? context.duty : null;
-  const draftId: string | null =
-    context?.kind === "duty-draft" ? context.draftId : null;
-  const onFinalizeDraft =
-    context?.kind === "duty-draft" ? context.onFinalize : undefined;
   // Goal-planner mode: chat scoped to a Goal, used for the "Plan this goal"
   // workflow (Pass 1 list-in-chat → user approves → Pass 2 create issues).
   const plannerGoal = context?.kind === "goal-planner" ? context.goal : null;
@@ -708,9 +703,6 @@ export function KodyChat({
   // so the loader can tell a real task switch from a same-task re-fire and
   // avoid blanking the visible thread on transient re-renders.
   const loadedTaskIdRef = useRef<string | null>(null);
-  // Draft-scoped messages (ephemeral — no persistence). Cleared whenever a
-  // new draft session opens (fresh draftId).
-  const [draftMessages, setDraftMessages] = useState<Message[]>([]);
   // Duty-scoped messages keyed by duty slug. Ephemeral (lives
   // for the React session) — switching between duties preserves each
   // thread so users can jump around without losing context. Persistence
@@ -1271,15 +1263,13 @@ export function KodyChat({
   // Mode discriminator. Exactly one of these is true at a time.
   const isTaskMode = !!selectedTask;
   const isDutyMode = !!selectedDuty;
-  const isDraftMode = !!draftId;
   const isPlannerMode = !!plannerGoal && !!plannerSessionId;
   const isGlobalMode =
-    !isTaskMode && !isDutyMode && !isDraftMode && !isPlannerMode;
+    !isTaskMode && !isDutyMode && !isPlannerMode;
 
-  // Current messages — four stores, picked by mode.
+  // Current messages — picked by mode.
   //  • task mode    → `taskMessages`         (loaded/saved via API)
   //  • duty mode → `dutyMessagesBySlug[slug]` (ephemeral, per duty)
-  //  • draft mode   → `draftMessages`        (ephemeral React state)
   //  • global mode  → `sessionHook`          (localStorage-backed)
   const dutySlug: string | null = selectedDuty?.slug ?? null;
   const currentDutyMessages: Message[] =
@@ -1293,11 +1283,9 @@ export function KodyChat({
     ? taskMessages
     : isDutyMode
       ? currentDutyMessages
-      : isDraftMode
-        ? draftMessages
-        : isPlannerMode
-          ? currentPlannerMessages
-          : sessionHook.messages.map(chatToMessage);
+      : isPlannerMode
+        ? currentPlannerMessages
+        : sessionHook.messages.map(chatToMessage);
 
   const setMessages = useCallback(
     (updater: Message[] | ((prev: Message[]) => Message[])) => {
@@ -1312,10 +1300,6 @@ export function KodyChat({
             typeof updater === "function" ? updater(prevForDuty) : updater;
           return { ...prev, [dutySlug]: next };
         });
-      } else if (isDraftMode) {
-        setDraftMessages((prev) =>
-          typeof updater === "function" ? updater(prev) : updater,
-        );
       } else if (isPlannerMode && plannerSessionId != null) {
         setPlannerMessagesBySession((prev) => {
           const prevForSession = prev[plannerSessionId] ?? [];
@@ -1337,7 +1321,6 @@ export function KodyChat({
       isTaskMode,
       isDutyMode,
       dutySlug,
-      isDraftMode,
       isPlannerMode,
       plannerSessionId,
       sessionHook,
@@ -1878,7 +1861,7 @@ export function KodyChat({
   );
 
   // Open SSE whenever we have a scoped session id — task id for task mode,
-  // `duty-{slug}` for duty mode, draft id for duty drafting.
+  // `duty-{slug}` for duty mode.
   // Global-mode streams are opened on demand inside the send path.
   //
   // Tab-visibility gate: the server-side SSE handler polls GitHub every 3s as
@@ -1891,7 +1874,6 @@ export function KodyChat({
     const sid =
       selectedTask?.id ??
       (dutySlug != null ? `duty-${dutySlug}` : null) ??
-      draftId ??
       null;
     if (!sid) {
       return () => {
@@ -1924,12 +1906,7 @@ export function KodyChat({
       document.removeEventListener("visibilitychange", handleVisibility);
       close();
     };
-  }, [selectedTask?.id, dutySlug, draftId, connectSSE]);
-
-  // Reset the ephemeral draft buffer whenever a new draft session opens.
-  useEffect(() => {
-    if (isDraftMode) setDraftMessages([]);
-  }, [draftId, isDraftMode]);
+  }, [selectedTask?.id, dutySlug, connectSSE]);
 
   // Load task chat when task changes.
   //
@@ -2387,7 +2364,6 @@ export function KodyChat({
       const resolveSessionId = (): string => {
         if (selectedTask) return selectedTask.id;
         if (dutySlug != null) return `duty-${dutySlug}`;
-        if (draftId) return draftId;
         return sessionHook.activeSession?.id ?? sessionHook.createSession();
       };
 
@@ -2456,9 +2432,7 @@ export function KodyChat({
           ? `${repoScope}::task-${selectedTask.id}`
           : selectedDuty
             ? `${repoScope}::duty-${selectedDuty.slug}`
-            : draftId
-              ? `${repoScope}::duty-draft-${draftId}`
-              : `${repoScope}::global-${brainSessionId}`;
+            : `${repoScope}::global-${brainSessionId}`;
         const brainChatId = stickyBrainChatId(
           brainLogicalKey,
           `${userKey}--${brainLogicalKey}`,
@@ -2553,7 +2527,6 @@ export function KodyChat({
                       ...(brainAttachments.length > 0
                         ? { attachments: brainAttachments }
                         : {}),
-                      ...(isDraftMode ? { dutyDraft: true } : {}),
                       // Voice modality. Brain forwards this to the upstream
                       // chat server, which is responsible for appending the
                       // voice overlay to its system prompt for this turn.
@@ -2898,7 +2871,6 @@ export function KodyChat({
               ...(currentPageRef.current
                 ? { currentPage: currentPageRef.current }
                 : {}),
-              ...(isDraftMode ? { dutyDraft: true } : {}),
               ...(selectedDuty
                 ? {
                     duty: {
@@ -3652,8 +3624,6 @@ export function KodyChat({
       selectedTask,
       selectedDuty,
       dutySlug,
-      draftId,
-      isDraftMode,
       isPlannerMode,
       plannerGoal,
       plannerExistingTasks,
@@ -4401,9 +4371,7 @@ export function KodyChat({
         ? `Ask about task #${selectedTask?.issueNumber}...`
         : isDutyMode
           ? `Ask about duty \`${selectedDuty?.slug ?? ""}\`...`
-          : isDraftMode
-            ? `Describe the duty you want Kody to run...`
-            : genericPlaceholder;
+          : genericPlaceholder;
 
   // Send is always enabled for Kody Live (button morphs into start/stop on
   // empty input). For other agents, only enabled when there's content.
@@ -4600,10 +4568,10 @@ export function KodyChat({
 
           {/* Right: Action buttons (session sidebar, task history) */}
           <div className="flex items-center gap-1">
-            {/* New chat — visible in duty + draft modes (global has its own
+            {/* New chat — visible in duty + planner modes (global has its own
                 Chats sidebar; task mode persists to the task). Clears the
                 active scope's ephemeral buffer so the user can start over. */}
-            {(isDutyMode || isDraftMode || isPlannerMode) &&
+            {(isDutyMode || isPlannerMode) &&
               messages.length > 0 && (
                 <button
                   onClick={() => {
@@ -4715,11 +4683,6 @@ export function KodyChat({
               <span className="truncate text-muted-foreground">
                 {selectedDuty.title}
               </span>
-            </div>
-          ) : isDraftMode ? (
-            <div className="text-sm text-emerald-400 flex items-center gap-1.5">
-              <Target className="w-3 h-3" />
-              Drafting a new duty
             </div>
           ) : isPlannerMode && plannerGoal ? (
             <div className="flex items-center gap-2 text-sm">
@@ -4846,19 +4809,6 @@ export function KodyChat({
                 <p className="text-sm mt-1 max-w-sm mx-auto">
                   Ask anything about this duty&apos;s intent, scope, or rules.
                   Each duty has its own thread.
-                </p>
-              </>
-            ) : isDraftMode ? (
-              <>
-                <p className="font-medium text-foreground">
-                  Let&apos;s plan a new duty
-                </p>
-                <p className="text-sm mt-1">
-                  Describe what you want Kody to do. I&apos;ll help scope the
-                  intent, allowed commands, and restrictions. When a draft looks
-                  good, pick
-                  <span className="font-medium"> Use as duty</span> to turn it
-                  into a real duty.
                 </p>
               </>
             ) : isPlannerMode && plannerGoal ? (
@@ -5025,23 +4975,6 @@ export function KodyChat({
                       </>
                     );
                   })()}
-                  {/* Draft-mode finalize action: hand this assistant reply back
-                      to the caller (DutyControl) as the body of a new
-                      duty. Hidden while the reply is still streaming in. */}
-                  {isDraftMode &&
-                    onFinalizeDraft &&
-                    !msg.isLoading &&
-                    msg.content.trim().length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => onFinalizeDraft(msg.content)}
-                        className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-                        title="Use this response as the body of a new duty"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Use as duty
-                      </button>
-                    )}
                 </>
               ) : (
                 <>

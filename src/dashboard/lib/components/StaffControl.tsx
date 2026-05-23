@@ -7,8 +7,8 @@
  *   in the connected repo: a markdown body describing the staff member's
  *   intent, allowed commands, and restrictions. Staff have no schedule, no
  *   state, and no run/tick — they're personas referenced by other flows.
- *   The chat rail reuses the existing duty/duty-draft scope kinds (a staff
- *   member is structurally identical to a duty).
+ *   The chat rail reuses the existing duty scope kind (a staff member is
+ *   structurally identical to a duty).
  */
 "use client";
 
@@ -46,19 +46,13 @@ import {
 } from "../hooks/useStaff";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import type { Staff } from "../api";
-import { KODY_CHAT_STAFF } from "../profile/frontmatter";
+import { KODY_CHAT_STAFF } from "../docs/frontmatter";
 import { STAFF_TEMPLATE } from "../staff-template";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { PageHeader } from "./PageShell";
 import { useChatScope } from "./ChatRailShell";
-
-function newDraftId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 /**
  * Kody — the built-in chat persona. Always present in the staff list and
@@ -120,21 +114,6 @@ export function StaffControlInner({
   const [editingMember, setEditingMember] = useState<Staff | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Staff | null>(null);
 
-  // Chat-panel state. The left rail switches between three modes:
-  //  • staff mode    — when a staff member is selected and we're not drafting
-  //  • draft mode     — when "Draft new staff member" is active (rotates draftId)
-  //  • disabled       — neither (e.g. no staff yet)
-  // `draftPrefill` carries an assistant reply the user picked via
-  // "Use as staff" into CreateStaffDialog.
-  const [isDrafting, setIsDrafting] = useState(false);
-  const [draftId, setDraftId] = useState<string>(() => newDraftId());
-  const [draftPrefill, setDraftPrefill] = useState<string | null>(null);
-  const startNewDraft = () => {
-    setIsDrafting(true);
-    setDraftId(newDraftId());
-  };
-  const cancelDraft = () => setIsDrafting(false);
-
   const selectedMember = useMemo(
     () => staff.find((m) => m.slug === selectedSlug) ?? null,
     [staff, selectedSlug],
@@ -163,26 +142,13 @@ export function StaffControlInner({
 
   // Push chat context up to the persistent rail in the root layout.
   // A staff member is structurally identical to a duty, so we reuse the
-  // existing duty / duty-draft scope kinds — the chat just needs the file's
-  // title/body to answer questions or draft a new one.
+  // existing duty scope kind — the chat just needs the file's title/body
+  // to answer questions about the selected member.
   const { setScope } = useChatScope();
   useEffect(() => {
-    setScope(
-      isDrafting
-        ? {
-            kind: "duty-draft",
-            draftId,
-            onFinalize: (assistantContent) => {
-              setDraftPrefill(assistantContent);
-              setShowCreate(true);
-            },
-          }
-        : selectedMember
-          ? { kind: "duty", duty: selectedMember }
-          : null,
-    );
+    setScope(selectedMember ? { kind: "duty", duty: selectedMember } : null);
     return () => setScope(null);
-  }, [isDrafting, draftId, selectedMember, setScope]);
+  }, [selectedMember, setScope]);
 
   return (
     <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
@@ -204,29 +170,6 @@ export function StaffControlInner({
                 className={cn("w-4 h-4", isFetching && "animate-spin")}
               />
             </Button>
-            {isDrafting ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={cancelDraft}
-                className="gap-1"
-                title="Stop drafting; chat returns to the selected staff member"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">Back to staff</span>
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={startNewDraft}
-                className="gap-1"
-                title="Chat with Kody to scope a brand-new staff member"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span className="hidden sm:inline">Draft new</span>
-              </Button>
-            )}
             <Button
               size="sm"
               onClick={() => setShowCreate(true)}
@@ -255,29 +198,6 @@ export function StaffControlInner({
                     className={cn("w-4 h-4", isFetching && "animate-spin")}
                   />
                 </Button>
-                {isDrafting ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={cancelDraft}
-                    className="gap-1"
-                    title="Stop drafting; chat returns to the selected staff member"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                    <span className="hidden sm:inline">Back to staff</span>
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={startNewDraft}
-                    className="gap-1"
-                    title="Chat with Kody to scope a brand-new staff member"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span className="hidden sm:inline">Draft new</span>
-                  </Button>
-                )}
                 <Button
                   size="sm"
                   onClick={() => setShowCreate(true)}
@@ -409,18 +329,10 @@ export function StaffControlInner({
         {/* Create */}
         <CreateStaffDialog
           open={showCreate}
-          initialBody={draftPrefill}
-          onClose={() => {
-            setShowCreate(false);
-            setDraftPrefill(null);
-          }}
+          onClose={() => setShowCreate(false)}
           onCreated={(member) => {
             setSelectedSlug(member.slug);
             setShowCreate(false);
-            setDraftPrefill(null);
-            // Drop out of draft mode so the chat is now scoped to the
-            // newly-created staff member instead of the old draft session.
-            setIsDrafting(false);
           }}
         />
 
@@ -597,16 +509,10 @@ function StaffDetail({
 
 function CreateStaffDialog({
   open,
-  initialBody,
   onClose,
   onCreated,
 }: {
   open: boolean;
-  /**
-   * Optional pre-filled body (e.g. from a "Draft with Kody" chat). When
-   * provided, replaces the default STAFF_TEMPLATE starter.
-   */
-  initialBody?: string | null;
   onClose: () => void;
   onCreated: (member: Staff) => void;
 }) {
@@ -619,9 +525,9 @@ function CreateStaffDialog({
   useEffect(() => {
     if (open) {
       setTitle("");
-      setBody(initialBody && initialBody.trim() ? initialBody : STAFF_TEMPLATE);
+      setBody(STAFF_TEMPLATE);
     }
-  }, [open, initialBody]);
+  }, [open]);
 
   const handleSubmit = () => {
     if (!title.trim() || createMutation.isPending) return;

@@ -149,21 +149,6 @@ export type ChatContext =
       duty: import("./api").Duty | import("./api").Staff;
     }
   | {
-      kind: "duty-draft";
-      /**
-       * Stable session id used to anchor SSE / engine sessions for this
-       * draft. Generated client-side when the draft is opened; the chat
-       * itself is ephemeral — nothing is persisted to disk.
-       */
-      draftId: string;
-      /**
-       * Fired when the user picks a specific assistant response as the
-       * basis for a new duty. The consumer should pop its own "create
-       * duty" UI (e.g. pre-filled dialog) with this body.
-       */
-      onFinalize?: (assistantContent: string) => void;
-    }
-  | {
       /**
        * Chat scoped to planning a single Goal. The agent decomposes the
        * goal description into a task list (Pass 1, text-only) and, after

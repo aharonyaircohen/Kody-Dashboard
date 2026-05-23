@@ -92,18 +92,15 @@ describe("buildDecoratedMessage", () => {
     expect(buildDecoratedMessage("hi", {})).toBe("hi");
   });
 
-  it("combines draft + duty + task preambles in the documented order", () => {
+  it("combines duty + task preambles in the documented order", () => {
     const out = buildDecoratedMessage("user text", {
-      dutyDraft: true,
       dutyContext: { number: 1, title: "J" },
       taskContext: { issueNumber: 2, title: "T" },
     });
-    const draftIdx = out.indexOf("Duty drafting mode");
     const jobIdx = out.indexOf("[Current duty]");
     const taskIdx = out.indexOf("[Current task context]");
     const userIdx = out.indexOf("[User]\nuser text");
-    expect(draftIdx).toBeGreaterThan(-1);
-    expect(jobIdx).toBeGreaterThan(draftIdx);
+    expect(jobIdx).toBeGreaterThan(-1);
     expect(taskIdx).toBeGreaterThan(jobIdx);
     expect(userIdx).toBeGreaterThan(taskIdx);
   });

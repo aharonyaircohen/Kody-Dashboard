@@ -67,7 +67,6 @@ export async function POST(req: NextRequest) {
     message?: string;
     taskContext?: BrainTaskContext;
     attachments?: BrainAttachment[];
-    dutyDraft?: boolean;
     dutyContext?: BrainDutyContext;
     voiceMode?: boolean;
     resumeSince?: number;
@@ -154,7 +153,6 @@ export async function POST(req: NextRequest) {
     message: message ?? "",
     taskContext: body.taskContext,
     attachments: body.attachments,
-    dutyDraft: body.dutyDraft,
     dutyContext: body.dutyContext,
     repo,
     repoToken,
