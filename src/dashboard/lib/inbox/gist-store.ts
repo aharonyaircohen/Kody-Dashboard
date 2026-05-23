@@ -284,4 +284,16 @@ export async function deleteEntry(
   });
 }
 
+/** Remove every entry. No-op (skips the gist write) when already empty. */
+export async function clearInbox(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<InboxManifest> {
+  return mutateInbox(octokit, owner, repo, (current) => {
+    if (current.entries.length === 0) return null;
+    return { version: 1, entries: [] };
+  });
+}
+
 export { INBOX_GIST_DESCRIPTION_PREFIX };
