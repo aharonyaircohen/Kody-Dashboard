@@ -1680,9 +1680,9 @@ export const activityApi = {
     });
     return handleResponse(res);
   },
-  /** Kody's autonomous work product — recent PRs across all states. */
+  /** Kody's autonomous actions — opened/merged/closed PRs + pushed commits. */
   autonomous: async (): Promise<{
-    prs: import("./github-client").RecentPR[];
+    events: import("./activity/autonomous").AutonomousEvent[];
     total: number;
     computedAt?: string;
   }> => {

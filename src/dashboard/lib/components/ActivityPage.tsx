@@ -16,6 +16,7 @@ import {
   Bot,
   CheckCircle2,
   ExternalLink,
+  GitCommit,
   GitPullRequest,
   Loader2,
   RefreshCw,
@@ -457,28 +458,29 @@ function FeedView({ active }: { active: boolean }) {
   );
 }
 
-function autoStateBadge(state: "open" | "merged" | "closed"): string {
-  if (state === "merged")
-    return "bg-violet-500/15 text-violet-200/80";
-  if (state === "open") return "bg-emerald-500/15 text-emerald-200/80";
-  return "bg-rose-500/15 text-rose-200/80";
+function autoVerbBadge(verb: "opened" | "merged" | "closed" | "pushed"): string {
+  if (verb === "merged") return "bg-violet-500/15 text-violet-200/80";
+  if (verb === "opened") return "bg-emerald-500/15 text-emerald-200/80";
+  if (verb === "closed") return "bg-rose-500/15 text-rose-200/80";
+  return "bg-sky-500/15 text-sky-200/80"; // pushed
 }
 
 /**
- * "Auto" tab — Kody's autonomous work product (the PRs it opens / merges /
- * closes on its own), which the dashboard action log never sees. Read from
- * GitHub via the cached recent-PRs query.
+ * "Auto" tab — a feed of the ACTIONS Kody took on its own: opened / merged /
+ * closed PRs and pushed commits, newest first. This is the engine's work
+ * product, which the dashboard action Log never captures. Read from GitHub
+ * via cached queries.
  */
 function AutoView({ active }: { active: boolean }) {
   const { data, isLoading, error } = useAutonomousActivity(active);
   const [query, setQuery] = useState("");
 
-  const prs = useMemo(() => {
-    let all = data?.prs ?? [];
+  const events = useMemo(() => {
+    let all = data?.events ?? [];
     const q = query.trim().toLowerCase();
     if (q)
-      all = all.filter((p) =>
-        [p.title, p.author ?? "", `#${p.number}`, p.state]
+      all = all.filter((e) =>
+        [e.text, e.actor ?? "", e.ref, e.verb]
           .join(" ")
           .toLowerCase()
           .includes(q),
@@ -500,12 +502,12 @@ function AutoView({ active }: { active: boolean }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search PRs, author…"
+            placeholder="Search actions, commit, author…"
             className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
           />
         </div>
         <span className="ml-auto text-[10px] text-white/35">
-          {data ? `${prs.length} of ${data.total} PRs` : ""}
+          {data ? `${events.length} actions` : ""}
           {data?.computedAt && ` · updated ${relTime(data.computedAt)}`}
         </span>
       </div>
@@ -513,58 +515,62 @@ function AutoView({ active }: { active: boolean }) {
         <p className="text-xs text-white/40 italic py-6 text-center">
           Loading autonomous activity…
         </p>
-      ) : prs.length === 0 ? (
+      ) : events.length === 0 ? (
         <p className="text-xs text-white/40 italic py-6 text-center">
-          No pull requests found in this repo yet.
+          Nothing autonomous yet — no PRs or commits from Kody in this repo.
         </p>
       ) : (
         <ul className="space-y-1.5">
-          {prs.map((p) => (
+          {events.map((e) => (
             <li
-              key={p.number}
+              key={e.id}
               className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
             >
               <span
                 className={cn(
-                  "mt-px shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium capitalize",
-                  autoStateBadge(p.state),
+                  "mt-px shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                  autoVerbBadge(e.verb),
                 )}
               >
-                <GitPullRequest className="w-2.5 h-2.5" />
-                {p.state}
+                {e.kind === "pr" ? (
+                  <GitPullRequest className="w-2.5 h-2.5" />
+                ) : (
+                  <GitCommit className="w-2.5 h-2.5" />
+                )}
+                {e.verb}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="text-sm truncate">
                   <a
-                    href={p.url}
+                    href={e.url}
                     target="_blank"
                     rel="noreferrer"
                     className="hover:underline"
                   >
-                    <span className="font-mono text-white/40">#{p.number}</span>{" "}
-                    <span className="text-white/80">{p.title}</span>
+                    <span className="font-mono text-white/40">{e.ref}</span>{" "}
+                    <span className="text-white/80">{e.text}</span>
                   </a>
                 </div>
-                {p.author && (
+                {e.actor && (
                   <div className="text-[10px] text-white/40 truncate">
-                    by {p.author}
+                    by {e.actor}
                   </div>
                 )}
               </div>
               <div
                 className="shrink-0 text-right text-[11px] text-white/40 tabular-nums"
-                title={fmtExactTime(p.updatedAt)}
+                title={fmtExactTime(e.at)}
               >
-                {fmtExactTime(p.updatedAt)}
+                {fmtExactTime(e.at)}
               </div>
             </li>
           ))}
         </ul>
       )}
       <p className="mt-6 text-[10px] text-white/30">
-        What Kody did on its own — pull requests it opened, merged, or closed.
-        Read from GitHub (cached), newest-updated first. The Log tab shows
-        dashboard actions; this shows the engine&apos;s autonomous output.
+        What Kody did on its own — PRs it opened, merged, or closed, and
+        commits it pushed. Each line is one action, newest first. The Log tab
+        shows dashboard actions; this shows the engine&apos;s autonomous work.
       </p>
     </div>
   );

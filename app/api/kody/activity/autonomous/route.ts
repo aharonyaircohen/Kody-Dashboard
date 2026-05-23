@@ -14,7 +14,9 @@ import {
   setGitHubContext,
   clearGitHubContext,
   fetchRecentPRs,
+  fetchRecentCommits,
 } from "@dashboard/lib/github-client";
+import { buildAutonomousFeed } from "@dashboard/lib/activity/autonomous";
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -22,20 +24,24 @@ export async function GET(req: NextRequest) {
 
   const headerAuth = getRequestAuth(req);
   if (!headerAuth) {
-    return NextResponse.json({ prs: [], total: 0 }, { status: 200 });
+    return NextResponse.json({ events: [], total: 0 }, { status: 200 });
   }
 
   try {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
-    const prs = await fetchRecentPRs();
+    const [prs, commits] = await Promise.all([
+      fetchRecentPRs(),
+      fetchRecentCommits(),
+    ]);
+    const events = buildAutonomousFeed(prs, commits);
     return NextResponse.json({
-      prs,
-      total: prs.length,
+      events,
+      total: events.length,
       computedAt: new Date().toISOString(),
     });
   } catch (err) {
     return NextResponse.json(
-      { prs: [], error: err instanceof Error ? err.message : "failed" },
+      { events: [], error: err instanceof Error ? err.message : "failed" },
       { status: 500 },
     );
   } finally {

@@ -1952,6 +1952,9 @@ export interface RecentPR {
   title: string;
   state: "open" | "merged" | "closed";
   author: string | null;
+  createdAt: string;
+  mergedAt: string | null;
+  closedAt: string | null;
   updatedAt: string;
   url: string;
 }
@@ -1964,6 +1967,9 @@ interface RecentPRsGraphQL {
         title: string;
         state: "OPEN" | "MERGED" | "CLOSED";
         url: string;
+        createdAt: string;
+        mergedAt: string | null;
+        closedAt: string | null;
         updatedAt: string;
         author: { login: string } | null;
       }>;
@@ -1994,7 +2000,7 @@ export async function fetchRecentPRs(): Promise<RecentPR[]> {
     query RecentPRs($owner: String!, $repo: String!) {
       repository(owner: $owner, name: $repo) {
         pullRequests(first: 30, orderBy: { field: UPDATED_AT, direction: DESC }) {
-          nodes { number title state url updatedAt author { login } }
+          nodes { number title state url createdAt mergedAt closedAt updatedAt author { login } }
         }
       }
     }
@@ -2011,6 +2017,9 @@ export async function fetchRecentPRs(): Promise<RecentPR[]> {
         title: pr.title,
         state: pr.state.toLowerCase() as RecentPR["state"],
         author: pr.author?.login ?? null,
+        createdAt: pr.createdAt,
+        mergedAt: pr.mergedAt,
+        closedAt: pr.closedAt,
         updatedAt: pr.updatedAt,
         url: pr.url,
       }));
@@ -2029,6 +2038,62 @@ export async function fetchRecentPRs(): Promise<RecentPR[]> {
 
   inflightRecentPRs.set(cacheKey, promise);
   return promise;
+}
+
+/** A commit as it appears in the "Autonomous" activity feed. */
+export interface RecentCommit {
+  sha: string;
+  /** First line of the commit message. */
+  message: string;
+  author: string | null;
+  date: string;
+  url: string;
+}
+
+/**
+ * Recent commits on the default branch — the "pushed" events in the Auto
+ * feed. ETag/304-cached (rate-limit rule #2): unchanged history revalidates
+ * for free.
+ */
+export async function fetchRecentCommits(): Promise<RecentCommit[]> {
+  const cacheKey = `recent-commits:${getOwner()}:${getRepo()}`;
+  const cached = getCached<RecentCommit[]>(cacheKey);
+  if (cached) return cached;
+
+  const stale = getStale<RecentCommit[]>(cacheKey);
+  const octokit = getOctokit();
+
+  try {
+    const response = await octokit.repos.listCommits({
+      owner: getOwner(),
+      repo: getRepo(),
+      per_page: 30,
+      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+    });
+    const newEtag = (response.headers as Record<string, string | undefined>)
+      ?.etag;
+    const commits: RecentCommit[] = response.data.map((c) => ({
+      sha: c.sha,
+      message:
+        (c.commit.message || "").split("\n")[0]?.trim() || c.sha.slice(0, 7),
+      author: c.author?.login ?? c.commit.author?.name ?? null,
+      date:
+        c.commit.author?.date ??
+        c.commit.committer?.date ??
+        new Date().toISOString(),
+      url: c.html_url,
+    }));
+    setCache(cacheKey, CACHE_TTL.prs, commits, { etag: newEtag });
+    return commits;
+  } catch (error: unknown) {
+    const status = (error as { status?: number })?.status;
+    if (status === 304 && stale) {
+      setCache(cacheKey, CACHE_TTL.prs, stale.data, { etag: stale.etag });
+      return stale.data;
+    }
+    if (stale) return stale.data;
+    return [];
+  }
 }
 
 /**
