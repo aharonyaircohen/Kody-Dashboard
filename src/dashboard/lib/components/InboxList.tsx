@@ -31,6 +31,7 @@ import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { PageShell } from "./PageShell";
 import { InboxThreadDialog, resolvableThread } from "./InboxThreadDialog";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { useAuth } from "../auth-context";
 import { useInbox } from "../inbox/useInbox";
 import { cn } from "../utils";
@@ -391,12 +392,26 @@ export function InboxList() {
     markRead,
     markUnread,
     markAllRead,
+    clearAll,
     remove,
   } = useInbox();
   const { verdictFor, invalidate: invalidateCtoDecisions } = useCtoDecisions();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activeEntry, setActiveEntry] = useState<InboxEntry | null>(null);
   const [query, setQuery] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
+  const totalCount = unread.length + read.length;
+
+  const handleClearAll = async () => {
+    try {
+      await clearAll();
+      toast.success("Inbox cleared");
+    } catch (err) {
+      toast.error("Clear inbox failed", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  };
   const connectedRepo = auth ? `${auth.owner}/${auth.repo}` : undefined;
 
   const trimmedQuery = query.trim();
@@ -561,6 +576,16 @@ export function InboxList() {
             <CheckCheck className="w-4 h-4" />
             Mark all read
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setConfirmClear(true)}
+            disabled={totalCount === 0}
+            className="gap-1 text-rose-300 hover:text-rose-200"
+          >
+            <Trash2 className="w-4 h-4" />
+            Clear inbox
+          </Button>
         </>
       }
     >
@@ -672,6 +697,17 @@ export function InboxList() {
             />
           );
         })()}
+      />
+      <ConfirmDialog
+        open={confirmClear}
+        title="Clear entire inbox?"
+        description={`This permanently removes all ${totalCount} ${
+          totalCount === 1 ? "entry" : "entries"
+        } (read and unread). This can't be undone.`}
+        confirmLabel="Clear inbox"
+        variant="destructive"
+        onConfirm={() => void handleClearAll()}
+        onClose={() => setConfirmClear(false)}
       />
     </PageShell>
   );

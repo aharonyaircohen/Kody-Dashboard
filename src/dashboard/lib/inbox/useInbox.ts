@@ -75,6 +75,18 @@ async function markAllRequest(
   return data.entries ?? [];
 }
 
+async function clearAllRequest(
+  headers: Record<string, string>,
+): Promise<InboxEntry[]> {
+  const res = await fetch("/api/kody/inbox/clear-all", {
+    method: "POST",
+    headers,
+  });
+  if (!res.ok) throw new Error(await res.text().catch(() => "clear-all failed"));
+  const data = (await res.json()) as InboxResponse;
+  return data.entries ?? [];
+}
+
 async function appendRequest(
   headers: Record<string, string>,
   entries: InboxEntry[],
@@ -102,6 +114,7 @@ export interface UseInboxResult {
   markRead: (id: string) => Promise<void>;
   markUnread: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
+  clearAll: () => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -145,6 +158,10 @@ export function useInbox(options: { enabled?: boolean } = {}): UseInboxResult {
     mutationFn: () => markAllRequest(headers),
     onSuccess: (next) => qc.setQueryData(key, next),
   });
+  const clearAllMut = useMutation({
+    mutationFn: () => clearAllRequest(headers),
+    onSuccess: (next) => qc.setQueryData(key, next),
+  });
   const removeMut = useMutation({
     mutationFn: (id: string) => deleteEntryReq(headers, id),
     onSuccess: (next) => qc.setQueryData(key, next),
@@ -167,6 +184,9 @@ export function useInbox(options: { enabled?: boolean } = {}): UseInboxResult {
     },
     markAllRead: async () => {
       await markAllMut.mutateAsync();
+    },
+    clearAll: async () => {
+      await clearAllMut.mutateAsync();
     },
     remove: async (id) => {
       await removeMut.mutateAsync(id);
