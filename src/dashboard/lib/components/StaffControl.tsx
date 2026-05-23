@@ -635,7 +635,7 @@ function CreateStaffDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>New staff member</DialogTitle>
           <DialogDescription>
@@ -715,7 +715,7 @@ function EditStaffDialog({
 
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>Edit staff member `{member.slug}`</DialogTitle>
           <DialogDescription>
