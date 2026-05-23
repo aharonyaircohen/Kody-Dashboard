@@ -19,6 +19,7 @@ import webpush, {
   WebPushError,
 } from "web-push";
 import { setGitHubContext, clearGitHubContext } from "../github-client";
+import { resolveVaultGithubToken } from "../vault/bootstrap";
 import { readPushManifest, mutatePushManifest } from "../push-server";
 import type { PushSubscriptionRecord } from "../push";
 import { appendInboxFeed, readInboxFeed } from "../inbox/feed-server";
@@ -498,14 +499,15 @@ export async function dispatchMentionPushes(
     const [owner, repo] = ev.repoFullName.split("/");
     if (!owner || !repo) return;
 
-    const token =
-      process.env.KODY_BOT_TOKEN ||
-      process.env.GITHUB_TOKEN ||
-      process.env.GH_PAT;
+    // Token comes from the repo's vault, decrypted with KODY_MASTER_KEY (the
+    // only secret Vercel holds). The webhook is unauthenticated, so there is
+    // no user/env token to use; the encrypted vault blob is world-readable on
+    // public repos, so we can bootstrap the token from it.
+    const token = await resolveVaultGithubToken(owner, repo);
     if (!token) {
       logger.warn(
-        { event: "mention_push_no_token" },
-        "No bot token — cannot read push manifest / write inbox feed",
+        { event: "mention_push_no_token", repo: ev.repoFullName },
+        "No vault GITHUB_TOKEN for repo — cannot read push manifest / write inbox feed",
       );
       return;
     }
