@@ -146,11 +146,11 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Company",
     items: [
       {
-        href: "/docs",
-        label: "Documentation",
+        href: "/context",
+        label: "Context",
         icon: FileText,
         description:
-          "Markdown docs describing your company — attach to staff; Kody's docs feed every chat turn.",
+          "Curated markdown context you feed Kody — attach to staff; Kody's entries frame every chat turn.",
         tint: "text-teal-300 bg-teal-500/10",
       },
       {

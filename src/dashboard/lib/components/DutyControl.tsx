@@ -687,7 +687,7 @@ function CreateDutyDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>New duty</DialogTitle>
           <DialogDescription>
@@ -784,7 +784,7 @@ function EditDutyDialog({
 
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>Edit duty `{duty.slug}`</DialogTitle>
           <DialogDescription>

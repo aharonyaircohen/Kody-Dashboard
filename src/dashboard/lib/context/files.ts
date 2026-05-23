@@ -1,22 +1,24 @@
 /**
  * @fileType util
  * @domain kody
- * @pattern doc-files
- * @ai-summary Read/write documentation files under `.kody/docs/<slug>.md`
+ * @pattern context-files
+ * @ai-summary Read/write context-entry files under `.kody/context/<slug>.md`
  *   via the GitHub contents API. Multi-file like prompts: the slug is the
- *   doc name (e.g. `mission`, `products`, `customers`) and the body is
- *   free-form markdown — company facts, guidelines, a persona playbook, etc.
+ *   entry name (e.g. `company-profile`, `mission`, `products`) and the body
+ *   is free-form markdown — curated context you write FOR Kody (company
+ *   facts, brand, persona briefs). Reference docs that already live in the
+ *   repo (README, DESIGN_SYSTEM.md) belong in the repo, not here.
  *
  *   Each file may carry a tiny YAML frontmatter block with a single
  *   `staff:` field — an inline list (`[kody, qa-engineer]`) of the
- *   staff-member slugs that own the doc. Legacy files use `audience:` or
+ *   staff-member slugs that own the entry. Legacy files use `audience:` or
  *   have NO frontmatter; both are mapped on read (`chat` → `kody`,
  *   `qa` → `qa-engineer`, frontmatter-less → `[kody]`) so existing data
- *   keeps flowing unchanged (see `docs/frontmatter.ts`).
+ *   keeps flowing unchanged (see `context/frontmatter.ts`).
  *
- *   Docs owned by the built-in chat staff (`kody`) are injected into the
- *   kody-direct chat system prompt under a `## Documentation` heading (see
- *   `loadDocsForPrompt`), so every persona inherits the facts without
+ *   Entries owned by the built-in chat staff (`kody`) are injected into the
+ *   kody-direct chat system prompt under a `## Context` heading (see
+ *   `loadContextForPrompt`), so every persona inherits the facts without
  *   restating them. Deliberately NOT part of the Company export/import
  *   bundle (that decision is still open).
  *
@@ -28,24 +30,24 @@
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "../github-client";
 import {
-  splitDocFrontmatter,
-  joinDocFrontmatter,
+  splitContextFrontmatter,
+  joinContextFrontmatter,
   KODY_CHAT_STAFF,
   ALL_STAFF,
 } from "./frontmatter";
 
-const DOCS_DIR = ".kody/docs";
+const CONTEXT_DIR = ".kody/context";
 
-export interface DocFile {
-  /** Filename without `.md` — stable identity, also the doc heading. */
+export interface ContextFile {
+  /** Filename without `.md` — stable identity, also the entry heading. */
   slug: string;
   /**
-   * Free-form markdown body. Frontmatter is stripped — this is the doc
+   * Free-form markdown body. Frontmatter is stripped — this is the entry
    * text only.
    */
   body: string;
   /**
-   * Staff-member slugs that own this doc, from `staff:` frontmatter.
+   * Staff-member slugs that own this entry, from `staff:` frontmatter.
    * Defaults to `["kody"]` (the built-in chat staff) for legacy
    * frontmatter-less files. Always non-empty unless explicitly unassigned.
    */
@@ -72,7 +74,7 @@ function slugFromName(name: string): string | null {
 
 function buildHtmlUrl(slug: string, branch: string | null): string {
   const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${DOCS_DIR}/${slug}.md`;
+  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${CONTEXT_DIR}/${slug}.md`;
 }
 
 async function getDefaultBranch(octokit: Octokit): Promise<string> {
@@ -105,10 +107,10 @@ async function fetchLastCommitDate(
 }
 
 /**
- * List every doc file under `.kody/docs/`. Returns `[]` if the directory
- * does not exist. Sorted by slug for a stable UI order.
+ * List every context file under `.kody/context/`. Returns `[]` if the
+ * directory does not exist. Sorted by slug for a stable UI order.
  */
-export async function listDocFiles(): Promise<DocFile[]> {
+export async function listContextFiles(): Promise<ContextFile[]> {
   const octokit = getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);
 
@@ -117,7 +119,7 @@ export async function listDocFiles(): Promise<DocFile[]> {
     const { data } = await octokit.repos.getContent({
       owner: getOwner(),
       repo: getRepo(),
-      path: DOCS_DIR,
+      path: CONTEXT_DIR,
     });
     if (!Array.isArray(data)) return [];
     entries = data as Array<{ name: string; sha: string; type: string }>;
@@ -136,7 +138,7 @@ export async function listDocFiles(): Promise<DocFile[]> {
   const files = await Promise.all(
     slugs.map(async ({ slug, sha, name }) => {
       try {
-        const filePath = `${DOCS_DIR}/${name}`;
+        const filePath = `${CONTEXT_DIR}/${name}`;
         const { data } = await octokit.repos.getContent({
           owner: getOwner(),
           repo: getRepo(),
@@ -147,7 +149,7 @@ export async function listDocFiles(): Promise<DocFile[]> {
         const raw = Buffer.from(data.content, "base64")
           .toString("utf-8")
           .replace(/^\s+/, "");
-        const { frontmatter, body } = splitDocFrontmatter(raw);
+        const { frontmatter, body } = splitContextFrontmatter(raw);
         const updatedAt = await fetchLastCommitDate(octokit, filePath);
         return {
           slug,
@@ -156,28 +158,28 @@ export async function listDocFiles(): Promise<DocFile[]> {
           sha,
           updatedAt,
           htmlUrl: buildHtmlUrl(slug, branch),
-        } satisfies DocFile;
+        } satisfies ContextFile;
       } catch {
         return null;
       }
     }),
   );
 
-  const nonNull: DocFile[] = files.filter(
+  const nonNull: ContextFile[] = files.filter(
     (f): f is NonNullable<typeof f> => f !== null,
   );
   nonNull.sort((a, b) => a.slug.localeCompare(b.slug));
   return nonNull;
 }
 
-export async function readDocFile(
+export async function readContextFile(
   slug: string,
   octokitOverride?: Octokit,
-): Promise<DocFile | null> {
+): Promise<ContextFile | null> {
   if (!isValidSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);
-  const filePath = `${DOCS_DIR}/${slug}.md`;
+  const filePath = `${CONTEXT_DIR}/${slug}.md`;
 
   try {
     const { data } = await octokit.repos.getContent({
@@ -190,7 +192,7 @@ export async function readDocFile(
     const raw = Buffer.from(data.content, "base64")
       .toString("utf-8")
       .replace(/^\s+/, "");
-    const { frontmatter, body } = splitDocFrontmatter(raw);
+    const { frontmatter, body } = splitContextFrontmatter(raw);
     const updatedAt = await fetchLastCommitDate(octokit, filePath);
     return {
       slug,
@@ -209,7 +211,7 @@ export async function readDocFile(
 interface WriteOptions {
   octokit: Octokit;
   slug: string;
-  /** Doc markdown (frontmatter-free); the `staff:` block is re-attached here. */
+  /** Entry markdown (frontmatter-free); the `staff:` block is re-attached here. */
   body: string;
   /** Owning staff-member slugs persisted in `staff:` frontmatter (inline list). */
   staff: string[];
@@ -217,20 +219,25 @@ interface WriteOptions {
   message?: string;
 }
 
-export async function writeDocFile(opts: WriteOptions): Promise<DocFile> {
+export async function writeContextFile(
+  opts: WriteOptions,
+): Promise<ContextFile> {
   if (!isValidSlug(opts.slug)) {
     throw new Error(
-      `Invalid doc slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`,
+      `Invalid context slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`,
     );
   }
-  const filePath = `${DOCS_DIR}/${opts.slug}.md`;
-  const withFrontmatter = joinDocFrontmatter({ staff: opts.staff }, opts.body);
+  const filePath = `${CONTEXT_DIR}/${opts.slug}.md`;
+  const withFrontmatter = joinContextFrontmatter(
+    { staff: opts.staff },
+    opts.body,
+  );
   const content = withFrontmatter.endsWith("\n")
     ? withFrontmatter
     : `${withFrontmatter}\n`;
   const message =
     opts.message ??
-    `${opts.sha ? "chore" : "feat"}(docs): ${opts.sha ? "update" : "add"} ${opts.slug}`;
+    `${opts.sha ? "chore" : "feat"}(context): ${opts.sha ? "update" : "add"} ${opts.slug}`;
 
   await opts.octokit.repos.createOrUpdateFileContents({
     owner: getOwner(),
@@ -241,43 +248,45 @@ export async function writeDocFile(opts: WriteOptions): Promise<DocFile> {
     sha: opts.sha,
   });
 
-  invalidateDocsPromptCache();
+  invalidateContextPromptCache();
   // Confirm with the same octokit that wrote — not the per-request global,
   // which a concurrent request may have cleared (→ 401 "Bad credentials").
-  const refreshed = await readDocFile(opts.slug, opts.octokit);
+  const refreshed = await readContextFile(opts.slug, opts.octokit);
   if (!refreshed) {
-    throw new Error("writeDocFile: file was written but could not be re-read");
+    throw new Error(
+      "writeContextFile: file was written but could not be re-read",
+    );
   }
   return refreshed;
 }
 
-export async function deleteDocFile(
+export async function deleteContextFile(
   octokit: Octokit,
   slug: string,
 ): Promise<void> {
   if (!isValidSlug(slug)) {
-    throw new Error(`Invalid doc slug: "${slug}".`);
+    throw new Error(`Invalid context slug: "${slug}".`);
   }
-  const existing = await readDocFile(slug);
+  const existing = await readContextFile(slug);
   if (!existing) return;
-  const filePath = `${DOCS_DIR}/${slug}.md`;
+  const filePath = `${CONTEXT_DIR}/${slug}.md`;
   await octokit.repos.deleteFile({
     owner: getOwner(),
     repo: getRepo(),
     path: filePath,
-    message: `chore(docs): remove ${slug}`,
+    message: `chore(context): remove ${slug}`,
     sha: existing.sha,
   });
-  invalidateDocsPromptCache();
+  invalidateContextPromptCache();
 }
 
 // ─── Hot-path loader (chat system prompt) ──────────────────────────────────
 
-interface CachedDocs {
+interface CachedContext {
   prompt: string;
   expiresAt: number;
 }
-const cache = new Map<string, CachedDocs>();
+const cache = new Map<string, CachedContext>();
 const CACHE_TTL_MS = 60_000;
 
 function cacheKey(): string {
@@ -285,21 +294,21 @@ function cacheKey(): string {
 }
 
 /**
- * Concatenate the chat-staff doc files into a single markdown block for the
- * chat system prompt, each doc prefixed with its slug as a `###` heading.
- * Only docs owned by the built-in chat staff (`kody`) or the `*` all-staff
- * wildcard are included — docs attached only to other staff (e.g.
- * `qa-engineer`) are skipped so they never reach the chat prompt. Returns
- * `null` when no such docs exist. 60s in-process cache (same TTL as the
- * instructions loader); callers treat `null` as "no docs".
+ * Concatenate the chat-staff context files into a single markdown block for
+ * the chat system prompt, each entry prefixed with its slug as a `###`
+ * heading. Only entries owned by the built-in chat staff (`kody`) or the `*`
+ * all-staff wildcard are included — entries attached only to other staff
+ * (e.g. `qa-engineer`) are skipped so they never reach the chat prompt.
+ * Returns `null` when no such entries exist. 60s in-process cache (same TTL
+ * as the instructions loader); callers treat `null` as "no context".
  */
-export async function loadDocsForPrompt(): Promise<string | null> {
+export async function loadContextForPrompt(): Promise<string | null> {
   const key = cacheKey();
   const cached = cache.get(key);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.prompt || null;
   }
-  const files = await listDocFiles();
+  const files = await listContextFiles();
   const prompt = files
     .filter(
       (f) => f.staff.includes(KODY_CHAT_STAFF) || f.staff.includes(ALL_STAFF),
@@ -311,8 +320,8 @@ export async function loadDocsForPrompt(): Promise<string | null> {
   return prompt || null;
 }
 
-export function invalidateDocsPromptCache(): void {
+export function invalidateContextPromptCache(): void {
   cache.delete(cacheKey());
 }
 
-export { DOCS_DIR };
+export { CONTEXT_DIR };

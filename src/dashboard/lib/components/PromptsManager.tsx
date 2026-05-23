@@ -438,7 +438,7 @@ function PromptEditor({
         if (!o) onClose();
       }}
     >
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>
             {isNew

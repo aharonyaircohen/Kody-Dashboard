@@ -1,14 +1,14 @@
 /**
  * @fileType util
  * @domain kody
- * @pattern doc-frontmatter
- * @ai-summary YAML frontmatter parser/serializer for documentation files
- *   (`.kody/docs/<slug>.md`). The single recognized field is `staff:` — the
- *   list of staff-member slugs that own the doc. Each consumer loads the docs
- *   attached to *its* staff member:
- *     - the in-process kody chat loads docs attached to the built-in chat
+ * @pattern context-frontmatter
+ * @ai-summary YAML frontmatter parser/serializer for context-entry files
+ *   (`.kody/context/<slug>.md`). The single recognized field is `staff:` —
+ *   the list of staff-member slugs that own the entry. Each consumer loads
+ *   the context attached to *its* staff member:
+ *     - the in-process kody chat loads context attached to the built-in chat
  *       staff (`kody`), and
- *     - the engine's QA preflight loads docs attached to `qa-engineer`.
+ *     - the engine's QA preflight loads context attached to `qa-engineer`.
  *   Written as an inline YAML list on one line (`staff: [kody, qa-engineer]`)
  *   because the kody engine parses it with a simple inline-list reader —
  *   keep it inline, comma-separated, square brackets. Flat keys only — same
@@ -28,17 +28,17 @@ export const KODY_CHAT_STAFF = "kody";
 export const QA_STAFF = "qa-engineer";
 
 /**
- * Wildcard token: a doc owned by `*` is loaded by *every* consumer (chat,
+ * Wildcard token: an entry owned by `*` is loaded by *every* consumer (chat,
  * QA, and any future staff). Canonicalized to a lone `["*"]` — it never
  * coexists with specific slugs.
  */
 export const ALL_STAFF = "*";
 
 /**
- * Default `staff:` for a doc file with no frontmatter — preserves the
+ * Default `staff:` for a context file with no frontmatter — preserves the
  * legacy "frontmatter-less file feeds the chat prompt" behavior.
  */
-export const DEFAULT_DOC_STAFF: readonly string[] = [KODY_CHAT_STAFF];
+export const DEFAULT_CONTEXT_STAFF: readonly string[] = [KODY_CHAT_STAFF];
 
 /** Map a legacy `audience:` token to its staff-member slug equivalent. */
 const LEGACY_AUDIENCE_TO_STAFF: Record<string, string> = {
@@ -46,14 +46,14 @@ const LEGACY_AUDIENCE_TO_STAFF: Record<string, string> = {
   qa: QA_STAFF,
 };
 
-/** Same slug shape as doc/staff/duty slugs. */
+/** Same slug shape as context/staff/duty slugs. */
 const STAFF_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
-export interface DocFrontmatter {
+export interface ContextFrontmatter {
   /**
-   * Staff-member slugs that own this doc. Absent on disk = `["kody"]`
-   * (the legacy chat default), applied by `splitDocFrontmatter`. An
-   * explicit empty list (`staff: []`) is a valid "unassigned" doc — owned
+   * Staff-member slugs that own this entry. Absent on disk = `["kody"]`
+   * (the legacy chat default), applied by `splitContextFrontmatter`. An
+   * explicit empty list (`staff: []`) is a valid "unassigned" entry — owned
    * by nobody, loaded by no consumer. Deduped, order-preserving.
    */
   staff: string[];
@@ -78,19 +78,19 @@ function canonicalizeStaff(values: readonly string[]): string[] {
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 /**
- * Parse the leading frontmatter block (if any) from a raw doc file. `staff`
- * defaults to `["kody"]` when the block is missing or names no recognizable
- * staff, so frontmatter-less files keep going to the chat prompt. A legacy
- * `audience:` list is mapped onto staff slugs.
+ * Parse the leading frontmatter block (if any) from a raw context file.
+ * `staff` defaults to `["kody"]` when the block is missing or names no
+ * recognizable staff, so frontmatter-less files keep going to the chat
+ * prompt. A legacy `audience:` list is mapped onto staff slugs.
  */
-export function splitDocFrontmatter(raw: string): {
-  frontmatter: DocFrontmatter;
+export function splitContextFrontmatter(raw: string): {
+  frontmatter: ContextFrontmatter;
   body: string;
 } {
   const match = FRONTMATTER_RE.exec(raw);
   if (!match) {
     return {
-      frontmatter: { staff: [...DEFAULT_DOC_STAFF] },
+      frontmatter: { staff: [...DEFAULT_CONTEXT_STAFF] },
       body: raw,
     };
   }
@@ -105,8 +105,8 @@ export function splitDocFrontmatter(raw: string): {
  * `staff: [kody, qa-engineer]` — which the kody engine's inline-list parser
  * understands. Keep this format inline, comma-separated, square brackets.
  */
-export function joinDocFrontmatter(
-  frontmatter: DocFrontmatter,
+export function joinContextFrontmatter(
+  frontmatter: ContextFrontmatter,
   body: string,
 ): string {
   const staff = normalizeStaff(frontmatter.staff);
@@ -118,9 +118,9 @@ export function joinDocFrontmatter(
 // Internals — flat YAML only (key: scalar | inline list). No nesting.
 // ────────────────────────────────────────────────────────────────────
 
-function parseFlatYaml(text: string): DocFrontmatter {
+function parseFlatYaml(text: string): ContextFrontmatter {
   // An explicit `staff:` line wins — even when empty (`staff: []` is a valid
-  // "unassigned" doc, owned by nobody and loaded by no consumer). The legacy
+  // "unassigned" entry, owned by nobody and loaded by no consumer). The legacy
   // `audience:` mapping is only consulted when no `staff:` line is present.
   let staff: string[] | null = null;
   let legacyStaff: string[] | null = null;
@@ -141,7 +141,7 @@ function parseFlatYaml(text: string): DocFrontmatter {
     }
     // Unknown keys silently dropped on read.
   }
-  return { staff: staff ?? legacyStaff ?? [...DEFAULT_DOC_STAFF] };
+  return { staff: staff ?? legacyStaff ?? [...DEFAULT_CONTEXT_STAFF] };
 }
 
 /**
@@ -165,9 +165,9 @@ function parseSlugList(value: string): string[] {
 
 /**
  * Drop invalid tokens, dedupe, and collapse the `*` wildcard to `["*"]`.
- * May return `[]` — an explicit empty list is a valid "unassigned" doc, so
+ * May return `[]` — an explicit empty list is a valid "unassigned" entry, so
  * we do NOT fall back to the default here (the frontmatter-less default
- * lives in `splitDocFrontmatter`).
+ * lives in `splitContextFrontmatter`).
  */
 function normalizeStaff(staff: readonly string[]): string[] {
   return canonicalizeStaff(staff.filter(isStaffToken));
