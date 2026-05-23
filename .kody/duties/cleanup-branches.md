@@ -1,6 +1,7 @@
 ---
 every: manual
 staff: kody
+disabled: true
 ---
 
 # clean up branches
