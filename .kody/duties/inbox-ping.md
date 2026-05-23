@@ -2,6 +2,7 @@
 every: 15m
 staff: kody
 mentions: aguyaharonyair
+disabled: true
 ---
 
 # Inbox Ping (verification heartbeat)
