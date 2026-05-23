@@ -1,28 +1,26 @@
 /**
  * @fileType component
- * @domain profile
- * @pattern profile-control-page
- * @ai-summary Company Profile Control — list, view, create, edit, and
- *   delete profile sections. A section is a markdown file at
- *   `.kody/profile/<slug>.md` in the connected repo: the slug is the
- *   section name (e.g. `mission`, `products`) and the body is factual
- *   context about the company. Each section carries a `staff:` list of
- *   staff-member slugs that own it, deciding which consumers load it:
- *   sections owned by the built-in `kody` staff feed the kody chat system
- *   prompt; `qa-engineer` sections feed the engine QA preflight. An empty
- *   list means the doc is unassigned (loaded by nobody).
+ * @domain docs
+ * @pattern docs-control-page
+ * @ai-summary Documentation Control — list, view, create, edit, and delete
+ *   docs. A doc is a markdown file at `.kody/docs/<slug>.md` in the connected
+ *   repo: the slug is the doc name (e.g. `company-profile`, `mission`,
+ *   `products`) and the body is free-form markdown — company facts,
+ *   guidelines, a persona playbook, etc. Each doc carries a `staff:` list of
+ *   staff-member slugs that own it, deciding which consumers load it: docs
+ *   owned by the built-in `kody` staff feed the kody chat system prompt;
+ *   `qa-engineer` docs feed the engine QA preflight. An empty list means the
+ *   doc is unassigned (loaded by nobody).
  *
  *   Mirrors StaffControl's layout/UX (ListSearch + inline ReactMarkdown
- *   view + MarkdownEditor dialogs), minus any schedule UI — profile
- *   sections are not scheduled — plus a per-section staff multi-select
- *   and badges.
+ *   view + MarkdownEditor dialogs), minus any schedule UI — docs are not
+ *   scheduled — plus a per-doc staff multi-select and badges.
  */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Building,
   Calendar,
   ChevronDown,
   ExternalLink,
@@ -54,15 +52,15 @@ import {
 import { AuthGuard } from "../auth-guard";
 import { cn } from "../utils";
 import {
-  useCreateProfile,
-  useDeleteProfile,
-  useProfile,
-  useUpdateProfile,
-} from "../hooks/useProfile";
+  useCreateDoc,
+  useDeleteDoc,
+  useDocs,
+  useUpdateDoc,
+} from "../hooks/useDocs";
 import { useStaff } from "../hooks/useStaff";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import type { ProfileSection } from "../api";
-import { KODY_CHAT_STAFF, QA_STAFF, ALL_STAFF } from "../profile/frontmatter";
+import type { Doc } from "../api";
+import { KODY_CHAT_STAFF, QA_STAFF, ALL_STAFF } from "../docs/frontmatter";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -158,67 +156,61 @@ function StaffBadges({ staff }: { staff: string[] }) {
   );
 }
 
-interface ProfileControlProps {
+interface DocsControlProps {
   /** Render without the built-in PageHeader (e.g. when hosted in tabs). */
   embedded?: boolean;
 }
 
-export function ProfileControl({ embedded = false }: ProfileControlProps = {}) {
+export function DocsControl({ embedded = false }: DocsControlProps = {}) {
   return (
     <AuthGuard>
-      <ProfileControlInner embedded={embedded} />
+      <DocsControlInner embedded={embedded} />
     </AuthGuard>
   );
 }
 
-export function ProfileControlInner({
-  embedded = false,
-}: ProfileControlProps = {}) {
+export function DocsControlInner({ embedded = false }: DocsControlProps = {}) {
   const {
-    data: sections = [],
+    data: docs = [],
     isLoading,
     isFetching,
     refetch,
     error,
-  } = useProfile();
+  } = useDocs();
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [editingSection, setEditingSection] = useState<ProfileSection | null>(
-    null,
-  );
-  const [pendingDelete, setPendingDelete] = useState<ProfileSection | null>(
-    null,
-  );
+  const [editingDoc, setEditingDoc] = useState<Doc | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Doc | null>(null);
 
-  const selectedSection = useMemo(
-    () => sections.find((s) => s.slug === selectedSlug) ?? null,
-    [sections, selectedSlug],
+  const selectedDoc = useMemo(
+    () => docs.find((s) => s.slug === selectedSlug) ?? null,
+    [docs, selectedSlug],
   );
 
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return sections;
-    return sections.filter(
+    if (!q) return docs;
+    return docs.filter(
       (s) =>
         s.slug.toLowerCase().includes(q) || s.body.toLowerCase().includes(q),
     );
-  }, [sections, search]);
+  }, [docs, search]);
 
   const existingSlugs = useMemo(
-    () => new Set(sections.map((s) => s.slug)),
-    [sections],
+    () => new Set(docs.map((s) => s.slug)),
+    [docs],
   );
 
   useEffect(() => {
-    if (!selectedSlug && sections.length > 0) {
-      setSelectedSlug(sections[0].slug);
+    if (!selectedSlug && docs.length > 0) {
+      setSelectedSlug(docs[0].slug);
     }
-  }, [sections, selectedSlug]);
+  }, [docs, selectedSlug]);
 
   const { githubUser } = useGitHubIdentity();
-  const deleteMutation = useDeleteProfile(githubUser?.login);
+  const deleteMutation = useDeleteDoc(githubUser?.login);
 
   const headerActions = (
     <>
@@ -227,13 +219,13 @@ export function ProfileControlInner({
         size="sm"
         onClick={() => refetch()}
         disabled={isFetching}
-        aria-label="Refresh profile"
+        aria-label="Refresh docs"
       >
         <RefreshCw className={cn("w-4 h-4", isFetching && "animate-spin")} />
       </Button>
       <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
         <Plus className="w-4 h-4" />
-        <span className="hidden sm:inline">New section</span>
+        <span className="hidden sm:inline">New doc</span>
       </Button>
     </>
   );
@@ -244,71 +236,68 @@ export function ProfileControlInner({
         {embedded ? (
           <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-black/20">
             <span className="text-xs text-muted-foreground mr-auto">
-              {sections.length}{" "}
-              {sections.length === 1 ? "section" : "sections"}
+              {docs.length} {docs.length === 1 ? "doc" : "docs"}
             </span>
             {headerActions}
           </div>
         ) : (
           <PageHeader
-            title="Company Profile"
-            icon={Building}
+            title="Documentation"
+            icon={FileText}
             iconClassName="text-teal-400"
-            subtitle={`${sections.length} ${
-              sections.length === 1 ? "section" : "sections"
-            }`}
+            subtitle={`${docs.length} ${docs.length === 1 ? "doc" : "docs"}`}
             actions={headerActions}
           />
         )}
 
         {error ? (
           <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
-            Failed to load profile: {(error as Error).message}
+            Failed to load docs: {(error as Error).message}
           </div>
         ) : null}
 
         <div className="flex-1 min-h-0 flex">
-          {/* Middle: section list */}
+          {/* Middle: doc list */}
           <aside
             className={cn(
               "w-full md:w-80 md:border-r md:border-border overflow-y-auto",
-              selectedSection && "hidden md:block",
+              selectedDoc && "hidden md:block",
             )}
           >
-            {sections.length > 0 ? (
+            {docs.length > 0 ? (
               <div className="sticky top-0 z-10 bg-background/95 backdrop-blur px-3 md:px-4 py-2 md:py-3 border-b border-border">
                 <ListSearch
                   value={search}
                   onChange={setSearch}
-                  placeholder="Search profile…"
-                  ariaLabel="Search profile"
+                  placeholder="Search docs…"
+                  ariaLabel="Search docs"
                   accent="teal"
                 />
               </div>
             ) : null}
             {isLoading ? (
-              <EmptyState icon={<FileText />} title="Loading profile…" />
-            ) : sections.length === 0 ? (
+              <EmptyState icon={<FileText />} title="Loading docs…" />
+            ) : docs.length === 0 ? (
               <EmptyState
-                icon={<Building />}
-                title="No profile yet"
-                hint="Create your first section to describe your company — mission, products, customers, tone."
+                icon={<FileText />}
+                title="No docs yet"
+                hint="Create your first doc — company facts, guidelines, tone, or a persona playbook."
               />
             ) : filtered.length === 0 ? (
               <EmptyState
-                icon={<Building />}
-                title="No matching sections"
-                hint="No section matches your search. Try a different term."
+                icon={<FileText />}
+                title="No matching docs"
+                hint="No doc matches your search. Try a different term."
               />
             ) : (
               <ul className="divide-y divide-border">
-                {filtered.map((section) => {
-                  const isActive = selectedSlug === section.slug;
+                {filtered.map((doc) => {
+                  const isActive = selectedSlug === doc.slug;
                   return (
-                    <li key={section.slug}>
+                    <li key={doc.slug}>
                       <button
                         type="button"
-                        onClick={() => setSelectedSlug(section.slug)}
+                        onClick={() => setSelectedSlug(doc.slug)}
                         className={cn(
                           "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                           isActive && "bg-accent/70",
@@ -318,7 +307,7 @@ export function ProfileControlInner({
                           <span className="absolute inset-y-0 left-0 w-0.5 bg-teal-400" />
                         ) : null}
                         <div className="flex items-center gap-2">
-                          <Building
+                          <FileText
                             className={cn(
                               "w-3.5 h-3.5 shrink-0",
                               isActive
@@ -327,14 +316,14 @@ export function ProfileControlInner({
                             )}
                           />
                           <span className="font-mono text-sm truncate flex-1">
-                            {section.slug}
+                            {doc.slug}
                           </span>
-                          <StaffBadges staff={section.staff} />
+                          <StaffBadges staff={doc.staff} />
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                           <span className="inline-flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            {new Date(section.updatedAt).toLocaleDateString()}
+                            {new Date(doc.updatedAt).toLocaleDateString()}
                           </span>
                         </div>
                       </button>
@@ -345,61 +334,61 @@ export function ProfileControlInner({
             )}
           </aside>
 
-          {/* Right: section detail */}
+          {/* Right: doc detail */}
           <section
             className={cn(
               "flex-1 min-w-0 overflow-y-auto",
-              !selectedSection && "hidden md:block",
+              !selectedDoc && "hidden md:block",
             )}
           >
-            {selectedSection ? (
-              <ProfileDetail
-                section={selectedSection}
+            {selectedDoc ? (
+              <DocDetail
+                doc={selectedDoc}
                 onBack={() => setSelectedSlug(null)}
-                onEdit={() => setEditingSection(selectedSection)}
-                onDelete={() => setPendingDelete(selectedSection)}
+                onEdit={() => setEditingDoc(selectedDoc)}
+                onDelete={() => setPendingDelete(selectedDoc)}
               />
             ) : (
               <EmptyState
-                icon={<Building />}
-                title="Select a section"
-                hint="Pick a section from the list to see its content and owning staff."
+                icon={<FileText />}
+                title="Select a doc"
+                hint="Pick a doc from the list to see its content and owning staff."
               />
             )}
           </section>
         </div>
 
         {/* Create */}
-        <CreateProfileDialog
+        <CreateDocDialog
           open={showCreate}
           existingSlugs={existingSlugs}
           onClose={() => setShowCreate(false)}
-          onCreated={(section) => {
-            setSelectedSlug(section.slug);
+          onCreated={(doc) => {
+            setSelectedSlug(doc.slug);
             setShowCreate(false);
           }}
         />
 
         {/* Edit */}
-        {editingSection ? (
-          <EditProfileDialog
-            section={editingSection}
-            onClose={() => setEditingSection(null)}
-            onSaved={() => setEditingSection(null)}
+        {editingDoc ? (
+          <EditDocDialog
+            doc={editingDoc}
+            onClose={() => setEditingDoc(null)}
+            onSaved={() => setEditingDoc(null)}
           />
         ) : null}
 
         {/* Delete confirm */}
         <ConfirmDialog
           open={!!pendingDelete}
-          title="Delete this profile section?"
+          title="Delete this doc?"
           description={
             pendingDelete
-              ? `Section "${pendingDelete.slug}" will be removed from .kody/profile/ via a commit on the default branch.`
+              ? `Doc "${pendingDelete.slug}" will be removed from .kody/docs/ via a commit on the default branch.`
               : ""
           }
           variant="destructive"
-          confirmLabel="Delete section"
+          confirmLabel="Delete doc"
           onConfirm={() => {
             if (!pendingDelete) return;
             const target = pendingDelete;
@@ -416,18 +405,18 @@ export function ProfileControlInner({
   );
 }
 
-function ProfileDetail({
-  section,
+function DocDetail({
+  doc,
   onBack,
   onEdit,
   onDelete,
 }: {
-  section: ProfileSection;
+  doc: Doc;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const hasBody = section.body.trim().length > 0;
+  const hasBody = doc.body.trim().length > 0;
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -440,24 +429,24 @@ function ProfileDetail({
             className="md:hidden gap-1 -ml-2 text-muted-foreground"
           >
             <ArrowLeft className="w-4 h-4" />
-            All sections
+            All docs
           </Button>
           <header className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words font-mono">
-                  {section.slug}
+                  {doc.slug}
                 </h1>
-                <StaffBadges staff={section.staff} />
+                <StaffBadges staff={doc.staff} />
               </div>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  updated {new Date(section.updatedAt).toLocaleDateString()}
+                  updated {new Date(doc.updatedAt).toLocaleDateString()}
                 </span>
                 <span>·</span>
                 <a
-                  href={section.htmlUrl}
+                  href={doc.htmlUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
@@ -474,8 +463,8 @@ function ProfileDetail({
                 size="sm"
                 onClick={onEdit}
                 className="w-9 px-0"
-                title="Edit section"
-                aria-label="Edit section"
+                title="Edit doc"
+                aria-label="Edit doc"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
@@ -484,8 +473,8 @@ function ProfileDetail({
                 size="sm"
                 onClick={onDelete}
                 className="w-9 px-0 text-red-400"
-                title="Delete section"
-                aria-label="Delete section"
+                title="Delete doc"
+                aria-label="Delete doc"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
@@ -495,7 +484,7 @@ function ProfileDetail({
           {hasBody ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{section.body}</ReactMarkdown>
+                <ReactMarkdown>{doc.body}</ReactMarkdown>
               </div>
             </div>
           ) : null}
@@ -515,7 +504,7 @@ function ProfileDetail({
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Use <span className="font-medium text-foreground">Edit</span> to
-                describe this slice of the company.
+                write this doc.
               </p>
             </div>
             <Button
@@ -525,7 +514,7 @@ function ProfileDetail({
               className="gap-1.5 mt-1"
             >
               <Pencil className="w-3.5 h-3.5" />
-              Edit section
+              Edit doc
             </Button>
           </div>
         </div>
@@ -632,7 +621,7 @@ function StaffSelect({
   );
 }
 
-function CreateProfileDialog({
+function CreateDocDialog({
   open,
   existingSlugs,
   onClose,
@@ -641,10 +630,10 @@ function CreateProfileDialog({
   open: boolean;
   existingSlugs: Set<string>;
   onClose: () => void;
-  onCreated: (section: ProfileSection) => void;
+  onCreated: (doc: Doc) => void;
 }) {
   const { githubUser } = useGitHubIdentity();
-  const createMutation = useCreateProfile(githubUser?.login);
+  const createMutation = useCreateDoc(githubUser?.login);
   const staffOptions = useStaffOptions();
 
   const [slug, setSlug] = useState("");
@@ -678,32 +667,32 @@ function CreateProfileDialog({
     if (!canSave) return;
     createMutation.mutate(
       { slug, body, staff },
-      { onSuccess: (section) => onCreated(section) },
+      { onSuccess: (doc) => onCreated(doc) },
     );
   };
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>New profile section</DialogTitle>
+          <DialogTitle>New doc</DialogTitle>
           <DialogDescription>
-            Stored at .kody/profile/&lt;slug&gt;.md. The slug is the section
-            name Kody sees (e.g. mission, products, customers); the body is
-            plain markdown describing it. Staff decides which consumers load
-            it — leave all unchecked to keep the doc unassigned.
+            Stored at .kody/docs/&lt;slug&gt;.md. The slug is the doc name Kody
+            sees (e.g. company-profile, mission, products); the body is plain
+            markdown. Staff decides which consumers load it — leave all
+            unchecked to keep the doc unassigned.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="profile-slug">Slug (section name)</Label>
+            <Label htmlFor="doc-slug">Slug (doc name)</Label>
             <Input
-              id="profile-slug"
+              id="doc-slug"
               value={slug}
               onChange={(e) => setSlug(e.target.value.toLowerCase())}
               onBlur={() => setTouchedSlug(true)}
-              placeholder="mission"
+              placeholder="company-profile"
               className="font-mono"
               autoFocus
             />
@@ -721,7 +710,7 @@ function CreateProfileDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={16} />
+            <MarkdownEditor value={body} onChange={setBody} rows={10} />
             {bodyError ? (
               <p className="text-xs text-rose-300">{bodyError}</p>
             ) : null}
@@ -733,7 +722,7 @@ function CreateProfileDialog({
             Cancel
           </Button>
           <Button size="sm" onClick={handleSubmit} disabled={!canSave}>
-            {createMutation.isPending ? "Creating…" : "Create section"}
+            {createMutation.isPending ? "Creating…" : "Create doc"}
           </Button>
         </div>
       </DialogContent>
@@ -741,37 +730,37 @@ function CreateProfileDialog({
   );
 }
 
-function EditProfileDialog({
-  section,
+function EditDocDialog({
+  doc,
   onClose,
   onSaved,
 }: {
-  section: ProfileSection;
+  doc: Doc;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { githubUser } = useGitHubIdentity();
-  const updateMutation = useUpdateProfile(section.slug, githubUser?.login);
+  const updateMutation = useUpdateDoc(doc.slug, githubUser?.login);
   const staffOptions = useStaffOptions();
 
-  const [body, setBody] = useState(section.body || "");
-  const [staff, setStaff] = useState<string[]>(section.staff);
+  const [body, setBody] = useState(doc.body || "");
+  const [staff, setStaff] = useState<string[]>(doc.staff);
 
   useEffect(() => {
-    setBody(section.body || "");
-    setStaff(section.staff);
-  }, [section]);
+    setBody(doc.body || "");
+    setStaff(doc.staff);
+  }, [doc]);
 
   const bodyError = body.trim().length === 0 ? "Required" : null;
 
   const staffChanged =
-    staff.length !== section.staff.length ||
-    staff.some((s) => !section.staff.includes(s));
+    staff.length !== doc.staff.length ||
+    staff.some((s) => !doc.staff.includes(s));
 
   const handleSubmit = () => {
     if (bodyError || updateMutation.isPending) return;
     const patch: { body?: string; staff?: string[] } = {};
-    if (body !== section.body) patch.body = body;
+    if (body !== doc.body) patch.body = body;
     if (staffChanged) patch.staff = staff;
     if (Object.keys(patch).length === 0) {
       onSaved();
@@ -782,12 +771,12 @@ function EditProfileDialog({
 
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit section `{section.slug}`</DialogTitle>
+          <DialogTitle>Edit doc `{doc.slug}`</DialogTitle>
           <DialogDescription>
-            Update the section body or owning staff. Saving commits the file
-            to the default branch.
+            Update the doc body or owning staff. Saving commits the file to the
+            default branch.
           </DialogDescription>
         </DialogHeader>
 
@@ -802,7 +791,7 @@ function EditProfileDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={16} />
+            <MarkdownEditor value={body} onChange={setBody} rows={10} />
             {bodyError ? (
               <p className="text-xs text-rose-300">{bodyError}</p>
             ) : null}

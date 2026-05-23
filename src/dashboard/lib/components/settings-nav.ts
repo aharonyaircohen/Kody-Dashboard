@@ -11,7 +11,6 @@ import {
   Activity,
   Bell,
   Bot,
-  Building,
   Building2,
   Cpu,
   FileText,
@@ -147,11 +146,11 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Company",
     items: [
       {
-        href: "/profile",
-        label: "Company Profile",
-        icon: Building,
+        href: "/docs",
+        label: "Documentation",
+        icon: FileText,
         description:
-          "Markdown sections describing your company — fed to Kody on every chat turn.",
+          "Markdown docs describing your company — attach to staff; Kody's docs feed every chat turn.",
         tint: "text-teal-300 bg-teal-500/10",
       },
       {

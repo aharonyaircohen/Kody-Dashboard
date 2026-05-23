@@ -1,11 +1,10 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern profile-api
- * @ai-summary Profile detail API — GET reads a single profile section,
- *   PATCH updates its body, DELETE removes it. Backed by
- *   `.kody/profile/<slug>.md` via the GitHub contents API. No built-ins,
- *   so a missing file is a plain 404.
+ * @pattern docs-api
+ * @ai-summary Doc detail API — GET reads a single doc, PATCH updates its
+ *   body/staff, DELETE removes it. Backed by `.kody/docs/<slug>.md` via the
+ *   GitHub contents API. No built-ins, so a missing file is a plain 404.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -21,11 +20,11 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  readProfileFile,
-  writeProfileFile,
-  deleteProfileFile,
+  readDocFile,
+  writeDocFile,
+  deleteDocFile,
   isValidSlug,
-} from "@dashboard/lib/profile/files";
+} from "@dashboard/lib/docs/files";
 
 export async function GET(
   req: NextRequest,
@@ -43,16 +42,15 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const file = await readProfileFile(slug);
-    if (!file)
-      return NextResponse.json({ error: "not_found" }, { status: 404 });
-    return NextResponse.json({ profile: file });
+    const doc = await readDocFile(slug);
+    if (!doc) return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return NextResponse.json({ doc });
   } catch (error: any) {
-    console.error("[Profile] Error fetching profile:", error);
+    console.error("[Docs] Error fetching doc:", error);
     return NextResponse.json(
       {
         error: "fetch_failed",
-        message: error?.message ?? "Failed to fetch profile",
+        message: error?.message ?? "Failed to fetch doc",
       },
       { status: 500 },
     );
@@ -61,10 +59,10 @@ export async function GET(
   }
 }
 
-/** A staff slug (profile slug shape) or the `*` all-staff wildcard. */
+/** A staff slug (doc slug shape) or the `*` all-staff wildcard. */
 const STAFF_TOKEN_RE = /^(\*|[a-z0-9][a-z0-9_-]{0,63})$/;
 
-const updateProfileSchema = z
+const updateDocSchema = z
   .object({
     body: z.string().min(1).optional(),
     // May be empty — an unassigned doc owned by no staff member.
@@ -93,12 +91,12 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { body, staff, actorLogin } = updateProfileSchema.parse(payload);
+    const { body, staff, actorLogin } = updateDocSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    const existing = await readProfileFile(slug);
+    const existing = await readDocFile(slug);
     if (!existing)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
 
@@ -107,8 +105,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to commit profile files.",
+          message: "A signed-in GitHub token is required to commit doc files.",
         },
         { status: 401 },
       );
@@ -117,16 +114,16 @@ export async function PATCH(
     // Partial update: keep whichever field the caller omitted. `body` and
     // `staff` are independent — changing the staff list alone leaves the
     // text intact.
-    const profile = await writeProfileFile({
+    const doc = await writeDocFile({
       octokit: userOctokit,
       slug,
       body: body ?? existing.body,
       staff: staff ?? existing.staff,
       sha: existing.sha,
     });
-    return NextResponse.json({ profile });
+    return NextResponse.json({ doc });
   } catch (error: any) {
-    console.error("[Profile] Error updating profile:", error);
+    console.error("[Docs] Error updating doc:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "validation_error", details: error.issues },
@@ -142,7 +139,7 @@ export async function PATCH(
     return NextResponse.json(
       {
         error: "update_failed",
-        message: error?.message ?? "Failed to update profile",
+        message: error?.message ?? "Failed to update doc",
       },
       { status: 500 },
     );
@@ -168,7 +165,7 @@ export async function DELETE(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    const existing = await readProfileFile(slug);
+    const existing = await readDocFile(slug);
     if (!existing)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
 
@@ -182,17 +179,16 @@ export async function DELETE(
       return NextResponse.json(
         {
           error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to delete profile files.",
+          message: "A signed-in GitHub token is required to delete doc files.",
         },
         { status: 401 },
       );
     }
 
-    await deleteProfileFile(userOctokit, slug);
+    await deleteDocFile(userOctokit, slug);
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("[Profile] Error deleting profile:", error);
+    console.error("[Docs] Error deleting doc:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
@@ -202,7 +198,7 @@ export async function DELETE(
     return NextResponse.json(
       {
         error: "delete_failed",
-        message: error?.message ?? "Failed to delete profile",
+        message: error?.message ?? "Failed to delete doc",
       },
       { status: 500 },
     );

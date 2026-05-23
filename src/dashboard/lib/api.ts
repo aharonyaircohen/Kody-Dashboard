@@ -1072,12 +1072,12 @@ export const staffApi = {
 
 };
 
-// ============ Company Profile API ============
+// ============ Documentation API ============
 
-export interface ProfileSection {
-  /** Filename without `.md` — stable identity, also the section heading. */
+export interface Doc {
+  /** Filename without `.md` — stable identity, also the doc heading. */
   slug: string;
-  /** Section markdown (frontmatter-free). */
+  /** Doc markdown (frontmatter-free). */
   body: string;
   /** Owning staff-member slugs from `staff:` frontmatter (`["kody"]` default for legacy files). */
   staff: string[];
@@ -1089,20 +1089,19 @@ export interface ProfileSection {
   htmlUrl: string;
 }
 
-export const profileApi = {
-  list: async (): Promise<ProfileSection[]> => {
-    const res = await fetch(`${API_BASE}/profile`, { headers: buildHeaders() });
-    const data = await handleResponse<{ profile: ProfileSection[] }>(res);
-    return data.profile ?? [];
+export const docsApi = {
+  list: async (): Promise<Doc[]> => {
+    const res = await fetch(`${API_BASE}/docs`, { headers: buildHeaders() });
+    const data = await handleResponse<{ docs: Doc[] }>(res);
+    return data.docs ?? [];
   },
 
-  get: async (slug: string): Promise<ProfileSection> => {
-    const res = await fetch(
-      `${API_BASE}/profile/${encodeURIComponent(slug)}`,
-      { headers: buildHeaders() },
-    );
-    const data = await handleResponse<{ profile: ProfileSection }>(res);
-    return data.profile;
+  get: async (slug: string): Promise<Doc> => {
+    const res = await fetch(`${API_BASE}/docs/${encodeURIComponent(slug)}`, {
+      headers: buildHeaders(),
+    });
+    const data = await handleResponse<{ doc: Doc }>(res);
+    return data.doc;
   },
 
   create: async (data: {
@@ -1110,14 +1109,14 @@ export const profileApi = {
     body: string;
     staff: string[];
     actorLogin?: string;
-  }): Promise<ProfileSection> => {
-    const res = await fetch(`${API_BASE}/profile`, {
+  }): Promise<Doc> => {
+    const res = await fetch(`${API_BASE}/docs`, {
       method: "POST",
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ profile: ProfileSection }>(res);
-    return payload.profile;
+    const payload = await handleResponse<{ doc: Doc }>(res);
+    return payload.doc;
   },
 
   update: async (
@@ -1127,17 +1126,14 @@ export const profileApi = {
       staff?: string[];
       actorLogin?: string;
     },
-  ): Promise<ProfileSection> => {
-    const res = await fetch(
-      `${API_BASE}/profile/${encodeURIComponent(slug)}`,
-      {
-        method: "PATCH",
-        headers: buildHeaders(),
-        body: JSON.stringify(data),
-      },
-    );
-    const payload = await handleResponse<{ profile: ProfileSection }>(res);
-    return payload.profile;
+  ): Promise<Doc> => {
+    const res = await fetch(`${API_BASE}/docs/${encodeURIComponent(slug)}`, {
+      method: "PATCH",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ doc: Doc }>(res);
+    return payload.doc;
   },
 
   remove: async (slug: string, actorLogin?: string): Promise<void> => {
@@ -1145,7 +1141,7 @@ export const profileApi = {
     if (actorLogin) params.set("actorLogin", actorLogin);
     const suffix = params.toString() ? `?${params}` : "";
     const res = await fetch(
-      `${API_BASE}/profile/${encodeURIComponent(slug)}${suffix}`,
+      `${API_BASE}/docs/${encodeURIComponent(slug)}${suffix}`,
       {
         method: "DELETE",
         headers: buildHeaders(),
@@ -1850,7 +1846,7 @@ export const kodyApi = {
   remote: remoteApi,
   duties: dutiesApi,
   staff: staffApi,
-  profile: profileApi,
+  docs: docsApi,
   company: companyApi,
   reports: reportsApi,
   goals: goalsApi,

@@ -1,11 +1,11 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern profile-api
- * @ai-summary Company-profile API — GET lists profile files
- *   (`.kody/profile/<slug>.md`), POST creates a new one. The bodies are
- *   injected into the kody-direct chat system prompt so the agent knows
- *   what the company is and does.
+ * @pattern docs-api
+ * @ai-summary Documentation API — GET lists doc files
+ *   (`.kody/docs/<slug>.md`), POST creates a new one. Docs owned by the
+ *   built-in `kody` staff are injected into the kody-direct chat system
+ *   prompt so the agent knows what the company is and does.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -21,14 +21,14 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listProfileFiles,
-  readProfileFile,
-  writeProfileFile,
+  listDocFiles,
+  readDocFile,
+  writeDocFile,
   isValidSlug,
-} from "@dashboard/lib/profile/files";
-import { KODY_CHAT_STAFF } from "@dashboard/lib/profile/frontmatter";
+} from "@dashboard/lib/docs/files";
+import { KODY_CHAT_STAFF } from "@dashboard/lib/docs/frontmatter";
 
-/** A staff slug (profile slug shape) or the `*` all-staff wildcard. */
+/** A staff slug (doc slug shape) or the `*` all-staff wildcard. */
 const STAFF_TOKEN_RE = /^(\*|[a-z0-9][a-z0-9_-]{0,63})$/;
 
 export async function GET(req: NextRequest) {
@@ -40,10 +40,10 @@ export async function GET(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
-    const profile = await listProfileFiles();
-    return NextResponse.json({ profile });
+    const docs = await listDocFiles();
+    return NextResponse.json({ docs });
   } catch (error: any) {
-    console.error("[Profile] Error listing profile:", error);
+    console.error("[Docs] Error listing docs:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       );
     }
     return NextResponse.json(
-      { profile: [], error: error?.message || "Failed to list profile" },
+      { docs: [], error: error?.message || "Failed to list docs" },
       { status: 500 },
     );
   } finally {
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const createProfileSchema = z.object({
+const createDocSchema = z.object({
   slug: z.string().min(1).max(64),
   body: z.string().min(1),
   // May be empty — an unassigned doc owned by no staff member.
@@ -83,26 +83,25 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    const { slug, body, staff, actorLogin } =
-      createProfileSchema.parse(payload);
+    const { slug, body, staff, actorLogin } = createDocSchema.parse(payload);
 
     if (!isValidSlug(slug)) {
       return NextResponse.json(
         {
           error: "invalid_slug",
           message:
-            "Profile slug must be lowercase letters, digits, dashes, or underscores.",
+            "Doc slug must be lowercase letters, digits, dashes, or underscores.",
         },
         { status: 400 },
       );
     }
 
-    const existing = await readProfileFile(slug);
+    const existing = await readDocFile(slug);
     if (existing) {
       return NextResponse.json(
         {
           error: "slug_taken",
-          message: `Profile section "${slug}" already exists.`,
+          message: `Doc "${slug}" already exists.`,
         },
         { status: 409 },
       );
@@ -116,23 +115,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to commit profile files.",
+          message: "A signed-in GitHub token is required to commit doc files.",
         },
         { status: 401 },
       );
     }
 
-    const profile = await writeProfileFile({
+    const doc = await writeDocFile({
       octokit: userOctokit,
       slug,
       body,
       staff,
     });
 
-    return NextResponse.json({ profile });
+    return NextResponse.json({ doc });
   } catch (error: any) {
-    console.error("[Profile] Error creating profile:", error);
+    console.error("[Docs] Error creating doc:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "validation_error", details: error.issues },
@@ -148,7 +146,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: "create_failed",
-        message: error?.message ?? "Failed to create profile",
+        message: error?.message ?? "Failed to create doc",
       },
       { status: 500 },
     );
