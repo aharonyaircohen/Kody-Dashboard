@@ -21,6 +21,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Send,
   Sparkles,
   Target,
   Trash2,
@@ -41,6 +42,7 @@ import { cn } from "../utils";
 import {
   useCreateStaff,
   useDeleteStaff,
+  useDispatchStaff,
   useStaff,
   useUpdateStaff,
 } from "../hooks/useStaff";
@@ -113,6 +115,7 @@ export function StaffControlInner({
   const [showCreate, setShowCreate] = useState(false);
   const [editingMember, setEditingMember] = useState<Staff | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Staff | null>(null);
+  const [taskMember, setTaskMember] = useState<Staff | null>(null);
 
   const selectedMember = useMemo(
     () => staff.find((m) => m.slug === selectedSlug) ?? null,
@@ -315,6 +318,7 @@ export function StaffControlInner({
                 onBack={() => setSelectedSlug(null)}
                 onEdit={() => setEditingMember(selectedMember)}
                 onDelete={() => setPendingDelete(selectedMember)}
+                onSendTask={() => setTaskMember(selectedMember)}
               />
             ) : (
               <EmptyState
@@ -367,6 +371,14 @@ export function StaffControlInner({
           }}
           onClose={() => setPendingDelete(null)}
         />
+
+        {/* Send ad-hoc task */}
+        {taskMember ? (
+          <SendTaskDialog
+            member={taskMember}
+            onClose={() => setTaskMember(null)}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -377,11 +389,13 @@ function StaffDetail({
   onBack,
   onEdit,
   onDelete,
+  onSendTask,
 }: {
   member: Staff;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onSendTask: () => void;
 }) {
   const hasBody = member.body.trim().length > 0;
   const isBuiltin = isBuiltinStaff(member.slug);
@@ -439,6 +453,15 @@ function StaffDetail({
               </span>
             ) : (
               <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  onClick={onSendTask}
+                  className="gap-1.5"
+                  title="Send an ad-hoc task to this staff member"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Send task</span>
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -656,6 +679,71 @@ function EditStaffDialog({
             disabled={!title.trim() || updateMutation.isPending}
           >
             {updateMutation.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SendTaskDialog({
+  member,
+  onClose,
+}: {
+  member: Staff;
+  onClose: () => void;
+}) {
+  const { githubUser } = useGitHubIdentity();
+  const dispatchMutation = useDispatchStaff(githubUser?.login);
+
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    setMessage("");
+  }, [member]);
+
+  const handleSubmit = () => {
+    if (!message.trim() || dispatchMutation.isPending) return;
+    dispatchMutation.mutate(
+      { slug: member.slug, message: message.trim() },
+      { onSuccess: () => onClose() },
+    );
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Send a task to {member.title}</DialogTitle>
+          <DialogDescription>
+            Runs <span className="font-mono">{member.slug}</span> once on your
+            message — like a one-off duty. The reply is posted on the Kody
+            control issue
+            {githubUser?.login ? " and lands in your inbox" : ""}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-1.5 mt-2">
+          <Label>Message</Label>
+          <MarkdownEditor
+            value={message}
+            onChange={setMessage}
+            rows={8}
+          />
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSubmit}
+            disabled={!message.trim() || dispatchMutation.isPending}
+            className="gap-1.5"
+          >
+            <Send className="w-3.5 h-3.5" />
+            {dispatchMutation.isPending ? "Sending…" : "Send task"}
           </Button>
         </div>
       </DialogContent>

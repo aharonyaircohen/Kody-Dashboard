@@ -121,3 +121,32 @@ export function useDeleteStaff(actorLogin?: string) {
     },
   });
 }
+
+/**
+ * Dispatch an ad-hoc message to a staff member — runs the persona one-shot
+ * (like a duty) and replies on the control issue. When `actorLogin` is set,
+ * the reply @-mentions the requester so it lands in their inbox.
+ */
+export function useDispatchStaff(actorLogin?: string) {
+  return useMutation<
+    { issueNumber: number; commentId: number; commentUrl: string },
+    Error,
+    { slug: string; message: string }
+  >({
+    mutationFn: ({ slug, message }) =>
+      kodyApi.staff.dispatch(slug, {
+        message,
+        ...(actorLogin && { actorLogin }),
+      }),
+    onSuccess: () => {
+      toast.success("Task sent", {
+        description:
+          "The staff member is running it now — the reply will appear on the control issue" +
+          (actorLogin ? " and in your inbox." : "."),
+      });
+    },
+    onError: (error) => {
+      toast.error("Failed to send task", { description: error.message });
+    },
+  });
+}
