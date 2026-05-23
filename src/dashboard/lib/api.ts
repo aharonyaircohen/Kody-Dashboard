@@ -1070,6 +1070,30 @@ export const staffApi = {
     await handleResponse<{ success: boolean }>(res);
   },
 
+  /**
+   * Send an ad-hoc message to a staff member and run it like a one-shot duty.
+   * Posts an `@kody worker-ask` directive on the control issue; the engine
+   * runs the persona stateless and replies on that issue. When `actorLogin`
+   * is set, the reply @-mentions the requester so it lands in their inbox.
+   */
+  dispatch: async (
+    slug: string,
+    data: { message: string; actorLogin?: string },
+  ): Promise<{
+    issueNumber: number;
+    commentId: number;
+    commentUrl: string;
+  }> => {
+    const res = await fetch(
+      `${API_BASE}/staff/${encodeURIComponent(slug)}/dispatch`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+    return handleResponse(res);
+  },
 };
 
 // ============ Context API ============
