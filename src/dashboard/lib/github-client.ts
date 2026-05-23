@@ -18,6 +18,7 @@ import {
   ALL_STAGES,
 } from "./constants";
 import { isProtectedBranch } from "./branches";
+import { STATE_BRANCH } from "./state-branch";
 import {
   parseActivityJsonl,
   sortActivityNewestFirst,
@@ -1974,6 +1975,8 @@ export async function fetchCompanyActivity(
       owner,
       repo,
       path: ACTIVITY_DIR,
+      // Engine commits the activity feed to the dedicated state branch.
+      ref: STATE_BRANCH,
       headers: listStale?.etag ? { "If-None-Match": listStale.etag } : undefined,
     });
     const etag = (res.headers as Record<string, string | undefined>)?.etag;
@@ -2008,6 +2011,7 @@ export async function fetchCompanyActivity(
           owner,
           repo,
           path,
+          ref: STATE_BRANCH,
           headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
         });
         const etag = (res.headers as Record<string, string | undefined>)?.etag;
