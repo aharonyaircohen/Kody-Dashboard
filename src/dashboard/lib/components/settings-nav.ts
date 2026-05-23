@@ -127,9 +127,9 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
       },
       {
         href: "/prompts",
-        label: "Prompts",
+        label: "Commands",
         icon: Bot,
-        description: "Slash-command prompts in the chat composer.",
+        description: "Slash commands in the chat composer.",
         tint: "text-violet-300 bg-violet-500/10",
       },
       {
@@ -140,11 +140,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
           "Tone, length, and behavior preferences appended to every chat turn.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
-    ],
-  },
-  {
-    title: "Company",
-    items: [
       {
         href: "/context",
         label: "Context",
@@ -153,6 +148,11 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
           "Curated markdown context you feed Kody — attach to staff; Kody's entries frame every chat turn.",
         tint: "text-teal-300 bg-teal-500/10",
       },
+    ],
+  },
+  {
+    title: "Company",
+    items: [
       {
         href: "/company",
         label: "Import / Export",

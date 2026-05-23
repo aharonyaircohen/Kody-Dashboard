@@ -17,9 +17,9 @@ export const dynamic = "force-static";
 export const revalidate = false;
 
 export const metadata = buildKodyMetadata({
-  title: "Prompts docs — Kody Operations Dashboard",
+  title: "Commands docs — Kody Operations Dashboard",
   description:
-    "How slash-command prompts work, how to store them in your repo, and how the built-ins behave.",
+    "How slash commands work, how to store them in your repo, and how the built-ins behave.",
   path: "/prompts/docs",
 });
 
@@ -28,7 +28,7 @@ async function readDocs(): Promise<string> {
     const file = path.join(process.cwd(), "docs", "prompts.md");
     return await fs.readFile(file, "utf8");
   } catch {
-    return "# Prompts docs\n\nDocs file (`docs/prompts.md`) not found in this build.";
+    return "# Commands docs\n\nDocs file (`docs/prompts.md`) not found in this build.";
   }
 }
 
@@ -43,7 +43,7 @@ export default async function PromptsDocsPage() {
             className="inline-flex items-center gap-1 text-sm text-white/60 hover:text-white"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to prompts
+            Back to commands
           </Link>
         </div>
         <a

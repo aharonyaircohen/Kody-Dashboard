@@ -49,7 +49,7 @@ export function SlashCommandMenu({
   if (filtered.length === 0) {
     return (
       <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl px-3 py-2 text-xs text-white/50">
-        No matching prompts. Manage them at{" "}
+        No matching commands. Manage them at{" "}
         <Link className="underline hover:text-white/80" href="/prompts">
           /prompts
         </Link>

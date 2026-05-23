@@ -169,20 +169,20 @@ function PromptsManagerInner() {
       savePromptApi(headers, payload, actorLogin),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: promptsQueryKey });
-      toast.success("Prompt saved");
+      toast.success("Command saved");
     },
     onError: (err: Error) =>
-      toast.error(err.message || "Failed to save prompt"),
+      toast.error(err.message || "Failed to save command"),
   });
 
   const remove = useMutation({
     mutationFn: (slug: string) => deletePromptApi(headers, slug),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: promptsQueryKey });
-      toast.success("Prompt deleted");
+      toast.success("Command deleted");
     },
     onError: (err: Error) =>
-      toast.error(err.message || "Failed to delete prompt"),
+      toast.error(err.message || "Failed to delete command"),
   });
 
   const [editing, setEditing] = useState<{
@@ -205,14 +205,14 @@ function PromptsManagerInner() {
 
   return (
     <PageShell
-      title="Prompts"
+      title="Commands"
       icon={Bot}
       iconClassName="text-violet-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
       actions={
         <>
           <Button asChild variant="ghost" size="sm" className="gap-1">
-            <Link href="/prompts/docs" aria-label="Prompts docs">
+            <Link href="/prompts/docs" aria-label="Commands docs">
               <BookOpen className="w-4 h-4" />
               Docs
             </Link>
@@ -223,7 +223,7 @@ function PromptsManagerInner() {
             className="gap-1"
           >
             <Plus className="w-4 h-4" />
-            New prompt
+            New command
           </Button>
         </>
       }
@@ -231,7 +231,7 @@ function PromptsManagerInner() {
       <div className="space-y-3">
         {isLoading && (
           <p className="text-sm text-white/50 flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading prompts…
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading commands…
           </p>
         )}
 
@@ -239,7 +239,7 @@ function PromptsManagerInner() {
           <Card className="border-rose-500/30 bg-rose-950/20">
             <CardContent className="p-4 text-sm">
               <p className="text-rose-300 font-medium">
-                Couldn&apos;t load prompts
+                Couldn&apos;t load commands
               </p>
               <p className="text-rose-200/70 mt-1">
                 {error instanceof Error ? error.message : "Unknown error"}
@@ -260,10 +260,11 @@ function PromptsManagerInner() {
           <Card className="border-white/[0.08] bg-white/[0.02]">
             <CardContent className="p-6 text-center space-y-3">
               <Sparkles className="w-8 h-8 text-white/30 mx-auto" />
-              <p className="text-sm text-white/70">No prompts yet.</p>
+              <p className="text-sm text-white/70">No commands yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                Prompts appear as <code className="text-white/55">/slash</code>{" "}
-                commands in chat. Stored at{" "}
+                Commands appear as{" "}
+                <code className="text-white/55">/slash</code> entries in chat.
+                Stored at{" "}
                 <code className="text-white/55">
                   .kody/prompts/&lt;slug&gt;.md
                 </code>{" "}
@@ -277,15 +278,15 @@ function PromptsManagerInner() {
           <ListSearch
             value={search}
             onChange={setSearch}
-            placeholder="Search prompts…"
-            ariaLabel="Search prompts"
+            placeholder="Search commands…"
+            ariaLabel="Search commands"
             accent="violet"
           />
         )}
 
         {!isLoading && !error && prompts.length > 0 && filtered.length === 0 && (
           <p className="text-sm text-white/50 px-1">
-            No prompt matches your search.
+            No command matches your search.
           </p>
         )}
 
@@ -379,7 +380,7 @@ function PromptsManagerInner() {
       <ConfirmDialog
         open={deleting !== null}
         title={`Delete /${deleting}?`}
-        description="The prompt file is removed from the repo. If a built-in exists with the same slug, it takes over again."
+        description="The command file is removed from the repo. If a built-in exists with the same slug, it takes over again."
         confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
         onConfirm={() => {
@@ -442,7 +443,7 @@ function PromptEditor({
         <DialogHeader>
           <DialogTitle>
             {isNew
-              ? "New prompt"
+              ? "New command"
               : isBuiltinFork
                 ? `Fork /${initial?.slug}`
                 : `Edit /${initial?.slug}`}

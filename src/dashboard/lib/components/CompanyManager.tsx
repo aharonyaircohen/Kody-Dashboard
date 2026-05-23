@@ -75,7 +75,7 @@ function CompanyManagerInner() {
         bundle.prompts.length +
         (bundle.instructions ? 1 : 0);
       toast.success(
-        `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.prompts.length} prompts${
+        `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.prompts.length} commands${
           bundle.instructions ? ", instructions" : ""
         } (${total} items)`,
       );
@@ -127,7 +127,7 @@ function CompanyManagerInner() {
           portable operating manual — its{" "}
           <span className="text-white/80">staff</span>,{" "}
           <span className="text-white/80">duties</span>,{" "}
-          <span className="text-white/80">prompts</span>, and{" "}
+          <span className="text-white/80">commands</span>, and{" "}
           <span className="text-white/80">instructions</span>. Export it from
           one repo and import it into another to stand up the same team
           instantly. Repo-specific state (memory, secrets, variables, goals)
@@ -144,7 +144,7 @@ function CompanyManagerInner() {
               </p>
               <p className="text-xs text-white/50 mt-1">
                 Download a JSON bundle of this repo&apos;s staff, duties,
-                repo-defined prompts, and instructions.
+                repo-defined commands, and instructions.
               </p>
             </div>
             <Button size="sm" onClick={handleExport} disabled={exporting}>
@@ -223,7 +223,7 @@ function CompanyManagerInner() {
               <div className="text-xs text-white/60 border-t border-white/[0.06] pt-3 space-y-1">
                 <p>{countLine("Staff", lastImport.staff)}</p>
                 <p>{countLine("Duties", lastImport.duties)}</p>
-                <p>{countLine("Prompts", lastImport.prompts)}</p>
+                <p>{countLine("Commands", lastImport.prompts)}</p>
                 <p>Instructions: {lastImport.instructions}</p>
                 {lastImport.notes.length > 0 && (
                   <ul className="text-rose-300/80 mt-1 list-disc list-inside">
@@ -241,7 +241,7 @@ function CompanyManagerInner() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-white/45">
           <Included icon={Users} label="Staff" />
           <Included icon={ListChecks} label="Duties" />
-          <Included icon={Bot} label="Prompts" />
+          <Included icon={Bot} label="Commands" />
           <Included icon={ScrollText} label="Instructions" />
         </div>
       </div>
