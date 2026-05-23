@@ -474,9 +474,11 @@ function autoVerbBadge(verb: "opened" | "merged" | "closed" | "pushed"): string 
 function AutoView({ active }: { active: boolean }) {
   const { data, isLoading, error } = useAutonomousActivity(active);
   const [query, setQuery] = useState("");
+  const [kind, setKind] = useState<"all" | "pr" | "commit">("all");
 
   const events = useMemo(() => {
     let all = data?.events ?? [];
+    if (kind !== "all") all = all.filter((e) => e.kind === kind);
     const q = query.trim().toLowerCase();
     if (q)
       all = all.filter((e) =>
@@ -486,7 +488,7 @@ function AutoView({ active }: { active: boolean }) {
           .includes(q),
       );
     return all;
-  }, [data, query]);
+  }, [data, query, kind]);
 
   return (
     <div className="mt-2">
@@ -496,6 +498,23 @@ function AutoView({ active }: { active: boolean }) {
         </div>
       )}
       <div className="mb-2 flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1">
+          {(["all", "pr", "commit"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setKind(k)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs transition-colors",
+                kind === k
+                  ? "bg-white/[0.08] text-white"
+                  : "text-white/50 hover:text-white hover:bg-white/[0.04]",
+              )}
+            >
+              {k === "all" ? "All" : k === "pr" ? "PRs" : "Commits"}
+            </button>
+          ))}
+        </div>
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
           <input

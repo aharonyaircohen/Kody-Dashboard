@@ -34,13 +34,21 @@ function byNewest(a: AutonomousEvent, b: AutonomousEvent): number {
  * Merge PRs + commits into a newest-first action feed. A PR contributes an
  * "opened" event plus a "merged"/"closed" event when it has left the open
  * state, each stamped at the time that action actually occurred.
+ *
+ * Kody pushes far more commits than it opens PRs, so commits are capped
+ * (`commitLimit`) before merging — otherwise the newest 30 commits bury every
+ * PR action. PRs (the meaningful milestones) are never dropped here.
  */
 export function buildAutonomousFeed(
   prs: RecentPR[],
   commits: RecentCommit[],
   limit = 60,
+  commitLimit = 12,
 ): AutonomousEvent[] {
   const events: AutonomousEvent[] = [];
+  const cappedCommits = [...commits]
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+    .slice(0, commitLimit);
 
   for (const pr of prs) {
     const ref = `#${pr.number}`;
@@ -79,7 +87,7 @@ export function buildAutonomousFeed(
     }
   }
 
-  for (const c of commits) {
+  for (const c of cappedCommits) {
     events.push({
       id: `commit-${c.sha}`,
       verb: "pushed",
