@@ -24,6 +24,7 @@ import {
   ArrowLeft,
   Building,
   Calendar,
+  ChevronDown,
   ExternalLink,
   FileText,
   Pencil,
@@ -43,6 +44,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@dashboard/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@dashboard/ui/dropdown-menu";
 import { AuthGuard } from "../auth-guard";
 import { cn } from "../utils";
 import {
@@ -526,56 +534,24 @@ function ProfileDetail({
   );
 }
 
-/** One checkbox row in the staff multi-select. */
-function StaffToggle({
-  option,
-  active,
-  onClick,
-}: {
-  option: StaffOption;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={active}
-      onClick={onClick}
-      className={cn(
-        "flex items-start gap-2 rounded-md border px-2.5 py-1.5 text-left transition-colors",
-        active
-          ? "border-teal-500/40 bg-teal-500/10"
-          : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04]",
-      )}
-    >
-      <span
-        className={cn(
-          "mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border text-[9px] font-bold",
-          active
-            ? "border-teal-400 bg-teal-400 text-black"
-            : "border-white/30 text-transparent",
-        )}
-        aria-hidden
-      >
-        ✓
-      </span>
-      <span className="flex flex-col leading-tight">
-        <span className="font-mono text-sm">{option.label}</span>
-        <span className="text-[11px] text-muted-foreground">{option.hint}</span>
-      </span>
-    </button>
-  );
+/** One-line summary of the current selection, shown on the dropdown trigger. */
+function staffSummary(value: string[], options: StaffOption[]): string {
+  if (value.includes(ALL_STAFF)) return "All staff";
+  if (value.length === 0) return "Unassigned";
+  if (value.length === 1) {
+    return options.find((o) => o.slug === value[0])?.label ?? value[0];
+  }
+  return `${value.length} staff members`;
 }
 
 /**
- * Attach a doc to staff members. The relation is the only thing stored:
- * each selected staff member owns the doc. Three shapes are possible:
+ * Attach a doc to staff members via a compact dropdown. The relation is the
+ * only thing stored: each selected staff member owns the doc. Three shapes:
  *   - one or more specific staff members,
  *   - "All staff" (the `*` wildcard) — mutually exclusive with specifics, and
  *   - none selected → "Unassigned" (owned by nobody).
- * Any already-attached slug that isn't a known option is still shown so it
- * can be toggled off.
+ * Any already-attached slug that isn't a known option is still listed so it
+ * can be unchecked. The menu stays open across toggles (onSelect preventDefault).
  */
 function StaffSelect({
   value,
@@ -587,52 +563,65 @@ function StaffSelect({
   onChange: (next: string[]) => void;
 }) {
   const allActive = value.includes(ALL_STAFF);
-  const specificValue = value.filter((v) => v !== ALL_STAFF);
 
-  // Ensure every selected specific slug is toggleable, even if it's not a
-  // known option (e.g. attached to a since-deleted staff member).
   const shown: StaffOption[] = [...options];
-  for (const slug of specificValue) {
-    if (!options.some((o) => o.slug === slug)) {
+  for (const slug of value) {
+    if (slug !== ALL_STAFF && !options.some((o) => o.slug === slug)) {
       shown.push({ slug, label: slug, hint: "Not a known staff member" });
     }
   }
   const order = shown.map((o) => o.slug);
 
-  const toggleAll = () => onChange(allActive ? [] : [ALL_STAFF]);
+  const setAll = (checked: boolean) => onChange(checked ? [ALL_STAFF] : []);
 
-  const toggleSpecific = (slug: string) => {
-    if (allActive) {
-      onChange([slug]); // switch from "All staff" to this one
-      return;
+  const toggleSpecific = (slug: string, checked: boolean) => {
+    const base = value.filter((v) => v !== ALL_STAFF); // picking a specific drops the wildcard
+    if (checked) {
+      const merged = new Set([...base, slug]);
+      onChange(order.filter((s) => merged.has(s)));
+    } else {
+      onChange(base.filter((v) => v !== slug));
     }
-    if (value.includes(slug)) {
-      onChange(value.filter((v) => v !== slug));
-      return;
-    }
-    const merged = new Set([...value, slug]);
-    onChange(order.filter((s) => merged.has(s)));
   };
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <StaffToggle
-        option={ALL_STAFF_OPTION}
-        active={allActive}
-        onClick={toggleAll}
-      />
-      <div className="h-px bg-white/[0.06] my-0.5" />
-      <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
-        {shown.map((opt) => (
-          <StaffToggle
-            key={opt.slug}
-            option={opt}
-            active={!allActive && value.includes(opt.slug)}
-            onClick={() => toggleSpecific(opt.slug)}
-          />
-        ))}
-      </div>
-      <p className="text-[11px] text-muted-foreground px-0.5 pt-0.5">
+    <div className="space-y-1">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-between font-normal"
+          >
+            <span className="truncate">{staffSummary(value, options)}</span>
+            <ChevronDown className="w-4 h-4 opacity-60 shrink-0" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-56"
+        >
+          <DropdownMenuCheckboxItem
+            checked={allActive}
+            onCheckedChange={setAll}
+            onSelect={(e) => e.preventDefault()}
+          >
+            {ALL_STAFF_OPTION.label}
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuSeparator />
+          {shown.map((opt) => (
+            <DropdownMenuCheckboxItem
+              key={opt.slug}
+              checked={!allActive && value.includes(opt.slug)}
+              onCheckedChange={(c) => toggleSpecific(opt.slug, c)}
+              onSelect={(e) => e.preventDefault()}
+            >
+              <span className="font-mono">{opt.label}</span>
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <p className="text-[11px] text-muted-foreground px-0.5">
         {allActive
           ? "All staff — every staff member is attached to this doc."
           : value.length === 0
@@ -732,7 +721,7 @@ function CreateProfileDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={14} />
+            <MarkdownEditor value={body} onChange={setBody} rows={10} />
             {bodyError ? (
               <p className="text-xs text-rose-300">{bodyError}</p>
             ) : null}
@@ -813,7 +802,7 @@ function EditProfileDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={14} />
+            <MarkdownEditor value={body} onChange={setBody} rows={10} />
             {bodyError ? (
               <p className="text-xs text-rose-300">{bodyError}</p>
             ) : null}
