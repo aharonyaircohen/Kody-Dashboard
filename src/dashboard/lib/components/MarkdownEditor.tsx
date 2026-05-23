@@ -166,7 +166,7 @@ export function MarkdownEditor({
           placeholder={placeholder}
           rows={rows}
           disabled={disabled}
-          className="font-mono text-sm resize-y"
+          className="font-mono text-sm resize-y max-h-[50vh]"
         />
       )}
     </div>
