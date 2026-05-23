@@ -2,6 +2,7 @@
 every: 30m
 staff: qa
 mentions: aguyaharonyair
+disabled: true
 ---
 
 # QA Changelog Verification
