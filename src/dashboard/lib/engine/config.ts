@@ -18,6 +18,15 @@ export interface KodyConfig {
   executables: {
     default: string;
   };
+  /** Engine repo context plus the operator list. `operators` is the set of
+   * GitHub logins that recommendation duties (pr-health/CTO) @-mention so the
+   * comment routes into their dashboard inbox. Empty/absent = nobody is
+   * tagged, so recommendations post but reach no inbox. */
+  github?: {
+    owner?: string;
+    repo?: string;
+    operators?: string[];
+  };
 }
 
 /** Default config when no kody.config.json exists in the repo. */
@@ -65,6 +74,7 @@ async function fetchConfig(
       config: {
         executables: parsed.executables ?? { default: "run" },
         agent: parsed.agent,
+        github: parsed.github,
       },
       sha: data.sha ?? null,
     };
@@ -200,4 +210,104 @@ export async function writeEngineModel(
   });
   invalidateEngineConfigCache(owner, repo);
   return { sha: data.commit.sha ?? null };
+}
+
+/**
+ * Normalize an operator list: strip a leading `@`, trim, drop blanks, and
+ * de-dupe case-insensitively (GitHub logins are case-insensitive) while
+ * preserving the first-seen casing and order. Pure — no I/O.
+ */
+export function normalizeOperators(raw: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of raw) {
+    const handle = entry.trim().replace(/^@+/, "").trim();
+    if (!handle) continue;
+    const key = handle.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(handle);
+  }
+  return out;
+}
+
+/**
+ * Read the operator list from the consumer repo's kody.config.json
+ * (`github.operators`). Empty array when unset — that's the silent-failure
+ * state the dashboard surfaces as a warning. Cached via `getEngineConfig`.
+ */
+export async function readOperators(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  options: { force?: boolean } = {},
+): Promise<string[]> {
+  const { config } = await getEngineConfig(octokit, owner, repo, options);
+  const ops = config.github?.operators;
+  return Array.isArray(ops) ? normalizeOperators(ops) : [];
+}
+
+/**
+ * Set `github.operators` in the consumer repo's kody.config.json, preserving
+ * every other field (including `github.owner`/`github.repo`). Mirrors
+ * `writeEngineModel`'s merge-not-overwrite read→merge→commit so a write never
+ * clobbers the engine's required keys. The list is normalized before write.
+ */
+export async function writeOperators(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  operators: readonly string[],
+  commitMessage?: string,
+): Promise<{ sha: string | null; operators: string[] }> {
+  let existing: Record<string, unknown> = {};
+  let existingSha: string | null = null;
+  try {
+    const res = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: KODY_CONFIG_PATH,
+    });
+    const data = res.data;
+    if (!Array.isArray(data) && "content" in data && data.content) {
+      existingSha = data.sha ?? null;
+      try {
+        existing = JSON.parse(
+          Buffer.from(data.content, "base64").toString("utf-8"),
+        ) as Record<string, unknown>;
+      } catch {
+        existing = {};
+      }
+    }
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    if (status !== 404) throw err;
+  }
+
+  const prevGithub =
+    typeof existing.github === "object" && existing.github !== null
+      ? (existing.github as Record<string, unknown>)
+      : {};
+  const normalized = normalizeOperators(operators);
+
+  const next: Record<string, unknown> = {
+    ...existing,
+    executables: existing.executables ?? { default: "run" },
+    github: { owner, repo, ...prevGithub, operators: normalized },
+  };
+  delete next.model; // strip the legacy key the engine never read
+
+  const content = Buffer.from(JSON.stringify(next, null, 2), "utf-8").toString(
+    "base64",
+  );
+  const { data } = await octokit.rest.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: KODY_CONFIG_PATH,
+    message: commitMessage ?? "chore(kody): set operators",
+    content,
+    ...(existingSha ? { sha: existingSha } : {}),
+  });
+  invalidateEngineConfigCache(owner, repo);
+  return { sha: data.commit.sha ?? null, operators: normalized };
 }

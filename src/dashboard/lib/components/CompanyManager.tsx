@@ -23,6 +23,7 @@ import {
   ScrollText,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
+import { OperatorsCard } from "./OperatorsCard";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { AuthGuard } from "../auth-guard";
@@ -133,6 +134,9 @@ function CompanyManagerInner() {
           instantly. Repo-specific state (memory, secrets, variables, goals)
           stays behind by design.
         </p>
+
+        {/* Operators — who recommendation duties @-mention into the inbox */}
+        <OperatorsCard />
 
         {/* Export */}
         <Card className="border-white/[0.08] bg-white/[0.03]">

@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { PageShell } from "./PageShell";
+import { OperatorsWarningBanner } from "./OperatorsWarningBanner";
 import { InboxThreadDialog, resolvableThread } from "./InboxThreadDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useAuth } from "../auth-context";
@@ -589,6 +590,8 @@ export function InboxList() {
         </>
       }
     >
+      <OperatorsWarningBanner />
+
       {scopeMissing && (
         <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] p-3 text-sm">
           <div className="flex items-start gap-2">
