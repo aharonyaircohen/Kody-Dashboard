@@ -1680,6 +1680,17 @@ export const activityApi = {
     });
     return handleResponse(res);
   },
+  /** Kody's autonomous work product — recent PRs across all states. */
+  autonomous: async (): Promise<{
+    prs: import("./github-client").RecentPR[];
+    total: number;
+    computedAt?: string;
+  }> => {
+    const res = await fetch(`${API_BASE}/activity/autonomous`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse(res);
+  },
 };
 
 // ============ Messaging channels (team chat over Discussions) ============

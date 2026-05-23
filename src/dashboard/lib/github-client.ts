@@ -1944,6 +1944,94 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
 }
 
 /**
+ * A pull request as it appears in the "Autonomous" activity feed — Kody's
+ * own work product (opened, merged, or closed), newest-updated first.
+ */
+export interface RecentPR {
+  number: number;
+  title: string;
+  state: "open" | "merged" | "closed";
+  author: string | null;
+  updatedAt: string;
+  url: string;
+}
+
+interface RecentPRsGraphQL {
+  repository: {
+    pullRequests: {
+      nodes: Array<{
+        number: number;
+        title: string;
+        state: "OPEN" | "MERGED" | "CLOSED";
+        url: string;
+        updatedAt: string;
+        author: { login: string } | null;
+      }>;
+    };
+  };
+}
+
+/**
+ * Fetch the most recently-updated PRs across all states in one GraphQL call —
+ * the data behind the Activity → Auto tab. Same rate-limit story as
+ * `fetchOpenPRs`: TTL cache + in-flight dedup + stale-on-error fallback
+ * (GraphQL has no ETag/304).
+ */
+const inflightRecentPRs = new Map<string, Promise<RecentPR[]>>();
+
+export async function fetchRecentPRs(): Promise<RecentPR[]> {
+  const cacheKey = `recent-prs:${getOwner()}:${getRepo()}`;
+  const cached = getCached<RecentPR[]>(cacheKey);
+  if (cached) return cached;
+
+  const existing = inflightRecentPRs.get(cacheKey);
+  if (existing) return existing;
+
+  const stale = getStale<RecentPR[]>(cacheKey);
+  const octokit = getOctokit();
+
+  const query = `
+    query RecentPRs($owner: String!, $repo: String!) {
+      repository(owner: $owner, name: $repo) {
+        pullRequests(first: 30, orderBy: { field: UPDATED_AT, direction: DESC }) {
+          nodes { number title state url updatedAt author { login } }
+        }
+      }
+    }
+  `;
+
+  const promise = (async () => {
+    try {
+      const data = await octokit.graphql<RecentPRsGraphQL>(query, {
+        owner: getOwner(),
+        repo: getRepo(),
+      });
+      const prs: RecentPR[] = data.repository.pullRequests.nodes.map((pr) => ({
+        number: pr.number,
+        title: pr.title,
+        state: pr.state.toLowerCase() as RecentPR["state"],
+        author: pr.author?.login ?? null,
+        updatedAt: pr.updatedAt,
+        url: pr.url,
+      }));
+      setCache(cacheKey, CACHE_TTL.prs, prs);
+      return prs;
+    } catch (err) {
+      if (stale) {
+        setCache(cacheKey, Math.min(CACHE_TTL.prs, 60_000), stale.data);
+        return stale.data;
+      }
+      throw err;
+    } finally {
+      inflightRecentPRs.delete(cacheKey);
+    }
+  })();
+
+  inflightRecentPRs.set(cacheKey, promise);
+  return promise;
+}
+
+/**
  * Returns how many commits the PR head branch is behind its base. Used to
  * gate the Preview "Sync" button — when 0, the branch is already up to date
  * and the button is hidden.
