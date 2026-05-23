@@ -28,16 +28,17 @@ import { logger } from "@dashboard/lib/logger";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
 import { readVault } from "@dashboard/lib/vault/store";
 import {
-  pickDefaultModel,
+  pickEngineDefaultModel,
+  engineModelSpec,
   type ChatModel,
 } from "@dashboard/lib/variables/models";
+import { writeEngineModel } from "./config";
 
 export const KODY_TOKEN_SECRET = "KODY_TOKEN";
 
 export const TEMPLATE_URL =
   "https://unpkg.com/@kody-ade/kody-engine@latest/templates/kody.yml";
 export const WORKFLOW_PATH = ".github/workflows/kody.yml";
-export const KODY_CONFIG_PATH = "kody.config.json";
 export const VARIABLES_PATH = ".kody/variables.json";
 
 export interface InstallEngineInput {
@@ -290,55 +291,6 @@ async function readVariablesJson(
   }
 }
 
-async function upsertKodyConfig(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  defaultModelId: string | null,
-): Promise<{ sha: string | null }> {
-  // Check if kody.config.json already exists
-  let existingSha: string | null = null;
-  try {
-    const { data } = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: KODY_CONFIG_PATH,
-    });
-    if (!Array.isArray(data) && "content" in data && data.content) {
-      existingSha = data.sha ?? null;
-    }
-  } catch (err: unknown) {
-    const status = (err as { status?: number }).status;
-    if (status !== 404) throw err;
-  }
-
-  const configContent: Record<string, unknown> = {
-    executables: {
-      default: "run",
-    },
-  };
-  if (defaultModelId) {
-    configContent.model = {
-      default: defaultModelId,
-    };
-  }
-
-  const content = Buffer.from(JSON.stringify(configContent), "utf-8").toString(
-    "base64",
-  );
-  const { data } = await octokit.rest.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path: KODY_CONFIG_PATH,
-    message: existingSha
-      ? "chore(kody): update engine config"
-      : "chore(kody): create engine config",
-    content,
-    ...(existingSha ? { sha: existingSha } : {}),
-  });
-  return { sha: data.commit.sha ?? null };
-}
-
 export async function installEngine(
   input: InstallEngineInput,
 ): Promise<InstallEngineResult | InstallEngineFailure> {
@@ -380,11 +332,18 @@ export async function installEngine(
       workflowHtmlUrl = data.content?.html_url ?? null;
     }
 
-    // Upsert kody.config.json with default model and executable
+    // Write the engine model into kody.config.json (`agent.model` — the key
+    // the engine actually reads), preserving any hand-authored config. Always
+    // writes a baseline (executables + github) even when no model is
+    // configured yet, so the file exists for the engine to extend.
     const { models } = await readVariablesJson(octokit, owner, repo);
-    const defaultModel = pickDefaultModel(models);
-    const defaultModelId = defaultModel?.id ?? null;
-    await upsertKodyConfig(octokit, owner, repo, defaultModelId);
+    const engineModel = pickEngineDefaultModel(models);
+    await writeEngineModel(
+      octokit,
+      owner,
+      repo,
+      engineModel ? engineModelSpec(engineModel) : null,
+    );
 
     const kodyTokenResult = await setRepoActionsSecret(
       octokit,

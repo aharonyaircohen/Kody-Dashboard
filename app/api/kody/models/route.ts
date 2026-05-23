@@ -29,7 +29,10 @@ import {
 import {
   ChatModelsSchema,
   VAR_LLM_MODELS,
+  pickEngineDefaultModel,
+  engineModelSpec,
 } from "@dashboard/lib/variables/models";
+import { getEngineConfig, writeEngineModel } from "@dashboard/lib/engine/config";
 import { logger } from "@dashboard/lib/logger";
 
 const PutSchema = z.object({
@@ -97,13 +100,25 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  // At most one default model.
+  // At most one default model (chat) and one engine default.
   const defaultCount = parsed.data.models.filter((m) => m.default).length;
   if (defaultCount > 1) {
     return NextResponse.json(
       {
         error: "validation_error",
         message: "Only one model may be marked as default.",
+      },
+      { status: 400 },
+    );
+  }
+  const engineDefaultCount = parsed.data.models.filter(
+    (m) => m.engineDefault,
+  ).length;
+  if (engineDefaultCount > 1) {
+    return NextResponse.json(
+      {
+        error: "validation_error",
+        message: "Only one model may be marked as the engine default.",
       },
       { status: 400 },
     );
@@ -141,7 +156,41 @@ export async function PUT(req: NextRequest) {
       `chore(variables): update chat models`,
     );
     invalidateVariablesCache(auth.owner, auth.repo);
-    return NextResponse.json({ ok: true, models: parsed.data.models });
+
+    // Sync the engine's model into kody.config.json (`agent.model`). This is
+    // the key the engine actually reads, so the picker is meaningless without
+    // it. Best-effort: the model list is already saved above, so a GitHub
+    // hiccup here shouldn't fail the whole request — surface it as a warning.
+    let engineSyncWarning: string | undefined;
+    const engineModel = pickEngineDefaultModel(parsed.data.models);
+    if (engineModel) {
+      try {
+        const spec = engineModelSpec(engineModel);
+        // Skip the commit when nothing changed (e.g. the user only edited a
+        // chat-only field) — keeps kody.config.json churn off the repo.
+        const { config } = await getEngineConfig(
+          octokit,
+          auth.owner,
+          auth.repo,
+          { force: true },
+        );
+        if (config.agent?.model !== spec) {
+          await writeEngineModel(octokit, auth.owner, auth.repo, spec);
+        }
+      } catch (err) {
+        engineSyncWarning = (err as Error).message;
+        logger.error(
+          { err, owner: auth.owner, repo: auth.repo },
+          "models: engine config sync failed",
+        );
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      models: parsed.data.models,
+      ...(engineSyncWarning ? { engineSyncWarning } : {}),
+    });
   } catch (err) {
     logger.error(
       { err, owner: auth.owner, repo: auth.repo },

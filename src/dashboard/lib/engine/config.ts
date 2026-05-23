@@ -10,8 +10,10 @@ import type { Octokit } from "@octokit/rest";
 export const KODY_CONFIG_PATH = "kody.config.json";
 
 export interface KodyConfig {
-  model?: {
-    default?: string;
+  /** The model the engine runs, as `provider/model`. This is the key the
+   * kody-engine actually reads (`parseProviderModel(cfg.agent.model)`). */
+  agent?: {
+    model?: string;
   };
   executables: {
     default: string;
@@ -62,7 +64,7 @@ async function fetchConfig(
     return {
       config: {
         executables: parsed.executables ?? { default: "run" },
-        model: parsed.model,
+        agent: parsed.agent,
       },
       sha: data.sha ?? null,
     };
@@ -116,4 +118,86 @@ export async function getEngineConfig(
 /** Invalidate the cached config for a repo (call after writes). */
 export function invalidateEngineConfigCache(owner: string, repo: string): void {
   CACHE.delete(cacheKey(owner, repo));
+}
+
+/**
+ * Set `agent.model` in the consumer repo's kody.config.json, preserving every
+ * other field. This is the ONLY key the engine reads for its model
+ * (`parseProviderModel(cfg.agent.model)`), so writing anything else is a no-op
+ * from the engine's perspective.
+ *
+ * Merge-not-overwrite is load-bearing: the engine also requires `github.owner`
+ * / `github.repo` and reads `quality`, `issueContext`, etc. A blind overwrite
+ * would wipe them and break `loadConfig`. When the file doesn't exist yet we
+ * seed the minimum the engine needs (`github`, `executables`, `agent.model`).
+ *
+ * Drops the legacy top-level `model` key the dashboard used to write — it was
+ * never read by the engine.
+ */
+export async function writeEngineModel(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  modelSpec: string | null,
+  commitMessage?: string,
+): Promise<{ sha: string | null }> {
+  let existing: Record<string, unknown> = {};
+  let existingSha: string | null = null;
+  try {
+    const res = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: KODY_CONFIG_PATH,
+    });
+    const data = res.data;
+    if (!Array.isArray(data) && "content" in data && data.content) {
+      existingSha = data.sha ?? null;
+      try {
+        existing = JSON.parse(
+          Buffer.from(data.content, "base64").toString("utf-8"),
+        ) as Record<string, unknown>;
+      } catch {
+        // Corrupt JSON — start clean rather than propagate a parse error,
+        // but keep the sha so we replace (not 409) the bad file.
+        existing = {};
+      }
+    }
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    if (status !== 404) throw err;
+  }
+
+  const prevAgent =
+    typeof existing.agent === "object" && existing.agent !== null
+      ? (existing.agent as Record<string, unknown>)
+      : {};
+  // Set agent.model when we have a spec; otherwise preserve whatever the
+  // repo already had (so a no-model install still leaves a valid baseline).
+  const agent = modelSpec ? { ...prevAgent, model: modelSpec } : prevAgent;
+
+  const next: Record<string, unknown> = {
+    ...existing,
+    executables: existing.executables ?? { default: "run" },
+    github: existing.github ?? { owner, repo },
+  };
+  if (Object.keys(agent).length > 0) next.agent = agent;
+  delete next.model; // strip the legacy key the engine never read
+
+  const content = Buffer.from(JSON.stringify(next, null, 2), "utf-8").toString(
+    "base64",
+  );
+  const { data } = await octokit.rest.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: KODY_CONFIG_PATH,
+    message:
+      commitMessage ??
+      (existingSha
+        ? "chore(kody): set engine model"
+        : "chore(kody): create engine config"),
+    content,
+    ...(existingSha ? { sha: existingSha } : {}),
+  });
+  invalidateEngineConfigCache(owner, repo);
+  return { sha: data.commit.sha ?? null };
 }

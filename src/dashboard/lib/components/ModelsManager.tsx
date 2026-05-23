@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Loader2,
   Pencil,
+  Cpu,
   Plus,
   Save,
   Star,
@@ -99,6 +100,7 @@ function blankModel(): ChatModel {
     apiKeySecret: p.keyHint,
     enabled: true,
     default: false,
+    engineDefault: false,
   };
 }
 
@@ -157,11 +159,17 @@ function ModelsManagerInner() {
     }
     // Enforce "at most one default" client-side by clearing the flag on
     // every other entry when this one sets it. Without this the server
-    // rejects the save.
+    // rejects the save. Chat default and engine default are independent
+    // flags, so clear each one separately.
     const savedIdx = editing?.mode === "edit" ? editing.idx : list.length - 1;
     if (next.default) {
       list = list.map((m, i) =>
         i === savedIdx ? m : { ...m, default: false },
+      );
+    }
+    if (next.engineDefault) {
+      list = list.map((m, i) =>
+        i === savedIdx ? m : { ...m, engineDefault: false },
       );
     }
     return save.mutateAsync(list).then(() => {
@@ -281,7 +289,16 @@ function ModelsManagerInner() {
                             title="Auto-selected when chat opens"
                           >
                             <Star className="w-3 h-3" />
-                            Default
+                            Chat
+                          </span>
+                        )}
+                        {m.engineDefault && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300"
+                            title="The model the engine runs (Kody Live, issue + PR runs)"
+                          >
+                            <Cpu className="w-3 h-3" />
+                            Engine
                           </span>
                         )}
                       </div>
@@ -548,6 +565,17 @@ function ModelEditor({
             />
             <Star className="w-3.5 h-3.5 text-white/40" />
             Default for chat (auto-selected on open)
+          </label>
+
+          <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
+            <Checkbox
+              checked={draft.engineDefault === true}
+              onCheckedChange={(checked) =>
+                setDraft((cur) => ({ ...cur, engineDefault: checked === true }))
+              }
+            />
+            <Cpu className="w-3.5 h-3.5 text-white/40" />
+            Default for engine (Kody Live, issue + PR runs)
           </label>
 
           <button

@@ -112,6 +112,12 @@ export const ChatModelSchema = z.object({
   /** Marks this entry as the default selection when chat opens. At most
    * one. Beats Brain auto-default. */
   default: z.boolean().optional(),
+  /** Marks this entry as the model the engine runs (kody.yml / Kody Live,
+   * issue + PR runs). Written to `agent.model` in the consumer repo's
+   * kody.config.json. At most one. When unset, the engine falls back to
+   * the chat default. Independent from `default` so chat and engine can
+   * run different models. */
+  engineDefault: z.boolean().optional(),
   /** Override the chat route's per-turn tool-round cap. Unset → use the
    * route default (10 normally, 30 in goal-planner mode). Set higher to
    * let a model run a longer research chain; the function-level
@@ -147,4 +153,32 @@ export function pickModelById(
 export function pickDefaultModel(models: ChatModel[]): ChatModel | null {
   const enabled = models.filter((m) => m.enabled !== false);
   return enabled.find((m) => m.default === true) ?? enabled[0] ?? null;
+}
+
+/**
+ * Pick the model the engine should run. Prefers the entry flagged
+ * `engineDefault`; when none is set, falls back to the chat default so a
+ * single "default" pick still drives both surfaces.
+ */
+export function pickEngineDefaultModel(models: ChatModel[]): ChatModel | null {
+  const enabled = models.filter((m) => m.enabled !== false);
+  return enabled.find((m) => m.engineDefault === true) ?? pickDefaultModel(models);
+}
+
+/**
+ * The `provider/model` string the engine expects in `agent.model`
+ * (see kody-engine `parseProviderModel`). Prefers the entry `id` when it's
+ * already in `provider/model` form — that's the user's escape hatch and is
+ * how non-preset providers like `minimax/MiniMax-M2.7-highspeed` are
+ * spelled. Otherwise it's built from the preset provider + wire model name.
+ *
+ * Caveat: preset provider names mostly match LiteLLM's (anthropic, openai,
+ * groq, mistral, deepseek, xai, openrouter). `google` is the exception
+ * (LiteLLM wants `gemini/...`) and `custom` has no provider — for those,
+ * set the `id` explicitly to the correct `provider/model`.
+ */
+export function engineModelSpec(m: ChatModel): string {
+  const id = m.id.trim();
+  if (id.includes("/")) return id;
+  return `${m.provider}/${m.modelName.trim()}`;
 }

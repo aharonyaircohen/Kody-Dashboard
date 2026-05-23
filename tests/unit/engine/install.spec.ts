@@ -117,7 +117,7 @@ describe("installEngine", () => {
       expect(parsed.executables?.default).toBe("run");
     });
 
-    it("kody.config.json contains model.default when variables.json exists with models", async () => {
+    it("kody.config.json contains agent.model when variables.json exists with models", async () => {
       const octokit = createMockOctokit();
       const { getByPath } = captureFileWrites(octokit);
 
@@ -164,7 +164,69 @@ describe("installEngine", () => {
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
       const parsed = JSON.parse(configFile!.content);
-      expect(parsed.model?.default).toBe("example/chat-model");
+      // No engineDefault flag → falls back to the chat default. The entry id
+      // is already in provider/model form, so it's used verbatim. Written to
+      // `agent.model` (the key the engine reads), not the legacy model.default.
+      expect(parsed.agent?.model).toBe("example/chat-model");
+      expect(parsed.model).toBeUndefined();
+    });
+
+    it("prefers the engineDefault model over the chat default for agent.model", async () => {
+      const octokit = createMockOctokit();
+      const { getByPath } = captureFileWrites(octokit);
+
+      vi.spyOn(octokit.rest.repos, "getContent").mockImplementation(
+        async (params: any) => {
+          if (params.path === ".kody/variables.json") {
+            const variablesContent = JSON.stringify({
+              LLM_MODELS: [
+                {
+                  id: "anthropic/claude-sonnet-4-6",
+                  label: "Chat",
+                  provider: "anthropic",
+                  protocol: "anthropic",
+                  baseURL: "",
+                  modelName: "claude-sonnet-4-6",
+                  apiKeySecret: "ANTHROPIC_API_KEY",
+                  enabled: true,
+                  default: true,
+                },
+                {
+                  id: "minimax/MiniMax-M2.7-highspeed",
+                  label: "Engine",
+                  provider: "custom",
+                  protocol: "openai",
+                  baseURL: "https://api.minimax.io/v1",
+                  modelName: "MiniMax-M2.7-highspeed",
+                  apiKeySecret: "MINIMAX_API_KEY",
+                  enabled: true,
+                  engineDefault: true,
+                },
+              ],
+            });
+            return {
+              data: {
+                content: Buffer.from(variablesContent).toString("base64"),
+                sha: "varsha",
+              },
+            };
+          }
+          return { data: { content: "", sha: "abc123" } };
+        },
+      );
+
+      const input: InstallEngineInput = {
+        octokit,
+        owner: "example",
+        repo: "my-repo",
+        token: "ghp_mocktoken",
+        hookUrl: "https://dashboard.example.com/api/webhooks/github",
+      };
+
+      await installEngine(input);
+
+      const parsed = JSON.parse(getByPath("kody.config.json")!.content);
+      expect(parsed.agent?.model).toBe("minimax/MiniMax-M2.7-highspeed");
     });
 
     it("kody.config.json is created even when variables.json does not exist", async () => {
@@ -197,15 +259,15 @@ describe("installEngine", () => {
 
       expect(result.ok).toBe(true);
 
-      // kody.config.json should still be created (just without model.default)
+      // kody.config.json should still be created (just without agent.model)
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
       const parsed = JSON.parse(configFile!.content);
       expect(parsed.executables?.default).toBe("run");
-      expect(parsed.model).toBeUndefined();
+      expect(parsed.agent).toBeUndefined();
     });
 
-    it("upserts kody.config.json (updates if it already exists)", async () => {
+    it("merges into an existing kody.config.json, preserving other fields and stripping the legacy model key", async () => {
       const octokit = createMockOctokit();
       const { getByPath } = captureFileWrites(octokit);
 
@@ -216,6 +278,8 @@ describe("installEngine", () => {
             const existingConfig = JSON.stringify({
               model: { default: "old/model" },
               executables: { default: "old-exec" },
+              github: { owner: "example", repo: "my-repo" },
+              quality: { typecheck: "tsc --noEmit" },
             });
             return {
               data: {
@@ -241,8 +305,11 @@ describe("installEngine", () => {
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
       const parsed = JSON.parse(configFile!.content);
-      // Should be updated with new values
-      expect(parsed.executables?.default).toBe("run");
+      // Merge preserves hand-authored fields (executables, quality) instead of
+      // clobbering them, and drops the legacy top-level `model` key.
+      expect(parsed.executables?.default).toBe("old-exec");
+      expect(parsed.quality?.typecheck).toBe("tsc --noEmit");
+      expect(parsed.model).toBeUndefined();
     });
   });
 });
