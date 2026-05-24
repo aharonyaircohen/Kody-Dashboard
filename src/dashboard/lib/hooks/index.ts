@@ -441,18 +441,6 @@ export function useTaskActions({
     onError: handleError("reset task"),
   });
 
-  const approveGate = useMutation({
-    mutationFn: () => kodyApi.tasks.approveGate(issueNumber, actorLogin),
-    onSuccess: handleSuccess("Gate approved"),
-    onError: handleError("approve gate"),
-  });
-
-  const rejectGate = useMutation({
-    mutationFn: () => kodyApi.tasks.rejectGate(issueNumber, actorLogin),
-    onSuccess: handleSuccess("Gate rejected"),
-    onError: handleError("reject gate"),
-  });
-
   const approveUI = useMutation({
     mutationFn: () => kodyApi.tasks.approveUI(issueNumber, actorLogin),
     onSuccess: handleSuccess("Preview UI approved"),
@@ -498,8 +486,6 @@ export function useTaskActions({
     reset.isPending ||
     reopen.isPending ||
     abort.isPending ||
-    approveGate.isPending ||
-    rejectGate.isPending ||
     approveUI.isPending ||
     approvePR.isPending ||
     assign.isPending ||
@@ -515,8 +501,6 @@ export function useTaskActions({
     reset: reset.mutate,
     reopen: reopen.mutate,
     abort: abort.mutate,
-    approveGate: approveGate.mutate,
-    rejectGate: rejectGate.mutate,
     approveUI: approveUI.mutate,
     approvePR: approvePR.mutate,
     assign: assign.mutate,
@@ -528,26 +512,22 @@ export function useTaskActions({
       ? "execute"
       : abort.isPending
         ? "abort"
-        : approveGate.isPending
-          ? "approve"
-          : rejectGate.isPending
-            ? "reject"
-            : approveUI.isPending
-              ? "approve-ui"
-              : approvePR.isPending
-                ? "approve-pr"
-                : close.isPending
-                  ? "close"
-                  : closePR.isPending
-                    ? "close-pr"
-                    : reset.isPending
-                      ? "reset"
-                      : reopen.isPending
-                        ? "reopen"
-                        : addToQueue.isPending
-                          ? "add-to-queue"
-                          : removeFromQueue.isPending
-                            ? "remove-from-queue"
-                            : null,
+        : approveUI.isPending
+          ? "approve-ui"
+          : approvePR.isPending
+            ? "approve-pr"
+            : close.isPending
+              ? "close"
+              : closePR.isPending
+                ? "close-pr"
+                : reset.isPending
+                  ? "reset"
+                  : reopen.isPending
+                    ? "reopen"
+                    : addToQueue.isPending
+                      ? "add-to-queue"
+                      : removeFromQueue.isPending
+                        ? "remove-from-queue"
+                        : null,
   };
 }
