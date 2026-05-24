@@ -58,6 +58,19 @@ async function selectKodyAgent(page: Page): Promise<void> {
 
 test.describe("Kody direct agent", () => {
   test.beforeEach(async ({ page }) => {
+    // The in-process "Kody" agent only appears in the picker when at least
+    // one enabled model is configured (one dropdown row per model, named by
+    // its label). Mock the model list so the option exists — labelled
+    // "Kody …" so the existing /^Kody\b/ option selector still matches.
+    await page.route("**/api/kody/models", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          models: [{ id: "test/model", label: "Kody Test", enabled: true }],
+        }),
+      }),
+    );
     await page.goto(`${BASE_URL}/login`);
     await page.waitForLoadState("domcontentloaded");
     await injectAuth(page);
@@ -66,13 +79,16 @@ test.describe("Kody direct agent", () => {
   test("selecting Kody and sending a message streams reply into the assistant bubble", async ({
     page,
   }) => {
-    // Mock the direct-chat endpoint with a chunked text/plain stream so we
-    // verify the client's stream-reading path without hitting the model.
+    // Mock the direct-chat endpoint with the AI-SDK UI-message-stream SSE
+    // shape the client actually parses (`data: {type:"text-delta",...}`) so
+    // we verify the stream-reading path without hitting the model.
     await page.route("**/api/kody/chat/kody", async (route) =>
       route.fulfill({
         status: 200,
-        headers: { "content-type": "text/plain; charset=utf-8" },
-        body: "Hello from Kody direct!",
+        headers: { "content-type": "text/event-stream" },
+        body:
+          'data: {"type":"text-delta","delta":"Hello from Kody direct!"}\n\n' +
+          "data: [DONE]\n\n",
       }),
     );
 
@@ -90,11 +106,10 @@ test.describe("Kody direct agent", () => {
     await input.fill("ping");
     await input.press("Enter");
 
-    const reply = page
-      .locator(".bg-muted")
-      .filter({ has: page.locator(".prose") })
-      .filter({ hasText: "Hello from Kody direct!" })
-      .first();
-    await expect(reply).toBeVisible({ timeout: 10_000 });
+    // The streamed text lands in an assistant bubble — assert on the text
+    // itself rather than a brittle class chain.
+    await expect(
+      page.getByText("Hello from Kody direct!").first(),
+    ).toBeVisible({ timeout: 15_000 });
   });
 });

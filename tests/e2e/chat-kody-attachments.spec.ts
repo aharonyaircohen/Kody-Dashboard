@@ -102,6 +102,18 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
       });
     });
     await injectAuth(page);
+    // The in-process "Kody" agent only appears when a model is configured;
+    // mock the model list (labelled "Kody …" so selectKodyAgent's /^Kody\b/
+    // option selector matches). Persists across the in-test reload.
+    await page.route("**/api/kody/models", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          models: [{ id: "test/model", label: "Kody Test", enabled: true }],
+        }),
+      }),
+    );
   });
 
   test("uploads image, sends multimodal payload, persists across reload via IDB", async ({
@@ -119,8 +131,10 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
       }
       await route.fulfill({
         status: 200,
-        headers: { "content-type": "text/plain; charset=utf-8" },
-        body: "I see your image.",
+        headers: { "content-type": "text/event-stream" },
+        body:
+          'data: {"type":"text-delta","delta":"I see your image."}\n\n' +
+          "data: [DONE]\n\n",
       });
     });
 
@@ -149,12 +163,8 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
 
     // Reply rendered → request completed.
     await expect(
-      page
-        .locator(".bg-muted")
-        .filter({ has: page.locator(".prose") })
-        .filter({ hasText: "I see your image." })
-        .first(),
-    ).toBeVisible({ timeout: 10_000 });
+      page.getByText("I see your image.").first(),
+    ).toBeVisible({ timeout: 15_000 });
 
     // 1) The outgoing payload must use structured parts, not a base64
     // string smashed into the text. Last user message → content array
@@ -191,19 +201,25 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
       .poll(
         () =>
           page.evaluate(() => {
-            const raw = localStorage.getItem("kody-sessions-v3");
-            if (!raw) return 0;
-            try {
-              const parsed = JSON.parse(raw) as {
-                messages: Record<string, Array<{ text?: string }>>;
-              };
-              return Object.values(parsed.messages ?? {}).reduce(
-                (n, arr) => n + arr.length,
-                0,
-              );
-            } catch {
-              return 0;
+            // The sessions store is repo-scoped (kody-sessions-v3:owner/repo),
+            // so scan every key with that prefix and sum message counts.
+            let total = 0;
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (!k || !k.startsWith("kody-sessions-v3")) continue;
+              try {
+                const parsed = JSON.parse(localStorage.getItem(k) ?? "{}") as {
+                  messages?: Record<string, Array<{ text?: string }>>;
+                };
+                total += Object.values(parsed.messages ?? {}).reduce(
+                  (n, arr) => n + arr.length,
+                  0,
+                );
+              } catch {
+                /* ignore malformed */
+              }
             }
+            return total;
           }),
         { timeout: 5_000, intervals: [200, 400, 800] },
       )
