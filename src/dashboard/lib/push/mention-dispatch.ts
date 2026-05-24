@@ -35,6 +35,7 @@ import { latestCtoDecisions } from "../cto/decisions";
 import { applyCtoBackpressure } from "../cto/backpressure";
 import { logger } from "../logger";
 import { dashboardThreadUrl, dashboardChannelUrl } from "../thread-link";
+import { buildSourceEvent } from "../notifications/source-event";
 import { deriveVapidKeys } from "./vapid-keys";
 import { INBOX_FEED_ISSUE_TITLE } from "../inbox/feed";
 import { PUSH_MANIFEST_ISSUE_TITLE } from "../push";
@@ -140,167 +141,62 @@ interface MentionEvent {
   channel?: { number: number; commentId?: number };
 }
 
-/** Channels are Discussions whose title starts with this marker. */
-const CHANNEL_TITLE_PREFIX = "#";
+/**
+ * The action filter the mention/inbox spine applies on top of the shared
+ * normalizer. Each event type only fires a mention notification on a specific
+ * action — a comment must be freshly `created`, a review `submitted`, an
+ * issue/PR/discussion `opened` or `edited`. (The rules spine, by contrast,
+ * wants `pull_request: closed` — which is exactly why gating lives per-consumer
+ * and only the parsing in `buildSourceEvent` is shared.)
+ */
+function isMentionAction(eventType: string, action: string): boolean {
+  switch (eventType) {
+    case "issue_comment":
+    case "pull_request_review_comment":
+    case "commit_comment":
+    case "discussion_comment":
+      return !action || action === "created";
+    case "pull_request_review":
+      return !action || action === "submitted";
+    case "issues":
+    case "pull_request":
+    case "discussion":
+      return action === "opened" || action === "edited";
+    default:
+      return false;
+  }
+}
 
 /**
- * Pull the relevant body, author, and url out of the webhook payload for the
- * event types that can carry @mentions. Returns null for events we don't
- * route.
+ * Normalize the webhook (shared `buildSourceEvent`) and apply the mention
+ * spine's action gate + "must have a body" rule. Returns the legacy
+ * `MentionEvent` shape so the rest of this module is unchanged.
  */
 function extractEvent(
   eventType: string,
   payload: Record<string, unknown>,
 ): MentionEvent | null {
-  const repository = payload.repository as Record<string, unknown> | undefined;
-  const repoFullName =
-    typeof repository?.full_name === "string" ? repository.full_name : "";
-  if (!repoFullName) return null;
-
-  const action = typeof payload.action === "string" ? payload.action : "";
-
-  switch (eventType) {
-    case "issue_comment":
-    case "pull_request_review_comment":
-    case "commit_comment": {
-      if (action && action !== "created") return null;
-      const comment = payload.comment as Record<string, unknown> | undefined;
-      const body = typeof comment?.body === "string" ? comment.body : "";
-      const author = (comment?.user as Record<string, unknown> | undefined)
-        ?.login;
-      const url = typeof comment?.html_url === "string" ? comment.html_url : "";
-      const issue = payload.issue as Record<string, unknown> | undefined;
-      const pr = payload.pull_request as Record<string, unknown> | undefined;
-      const title =
-        (typeof issue?.title === "string" && issue.title) ||
-        (typeof pr?.title === "string" && pr.title) ||
-        "";
-      const threadType =
-        eventType === "commit_comment"
-          ? "Commit"
-          : eventType === "pull_request_review_comment" || issue?.pull_request
-            ? "PullRequest"
-            : "Issue";
-      return {
-        body,
-        author: typeof author === "string" ? author : undefined,
-        url,
-        title,
-        repoFullName,
-        threadType,
-      };
-    }
-
-    case "pull_request_review": {
-      if (action && action !== "submitted") return null;
-      const review = payload.review as Record<string, unknown> | undefined;
-      const body = typeof review?.body === "string" ? review.body : "";
-      if (!body) return null;
-      const author = (review?.user as Record<string, unknown> | undefined)
-        ?.login;
-      const url = typeof review?.html_url === "string" ? review.html_url : "";
-      const pr = payload.pull_request as Record<string, unknown> | undefined;
-      const title = typeof pr?.title === "string" ? pr.title : "";
-      return {
-        body,
-        author: typeof author === "string" ? author : undefined,
-        url,
-        title,
-        repoFullName,
-        threadType: "PullRequest",
-      };
-    }
-
-    case "issues": {
-      if (action !== "opened" && action !== "edited") return null;
-      const issue = payload.issue as Record<string, unknown> | undefined;
-      const body = typeof issue?.body === "string" ? issue.body : "";
-      if (!body) return null;
-      const author = (issue?.user as Record<string, unknown> | undefined)
-        ?.login;
-      const url = typeof issue?.html_url === "string" ? issue.html_url : "";
-      const title = typeof issue?.title === "string" ? issue.title : "";
-      return {
-        body,
-        author: typeof author === "string" ? author : undefined,
-        url,
-        title,
-        repoFullName,
-        threadType: "Issue",
-      };
-    }
-
-    case "pull_request": {
-      if (action !== "opened" && action !== "edited") return null;
-      const pr = payload.pull_request as Record<string, unknown> | undefined;
-      const body = typeof pr?.body === "string" ? pr.body : "";
-      if (!body) return null;
-      const author = (pr?.user as Record<string, unknown> | undefined)?.login;
-      const url = typeof pr?.html_url === "string" ? pr.html_url : "";
-      const title = typeof pr?.title === "string" ? pr.title : "";
-      return {
-        body,
-        author: typeof author === "string" ? author : undefined,
-        url,
-        title,
-        repoFullName,
-        threadType: "PullRequest",
-      };
-    }
-
-    // Goal threads in the dashboard are backed by GitHub Discussions, so
-    // dashboard chat → Discussions → webhook → mention dispatch.
-    case "discussion": {
-      if (action !== "created" && action !== "edited") return null;
-      const disc = payload.discussion as Record<string, unknown> | undefined;
-      const body = typeof disc?.body === "string" ? disc.body : "";
-      if (!body) return null;
-      const author = (disc?.user as Record<string, unknown> | undefined)?.login;
-      const url = typeof disc?.html_url === "string" ? disc.html_url : "";
-      const title = typeof disc?.title === "string" ? disc.title : "";
-      return {
-        body,
-        author: typeof author === "string" ? author : undefined,
-        url,
-        title,
-        repoFullName,
-        threadType: "Discussion",
-      };
-    }
-
-    case "discussion_comment": {
-      if (action && action !== "created") return null;
-      const comment = payload.comment as Record<string, unknown> | undefined;
-      const body = typeof comment?.body === "string" ? comment.body : "";
-      const author = (comment?.user as Record<string, unknown> | undefined)
-        ?.login;
-      const url = typeof comment?.html_url === "string" ? comment.html_url : "";
-      const disc = payload.discussion as Record<string, unknown> | undefined;
-      const title = typeof disc?.title === "string" ? disc.title : "";
-      // A `#`-titled discussion is a messaging channel — every comment is a
-      // team message that broadcasts to all subscribers and deep-links into
-      // the in-app channel view.
-      const isChannel = title.startsWith(CHANNEL_TITLE_PREFIX);
-      const discNumber =
-        typeof disc?.number === "number" ? disc.number : undefined;
-      const commentId =
-        typeof comment?.id === "number" ? comment.id : undefined;
-      return {
-        body,
-        author: typeof author === "string" ? author : undefined,
-        url,
-        title,
-        repoFullName,
-        threadType: "Discussion",
-        ...(isChannel && discNumber !== undefined
-          ? { channel: { number: discNumber, commentId } }
-          : {}),
-      };
-    }
-
-    default:
-      return null;
-  }
+  const se = buildSourceEvent(eventType, payload);
+  if (!se) return null;
+  if (!isMentionAction(se.eventType, se.action)) return null;
+  // Issues / PRs / reviews / discussions with no body can't carry a mention.
+  // (Comment events historically skipped this check — preserve that: an empty
+  // comment body simply yields no mentions downstream.)
+  const requiresBody =
+    eventType === "issues" ||
+    eventType === "pull_request" ||
+    eventType === "pull_request_review" ||
+    eventType === "discussion";
+  if (requiresBody && !se.body) return null;
+  return {
+    body: se.body,
+    author: se.author,
+    url: se.url,
+    title: se.title,
+    repoFullName: se.repoFullName,
+    threadType: se.threadType,
+    ...(se.channel ? { channel: se.channel } : {}),
+  };
 }
 
 function initVapid(): boolean {

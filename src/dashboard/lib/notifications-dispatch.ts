@@ -19,6 +19,7 @@ import {
   type NotificationRule,
 } from "./notifications";
 import { sendNotification } from "./notifications/channels/send";
+import { buildSourceEvent, type SourcePr } from "./notifications/source-event";
 import { readNotificationsManifestFresh } from "./notifications-server";
 import { logger } from "./logger";
 
@@ -30,43 +31,41 @@ interface DispatchContext {
 }
 
 /**
- * Detect whether a `pull_request: closed` payload is a kody-managed release
+ * Detect whether a `pull_request: closed` event is a kody-managed release
  * deploy PR that was actually merged (not closed without merge). Recognized
  * by the title shape `deploy: <a> → <b> (v<X.Y.Z>)` produced by
  * release-deploy/deploy.sh. Em dash and ascii arrow are both accepted.
+ * Consumes the normalized `SourceEvent` (action + pr) rather than the raw
+ * payload, so all payload-shape knowledge lives in `buildSourceEvent`.
  */
-export function isDeployPrMerged(payload: {
-  action?: string;
-  pull_request?: { merged?: boolean; title?: string };
-}): { matched: true; version: string } | { matched: false } {
-  if (payload.action !== "closed") return { matched: false };
-  if (!payload.pull_request?.merged) return { matched: false };
-  const title = payload.pull_request.title ?? "";
+export function isDeployPrMerged(
+  action: string,
+  pr: SourcePr | undefined,
+): { matched: true; version: string } | { matched: false } {
+  if (action !== "closed") return { matched: false };
+  if (!pr?.merged) return { matched: false };
   // "deploy: dev → main (v0.25.5)" — → is the rightwards arrow
-  const m = title.match(/^deploy:\s+\S+\s+(?:→|->|→)\s+\S+\s+\(v([^)]+)\)/);
+  const m = pr.title.match(/^deploy:\s+\S+\s+(?:→|->|→)\s+\S+\s+\(v([^)]+)\)/);
   if (!m) return { matched: false };
   return { matched: true, version: m[1]! };
 }
 
 /**
- * Build the substitution context from a GitHub `pull_request` webhook
- * payload. All values are strings (or empty string when missing) so the
- * template renderer never produces "undefined" output.
+ * Build the substitution context from a normalized `SourcePr`. All values are
+ * strings (or empty string when missing) so the template renderer never
+ * produces "undefined" output.
  */
 function buildPrContext(
-  payload: Record<string, unknown>,
+  pr: SourcePr | undefined,
   extras: { repoFullName: string; version?: string },
 ): Record<string, string> {
-  const pr =
-    (payload.pull_request as Record<string, unknown> | undefined) ?? {};
-  const user = (pr.user as Record<string, unknown> | undefined) ?? {};
   return {
     repo: extras.repoFullName,
     version: extras.version ?? "",
-    prUrl: typeof pr.html_url === "string" ? pr.html_url : "",
-    prTitle: typeof pr.title === "string" ? pr.title : "",
-    prBody: typeof pr.body === "string" ? pr.body : "",
-    author: typeof user.login === "string" ? user.login : "",
+    prUrl: pr?.url ?? "",
+    prTitle: pr?.title ?? "",
+    prBody: pr?.body ?? "",
+    author: pr?.author ?? "",
   };
 }
 
@@ -157,18 +156,8 @@ export async function dispatchNotifications(
   eventType: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const repository = payload.repository as Record<string, unknown> | undefined;
-  const ownerObj = repository?.owner as Record<string, unknown> | undefined;
-  const owner = typeof ownerObj?.login === "string" ? ownerObj.login : "";
-  const repo = typeof repository?.name === "string" ? repository.name : "";
-  const repoFullName =
-    typeof repository?.full_name === "string"
-      ? repository.full_name
-      : owner && repo
-        ? `${owner}/${repo}`
-        : "";
-
-  if (!owner || !repo) return;
+  const ev = buildSourceEvent(eventType, payload);
+  if (!ev || !ev.owner || !ev.repo) return;
 
   const token =
     process.env.KODY_BOT_TOKEN ||
@@ -182,16 +171,16 @@ export async function dispatchNotifications(
     return;
   }
 
-  if (eventType === "pull_request") {
-    const merged = isDeployPrMerged(payload);
+  if (ev.eventType === "pull_request") {
+    const merged = isDeployPrMerged(ev.action, ev.pr);
     if (merged.matched) {
-      const prCtx = buildPrContext(payload, {
-        repoFullName,
+      const prCtx = buildPrContext(ev.pr, {
+        repoFullName: ev.repoFullName,
         version: merged.version,
       });
       await fireNotifications("deploy_pr_merged", prCtx, {
-        owner,
-        repo,
+        owner: ev.owner,
+        repo: ev.repo,
         token,
       });
     }

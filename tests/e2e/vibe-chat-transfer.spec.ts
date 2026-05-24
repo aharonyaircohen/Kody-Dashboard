@@ -166,6 +166,7 @@ test.describe("Vibe — chat transfer on issue create", () => {
     // and the kickoff can fire before the assertion is registered.
     let interactiveStartCalled = false;
     let interactiveStartTaskId: string | null = null;
+    let interactiveStartBody: { content?: string } | null = null;
     await page.route(
       "**/api/kody/chat/interactive/start*",
       async (route, req) => {
@@ -173,8 +174,10 @@ test.describe("Vibe — chat transfer on issue create", () => {
         try {
           const body = JSON.parse(req.postData() ?? "{}") as {
             taskId?: string;
+            content?: string;
           };
           interactiveStartTaskId = body.taskId ?? null;
+          interactiveStartBody = body;
         } catch {
           /* ignore */
         }
@@ -195,26 +198,15 @@ test.describe("Vibe — chat transfer on issue create", () => {
         });
       },
     );
-    // Also mock the append endpoint so the kickoff message doesn't
-    // 404 against a non-existent backend.
-    let interactiveAppendBody: {
-      content?: string;
-      taskContext?: { issueNumber?: number };
-    } | null = null;
-    await page.route(
-      "**/api/kody/chat/interactive/append",
-      async (route, req) => {
-        try {
-          interactiveAppendBody = JSON.parse(req.postData() ?? "null");
-        } catch {
-          /* ignore */
-        }
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ ok: true }),
-        });
-      },
+    // Also mock the append endpoint so any follow-up turn doesn't 404
+    // against a non-existent backend. (The first kody-live turn folds into
+    // /start, so append isn't hit for the kickoff itself.)
+    await page.route("**/api/kody/chat/interactive/append", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      }),
     );
 
     // Mock /api/kody/chat/kody to stream a UI-message-stream SSE response
@@ -326,10 +318,19 @@ test.describe("Vibe — chat transfer on issue create", () => {
     // localStorage under the new task's id should contain the transferred
     // user + assistant messages. This is what the new task's chat hydrates
     // from when the user lands on the issue.
-    const stored = await page.evaluate(
-      (issueNum) => window.localStorage.getItem(`kody-task-chat-${issueNum}`),
-      NEW_ISSUE,
-    );
+    // The task-chat key is repo-scoped (kody-task-chat-<owner/repo>:<id>),
+    // so find the entry whose trailing id matches rather than the bare key.
+    const stored = await page.evaluate((issueNum) => {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith("kody-task-chat-")) continue;
+        const tail = k.includes(":")
+          ? k.slice(k.lastIndexOf(":") + 1)
+          : k.slice("kody-task-chat-".length);
+        if (tail === String(issueNum)) return localStorage.getItem(k);
+      }
+      return null;
+    }, NEW_ISSUE);
     expect(
       stored,
       "expected localStorage entry for the new issue",
@@ -366,12 +367,8 @@ test.describe("Vibe — chat transfer on issue create", () => {
     // Finally — assert the user sees the transferred messages in the new
     // issue's chat. The chat scope flips to the new task once the tasks
     // query refetches; the chat then hydrates from localStorage.
-    const assistantBubble = page
-      .locator(".prose")
-      .filter({ hasText: "Created and handed off." })
-      .first();
     await expect(
-      assistantBubble,
+      page.getByText("Created and handed off.").first(),
       "new issue chat should hydrate with the transferred assistant text",
     ).toBeVisible({ timeout: 15_000 });
 
@@ -388,25 +385,24 @@ test.describe("Vibe — chat transfer on issue create", () => {
     await expect
       .poll(() => interactiveStartCalled, { timeout: 20_000 })
       .toBe(true);
-    expect(
-      interactiveAppendBody,
-      "append must be hit with the kickoff content",
-    ).toBeTruthy();
-    expect(
-      (interactiveAppendBody as unknown as { content?: string } | null)
-        ?.content,
-      "append content must include the kickoff string",
-    ).toContain("Implement issue now.");
+    // The kickoff is the FIRST kody-live turn in the new scope, so its
+    // content is folded into interactive/start (content field) and the
+    // separate append is skipped by design — assert on the start body.
+    await expect
+      .poll(() => interactiveStartBody?.content ?? "", { timeout: 20_000 })
+      .toContain("Implement issue now.");
   });
 
-  test("detects issue creation by output shape when tool-input-available is missing", async ({
+  test("does NOT transfer on an issue-shaped output with no recognized tool name (read-tool safety)", async ({
     page,
   }) => {
-    // Real-world failure mode: the AI SDK occasionally elides the
-    // `tool-input-available` chunk (e.g. when the provider streams a
-    // single block of input without deltas), so `toolNameById` never
-    // gets populated. The detection must still fire on shape alone —
-    // `{ number, url:/issues/..., no prNumber, no branch }`.
+    // Deliberate design: issue-creation transfer fires on tool NAME only,
+    // never on output shape. Read tools (github_get_issue, _list_issues,
+    // _comment_on_issue) return the exact `{ number, url:/issues/... }`
+    // shape for EXISTING issues — a shape-based fallback would falsely
+    // flag a creation mid-analysis and wipe the session. So a
+    // tool-output with no preceding tool-input-available (=> unknown name)
+    // must leave the chat exactly where it is. This guards that decision.
     const NEW_ISSUE = 7777;
     await page.route("**/api/kody/tasks*", (route) =>
       route.fulfill({
@@ -524,17 +520,26 @@ test.describe("Vibe — chat transfer on issue create", () => {
     await input.fill("shape test");
     await input.press("Enter");
 
-    await page.waitForURL(new RegExp(`/vibe\\?issue=${NEW_ISSUE}`), {
-      timeout: 15_000,
-    });
+    // The stream is consumed (reply renders) — proves we processed the
+    // orphan tool-output and chose NOT to treat it as a creation.
+    await expect(page.getByText("ok").first()).toBeVisible({ timeout: 15_000 });
 
-    const stored = await page.evaluate(
-      (n) => window.localStorage.getItem(`kody-task-chat-${n}`),
-      NEW_ISSUE,
-    );
+    // No transfer: the URL must stay on /vibe with no ?issue=7777, and no
+    // task-chat must have been written for that issue.
+    await page.waitForTimeout(1_500);
+    expect(page.url()).not.toContain(`issue=${NEW_ISSUE}`);
+    const stored = await page.evaluate((n) => {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("kody-task-chat-") && k.endsWith(String(n))) {
+          return localStorage.getItem(k);
+        }
+      }
+      return null;
+    }, NEW_ISSUE);
     expect(
       stored,
-      "shape-only detection must save to localStorage",
-    ).toBeTruthy();
+      "a name-less issue-shaped output must NOT trigger a chat transfer",
+    ).toBeNull();
   });
 });
