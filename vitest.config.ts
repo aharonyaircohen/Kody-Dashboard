@@ -2,6 +2,10 @@ import { defineConfig } from "vitest/config";
 import { resolve } from "path";
 
 export default defineConfig({
+  // Match Next/SWC's automatic JSX runtime so JSX-containing modules
+  // (e.g. kody-chat-helpers.tsx) can be imported in unit tests without a
+  // global `React` in scope.
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
     include: ["tests/**/*.spec.ts"],
