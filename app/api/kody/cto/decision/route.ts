@@ -53,6 +53,7 @@ import {
   CTO_ACTIONS,
   isDispatchable,
   dispatchCommand,
+  isNonEngineCommand,
 } from "@dashboard/lib/cto/recommendation";
 
 const bodySchema = z.object({
@@ -116,10 +117,16 @@ export async function POST(req: NextRequest) {
     // Approve → run the recommended action before recording, so a failed
     // dispatch doesn't get logged as a trusted approval.
     let executed = false;
-    // The CTO's own command wins (guarded: must be a single `@kody …`).
-    // Legacy recs with no command fall back to the verb→command map.
+    // The CTO's own command wins (guarded: must be a single `@kody …`, and
+    // not a non-engine verb like `@kody approve` — those make the engine
+    // reply "I don't recognize approve", so we drop them to the verb→command
+    // fallback rather than posting a dead command). Legacy recs with no
+    // command fall back to the verb→command map.
     const resolved =
-      requested && requested.startsWith("@kody") && !requested.includes("\n")
+      requested &&
+      requested.startsWith("@kody") &&
+      !requested.includes("\n") &&
+      !isNonEngineCommand(requested)
         ? requested
         : isDispatchable(action)
           ? dispatchCommand(action)

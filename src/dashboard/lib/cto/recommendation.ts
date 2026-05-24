@@ -77,7 +77,7 @@ const MAX_COMMAND_LEN = 300;
 const NON_ENGINE_VERBS = new Set(["approve", "reject", "dismiss"]);
 
 /** True for `@kody <verb>` whose verb the engine can't dispatch (dead verb). */
-function isNonEngineCommand(cmd: string): boolean {
+export function isNonEngineCommand(cmd: string): boolean {
   const verb = cmd.slice("@kody".length).trim().split(/\s+/)[0]?.toLowerCase();
   return verb ? NON_ENGINE_VERBS.has(verb) : false;
 }
