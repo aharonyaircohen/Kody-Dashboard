@@ -266,7 +266,7 @@ export function SettingsManager() {
                   variant="outline"
                   className="justify-start gap-2 bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
                 >
-                  <Link href="/prompts">
+                  <Link href="/commands">
                     <Bot className="w-4 h-4" />
                     Slash commands
                   </Link>

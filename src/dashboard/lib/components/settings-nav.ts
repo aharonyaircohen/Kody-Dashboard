@@ -126,7 +126,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-emerald-300 bg-emerald-500/10",
       },
       {
-        href: "/prompts",
+        href: "/commands",
         label: "Commands",
         icon: Bot,
         description: "Slash commands in the chat composer.",

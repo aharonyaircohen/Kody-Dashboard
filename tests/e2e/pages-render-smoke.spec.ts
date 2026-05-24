@@ -37,7 +37,7 @@ const ROUTES = [
   "/models",
   "/new",
   "/notifications",
-  "/prompts",
+  "/commands",
   "/reports",
   "/repos",
   "/runner",
