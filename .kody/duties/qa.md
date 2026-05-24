@@ -49,7 +49,8 @@ live dashboard URL.
        ship, so it carries **no** `kody-cmd:` line; the operator just dismisses).
      - **CONCERNS / FAIL** → swap the marker to ` · ⚠️ QA <today> (#<finding>)`,
        close the tracking issue, post one inbox rec whose `kody-cmd:` is
-       `@kody fix <one-line concern> (#<finding>)` — never `@kody approve`.
+       `@kody fix --pr <pr> <one-line concern>` (`<pr>` is the bullet's linked
+       PR; the concern text is the inline feedback) — never `@kody approve`.
    - **Stuck** (no report, issue ≥ 2h old) → strip the marker (back to
      untested), comment the stall on the tracking issue, exit. A `🔄` must never
      block QA forever.
@@ -78,7 +79,7 @@ that mention is the only thing that routes it into the dashboard inbox:
 
 <one or two sentences: what was tested, the verdict, what confirming does>
 
-<!-- kody-cmd: @kody fix <one-line concern> (#<finding>) -->
+<!-- kody-cmd: @kody fix --pr <pr> <one-line concern> -->
 
 _Confirm or dismiss in the dashboard inbox. QA will not act on its own._
 ```
@@ -88,11 +89,13 @@ _Confirm or dismiss in the dashboard inbox. QA will not act on its own._
 - **PASS → omit the `kody-cmd:` line entirely.** The change already shipped, so
   there is nothing for the engine to run; the rec is informational and the
   operator just dismisses it.
-- **CONCERNS / FAIL → the `kody-cmd:` line is required and MUST be a real engine
-  verb:** `@kody fix <one-line concern>` (optionally `--pr <n>`). The Approve
-  button posts it verbatim, so it MUST start with `@kody fix`, be one line,
-  ≤ 300 chars. **Never emit `@kody approve`** — the engine has no `approve`
-  verb and rejects it.
+- **CONCERNS / FAIL → the `kody-cmd:` line is required and MUST carry `fix`'s
+  mandatory flag:** `@kody fix --pr <pr> <one-line concern>`. `fix` applies
+  feedback to an **existing PR branch**, so **`--pr <pr>` is required** — the
+  engine preflight rejects `@kody fix` without it. The text after `--pr <pr>`
+  is the inline feedback. The Approve button posts it verbatim, so it MUST
+  start with `@kody fix --pr`, be one line, ≤ 300 chars. **Never emit
+  `@kody approve`** — the engine has no `approve` verb and rejects it.
 
 ## Allowed Commands
 
