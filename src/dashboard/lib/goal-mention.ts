@@ -31,8 +31,7 @@ export interface GoalMention {
 // Group 1 = the full strippable token. Either a `[#@]?goal:<key>` token
 // (key = discussion number or legacy slug) or a bare `#<number>`. A
 // leading boundary keeps it from matching inside a URL/word.
-const GOAL_TOKEN =
-  /(?:^|[\s([])([#@]?goal:([a-z0-9][a-z0-9-]*)|#(\d+))\b/i;
+const GOAL_TOKEN = /(?:^|[\s([])([#@]?goal:([a-z0-9][a-z0-9-]*)|#(\d+))\b/i;
 
 /**
  * Detect a goal mention in `text`.
@@ -61,8 +60,7 @@ export function parseGoalMention(
   const byNumber = /^\d+$/.test(key)
     ? goals.find((g) => g.discussionNumber === Number(key))
     : undefined;
-  const goal =
-    byNumber ?? goals.find((g) => g.id.toLowerCase() === key);
+  const goal = byNumber ?? goals.find((g) => g.id.toLowerCase() === key);
   if (!goal) return null;
 
   // Strip just the token (the regex also consumed one boundary char

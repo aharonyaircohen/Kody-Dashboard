@@ -95,7 +95,7 @@ export function createGoalTools(ctx: Ctx) {
         "next to the goal title) or by its slug id, including its " +
         "description and the task issues currently attached to it. Use " +
         "this — NOT github_get_issue — whenever the user references a goal " +
-        "(e.g. \"explain goal 1533\"); goal numbers are not issue numbers.",
+        '(e.g. "explain goal 1533"); goal numbers are not issue numbers.',
       inputSchema: z.object({
         number: z
           .number()

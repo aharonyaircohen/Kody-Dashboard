@@ -21,6 +21,21 @@
  */
 import type { PushSubscriptionRecord } from "../push";
 
+/**
+ * Subset of NotificationType produced by the mention/inbox webhook spine —
+ * these are the types that can be individually muted server-side. Must match
+ * `ServerNotificationType` in prefs-store.ts (kept as a string literal union
+ * here to avoid a circular import into the pure recipients module).
+ */
+export type ServerNotificationType =
+  | "task-assigned"
+  | "task-completed"
+  | "task-failed"
+  | "pr-ready"
+  | "pr-merged"
+  | "chat-response"
+  | "gate-waiting";
+
 // GitHub login: 1–39 chars, alphanumeric or single hyphens, not starting/
 // ending with hyphen. The leading-char class also keeps emails and
 // `user@host` references from matching.
@@ -44,9 +59,7 @@ const BOT_MENTION_HANDLES = new Set(["kody", "kodyade"]);
  * (`@kody sync …`) — so a mention inside code is never a real ping.
  */
 function stripCode(body: string): string {
-  return body
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`[^`\n]*`/g, " ");
+  return body.replace(/```[\s\S]*?```/g, " ").replace(/`[^`\n]*`/g, " ");
 }
 
 export function extractMentions(body: string | null | undefined): string[] {
@@ -77,18 +90,39 @@ export interface RecipientResolution {
   isChannelBroadcast: boolean;
 }
 
+/** Options for resolveRecipients. */
+export interface ResolveRecipientsOptions {
+  /**
+   * The server-known notification type for this event. When provided, any
+   * recipient who has muted this type in their preferences is excluded.
+   */
+  notificationType?: ServerNotificationType | null;
+  /**
+   * Map of lowercased login → list of muted notification types. When
+   * `notificationType` is also provided, recipients in this map whose list
+   * includes the type are dropped from the result.
+   */
+  mutedTypesByLogin?: Map<string, ServerNotificationType[]>;
+}
+
 /**
  * Resolve who to notify for an event. Channel messages broadcast to every
  * subscriber except the author (honoring `channelNotify`); everything else is
  * gated to the humans `@mentioned` in the body.
+ *
+ * When `options.notificationType` and `options.mutedTypesByLogin` are provided,
+ * any recipient who has muted that type is excluded from the result (both for
+ * mention events and channel broadcasts).
  */
 export function resolveRecipients(
   ev: RecipientEvent,
   subscriptions: PushSubscriptionRecord[],
+  options?: ResolveRecipientsOptions,
 ): RecipientResolution {
   if (ev.channel) {
     const authorLc = ev.author?.toLowerCase();
     const mentioned = new Set(extractMentions(ev.body));
+    const { notificationType, mutedTypesByLogin } = options ?? {};
     // Per-subscription preference: `off` opts out entirely, `mentions` only
     // fires when @mentioned, `all`/undefined gets every message.
     const wantsChannel = (s: PushSubscriptionRecord): boolean => {
@@ -96,6 +130,11 @@ export function resolveRecipients(
       if (!login || login === authorLc) return false;
       if (s.channelNotify === "off") return false;
       if (s.channelNotify === "mentions") return mentioned.has(login);
+      // Server-side per-type mute check
+      if (notificationType && mutedTypesByLogin?.has(login)) {
+        const muted = mutedTypesByLogin.get(login)!;
+        if (muted.includes(notificationType)) return false;
+      }
       return true;
     };
     const logins = [
@@ -107,5 +146,14 @@ export function resolveRecipients(
     ];
     return { logins, isChannelBroadcast: true };
   }
-  return { logins: extractMentions(ev.body), isChannelBroadcast: false };
+  let logins = extractMentions(ev.body);
+  // Apply server-side per-type mute filter
+  const { notificationType, mutedTypesByLogin } = options ?? {};
+  if (notificationType && mutedTypesByLogin) {
+    logins = logins.filter((login) => {
+      const muted = mutedTypesByLogin.get(login);
+      return !muted?.includes(notificationType);
+    });
+  }
+  return { logins, isChannelBroadcast: false };
 }

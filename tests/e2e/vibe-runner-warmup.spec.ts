@@ -19,10 +19,12 @@
  */
 import { test, expect } from "@playwright/test";
 
-const BASE_URL = process.env.BASE_URL ?? "https://kody-dashboard-sable.vercel.app";
+const BASE_URL =
+  process.env.BASE_URL ?? "https://kody-dashboard-sable.vercel.app";
 const TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const REPO_URL =
-  process.env.E2E_GITHUB_REPO ?? "https://github.com/aharonyaircohen/Kody-Engine-Tester";
+  process.env.E2E_GITHUB_REPO ??
+  "https://github.com/aharonyaircohen/Kody-Engine-Tester";
 
 function parseRepo(url: string): { owner: string; repo: string } {
   const u = new URL(url);
@@ -66,26 +68,36 @@ async function readEvents(taskId: string): Promise<Array<{ event?: string }>> {
 test.describe("REPRO — Vibe runner warmup", () => {
   test.skip(!TOKEN, "E2E_GITHUB_TOKEN not set");
 
-  test("runner emits chat.ready within 90s of the chat handoff", async ({ request }) => {
+  test("runner emits chat.ready within 90s of the chat handoff", async ({
+    request,
+  }) => {
     test.setTimeout(6 * 60_000);
     const taskId = `repro-warmup-${Date.now()}`;
     const READY_BUDGET_MS = 90_000;
 
     const t0 = Date.now();
     // The exact endpoint the Vibe chat hands off to when running a task.
-    const start = await request.post(`${BASE_URL}/api/kody/chat/interactive/start-fly`, {
-      headers: {
-        "x-kody-token": TOKEN,
-        "x-kody-owner": owner,
-        "x-kody-repo": repo,
-        "content-type": "application/json",
+    const start = await request.post(
+      `${BASE_URL}/api/kody/chat/interactive/start-fly`,
+      {
+        headers: {
+          "x-kody-token": TOKEN,
+          "x-kody-owner": owner,
+          "x-kody-repo": repo,
+          "content-type": "application/json",
+        },
+        data: { taskId, idleExitMs: 120_000, hardCapMs: 300_000 },
       },
-      data: { taskId, idleExitMs: 120_000, hardCapMs: 300_000 },
-    });
+    );
     expect(start.ok(), `start-fly HTTP ${start.status()}`).toBe(true);
-    const startBody = (await start.json()) as { runner?: string; machineId?: string };
+    const startBody = (await start.json()) as {
+      runner?: string;
+      machineId?: string;
+    };
     // eslint-disable-next-line no-console
-    console.log(`[repro-warmup] runner=${startBody.runner} machine=${startBody.machineId}`);
+    console.log(
+      `[repro-warmup] runner=${startBody.runner} machine=${startBody.machineId}`,
+    );
 
     // Poll the durable event log for chat.ready, measuring elapsed.
     let readyAt = -1;

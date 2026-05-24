@@ -447,9 +447,7 @@ describe("streamBrainChat — SSE translation", () => {
       message: "",
       resumeSince: 7,
     });
-    expect(calls[0]!.url).toBe(
-      "https://b.example.com/chats/c1/stream?since=7",
-    );
+    expect(calls[0]!.url).toBe("https://b.example.com/chats/c1/stream?since=7");
     expect(calls[0]!.init!.method).toBe("GET");
     expect(calls[0]!.init!.body).toBeUndefined();
     const headers = calls[0]!.init!.headers as Record<string, string>;

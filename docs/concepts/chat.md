@@ -16,17 +16,17 @@ commands, and the message history are shared; everything below the
 
 ## The three backends
 
-| Agent (`selectedAgentId`) | `backend`     | Endpoint                                                                                    | What runs                                                                       | System prompt lives in                                                                                                       |
-| ------------------------- | ------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `kody`                    | `kody-direct` | [`/api/kody/chat/kody`](../../app/api/kody/chat/kody/route.ts)                               | In-process LLM stream via the Vercel AI SDK — no Actions, no VPS, no runner      | [`src/dashboard/lib/agents.ts`](../../src/dashboard/lib/agents.ts) (`AGENT_KODY.systemPrompt`)                               |
-| `brain`                   | `brain`       | [`/api/kody/chat/brain`](../../app/api/kody/chat/brain/route.ts)                             | Proxy to the user's external Brain server (URL + key from Settings)             | Brain server profile (out of repo)                                                                                           |
-| `brain-fly`               | `brain`       | [`/api/kody/chat/brain-fly`](../../app/api/kody/chat/brain-fly/route.ts)                     | Same proxy, but the Brain server is auto-provisioned on a per-user Fly Machine  | Brain server profile (`kody brain-serve`, out of repo)                                                                       |
-| `kody-live` (**default**) / `kody-live-fly` | `kody-live` | [`/api/kody/chat/trigger`](../../app/api/kody/chat/trigger/route.ts) (+ `interactive/*`)     | GitHub Actions (or Fly) + `@kody-ade/kody-engine`; engine streams events back    | `kody2/src/chat/loop.ts` (`CHAT_SYSTEM_PROMPT`)                                                                              |
+| Agent (`selectedAgentId`)                   | `backend`     | Endpoint                                                                                 | What runs                                                                      | System prompt lives in                                                                         |
+| ------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `kody`                                      | `kody-direct` | [`/api/kody/chat/kody`](../../app/api/kody/chat/kody/route.ts)                           | In-process LLM stream via the Vercel AI SDK — no Actions, no VPS, no runner    | [`src/dashboard/lib/agents.ts`](../../src/dashboard/lib/agents.ts) (`AGENT_KODY.systemPrompt`) |
+| `brain`                                     | `brain`       | [`/api/kody/chat/brain`](../../app/api/kody/chat/brain/route.ts)                         | Proxy to the user's external Brain server (URL + key from Settings)            | Brain server profile (out of repo)                                                             |
+| `brain-fly`                                 | `brain`       | [`/api/kody/chat/brain-fly`](../../app/api/kody/chat/brain-fly/route.ts)                 | Same proxy, but the Brain server is auto-provisioned on a per-user Fly Machine | Brain server profile (`kody brain-serve`, out of repo)                                         |
+| `kody-live` (**default**) / `kody-live-fly` | `kody-live`   | [`/api/kody/chat/trigger`](../../app/api/kody/chat/trigger/route.ts) (+ `interactive/*`) | GitHub Actions (or Fly) + `@kody-ade/kody-engine`; engine streams events back  | `kody2/src/chat/loop.ts` (`CHAT_SYSTEM_PROMPT`)                                                |
 
 `getAgent()` / `isValidAgentId()` resolve an unknown id back to
 `AGENT_KODY`, so a stale or bogus agent never hard-fails — it just lands on
-the in-process `kody` agent. (That's the *unresolved-id fallback*; the
-*initial* agent on a fresh composer is `kody-live` — see the FAQ.)
+the in-process `kody` agent. (That's the _unresolved-id fallback_; the
+_initial_ agent on a fresh composer is `kody-live` — see the FAQ.)
 
 ## Routing
 
@@ -141,16 +141,16 @@ notice). Use one of the three routes above — for the engine path, that's
 
 ## File reference
 
-| File                                                                                              | Purpose                                                                       |
-| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [`src/dashboard/lib/agents.ts`](../../src/dashboard/lib/agents.ts)                                | Agent registry; `backend` field drives routing; `AGENT_KODY.systemPrompt`     |
-| [`src/dashboard/lib/components/KodyChat.tsx`](../../src/dashboard/lib/components/KodyChat.tsx)     | Composer; `selectedAgentId` → branch on `currentAgent.backend` → `fetch()`    |
-| [`app/api/kody/chat/kody/route.ts`](../../app/api/kody/chat/kody/route.ts)                         | `kody-direct` — in-process AI SDK stream                                       |
-| [`app/api/kody/chat/resolve-model.ts`](../../app/api/kody/chat/resolve-model.ts)                  | Shared model/key/SDK resolution for the in-process route                      |
-| [`app/api/kody/chat/brain/route.ts`](../../app/api/kody/chat/brain/route.ts)                      | `brain` — proxy to external Brain server (headers/env creds)                  |
-| [`app/api/kody/chat/brain-fly/route.ts`](../../app/api/kody/chat/brain-fly/route.ts)              | `brain` — same proxy, Brain auto-provisioned on a per-user Fly Machine        |
-| [`app/api/kody/chat/trigger/route.ts`](../../app/api/kody/chat/trigger/route.ts)                  | `kody-live` — write session JSONL + dispatch `kody.yml`; engine streams back  |
-| [`app/api/kody/chat/route.ts`](../../app/api/kody/chat/route.ts)                                  | Deprecated legacy endpoint — `POST` → 410                                     |
+| File                                                                                           | Purpose                                                                      |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [`src/dashboard/lib/agents.ts`](../../src/dashboard/lib/agents.ts)                             | Agent registry; `backend` field drives routing; `AGENT_KODY.systemPrompt`    |
+| [`src/dashboard/lib/components/KodyChat.tsx`](../../src/dashboard/lib/components/KodyChat.tsx) | Composer; `selectedAgentId` → branch on `currentAgent.backend` → `fetch()`   |
+| [`app/api/kody/chat/kody/route.ts`](../../app/api/kody/chat/kody/route.ts)                     | `kody-direct` — in-process AI SDK stream                                     |
+| [`app/api/kody/chat/resolve-model.ts`](../../app/api/kody/chat/resolve-model.ts)               | Shared model/key/SDK resolution for the in-process route                     |
+| [`app/api/kody/chat/brain/route.ts`](../../app/api/kody/chat/brain/route.ts)                   | `brain` — proxy to external Brain server (headers/env creds)                 |
+| [`app/api/kody/chat/brain-fly/route.ts`](../../app/api/kody/chat/brain-fly/route.ts)           | `brain` — same proxy, Brain auto-provisioned on a per-user Fly Machine       |
+| [`app/api/kody/chat/trigger/route.ts`](../../app/api/kody/chat/trigger/route.ts)               | `kody-live` — write session JSONL + dispatch `kody.yml`; engine streams back |
+| [`app/api/kody/chat/route.ts`](../../app/api/kody/chat/route.ts)                               | Deprecated legacy endpoint — `POST` → 410                                    |
 
 ## FAQ
 
@@ -159,7 +159,7 @@ A fresh composer initializes to `kody-live` (`backend: "kody-live"`, the
 engine-via-Actions path) — `useState(lockedAgentId ?? "kody-live")` — unless
 the host pins an agent via `lockedAgentId`. Separately, the in-process `kody`
 (`kody-direct`) agent is the fastest option (no runner/VPS) and is where an
-*unresolved* id falls back via `getAgent()`.
+_unresolved_ id falls back via `getAgent()`.
 
 **What picks the backend?**
 The agent's `backend` field, not the agent id directly. `brain` and

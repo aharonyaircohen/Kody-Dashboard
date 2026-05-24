@@ -21,9 +21,7 @@ const FIFTEEN_MIN_MS = 15 * 60 * 1000;
 function durationSec(run: WorkflowRun, now: number): number {
   const start = new Date(run.created_at).getTime();
   const end =
-    run.status === "completed"
-      ? new Date(run.updated_at).getTime()
-      : now;
+    run.status === "completed" ? new Date(run.updated_at).getTime() : now;
   if (Number.isNaN(start) || Number.isNaN(end) || end < start) return 0;
   return Math.round((end - start) / 1000);
 }
@@ -78,13 +76,9 @@ export function buildActivitySnapshot(
   const realRuns = runs.filter((r) => !isNoise(r));
 
   const queued = realRuns.filter((r) => r.status === "queued").length;
-  const inProgress = realRuns.filter(
-    (r) => r.status === "in_progress",
-  ).length;
+  const inProgress = realRuns.filter((r) => r.status === "in_progress").length;
   const completed = realRuns.filter((r) => r.status === "completed");
-  const succeeded = completed.filter(
-    (r) => r.conclusion === "success",
-  ).length;
+  const succeeded = completed.filter((r) => r.conclusion === "success").length;
   const failed = completed.filter(
     (r) => r.conclusion === "failure" || r.conclusion === "timed_out",
   ).length;
@@ -92,9 +86,7 @@ export function buildActivitySnapshot(
   const within15m = (r: ActivityRun) =>
     now - new Date(r.createdAt).getTime() <= FIFTEEN_MIN_MS;
   const last15m = realRuns.filter(within15m);
-  const noiseLast15m = runs.filter(
-    (r) => isNoise(r) && within15m(r),
-  ).length;
+  const noiseLast15m = runs.filter((r) => isNoise(r) && within15m(r)).length;
   const byTrigger: Record<string, number> = {};
   const byCategory: Record<string, number> = {};
   const byAction: Record<string, number> = {};

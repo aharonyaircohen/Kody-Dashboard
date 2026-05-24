@@ -328,8 +328,7 @@ export function BrainFlyCard({
               <span className="text-xs text-white/60 leading-relaxed">
                 Offer &ldquo;Kody Brain (Fly)&rdquo; in the chat picker.
                 <span className="block text-[11px] text-white/35">
-                  Off by default. Chat-only — Fly task execution is
-                  unaffected.
+                  Off by default. Chat-only — Fly task execution is unaffected.
                 </span>
               </span>
             </label>

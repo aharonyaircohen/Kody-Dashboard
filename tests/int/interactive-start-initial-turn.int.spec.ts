@@ -22,14 +22,7 @@
  * (meta-only) and passes once start writes the turn atomically.
  */
 
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as startPOST } from "../../app/api/kody/chat/interactive/start/route";
@@ -107,7 +100,10 @@ describe("POST /api/kody/chat/interactive/start — atomic initial turn", () => 
     expect(res.status).toBe(200);
 
     const jsonl = await written;
-    const lines = jsonl.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const lines = jsonl
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
 
     // Line 1 is the interactive meta marker.
     expect(lines[0]).toMatchObject({ type: "meta", mode: "interactive" });
@@ -134,7 +130,10 @@ describe("POST /api/kody/chat/interactive/start — atomic initial turn", () => 
     expect(res.status).toBe(200);
 
     const jsonl = await written;
-    const lines = jsonl.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const lines = jsonl
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({ type: "meta", mode: "interactive" });
   });

@@ -73,8 +73,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { taskId, idleExitMs, hardCapMs, dashboardUrl, content, vibeMode, taskContext } =
-    body;
+  const {
+    taskId,
+    idleExitMs,
+    hardCapMs,
+    dashboardUrl,
+    content,
+    vibeMode,
+    taskContext,
+  } = body;
   if (!taskId) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
   }

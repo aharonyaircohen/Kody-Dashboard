@@ -1837,7 +1837,10 @@ export const companyApi = {
       const data = await handleResponse<{ operators: string[] }>(res);
       return data.operators;
     },
-    set: async (operators: string[], actorLogin?: string): Promise<string[]> => {
+    set: async (
+      operators: string[],
+      actorLogin?: string,
+    ): Promise<string[]> => {
       const res = await fetch(`${API_BASE}/company/operators`, {
         method: "PUT",
         headers: buildHeaders(),

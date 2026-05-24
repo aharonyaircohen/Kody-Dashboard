@@ -240,37 +240,37 @@ export function MobileMenu({
           </div>
           <div className="space-y-3 mt-1">
             {SETTINGS_NAV_SECTIONS.map((section) => (
-                <div key={section.title}>
-                  <p className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground/80">
-                    {section.title}
-                  </p>
-                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.04]">
-                    {section.items.map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          onClick={close}
-                          className="flex items-center gap-3 h-12 px-3 hover:bg-white/[0.04] transition-colors"
+              <div key={section.title}>
+                <p className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground/80">
+                  {section.title}
+                </p>
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.04]">
+                  {section.items.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={close}
+                        className="flex items-center gap-3 h-12 px-3 hover:bg-white/[0.04] transition-colors"
+                      >
+                        <span
+                          className={cn(
+                            "inline-flex h-7 w-7 items-center justify-center rounded-md",
+                            item.tint,
+                          )}
                         >
-                          <span
-                            className={cn(
-                              "inline-flex h-7 w-7 items-center justify-center rounded-md",
-                              item.tint,
-                            )}
-                          >
-                            <Icon className="w-4 h-4" />
-                          </span>
-                          <span className="text-sm font-medium flex-1 flex items-center gap-2">
-                            {item.label}
-                            {item.href === "/inbox" && <InboxBadge />}
-                          </span>
-                        </Link>
-                      );
-                    })}
-                  </div>
+                          <Icon className="w-4 h-4" />
+                        </span>
+                        <span className="text-sm font-medium flex-1 flex items-center gap-2">
+                          {item.label}
+                          {item.href === "/inbox" && <InboxBadge />}
+                        </span>
+                      </Link>
+                    );
+                  })}
                 </div>
+              </div>
             ))}
           </div>
         </div>

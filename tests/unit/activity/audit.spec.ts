@@ -12,9 +12,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   afterFns: [] as Array<() => unknown>,
-  appendDurable: vi.fn<(events: unknown[], octokit?: unknown) => Promise<boolean>>(
-    async () => true,
-  ),
+  appendDurable: vi.fn<
+    (events: unknown[], octokit?: unknown) => Promise<boolean>
+  >(async () => true),
   getRequestAuth: vi.fn(),
   resolveActor: vi.fn(),
   setGitHubContext: vi.fn(),

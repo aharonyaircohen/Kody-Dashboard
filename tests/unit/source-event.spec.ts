@@ -8,7 +8,11 @@
 import { describe, it, expect } from "vitest";
 import { buildSourceEvent } from "@dashboard/lib/notifications/source-event";
 
-const repo = { full_name: "acme/widgets", name: "widgets", owner: { login: "acme" } };
+const repo = {
+  full_name: "acme/widgets",
+  name: "widgets",
+  owner: { login: "acme" },
+};
 
 describe("buildSourceEvent", () => {
   it("returns null for an unknown event type", () => {
@@ -23,7 +27,13 @@ describe("buildSourceEvent", () => {
     const ev = buildSourceEvent("issues", {
       action: "opened",
       repository: { name: "widgets", owner: { login: "acme" } },
-      issue: { number: 7, title: "t", body: "b", html_url: "u", user: { login: "alice" } },
+      issue: {
+        number: 7,
+        title: "t",
+        body: "b",
+        html_url: "u",
+        user: { login: "alice" },
+      },
     });
     expect(ev?.repoFullName).toBe("acme/widgets");
     expect(ev?.owner).toBe("acme");
@@ -35,7 +45,11 @@ describe("buildSourceEvent", () => {
       action: "created",
       repository: repo,
       issue: { number: 12, title: "Bug", pull_request: undefined },
-      comment: { body: "hi @bob", html_url: "https://gh/c/1", user: { login: "alice", type: "User" } },
+      comment: {
+        body: "hi @bob",
+        html_url: "https://gh/c/1",
+        user: { login: "alice", type: "User" },
+      },
     });
     expect(ev).toMatchObject({
       eventType: "issue_comment",
@@ -112,7 +126,12 @@ describe("buildSourceEvent", () => {
       action: "created",
       repository: repo,
       discussion: { number: 3, title: "#general" },
-      comment: { body: "deploy green", id: 42, html_url: "u", user: { login: "carol" } },
+      comment: {
+        body: "deploy green",
+        id: 42,
+        html_url: "u",
+        user: { login: "carol" },
+      },
     });
     expect(ev?.channel).toEqual({ number: 3, commentId: 42 });
     expect(ev?.number).toBe(3);
@@ -123,7 +142,12 @@ describe("buildSourceEvent", () => {
       action: "created",
       repository: repo,
       discussion: { number: 3, title: "Roadmap" },
-      comment: { body: "thoughts", id: 42, html_url: "u", user: { login: "carol" } },
+      comment: {
+        body: "thoughts",
+        id: 42,
+        html_url: "u",
+        user: { login: "carol" },
+      },
     });
     expect(ev?.channel).toBeUndefined();
   });

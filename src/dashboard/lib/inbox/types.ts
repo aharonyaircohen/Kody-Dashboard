@@ -147,27 +147,29 @@ export function buildSnippet(
   max = 240,
 ): string {
   if (!body) return "";
-  return body
-    // HTML comments first — they can contain `*`, `_`, backticks
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/```[\s\S]*?```/g, "[code]")
-    // Unescape common markdown escapes before stripping emphasis so a
-    // literal `\[code]` becomes `[code]` instead of leaking the slash.
-    .replace(/\\([\\`*_{}[\]()#+\-.!>])/g, "$1")
-    // Preserve single-word action names in backticks; collapse everything
-    // else to [code]. A "word" here is alphanumerics, underscores, hyphens.
-    .replace(/`([a-zA-Z0-9_-]+)`/g, (_, word) => word)
-    // Collapse any remaining backtick pairs (multi-word or punctuation)
-    .replace(/`[^`]*`/g, "[code]")
-    // Bold/italic emphasis — keep the inner text. `**` must precede `*`
-    // so we don't half-strip a bold pair.
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/\*([^*\n]+)\*/g, "$1")
-    .replace(/(^|[\s(])_([^_\n]+)_(?=[\s.,;:!?)]|$)/g, "$1$2")
-    // Drop the Unicode replacement character — comes from emoji the
-    // sender's renderer mangled (e.g. cto.md's 🧭 compass).
-    .replace(/�/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, max);
+  return (
+    body
+      // HTML comments first — they can contain `*`, `_`, backticks
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/```[\s\S]*?```/g, "[code]")
+      // Unescape common markdown escapes before stripping emphasis so a
+      // literal `\[code]` becomes `[code]` instead of leaking the slash.
+      .replace(/\\([\\`*_{}[\]()#+\-.!>])/g, "$1")
+      // Preserve single-word action names in backticks; collapse everything
+      // else to [code]. A "word" here is alphanumerics, underscores, hyphens.
+      .replace(/`([a-zA-Z0-9_-]+)`/g, (_, word) => word)
+      // Collapse any remaining backtick pairs (multi-word or punctuation)
+      .replace(/`[^`]*`/g, "[code]")
+      // Bold/italic emphasis — keep the inner text. `**` must precede `*`
+      // so we don't half-strip a bold pair.
+      .replace(/\*\*([^*]+)\*\*/g, "$1")
+      .replace(/\*([^*\n]+)\*/g, "$1")
+      .replace(/(^|[\s(])_([^_\n]+)_(?=[\s.,;:!?)]|$)/g, "$1$2")
+      // Drop the Unicode replacement character — comes from emoji the
+      // sender's renderer mangled (e.g. cto.md's 🧭 compass).
+      .replace(/�/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max)
+  );
 }

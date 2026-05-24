@@ -67,7 +67,8 @@ function captureDiagnostics(): Record<string, string> {
   if (document.referrer) d.referrer = document.referrer;
   if (navigator.userAgent) d.userAgent = navigator.userAgent;
   if (navigator.platform) d.platform = navigator.platform;
-  if (window.screen) d.screen = `${window.screen.width}×${window.screen.height}`;
+  if (window.screen)
+    d.screen = `${window.screen.width}×${window.screen.height}`;
   d.viewport = `${window.innerWidth}×${window.innerHeight}`;
   try {
     d.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -77,7 +78,10 @@ function captureDiagnostics(): Record<string, string> {
   return d;
 }
 
-export function KodyBugReportDialog({ open, onClose }: KodyBugReportDialogProps) {
+export function KodyBugReportDialog({
+  open,
+  onClose,
+}: KodyBugReportDialogProps) {
   const { githubUser } = useGitHubIdentity();
 
   const [title, setTitle] = useState("");
@@ -102,7 +106,8 @@ export function KodyBugReportDialog({ open, onClose }: KodyBugReportDialogProps)
         diagnostics: captureDiagnostics(),
       }),
     onError: (error) => {
-      if (error instanceof SessionExpiredError) redirectToLogin("/report-kody-bug");
+      if (error instanceof SessionExpiredError)
+        redirectToLogin("/report-kody-bug");
     },
   });
 
@@ -155,7 +160,11 @@ export function KodyBugReportDialog({ open, onClose }: KodyBugReportDialogProps)
                 rel="noopener noreferrer"
                 className="flex-1"
               >
-                <Button type="button" variant="outline" className="w-full gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2"
+                >
                   <ExternalLink className="w-4 h-4" />
                   View on GitHub
                 </Button>

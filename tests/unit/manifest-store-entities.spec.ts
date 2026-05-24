@@ -27,7 +27,10 @@ import {
   createIssue,
   updateIssue,
 } from "@dashboard/lib/github-client";
-import { appendInboxFeed, readInboxFeed } from "@dashboard/lib/inbox/feed-server";
+import {
+  appendInboxFeed,
+  readInboxFeed,
+} from "@dashboard/lib/inbox/feed-server";
 import {
   serializeInboxFeedBody,
   INBOX_FEED_MAX_ENTRIES,

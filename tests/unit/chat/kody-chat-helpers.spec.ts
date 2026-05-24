@@ -17,8 +17,12 @@ describe("bootPhaseLabel — Fly timeline", () => {
   it("walks the Fly boot phases by elapsed seconds", () => {
     expect(bootPhaseLabel(0, "fly")).toBe("Spawning Fly machine");
     expect(bootPhaseLabel(11, "fly")).toBe("Spawning Fly machine");
-    expect(bootPhaseLabel(12, "fly")).toBe("Cloning repo & warming model proxy");
-    expect(bootPhaseLabel(34, "fly")).toBe("Cloning repo & warming model proxy");
+    expect(bootPhaseLabel(12, "fly")).toBe(
+      "Cloning repo & warming model proxy",
+    );
+    expect(bootPhaseLabel(34, "fly")).toBe(
+      "Cloning repo & warming model proxy",
+    );
     expect(bootPhaseLabel(35, "fly")).toBe("Starting engine");
     expect(bootPhaseLabel(49, "fly")).toBe("Starting engine");
     expect(bootPhaseLabel(50, "fly")).toBe("Almost ready...");

@@ -146,7 +146,9 @@ describe("applyDecision — graduation", () => {
       decision: "dismiss",
     });
     expect(ctoStats(after)!.mode).toBe("auto");
-    expect(ctoStats(after)!.consecutiveApprovals).toBe(CTO_GRADUATION_THRESHOLD);
+    expect(ctoStats(after)!.consecutiveApprovals).toBe(
+      CTO_GRADUATION_THRESHOLD,
+    );
   });
 
   it("dismiss appends a log entry so the pending slot drains", () => {
@@ -176,7 +178,12 @@ describe("applyDecision — graduation", () => {
 describe("applyDecision — per-staff isolation", () => {
   it("keeps each staff member's trust on the same action independent", () => {
     // CTO graduates `execute`; QA must NOT inherit autonomy on its own `execute`.
-    let m = approveN(EMPTY_CTO_DECISIONS_MANIFEST, CTO_GRADUATION_THRESHOLD, "execute", "cto");
+    let m = approveN(
+      EMPTY_CTO_DECISIONS_MANIFEST,
+      CTO_GRADUATION_THRESHOLD,
+      "execute",
+      "cto",
+    );
     expect(m.staff.cto.execute.mode).toBe("auto");
     expect(m.staff.qa).toBeUndefined();
 
@@ -194,7 +201,12 @@ describe("applyDecision — per-staff isolation", () => {
   });
 
   it("a reject against one staff member doesn't de-graduate another", () => {
-    let m = approveN(EMPTY_CTO_DECISIONS_MANIFEST, CTO_GRADUATION_THRESHOLD, "execute", "cto");
+    let m = approveN(
+      EMPTY_CTO_DECISIONS_MANIFEST,
+      CTO_GRADUATION_THRESHOLD,
+      "execute",
+      "cto",
+    );
     m = approveN(m, CTO_GRADUATION_THRESHOLD, "execute", "qa");
     expect(m.staff.cto.execute.mode).toBe("auto");
     expect(m.staff.qa.execute.mode).toBe("auto");
@@ -216,10 +228,20 @@ describe("parseCtoDecisionsBody — legacy migration", () => {
     const legacy = serializeLegacy({
       version: 1,
       actions: {
-        execute: { approvals: 5, rejections: 0, consecutiveApprovals: 5, mode: "ask" },
+        execute: {
+          approvals: 5,
+          rejections: 0,
+          consecutiveApprovals: 5,
+          mode: "ask",
+        },
       },
       log: [
-        { taskNumber: 7, action: "execute", decision: "approve", at: "2026-05-01T00:00:00.000Z" },
+        {
+          taskNumber: 7,
+          action: "execute",
+          decision: "approve",
+          at: "2026-05-01T00:00:00.000Z",
+        },
       ],
     });
     const m = parseCtoDecisionsBody(legacy);
@@ -263,7 +285,9 @@ describe("latestCtoDecisions — verdict + timestamp shape", () => {
       decision: "approve",
       at: "2026-05-21T08:00:00.000Z",
     });
-    expect(latestCtoDecisions(m)[staffDecisionKey(DEFAULT_STAFF_SLUG, 1574, "sync")]).toEqual({
+    expect(
+      latestCtoDecisions(m)[staffDecisionKey(DEFAULT_STAFF_SLUG, 1574, "sync")],
+    ).toEqual({
       decision: "approve",
       at: "2026-05-21T08:00:00.000Z",
     });

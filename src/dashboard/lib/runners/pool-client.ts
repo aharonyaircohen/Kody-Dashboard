@@ -74,7 +74,9 @@ export async function claimFromPool(job: PoolJob): Promise<ClaimOutcome> {
       signal: AbortSignal.timeout(20_000),
     });
     if (res.status === 200) {
-      const body = (await res.json().catch(() => ({}))) as { machineId?: string };
+      const body = (await res.json().catch(() => ({}))) as {
+        machineId?: string;
+      };
       if (body.machineId) return { ok: true, machineId: body.machineId };
       return { ok: false, reason: "pool returned no machineId" };
     }
@@ -83,7 +85,10 @@ export async function claimFromPool(job: PoolJob): Promise<ClaimOutcome> {
     return { ok: false, reason: body.reason ?? `pool HTTP ${res.status}` };
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    logger.warn({ err, url }, "pool claim failed — falling back to create-fresh");
+    logger.warn(
+      { err, url },
+      "pool claim failed — falling back to create-fresh",
+    );
     return { ok: false, reason };
   }
 }

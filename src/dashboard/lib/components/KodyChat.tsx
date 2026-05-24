@@ -118,7 +118,6 @@ import {
 } from "../duty-chat-local";
 import { isSwitchAgentDirective } from "@dashboard/lib/chat-ui-actions";
 
-
 export function KodyChat({
   context,
   actorLogin,
@@ -252,14 +251,14 @@ export function KodyChat({
   // Without this the Stop button can't cancel the in-flight stream — the
   // model keeps generating, tokens keep flowing into the assistant bubble,
   // and the user has no recourse. Mirrors the Brain backend's pattern.
-  const kodyAbortRef = useRef<AbortController | null>(null)
-  const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY
+  const kodyAbortRef = useRef<AbortController | null>(null);
+  const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY;
   const agentList = buildAgentList(
     brainConfigured,
     flyConfigured,
     brainFlyChatEnabled,
     chatModels,
-  )
+  );
   // Vibe auto-kickoff. When `vibe_start_execution` returns a
   // SwitchAgentDirective with `autoKickoff`, the dashboard records the
   // message + target issue number here so a useEffect can dispatch it
@@ -349,9 +348,7 @@ export function KodyChat({
           };
         }) => {
           if (cancelled) return;
-          setBrainFlyChatEnabled(
-            json.config?.brainFlyChatEnabled === true,
-          );
+          setBrainFlyChatEnabled(json.config?.brainFlyChatEnabled === true);
         },
       )
       .catch(() => {
@@ -668,15 +665,13 @@ export function KodyChat({
   // and wipe the visible history until a manual refresh. A short settle
   // window absorbs flickers (they revert within the same tick) while real
   // user-driven task select/clear persists well past it.
-  const [sessionStoreScope, setSessionStoreScope] = useState<
-    import("../hooks/useChatSessions").ChatSessionScope
-  >(desiredSessionScope);
+  const [sessionStoreScope, setSessionStoreScope] =
+    useState<import("../hooks/useChatSessions").ChatSessionScope>(
+      desiredSessionScope,
+    );
   useEffect(() => {
     if (desiredSessionScope === sessionStoreScope) return;
-    const t = setTimeout(
-      () => setSessionStoreScope(desiredSessionScope),
-      150,
-    );
+    const t = setTimeout(() => setSessionStoreScope(desiredSessionScope), 150);
     return () => clearTimeout(t);
   }, [desiredSessionScope, sessionStoreScope]);
   const sessionHook = useChatSessions(sessionStoreScope);
@@ -734,8 +729,7 @@ export function KodyChat({
   const isTaskMode = !!selectedTask;
   const isDutyMode = !!selectedDuty;
   const isPlannerMode = !!plannerGoal && !!plannerSessionId;
-  const isGlobalMode =
-    !isTaskMode && !isDutyMode && !isPlannerMode;
+  const isGlobalMode = !isTaskMode && !isDutyMode && !isPlannerMode;
 
   // Current messages — picked by mode.
   //  • task mode    → `taskMessages`         (loaded/saved via API)
@@ -2019,121 +2013,123 @@ export function KodyChat({
             // turn reach a terminal event on this connection?
             let reconnectRequested = false;
 
-          const applyEvent = (parsed: {
-            type?: string;
-            role?: string;
-            content?: string;
-            timestamp?: string;
-            error?: string;
-            id?: string;
-            name?: string;
-            input?: Record<string, unknown>;
-            seq?: number;
-          }) => {
-            if (typeof parsed.seq === "number" && parsed.seq > lastSeq) {
-              lastSeq = parsed.seq;
-            }
-            if (parsed.type === "chat.reconnect") {
-              // Proxy handed the turn back before the Vercel ceiling (or the
-              // upstream connection dropped). Reconnect from `lastSeq`.
-              reconnectRequested = true;
-              return;
-            }
-            if (parsed.type === "chat.message") {
-              if (
-                parsed.role !== "user" &&
-                typeof parsed.content === "string"
-              ) {
-                latestAssistantText = parsed.content;
+            const applyEvent = (parsed: {
+              type?: string;
+              role?: string;
+              content?: string;
+              timestamp?: string;
+              error?: string;
+              id?: string;
+              name?: string;
+              input?: Record<string, unknown>;
+              seq?: number;
+            }) => {
+              if (typeof parsed.seq === "number" && parsed.seq > lastSeq) {
+                lastSeq = parsed.seq;
               }
-              setMessages((prev) => {
-                const copy = [...prev];
-                const idx = copy.findIndex(
-                  (m) => m.role === "assistant" && m.isLoading,
-                );
-                if (idx >= 0) {
-                  // Preserve any toolCalls already attached to the in-flight
-                  // message so the thinking panel doesn't flicker on each text
-                  // delta.
+              if (parsed.type === "chat.reconnect") {
+                // Proxy handed the turn back before the Vercel ceiling (or the
+                // upstream connection dropped). Reconnect from `lastSeq`.
+                reconnectRequested = true;
+                return;
+              }
+              if (parsed.type === "chat.message") {
+                if (
+                  parsed.role !== "user" &&
+                  typeof parsed.content === "string"
+                ) {
+                  latestAssistantText = parsed.content;
+                }
+                setMessages((prev) => {
+                  const copy = [...prev];
+                  const idx = copy.findIndex(
+                    (m) => m.role === "assistant" && m.isLoading,
+                  );
+                  if (idx >= 0) {
+                    // Preserve any toolCalls already attached to the in-flight
+                    // message so the thinking panel doesn't flicker on each text
+                    // delta.
+                    copy[idx] = {
+                      ...copy[idx],
+                      role: (parsed.role === "user"
+                        ? "user"
+                        : "assistant") as Message["role"],
+                      content: parsed.content ?? "",
+                      timestamp: parsed.timestamp ?? copy[idx].timestamp,
+                      isLoading: true,
+                    };
+                  } else {
+                    copy.push({
+                      role: (parsed.role === "user"
+                        ? "user"
+                        : "assistant") as Message["role"],
+                      content: parsed.content ?? "",
+                      timestamp: parsed.timestamp ?? new Date().toISOString(),
+                      isLoading: true,
+                    });
+                  }
+                  return copy;
+                });
+              } else if (parsed.type === "chat.tool_use") {
+                // Attach the tool call to the current in-flight assistant
+                // message. If the text deltas haven't started yet, create a
+                // placeholder loading bubble so the panel has somewhere to live.
+                setMessages((prev) => {
+                  const copy = [...prev];
+                  let idx = copy.findIndex(
+                    (m) => m.role === "assistant" && m.isLoading,
+                  );
+                  if (idx < 0) {
+                    copy.push({
+                      role: "assistant",
+                      content: "",
+                      timestamp: parsed.timestamp ?? new Date().toISOString(),
+                      isLoading: true,
+                      toolCalls: [],
+                    });
+                    idx = copy.length - 1;
+                  }
+                  const existing = copy[idx].toolCalls ?? [];
                   copy[idx] = {
                     ...copy[idx],
-                    role: (parsed.role === "user"
-                      ? "user"
-                      : "assistant") as Message["role"],
-                    content: parsed.content ?? "",
-                    timestamp: parsed.timestamp ?? copy[idx].timestamp,
-                    isLoading: true,
+                    toolCalls: [
+                      ...existing,
+                      {
+                        name: parsed.name ?? "tool",
+                        arguments: parsed.input ?? {},
+                        status: "success",
+                      },
+                    ],
                   };
-                } else {
-                  copy.push({
-                    role: (parsed.role === "user"
-                      ? "user"
-                      : "assistant") as Message["role"],
-                    content: parsed.content ?? "",
-                    timestamp: parsed.timestamp ?? new Date().toISOString(),
-                    isLoading: true,
-                  });
-                }
-                return copy;
-              });
-            } else if (parsed.type === "chat.tool_use") {
-              // Attach the tool call to the current in-flight assistant
-              // message. If the text deltas haven't started yet, create a
-              // placeholder loading bubble so the panel has somewhere to live.
-              setMessages((prev) => {
-                const copy = [...prev];
-                let idx = copy.findIndex(
-                  (m) => m.role === "assistant" && m.isLoading,
+                  return copy;
+                });
+              } else if (parsed.type === "chat.done") {
+                turn.outcome = "done";
+                setLoading(false);
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.isLoading ? { ...m, isLoading: false } : m,
+                  ),
                 );
-                if (idx < 0) {
-                  copy.push({
-                    role: "assistant",
-                    content: "",
-                    timestamp: parsed.timestamp ?? new Date().toISOString(),
-                    isLoading: true,
-                    toolCalls: [],
-                  });
-                  idx = copy.length - 1;
-                }
-                const existing = copy[idx].toolCalls ?? [];
-                copy[idx] = {
-                  ...copy[idx],
-                  toolCalls: [
-                    ...existing,
+              } else if (parsed.type === "chat.error") {
+                turn.outcome = "error";
+                setLoading(false);
+                setMessages((prev) => {
+                  const filtered = prev.filter(
+                    (m) => !(m.role === "assistant" && m.isLoading),
+                  );
+                  return [
+                    ...filtered,
                     {
-                      name: parsed.name ?? "tool",
-                      arguments: parsed.input ?? {},
-                      status: "success",
+                      role: "assistant",
+                      content: `Error: ${parsed.error ?? "Unknown error"}`,
+                      isLoading: false,
+                      isError: true,
                     },
-                  ],
-                };
-                return copy;
-              });
-            } else if (parsed.type === "chat.done") {
-              turn.outcome = "done";
-              setLoading(false);
-              setMessages((prev) =>
-                prev.map((m) => (m.isLoading ? { ...m, isLoading: false } : m)),
-              );
-            } else if (parsed.type === "chat.error") {
-              turn.outcome = "error";
-              setLoading(false);
-              setMessages((prev) => {
-                const filtered = prev.filter(
-                  (m) => !(m.role === "assistant" && m.isLoading),
-                );
-                return [
-                  ...filtered,
-                  {
-                    role: "assistant",
-                    content: `Error: ${parsed.error ?? "Unknown error"}`,
-                    isLoading: false,
-                    isError: true,
-                  },
-                ];
-              });
-            }
-          };
+                  ];
+                });
+              }
+            };
 
             while (true) {
               const { done, value } = await reader.read();
@@ -3150,94 +3146,102 @@ export function KodyChat({
         branch?: string;
       };
     }) => {
-    const cur = liveStateRef.current.phase;
-    if (cur === "booting" || cur === "ready" || cur === "awaiting") return;
+      const cur = liveStateRef.current.phase;
+      if (cur === "booting" || cur === "ready" || cur === "awaiting") return;
 
-    // Embed the scope key in the sessionId so kody.yml's concurrency
-    // group (`kody-${sessionId}`) puts each issue in its own bucket.
-    // Two vibe issues now boot independent runners.
-    const scopeKey = currentScopeKeyRef.current;
-    const sessionId = `${scopeKey}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const startedAt = Date.now();
-    dispatchLive({ type: "START", sessionId, scopeKey, startedAt });
+      // Embed the scope key in the sessionId so kody.yml's concurrency
+      // group (`kody-${sessionId}`) puts each issue in its own bucket.
+      // Two vibe issues now boot independent runners.
+      const scopeKey = currentScopeKeyRef.current;
+      const sessionId = `${scopeKey}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const startedAt = Date.now();
+      dispatchLive({ type: "START", sessionId, scopeKey, startedAt });
 
-    try {
-      // dashboardUrl re-enabled — engine pushes events to /ingest in
-      // real time so chat replies don't wait for the 3s file-poll. Auth
-      // on /ingest is GitHub Actions IP verification (no shared secret).
-      const dashboardUrl =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/api/kody/events/ingest`
-          : undefined;
-      // Route to Fly Machines spawner when the user picked the kody-live-fly
-      // agent — same engine + same session JSONL, different runtime.
-      const isFlyRoute = selectedAgentId === "kody-live-fly";
-      const startEndpoint = isFlyRoute
-        ? "/api/kody/chat/interactive/start-fly"
-        : "/api/kody/chat/interactive/start";
-      // Fly token now lives in the repo vault (project-scoped) and is read
-      // by the start-fly route directly — no header needed. Perf tier
-      // stays per-user in localStorage and is sent as a header.
-      const flyHeader: Record<string, string> = {};
-      if (isFlyRoute) {
-        const flyPerf = getStoredFlyPerf();
-        if (flyPerf) flyHeader["x-kody-fly-perf"] = flyPerf;
-      }
-      const startRes = await fetch(startEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders(),
-          ...flyHeader,
-        },
-        body: JSON.stringify({
-          taskId: sessionId,
-          dashboardUrl,
-          idleExitMs: 5 * 60_000,
-          hardCapMs: 30 * 60_000,
-          // First turn folded into the session-create commit (atomic) so the
-          // runner sees it on first read — no racy follow-up append.
-          ...(opts?.initialContent
-            ? {
-                content: opts.initialContent,
-                timestamp: opts.initialTimestamp,
-                ...(vibeMode ? { vibeMode: true } : {}),
-                ...(vibeMode && opts.taskContext
-                  ? { taskContext: opts.taskContext }
-                  : {}),
-              }
-            : {}),
-        }),
-      });
-      if (!startRes.ok) {
-        const body = (await startRes.json().catch(() => ({}))) as {
-          error?: string;
+      try {
+        // dashboardUrl re-enabled — engine pushes events to /ingest in
+        // real time so chat replies don't wait for the 3s file-poll. Auth
+        // on /ingest is GitHub Actions IP verification (no shared secret).
+        const dashboardUrl =
+          typeof window !== "undefined"
+            ? `${window.location.origin}/api/kody/events/ingest`
+            : undefined;
+        // Route to Fly Machines spawner when the user picked the kody-live-fly
+        // agent — same engine + same session JSONL, different runtime.
+        const isFlyRoute = selectedAgentId === "kody-live-fly";
+        const startEndpoint = isFlyRoute
+          ? "/api/kody/chat/interactive/start-fly"
+          : "/api/kody/chat/interactive/start";
+        // Fly token now lives in the repo vault (project-scoped) and is read
+        // by the start-fly route directly — no header needed. Perf tier
+        // stays per-user in localStorage and is sent as a header.
+        const flyHeader: Record<string, string> = {};
+        if (isFlyRoute) {
+          const flyPerf = getStoredFlyPerf();
+          if (flyPerf) flyHeader["x-kody-fly-perf"] = flyPerf;
+        }
+        const startRes = await fetch(startEndpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders(),
+            ...flyHeader,
+          },
+          body: JSON.stringify({
+            taskId: sessionId,
+            dashboardUrl,
+            idleExitMs: 5 * 60_000,
+            hardCapMs: 30 * 60_000,
+            // First turn folded into the session-create commit (atomic) so the
+            // runner sees it on first read — no racy follow-up append.
+            ...(opts?.initialContent
+              ? {
+                  content: opts.initialContent,
+                  timestamp: opts.initialTimestamp,
+                  ...(vibeMode ? { vibeMode: true } : {}),
+                  ...(vibeMode && opts.taskContext
+                    ? { taskContext: opts.taskContext }
+                    : {}),
+                }
+              : {}),
+          }),
+        });
+        if (!startRes.ok) {
+          const body = (await startRes.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(body.error ?? `HTTP ${startRes.status}`);
+        }
+        const startBody = (await startRes.json().catch(() => ({}))) as {
+          target?: { owner: string; repo: string };
         };
-        throw new Error(body.error ?? `HTTP ${startRes.status}`);
+        if (startBody.target) {
+          // Reducer's persistence useEffect will re-save the record with the
+          // resolved target so a refresh during boot still shows the link.
+          dispatchLive({ type: "TARGET_RESOLVED", target: startBody.target });
+        }
+        startInteractivePoll(sessionId);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        dispatchLive({ type: "START_FAILED", errorMessage });
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `Failed to start live runner: ${errorMessage}`,
+            isLoading: false,
+          },
+        ]);
       }
-      const startBody = (await startRes.json().catch(() => ({}))) as {
-        target?: { owner: string; repo: string };
-      };
-      if (startBody.target) {
-        // Reducer's persistence useEffect will re-save the record with the
-        // resolved target so a refresh during boot still shows the link.
-        dispatchLive({ type: "TARGET_RESOLVED", target: startBody.target });
-      }
-      startInteractivePoll(sessionId);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      dispatchLive({ type: "START_FAILED", errorMessage });
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `Failed to start live runner: ${errorMessage}`,
-          isLoading: false,
-        },
-      ]);
-    }
-  }, [setMessages, selectedAgentId, startInteractivePoll, dispatchLive, vibeMode]);
+    },
+    [
+      setMessages,
+      selectedAgentId,
+      startInteractivePoll,
+      dispatchLive,
+      vibeMode,
+    ],
+  );
 
   // Cancel a Kody Live session locally. Closes the SSE, clears the saved
   // record for the CURRENT scope, and flips state to 'idle' so the user
@@ -3733,8 +3737,7 @@ export function KodyChat({
     if (titledSessionRef.current === session.id) return;
     titledSessionRef.current = session.id;
 
-    const sliceTitle =
-      raw.length > 48 ? `${raw.slice(0, 48).trim()}…` : raw;
+    const sliceTitle = raw.length > 48 ? `${raw.slice(0, 48).trim()}…` : raw;
 
     // Title from the USER's messages only. Assistant turns in
     // reasoning-heavy modes (Vibe) carry untagged chain-of-thought as
@@ -4041,20 +4044,19 @@ export function KodyChat({
             {/* New chat — visible in duty + planner modes (global has its own
                 Chats sidebar; task mode persists to the task). Clears the
                 active scope's ephemeral buffer so the user can start over. */}
-            {(isDutyMode || isPlannerMode) &&
-              messages.length > 0 && (
-                <button
-                  onClick={() => {
-                    setMessages([]);
-                    setToolCalls([]);
-                  }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all"
-                  title="Start a fresh chat in this scope"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">New chat</span>
-                </button>
-              )}
+            {(isDutyMode || isPlannerMode) && messages.length > 0 && (
+              <button
+                onClick={() => {
+                  setMessages([]);
+                  setToolCalls([]);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all"
+                title="Start a fresh chat in this scope"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">New chat</span>
+              </button>
+            )}
 
             {/* Session sidebar toggle (global mode only) */}
             {isGlobalMode && (
@@ -4093,7 +4095,11 @@ export function KodyChat({
               <button
                 type="button"
                 onClick={onToggleFullscreen}
-                aria-label={railFullscreen ? "Restore chat width" : "Expand chat fullscreen"}
+                aria-label={
+                  railFullscreen
+                    ? "Restore chat width"
+                    : "Expand chat fullscreen"
+                }
                 title={railFullscreen ? "Restore" : "Fullscreen"}
                 className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
               >

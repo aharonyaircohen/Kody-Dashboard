@@ -92,10 +92,7 @@ export function KodyHeader({
         {filterBar ? (
           <>
             {filterBar}
-            <div
-              className="h-5 w-px bg-white/[0.1] mx-1"
-              aria-hidden="true"
-            />
+            <div className="h-5 w-px bg-white/[0.1] mx-1" aria-hidden="true" />
           </>
         ) : null}
 

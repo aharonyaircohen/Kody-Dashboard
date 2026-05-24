@@ -47,7 +47,10 @@ describe("parseSlashTrigger", () => {
   });
 
   it("closes once whitespace follows the slug (args being typed)", () => {
-    expect(parseSlashTrigger("/plan ")).toEqual({ active: false, filter: "plan" });
+    expect(parseSlashTrigger("/plan ")).toEqual({
+      active: false,
+      filter: "plan",
+    });
     expect(parseSlashTrigger("/plan dark mode")).toEqual({
       active: false,
       filter: "plan",
@@ -60,8 +63,14 @@ describe("tokenizeArguments", () => {
     expect(tokenizeArguments("a b c")).toEqual(["a", "b", "c"]);
   });
   it("keeps quoted segments whole", () => {
-    expect(tokenizeArguments('"two words" solo')).toEqual(["two words", "solo"]);
-    expect(tokenizeArguments("'single quote' x")).toEqual(["single quote", "x"]);
+    expect(tokenizeArguments('"two words" solo')).toEqual([
+      "two words",
+      "solo",
+    ]);
+    expect(tokenizeArguments("'single quote' x")).toEqual([
+      "single quote",
+      "x",
+    ]);
   });
 });
 
@@ -100,7 +109,9 @@ describe("expandSlashCommand", () => {
   });
 
   it("expands a known slug with no args", () => {
-    expect(expandSlashCommand("/review", COMMANDS)?.text).toBe("Review this PR.");
+    expect(expandSlashCommand("/review", COMMANDS)?.text).toBe(
+      "Review this PR.",
+    );
   });
 
   it("returns null for an unknown slug or non-slash input", () => {

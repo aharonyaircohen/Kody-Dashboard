@@ -58,12 +58,20 @@ async function readOnce(
     // Unauthenticated Contents API read — only succeeds for public repos.
     const res = await fetchImpl(
       `${GITHUB_API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${VAULT_PATH}`,
-      { headers: { Accept: "application/vnd.github+json", "User-Agent": "kody-dashboard" } },
+      {
+        headers: {
+          Accept: "application/vnd.github+json",
+          "User-Agent": "kody-dashboard",
+        },
+      },
     );
     if (!res.ok) return null;
     const body = (await res.json()) as { content?: string; encoding?: string };
     if (!body.content) return null;
-    const payload = Buffer.from(body.content, (body.encoding ?? "base64") as BufferEncoding)
+    const payload = Buffer.from(
+      body.content,
+      (body.encoding ?? "base64") as BufferEncoding,
+    )
       .toString("utf8")
       .trim();
     const doc = JSON.parse(decrypt(payload)) as VaultDoc;

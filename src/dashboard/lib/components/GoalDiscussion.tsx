@@ -39,10 +39,7 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
 import type { DiscussionDisabledReason, GoalDiscussionComment } from "../api";
-import {
-  useMentionRoster,
-  type MentionEntry,
-} from "../hooks/useMentionRoster";
+import { useMentionRoster, type MentionEntry } from "../hooks/useMentionRoster";
 
 type Mention = MentionEntry;
 
@@ -210,7 +207,10 @@ function DiscussionCommentItem({
         </a>
       </div>
 
-      <div dir="auto" className="prose prose-sm dark:prose-invert max-w-none text-sm">
+      <div
+        dir="auto"
+        className="prose prose-sm dark:prose-invert max-w-none text-sm"
+      >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
@@ -480,7 +480,10 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
         {...att.dropzoneProps}
       >
         {showPreview ? (
-          <div dir="auto" className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs prose prose-sm dark:prose-invert max-w-none">
+          <div
+            dir="auto"
+            className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs prose prose-sm dark:prose-invert max-w-none"
+          >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {body || "*Nothing to preview*"}
             </ReactMarkdown>

@@ -22,7 +22,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 function badError(): Error {
-  const e = new Error("Bad credentials - https://docs.github.com/rest") as Error & {
+  const e = new Error(
+    "Bad credentials - https://docs.github.com/rest",
+  ) as Error & {
     status: number;
   };
   e.status = 401;
@@ -97,10 +99,24 @@ const bundle = {
   exportedAt: "",
   exportedFrom: "",
   staff: [
-    { slug: "cto", title: "CTO", body: "x", schedule: null, disabled: false, staff: null },
+    {
+      slug: "cto",
+      title: "CTO",
+      body: "x",
+      schedule: null,
+      disabled: false,
+      staff: null,
+    },
   ],
   duties: [
-    { slug: "nightly", title: "N", body: "y", schedule: "1d" as const, disabled: false, staff: "cto" },
+    {
+      slug: "nightly",
+      title: "N",
+      body: "y",
+      schedule: "1d" as const,
+      disabled: false,
+      staff: "cto",
+    },
   ],
   commands: [{ slug: "review", description: "d", argumentHint: "", body: "B" }],
   instructions: "Be terse.",

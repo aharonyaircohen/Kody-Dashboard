@@ -121,7 +121,8 @@ export function CommandPalette() {
       },
       {
         id: "action:theme",
-        label: theme === "dark" ? "Switch to light mode" : "Switch to dark mode",
+        label:
+          theme === "dark" ? "Switch to light mode" : "Switch to dark mode",
         group: "Actions",
         icon: theme === "dark" ? Sun : Moon,
         keywords: "theme dark light appearance",
@@ -214,7 +215,10 @@ export function CommandPalette() {
           </kbd>
         </div>
 
-        <div ref={listRef} className="max-h-[min(60vh,420px)] overflow-y-auto p-2">
+        <div
+          ref={listRef}
+          className="max-h-[min(60vh,420px)] overflow-y-auto p-2"
+        >
           {filtered.length === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">
               No matching commands.

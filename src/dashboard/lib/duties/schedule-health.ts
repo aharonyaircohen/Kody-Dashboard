@@ -36,11 +36,16 @@ const DEFAULT_CADENCE_MS = 15 * 60 * 1000;
  * Coarse health for a scheduled duty. `disabled`/`manual` are descriptive,
  * not problems; `overdue`/`never` are the actionable ones.
  */
-export function dutyScheduleHealth(d: DutyHealthInput, now: number): DutyHealth {
+export function dutyScheduleHealth(
+  d: DutyHealthInput,
+  now: number,
+): DutyHealth {
   if (d.disabled) return "disabled";
   if (d.schedule === "manual") return "manual";
 
-  const cadenceMs = d.schedule ? scheduleEveryToMs(d.schedule) : DEFAULT_CADENCE_MS;
+  const cadenceMs = d.schedule
+    ? scheduleEveryToMs(d.schedule)
+    : DEFAULT_CADENCE_MS;
 
   if (!d.lastTickAt) {
     // Never produced a state file. Only flag once it's existed long enough

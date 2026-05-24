@@ -116,15 +116,15 @@ logged-in user); reads work with any dashboard auth.
 
 ## File reference
 
-| File                                                                                            | Purpose                                                                                  |
-| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [`src/dashboard/lib/profile/files.ts`](../src/dashboard/lib/profile/files.ts)                   | Read/write/delete `.kody/profile/<slug>.md` + `loadProfileForPrompt()` (60s cache)       |
-| [`app/api/kody/profile/route.ts`](../app/api/kody/profile/route.ts)                             | `GET` (list), `POST` (create)                                                            |
-| [`app/api/kody/profile/[slug]/route.ts`](../app/api/kody/profile/%5Bslug%5D/route.ts)           | `GET` (read), `PATCH` (update body), `DELETE`                                            |
-| [`src/dashboard/lib/components/ProfileManager.tsx`](../src/dashboard/lib/components/ProfileManager.tsx) | The `/profile` page UI (list, create, edit, delete)                               |
-| [`app/(chat-rail)/profile/page.tsx`](<../app/(chat-rail)/profile/page.tsx>)                     | `/profile` route entry point                                                             |
-| [`app/api/kody/chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts)                         | Calls `loadProfileForPrompt()` and passes it as `companyProfile`                         |
-| [`app/api/kody/chat/kody/system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)         | Builds the `## Company profile` system-prompt section                                    |
+| File                                                                                                    | Purpose                                                                            |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [`src/dashboard/lib/profile/files.ts`](../src/dashboard/lib/profile/files.ts)                           | Read/write/delete `.kody/profile/<slug>.md` + `loadProfileForPrompt()` (60s cache) |
+| [`app/api/kody/profile/route.ts`](../app/api/kody/profile/route.ts)                                     | `GET` (list), `POST` (create)                                                      |
+| [`app/api/kody/profile/[slug]/route.ts`](../app/api/kody/profile/%5Bslug%5D/route.ts)                   | `GET` (read), `PATCH` (update body), `DELETE`                                      |
+| [`src/dashboard/lib/components/ProfileManager.tsx`](../src/dashboard/lib/components/ProfileManager.tsx) | The `/profile` page UI (list, create, edit, delete)                                |
+| [`app/(chat-rail)/profile/page.tsx`](<../app/(chat-rail)/profile/page.tsx>)                             | `/profile` route entry point                                                       |
+| [`app/api/kody/chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts)                                 | Calls `loadProfileForPrompt()` and passes it as `companyProfile`                   |
+| [`app/api/kody/chat/kody/system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)                 | Builds the `## Company profile` system-prompt section                              |
 
 ## FAQ
 

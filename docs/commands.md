@@ -25,7 +25,7 @@ Two layers, merged at runtime:
 | Source    | Location                    | Editable here?         |
 | --------- | --------------------------- | ---------------------- |
 | Dashboard | bundled in code (built-ins) | "Fork" forks into repo |
-| Your repo | `.kody/commands/<slug>.md`   | Yes — full CRUD        |
+| Your repo | `.kody/commands/<slug>.md`  | Yes — full CRUD        |
 
 Repo commands win on slug collision, so dropping
 `.kody/commands/review.md` in your repo overrides the built-in

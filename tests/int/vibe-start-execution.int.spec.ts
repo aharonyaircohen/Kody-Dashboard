@@ -199,7 +199,10 @@ describe("vibe_start_execution — error mapping (no directive, structured codes
     });
     // Reused branch has diverged and the merge hits a conflict.
     repo.compareResult = { status: "diverged", mergeBaseSha: "sha-merge-base" };
-    repo.mergeResult = { kind: "conflict", message: "Merge conflict in foo.ts" };
+    repo.mergeResult = {
+      kind: "conflict",
+      message: "Merge conflict in foo.ts",
+    };
     const svc = new BranchService(repo, new FakeLock());
 
     const out = await runTool(svc, {

@@ -17,7 +17,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { KeyRound, Rocket, Server, User, Users, type LucideIcon } from "lucide-react";
+import {
+  KeyRound,
+  Rocket,
+  Server,
+  User,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";

@@ -14,7 +14,9 @@ import {
 } from "@dashboard/lib/chat/agent-entries";
 import { AGENTS } from "@dashboard/lib/agents";
 
-const model = (over: Partial<ChatModelEntry> & { id: string }): ChatModelEntry => ({
+const model = (
+  over: Partial<ChatModelEntry> & { id: string },
+): ChatModelEntry => ({
   label: over.id,
   ...over,
 });

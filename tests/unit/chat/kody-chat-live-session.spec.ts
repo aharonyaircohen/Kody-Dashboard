@@ -50,7 +50,9 @@ afterEach(() => {
   delete (globalThis as { localStorage?: unknown }).localStorage;
 });
 
-const rec = (over: Partial<PersistedLiveSession> = {}): PersistedLiveSession => ({
+const rec = (
+  over: Partial<PersistedLiveSession> = {},
+): PersistedLiveSession => ({
   sessionId: "sess-1",
   state: "ready",
   startedAt: Date.now(),
@@ -68,7 +70,10 @@ describe("getLiveScopeKey", () => {
   });
 
   it("is scoped per issue in vibe mode with a task context", () => {
-    const ctx = { kind: "task", task: { issueNumber: 42 } } as unknown as ChatContext;
+    const ctx = {
+      kind: "task",
+      task: { issueNumber: 42 },
+    } as unknown as ChatContext;
     expect(getLiveScopeKey(ctx, true)).toBe("vibe-42");
   });
 });
@@ -150,14 +155,21 @@ describe("liveAuthFor", () => {
 
   it("returns the plain auth when the session has no pinned target", () => {
     installStorage({ owner: "o", repo: "r", token: "tok" });
-    expect(liveAuthFor("unknown")).toEqual({ owner: "o", repo: "r", token: "tok" });
+    expect(liveAuthFor("unknown")).toEqual({
+      owner: "o",
+      repo: "r",
+      token: "tok",
+    });
   });
 
   it("overrides owner/repo with the session's pinned dispatch target", () => {
     installStorage({ owner: "o", repo: "r", token: "tok" });
     saveLiveSession(
       "global",
-      rec({ sessionId: "pinned", target: { owner: "engine-o", repo: "engine-r" } }),
+      rec({
+        sessionId: "pinned",
+        target: { owner: "engine-o", repo: "engine-r" },
+      }),
     );
     expect(liveAuthFor("pinned")).toEqual({
       owner: "engine-o",

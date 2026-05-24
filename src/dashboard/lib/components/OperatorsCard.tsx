@@ -59,8 +59,8 @@ export function OperatorsCard() {
               <div className="flex items-start gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <span>
-                  No operators set — recommendations won&apos;t reach anyone&apos;s
-                  inbox.
+                  No operators set — recommendations won&apos;t reach
+                  anyone&apos;s inbox.
                 </span>
               </div>
             ) : (

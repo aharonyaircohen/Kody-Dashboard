@@ -87,20 +87,23 @@ async function bootRunner(
       body: JSON.stringify({ ok: true, sessionId: "mock-live" }),
     }),
   );
-  await page.route("**/api/kody/chat/interactive/append**", async (route, req) => {
-    appended = true;
-    try {
-      lastBody = JSON.parse(req.postData() ?? "null");
-    } catch {
-      /* ignore */
-    }
-    if (opts.appendResponder) return opts.appendResponder(route);
-    return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ ok: true }),
-    });
-  });
+  await page.route(
+    "**/api/kody/chat/interactive/append**",
+    async (route, req) => {
+      appended = true;
+      try {
+        lastBody = JSON.parse(req.postData() ?? "null");
+      } catch {
+        /* ignore */
+      }
+      if (opts.appendResponder) return opts.appendResponder(route);
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      });
+    },
+  );
   await page.route("**/api/kody/events/poll**", (route) => {
     const events: unknown[] = [{ event: "chat.ready", payload: {} }];
     if (appended && !delivered) {
@@ -158,9 +161,9 @@ test.describe("Chat — Kody Live default flow (mocked runner)", () => {
     expect(body.taskId, "append must carry the session id").toBeTruthy();
     expect(body.content).toBe("ping");
 
-    await expect(
-      page.getByText("pong from the runner").first(),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("pong from the runner").first()).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("an append failure surfaces an error bubble", async ({ page }) => {
@@ -180,9 +183,9 @@ test.describe("Chat — Kody Live default flow (mocked runner)", () => {
     await composer.fill("hi");
     await composer.press("Enter");
 
-    await expect(
-      page.getByText(/boom-append-failure/).first(),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/boom-append-failure/).first()).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("the composer stays usable after a successful turn (no freeze)", async ({
@@ -196,9 +199,9 @@ test.describe("Chat — Kody Live default flow (mocked runner)", () => {
     const composer = page.locator("textarea").first();
     await composer.fill("first");
     await composer.press("Enter");
-    await expect(
-      page.getByText("pong from the runner").first(),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("pong from the runner").first()).toBeVisible({
+      timeout: 15_000,
+    });
 
     // Still editable for the next turn.
     await expect(composer).toBeEnabled();

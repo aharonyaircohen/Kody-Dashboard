@@ -163,9 +163,7 @@ interface ContextControlProps {
   embedded?: boolean;
 }
 
-export function ContextControl({
-  embedded = false,
-}: ContextControlProps = {}) {
+export function ContextControl({ embedded = false }: ContextControlProps = {}) {
   return (
     <AuthGuard>
       <ContextControlInner embedded={embedded} />

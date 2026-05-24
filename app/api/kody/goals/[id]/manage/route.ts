@@ -215,7 +215,10 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({ state: next, engineDispatched }, { status: 200 });
+    return NextResponse.json(
+      { state: next, engineDispatched },
+      { status: 200 },
+    );
   } catch (err) {
     return mapGithubError(err, "failed_to_set_goal_managed");
   } finally {

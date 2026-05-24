@@ -41,14 +41,14 @@ all concrete responsibility lives in the duty that names it).
 
 So:
 
-| | Staff (persona) | Duty (job) |
-| --- | --- | --- |
-| File | `.kody/staff/<slug>.md` | `.kody/duties/<slug>.md` |
-| Answers | _Who is acting?_ | _What work, how, how often?_ |
-| Owns the schedule? | No | **Yes** (`every:`) |
-| Owns the method? | No (identity only) | **Yes** (the body) |
-| Carries `staff:` frontmatter? | No | Yes — names the persona to run as |
-| Independently scheduled? | No | Yes — the cron ticks it |
+|                               | Staff (persona)         | Duty (job)                        |
+| ----------------------------- | ----------------------- | --------------------------------- |
+| File                          | `.kody/staff/<slug>.md` | `.kody/duties/<slug>.md`          |
+| Answers                       | _Who is acting?_        | _What work, how, how often?_      |
+| Owns the schedule?            | No                      | **Yes** (`every:`)                |
+| Owns the method?              | No (identity only)      | **Yes** (the body)                |
+| Carries `staff:` frontmatter? | No                      | Yes — names the persona to run as |
+| Independently scheduled?      | No                      | Yes — the cron ticks it           |
 
 ## Duty frontmatter
 
@@ -68,6 +68,7 @@ mentions: aguyaharonyair, alice
 # Security Audit
 
 ## Job
+
 …the work the duty does, the cadence guard, allowed commands, state schema…
 ```
 
@@ -202,7 +203,7 @@ relate:
   truth.)
 - **Per-executable eligibility** — on each wake, `runScheduledFanOut` fires
   every scheduled "watch" whose own `schedule` cron matches the wake window.
-  `job-scheduler` declares `*/5 * * * *` — a *maximum* eligible cadence, not a
+  `job-scheduler` declares `*/5 * * * *` — a _maximum_ eligible cadence, not a
   second clock. Every 15-minute wake is also a multiple of 5, so `*/5` matches
   every wake, and job-scheduler effectively runs once per wake (15 min). If the
   wake were ever made faster, that `*/5` would let it run as often as every 5
@@ -217,22 +218,22 @@ comment in `kody.yml`.
 
 ## File reference
 
-| File | Purpose |
-| --- | --- |
-| [`src/dashboard/lib/staff-files.ts`](../../src/dashboard/lib/staff-files.ts) | Staff preset over the shared store (`.kody/staff`, scope `staff`) |
-| [`src/dashboard/lib/duties-files.ts`](../../src/dashboard/lib/duties-files.ts) | Duty preset over the shared store (`.kody/duties`, scope `duties`) |
-| [`src/dashboard/lib/ticked/files.ts`](../../src/dashboard/lib/ticked/files.ts) | The one ticked-file store: `createTickedFiles`, `TickFile`, read/write/list/delete |
-| [`src/dashboard/lib/ticked/frontmatter.ts`](../../src/dashboard/lib/ticked/frontmatter.ts) | Flat-YAML parser; `every:`/`staff:`/`disabled:`; cadence tokens + ms math |
-| [`src/dashboard/lib/duties-frontmatter.ts`](../../src/dashboard/lib/duties-frontmatter.ts) | Thin re-export of the frontmatter parser under `DutyFrontmatter` |
-| [`src/dashboard/lib/ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts) | "Next tick" math (`CRON_INTERVAL_MS`) + relative-time formatting |
-| [`app/api/kody/staff/route.ts`](../../app/api/kody/staff/route.ts) | `GET` list / `POST` create staff |
-| [`app/api/kody/duties/route.ts`](../../app/api/kody/duties/route.ts) | `GET` list / `POST` create duties |
-| [`.kody/staff/cto.md`](../../.kody/staff/cto.md) | Example persona (identity only) |
-| [`.kody/duties/security-audit.md`](../../.kody/duties/security-audit.md) | Example duty (frontmatter + cadence guard + state schema) |
-| `kody2/src/scripts/dispatchJobFileTicks.ts` (engine) | Scheduler fan-out: enumerate duties, skip gates, per-slug `job-tick` |
-| `kody2/src/scripts/loadJobFromFile.ts` (engine) | Tick preflight: load duty body + inject staff persona ahead of it |
-| `kody2/src/executables/job-scheduler/profile.json` (engine) | Scheduled, no-agent scheduler executable |
-| `kody2/src/executables/job-tick/profile.json` (engine) | One-shot per-duty tick executable (`--job`, `--force`) |
+| File                                                                                       | Purpose                                                                            |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| [`src/dashboard/lib/staff-files.ts`](../../src/dashboard/lib/staff-files.ts)               | Staff preset over the shared store (`.kody/staff`, scope `staff`)                  |
+| [`src/dashboard/lib/duties-files.ts`](../../src/dashboard/lib/duties-files.ts)             | Duty preset over the shared store (`.kody/duties`, scope `duties`)                 |
+| [`src/dashboard/lib/ticked/files.ts`](../../src/dashboard/lib/ticked/files.ts)             | The one ticked-file store: `createTickedFiles`, `TickFile`, read/write/list/delete |
+| [`src/dashboard/lib/ticked/frontmatter.ts`](../../src/dashboard/lib/ticked/frontmatter.ts) | Flat-YAML parser; `every:`/`staff:`/`disabled:`; cadence tokens + ms math          |
+| [`src/dashboard/lib/duties-frontmatter.ts`](../../src/dashboard/lib/duties-frontmatter.ts) | Thin re-export of the frontmatter parser under `DutyFrontmatter`                   |
+| [`src/dashboard/lib/ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts)       | "Next tick" math (`CRON_INTERVAL_MS`) + relative-time formatting                   |
+| [`app/api/kody/staff/route.ts`](../../app/api/kody/staff/route.ts)                         | `GET` list / `POST` create staff                                                   |
+| [`app/api/kody/duties/route.ts`](../../app/api/kody/duties/route.ts)                       | `GET` list / `POST` create duties                                                  |
+| [`.kody/staff/cto.md`](../../.kody/staff/cto.md)                                           | Example persona (identity only)                                                    |
+| [`.kody/duties/security-audit.md`](../../.kody/duties/security-audit.md)                   | Example duty (frontmatter + cadence guard + state schema)                          |
+| `kody2/src/scripts/dispatchJobFileTicks.ts` (engine)                                       | Scheduler fan-out: enumerate duties, skip gates, per-slug `job-tick`               |
+| `kody2/src/scripts/loadJobFromFile.ts` (engine)                                            | Tick preflight: load duty body + inject staff persona ahead of it                  |
+| `kody2/src/executables/job-scheduler/profile.json` (engine)                                | Scheduled, no-agent scheduler executable                                           |
+| `kody2/src/executables/job-tick/profile.json` (engine)                                     | One-shot per-duty tick executable (`--job`, `--force`)                             |
 
 ## FAQ
 

@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Batch-prefs read is O(n) GitHub calls when n unique logins mentioned",
+    "body": "In mention-dispatch.ts, we read prefs for every unique login in parallel after reading the push manifest. With many mentions this could be many sequential API calls against the rate-limit budget. Consider: (a) a single GitHub tree API call to read all .kody/notifications/preferences/*.json files at once (one API call), or (b) a single aggregated prefs file that mirrors the push subscriptions manifest structure and lives next to it, so we read one file instead of N.",
+    "rationale": "The notification rate-limit rules (CLAUDE.md) say every cache miss matters — 5000 req/hr shared across all users. Mention-heavy PRs with 10+ reviewers could exhaust the budget.",
+    "priority": "medium"
+  },
+  {
+    "title": "Push manifest read and prefs read are sequential on webhook hot path",
+    "body": "In mention-dispatch.ts, we read the push manifest first, then classify, then read prefs. The prefs read is on the hot path for every webhook. Consider moving prefs into the same manifest issue (read once) or caching the prefs result for the TTL duration to reduce per-event GitHub reads.",
+    "rationale": "Webhook hot path — every GitHub notification event hits this. Even with ETag/304, there's still a TCP/TLS round-trip to GitHub on every event if prefs haven't changed.",
+    "priority": "medium"
+  },
+  {
+    "title": "LocalStorage TTL on notification preferences",
+    "body": "NotificationPreferences.tsx uses localStorage as an optimistic cache but has no TTL — if the server rejects a write (e.g. 409 after retries), the UI keeps the stale localStorage value and next mount reloads from server. Consider adding a TTL to localStorage entries so the next mount always revalidates from the server.",
+    "rationale": "A rejected write can leave the UI in a state where the user's actual preferences differ from what's stored locally, and the next mount will silently overwrite with server state.",
+    "priority": "low"
+  }
+]

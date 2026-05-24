@@ -72,7 +72,5 @@ export function parseActivityJsonl(text: string): CompanyActivityRecord[] {
 export function sortActivityNewestFirst(
   records: CompanyActivityRecord[],
 ): CompanyActivityRecord[] {
-  return [...records].sort((a, b) =>
-    a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0,
-  );
+  return [...records].sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
 }

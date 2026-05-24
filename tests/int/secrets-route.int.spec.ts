@@ -41,7 +41,8 @@ vi.mock("@dashboard/lib/logger", () => ({
 }));
 // Partial mock: keep the real value-stripping `listSecretMetadata`.
 vi.mock("@dashboard/lib/vault/store", async (importActual) => {
-  const actual = await importActual<typeof import("@dashboard/lib/vault/store")>();
+  const actual =
+    await importActual<typeof import("@dashboard/lib/vault/store")>();
   return {
     ...actual,
     readVault: store.readVault,
@@ -71,7 +72,11 @@ beforeEach(() => {
   auth.requireKodyAuth.mockResolvedValue(null);
   auth.verifyActorLogin.mockResolvedValue({ identity: { login: "alice" } });
   auth.getUserOctokit.mockResolvedValue({});
-  auth.getRequestAuth.mockReturnValue({ owner: "acme", repo: "widgets", token: "t" });
+  auth.getRequestAuth.mockReturnValue({
+    owner: "acme",
+    repo: "widgets",
+    token: "t",
+  });
   cfg.isVaultConfigured.mockReturnValue(true);
   store.readVault.mockResolvedValue({
     doc: {
@@ -114,7 +119,11 @@ describe("GET /api/kody/secrets", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.secrets).toEqual([
-      { name: "EXISTING_KEY", updatedAt: "2026-01-01T00:00:00Z", updatedBy: "bob" },
+      {
+        name: "EXISTING_KEY",
+        updatedAt: "2026-01-01T00:00:00Z",
+        updatedBy: "bob",
+      },
     ]);
     expect(JSON.stringify(json)).not.toContain(SECRET_VALUE);
   });
@@ -147,7 +156,9 @@ describe("POST /api/kody/secrets", () => {
   });
 
   it("upserts the secret, invalidates cache, records the action, and never echoes the value", async () => {
-    const res = await POST(makeReq({ name: "NEW_KEY", value: "super-secret-zzz" }));
+    const res = await POST(
+      makeReq({ name: "NEW_KEY", value: "super-secret-zzz" }),
+    );
     expect(res.status).toBe(200);
 
     // The encrypted write got the new value (internally) ...
