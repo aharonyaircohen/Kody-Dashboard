@@ -163,8 +163,8 @@ in [KodyChat.tsx](src/dashboard/lib/components/KodyChat.tsx) — unless the host
 pins one). The in-process `kody` path is the fast, no-runner option and the
 fallback when an id doesn't resolve (`getAgent()` → `AGENT_KODY`).
 
-| `selectedAgentId`    | Endpoint                                                       | Backend                                  | System prompt lives in                                                                   |
-| -------------------- | -------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `selectedAgentId`               | Endpoint                                                       | Backend                                  | System prompt lives in                                                                   |
+| ------------------------------- | -------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `kody`                          | [`/api/kody/chat/kody`](app/api/kody/chat/kody/route.ts)       | In-process chat model via the AI SDK     | [`src/dashboard/lib/agents.ts`](src/dashboard/lib/agents.ts) (`AGENT_KODY.systemPrompt`) |
 | `brain` / `brain-fly`           | [`/api/kody/chat/brain`](app/api/kody/chat/brain/route.ts)     | External Brain chat server (proxied)     | Brain server profile (out of repo)                                                       |
 | `kody-live` (**default**), else | [`/api/kody/chat/trigger`](app/api/kody/chat/trigger/route.ts) | GitHub Actions + `@kody-ade/kody-engine` | `kody2/src/chat/loop.ts` (`CHAT_SYSTEM_PROMPT`)                                          |

@@ -70,199 +70,204 @@ interface Snap {
   preExisted: boolean;
 }
 
-describe.skipIf(!enabled)("manifest helpers · COMPLETE live verification", () => {
-  let octo: Octokit;
-  let owner = "";
-  let repo = "";
-  const snaps: Snap[] = [];
-  const tag = Date.now().toString(36);
+describe.skipIf(!enabled)(
+  "manifest helpers · COMPLETE live verification",
+  () => {
+    let octo: Octokit;
+    let owner = "";
+    let repo = "";
+    const snaps: Snap[] = [];
+    const tag = Date.now().toString(36);
 
-  async function snapshot(label: string): Promise<void> {
-    const res = await octo.issues.listForRepo({
-      owner,
-      repo,
-      state: "open",
-      labels: label,
-      per_page: 5,
-    });
-    const first = res.data
-      .filter((i) => !i.pull_request)
-      .sort((a, b) => a.number - b.number)[0];
-    snaps.push({
-      label,
-      number: first?.number ?? null,
-      body: first?.body ?? "",
-      preExisted: !!first,
-    });
-  }
-
-  beforeAll(async () => {
-    ({ owner, repo } = parseRepo(REPO_URL));
-    octo = new Octokit({ auth: TOKEN });
-    setGitHubContext(owner, repo, TOKEN);
-    for (const label of [
-      GOALS_MANIFEST_LABEL,
-      PUSH_SUBSCRIPTIONS_LABEL,
-      NOTIFICATIONS_MANIFEST_LABEL,
-      CTO_DECISIONS_LABEL,
-      INBOX_FEED_LABEL,
-    ]) {
-      await snapshot(label);
-    }
-  }, 60_000);
-
-  afterAll(async () => {
-    try {
-      for (const s of snaps) {
-        const cur = await octo.issues.listForRepo({
-          owner,
-          repo,
-          state: "open",
-          labels: s.label,
-          per_page: 5,
-        });
-        const live = cur.data
-          .filter((i) => !i.pull_request)
-          .sort((a, b) => a.number - b.number)[0];
-        if (!live) continue;
-        if (s.preExisted) {
-          // Restore the exact original body.
-          await octo.issues.update({
-            owner,
-            repo,
-            issue_number: live.number,
-            body: s.body,
-          });
-        } else {
-          // We created it — close so discovery (state:open) no longer sees it.
-          await octo.issues.update({
-            owner,
-            repo,
-            issue_number: live.number,
-            state: "closed",
-          });
-        }
-      }
-    } finally {
-      clearGitHubContext();
-    }
-  }, 60_000);
-
-  it("goals: create/mutate → fresh read verifies; noop leaves it untouched", async () => {
-    const id = `livetest-goal-${tag}`;
-    const out = await mutateGoalsManifest((cur) => ({
-      next: {
-        version: 1,
-        goals: [
-          ...cur.goals,
-          { id, name: "live test goal", createdAt: new Date().toISOString() },
-        ],
-      },
-      result: id,
-    }));
-    expect("issueNumber" in out).toBe(true);
-
-    const ref = await readGoalsManifestFresh();
-    expect(ref.manifest.goals.some((g) => g.id === id)).toBe(true);
-
-    const before = (await readGoalsManifestFresh()).manifest.goals.length;
-    const noop = await mutateGoalsManifest(() => ({
-      kind: "noop" as const,
-      result: "skip",
-    }));
-    expect(noop).toEqual({ kind: "noop", result: "skip" });
-    expect((await readGoalsManifestFresh()).manifest.goals.length).toBe(before);
-  }, 90_000);
-
-  it("push: subscribe round-trips; noop leaves it untouched", async () => {
-    const endpoint = `https://example.com/push/${tag}`;
-    await mutatePushManifest((cur) => ({
-      next: {
-        version: 1,
-        subscriptions: [
-          ...cur.subscriptions,
-          {
-            endpoint,
-            keys: { p256dh: "p", auth: "a" },
-            createdAt: new Date().toISOString(),
-          },
-        ],
-      },
-      result: "ok",
-    }));
-    const ref = await readPushManifest();
-    expect(ref.manifest.subscriptions.some((s) => s.endpoint === endpoint)).toBe(
-      true,
-    );
-
-    const n = ref.manifest.subscriptions.length;
-    const noop = await mutatePushManifest(() => ({
-      kind: "noop" as const,
-      result: 0,
-    }));
-    expect(noop).toEqual({ kind: "noop", result: 0 });
-    expect((await readPushManifest()).manifest.subscriptions.length).toBe(n);
-  }, 90_000);
-
-  it("notifications: add rule round-trips via fresh read", async () => {
-    const ruleId = `livetest-rule-${tag}`;
-    await mutateNotificationsManifest((cur) => ({
-      next: {
-        version: 1,
-        rules: [
-          ...cur.rules,
-          {
-            id: ruleId,
-            name: "live test",
-            enabled: true,
-            event: "task_failed",
-            channel: { type: "web-push" },
-            createdAt: new Date().toISOString(),
-          },
-        ],
-      },
-      result: ruleId,
-    }));
-    const ref = await readNotificationsManifestFresh();
-    expect(ref.manifest.rules.some((r) => r.id === ruleId)).toBe(true);
-  }, 90_000);
-
-  it("cto-decisions: approve tallies and is visible via cached read", async () => {
-    const action = `livetest-${tag}`;
-    const out = await mutateCtoDecisions((cur) => {
-      const next = applyDecision(cur, {
-        taskNumber: 1,
-        action,
-        decision: "approve",
+    async function snapshot(label: string): Promise<void> {
+      const res = await octo.issues.listForRepo({
+        owner,
+        repo,
+        state: "open",
+        labels: label,
+        per_page: 5,
       });
-      return { next, result: next.staff.cto[action].approvals };
-    });
-    expect(out.result).toBe(1);
-    expect("kind" in out).toBe(false); // never a noop union
+      const first = res.data
+        .filter((i) => !i.pull_request)
+        .sort((a, b) => a.number - b.number)[0];
+      snaps.push({
+        label,
+        number: first?.number ?? null,
+        body: first?.body ?? "",
+        preExisted: !!first,
+      });
+    }
 
-    const ledger = await readCtoDecisions();
-    expect(ledger.staff.cto[action]?.approvals).toBe(1);
-  }, 90_000);
+    beforeAll(async () => {
+      ({ owner, repo } = parseRepo(REPO_URL));
+      octo = new Octokit({ auth: TOKEN });
+      setGitHubContext(owner, repo, TOKEN);
+      for (const label of [
+        GOALS_MANIFEST_LABEL,
+        PUSH_SUBSCRIPTIONS_LABEL,
+        NOTIFICATIONS_MANIFEST_LABEL,
+        CTO_DECISIONS_LABEL,
+        INBOX_FEED_LABEL,
+      ]) {
+        await snapshot(label);
+      }
+    }, 60_000);
 
-  it("inbox-feed: append adds; dup append returns 0; empty returns 0", async () => {
-    const url = `https://example.com/i/${tag}`;
-    const e: InboxFeedEntry = {
-      id: feedEntryId("liveuser", url),
-      login: "liveuser",
-      source: "mention" as InboxFeedEntry["source"],
-      repoFullName: `${owner}/${repo}`,
-      threadType: "Issue",
-      title: "live test",
-      snippet: "s",
-      url,
-      sentAt: new Date().toISOString(),
-    };
+    afterAll(async () => {
+      try {
+        for (const s of snaps) {
+          const cur = await octo.issues.listForRepo({
+            owner,
+            repo,
+            state: "open",
+            labels: s.label,
+            per_page: 5,
+          });
+          const live = cur.data
+            .filter((i) => !i.pull_request)
+            .sort((a, b) => a.number - b.number)[0];
+          if (!live) continue;
+          if (s.preExisted) {
+            // Restore the exact original body.
+            await octo.issues.update({
+              owner,
+              repo,
+              issue_number: live.number,
+              body: s.body,
+            });
+          } else {
+            // We created it — close so discovery (state:open) no longer sees it.
+            await octo.issues.update({
+              owner,
+              repo,
+              issue_number: live.number,
+              state: "closed",
+            });
+          }
+        }
+      } finally {
+        clearGitHubContext();
+      }
+    }, 60_000);
 
-    expect(await appendInboxFeed([])).toBe(0);
-    expect(await appendInboxFeed([e])).toBe(1);
-    expect(await appendInboxFeed([e])).toBe(0); // dedupe by id
+    it("goals: create/mutate → fresh read verifies; noop leaves it untouched", async () => {
+      const id = `livetest-goal-${tag}`;
+      const out = await mutateGoalsManifest((cur) => ({
+        next: {
+          version: 1,
+          goals: [
+            ...cur.goals,
+            { id, name: "live test goal", createdAt: new Date().toISOString() },
+          ],
+        },
+        result: id,
+      }));
+      expect("issueNumber" in out).toBe(true);
 
-    const feed = await readInboxFeed();
-    expect(feed.entries.some((x) => x.id === e.id)).toBe(true);
-  }, 90_000);
-});
+      const ref = await readGoalsManifestFresh();
+      expect(ref.manifest.goals.some((g) => g.id === id)).toBe(true);
+
+      const before = (await readGoalsManifestFresh()).manifest.goals.length;
+      const noop = await mutateGoalsManifest(() => ({
+        kind: "noop" as const,
+        result: "skip",
+      }));
+      expect(noop).toEqual({ kind: "noop", result: "skip" });
+      expect((await readGoalsManifestFresh()).manifest.goals.length).toBe(
+        before,
+      );
+    }, 90_000);
+
+    it("push: subscribe round-trips; noop leaves it untouched", async () => {
+      const endpoint = `https://example.com/push/${tag}`;
+      await mutatePushManifest((cur) => ({
+        next: {
+          version: 1,
+          subscriptions: [
+            ...cur.subscriptions,
+            {
+              endpoint,
+              keys: { p256dh: "p", auth: "a" },
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+        result: "ok",
+      }));
+      const ref = await readPushManifest();
+      expect(
+        ref.manifest.subscriptions.some((s) => s.endpoint === endpoint),
+      ).toBe(true);
+
+      const n = ref.manifest.subscriptions.length;
+      const noop = await mutatePushManifest(() => ({
+        kind: "noop" as const,
+        result: 0,
+      }));
+      expect(noop).toEqual({ kind: "noop", result: 0 });
+      expect((await readPushManifest()).manifest.subscriptions.length).toBe(n);
+    }, 90_000);
+
+    it("notifications: add rule round-trips via fresh read", async () => {
+      const ruleId = `livetest-rule-${tag}`;
+      await mutateNotificationsManifest((cur) => ({
+        next: {
+          version: 1,
+          rules: [
+            ...cur.rules,
+            {
+              id: ruleId,
+              name: "live test",
+              enabled: true,
+              event: "task_failed",
+              channel: { type: "web-push" },
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+        result: ruleId,
+      }));
+      const ref = await readNotificationsManifestFresh();
+      expect(ref.manifest.rules.some((r) => r.id === ruleId)).toBe(true);
+    }, 90_000);
+
+    it("cto-decisions: approve tallies and is visible via cached read", async () => {
+      const action = `livetest-${tag}`;
+      const out = await mutateCtoDecisions((cur) => {
+        const next = applyDecision(cur, {
+          taskNumber: 1,
+          action,
+          decision: "approve",
+        });
+        return { next, result: next.staff.cto[action].approvals };
+      });
+      expect(out.result).toBe(1);
+      expect("kind" in out).toBe(false); // never a noop union
+
+      const ledger = await readCtoDecisions();
+      expect(ledger.staff.cto[action]?.approvals).toBe(1);
+    }, 90_000);
+
+    it("inbox-feed: append adds; dup append returns 0; empty returns 0", async () => {
+      const url = `https://example.com/i/${tag}`;
+      const e: InboxFeedEntry = {
+        id: feedEntryId("liveuser", url),
+        login: "liveuser",
+        source: "mention" as InboxFeedEntry["source"],
+        repoFullName: `${owner}/${repo}`,
+        threadType: "Issue",
+        title: "live test",
+        snippet: "s",
+        url,
+        sentAt: new Date().toISOString(),
+      };
+
+      expect(await appendInboxFeed([])).toBe(0);
+      expect(await appendInboxFeed([e])).toBe(1);
+      expect(await appendInboxFeed([e])).toBe(0); // dedupe by id
+
+      const feed = await readInboxFeed();
+      expect(feed.entries.some((x) => x.id === e.id)).toBe(true);
+    }, 90_000);
+  },
+);

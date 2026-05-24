@@ -195,10 +195,9 @@ describe("manifest-store · compare-and-swap", () => {
     const s = store();
 
     await expect(
-      s.mutate(
-        (cur) => ({ next: { count: cur.count + 1 }, result: 1 }),
-        { maxAttempts: 3 },
-      ),
+      s.mutate((cur) => ({ next: { count: cur.count + 1 }, result: 1 }), {
+        maxAttempts: 3,
+      }),
     ).rejects.toThrow(
       /test manifest write conflict on issue #7 \(attempt 3\/3\)/,
     );
@@ -229,8 +228,14 @@ describe("manifest-store · per-repo mutex", () => {
     const s = store();
 
     const [a, b] = await Promise.all([
-      s.mutate((cur) => ({ next: { count: cur.count + 1 }, result: cur.count })),
-      s.mutate((cur) => ({ next: { count: cur.count + 1 }, result: cur.count })),
+      s.mutate((cur) => ({
+        next: { count: cur.count + 1 },
+        result: cur.count,
+      })),
+      s.mutate((cur) => ({
+        next: { count: cur.count + 1 },
+        result: cur.count,
+      })),
     ]);
 
     const seen = [

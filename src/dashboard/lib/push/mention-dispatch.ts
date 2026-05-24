@@ -37,6 +37,9 @@ import { logger } from "../logger";
 import { dashboardThreadUrl, dashboardChannelUrl } from "../thread-link";
 import { buildSourceEvent } from "../notifications/source-event";
 import { resolveRecipients } from "../notifications/recipients";
+import { classifyNotificationType } from "../notifications/notification-types";
+import { readNotificationPrefs } from "../notifications/prefs-store";
+import type { ServerNotificationType } from "../notifications/recipients";
 import { deriveVapidKeys } from "./vapid-keys";
 import { INBOX_FEED_ISSUE_TITLE } from "../inbox/feed";
 import { PUSH_MANIFEST_ISSUE_TITLE } from "../push";
@@ -85,7 +88,7 @@ function plainSnippet(body: string, max = 180): string {
 // and tests keep working.
 export { extractMentions } from "../notifications/recipients";
 
-interface MentionEvent {
+export interface MentionEvent {
   body: string;
   author?: string;
   url?: string;
@@ -99,6 +102,12 @@ interface MentionEvent {
    * (not just `@mentions`) and deep-link into the in-app `/messages` view.
    */
   channel?: { number: number; commentId?: number };
+  /**
+   * Present when the event carries a pull_request object (pull_request events,
+   * pull_request_review events). Used by the notification-type classifier to
+   * determine `pr-merged` vs `pr-ready` for closed PRs.
+   */
+  pr?: { merged?: boolean };
 }
 
 /**
@@ -418,13 +427,49 @@ export async function dispatchMentionPushes(
       clearGitHubContext();
     }
 
+    // Classify the notification type for per-type mute enforcement.
+    // Returns null for events outside the mute-able set (e.g. discussion).
+    const action = (payload.action as string) ?? "";
+    const notificationType = classifyNotificationType(ev, eventType, action);
+
+    // Read notification prefs for all subscribers so we can filter out muted
+    // recipients. This is a batch of parallel reads keyed by userLogin.
+    // Best-effort: if any read fails we treat that user's prefs as empty.
+    const mutedTypesByLogin = new Map<string, ServerNotificationType[]>();
+    if (notificationType && subs.length > 0) {
+      const uniqueLogins = [
+        ...new Set(subs.map((s) => s.userLogin?.toLowerCase()).filter(Boolean)),
+      ] as string[];
+      setGitHubContext(owner, repo, token);
+      try {
+        const prefsResults = await Promise.all(
+          uniqueLogins.map(async (login) => {
+            try {
+              const prefs = await readNotificationPrefs(login, token);
+              return { login, mutedTypes: prefs.mutedTypes };
+            } catch {
+              return { login, mutedTypes: [] as ServerNotificationType[] };
+            }
+          }),
+        );
+        for (const { login, mutedTypes } of prefsResults) {
+          if (mutedTypes.length > 0) {
+            mutedTypesByLogin.set(login, mutedTypes);
+          }
+        }
+      } finally {
+        clearGitHubContext();
+      }
+    }
+
     // Recipients: channel messages broadcast to every subscribed teammate
     // (minus the author); everything else is gated to explicit `@mentions`.
-    // The "who" decision lives in the shared resolver — here we only log and
-    // bail early.
+    // The "who" decision lives in the shared resolver — per-type mute
+    // filtering is applied here so push AND inbox both see the same result.
     const { logins: recipients, isChannelBroadcast } = resolveRecipients(
       ev,
       subs,
+      { notificationType, mutedTypesByLogin },
     );
     if (isChannelBroadcast) {
       logger.info(

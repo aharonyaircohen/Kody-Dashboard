@@ -82,8 +82,7 @@ function dayLabel(iso: string): string {
     weekday: "long",
     month: "long",
     day: "numeric",
-    year:
-      d.getFullYear() === today.getFullYear() ? undefined : "numeric",
+    year: d.getFullYear() === today.getFullYear() ? undefined : "numeric",
   });
 }
 
@@ -116,9 +115,7 @@ function MessageMarkdown({
                 <code
                   className={cn(
                     "px-1 py-0.5 rounded text-xs",
-                    onPrimary
-                      ? "bg-primary-foreground/20"
-                      : "bg-muted",
+                    onPrimary ? "bg-primary-foreground/20" : "bg-muted",
                   )}
                   {...props}
                 >
@@ -259,9 +256,7 @@ function MessageItem({
             title={time.toLocaleString()}
             className={cn(
               "mt-0.5 block text-right text-[10px] tabular-nums leading-none hover:underline",
-              isMe
-                ? "text-primary-foreground/70"
-                : "text-muted-foreground/70",
+              isMe ? "text-primary-foreground/70" : "text-muted-foreground/70",
             )}
           >
             {timeLabel}
@@ -303,7 +298,10 @@ function MessageList({
     );
   }
   return (
-    <div ref={ref} className="flex-1 min-h-0 overflow-y-auto bg-muted/20 py-3 pb-4">
+    <div
+      ref={ref}
+      className="flex-1 min-h-0 overflow-y-auto bg-muted/20 py-3 pb-4"
+    >
       {comments.map((c, i) => {
         const prev = comments[i - 1];
         const sameDay = prev && dayKey(prev.createdAt) === dayKey(c.createdAt);
@@ -311,8 +309,7 @@ function MessageList({
           !!prev &&
           sameDay &&
           prev.author?.login === c.author?.login &&
-          new Date(c.createdAt).getTime() -
-            new Date(prev.createdAt).getTime() <
+          new Date(c.createdAt).getTime() - new Date(prev.createdAt).getTime() <
             GROUP_WINDOW_MS;
         return (
           <div key={c.id}>
@@ -411,7 +408,9 @@ function MessageComposer({
   const selectMention = (mention: Mention) => {
     const ta = textareaRef.current;
     const cursorPos = ta?.selectionStart ?? body.length;
-    const before = body.slice(0, cursorPos).replace(/@\w*$/, `@${mention.login} `);
+    const before = body
+      .slice(0, cursorPos)
+      .replace(/@\w*$/, `@${mention.login} `);
     setBody(before + body.slice(cursorPos));
     setShowMentions(false);
     setMentionQuery("");
@@ -457,12 +456,14 @@ function MessageComposer({
     setBody(body.slice(0, start) + b + selected + a + body.slice(end));
     setTimeout(() => {
       ta.focus();
-      ta.setSelectionRange(start + b.length, start + b.length + selected.length);
+      ta.setSelectionRange(
+        start + b.length,
+        start + b.length + selected.length,
+      );
     }, 0);
   };
 
-  const toolBtn =
-    "h-7 w-7 p-0 text-muted-foreground hover:text-foreground";
+  const toolBtn = "h-7 w-7 p-0 text-muted-foreground hover:text-foreground";
 
   return (
     <div
@@ -762,7 +763,10 @@ function ChannelThread({
         />
       )}
 
-      <MessageComposer channelNumber={channelNumber} channelName={channelName} />
+      <MessageComposer
+        channelNumber={channelNumber}
+        channelName={channelName}
+      />
     </div>
   );
 }
@@ -816,11 +820,7 @@ function CreateChannelForm({ onClose }: { onClose: () => void }) {
           onClick={submit}
           disabled={!name.trim() || isPending}
         >
-          {isPending ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            "Create"
-          )}
+          {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Create"}
         </Button>
       </div>
     </div>
@@ -943,10 +943,7 @@ export function MessagesView() {
     }
   };
 
-  const channels = useMemo(
-    () => (data?.enabled ? data.channels : []),
-    [data],
-  );
+  const channels = useMemo(() => (data?.enabled ? data.channels : []), [data]);
 
   // Auto-open the first channel once, on initial load only. Guarded by a
   // ref so the mobile "back to channels" action (which sets selected=null)
@@ -986,10 +983,7 @@ export function MessagesView() {
   if (data && !data.enabled) {
     return (
       <div className="p-6">
-        <DiscussionsDisabledBadge
-          reason={data.reason}
-          message={data.message}
-        />
+        <DiscussionsDisabledBadge reason={data.reason} message={data.message} />
       </div>
     );
   }

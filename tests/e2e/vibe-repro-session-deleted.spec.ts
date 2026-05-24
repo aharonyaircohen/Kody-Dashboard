@@ -16,7 +16,8 @@
 
 import { test, expect, type Page, type Route } from "@playwright/test";
 
-const BASE_URL = process.env.BASE_URL ?? "https://kody-dashboard-sable.vercel.app";
+const BASE_URL =
+  process.env.BASE_URL ?? "https://kody-dashboard-sable.vercel.app";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "";
 
@@ -30,7 +31,11 @@ function parseRepo(url: string): { owner: string; repo: string } {
   }
 }
 
-async function injectAuth(page: Page, owner: string, repo: string): Promise<void> {
+async function injectAuth(
+  page: Page,
+  owner: string,
+  repo: string,
+): Promise<void> {
   await page.evaluate(
     (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
     {
@@ -55,7 +60,10 @@ async function snapshotStorage(page: Page): Promise<Record<string, unknown>> {
         try {
           const parsed = JSON.parse(raw);
           out[k] = Array.isArray(parsed)
-            ? { __len: parsed.length, roles: parsed.map((m: { role?: string }) => m.role) }
+            ? {
+                __len: parsed.length,
+                roles: parsed.map((m: { role?: string }) => m.role),
+              }
             : parsed;
         } catch {
           out[k] = raw.slice(0, 120);
@@ -67,7 +75,10 @@ async function snapshotStorage(page: Page): Promise<Record<string, unknown>> {
 }
 
 test.describe("Vibe — REPRO: session deleted on approve", () => {
-  test.skip(!TEST_TOKEN || !TEST_REPO, "Requires E2E_GITHUB_TOKEN + E2E_GITHUB_REPO.");
+  test.skip(
+    !TEST_TOKEN || !TEST_REPO,
+    "Requires E2E_GITHUB_TOKEN + E2E_GITHUB_REPO.",
+  );
 
   test("create issue → approve execution → session must survive and runner must dispatch", async ({
     page,
@@ -85,10 +96,13 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
 
     page.on("console", (msg) => {
       const t = msg.text();
-      if (t.includes("[vibe-debug]") || msg.type() === "error") log(`CONSOLE[${msg.type()}] ${t}`);
+      if (t.includes("[vibe-debug]") || msg.type() === "error")
+        log(`CONSOLE[${msg.type()}] ${t}`);
     });
     page.on("requestfailed", (req) =>
-      log(`REQFAIL ${req.method()} ${new URL(req.url()).pathname} — ${req.failure()?.errorText ?? "?"}`),
+      log(
+        `REQFAIL ${req.method()} ${new URL(req.url()).pathname} — ${req.failure()?.errorText ?? "?"}`,
+      ),
     );
 
     // ── Tee the chat SSE stream so we can read every tool call/output. ──
@@ -112,12 +126,16 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
       } catch {
         /* non-JSON */
       }
-      log(`STREAM#${turn} start REQ task=${JSON.stringify(reqTask)} vibeMode=${reqVibe}`);
+      log(
+        `STREAM#${turn} start REQ task=${JSON.stringify(reqTask)} vibeMode=${reqVibe}`,
+      );
       let resp;
       try {
         resp = await page.request.fetch(route.request(), { timeout: 600_000 });
       } catch (err) {
-        log(`STREAM#${turn} fetch error: ${err instanceof Error ? err.message : String(err)}`);
+        log(
+          `STREAM#${turn} fetch error: ${err instanceof Error ? err.message : String(err)}`,
+        );
         await route.abort();
         streamCompletions++;
         return;
@@ -129,11 +147,17 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
         try {
           const ev = JSON.parse(m[1]) as Record<string, unknown>;
           if (ev.type === "tool-input-available") {
-            log(`STREAM#${turn} TOOL-CALL ${ev.toolName} input=${JSON.stringify(ev.input).slice(0, 200)}`);
+            log(
+              `STREAM#${turn} TOOL-CALL ${ev.toolName} input=${JSON.stringify(ev.input).slice(0, 200)}`,
+            );
           } else if (ev.type === "tool-output-available") {
-            log(`STREAM#${turn} TOOL-OUT ${JSON.stringify(ev.output).slice(0, 400)}`);
+            log(
+              `STREAM#${turn} TOOL-OUT ${JSON.stringify(ev.output).slice(0, 400)}`,
+            );
           } else if (ev.type === "error" || ev.errorText) {
-            log(`STREAM#${turn} STREAM-ERROR ${JSON.stringify(ev).slice(0, 300)}`);
+            log(
+              `STREAM#${turn} STREAM-ERROR ${JSON.stringify(ev).slice(0, 300)}`,
+            );
           }
         } catch {
           /* non-JSON data line */
@@ -179,18 +203,27 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
     // ── 2. Select the MiniMax chat model (the user's configured default). ─
     const agentTrigger = page
       .locator("button")
-      .filter({ hasText: /Kody Live|Kody Live \(Fly\)|Kody|Brain|MiniMax|GEMINI/i })
+      .filter({
+        hasText: /Kody Live|Kody Live \(Fly\)|Kody|Brain|MiniMax|GEMINI/i,
+      })
       .first();
     await agentTrigger.click();
     const listbox = page.getByRole("listbox");
     await listbox.waitFor({ state: "visible", timeout: 5_000 });
-    const miniMax = listbox.locator('[role="option"]').filter({ hasText: /MiniMax/i }).first();
-    await expect(miniMax, "MiniMax model option must be present").toBeVisible({ timeout: 5_000 });
+    const miniMax = listbox
+      .locator('[role="option"]')
+      .filter({ hasText: /MiniMax/i })
+      .first();
+    await expect(miniMax, "MiniMax model option must be present").toBeVisible({
+      timeout: 5_000,
+    });
     await miniMax.click();
     log(`selected chat agent: MiniMax`);
 
     // ── 3. Ask it to create an issue (the user's flow). ─────────────────
-    const input = page.getByPlaceholder(/ask kody|kody is waiting|ask about/i).first();
+    const input = page
+      .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
+      .first();
     await input.waitFor({ state: "visible", timeout: 30_000 });
     // TURN 1 — FORCE issue creation in this turn so we land on ?issue=N
     // BEFORE approving (the user's literal flow). Very directive so the
@@ -207,7 +240,9 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
     log(`sent TURN 1 (force-create issue) marker=${marker}`);
 
     // ── 4. Wait for turn 1 stream, then for the ?issue=N navigation. ────
-    await expect.poll(() => streamCompletions, { timeout: 300_000, intervals: [2_000] }).toBeGreaterThanOrEqual(1);
+    await expect
+      .poll(() => streamCompletions, { timeout: 300_000, intervals: [2_000] })
+      .toBeGreaterThanOrEqual(1);
     await page
       .waitForURL(/\/vibe\?issue=\d+/, { timeout: 60_000 })
       .catch(() => log("WARN: turn 1 did not navigate to ?issue=N"));
@@ -217,8 +252,15 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
       10,
     );
     const storeAfterT1 = await snapshotStorage(page);
-    const bubblesAfterT1 = (await page.locator(".prose").allTextContents().catch(() => [])).length;
-    log(`AFTER TURN 1: issue=${issueAfterTurn1} bubbles=${bubblesAfterT1} storage=${JSON.stringify(storeAfterT1)}`);
+    const bubblesAfterT1 = (
+      await page
+        .locator(".prose")
+        .allTextContents()
+        .catch(() => [])
+    ).length;
+    log(
+      `AFTER TURN 1: issue=${issueAfterTurn1} bubbles=${bubblesAfterT1} storage=${JSON.stringify(storeAfterT1)}`,
+    );
     await testInfo.attach("after-turn1.png", {
       body: await page.screenshot({ fullPage: false }),
       contentType: "image/png",
@@ -238,21 +280,34 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
       if (/task #\d+/i.test(placeholderAtT2)) break;
       await page.waitForTimeout(2_000);
     }
-    log(`composer placeholder before TURN 2 (after polling): "${placeholderAtT2}"`);
+    log(
+      `composer placeholder before TURN 2 (after polling): "${placeholderAtT2}"`,
+    );
 
     // TURN 2 — approve execution while ALREADY scoped to issue N. THIS is
     // where the user reports the session vanishing and nothing happening.
-    const input2 = page.getByPlaceholder(/ask kody|kody is waiting|ask about/i).first();
+    const input2 = page
+      .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
+      .first();
     await input2.waitFor({ state: "visible", timeout: 30_000 });
     await input2.fill("Approved — implement it now. Do not ask again.");
     await input2.press("Enter");
-    log(`sent TURN 2 (approve execution) while scoped to issue ${issueAfterTurn1}`);
+    log(
+      `sent TURN 2 (approve execution) while scoped to issue ${issueAfterTurn1}`,
+    );
     await expect
       .poll(() => streamCompletions, { timeout: 300_000, intervals: [2_000] })
       .toBeGreaterThanOrEqual(2);
     await page.waitForTimeout(6_000);
-    const bubblesAfterT2 = (await page.locator(".prose").allTextContents().catch(() => [])).length;
-    log(`AFTER TURN 2: url=${page.url()} bubbles=${bubblesAfterT2} storage=${JSON.stringify(await snapshotStorage(page))}`);
+    const bubblesAfterT2 = (
+      await page
+        .locator(".prose")
+        .allTextContents()
+        .catch(() => [])
+    ).length;
+    log(
+      `AFTER TURN 2: url=${page.url()} bubbles=${bubblesAfterT2} storage=${JSON.stringify(await snapshotStorage(page))}`,
+    );
     await testInfo.attach("after-turn2.png", {
       body: await page.screenshot({ fullPage: false }),
       contentType: "image/png",
@@ -267,28 +322,43 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
         log(`storage Δ: ${store}`);
         lastStore = store;
       }
-      if (new URL(page.url()).searchParams.get("issue") && dispatchCalls > 0) break;
+      if (new URL(page.url()).searchParams.get("issue") && dispatchCalls > 0)
+        break;
       await page.waitForTimeout(2_000);
     }
 
     // ── 7. Final snapshot + summary. ────────────────────────────────────
     const finalUrl = page.url();
-    const issueNumber = Number.parseInt(new URL(finalUrl).searchParams.get("issue") ?? "0", 10);
+    const issueNumber = Number.parseInt(
+      new URL(finalUrl).searchParams.get("issue") ?? "0",
+      10,
+    );
     const finalStore = await snapshotStorage(page);
-    const visibleMessages = await page.locator(".prose").allTextContents().catch(() => []);
+    const visibleMessages = await page
+      .locator(".prose")
+      .allTextContents()
+      .catch(() => []);
 
     log("──────── SUMMARY ────────");
     log(`finalUrl=${finalUrl}`);
     log(`issueNumber=${issueNumber}`);
     log(`streamCompletions=${streamCompletions}`);
-    log(`dispatchCalls=${dispatchCalls} endpoints=${JSON.stringify(dispatchEndpoints)}`);
+    log(
+      `dispatchCalls=${dispatchCalls} endpoints=${JSON.stringify(dispatchEndpoints)}`,
+    );
     log(`final storage=${JSON.stringify(finalStore)}`);
     log(`visible chat bubbles=${visibleMessages.length}`);
 
-    await testInfo.attach("timeline.txt", { body: timeline.join("\n"), contentType: "text/plain" });
+    await testInfo.attach("timeline.txt", {
+      body: timeline.join("\n"),
+      contentType: "text/plain",
+    });
 
     // ── SUCCESS CRITERIA (a failure here == the bug reproduced) ─────────
-    expect(issueNumber, "an issue should have been created (URL ?issue=N)").toBeGreaterThan(0);
+    expect(
+      issueNumber,
+      "an issue should have been created (URL ?issue=N)",
+    ).toBeGreaterThan(0);
 
     // The chat scope key is repo-scoped: `kody-task-chat-<owner>/<repo>:<id>`.
     // Find the conversation under ANY key that ends with the issue number,
@@ -297,7 +367,8 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
       (k) => k.startsWith("kody-task-chat-") && k.endsWith(`:${issueNumber}`),
     );
     const convoLen =
-      (finalStore[convoKey ?? ""] as { __len?: number } | undefined)?.__len ?? 0;
+      (finalStore[convoKey ?? ""] as { __len?: number } | undefined)?.__len ??
+      0;
     log(`convoKey=${convoKey ?? "(none)"} convoLen=${convoLen}`);
     expect(
       convoLen,

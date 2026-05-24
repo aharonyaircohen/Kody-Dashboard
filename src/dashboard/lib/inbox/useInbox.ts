@@ -82,7 +82,8 @@ async function clearAllRequest(
     method: "POST",
     headers,
   });
-  if (!res.ok) throw new Error(await res.text().catch(() => "clear-all failed"));
+  if (!res.ok)
+    throw new Error(await res.text().catch(() => "clear-all failed"));
   const data = (await res.json()) as InboxResponse;
   return data.entries ?? [];
 }

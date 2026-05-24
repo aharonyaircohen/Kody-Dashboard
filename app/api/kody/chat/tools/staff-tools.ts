@@ -86,9 +86,7 @@ export const createKodyStaffInputSchema = z.object({
   title: z
     .string()
     .min(1)
-    .describe(
-      "Human-readable staff title. Becomes the H1 of the staff file.",
-    ),
+    .describe("Human-readable staff title. Becomes the H1 of the staff file."),
   slug: z
     .string()
     .optional()

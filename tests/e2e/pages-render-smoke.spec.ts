@@ -125,7 +125,9 @@ test.describe("Top-level pages — render smoke", () => {
       // The shell mounted.
       await expect(page.locator("body")).toBeVisible();
 
-      const critical = errors.filter((e) => !IGNORED.some((i) => e.includes(i)));
+      const critical = errors.filter(
+        (e) => !IGNORED.some((i) => e.includes(i)),
+      );
       expect(
         critical,
         `${route} console errors:\n${critical.join("\n")}`,

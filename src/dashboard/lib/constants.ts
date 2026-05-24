@@ -110,11 +110,7 @@ export const KODY_BUG_AREAS = [
 export type KodyBugArea = (typeof KODY_BUG_AREAS)[number];
 
 /** Severity for a Kody bug (becomes a `severity:*` label). */
-export const KODY_BUG_SEVERITIES = [
-  "blocker",
-  "major",
-  "minor",
-] as const;
+export const KODY_BUG_SEVERITIES = ["blocker", "major", "minor"] as const;
 export type KodyBugSeverity = (typeof KODY_BUG_SEVERITIES)[number];
 
 /**

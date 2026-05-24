@@ -18,7 +18,10 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { getActionLog, type AuditEvent } from "@dashboard/lib/activity/action-log";
+import {
+  getActionLog,
+  type AuditEvent,
+} from "@dashboard/lib/activity/action-log";
 import { readAuditDurable } from "@dashboard/lib/activity/audit-store";
 
 export async function GET(req: NextRequest) {

@@ -37,7 +37,13 @@ export function derivePoolApiKey(): string | null {
   const raw = process.env.KODY_MASTER_KEY?.trim();
   if (!raw) return null;
   cached = Buffer.from(
-    hkdfSync("sha256", masterKeyBytes(raw), Buffer.alloc(0), POOL_API_KEY_INFO, 32),
+    hkdfSync(
+      "sha256",
+      masterKeyBytes(raw),
+      Buffer.alloc(0),
+      POOL_API_KEY_INFO,
+      32,
+    ),
   ).toString("hex");
   return cached;
 }

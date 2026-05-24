@@ -32,7 +32,10 @@ import {
   pickEngineDefaultModel,
   engineModelSpec,
 } from "@dashboard/lib/variables/models";
-import { getEngineConfig, writeEngineModel } from "@dashboard/lib/engine/config";
+import {
+  getEngineConfig,
+  writeEngineModel,
+} from "@dashboard/lib/engine/config";
 import { logger } from "@dashboard/lib/logger";
 
 const PutSchema = z.object({

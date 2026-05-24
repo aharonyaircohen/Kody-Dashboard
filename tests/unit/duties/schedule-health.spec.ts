@@ -28,31 +28,37 @@ function duty(over: Partial<DutyHealthInput>): DutyHealthInput {
 describe("dutyScheduleHealth", () => {
   it("reports disabled and manual as descriptive (not problems)", () => {
     expect(dutyScheduleHealth(duty({ disabled: true }), NOW)).toBe("disabled");
-    expect(dutyScheduleHealth(duty({ schedule: "manual" }), NOW)).toBe("manual");
+    expect(dutyScheduleHealth(duty({ schedule: "manual" }), NOW)).toBe(
+      "manual",
+    );
   });
 
   it("is ok when the next-eligible time is still in the future", () => {
-    expect(dutyScheduleHealth(duty({ nextEligibleAt: ahead(20 * MIN) }), NOW)).toBe(
-      "ok",
-    );
+    expect(
+      dutyScheduleHealth(duty({ nextEligibleAt: ahead(20 * MIN) }), NOW),
+    ).toBe("ok");
   });
 
   it("is ok within the cron grace window after next-eligible passes", () => {
-    expect(dutyScheduleHealth(duty({ nextEligibleAt: ago(10 * MIN) }), NOW)).toBe(
-      "ok",
-    );
+    expect(
+      dutyScheduleHealth(duty({ nextEligibleAt: ago(10 * MIN) }), NOW),
+    ).toBe("ok");
   });
 
   it("flags overdue once next-eligible passed beyond the grace window", () => {
-    expect(dutyScheduleHealth(duty({ nextEligibleAt: ago(45 * MIN) }), NOW)).toBe(
-      "overdue",
-    );
+    expect(
+      dutyScheduleHealth(duty({ nextEligibleAt: ago(45 * MIN) }), NOW),
+    ).toBe("overdue");
   });
 
   it("flags never-run for an old scheduled duty with no state file", () => {
     expect(
       dutyScheduleHealth(
-        duty({ lastTickAt: null, nextEligibleAt: null, updatedAt: ago(5 * HOUR) }),
+        duty({
+          lastTickAt: null,
+          nextEligibleAt: null,
+          updatedAt: ago(5 * HOUR),
+        }),
         NOW,
       ),
     ).toBe("never");
@@ -61,7 +67,11 @@ describe("dutyScheduleHealth", () => {
   it("does not flag a freshly-created duty that hasn't ticked yet", () => {
     expect(
       dutyScheduleHealth(
-        duty({ lastTickAt: null, nextEligibleAt: null, updatedAt: ago(2 * MIN) }),
+        duty({
+          lastTickAt: null,
+          nextEligibleAt: null,
+          updatedAt: ago(2 * MIN),
+        }),
         NOW,
       ),
     ).toBe("ok");
@@ -71,7 +81,12 @@ describe("dutyScheduleHealth", () => {
     // 40m old, never ticked, no explicit cadence → past 15m+grace → never.
     expect(
       dutyScheduleHealth(
-        duty({ schedule: null, lastTickAt: null, nextEligibleAt: null, updatedAt: ago(40 * MIN) }),
+        duty({
+          schedule: null,
+          lastTickAt: null,
+          nextEligibleAt: null,
+          updatedAt: ago(40 * MIN),
+        }),
         NOW,
       ),
     ).toBe("never");
@@ -84,7 +99,11 @@ describe("summarizeDutyHealth", () => {
       duty({}), // ok
       duty({ nextEligibleAt: ago(60 * MIN) }), // overdue
       duty({ nextEligibleAt: ago(90 * MIN) }), // overdue
-      duty({ lastTickAt: null, nextEligibleAt: null, updatedAt: ago(8 * HOUR) }), // never
+      duty({
+        lastTickAt: null,
+        nextEligibleAt: null,
+        updatedAt: ago(8 * HOUR),
+      }), // never
       duty({ disabled: true }), // disabled (ignored)
     ];
     expect(summarizeDutyHealth(list, NOW)).toEqual({ overdue: 2, never: 1 });

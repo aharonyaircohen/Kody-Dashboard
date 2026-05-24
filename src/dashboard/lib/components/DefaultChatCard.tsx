@@ -38,7 +38,11 @@ const AUTO = "__auto__";
 function authHeaders(): Record<string, string> {
   const a = getStoredAuth();
   return a
-    ? { "x-kody-token": a.token, "x-kody-owner": a.owner, "x-kody-repo": a.repo }
+    ? {
+        "x-kody-token": a.token,
+        "x-kody-owner": a.owner,
+        "x-kody-repo": a.repo,
+      }
     : {};
 }
 
@@ -69,7 +73,8 @@ export function DefaultChatCard() {
     fetch("/api/kody/models", { headers })
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((json: { models?: ChatModelEntry[] }) => {
-        if (!cancelled) setModels(Array.isArray(json.models) ? json.models : []);
+        if (!cancelled)
+          setModels(Array.isArray(json.models) ? json.models : []);
       })
       .catch(() => {
         if (!cancelled) setModels([]);

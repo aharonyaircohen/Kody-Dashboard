@@ -11,7 +11,11 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { randomBytes } from "crypto";
-import { encrypt, decrypt, isVaultConfigured } from "@dashboard/lib/vault/crypto";
+import {
+  encrypt,
+  decrypt,
+  isVaultConfigured,
+} from "@dashboard/lib/vault/crypto";
 
 const HEX_KEY = randomBytes(32).toString("hex"); // 64 hex chars
 const B64_KEY = randomBytes(32).toString("base64"); // 44 base64 chars
@@ -60,13 +64,17 @@ describe("vault crypto", () => {
   });
 
   it("rejects a malformed payload format", () => {
-    expect(() => decrypt("not-a-valid-payload")).toThrow(/Invalid vault payload/);
+    expect(() => decrypt("not-a-valid-payload")).toThrow(
+      /Invalid vault payload/,
+    );
     expect(() => decrypt("v1:only:three")).toThrow(/Invalid vault payload/);
   });
 
   it("rejects an unknown version prefix", () => {
     const [, iv, ct, tag] = encrypt("secret").split(":");
-    expect(() => decrypt(`v2:${iv}:${ct}:${tag}`)).toThrow(/Invalid vault payload/);
+    expect(() => decrypt(`v2:${iv}:${ct}:${tag}`)).toThrow(
+      /Invalid vault payload/,
+    );
   });
 
   it("accepts a base64-encoded 32-byte key", () => {

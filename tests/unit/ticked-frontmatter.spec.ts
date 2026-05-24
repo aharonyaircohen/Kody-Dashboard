@@ -24,7 +24,8 @@ describe("splitFrontmatter", () => {
   });
 
   it("parses every / disabled / staff and strips the block from the body", () => {
-    const raw = "---\nevery: 1h\nstaff: triage-bot\ndisabled: true\n---\nDo the thing\n";
+    const raw =
+      "---\nevery: 1h\nstaff: triage-bot\ndisabled: true\n---\nDo the thing\n";
     const { frontmatter, body } = splitFrontmatter(raw);
     expect(frontmatter).toEqual({
       every: "1h",
@@ -48,9 +49,15 @@ describe("splitFrontmatter", () => {
   });
 
   it("reads disabled case-insensitively and ignores non-boolean values", () => {
-    expect(splitFrontmatter("---\ndisabled: TRUE\n---\nx").frontmatter.disabled).toBe(true);
-    expect(splitFrontmatter("---\ndisabled: False\n---\nx").frontmatter.disabled).toBe(false);
-    expect(splitFrontmatter("---\ndisabled: maybe\n---\nx").frontmatter.disabled).toBeUndefined();
+    expect(
+      splitFrontmatter("---\ndisabled: TRUE\n---\nx").frontmatter.disabled,
+    ).toBe(true);
+    expect(
+      splitFrontmatter("---\ndisabled: False\n---\nx").frontmatter.disabled,
+    ).toBe(false);
+    expect(
+      splitFrontmatter("---\ndisabled: maybe\n---\nx").frontmatter.disabled,
+    ).toBeUndefined();
   });
 
   it("ignores comments and unknown keys", () => {
@@ -61,14 +68,18 @@ describe("splitFrontmatter", () => {
   });
 
   it("strips surrounding quotes from values", () => {
-    expect(splitFrontmatter("---\nstaff: \"my-bot\"\n---\nx").frontmatter.staff).toBe("my-bot");
-    expect(splitFrontmatter("---\nstaff: 'my-bot'\n---\nx").frontmatter.staff).toBe("my-bot");
+    expect(
+      splitFrontmatter('---\nstaff: "my-bot"\n---\nx').frontmatter.staff,
+    ).toBe("my-bot");
+    expect(
+      splitFrontmatter("---\nstaff: 'my-bot'\n---\nx").frontmatter.staff,
+    ).toBe("my-bot");
   });
 
   it("parses mentions as a comma-separated login list", () => {
     expect(
-      splitFrontmatter("---\nmentions: aguyaharonyair, alice\n---\nx").frontmatter
-        .mentions,
+      splitFrontmatter("---\nmentions: aguyaharonyair, alice\n---\nx")
+        .frontmatter.mentions,
     ).toEqual(["aguyaharonyair", "alice"]);
   });
 
@@ -101,7 +112,9 @@ describe("joinFrontmatter", () => {
   });
 
   it("emits disabled:true explicitly", () => {
-    expect(joinFrontmatter({ disabled: true }, "body")).toContain("disabled: true");
+    expect(joinFrontmatter({ disabled: true }, "body")).toContain(
+      "disabled: true",
+    );
   });
 
   it("emits mentions as a comma-joined line after staff, no @", () => {
@@ -119,7 +132,11 @@ describe("joinFrontmatter", () => {
   });
 
   it("round-trips through splitFrontmatter", () => {
-    const fm: TickFrontmatter = { every: "7d", staff: "weekly", disabled: true };
+    const fm: TickFrontmatter = {
+      every: "7d",
+      staff: "weekly",
+      disabled: true,
+    };
     const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
     expect(frontmatter).toEqual(fm);
   });

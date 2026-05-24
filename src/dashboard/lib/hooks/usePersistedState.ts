@@ -101,11 +101,14 @@ export function usePersistedSet(
 
   const has = useCallback((id: string) => arr.includes(id), [arr]);
 
-  const toggle = useCallback((id: string) => {
-    setArr((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  }, [setArr]);
+  const toggle = useCallback(
+    (id: string) => {
+      setArr((prev) =>
+        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+      );
+    },
+    [setArr],
+  );
 
   const setSet = useCallback(
     (next: Set<string>) => setArr([...next]),

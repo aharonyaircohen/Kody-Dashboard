@@ -297,7 +297,10 @@ export async function PUT(
       detail: `set goal state → ${parsed.data.state}`,
     });
 
-    return NextResponse.json({ state: next, engineDispatched }, { status: 200 });
+    return NextResponse.json(
+      { state: next, engineDispatched },
+      { status: 200 },
+    );
   } catch (err) {
     return mapGithubError(err, "failed_to_write_goal_state");
   } finally {

@@ -73,25 +73,33 @@ export function PushToggle({ userLogin, label }: PushToggleProps) {
         return <span className="text-[10px] text-destructive">Blocked</span>;
       case "off":
         return (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void enable()}
-            className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50"
-          >
-            {busy ? "…" : "Enable"}
-          </button>
+          <span className="flex items-center gap-1.5">
+            <span className="text-[10px] font-medium text-muted-foreground">
+              Off
+            </span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void enable()}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50"
+            >
+              {busy ? "…" : "Enable"}
+            </button>
+          </span>
         );
       case "on":
         return (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void disable()}
-            className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground hover:bg-accent disabled:opacity-50"
-          >
-            {busy ? "…" : "Disable"}
-          </button>
+          <span className="flex items-center gap-1.5">
+            <span className="text-[10px] font-medium text-primary">On</span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void disable()}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground hover:bg-accent disabled:opacity-50"
+            >
+              {busy ? "…" : "Disable"}
+            </button>
+          </span>
         );
     }
   };

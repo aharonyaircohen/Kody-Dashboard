@@ -27,9 +27,7 @@ export function extractStaffMentions(
   body: string,
   knownSlugs: Iterable<string>,
 ): string[] {
-  const known = new Set(
-    Array.from(knownSlugs, (s) => s.toLowerCase()),
-  );
+  const known = new Set(Array.from(knownSlugs, (s) => s.toLowerCase()));
   if (known.size === 0 || !body) return [];
 
   const seen = new Set<string>();

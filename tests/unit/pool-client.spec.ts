@@ -31,8 +31,11 @@ describe("claimFromPool", () => {
   it("returns ok with machineId on 200", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(JSON.stringify({ ok: true, machineId: "m123" }), { status: 200 }),
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ ok: true, machineId: "m123" }), {
+            status: 200,
+          }),
       ),
     );
     const out = await claimFromPool(JOB);
@@ -42,8 +45,11 @@ describe("claimFromPool", () => {
   it("returns ok:false on 503 (empty pool → caller falls back)", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(JSON.stringify({ ok: false, reason: "pool empty" }), { status: 503 }),
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ ok: false, reason: "pool empty" }), {
+            status: 503,
+          }),
       ),
     );
     const out = await claimFromPool(JOB);
@@ -75,7 +81,9 @@ describe("claimFromPool", () => {
   it("returns ok:false when 200 lacks a machineId", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 })),
+      vi.fn(
+        async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      ),
     );
     const out = await claimFromPool(JOB);
     expect(out.ok).toBe(false);

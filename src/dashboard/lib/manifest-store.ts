@@ -239,7 +239,9 @@ export function createManifestStore<M>(
 
       throw (
         lastError ??
-        new Error(`${name} write conflict: failed after ${maxAttempts} attempts`)
+        new Error(
+          `${name} write conflict: failed after ${maxAttempts} attempts`,
+        )
       );
     });
   }

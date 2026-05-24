@@ -13,14 +13,14 @@ through the dashboard once you're logged in.
 
 ## Stores at a glance
 
-| Store         | Page         | In the repo             | Secret?         | Doc                                     |
-| ------------- | ------------ | ----------------------- | --------------- | --------------------------------------- |
-| **Staff**     | `/staff`     | `.kody/staff/*.md`      | No (plaintext)  | [Staff & Duties](./concepts/staff-duties.md) |
-| **Duties**    | `/duties`    | `.kody/duties/*.md`     | No (plaintext)  | [Staff & Duties](./concepts/staff-duties.md) |
-| **Commands**   | `/commands`   | `.kody/commands/*.md`    | No (plaintext)  | [Commands](./commands.md)                 |
-| **Secrets**   | `/secrets`   | `.kody/secrets.enc`     | **Yes** (AES-256-GCM) | [Secrets vault](./secrets-vault.md)     |
-| **Variables** | `/variables` | `.kody/variables.json`  | No (plaintext)  | [Variables](./variables.md)             |
-| **Profile**   | `/profile`   | `.kody/profile/*.md`    | No (plaintext)  | [Company profile](./profile.md)         |
+| Store         | Page         | In the repo            | Secret?               | Doc                                          |
+| ------------- | ------------ | ---------------------- | --------------------- | -------------------------------------------- |
+| **Staff**     | `/staff`     | `.kody/staff/*.md`     | No (plaintext)        | [Staff & Duties](./concepts/staff-duties.md) |
+| **Duties**    | `/duties`    | `.kody/duties/*.md`    | No (plaintext)        | [Staff & Duties](./concepts/staff-duties.md) |
+| **Commands**  | `/commands`  | `.kody/commands/*.md`  | No (plaintext)        | [Commands](./commands.md)                    |
+| **Secrets**   | `/secrets`   | `.kody/secrets.enc`    | **Yes** (AES-256-GCM) | [Secrets vault](./secrets-vault.md)          |
+| **Variables** | `/variables` | `.kody/variables.json` | No (plaintext)        | [Variables](./variables.md)                  |
+| **Profile**   | `/profile`   | `.kody/profile/*.md`   | No (plaintext)        | [Company profile](./profile.md)              |
 
 Each store is per-repo: switch the connected repo and you're editing a
 different set of files. All writes commit to the repo through the GitHub
@@ -30,8 +30,8 @@ Contents API, so changes show up in the repo history.
 
 ### Staff — `/staff`
 
-Identity-only personas: a staff file says *who* an agent is (intent,
-values, allowed commands, restrictions) and nothing about *what* it does
+Identity-only personas: a staff file says _who_ an agent is (intent,
+values, allowed commands, restrictions) and nothing about _what_ it does
 on a schedule. Duties reference a staff member by slug; the engine
 injects the persona ahead of the duty body at run time. Keep these pure
 identity — no tasks or domains. See

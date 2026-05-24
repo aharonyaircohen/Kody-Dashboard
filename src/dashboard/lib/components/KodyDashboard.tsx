@@ -225,7 +225,10 @@ export function KodyDashboard({
     // (/new, /bug). The modal owns the foreground; background list will
     // refresh on close via invalidation.
     refetchInterval:
-      selectedIssueNumber || showCreateDialog || showBugDialog || showKodyBugDialog
+      selectedIssueNumber ||
+      showCreateDialog ||
+      showBugDialog ||
+      showKodyBugDialog
         ? false
         : "auto",
   });
@@ -303,9 +306,7 @@ export function KodyDashboard({
     () =>
       selectedIssueNumber
         ? (tasks.find((t) => t.issueNumber === selectedIssueNumber) ??
-          tasks.find(
-            (t) => t.associatedPR?.number === selectedIssueNumber,
-          ) ??
+          tasks.find((t) => t.associatedPR?.number === selectedIssueNumber) ??
           fetchedSelected?.task ??
           null)
         : null,

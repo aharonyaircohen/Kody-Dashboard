@@ -6,12 +6,14 @@
  * @ai-summary Settings panel for notification preferences (per-type toggles, sound, browser)
  */
 
+import { useEffect, useRef } from "react";
 import { ArrowLeft, Volume2, VolumeX, Monitor, Bell, Play } from "lucide-react";
 import { cn } from "@dashboard/lib/utils/ui";
 import type { UseNotificationStoreReturn } from "./useNotificationStore";
 import { NOTIFICATION_META, type NotificationType } from "./types";
 import { playNotificationSound } from "./sounds";
 import { PushToggle } from "@dashboard/lib/push/PushToggle";
+import { getStoredAuth } from "../api";
 
 interface NotificationPreferencesProps {
   store: UseNotificationStoreReturn;
@@ -43,6 +45,61 @@ export function NotificationPreferences({
   onClose,
 }: NotificationPreferencesProps) {
   const { prefs, updatePrefs, toggleType, isTypeEnabled } = store;
+
+  // On mount: load server prefs and merge with localStorage.
+  // Server prefs are authoritative; localStorage is the optimistic cache.
+  useEffect(() => {
+    let ignore = false;
+    async function loadServerPrefs() {
+      const auth = getStoredAuth();
+      if (!auth) return;
+      try {
+        const res = await fetch("/api/notifications/preferences", {
+          headers: {
+            "Content-Type": "application/json",
+            "x-kody-token": auth.token,
+            "x-kody-owner": auth.owner,
+            "x-kody-repo": auth.repo,
+          },
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { mutedTypes?: string[] };
+        if (!ignore && Array.isArray(data.mutedTypes)) {
+          updatePrefs({ disabledTypes: data.mutedTypes as NotificationType[] });
+        }
+      } catch {
+        // Best-effort: if the server fetch fails, keep using localStorage.
+      }
+    }
+    void loadServerPrefs();
+    return () => {
+      ignore = true;
+    };
+  }, [updatePrefs]);
+
+  // Sync disabledTypes to the server whenever they change (user made a toggle).
+  // Fire-and-forget: failures are non-blocking; the next successful toggle
+  // or page reload will re-sync.
+  const prevDisabledTypesRef = useRef(prefs.disabledTypes);
+  useEffect(() => {
+    const prev = prevDisabledTypesRef.current;
+    if (prev === prefs.disabledTypes) return;
+    prevDisabledTypesRef.current = prefs.disabledTypes;
+    const auth = getStoredAuth();
+    if (!auth) return;
+    void fetch("/api/notifications/preferences", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-kody-token": auth.token,
+        "x-kody-owner": auth.owner,
+        "x-kody-repo": auth.repo,
+      },
+      body: JSON.stringify({ mutedTypes: prefs.disabledTypes }),
+    }).catch(() => {
+      /* best-effort */
+    });
+  }, [prefs.disabledTypes]);
 
   return (
     <div className="max-h-[400px] overflow-y-auto">

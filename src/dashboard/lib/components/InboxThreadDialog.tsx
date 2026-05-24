@@ -217,9 +217,7 @@ export function InboxThreadDialog({
               {thread.body ? (
                 <MarkdownViewer content={thread.body} title="Description" />
               ) : (
-                <p className="text-xs text-white/40 italic">
-                  No description.
-                </p>
+                <p className="text-xs text-white/40 italic">No description.</p>
               )}
 
               {thread.comments.length > 0 && (

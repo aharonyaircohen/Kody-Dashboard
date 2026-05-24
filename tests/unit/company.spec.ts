@@ -128,38 +128,94 @@ describe("companyBundleSchema", () => {
     const parsed = companyBundleSchema.parse({
       ...base,
       duties: [
-        { slug: "nightly", title: "Nightly", body: "do it", schedule: "1d", staff: "cto" },
+        {
+          slug: "nightly",
+          title: "Nightly",
+          body: "do it",
+          schedule: "1d",
+          staff: "cto",
+        },
         { slug: "ad-hoc", title: "Ad hoc" },
       ],
     });
-    expect(parsed.duties[0]).toMatchObject({ schedule: "1d", staff: "cto", disabled: false });
-    expect(parsed.duties[1]).toMatchObject({ schedule: null, staff: null, disabled: false, body: "" });
+    expect(parsed.duties[0]).toMatchObject({
+      schedule: "1d",
+      staff: "cto",
+      disabled: false,
+    });
+    expect(parsed.duties[1]).toMatchObject({
+      schedule: null,
+      staff: null,
+      disabled: false,
+      body: "",
+    });
   });
 });
 
 describe("buildCompanyBundle", () => {
   it("maps the four reads into the portable shape and drops built-in commands", async () => {
-    h.listStaffFiles.mockResolvedValue([tickFile({ slug: "cto", title: "CTO" })]);
+    h.listStaffFiles.mockResolvedValue([
+      tickFile({ slug: "cto", title: "CTO" }),
+    ]);
     h.listDutyFiles.mockResolvedValue([
-      tickFile({ slug: "nightly", title: "Nightly", schedule: "1d", staff: "cto" }),
+      tickFile({
+        slug: "nightly",
+        title: "Nightly",
+        schedule: "1d",
+        staff: "cto",
+      }),
     ]);
     h.listRepoCommandFiles.mockResolvedValue({
       commands: [
-        { slug: "review", description: "d", argumentHint: "<x>", body: "B", source: "repo", sha: "s", updatedAt: "", htmlUrl: "" },
-        { slug: "plan", description: "d", argumentHint: "", body: "B", source: "builtin", sha: "", updatedAt: "", htmlUrl: "" },
+        {
+          slug: "review",
+          description: "d",
+          argumentHint: "<x>",
+          body: "B",
+          source: "repo",
+          sha: "s",
+          updatedAt: "",
+          htmlUrl: "",
+        },
+        {
+          slug: "plan",
+          description: "d",
+          argumentHint: "",
+          body: "B",
+          source: "builtin",
+          sha: "",
+          updatedAt: "",
+          htmlUrl: "",
+        },
       ],
       builtinsDisabled: false,
     });
-    h.readInstructionsFile.mockResolvedValue({ body: "Be terse.", sha: "i", updatedAt: "", htmlUrl: "" });
+    h.readInstructionsFile.mockResolvedValue({
+      body: "Be terse.",
+      sha: "i",
+      updatedAt: "",
+      htmlUrl: "",
+    });
 
     const bundle = await buildCompanyBundle();
 
     expect(bundle.kodyCompany).toBe(COMPANY_BUNDLE_VERSION);
     expect(bundle.exportedFrom).toBe("acme/widgets");
     expect(bundle.staff).toEqual([
-      { slug: "cto", title: "CTO", body: "b", schedule: null, disabled: false, staff: null },
+      {
+        slug: "cto",
+        title: "CTO",
+        body: "b",
+        schedule: null,
+        disabled: false,
+        staff: null,
+      },
     ]);
-    expect(bundle.duties[0]).toMatchObject({ slug: "nightly", schedule: "1d", staff: "cto" });
+    expect(bundle.duties[0]).toMatchObject({
+      slug: "nightly",
+      schedule: "1d",
+      staff: "cto",
+    });
     // built-in command filtered out; only the repo one survives
     expect(bundle.commands).toHaveLength(1);
     expect(bundle.commands[0].slug).toBe("review");
@@ -172,7 +228,10 @@ describe("buildCompanyBundle", () => {
   it("emits null instructions when the file is blank/absent", async () => {
     h.listStaffFiles.mockResolvedValue([]);
     h.listDutyFiles.mockResolvedValue([]);
-    h.listRepoCommandFiles.mockResolvedValue({ commands: [], builtinsDisabled: false });
+    h.listRepoCommandFiles.mockResolvedValue({
+      commands: [],
+      builtinsDisabled: false,
+    });
     h.readInstructionsFile.mockResolvedValue(null);
     const bundle = await buildCompanyBundle();
     expect(bundle.instructions).toBeNull();
@@ -184,9 +243,29 @@ describe("applyCompanyBundle", () => {
     kodyCompany: COMPANY_BUNDLE_VERSION,
     exportedAt: "",
     exportedFrom: "",
-    staff: [{ slug: "cto", title: "CTO", body: "x", schedule: null, disabled: false, staff: null }],
-    duties: [{ slug: "nightly", title: "N", body: "y", schedule: "1d" as const, disabled: false, staff: "cto" }],
-    commands: [{ slug: "review", description: "d", argumentHint: "", body: "B" }],
+    staff: [
+      {
+        slug: "cto",
+        title: "CTO",
+        body: "x",
+        schedule: null,
+        disabled: false,
+        staff: null,
+      },
+    ],
+    duties: [
+      {
+        slug: "nightly",
+        title: "N",
+        body: "y",
+        schedule: "1d" as const,
+        disabled: false,
+        staff: "cto",
+      },
+    ],
+    commands: [
+      { slug: "review", description: "d", argumentHint: "", body: "B" },
+    ],
     instructions: "Be terse.",
   };
 
@@ -202,13 +281,22 @@ describe("applyCompanyBundle", () => {
 
     const result = await applyCompanyBundle(octokit, bundle, "skip");
 
-    expect(result.staff).toMatchObject({ created: 1, updated: 0, skipped: 0, failed: 0 });
+    expect(result.staff).toMatchObject({
+      created: 1,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+    });
     expect(result.duties).toMatchObject({ created: 1, skipped: 0 });
     expect(result.commands).toMatchObject({ created: 1 });
     expect(result.instructions).toBe("created");
     // a duty carries its staff slug through to the writer
     expect(h.writeDutyFile).toHaveBeenCalledWith(
-      expect.objectContaining({ slug: "nightly", staff: "cto", schedule: "1d" }),
+      expect.objectContaining({
+        slug: "nightly",
+        staff: "cto",
+        schedule: "1d",
+      }),
     );
   });
 

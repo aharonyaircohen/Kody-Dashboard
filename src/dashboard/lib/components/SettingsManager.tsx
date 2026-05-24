@@ -38,7 +38,13 @@ import { PageShell } from "./PageShell";
 import { useAuth } from "../auth-context";
 
 /** Section divider header — groups the cards under a quiet uppercase label. */
-function SectionHeader({ icon: Icon, label }: { icon?: LucideIcon; label: string }) {
+function SectionHeader({
+  icon: Icon,
+  label,
+}: {
+  icon?: LucideIcon;
+  label: string;
+}) {
   return (
     <div className="flex items-center gap-2 px-1">
       {Icon ? <Icon className="w-3.5 h-3.5 text-white/40" /> : null}

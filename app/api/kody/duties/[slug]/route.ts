@@ -80,7 +80,9 @@ const updateDutySchema = z.object({
  * serializer: drop a leading `@`, trim whitespace, drop empties.
  */
 function normalizeMentions(mentions: string[]): string[] {
-  return mentions.map((m) => m.trim().replace(/^@/, "")).filter((m) => m.length > 0);
+  return mentions
+    .map((m) => m.trim().replace(/^@/, ""))
+    .filter((m) => m.length > 0);
 }
 
 export async function PATCH(

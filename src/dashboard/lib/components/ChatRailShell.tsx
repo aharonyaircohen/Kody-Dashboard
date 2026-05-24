@@ -159,35 +159,32 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     if (saved >= RAIL_MIN && saved <= RAIL_MAX) setRailWidth(saved);
   }, []);
   const [dragging, setDragging] = useState(false);
-  const startResize = useCallback(
-    (e: React.PointerEvent) => {
-      e.preventDefault();
-      setDragging(true);
-      document.body.style.userSelect = "none";
-      document.body.style.cursor = "col-resize";
-      const onMove = (ev: PointerEvent) => {
-        const next = Math.min(
-          RAIL_MAX,
-          Math.max(RAIL_MIN, Math.round(ev.clientX)),
-        );
-        setRailWidth(next);
-      };
-      const onUp = () => {
-        setDragging(false);
-        document.body.style.userSelect = "";
-        document.body.style.cursor = "";
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
-        setRailWidth((w) => {
-          localStorage.setItem("kody:rail-width", String(w));
-          return w;
-        });
-      };
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
-    },
-    [],
-  );
+  const startResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    setDragging(true);
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.min(
+        RAIL_MAX,
+        Math.max(RAIL_MIN, Math.round(ev.clientX)),
+      );
+      setRailWidth(next);
+    };
+    const onUp = () => {
+      setDragging(false);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setRailWidth((w) => {
+        localStorage.setItem("kody:rail-width", String(w));
+        return w;
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, []);
 
   // Hydration guard: SSR has no localStorage so `auth` is always null on
   // the server. Without this flag the first client render would diverge
@@ -267,9 +264,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 railMode === "collapsed" && "w-0 overflow-hidden border-r-0",
                 railMode === "fullscreen" && "w-full",
               )}
-              style={
-                railMode === "normal" ? { width: railWidth } : undefined
-              }
+              style={railMode === "normal" ? { width: railWidth } : undefined}
               aria-label="Kody chat"
             >
               {auth ? (

@@ -95,10 +95,7 @@ export async function POST(req: NextRequest) {
     const looksLikeReasoning =
       wordCount > 9 || /\b(the user|i need|let me|i should)\b/i.test(cleaned);
     if (!cleaned || looksLikeReasoning) {
-      return NextResponse.json(
-        { error: "unusable_title" },
-        { status: 502 },
-      );
+      return NextResponse.json({ error: "unusable_title" }, { status: 502 });
     }
 
     const title = cleaned.slice(0, MAX_TITLE_LEN).trim();

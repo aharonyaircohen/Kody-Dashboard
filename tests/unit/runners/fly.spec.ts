@@ -60,7 +60,10 @@ describe("spawnRunner", () => {
       "fetch",
       vi.fn(async () => {
         // What AbortSignal.timeout produces when it fires.
-        throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+        throw new DOMException(
+          "The operation was aborted due to timeout",
+          "TimeoutError",
+        );
       }),
     );
 

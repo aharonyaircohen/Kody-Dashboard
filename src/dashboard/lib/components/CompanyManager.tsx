@@ -58,7 +58,9 @@ function CompanyManagerInner() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [mode, setMode] = useState<CompanyImportMode>("skip");
-  const [lastImport, setLastImport] = useState<CompanyImportResult | null>(null);
+  const [lastImport, setLastImport] = useState<CompanyImportResult | null>(
+    null,
+  );
 
   async function handleExport() {
     setExporting(true);

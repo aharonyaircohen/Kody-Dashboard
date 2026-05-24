@@ -18,11 +18,7 @@
  * goal back to `active` with `mergeApproved`, which lets the engine's
  * existing finalize squash-merge the leaf once.
  */
-export type GoalRunStateValue =
-  | "active"
-  | "paused"
-  | "awaiting-merge"
-  | "done";
+export type GoalRunStateValue = "active" | "paused" | "awaiting-merge" | "done";
 
 export interface GoalRunState {
   /** Schema version. Bump on incompatible changes. */

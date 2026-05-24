@@ -279,93 +279,93 @@ function Row({
       {cto && (
         <div className="mt-2.5 ml-5 flex flex-col gap-1.5">
           <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-amber-300/70">
-            CTO · {cto.action === "other" ? "review" : cto.action}
-          </span>
-          <Link
-            href={`/${cto.taskNumber}`}
-            title="Open this task in the dashboard"
-            className="text-[11px] font-medium text-sky-300/80 hover:text-sky-200 hover:underline"
-          >
-            Task #{cto.taskNumber}
-          </Link>
-          {ctoVerdict ? (
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium",
-                VERDICT_CLASS[ctoVerdict],
-              )}
-              title="This recommendation was already decided"
-            >
-              {ctoVerdict === "approve" ? (
-                <Check className="w-3.5 h-3.5" />
-              ) : ctoVerdict === "reject" ? (
-                <X className="w-3.5 h-3.5" />
-              ) : (
-                <MinusCircle className="w-3.5 h-3.5" />
-              )}
-              {VERDICT_LABEL[ctoVerdict]}
+            <span className="text-[10px] uppercase tracking-wider text-amber-300/70">
+              CTO · {cto.action === "other" ? "review" : cto.action}
             </span>
-          ) : (
-            <>
-              {cto.dispatchable ? (
+            <Link
+              href={`/${cto.taskNumber}`}
+              title="Open this task in the dashboard"
+              className="text-[11px] font-medium text-sky-300/80 hover:text-sky-200 hover:underline"
+            >
+              Task #{cto.taskNumber}
+            </Link>
+            {ctoVerdict ? (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium",
+                  VERDICT_CLASS[ctoVerdict],
+                )}
+                title="This recommendation was already decided"
+              >
+                {ctoVerdict === "approve" ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : ctoVerdict === "reject" ? (
+                  <X className="w-3.5 h-3.5" />
+                ) : (
+                  <MinusCircle className="w-3.5 h-3.5" />
+                )}
+                {VERDICT_LABEL[ctoVerdict]}
+              </span>
+            ) : (
+              <>
+                {cto.dispatchable ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={ctoBusy !== null}
+                    onClick={() => void decide("approve")}
+                    className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
+                  >
+                    {ctoBusy === "approve" ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )}
+                    Approve
+                  </Button>
+                ) : (
+                  <a
+                    href={entry.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`'${cto.action}' has no dashboard action — the CTO is advising; act on it in GitHub`}
+                    className="inline-flex h-7 items-center gap-1 rounded-md border border-white/15 bg-white/[0.04] px-2 text-[11px] font-medium text-white/70 hover:bg-white/[0.08]"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Review on GitHub
+                  </a>
+                )}
                 <Button
                   size="sm"
                   variant="ghost"
                   disabled={ctoBusy !== null}
-                  onClick={() => void decide("approve")}
-                  className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
+                  onClick={() => void decide("reject")}
+                  className="h-7 gap-1 border border-rose-500/30 bg-rose-500/[0.06] text-rose-200 hover:bg-rose-500/15"
                 >
-                  {ctoBusy === "approve" ? (
+                  {ctoBusy === "reject" ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <Check className="w-3.5 h-3.5" />
+                    <X className="w-3.5 h-3.5" />
                   )}
-                  Approve
+                  Reject
                 </Button>
-              ) : (
-                <a
-                  href={entry.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={`'${cto.action}' has no dashboard action — the CTO is advising; act on it in GitHub`}
-                  className="inline-flex h-7 items-center gap-1 rounded-md border border-white/15 bg-white/[0.04] px-2 text-[11px] font-medium text-white/70 hover:bg-white/[0.08]"
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={ctoBusy !== null}
+                  onClick={() => void decide("dismiss")}
+                  title="Drain this from the inbox without approving or rejecting (no effect on graduation)"
+                  className="h-7 gap-1 border border-white/15 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Review on GitHub
-                </a>
-              )}
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={ctoBusy !== null}
-                onClick={() => void decide("reject")}
-                className="h-7 gap-1 border border-rose-500/30 bg-rose-500/[0.06] text-rose-200 hover:bg-rose-500/15"
-              >
-                {ctoBusy === "reject" ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <X className="w-3.5 h-3.5" />
-                )}
-                Reject
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={ctoBusy !== null}
-                onClick={() => void decide("dismiss")}
-                title="Drain this from the inbox without approving or rejecting (no effect on graduation)"
-                className="h-7 gap-1 border border-white/15 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
-              >
-                {ctoBusy === "dismiss" ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <MinusCircle className="w-3.5 h-3.5" />
-                )}
-                Dismiss
-              </Button>
-            </>
-          )}
+                  {ctoBusy === "dismiss" ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <MinusCircle className="w-3.5 h-3.5" />
+                  )}
+                  Dismiss
+                </Button>
+              </>
+            )}
           </div>
           {cto.command && (
             <code

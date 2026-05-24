@@ -7,11 +7,7 @@
  *   formatters, and the mime-type → icon picker. Pure (no component state).
  */
 
-import {
-  Image as ImageIcon,
-  FileText,
-  FileCode,
-} from "lucide-react";
+import { Image as ImageIcon, FileText, FileCode } from "lucide-react";
 
 /**
  * Phase label for the Kody Live boot banner. Two timelines because the

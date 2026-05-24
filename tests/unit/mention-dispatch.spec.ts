@@ -40,7 +40,10 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock("web-push", () => ({
-  default: { setVapidDetails: h.setVapidDetails, sendNotification: h.sendNotification },
+  default: {
+    setVapidDetails: h.setVapidDetails,
+    sendNotification: h.sendNotification,
+  },
   WebPushError: h.WebPushError,
 }));
 vi.mock("@dashboard/lib/github-client", () => ({
@@ -93,7 +96,9 @@ vi.mock("@dashboard/lib/push/vapid-keys", () => ({
 vi.mock("@dashboard/lib/push", () => ({
   PUSH_MANIFEST_ISSUE_TITLE: "kody:push-subscriptions",
 }));
-vi.mock("@dashboard/lib/control-issue", () => ({ CONTROL_TITLE: "kody:control" }));
+vi.mock("@dashboard/lib/control-issue", () => ({
+  CONTROL_TITLE: "kody:control",
+}));
 vi.mock("@dashboard/lib/vault/bootstrap", () => ({
   resolveVaultGithubToken: vi.fn().mockResolvedValue("bot-token"),
 }));
@@ -116,7 +121,12 @@ function issuesEvent(body: string, title = "Some task") {
   return {
     action: "opened",
     repository: { full_name: "acme/widgets" },
-    issue: { body, title, user: { login: "author" }, html_url: "https://gh/i/1" },
+    issue: {
+      body,
+      title,
+      user: { login: "author" },
+      html_url: "https://gh/i/1",
+    },
   };
 }
 
@@ -167,7 +177,9 @@ describe("extractMentions", () => {
 
   it("ignores mentions inside inline code and fenced blocks", () => {
     // GitHub doesn't notify for @mentions inside code; neither do we.
-    expect(extractMentions("Confirming will run `@kody sync --pr 1573`.")).toEqual([]);
+    expect(
+      extractMentions("Confirming will run `@kody sync --pr 1573`."),
+    ).toEqual([]);
     expect(extractMentions("```\n@kody resolve --pr 1574\n```")).toEqual([]);
   });
 
@@ -182,12 +194,17 @@ describe("extractMentions", () => {
 
 describe("dispatchMentionPushes", () => {
   it("skips events that aren't routable", async () => {
-    await dispatchMentionPushes("star", { repository: { full_name: "acme/widgets" } });
+    await dispatchMentionPushes("star", {
+      repository: { full_name: "acme/widgets" },
+    });
     expect(h.readPushManifest).not.toHaveBeenCalled();
   });
 
   it("skips the dashboard's own bookkeeping issues (self-feedback loop)", async () => {
-    await dispatchMentionPushes("issues", issuesEvent("@alice look", "kody:inbox-feed"));
+    await dispatchMentionPushes(
+      "issues",
+      issuesEvent("@alice look", "kody:inbox-feed"),
+    );
     expect(h.readPushManifest).not.toHaveBeenCalled();
   });
 
@@ -195,7 +212,10 @@ describe("dispatchMentionPushes", () => {
     h.readPushManifest.mockResolvedValue({
       manifest: { subscriptions: [sub("alice")] },
     });
-    await dispatchMentionPushes("issues", issuesEvent("plain text, nobody tagged"));
+    await dispatchMentionPushes(
+      "issues",
+      issuesEvent("plain text, nobody tagged"),
+    );
     expect(h.sendNotification).not.toHaveBeenCalled();
   });
 
@@ -206,7 +226,9 @@ describe("dispatchMentionPushes", () => {
     await dispatchMentionPushes("issues", issuesEvent("hey @alice"));
 
     expect(h.sendNotification).toHaveBeenCalledTimes(1);
-    expect(h.sendNotification.mock.calls[0][0].endpoint).toBe("https://push/alice");
+    expect(h.sendNotification.mock.calls[0][0].endpoint).toBe(
+      "https://push/alice",
+    );
   });
 
   it("prunes expired (410) endpoints after a failed send", async () => {
@@ -230,14 +252,21 @@ describe("dispatchMentionPushes", () => {
       action: "created",
       repository: { full_name: "acme/widgets" },
       discussion: { number: 5, title: "#general" },
-      comment: { body: "deploy is green", id: 99, user: { login: "carol" }, html_url: "u" },
+      comment: {
+        body: "deploy is green",
+        id: 99,
+        user: { login: "carol" },
+        html_url: "u",
+      },
     };
 
     await dispatchMentionPushes("discussion_comment", channelEvent);
 
     // carol authored it → excluded; alice + bob get the broadcast.
     expect(h.sendNotification).toHaveBeenCalledTimes(2);
-    const endpoints = h.sendNotification.mock.calls.map((c) => c[0].endpoint).sort();
+    const endpoints = h.sendNotification.mock.calls
+      .map((c) => c[0].endpoint)
+      .sort();
     expect(endpoints).toEqual(["https://push/alice", "https://push/bob"]);
   });
 
@@ -257,7 +286,9 @@ describe("dispatchMentionPushes", () => {
     await dispatchMentionPushes("discussion_comment", channelEvent);
 
     expect(h.sendNotification).toHaveBeenCalledTimes(1);
-    expect(h.sendNotification.mock.calls[0][0].endpoint).toBe("https://push/bob");
+    expect(h.sendNotification.mock.calls[0][0].endpoint).toBe(
+      "https://push/bob",
+    );
   });
 
   it("never throws even when the manifest read fails", async () => {

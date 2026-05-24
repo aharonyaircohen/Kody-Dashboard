@@ -352,9 +352,7 @@ function buildFileContent(
  * file API for one ticked-file kind. Duties and staff each call this
  * once with their own config.
  */
-export function createTickedFiles(
-  config: TickedFilesConfig,
-): TickedFilesApi {
+export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
   const { dir, commitScope, invalidateCache } = config;
 
   function buildHtmlUrl(slug: string, branch: string | null): string {
@@ -503,7 +501,11 @@ export function createTickedFiles(
       const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
       const [updatedAt, lastTickAt, tickState] = await Promise.all([
         fetchLastCommitDate(octokit, filePath),
-        fetchLastCommitDateOrNull(octokit, `${dir}/${slug}.state.json`, STATE_BRANCH),
+        fetchLastCommitDateOrNull(
+          octokit,
+          `${dir}/${slug}.state.json`,
+          STATE_BRANCH,
+        ),
         fetchTickState(octokit, dir, slug),
       ]);
       return {

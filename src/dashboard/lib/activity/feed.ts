@@ -181,8 +181,7 @@ function buildSession(
   entries: EventLogEntry[],
 ): FeedSession {
   const chrono = [...entries].sort(
-    (a, b) =>
-      new Date(a.emittedAt).getTime() - new Date(b.emittedAt).getTime(),
+    (a, b) => new Date(a.emittedAt).getTime() - new Date(b.emittedAt).getTime(),
   );
   const events = chrono.map(toEvent);
   const { origin, issueNumber } = deriveOrigin(sessionId);
@@ -193,11 +192,9 @@ function buildSession(
     (e) => e.event === "chat.message" && str(e.payload.role) === "user",
   )?.payload;
 
-  const startedAt =
-    str(ready.startedAt) ?? chrono[0]?.emittedAt ?? null;
+  const startedAt = str(ready.startedAt) ?? chrono[0]?.emittedAt ?? null;
   const endedAt = exit ? (str(exit.endedAt) ?? null) : null;
-  const lastEventAt =
-    chrono[chrono.length - 1]?.emittedAt ?? startedAt ?? "";
+  const lastEventAt = chrono[chrono.length - 1]?.emittedAt ?? startedAt ?? "";
 
   const runUrl = str(ready.runUrl);
   // https://github.com/OWNER/REPO/actions/runs/ID → "OWNER/REPO"
@@ -211,8 +208,7 @@ function buildSession(
   );
   const firstAssistant = str(
     chrono.find(
-      (e) =>
-        e.event === "chat.message" && str(e.payload.role) === "assistant",
+      (e) => e.event === "chat.message" && str(e.payload.role) === "assistant",
     )?.payload.content,
   );
   const title = truncate(
@@ -278,8 +274,7 @@ export function buildFeedSnapshot(
     .map(([sid, list]) => buildSession(sid, list))
     .sort(
       (a, b) =>
-        new Date(b.lastEventAt).getTime() -
-        new Date(a.lastEventAt).getTime(),
+        new Date(b.lastEventAt).getTime() - new Date(a.lastEventAt).getTime(),
     );
 
   return {
