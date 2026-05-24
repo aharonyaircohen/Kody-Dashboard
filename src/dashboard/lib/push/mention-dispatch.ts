@@ -2,49 +2,41 @@
  * @fileType utility
  * @domain kody
  * @pattern mention-push-dispatch
- * @ai-summary Server-only helper that turns a GitHub webhook event into
- *   targeted web-push notifications for users `@mentioned` in the body.
- *
- *   Unlike the rules-based fan-out in `web-push.ts` (which sends to every
- *   subscription on the repo), this filters subscriptions by `userLogin`
- *   so each device only pings when its owner is actually mentioned.
- *
- *   Reads the push manifest under a bot token (the webhook receiver has
- *   no per-user auth context). Prunes 404/410 endpoints best-effort so
- *   dead devices don't accumulate.
+ * @ai-summary Server-only orchestrator for the mention/inbox notification
+ *   spine. It owns the *flow* only — normalize the webhook (`buildSourceEvent`),
+ *   classify it to a mute-able notification type, resolve who to notify
+ *   (`resolveRecipients`, applying each recipient's per-type mute prefs), then
+ *   fan out to the channel adapters: the durable inbox (`channels/inbox.deliverInbox`)
+ *   and per-recipient web push (`channels/mention-push.deliverMentionPush`). The
+ *   "what counts as a mention", "who gets it", "how an entry is written", and
+ *   "how a push is sent" all live in those dedicated modules now — this file
+ *   just sequences them and never throws so the webhook always ACKs.
  */
 import "server-only";
-import webpush, {
-  type PushSubscription as WebPushSubscription,
-  WebPushError,
-} from "web-push";
 import { setGitHubContext, clearGitHubContext } from "../github-client";
 import { resolveVaultGithubToken } from "../vault/bootstrap";
-import { readPushManifest, mutatePushManifest } from "../push-server";
+import { readPushManifest } from "../push-server";
 import type { PushSubscriptionRecord } from "../push";
-import { appendInboxFeed, readInboxFeed } from "../inbox/feed-server";
-import { feedEntryId, type InboxFeedEntry } from "../inbox/feed";
-import { buildSnippet } from "../inbox/types";
-import {
-  parseCtoAction,
-  parseCtoCommand,
-  parseCtoStaff,
-} from "../cto/recommendation";
-import { readCtoDecisions } from "../cto/decisions-server";
-import { latestCtoDecisions } from "../cto/decisions";
-import { applyCtoBackpressure } from "../cto/backpressure";
+import { PUSH_MANIFEST_ISSUE_TITLE } from "../push";
 import { logger } from "../logger";
-import { dashboardThreadUrl, dashboardChannelUrl } from "../thread-link";
-import { buildSourceEvent } from "../notifications/source-event";
-import { resolveRecipients } from "../notifications/recipients";
+import { buildSourceEvent, type SourceEvent } from "../notifications/source-event";
+import {
+  resolveRecipients,
+  extractMentions,
+  type ServerNotificationType,
+} from "../notifications/recipients";
 import { classifyNotificationType } from "../notifications/notification-types";
 import { readNotificationPrefs } from "../notifications/prefs-store";
-import type { ServerNotificationType } from "../notifications/recipients";
-import { deriveVapidKeys } from "./vapid-keys";
+import { deliverInbox } from "../notifications/channels/inbox";
+import { deliverMentionPush } from "../notifications/channels/mention-push";
 import { INBOX_FEED_ISSUE_TITLE } from "../inbox/feed";
-import { PUSH_MANIFEST_ISSUE_TITLE } from "../push";
 import { CTO_DECISIONS_ISSUE_TITLE } from "../cto/decisions";
 import { CONTROL_TITLE } from "../control-issue";
+
+// `extractMentions` and the recipient policy live in the shared resolver
+// (`notifications/recipients.ts`). Re-exported here so existing import sites
+// and tests keep working.
+export { extractMentions } from "../notifications/recipients";
 
 /**
  * Titles of the dashboard's own bookkeeping issues. These are storage
@@ -63,60 +55,12 @@ const BOOKKEEPING_THREAD_TITLES = new Set<string>([
 ]);
 
 /**
- * Collapse comment/issue markdown to readable plain prose for an OS
- * notification: drop code fences, blockquote markers, heading hashes, list
- * bullets, bold/italic emphasis, and flatten `[text](url)` links to `text`.
- * Phones render the notification body as plain text, so leaving raw markdown
- * in makes it look like noise (`> **CTO** _auto_ …`).
- */
-function plainSnippet(body: string, max = 180): string {
-  return body
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/!?\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
-    .replace(/^\s*>+\s?/gm, "")
-    .replace(/^\s*[-*+]\s+/gm, "")
-    .replace(/(\*\*|__|\*|_|~~)/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, max);
-}
-
-// `extractMentions` and the recipient policy now live in the shared resolver
-// (`notifications/recipients.ts`). Re-exported here so existing import sites
-// and tests keep working.
-export { extractMentions } from "../notifications/recipients";
-
-export interface MentionEvent {
-  body: string;
-  author?: string;
-  url?: string;
-  title?: string;
-  repoFullName: string;
-  /** `Issue` / `PullRequest` / `Discussion` / `Commit` — for the inbox feed. */
-  threadType: string;
-  /**
-   * Set when the event is a comment in a messaging *channel* (a `#`-titled
-   * Discussion). Channel messages broadcast to every subscribed teammate
-   * (not just `@mentions`) and deep-link into the in-app `/messages` view.
-   */
-  channel?: { number: number; commentId?: number };
-  /**
-   * Present when the event carries a pull_request object (pull_request events,
-   * pull_request_review events). Used by the notification-type classifier to
-   * determine `pr-merged` vs `pr-ready` for closed PRs.
-   */
-  pr?: { merged?: boolean };
-}
-
-/**
- * The action filter the mention/inbox spine applies on top of the shared
+ * The action gate the mention/inbox spine applies on top of the shared
  * normalizer. Each event type only fires a mention notification on a specific
  * action — a comment must be freshly `created`, a review `submitted`, an
- * issue/PR/discussion `opened` or `edited`. (The rules spine, by contrast,
- * wants `pull_request: closed` — which is exactly why gating lives per-consumer
- * and only the parsing in `buildSourceEvent` is shared.)
+ * issue/PR/discussion `opened`/`edited`. (The rules spine, by contrast, wants
+ * `pull_request: closed` — which is why gating lives per-consumer and only the
+ * parsing in `buildSourceEvent` is shared.)
  */
 function isMentionAction(eventType: string, action: string): boolean {
   switch (eventType) {
@@ -137,14 +81,13 @@ function isMentionAction(eventType: string, action: string): boolean {
 }
 
 /**
- * Normalize the webhook (shared `buildSourceEvent`) and apply the mention
- * spine's action gate + "must have a body" rule. Returns the legacy
- * `MentionEvent` shape so the rest of this module is unchanged.
+ * Normalize the webhook and apply the mention spine's action gate + "must have
+ * a body" rule. Returns the `SourceEvent` (the shared shape) or null.
  */
 function extractEvent(
   eventType: string,
   payload: Record<string, unknown>,
-): MentionEvent | null {
+): SourceEvent | null {
   const se = buildSourceEvent(eventType, payload);
   if (!se) return null;
   if (!isMentionAction(se.eventType, se.action)) return null;
@@ -157,202 +100,58 @@ function extractEvent(
     eventType === "pull_request_review" ||
     eventType === "discussion";
   if (requiresBody && !se.body) return null;
-  return {
-    body: se.body,
-    author: se.author,
-    url: se.url,
-    title: se.title,
-    repoFullName: se.repoFullName,
-    threadType: se.threadType,
-    ...(se.channel ? { channel: se.channel } : {}),
-  };
-}
-
-function initVapid(): boolean {
-  try {
-    const { publicKey, privateKey } = deriveVapidKeys();
-    webpush.setVapidDetails("mailto:kody@example.com", publicKey, privateKey);
-    return true;
-  } catch {
-    // Derivation only fails if KODY_MASTER_KEY isn't set — same hard
-    // dependency the vault has. Skip silently so a misconfigured server
-    // can't break webhook delivery.
-    return false;
-  }
-}
-
-function toSubscription(r: PushSubscriptionRecord): WebPushSubscription {
-  return {
-    endpoint: r.endpoint,
-    keys: { p256dh: r.keys.p256dh, auth: r.keys.auth },
-  };
-}
-
-function isExpired(err: unknown): boolean {
-  return (
-    err instanceof WebPushError &&
-    (err.statusCode === 404 || err.statusCode === 410)
-  );
-}
-
-function buildPayload(
-  mention: string,
-  ev: MentionEvent,
-  eventType: string,
-): string {
-  const kind =
-    eventType === "issue_comment" || eventType === "pull_request_review_comment"
-      ? "commented"
-      : eventType === "pull_request_review"
-        ? "reviewed"
-        : eventType === "issues"
-          ? "opened an issue"
-          : eventType === "pull_request"
-            ? "opened a PR"
-            : "mentioned you";
-  const who = ev.author ? `@${ev.author}` : "Someone";
-  const where = ev.title ? ` on "${ev.title}"` : "";
-
-  // The body is what the user actually sees — so put the comment snippet
-  // first (that's the distinguishing content), then the repo/title context
-  // on the second line. Earlier we only showed the issue title, which made
-  // every notification on the same issue look identical.
-  const snippet = plainSnippet(ev.body);
-
-  // Channel messages deep-link into the in-app /messages view scrolled to
-  // the message. Issue and PR threads open the dashboard task view (both
-  // share the same number pool on GitHub); discussions/commits have no
-  // dashboard deep route so they open github.com.
-  if (ev.channel) {
-    const channelName = ev.title?.replace(/^#/, "") ?? "channel";
-    return JSON.stringify({
-      title: `${who} in #${channelName}`,
-      body: snippet || `New message in #${channelName}`,
-      url: dashboardChannelUrl({
-        channelNumber: ev.channel.number,
-        commentId: ev.channel.commentId,
-      }),
-      tag: `channel:${ev.channel.number}`,
-    });
-  }
-
-  const clickUrl = dashboardThreadUrl({
-    githubUrl: ev.url,
-    threadType: ev.threadType,
-  });
-
-  return JSON.stringify({
-    title: `${who} mentioned you${where}`,
-    body: snippet || `${ev.repoFullName} — ${kind}`,
-    url: clickUrl,
-    tag: `mention:${mention}:${ev.url ?? ev.repoFullName}`,
-  });
+  return se;
 }
 
 /**
- * Append one inbox-feed entry per mentioned login. Best-effort and isolated:
- * a feed-write failure must not stop the web-push fan-out (or vice-versa), and
- * never throws so the webhook still ACKs. Skips mentions on events with no
- * deep-linkable url (the inbox needs a clickable target).
+ * Build the `login → mutedTypes` map for the recipients who *could* receive
+ * this event, so the resolver can drop anyone who muted this notification type.
+ * Skips all GitHub reads when the event has no mute-able type. Candidates are
+ * the subscriber set for a channel broadcast, or the body's @mentions otherwise
+ * — and `readNotificationPrefs` is ETag-cached (a free 304 / cheap 404 for the
+ * common "no prefs file" case), so this stays within the hot-path budget.
  */
-async function recordInboxFeed(
-  owner: string,
-  repo: string,
-  token: string,
-  ev: MentionEvent,
-  mentions: string[],
-): Promise<void> {
-  // Channel messages deep-link into the in-app /messages view; everything
-  // else keeps its github.com comment anchor.
-  const url = ev.channel
-    ? dashboardChannelUrl({
-        channelNumber: ev.channel.number,
-        commentId: ev.channel.commentId,
-      })
-    : (ev.url ?? "");
-  if (!url) return;
-  const sentAt = new Date().toISOString();
-  const snippet = buildSnippet(ev.body);
-  // Parse the CTO verb from the *raw* body now, while backticks are intact —
-  // the snippet collapses them to `[code]` and loses it.
-  const ctoAction = parseCtoAction(ev.body ?? "");
-  const ctoCommand = parseCtoCommand(ev.body ?? "");
-  const ctoStaff = parseCtoStaff(ev.body ?? "");
-  const entries: InboxFeedEntry[] = mentions.map((login) => ({
-    id: feedEntryId(login, url),
-    login,
-    source: "mention",
-    repoFullName: ev.repoFullName,
-    threadType: ev.threadType,
-    title: ev.title ?? "",
-    snippet,
-    author: ev.author,
-    url,
-    sentAt,
-    ...(ctoAction ? { ctoAction } : {}),
-    ...(ctoCommand ? { ctoCommand } : {}),
-    ...(ctoStaff ? { ctoStaff } : {}),
-  }));
+async function loadMutedTypes(
+  ev: SourceEvent,
+  subs: PushSubscriptionRecord[],
+  notificationType: ServerNotificationType | null,
+  ctx: { owner: string; repo: string; token: string },
+): Promise<Map<string, ServerNotificationType[]> | undefined> {
+  if (!notificationType) return undefined;
+  const candidates = ev.channel
+    ? [
+        ...new Set(
+          subs
+            .map((s) => s.userLogin?.toLowerCase())
+            .filter((l): l is string => !!l),
+        ),
+      ]
+    : extractMentions(ev.body);
+  if (candidates.length === 0) return undefined;
 
-  setGitHubContext(owner, repo, token);
+  const muted = new Map<string, ServerNotificationType[]>();
+  setGitHubContext(ctx.owner, ctx.repo, ctx.token);
   try {
-    // Code-enforced cap on pending CTO recommendations. The cto.md staff member is
-    // told to stop at 10 but counts by hand each tick and drifts; this gate
-    // makes it deterministic at the single write point. Both reads are
-    // cached (ETag/304) — no extra GitHub budget on the webhook path.
-    let toAppend = entries;
-    try {
-      const [feed, ledger] = await Promise.all([
-        readInboxFeed(),
-        readCtoDecisions(),
-      ]);
-      const { admitted, withheld } = applyCtoBackpressure(
-        feed.entries,
-        entries,
-        latestCtoDecisions(ledger),
-      );
-      toAppend = admitted;
-      if (withheld.length > 0) {
-        logger.info(
-          {
-            event: "cto_backpressure_withheld",
-            withheld: withheld.length,
-            repo: ev.repoFullName,
-          },
-          `CTO backpressure: withheld ${withheld.length} recommendation(s) — operator queue full (max 10 pending)`,
-        );
-      }
-    } catch (bpErr) {
-      // Fail open on the gate (never on the cap itself going wrong silently
-      // dropping real mentions): if the ledger/feed read fails, append as
-      // before rather than block delivery.
-      logger.warn(
-        {
-          event: "cto_backpressure_skipped",
-          error: bpErr instanceof Error ? bpErr.message : String(bpErr),
-          repo: ev.repoFullName,
-        },
-        "CTO backpressure check failed — appending without gate",
-      );
-    }
-
-    const added = await appendInboxFeed(toAppend);
-    logger.info(
-      { event: "inbox_feed_appended", added, mentions, repo: ev.repoFullName },
-      `Inbox feed: +${added} entr${added === 1 ? "y" : "ies"}`,
+    await Promise.all(
+      candidates.map(async (login) => {
+        const prefs = await readNotificationPrefs(login, ctx.token);
+        if (prefs.mutedTypes.length > 0) muted.set(login, prefs.mutedTypes);
+      }),
     );
   } catch (err) {
+    // Fail open — a prefs read failure must never suppress a real notification.
     logger.warn(
       {
-        event: "inbox_feed_append_failed",
+        event: "mention_push_prefs_read_failed",
         error: err instanceof Error ? err.message : String(err),
         repo: ev.repoFullName,
       },
-      "Inbox feed append failed — web-push still proceeds",
+      "Notification prefs read failed — delivering without per-type mute",
     );
   } finally {
     clearGitHubContext();
   }
+  return muted;
 }
 
 /**
@@ -373,11 +172,10 @@ export async function dispatchMentionPushes(
       return;
     }
 
-    // The dashboard's own manifest issues (inbox feed, push subscriptions,
-    // CTO ledger) get edited on every write; that re-fires this webhook with
-    // a body full of `@login` feed entries. Notifying on them pings the user
-    // with raw manifest text — pure self-feedback noise. Drop them.
-    if (BOOKKEEPING_THREAD_TITLES.has(ev.title ?? "")) {
+    // The dashboard's own manifest issues get edited on every write; that
+    // re-fires this webhook with a body full of `@login` feed entries.
+    // Notifying on them pings the user with raw manifest text — drop them.
+    if (BOOKKEEPING_THREAD_TITLES.has(ev.title)) {
       logger.info(
         {
           event: "mention_push_skip_bookkeeping",
@@ -389,13 +187,14 @@ export async function dispatchMentionPushes(
       );
       return;
     }
-    const [owner, repo] = ev.repoFullName.split("/");
+
+    const { owner, repo } = ev;
     if (!owner || !repo) return;
 
-    // Token comes from the repo's vault, decrypted with KODY_MASTER_KEY (the
-    // only secret Vercel holds). The webhook is unauthenticated, so there is
-    // no user/env token to use; the encrypted vault blob is world-readable on
-    // public repos, so we can bootstrap the token from it.
+    // Token comes from the repo's vault, decrypted with KODY_MASTER_KEY. The
+    // webhook is unauthenticated, so there is no user/env token to use; the
+    // encrypted vault blob is world-readable on public repos, so we can
+    // bootstrap the token from it.
     const token = await resolveVaultGithubToken(owner, repo);
     if (!token) {
       logger.warn(
@@ -404,11 +203,11 @@ export async function dispatchMentionPushes(
       );
       return;
     }
+    const ctx = { owner, repo, token };
 
-    // Read the push manifest once. Needed up front for channel broadcasts
-    // (the audience IS the subscriber set) and reused for the web-push
-    // fan-out below. A read failure must not drop mention inbox entries,
-    // so fail open with an empty list.
+    // Read the push manifest once: channel broadcasts use it as the audience,
+    // and the push fan-out reuses it. A read failure must not drop inbox
+    // entries, so fail open with an empty list.
     setGitHubContext(owner, repo, token);
     let subs: PushSubscriptionRecord[] = [];
     try {
@@ -427,45 +226,19 @@ export async function dispatchMentionPushes(
       clearGitHubContext();
     }
 
-    // Classify the notification type for per-type mute enforcement.
-    // Returns null for events outside the mute-able set (e.g. discussion).
-    const action = (payload.action as string) ?? "";
-    const notificationType = classifyNotificationType(ev, eventType, action);
+    // Per-type mute: classify the event, then look up muted types for the
+    // candidate recipients so the resolver can drop anyone who muted it. Both
+    // are skipped entirely when the event has no mute-able type.
+    const notificationType = classifyNotificationType(ev);
+    const mutedTypesByLogin = await loadMutedTypes(
+      ev,
+      subs,
+      notificationType,
+      ctx,
+    );
 
-    // Read notification prefs for all subscribers so we can filter out muted
-    // recipients. This is a batch of parallel reads keyed by userLogin.
-    // Best-effort: if any read fails we treat that user's prefs as empty.
-    const mutedTypesByLogin = new Map<string, ServerNotificationType[]>();
-    if (notificationType && subs.length > 0) {
-      const uniqueLogins = [
-        ...new Set(subs.map((s) => s.userLogin?.toLowerCase()).filter(Boolean)),
-      ] as string[];
-      setGitHubContext(owner, repo, token);
-      try {
-        const prefsResults = await Promise.all(
-          uniqueLogins.map(async (login) => {
-            try {
-              const prefs = await readNotificationPrefs(login, token);
-              return { login, mutedTypes: prefs.mutedTypes };
-            } catch {
-              return { login, mutedTypes: [] as ServerNotificationType[] };
-            }
-          }),
-        );
-        for (const { login, mutedTypes } of prefsResults) {
-          if (mutedTypes.length > 0) {
-            mutedTypesByLogin.set(login, mutedTypes);
-          }
-        }
-      } finally {
-        clearGitHubContext();
-      }
-    }
-
-    // Recipients: channel messages broadcast to every subscribed teammate
-    // (minus the author); everything else is gated to explicit `@mentions`.
-    // The "who" decision lives in the shared resolver — per-type mute
-    // filtering is applied here so push AND inbox both see the same result.
+    // Who to notify — the single resolver owns the decision (mention scrape,
+    // channel broadcast, and per-type mute); we only log/bail.
     const { logins: recipients, isChannelBroadcast } = resolveRecipients(
       ev,
       subs,
@@ -491,7 +264,7 @@ export async function dispatchMentionPushes(
             repo: ev.repoFullName,
             bodyPreview: ev.body.slice(0, 80),
           },
-          "Event body contained no @mentions",
+          "Event body contained no @mentions (or all recipients muted this type)",
         );
         return;
       }
@@ -506,116 +279,16 @@ export async function dispatchMentionPushes(
       );
     }
 
-    // 1. Durable inbox feed — the source of truth for the dashboard inbox.
-    //    Runs regardless of whether web-push is configured so the inbox
-    //    surfaces the message even when no device subscribed.
-    //    Channel messages are skipped: the recipient already receives the
-    //    message itself (in-app + broadcast push), so an inbox mention
-    //    entry pointing back at the same message is redundant noise.
+    // Durable inbox feed — the source of truth for the dashboard inbox. Runs
+    // regardless of whether web-push is configured. Channel messages skip it:
+    // the recipient already gets the message itself (in-app + broadcast push),
+    // so an inbox entry pointing back at the same message is redundant noise.
     if (!ev.channel) {
-      await recordInboxFeed(owner, repo, token, ev, recipients);
+      await deliverInbox(ev, recipients, ctx);
     }
 
-    // 2. Best-effort web-push fan-out to subscribed devices.
-    if (!initVapid()) {
-      logger.info(
-        { event: "mention_push_no_vapid" },
-        "VAPID keys missing — inbox feed written, skipping web-push",
-      );
-      return;
-    }
-
-    const mentionSet = new Set(recipients);
-    if (mentionSet.size === 0) return;
-
-    const targets = subs.filter((s) => {
-      const login = s.userLogin?.toLowerCase();
-      return !!login && mentionSet.has(login);
-    });
-
-    if (targets.length === 0) {
-      logger.info(
-        {
-          event: "mention_push_no_targets",
-          mentions: [...mentionSet],
-          subscriberLogins: subs.map((s) => s.userLogin ?? null),
-          totalSubs: subs.length,
-          repo: ev.repoFullName,
-        },
-        "No matching push subscriptions for @mentions",
-      );
-      return;
-    }
-
-    const expired: string[] = [];
-    let sent = 0;
-    let failed = 0;
-    await Promise.allSettled(
-      targets.map(async (sub) => {
-        const login = sub.userLogin?.toLowerCase() ?? "";
-        const body = buildPayload(login, ev, eventType);
-        try {
-          await webpush.sendNotification(toSubscription(sub), body);
-          sent++;
-        } catch (err) {
-          failed++;
-          if (isExpired(err)) {
-            expired.push(sub.endpoint);
-          } else {
-            logger.warn(
-              {
-                event: "mention_push_send_failed",
-                endpoint: sub.endpoint.slice(0, 60),
-                error: err instanceof Error ? err.message : String(err),
-              },
-              "Mention push send failed",
-            );
-          }
-        }
-      }),
-    );
-
-    if (expired.length > 0) {
-      setGitHubContext(owner, repo, token);
-      try {
-        await mutatePushManifest((current) => {
-          const before = current.subscriptions.length;
-          const next = {
-            version: 1 as const,
-            subscriptions: current.subscriptions.filter(
-              (s) => !expired.includes(s.endpoint),
-            ),
-          };
-          if (next.subscriptions.length === before) {
-            return { kind: "noop" as const, result: 0 };
-          }
-          return { next, result: before - next.subscriptions.length };
-        });
-      } catch (err) {
-        logger.warn(
-          {
-            event: "mention_push_prune_failed",
-            error: err instanceof Error ? err.message : String(err),
-          },
-          "Failed to prune expired subscriptions after mention dispatch",
-        );
-      } finally {
-        clearGitHubContext();
-      }
-    }
-
-    logger.info(
-      {
-        event: "mention_push_dispatched",
-        mentions: [...mentionSet],
-        targets: targets.length,
-        sent,
-        failed,
-        pruned: expired.length,
-        repo: ev.repoFullName,
-      },
-      `Mention push: ${sent}/${targets.length} sent`,
-    );
+    // Best-effort per-recipient web-push fan-out.
+    await deliverMentionPush(ev, recipients, subs, ctx);
   } catch (err) {
     logger.error(
       {
