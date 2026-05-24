@@ -73,7 +73,7 @@ function buildPayload(mention: string, ev: SourceEvent): string {
     title: `${who} mentioned you${where}`,
     body: snippet || `${ev.repoFullName} — ${kind}`,
     url: clickUrl,
-    tag: `mention:${mention}:${ev.url || ev.repoFullName}`,
+    tag: `mention:${mention}:${ev.url ?? ev.repoFullName}`,
   });
 }
 
