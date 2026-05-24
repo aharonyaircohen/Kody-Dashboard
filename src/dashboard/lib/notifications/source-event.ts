@@ -57,9 +57,17 @@ export interface SourceEvent {
   /** The text body that may carry `@mentions` (comment/review/issue/pr/discussion). */
   body: string;
   author?: string;
+  /** True when the author is a GitHub App / bot (`user.type === "Bot"`). */
+  authorIsBot: boolean;
   title: string;
   /** Canonical `html_url` of the artifact — the deep-link target. */
   url: string;
+  /**
+   * The thread number this event belongs to — issue/PR number for issue & PR
+   * events and their comments/reviews, discussion number for discussions.
+   * `undefined` for `commit_comment` (commits have no single-thread anchor).
+   */
+  number?: number;
   threadType: ThreadType;
   /**
    * Set only for `#`-titled discussion comments (messaging channels). Channel
@@ -79,9 +87,23 @@ function obj(v: unknown): Record<string, unknown> | undefined {
 }
 
 function login(holder: Record<string, unknown> | undefined): string | undefined {
+  return userInfo(holder).login;
+}
+
+function userInfo(holder: Record<string, unknown> | undefined): {
+  login?: string;
+  isBot: boolean;
+} {
   const u = obj(holder?.user);
   const l = u?.login;
-  return typeof l === "string" ? l : undefined;
+  return {
+    login: typeof l === "string" ? l : undefined,
+    isBot: u?.type === "Bot",
+  };
+}
+
+function num(v: unknown): number | undefined {
+  return typeof v === "number" ? v : undefined;
 }
 
 function buildPr(payload: Record<string, unknown>): SourcePr | undefined {
@@ -135,65 +157,88 @@ export function buildSourceEvent(
     case "commit_comment": {
       const comment = obj(payload.comment);
       const issue = obj(payload.issue);
+      const who = userInfo(comment);
       const threadType: ThreadType =
         eventType === "commit_comment"
           ? "Commit"
           : eventType === "pull_request_review_comment" || issue?.pull_request
             ? "PullRequest"
             : "Issue";
+      // `commit_comment` has no issue/PR thread; the others anchor to the
+      // issue (issue_comment) or the PR (review comment).
+      const number =
+        eventType === "pull_request_review_comment"
+          ? num(pr?.number)
+          : eventType === "issue_comment"
+            ? num(issue?.number)
+            : undefined;
       return {
         ...base,
         body: str(comment?.body),
-        author: login(comment),
+        author: who.login,
+        authorIsBot: who.isBot,
         url: str(comment?.html_url),
         title: str(issue?.title) || str(pr?.title),
+        number,
         threadType,
       };
     }
 
     case "pull_request_review": {
       const review = obj(payload.review);
+      const who = userInfo(review);
       return {
         ...base,
         body: str(review?.body),
-        author: login(review),
+        author: who.login,
+        authorIsBot: who.isBot,
         url: str(review?.html_url),
         title: str(pr?.title),
+        number: num(pr?.number),
         threadType: "PullRequest",
       };
     }
 
     case "issues": {
       const issue = obj(payload.issue);
+      const who = userInfo(issue);
       return {
         ...base,
         body: str(issue?.body),
-        author: login(issue),
+        author: who.login,
+        authorIsBot: who.isBot,
         url: str(issue?.html_url),
         title: str(issue?.title),
+        number: num(issue?.number),
         threadType: "Issue",
       };
     }
 
     case "pull_request": {
+      const who = userInfo(obj(payload.pull_request));
       return {
         ...base,
         body: pr?.body ?? "",
         author: pr?.author,
+        authorIsBot: who.isBot,
         url: pr?.url ?? "",
         title: pr?.title ?? "",
+        number: pr?.number,
         threadType: "PullRequest",
       };
     }
 
     case "discussion": {
       const disc = obj(payload.discussion);
+      const who = userInfo(disc);
       return {
         ...base,
         body: str(disc?.body),
-        author: login(disc),
+        author: who.login,
+        authorIsBot: who.isBot,
         url: str(disc?.html_url),
         title: str(disc?.title),
+        number: num(disc?.number),
         threadType: "Discussion",
       };
     }
@@ -201,17 +246,20 @@ export function buildSourceEvent(
     case "discussion_comment": {
       const comment = obj(payload.comment);
       const disc = obj(payload.discussion);
+      const who = userInfo(comment);
       const title = str(disc?.title);
-      const discNumber = typeof disc?.number === "number" ? disc.number : undefined;
-      const commentId = typeof comment?.id === "number" ? comment.id : undefined;
+      const discNumber = num(disc?.number);
+      const commentId = num(comment?.id);
       const isChannel =
         title.startsWith(CHANNEL_TITLE_PREFIX) && discNumber !== undefined;
       return {
         ...base,
         body: str(comment?.body),
-        author: login(comment),
+        author: who.login,
+        authorIsBot: who.isBot,
         url: str(comment?.html_url),
         title,
+        number: discNumber,
         threadType: "Discussion",
         ...(isChannel ? { channel: { number: discNumber, commentId } } : {}),
       };

@@ -25,6 +25,7 @@ import {
   type WorkerAskReply,
 } from "../control-issue";
 import { extractStaffMentions } from "../mentions/staff-mentions";
+import { buildSourceEvent } from "../notifications/source-event";
 import { logger } from "../logger";
 
 interface StaffDispatchEvent {
@@ -37,137 +38,57 @@ interface StaffDispatchEvent {
   reply: WorkerAskReply;
 }
 
-function asRecord(v: unknown): Record<string, unknown> | undefined {
-  return typeof v === "object" && v !== null
-    ? (v as Record<string, unknown>)
-    : undefined;
-}
-
-function userOf(v: unknown): { login?: string; isBot: boolean } {
-  const u = asRecord(asRecord(v)?.user);
-  const login = typeof u?.login === "string" ? u.login : undefined;
-  const isBot = u?.type === "Bot";
-  return { login, isBot };
+/**
+ * The action gate the staff spine applies on top of the shared normalizer:
+ * a comment must be freshly `created`, a review `submitted`, an
+ * issue/PR/discussion `opened`/`edited`. (Same shape as the mention spine —
+ * both want "human just said something" — but kept local so the two can
+ * diverge without surprising each other.)
+ */
+function isStaffAction(eventType: string, action: string): boolean {
+  switch (eventType) {
+    case "issue_comment":
+    case "pull_request_review_comment":
+    case "discussion_comment":
+      return !action || action === "created";
+    case "pull_request_review":
+      return !action || action === "submitted";
+    case "issues":
+    case "pull_request":
+    case "discussion":
+      return action === "opened" || action === "edited";
+    default:
+      return false;
+  }
 }
 
 /**
- * Extract the body + reply target for every webhook event type that can
- * carry an @staff mention. `issue:<n>` covers PRs too (the issues comment
- * API serves both). `commit_comment` is intentionally unsupported — there
- * is no clean single-thread reply target for it.
+ * Extract the body + reply target for every webhook event type that can carry
+ * an @staff mention, via the shared `buildSourceEvent` normalizer. Discussions
+ * reply in-discussion; everything else replies on the issue/PR thread (the
+ * issues comment API serves PRs too). `commit_comment` is intentionally
+ * unsupported — it has no single-thread reply target, and the normalizer
+ * leaves its `number` undefined, so it falls out here.
  */
 function extractEvent(
   eventType: string,
   payload: Record<string, unknown>,
 ): StaffDispatchEvent | null {
-  const repoFullName =
-    typeof asRecord(payload.repository)?.full_name === "string"
-      ? (asRecord(payload.repository)!.full_name as string)
-      : "";
-  if (!repoFullName) return null;
-  const action = typeof payload.action === "string" ? payload.action : "";
-
-  const issue = asRecord(payload.issue);
-  const pr = asRecord(payload.pull_request);
-  const comment = asRecord(payload.comment);
-  const review = asRecord(payload.review);
-  const disc = asRecord(payload.discussion);
-
-  switch (eventType) {
-    case "issue_comment": {
-      if (action && action !== "created") return null;
-      const n = issue?.number;
-      if (typeof n !== "number") return null;
-      const { login, isBot } = userOf(comment);
-      return {
-        repoFullName,
-        body: typeof comment?.body === "string" ? comment.body : "",
-        author: login,
-        authorIsBot: isBot,
-        reply: { kind: "issue", number: n },
-      };
-    }
-    case "pull_request_review_comment": {
-      if (action && action !== "created") return null;
-      const n = pr?.number;
-      if (typeof n !== "number") return null;
-      const { login, isBot } = userOf(comment);
-      return {
-        repoFullName,
-        body: typeof comment?.body === "string" ? comment.body : "",
-        author: login,
-        authorIsBot: isBot,
-        reply: { kind: "issue", number: n },
-      };
-    }
-    case "pull_request_review": {
-      if (action && action !== "submitted") return null;
-      const n = pr?.number;
-      if (typeof n !== "number") return null;
-      const { login, isBot } = userOf(review);
-      return {
-        repoFullName,
-        body: typeof review?.body === "string" ? review.body : "",
-        author: login,
-        authorIsBot: isBot,
-        reply: { kind: "issue", number: n },
-      };
-    }
-    case "issues": {
-      if (action !== "opened" && action !== "edited") return null;
-      const n = issue?.number;
-      if (typeof n !== "number") return null;
-      const { login, isBot } = userOf(issue);
-      return {
-        repoFullName,
-        body: typeof issue?.body === "string" ? issue.body : "",
-        author: login,
-        authorIsBot: isBot,
-        reply: { kind: "issue", number: n },
-      };
-    }
-    case "pull_request": {
-      if (action !== "opened" && action !== "edited") return null;
-      const n = pr?.number;
-      if (typeof n !== "number") return null;
-      const { login, isBot } = userOf(pr);
-      return {
-        repoFullName,
-        body: typeof pr?.body === "string" ? pr.body : "",
-        author: login,
-        authorIsBot: isBot,
-        reply: { kind: "issue", number: n },
-      };
-    }
-    case "discussion": {
-      if (action !== "created" && action !== "edited") return null;
-      const n = disc?.number;
-      if (typeof n !== "number") return null;
-      const { login, isBot } = userOf(disc);
-      return {
-        repoFullName,
-        body: typeof disc?.body === "string" ? disc.body : "",
-        author: login,
-        authorIsBot: isBot,
-        reply: { kind: "discussion", number: n },
-      };
-    }
-    case "discussion_comment": {
-      if (action && action !== "created") return null;
-      const n = disc?.number;
-      if (typeof n !== "number") return null;
-      const { login, isBot } = userOf(comment);
-      return {
-        repoFullName,
-        body: typeof comment?.body === "string" ? comment.body : "",
-        author: login,
-        authorIsBot: isBot,
-        reply: { kind: "discussion", number: n },
-      };
-    }
-    default:
-      return null;
-  }
+  const se = buildSourceEvent(eventType, payload);
+  if (!se) return null;
+  if (!isStaffAction(se.eventType, se.action)) return null;
+  if (se.number === undefined) return null;
+  const reply: WorkerAskReply =
+    se.threadType === "Discussion"
+      ? { kind: "discussion", number: se.number }
+      : { kind: "issue", number: se.number };
+  return {
+    repoFullName: se.repoFullName,
+    body: se.body,
+    author: se.author,
+    authorIsBot: se.authorIsBot,
+    reply,
+  };
 }
 
 /**
