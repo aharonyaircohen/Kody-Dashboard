@@ -1,8 +1,8 @@
 /**
  * @fileType hook
- * @domain prompts
+ * @domain commands
  * @pattern slash-commands
- * @ai-summary React-query hook that fetches the merged prompt list
+ * @ai-summary React-query hook that fetches the merged command list
  *   (builtins + repo) and provides parse/match helpers for the chat
  *   composer. Kept separate from the API surface so the chat component
  *   doesn't need to know about builtins vs repo files.
@@ -14,7 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { buildAuthHeaders, type KodyAuth } from "../auth-context";
 import { substitute, type SubstituteResult } from "./substitute";
 
-export interface SlashPrompt {
+export interface SlashCommand {
   slug: string;
   description: string;
   argumentHint: string;
@@ -23,18 +23,18 @@ export interface SlashPrompt {
 }
 
 interface ListResponse {
-  prompts?: SlashPrompt[];
+  commands?: SlashCommand[];
 }
 
-export const slashPromptsQueryKey = ["kody-prompts"] as const;
+export const slashCommandsQueryKey = ["kody-commands"] as const;
 
-async function fetchPrompts(
+async function fetchCommands(
   headers: Record<string, string>,
-): Promise<SlashPrompt[]> {
-  const res = await fetch("/api/kody/prompts", { headers });
+): Promise<SlashCommand[]> {
+  const res = await fetch("/api/kody/commands", { headers });
   if (!res.ok) return [];
   const json = (await res.json().catch(() => ({}))) as ListResponse;
-  return json.prompts ?? [];
+  return json.commands ?? [];
 }
 
 /**
@@ -60,38 +60,38 @@ export function parseSlashTrigger(input: string): {
 }
 
 /**
- * If the input is a "/slug args…" form and slug matches a known prompt,
+ * If the input is a "/slug args…" form and slug matches a known command,
  * return the expanded text. Otherwise return null (caller sends as-is).
  */
 export function expandSlashCommand(
   input: string,
-  prompts: SlashPrompt[],
+  commands: SlashCommand[],
 ): (SubstituteResult & { slug: string }) | null {
   if (!input.startsWith("/")) return null;
   const rest = input.slice(1);
   const spaceIdx = rest.search(/\s/);
   const slug = spaceIdx < 0 ? rest : rest.slice(0, spaceIdx);
   if (!slug) return null;
-  const prompt = prompts.find((p) => p.slug === slug);
-  if (!prompt) return null;
+  const command = commands.find((p) => p.slug === slug);
+  if (!command) return null;
   const args = spaceIdx < 0 ? "" : rest.slice(spaceIdx + 1);
-  const result = substitute(prompt.body, args);
+  const result = substitute(command.body, args);
   return { ...result, slug };
 }
 
-export function useSlashPrompts(auth: KodyAuth | null): {
-  prompts: SlashPrompt[];
+export function useSlashCommands(auth: KodyAuth | null): {
+  commands: SlashCommand[];
   loading: boolean;
 } {
   const headers: Record<string, string> = useMemo(
     () => ({ "Content-Type": "application/json", ...buildAuthHeaders(auth) }),
     [auth],
   );
-  const { data, isLoading } = useQuery<SlashPrompt[]>({
-    queryKey: slashPromptsQueryKey,
-    queryFn: () => fetchPrompts(headers),
+  const { data, isLoading } = useQuery<SlashCommand[]>({
+    queryKey: slashCommandsQueryKey,
+    queryFn: () => fetchCommands(headers),
     enabled: !!auth,
     staleTime: 60_000,
   });
-  return { prompts: data ?? [], loading: isLoading };
+  return { commands: data ?? [], loading: isLoading };
 }

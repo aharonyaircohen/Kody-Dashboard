@@ -17,7 +17,7 @@ through the dashboard once you're logged in.
 | ------------- | ------------ | ----------------------- | --------------- | --------------------------------------- |
 | **Staff**     | `/staff`     | `.kody/staff/*.md`      | No (plaintext)  | [Staff & Duties](./concepts/staff-duties.md) |
 | **Duties**    | `/duties`    | `.kody/duties/*.md`     | No (plaintext)  | [Staff & Duties](./concepts/staff-duties.md) |
-| **Prompts**   | `/prompts`   | `.kody/prompts/*.md`    | No (plaintext)  | [Prompts](./prompts.md)                 |
+| **Commands**   | `/commands`   | `.kody/commands/*.md`    | No (plaintext)  | [Commands](./commands.md)                 |
 | **Secrets**   | `/secrets`   | `.kody/secrets.enc`     | **Yes** (AES-256-GCM) | [Secrets vault](./secrets-vault.md)     |
 | **Variables** | `/variables` | `.kody/variables.json`  | No (plaintext)  | [Variables](./variables.md)             |
 | **Profile**   | `/profile`   | `.kody/profile/*.md`    | No (plaintext)  | [Company profile](./profile.md)         |
@@ -44,13 +44,13 @@ commands, and restrictions, names a `staff:` persona, and is ticked by
 the engine every ~5 min. Toggle a duty off with `disabled: true`. See
 [Staff & Duties](./concepts/staff-duties.md).
 
-### Prompts — `/prompts`
+### Commands — `/commands`
 
-Slash commands for the chat composer. Repo prompts live at
-`.kody/prompts/<slug>.md` and merge with the shipped built-ins (`/plan`,
-`/research`, `/review`, …); a repo prompt wins on slug collision. Bodies
+Slash commands for the chat composer. Repo commands live at
+`.kody/commands/<slug>.md` and merge with the shipped built-ins (`/plan`,
+`/research`, `/review`, …); a repo command wins on slug collision. Bodies
 support `$ARGUMENTS` / `$0` / `$1` substitution and work identically
-across all chat backends. See [Prompts](./prompts.md).
+across all chat backends. See [Commands](./commands.md).
 
 ### Secrets — `/secrets`
 

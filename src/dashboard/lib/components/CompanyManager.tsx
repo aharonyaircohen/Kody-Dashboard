@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-manager
  * @ai-summary Import/export a "Company" — the portable operating manual of
- *   an org (staff, duties, prompts, instructions). Export downloads a JSON
+ *   an org (staff, duties, commands, instructions). Export downloads a JSON
  *   bundle from the connected repo; Import uploads one and writes it back,
  *   with skip/overwrite collision handling. A separate card runs the
  *   one-time legacy `.kody/jobs|workers` → `duties|staff` folder migration.
@@ -73,10 +73,10 @@ function CompanyManagerInner() {
       const total =
         bundle.staff.length +
         bundle.duties.length +
-        bundle.prompts.length +
+        bundle.commands.length +
         (bundle.instructions ? 1 : 0);
       toast.success(
-        `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.prompts.length} commands${
+        `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.commands.length} commands${
           bundle.instructions ? ", instructions" : ""
         } (${total} items)`,
       );
@@ -101,7 +101,7 @@ function CompanyManagerInner() {
       const result = await kodyApi.company.import(bundle, mode, actorLogin);
       setLastImport(result);
       const failed =
-        result.staff.failed + result.duties.failed + result.prompts.failed;
+        result.staff.failed + result.duties.failed + result.commands.failed;
       if (failed > 0) {
         toast.warning(`Imported with ${failed} failure(s) — see details below`);
       } else {
@@ -227,7 +227,7 @@ function CompanyManagerInner() {
               <div className="text-xs text-white/60 border-t border-white/[0.06] pt-3 space-y-1">
                 <p>{countLine("Staff", lastImport.staff)}</p>
                 <p>{countLine("Duties", lastImport.duties)}</p>
-                <p>{countLine("Commands", lastImport.prompts)}</p>
+                <p>{countLine("Commands", lastImport.commands)}</p>
                 <p>Instructions: {lastImport.instructions}</p>
                 {lastImport.notes.length > 0 && (
                   <ul className="text-rose-300/80 mt-1 list-disc list-inside">

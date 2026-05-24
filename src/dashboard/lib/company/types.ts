@@ -4,7 +4,7 @@
  * @pattern company-bundle
  * @ai-summary Portable "Company" bundle — the repo-agnostic operating
  *   manual of an org: its staff (personas), duties (recurring work),
- *   prompts (slash-command SOPs), and instructions (tone/behaviour).
+ *   commands (slash-command SOPs), and instructions (tone/behaviour).
  *   Deliberately excludes repo-specific state (memory, secrets,
  *   variables, dashboard config, goals, inbox, notifications) — those
  *   belong to the repo, not the company, and a company may span repos.
@@ -51,8 +51,8 @@ export interface CompanyTickEntry {
   staff: string | null;
 }
 
-/** A slash-command prompt entry. */
-export interface CompanyPromptEntry {
+/** A slash-command entry. */
+export interface CompanyCommandEntry {
   slug: string;
   description: string;
   argumentHint: string;
@@ -69,7 +69,7 @@ export interface CompanyBundle {
   exportedFrom: string;
   staff: CompanyTickEntry[];
   duties: CompanyTickEntry[];
-  prompts: CompanyPromptEntry[];
+  commands: CompanyCommandEntry[];
   /** Repo instructions body, or `null` when the source repo had none. */
   instructions: string | null;
 }
@@ -97,14 +97,14 @@ export interface CompanyImportResult {
   mode: CompanyImportMode;
   staff: CompanyImportCounts;
   duties: CompanyImportCounts;
-  prompts: CompanyImportCounts;
+  commands: CompanyImportCounts;
   instructions: CompanyInstructionsOutcome;
   /** Human-readable per-item notes (e.g. failures), newest last. */
   notes: string[];
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────
-// Slugs match the ticked/prompt file rule: lowercase, digits, dash,
+// Slugs match the ticked/command file rule: lowercase, digits, dash,
 // underscore; 1–64 chars; must start with a letter or digit.
 const slugSchema = z
   .string()
@@ -119,7 +119,7 @@ const tickEntrySchema = z.object({
   staff: z.string().min(1).nullable().default(null),
 });
 
-const promptEntrySchema = z.object({
+const commandEntrySchema = z.object({
   slug: slugSchema,
   description: z.string().default(""),
   argumentHint: z.string().default(""),
@@ -131,14 +131,25 @@ const promptEntrySchema = z.object({
  * (defaults to empty) but strict on the discriminator and entry shapes,
  * so a malformed or unrelated JSON file is rejected with a clear error.
  */
-export const companyBundleSchema = z.object({
-  kodyCompany: z.literal(COMPANY_BUNDLE_VERSION),
-  exportedAt: z.string().optional(),
-  exportedFrom: z.string().optional(),
-  staff: z.array(tickEntrySchema).default([]),
-  duties: z.array(tickEntrySchema).default([]),
-  prompts: z.array(promptEntrySchema).default([]),
-  instructions: z.string().nullable().default(null),
-});
+export const companyBundleSchema = z
+  .object({
+    kodyCompany: z.literal(COMPANY_BUNDLE_VERSION),
+    exportedAt: z.string().optional(),
+    exportedFrom: z.string().optional(),
+    staff: z.array(tickEntrySchema).default([]),
+    duties: z.array(tickEntrySchema).default([]),
+    commands: z.array(commandEntrySchema).optional(),
+    /**
+     * Legacy alias: bundles exported before the Prompts→Commands rename
+     * stored this collection under `prompts`. Read it as a fallback so
+     * older bundles still import their slash commands.
+     */
+    prompts: z.array(commandEntrySchema).optional(),
+    instructions: z.string().nullable().default(null),
+  })
+  .transform(({ prompts, commands, ...rest }) => ({
+    ...rest,
+    commands: commands ?? prompts ?? [],
+  }));
 
 export type ParsedCompanyBundle = z.infer<typeof companyBundleSchema>;

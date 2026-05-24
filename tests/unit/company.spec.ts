@@ -6,7 +6,7 @@
  *   - `companyBundleSchema`: validation/defaults of an uploaded bundle —
  *     discriminator, slug rules, tolerant empty collections.
  *   - `buildCompanyBundle`: maps the four file-helper reads into the
- *     portable shape, dropping repo-specific fields and built-in prompts.
+ *     portable shape, dropping repo-specific fields and built-in commands.
  *   - `applyCompanyBundle`: skip-vs-overwrite collision handling, per-
  *     collection tallies, and instructions outcomes.
  *
@@ -24,10 +24,10 @@ const h = vi.hoisted(() => ({
   listStaffFiles: vi.fn(),
   readStaffFile: vi.fn(),
   writeStaffFile: vi.fn(),
-  // prompts/files
-  listRepoPromptFiles: vi.fn(),
-  readPromptFile: vi.fn(),
-  writePromptFile: vi.fn(),
+  // commands/files
+  listRepoCommandFiles: vi.fn(),
+  readCommandFile: vi.fn(),
+  writeCommandFile: vi.fn(),
   // instructions/files
   readInstructionsFile: vi.fn(),
   writeInstructionsFile: vi.fn(),
@@ -46,10 +46,10 @@ vi.mock("@dashboard/lib/staff-files", () => ({
   readStaffFile: h.readStaffFile,
   writeStaffFile: h.writeStaffFile,
 }));
-vi.mock("@dashboard/lib/prompts/files", () => ({
-  listRepoPromptFiles: h.listRepoPromptFiles,
-  readPromptFile: h.readPromptFile,
-  writePromptFile: h.writePromptFile,
+vi.mock("@dashboard/lib/commands/files", () => ({
+  listRepoCommandFiles: h.listRepoCommandFiles,
+  readCommandFile: h.readCommandFile,
+  writeCommandFile: h.writeCommandFile,
 }));
 vi.mock("@dashboard/lib/instructions/files", () => ({
   readInstructionsFile: h.readInstructionsFile,
@@ -98,7 +98,7 @@ describe("companyBundleSchema", () => {
     exportedFrom: "acme/widgets",
     staff: [],
     duties: [],
-    prompts: [],
+    commands: [],
     instructions: null,
   };
 
@@ -106,7 +106,7 @@ describe("companyBundleSchema", () => {
     const parsed = companyBundleSchema.parse({ kodyCompany: 1 });
     expect(parsed.staff).toEqual([]);
     expect(parsed.duties).toEqual([]);
-    expect(parsed.prompts).toEqual([]);
+    expect(parsed.commands).toEqual([]);
     expect(parsed.instructions).toBeNull();
   });
 
@@ -138,13 +138,13 @@ describe("companyBundleSchema", () => {
 });
 
 describe("buildCompanyBundle", () => {
-  it("maps the four reads into the portable shape and drops built-in prompts", async () => {
+  it("maps the four reads into the portable shape and drops built-in commands", async () => {
     h.listStaffFiles.mockResolvedValue([tickFile({ slug: "cto", title: "CTO" })]);
     h.listDutyFiles.mockResolvedValue([
       tickFile({ slug: "nightly", title: "Nightly", schedule: "1d", staff: "cto" }),
     ]);
-    h.listRepoPromptFiles.mockResolvedValue({
-      prompts: [
+    h.listRepoCommandFiles.mockResolvedValue({
+      commands: [
         { slug: "review", description: "d", argumentHint: "<x>", body: "B", source: "repo", sha: "s", updatedAt: "", htmlUrl: "" },
         { slug: "plan", description: "d", argumentHint: "", body: "B", source: "builtin", sha: "", updatedAt: "", htmlUrl: "" },
       ],
@@ -160,9 +160,9 @@ describe("buildCompanyBundle", () => {
       { slug: "cto", title: "CTO", body: "b", schedule: null, disabled: false, staff: null },
     ]);
     expect(bundle.duties[0]).toMatchObject({ slug: "nightly", schedule: "1d", staff: "cto" });
-    // built-in prompt filtered out; only the repo one survives
-    expect(bundle.prompts).toHaveLength(1);
-    expect(bundle.prompts[0].slug).toBe("review");
+    // built-in command filtered out; only the repo one survives
+    expect(bundle.commands).toHaveLength(1);
+    expect(bundle.commands[0].slug).toBe("review");
     expect(bundle.instructions).toBe("Be terse.");
     // repo-specific fields are not leaked into the bundle
     expect(bundle.staff[0]).not.toHaveProperty("sha");
@@ -172,7 +172,7 @@ describe("buildCompanyBundle", () => {
   it("emits null instructions when the file is blank/absent", async () => {
     h.listStaffFiles.mockResolvedValue([]);
     h.listDutyFiles.mockResolvedValue([]);
-    h.listRepoPromptFiles.mockResolvedValue({ prompts: [], builtinsDisabled: false });
+    h.listRepoCommandFiles.mockResolvedValue({ commands: [], builtinsDisabled: false });
     h.readInstructionsFile.mockResolvedValue(null);
     const bundle = await buildCompanyBundle();
     expect(bundle.instructions).toBeNull();
@@ -186,25 +186,25 @@ describe("applyCompanyBundle", () => {
     exportedFrom: "",
     staff: [{ slug: "cto", title: "CTO", body: "x", schedule: null, disabled: false, staff: null }],
     duties: [{ slug: "nightly", title: "N", body: "y", schedule: "1d" as const, disabled: false, staff: "cto" }],
-    prompts: [{ slug: "review", description: "d", argumentHint: "", body: "B" }],
+    commands: [{ slug: "review", description: "d", argumentHint: "", body: "B" }],
     instructions: "Be terse.",
   };
 
   it("creates everything on a fresh repo", async () => {
     h.readStaffFile.mockResolvedValue(null);
     h.readDutyFile.mockResolvedValue(null);
-    h.readPromptFile.mockResolvedValue(null);
+    h.readCommandFile.mockResolvedValue(null);
     h.readInstructionsFile.mockResolvedValue(null);
     h.writeStaffFile.mockResolvedValue({});
     h.writeDutyFile.mockResolvedValue({});
-    h.writePromptFile.mockResolvedValue({});
+    h.writeCommandFile.mockResolvedValue({});
     h.writeInstructionsFile.mockResolvedValue({});
 
     const result = await applyCompanyBundle(octokit, bundle, "skip");
 
     expect(result.staff).toMatchObject({ created: 1, updated: 0, skipped: 0, failed: 0 });
     expect(result.duties).toMatchObject({ created: 1, skipped: 0 });
-    expect(result.prompts).toMatchObject({ created: 1 });
+    expect(result.commands).toMatchObject({ created: 1 });
     expect(result.instructions).toBe("created");
     // a duty carries its staff slug through to the writer
     expect(h.writeDutyFile).toHaveBeenCalledWith(
@@ -215,7 +215,7 @@ describe("applyCompanyBundle", () => {
   it("skips existing artifacts in skip mode (no writes)", async () => {
     h.readStaffFile.mockResolvedValue({ sha: "a" });
     h.readDutyFile.mockResolvedValue({ sha: "b" });
-    h.readPromptFile.mockResolvedValue({ sha: "c" });
+    h.readCommandFile.mockResolvedValue({ sha: "c" });
     h.readInstructionsFile.mockResolvedValue({ sha: "d" });
 
     const result = await applyCompanyBundle(octokit, bundle, "skip");
@@ -229,11 +229,11 @@ describe("applyCompanyBundle", () => {
   it("updates existing artifacts in overwrite mode (passes sha)", async () => {
     h.readStaffFile.mockResolvedValue({ sha: "staff-sha" });
     h.readDutyFile.mockResolvedValue({ sha: "duty-sha" });
-    h.readPromptFile.mockResolvedValue({ sha: "prompt-sha" });
+    h.readCommandFile.mockResolvedValue({ sha: "command-sha" });
     h.readInstructionsFile.mockResolvedValue({ sha: "instr-sha" });
     h.writeStaffFile.mockResolvedValue({});
     h.writeDutyFile.mockResolvedValue({});
-    h.writePromptFile.mockResolvedValue({});
+    h.writeCommandFile.mockResolvedValue({});
     h.writeInstructionsFile.mockResolvedValue({});
 
     const result = await applyCompanyBundle(octokit, bundle, "overwrite");
@@ -250,8 +250,8 @@ describe("applyCompanyBundle", () => {
     h.writeStaffFile.mockRejectedValue(new Error("boom"));
     h.readDutyFile.mockResolvedValue(null);
     h.writeDutyFile.mockResolvedValue({});
-    h.readPromptFile.mockResolvedValue(null);
-    h.writePromptFile.mockResolvedValue({});
+    h.readCommandFile.mockResolvedValue(null);
+    h.writeCommandFile.mockResolvedValue({});
     h.readInstructionsFile.mockResolvedValue(null);
     h.writeInstructionsFile.mockResolvedValue({});
 
@@ -265,10 +265,10 @@ describe("applyCompanyBundle", () => {
   it("reports instructions absent when the bundle has none", async () => {
     h.readStaffFile.mockResolvedValue(null);
     h.readDutyFile.mockResolvedValue(null);
-    h.readPromptFile.mockResolvedValue(null);
+    h.readCommandFile.mockResolvedValue(null);
     h.writeStaffFile.mockResolvedValue({});
     h.writeDutyFile.mockResolvedValue({});
-    h.writePromptFile.mockResolvedValue({});
+    h.writeCommandFile.mockResolvedValue({});
     const result = await applyCompanyBundle(
       octokit,
       { ...bundle, instructions: null },

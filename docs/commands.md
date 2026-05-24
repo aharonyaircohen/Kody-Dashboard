@@ -1,4 +1,4 @@
-# Prompts (slash commands)
+# Commands (slash commands)
 
 Slash commands let you reuse a saved prompt template by typing
 `/<slug>` in the chat composer. The dashboard expands the template
@@ -18,22 +18,22 @@ If the prompt has no `$ARGUMENTS` placeholder and you type some, the
 dashboard appends them as `ARGUMENTS: <your text>` to the end of the
 prompt — same fallback Claude Code uses.
 
-## Where prompts live
+## Where commands live
 
 Two layers, merged at runtime:
 
 | Source    | Location                    | Editable here?         |
 | --------- | --------------------------- | ---------------------- |
 | Dashboard | bundled in code (built-ins) | "Fork" forks into repo |
-| Your repo | `.kody/prompts/<slug>.md`   | Yes — full CRUD        |
+| Your repo | `.kody/commands/<slug>.md`   | Yes — full CRUD        |
 
-Repo prompts win on slug collision, so dropping
-`.kody/prompts/review.md` in your repo overrides the built-in
-`/review`. Use **Fork** on the Prompts page to seed a same-slug repo
+Repo commands win on slug collision, so dropping
+`.kody/commands/review.md` in your repo overrides the built-in
+`/review`. Use **Fork** on the Commands page to seed a same-slug repo
 file from a built-in's current contents.
 
 To hide every built-in for a repo, commit any empty file at
-`.kody/prompts/.disable-builtins`. Only your repo prompts will show.
+`.kody/commands/.disable-builtins`. Only your repo commands will show.
 
 ## File format
 
@@ -83,7 +83,7 @@ Migrate the $0 component from $1 to $2.
 Migrate the SearchBar component from React to Vue.
 ```
 
-## Built-in prompts
+## Built-in commands
 
 | Slug        | What it does                                                     |
 | ----------- | ---------------------------------------------------------------- |

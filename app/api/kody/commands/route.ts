@@ -1,9 +1,9 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern prompts-api
- * @ai-summary Prompt Control API — GET lists prompts (builtins merged
- *   with `.kody/prompts/<slug>.md`), POST creates a new repo prompt.
+ * @pattern commands-api
+ * @ai-summary Command Control API — GET lists commands (builtins merged
+ *   with `.kody/commands/<slug>.md`), POST creates a new repo command.
  *   Slash commands in the chat input are populated from this endpoint.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -20,11 +20,11 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listPrompts,
-  readPromptFile,
-  writePromptFile,
+  listCommands,
+  readCommandFile,
+  writeCommandFile,
   isValidSlug,
-} from "@dashboard/lib/prompts";
+} from "@dashboard/lib/commands";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(req: NextRequest) {
@@ -36,10 +36,10 @@ export async function GET(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
-    const prompts = await listPrompts();
-    return NextResponse.json({ prompts });
+    const commands = await listCommands();
+    return NextResponse.json({ commands });
   } catch (error: any) {
-    console.error("[Prompts] Error listing prompts:", error);
+    console.error("[Commands] Error listing commands:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       );
     }
     return NextResponse.json(
-      { prompts: [], error: error?.message || "Failed to list prompts" },
+      { commands: [], error: error?.message || "Failed to list commands" },
       { status: 500 },
     );
   } finally {
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const createPromptSchema = z.object({
+const createCommandSchema = z.object({
   slug: z.string().min(1).max(64),
   description: z.string().default(""),
   argumentHint: z.string().optional(),
@@ -80,23 +80,23 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
     const { slug, description, argumentHint, body, actorLogin } =
-      createPromptSchema.parse(payload);
+      createCommandSchema.parse(payload);
 
     if (!isValidSlug(slug)) {
       return NextResponse.json(
         {
           error: "invalid_slug",
           message:
-            "Prompt slug must be lowercase letters, digits, dashes, or underscores.",
+            "Command slug must be lowercase letters, digits, dashes, or underscores.",
         },
         { status: 400 },
       );
     }
 
-    const existing = await readPromptFile(slug);
+    const existing = await readCommandFile(slug);
     if (existing) {
       return NextResponse.json(
-        { error: "slug_taken", message: `Prompt "${slug}" already exists.` },
+        { error: "slug_taken", message: `Command "${slug}" already exists.` },
         { status: 409 },
       );
     }
@@ -110,13 +110,13 @@ export async function POST(req: NextRequest) {
         {
           error: "no_user_token",
           message:
-            "A signed-in GitHub token is required to commit prompt files.",
+            "A signed-in GitHub token is required to commit command files.",
         },
         { status: 401 },
       );
     }
 
-    const prompt = await writePromptFile({
+    const command = await writeCommandFile({
       octokit: userOctokit,
       slug,
       description,
@@ -125,14 +125,14 @@ export async function POST(req: NextRequest) {
     });
 
     recordAudit(req, {
-      action: "prompt.create",
+      action: "command.create",
       resource: slug,
-      detail: `created prompt /${slug}`,
+      detail: `created command /${slug}`,
     });
 
-    return NextResponse.json({ prompt });
+    return NextResponse.json({ command });
   } catch (error: any) {
-    console.error("[Prompts] Error creating prompt:", error);
+    console.error("[Commands] Error creating command:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "validation_error", details: error.issues },
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: "create_failed",
-        message: error?.message ?? "Failed to create prompt",
+        message: error?.message ?? "Failed to create command",
       },
       { status: 500 },
     );

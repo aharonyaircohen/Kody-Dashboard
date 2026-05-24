@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-export
  * @ai-summary Build a portable Company bundle from the connected repo.
- *   Reads the four company-level artifact types (staff, duties, prompts,
+ *   Reads the four company-level artifact types (staff, duties, commands,
  *   instructions) via their existing file helpers and maps each to the
  *   repo-agnostic shape in `types.ts` — dropping sha/html_url/commit and
  *   tick timestamps, which are meaningless in another repo. Runs inside
@@ -13,16 +13,16 @@
 import { getOwner, getRepo } from "../github-client";
 import { listDutyFiles } from "../duties-files";
 import { listStaffFiles } from "../staff-files";
-import { listRepoPromptFiles } from "../prompts/files";
+import { listRepoCommandFiles } from "../commands/files";
 import { readInstructionsFile } from "../instructions/files";
 import {
   COMPANY_BUNDLE_VERSION,
   type CompanyBundle,
   type CompanyTickEntry,
-  type CompanyPromptEntry,
+  type CompanyCommandEntry,
 } from "./types";
 import type { TickFile } from "../ticked/files";
-import type { PromptFile } from "../prompts/files";
+import type { CommandFile } from "../commands/files";
 
 function toTickEntry(file: TickFile): CompanyTickEntry {
   return {
@@ -35,7 +35,7 @@ function toTickEntry(file: TickFile): CompanyTickEntry {
   };
 }
 
-function toPromptEntry(file: PromptFile): CompanyPromptEntry {
+function toCommandEntry(file: CommandFile): CompanyCommandEntry {
   return {
     slug: file.slug,
     description: file.description,
@@ -47,14 +47,14 @@ function toPromptEntry(file: PromptFile): CompanyPromptEntry {
 /**
  * Read every company-level artifact from the connected repo and assemble
  * the portable bundle. The four reads are independent — fan them out.
- * Only repo-defined prompts are exported (built-ins ship with the
+ * Only repo-defined commands are exported (built-ins ship with the
  * dashboard, so re-importing them would be redundant).
  */
 export async function buildCompanyBundle(): Promise<CompanyBundle> {
-  const [staff, duties, promptsResult, instructions] = await Promise.all([
+  const [staff, duties, commandsResult, instructions] = await Promise.all([
     listStaffFiles(),
     listDutyFiles(),
-    listRepoPromptFiles(),
+    listRepoCommandFiles(),
     readInstructionsFile(),
   ]);
 
@@ -64,9 +64,9 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
     exportedFrom: `${getOwner()}/${getRepo()}`,
     staff: staff.map(toTickEntry),
     duties: duties.map(toTickEntry),
-    prompts: promptsResult.prompts
+    commands: commandsResult.commands
       .filter((p) => p.source === "repo")
-      .map(toPromptEntry),
+      .map(toCommandEntry),
     instructions: instructions?.body?.trim() ? instructions.body : null,
   };
 }

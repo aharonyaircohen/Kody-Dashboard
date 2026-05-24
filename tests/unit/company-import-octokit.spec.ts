@@ -15,7 +15,7 @@
  * passed octokit for ALL of its GitHub access and succeed.
  *
  * Unlike company.spec.ts this does NOT mock the file helpers — it exercises
- * the real `duties-files`/`staff-files`/`prompts/files`/`instructions/files`
+ * the real `duties-files`/`staff-files`/`commands/files`/`instructions/files`
  * so the octokit-threading is genuinely under test. Only github-client (the
  * shared context) is mocked.
  */
@@ -54,7 +54,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   getRepo: vi.fn(() => "widgets"),
   invalidateDutiesCache: vi.fn(),
   invalidateStaffCache: vi.fn(),
-  invalidatePromptsCache: vi.fn(),
+  invalidateCommandsCache: vi.fn(),
 }));
 
 import { applyCompanyBundle } from "@dashboard/lib/company/import";
@@ -102,7 +102,7 @@ const bundle = {
   duties: [
     { slug: "nightly", title: "N", body: "y", schedule: "1d" as const, disabled: false, staff: "cto" },
   ],
-  prompts: [{ slug: "review", description: "d", argumentHint: "", body: "B" }],
+  commands: [{ slug: "review", description: "d", argumentHint: "", body: "B" }],
   instructions: "Be terse.",
 };
 
@@ -120,7 +120,7 @@ describe("company import survives a cleared/bad request-context octokit", () => 
     // (badOctokit) → 401 → every entry reported failed. Post-fix: all created.
     expect(result.staff).toMatchObject({ created: 1, failed: 0 });
     expect(result.duties).toMatchObject({ created: 1, failed: 0 });
-    expect(result.prompts).toMatchObject({ created: 1, failed: 0 });
+    expect(result.commands).toMatchObject({ created: 1, failed: 0 });
     expect(result.instructions).toBe("created");
     expect(result.notes).toEqual([]);
 

@@ -1,11 +1,11 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern prompts-api
- * @ai-summary Prompt detail API — GET reads a single prompt (repo or
- *   built-in), PATCH updates a repo prompt, DELETE removes it. Built-ins
+ * @pattern commands-api
+ * @ai-summary Command detail API — GET reads a single command (repo or
+ *   built-in), PATCH updates a repo command, DELETE removes it. Built-ins
  *   are read-only; trying to mutate one returns 405. Backed by
- *   `.kody/prompts/<slug>.md` via the GitHub contents API.
+ *   `.kody/commands/<slug>.md` via the GitHub contents API.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -21,12 +21,12 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  readPromptFile,
-  writePromptFile,
-  deletePromptFile,
+  readCommandFile,
+  writeCommandFile,
+  deleteCommandFile,
   isValidSlug,
-  listPrompts,
-} from "@dashboard/lib/prompts";
+  listCommands,
+} from "@dashboard/lib/commands";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(
@@ -45,20 +45,20 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    // Repo file wins; if absent, fall back to a built-in match through listPrompts.
-    const repoFile = await readPromptFile(slug);
-    if (repoFile) return NextResponse.json({ prompt: repoFile });
-    const all = await listPrompts();
+    // Repo file wins; if absent, fall back to a built-in match through listCommands.
+    const repoFile = await readCommandFile(slug);
+    if (repoFile) return NextResponse.json({ command: repoFile });
+    const all = await listCommands();
     const builtin = all.find((p) => p.slug === slug);
     if (!builtin)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
-    return NextResponse.json({ prompt: builtin });
+    return NextResponse.json({ command: builtin });
   } catch (error: any) {
-    console.error("[Prompts] Error fetching prompt:", error);
+    console.error("[Commands] Error fetching command:", error);
     return NextResponse.json(
       {
         error: "fetch_failed",
-        message: error?.message ?? "Failed to fetch prompt",
+        message: error?.message ?? "Failed to fetch command",
       },
       { status: 500 },
     );
@@ -67,7 +67,7 @@ export async function GET(
   }
 }
 
-const updatePromptSchema = z.object({
+const updateCommandSchema = z.object({
   description: z.string().optional(),
   argumentHint: z.string().nullable().optional(),
   body: z.string().min(1).optional(),
@@ -93,7 +93,7 @@ export async function PATCH(
 
     const payload = await req.json();
     const { description, argumentHint, body, actorLogin } =
-      updatePromptSchema.parse(payload);
+      updateCommandSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -104,7 +104,7 @@ export async function PATCH(
         {
           error: "no_user_token",
           message:
-            "A signed-in GitHub token is required to commit prompt files.",
+            "A signed-in GitHub token is required to commit command files.",
         },
         { status: 401 },
       );
@@ -113,9 +113,9 @@ export async function PATCH(
     // If there is no repo file yet, treat PATCH as "fork the built-in"
     // by writing a new repo file seeded with the built-in's current
     // contents merged with the requested changes.
-    const existing = await readPromptFile(slug);
+    const existing = await readCommandFile(slug);
     if (existing) {
-      const prompt = await writePromptFile({
+      const command = await writeCommandFile({
         octokit: userOctokit,
         slug,
         description: description ?? existing.description,
@@ -127,19 +127,19 @@ export async function PATCH(
         sha: existing.sha,
       });
       recordAudit(req, {
-        action: "prompt.update",
+        action: "command.update",
         resource: slug,
-        detail: `edited prompt /${slug}`,
+        detail: `edited command /${slug}`,
       });
-      return NextResponse.json({ prompt });
+      return NextResponse.json({ command });
     }
 
-    const all = await listPrompts();
+    const all = await listCommands();
     const builtin = all.find((p) => p.slug === slug);
     if (!builtin)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
 
-    const prompt = await writePromptFile({
+    const command = await writeCommandFile({
       octokit: userOctokit,
       slug,
       description: description ?? builtin.description,
@@ -148,16 +148,16 @@ export async function PATCH(
           ? builtin.argumentHint
           : (argumentHint ?? ""),
       body: body ?? builtin.body,
-      message: `feat(prompts): override built-in ${slug}`,
+      message: `feat(commands): override built-in ${slug}`,
     });
     recordAudit(req, {
-      action: "prompt.update",
+      action: "command.update",
       resource: slug,
-      detail: `forked built-in prompt /${slug}`,
+      detail: `forked built-in command /${slug}`,
     });
-    return NextResponse.json({ prompt });
+    return NextResponse.json({ command });
   } catch (error: any) {
-    console.error("[Prompts] Error updating prompt:", error);
+    console.error("[Commands] Error updating command:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "validation_error", details: error.issues },
@@ -173,7 +173,7 @@ export async function PATCH(
     return NextResponse.json(
       {
         error: "update_failed",
-        message: error?.message ?? "Failed to update prompt",
+        message: error?.message ?? "Failed to update command",
       },
       { status: 500 },
     );
@@ -199,16 +199,16 @@ export async function DELETE(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    const existing = await readPromptFile(slug);
+    const existing = await readCommandFile(slug);
     if (!existing) {
       // Built-ins can't be deleted from the dashboard. The user can
-      // either fork-and-edit, or drop `.kody/prompts/.disable-builtins`
+      // either fork-and-edit, or drop `.kody/commands/.disable-builtins`
       // to suppress every built-in.
       return NextResponse.json(
         {
           error: "builtin_readonly",
           message:
-            "Built-in prompts cannot be deleted. Use the disable-builtins toggle to hide them all, or override this slug by editing it (the dashboard will fork it into your repo).",
+            "Built-in commands cannot be deleted. Use the disable-builtins toggle to hide them all, or override this slug by editing it (the dashboard will fork it into your repo).",
         },
         { status: 405 },
       );
@@ -225,21 +225,21 @@ export async function DELETE(
         {
           error: "no_user_token",
           message:
-            "A signed-in GitHub token is required to delete prompt files.",
+            "A signed-in GitHub token is required to delete command files.",
         },
         { status: 401 },
       );
     }
 
-    await deletePromptFile(userOctokit, slug);
+    await deleteCommandFile(userOctokit, slug);
     recordAudit(req, {
-      action: "prompt.delete",
+      action: "command.delete",
       resource: slug,
-      detail: `deleted prompt /${slug}`,
+      detail: `deleted command /${slug}`,
     });
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("[Prompts] Error deleting prompt:", error);
+    console.error("[Commands] Error deleting command:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
@@ -249,7 +249,7 @@ export async function DELETE(
     return NextResponse.json(
       {
         error: "delete_failed",
-        message: error?.message ?? "Failed to delete prompt",
+        message: error?.message ?? "Failed to delete command",
       },
       { status: 500 },
     );

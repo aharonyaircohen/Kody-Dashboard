@@ -171,7 +171,7 @@ fallback when an id doesn't resolve (`getAgent()` → `AGENT_KODY`).
 
 The legacy `/api/kody/chat` endpoint is deprecated and returns 410.
 
-### Slash commands (`/prompts`)
+### Slash commands (`/commands`)
 
 The chat composer has a slash-command menu. Typing `/` opens a filtered
 list of prompts; selection inserts `/<slug> ` so the user can add
@@ -182,17 +182,17 @@ identically on the in-process chat model, Brain, and Engine.
 
 Two layers, merged at runtime:
 
-- **Built-ins** ship in [src/dashboard/lib/prompts/builtins.ts](src/dashboard/lib/prompts/builtins.ts) (`/plan`, `/research`, `/review`, `/explain`, `/issue`, `/goal`, `/analyze`, `/duty`, `/init`). `/research`, `/plan`, and `/issue` follow the research-first flow enforced by the kody-live system prompt; `/issue` ends with an opt-in `kody_run_issue` handoff.
-- **Repo prompts** live at `.kody/prompts/<slug>.md` (frontmatter: `description`, `argument-hint`; body is the template). Repo wins on slug collision — that's how "fork the built-in" works.
+- **Built-ins** ship in [src/dashboard/lib/commands/builtins.ts](src/dashboard/lib/commands/builtins.ts) (`/plan`, `/research`, `/review`, `/explain`, `/issue`, `/goal`, `/analyze`, `/duty`, `/init`). `/research`, `/plan`, and `/issue` follow the research-first flow enforced by the kody-live system prompt; `/issue` ends with an opt-in `kody_run_issue` handoff.
+- **Repo commands** live at `.kody/commands/<slug>.md` (frontmatter: `description`, `argument-hint`; body is the template). Repo wins on slug collision — that's how "fork the built-in" works.
 
-Drop `.kody/prompts/.disable-builtins` to suppress every built-in for the repo.
+Drop `.kody/commands/.disable-builtins` to suppress every built-in for the repo.
 
-- Storage helpers: [src/dashboard/lib/prompts/files.ts](src/dashboard/lib/prompts/files.ts)
-- Merge + substitution: [src/dashboard/lib/prompts/index.ts](src/dashboard/lib/prompts/index.ts), [src/dashboard/lib/prompts/substitute.ts](src/dashboard/lib/prompts/substitute.ts)
-- API: [app/api/kody/prompts/route.ts](app/api/kody/prompts/route.ts), [app/api/kody/prompts/[slug]/route.ts](app/api/kody/prompts/[slug]/route.ts)
-- UI: [app/(chat-rail)/prompts/page.tsx](<app/(chat-rail)/prompts/page.tsx>), [src/dashboard/lib/components/PromptsManager.tsx](src/dashboard/lib/components/PromptsManager.tsx)
-- Chat wiring: [src/dashboard/lib/components/SlashCommandMenu.tsx](src/dashboard/lib/components/SlashCommandMenu.tsx), [src/dashboard/lib/prompts/useSlashPrompts.ts](src/dashboard/lib/prompts/useSlashPrompts.ts)
-- Full docs: [docs/prompts.md](docs/prompts.md)
+- Storage helpers: [src/dashboard/lib/commands/files.ts](src/dashboard/lib/commands/files.ts)
+- Merge + substitution: [src/dashboard/lib/commands/index.ts](src/dashboard/lib/commands/index.ts), [src/dashboard/lib/commands/substitute.ts](src/dashboard/lib/commands/substitute.ts)
+- API: [app/api/kody/commands/route.ts](app/api/kody/commands/route.ts), [app/api/kody/commands/[slug]/route.ts](app/api/kody/commands/[slug]/route.ts)
+- UI: [app/(chat-rail)/commands/page.tsx](<app/(chat-rail)/commands/page.tsx>), [src/dashboard/lib/components/CommandsManager.tsx](src/dashboard/lib/components/CommandsManager.tsx)
+- Chat wiring: [src/dashboard/lib/components/SlashCommandMenu.tsx](src/dashboard/lib/components/SlashCommandMenu.tsx), [src/dashboard/lib/commands/useSlashCommands.ts](src/dashboard/lib/commands/useSlashCommands.ts)
+- Full docs: [docs/commands.md](docs/commands.md)
 
 Important: Claude Code's `` !`shell` `` injection is **not** supported.
 That's a CLI preprocessing feature (it shells out before the message is

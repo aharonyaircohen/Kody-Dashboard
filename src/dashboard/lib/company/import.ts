@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-import
  * @ai-summary Apply a portable Company bundle to the connected repo.
- *   Writes staff, duties, and prompts via their existing file helpers,
+ *   Writes staff, duties, and commands via their existing file helpers,
  *   plus the single instructions file. On a slug/file that already
  *   exists, `mode` decides: "skip" (default, non-destructive) leaves the
  *   target untouched; "overwrite" replaces it. Returns a structured
@@ -15,7 +15,7 @@
 import type { Octokit } from "@octokit/rest";
 import { readDutyFile, writeDutyFile } from "../duties-files";
 import { readStaffFile, writeStaffFile } from "../staff-files";
-import { readPromptFile, writePromptFile } from "../prompts/files";
+import { readCommandFile, writeCommandFile } from "../commands/files";
 import {
   readInstructionsFile,
   writeInstructionsFile,
@@ -26,7 +26,7 @@ import type {
   CompanyImportCounts,
   CompanyImportMode,
   CompanyImportResult,
-  CompanyPromptEntry,
+  CompanyCommandEntry,
   CompanyTickEntry,
   ParsedCompanyBundle,
 } from "./types";
@@ -85,21 +85,21 @@ async function importTickCollection(
   return counts;
 }
 
-async function importPrompts(
+async function importCommands(
   octokit: Octokit,
-  entries: CompanyPromptEntry[],
+  entries: CompanyCommandEntry[],
   mode: CompanyImportMode,
   notes: string[],
 ): Promise<CompanyImportCounts> {
   const counts = emptyCounts();
   for (const entry of entries) {
     try {
-      const existing = await readPromptFile(entry.slug, octokit);
+      const existing = await readCommandFile(entry.slug, octokit);
       if (existing && mode === "skip") {
         counts.skipped++;
         continue;
       }
-      await writePromptFile({
+      await writeCommandFile({
         octokit,
         slug: entry.slug,
         description: entry.description,
@@ -112,7 +112,7 @@ async function importPrompts(
     } catch (err) {
       counts.failed++;
       const msg = err instanceof Error ? err.message : String(err);
-      notes.push(`prompt "${entry.slug}" failed: ${msg}`);
+      notes.push(`command "${entry.slug}" failed: ${msg}`);
     }
   }
   return counts;
@@ -146,7 +146,7 @@ export async function applyCompanyBundle(
     { read: readDutyFile, write: writeDutyFile },
     notes,
   );
-  const prompts = await importPrompts(octokit, bundle.prompts, mode, notes);
+  const commands = await importCommands(octokit, bundle.commands, mode, notes);
 
   let instructions: CompanyImportResult["instructions"] = "absent";
   if (bundle.instructions && bundle.instructions.trim().length > 0) {
@@ -168,5 +168,5 @@ export async function applyCompanyBundle(
     }
   }
 
-  return { mode, staff, duties, prompts, instructions, notes };
+  return { mode, staff, duties, commands, instructions, notes };
 }

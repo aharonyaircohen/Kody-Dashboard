@@ -1,9 +1,9 @@
 /**
  * @fileType component
- * @domain prompts
- * @pattern prompts-manager
- * @ai-summary CRUD UI for slash-command prompts stored at
- *   `.kody/prompts/<slug>.md` in the connected repo. Dashboard ships
+ * @domain commands
+ * @pattern commands-manager
+ * @ai-summary CRUD UI for slash-command commands stored at
+ *   `.kody/commands/<slug>.md` in the connected repo. Dashboard ships
  *   built-ins (`/plan`, `/review`, `/explain`, `/issue`, `/goal`,
  *   `/analyze`, `/duty`); editing a built-in forks it into the repo so
  *   the repo wins by slug.
@@ -42,7 +42,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
 
-interface PromptRow {
+interface CommandRow {
   slug: string;
   description: string;
   argumentHint: string;
@@ -55,7 +55,7 @@ interface PromptRow {
 
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
-const promptsQueryKey = ["kody-prompts"] as const;
+const commandsQueryKey = ["kody-commands"] as const;
 
 function formatRelative(iso: string): string {
   if (!iso) return "";
@@ -76,19 +76,19 @@ function formatRelative(iso: string): string {
   }
 }
 
-async function listPromptsApi(
+async function listCommandsApi(
   headers: Record<string, string>,
-): Promise<PromptRow[]> {
-  const res = await fetch("/api/kody/prompts", { headers });
+): Promise<CommandRow[]> {
+  const res = await fetch("/api/kody/commands", { headers });
   const json = (await res.json().catch(() => ({}))) as {
-    prompts?: PromptRow[];
+    commands?: CommandRow[];
     error?: string;
     message?: string;
   };
   if (!res.ok) {
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
-  return json.prompts ?? [];
+  return json.commands ?? [];
 }
 
 interface SavePayload {
@@ -99,15 +99,15 @@ interface SavePayload {
   isUpdate: boolean;
 }
 
-async function savePromptApi(
+async function saveCommandApi(
   headers: Record<string, string>,
   payload: SavePayload,
   actorLogin?: string,
 ): Promise<void> {
   const { slug, isUpdate, ...rest } = payload;
   const url = isUpdate
-    ? `/api/kody/prompts/${encodeURIComponent(slug)}`
-    : "/api/kody/prompts";
+    ? `/api/kody/commands/${encodeURIComponent(slug)}`
+    : "/api/kody/commands";
   const method = isUpdate ? "PATCH" : "POST";
   const body = JSON.stringify(
     isUpdate ? { ...rest, actorLogin } : { slug, ...rest, actorLogin },
@@ -122,11 +122,11 @@ async function savePromptApi(
   }
 }
 
-async function deletePromptApi(
+async function deleteCommandApi(
   headers: Record<string, string>,
   slug: string,
 ): Promise<void> {
-  const res = await fetch(`/api/kody/prompts/${encodeURIComponent(slug)}`, {
+  const res = await fetch(`/api/kody/commands/${encodeURIComponent(slug)}`, {
     method: "DELETE",
     headers,
   });
@@ -139,15 +139,15 @@ async function deletePromptApi(
   }
 }
 
-export function PromptsManager() {
+export function CommandsManager() {
   return (
     <AuthGuard>
-      <PromptsManagerInner />
+      <CommandsManagerInner />
     </AuthGuard>
   );
 }
 
-function PromptsManagerInner() {
+function CommandsManagerInner() {
   const { auth } = useAuth();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -156,19 +156,19 @@ function PromptsManagerInner() {
   const actorLogin = auth?.user.login;
 
   const queryClient = useQueryClient();
-  const { data, isLoading, error, refetch } = useQuery<PromptRow[]>({
-    queryKey: promptsQueryKey,
-    queryFn: () => listPromptsApi(headers),
+  const { data, isLoading, error, refetch } = useQuery<CommandRow[]>({
+    queryKey: commandsQueryKey,
+    queryFn: () => listCommandsApi(headers),
     enabled: !!auth,
     staleTime: 30_000,
   });
-  const prompts = useMemo(() => data ?? [], [data]);
+  const commands = useMemo(() => data ?? [], [data]);
 
   const save = useMutation({
     mutationFn: (payload: SavePayload) =>
-      savePromptApi(headers, payload, actorLogin),
+      saveCommandApi(headers, payload, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: promptsQueryKey });
+      queryClient.invalidateQueries({ queryKey: commandsQueryKey });
       toast.success("Command saved");
     },
     onError: (err: Error) =>
@@ -176,9 +176,9 @@ function PromptsManagerInner() {
   });
 
   const remove = useMutation({
-    mutationFn: (slug: string) => deletePromptApi(headers, slug),
+    mutationFn: (slug: string) => deleteCommandApi(headers, slug),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: promptsQueryKey });
+      queryClient.invalidateQueries({ queryKey: commandsQueryKey });
       toast.success("Command deleted");
     },
     onError: (err: Error) =>
@@ -186,22 +186,22 @@ function PromptsManagerInner() {
   });
 
   const [editing, setEditing] = useState<{
-    prompt: PromptRow | null;
+    command: CommandRow | null;
     isNew: boolean;
   } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return prompts;
-    return prompts.filter(
+    if (!q) return commands;
+    return commands.filter(
       (p) =>
         p.slug.toLowerCase().includes(q) ||
         p.description.toLowerCase().includes(q) ||
         p.argumentHint.toLowerCase().includes(q) ||
         p.body.toLowerCase().includes(q),
     );
-  }, [prompts, search]);
+  }, [commands, search]);
 
   return (
     <PageShell
@@ -212,14 +212,14 @@ function PromptsManagerInner() {
       actions={
         <>
           <Button asChild variant="ghost" size="sm" className="gap-1">
-            <Link href="/prompts/docs" aria-label="Commands docs">
+            <Link href="/commands/docs" aria-label="Commands docs">
               <BookOpen className="w-4 h-4" />
               Docs
             </Link>
           </Button>
           <Button
             size="sm"
-            onClick={() => setEditing({ prompt: null, isNew: true })}
+            onClick={() => setEditing({ command: null, isNew: true })}
             className="gap-1"
           >
             <Plus className="w-4 h-4" />
@@ -256,7 +256,7 @@ function PromptsManagerInner() {
           </Card>
         )}
 
-        {!isLoading && !error && prompts.length === 0 && (
+        {!isLoading && !error && commands.length === 0 && (
           <Card className="border-white/[0.08] bg-white/[0.02]">
             <CardContent className="p-6 text-center space-y-3">
               <Sparkles className="w-8 h-8 text-white/30 mx-auto" />
@@ -266,7 +266,7 @@ function PromptsManagerInner() {
                 <code className="text-white/55">/slash</code> entries in chat.
                 Stored at{" "}
                 <code className="text-white/55">
-                  .kody/prompts/&lt;slug&gt;.md
+                  .kody/commands/&lt;slug&gt;.md
                 </code>{" "}
                 in this repo so they&apos;re git-tracked and team-shareable.
               </p>
@@ -274,7 +274,7 @@ function PromptsManagerInner() {
           </Card>
         )}
 
-        {!isLoading && !error && prompts.length > 0 && (
+        {!isLoading && !error && commands.length > 0 && (
           <ListSearch
             value={search}
             onChange={setSearch}
@@ -284,7 +284,7 @@ function PromptsManagerInner() {
           />
         )}
 
-        {!isLoading && !error && prompts.length > 0 && filtered.length === 0 && (
+        {!isLoading && !error && commands.length > 0 && filtered.length === 0 && (
           <p className="text-sm text-white/50 px-1">
             No command matches your search.
           </p>
@@ -332,7 +332,7 @@ function PromptsManagerInner() {
                       size="sm"
                       variant="ghost"
                       className="gap-1"
-                      onClick={() => setEditing({ prompt: p, isNew: false })}
+                      onClick={() => setEditing({ command: p, isNew: false })}
                     >
                       <Pencil className="w-3.5 h-3.5" />
                       {p.source === "builtin" ? "Fork" : "Edit"}
@@ -358,16 +358,16 @@ function PromptsManagerInner() {
         <p className="text-[11px] text-white/30 pt-4 flex items-center gap-1.5">
           <FileText className="w-3 h-3" />
           Built-ins ship with the dashboard. Forking writes a same-slug file to
-          <code className="text-white/50 mx-1">.kody/prompts/</code> and takes
+          <code className="text-white/50 mx-1">.kody/commands/</code> and takes
           over the slot.
         </p>
       </div>
 
       {editing && (
-        <PromptEditor
-          initial={editing.prompt}
+        <CommandEditor
+          initial={editing.command}
           isNew={editing.isNew}
-          existingSlugs={new Set(prompts.map((p) => p.slug))}
+          existingSlugs={new Set(commands.map((p) => p.slug))}
           saving={save.isPending}
           onClose={() => setEditing(null)}
           onSave={async (payload) => {
@@ -392,8 +392,8 @@ function PromptsManagerInner() {
   );
 }
 
-interface PromptEditorProps {
-  initial: PromptRow | null;
+interface CommandEditorProps {
+  initial: CommandRow | null;
   isNew: boolean;
   saving: boolean;
   existingSlugs: Set<string>;
@@ -401,14 +401,14 @@ interface PromptEditorProps {
   onSave: (payload: SavePayload) => Promise<void>;
 }
 
-function PromptEditor({
+function CommandEditor({
   initial,
   isNew,
   saving,
   existingSlugs,
   onClose,
   onSave,
-}: PromptEditorProps) {
+}: CommandEditorProps) {
   const isBuiltinFork = !isNew && initial?.source === "builtin";
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -450,17 +450,17 @@ function PromptEditor({
           </DialogTitle>
           <DialogDescription>
             {isBuiltinFork
-              ? "Saving writes a same-slug file to .kody/prompts/ that overrides the built-in."
-              : "Stored at .kody/prompts/<slug>.md. Use $ARGUMENTS for the full input, $0/$1/… for positional tokens."}
+              ? "Saving writes a same-slug file to .kody/commands/ that overrides the built-in."
+              : "Stored at .kody/commands/<slug>.md. Use $ARGUMENTS for the full input, $0/$1/… for positional tokens."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 mt-2">
           <div>
-            <Label htmlFor="prompt-slug" className="text-xs">
+            <Label htmlFor="command-slug" className="text-xs">
               Slug (becomes /slug)
             </Label>
             <Input
-              id="prompt-slug"
+              id="command-slug"
               value={slug}
               onChange={(e) => setSlug(e.target.value.toLowerCase())}
               onBlur={() => setTouchedSlug(true)}
@@ -473,22 +473,22 @@ function PromptEditor({
             )}
           </div>
           <div>
-            <Label htmlFor="prompt-description" className="text-xs">
+            <Label htmlFor="command-description" className="text-xs">
               Description (shown in slash menu)
             </Label>
             <Input
-              id="prompt-description"
+              id="command-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Review my uncommitted changes"
             />
           </div>
           <div>
-            <Label htmlFor="prompt-arghint" className="text-xs">
+            <Label htmlFor="command-arghint" className="text-xs">
               Argument hint (optional)
             </Label>
             <Input
-              id="prompt-arghint"
+              id="command-arghint"
               value={argumentHint}
               onChange={(e) => setArgumentHint(e.target.value)}
               placeholder="<topic>"
@@ -496,11 +496,11 @@ function PromptEditor({
             />
           </div>
           <div>
-            <Label htmlFor="prompt-body" className="text-xs">
+            <Label htmlFor="command-body" className="text-xs">
               Body
             </Label>
             <Textarea
-              id="prompt-body"
+              id="command-body"
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder="Explain $ARGUMENTS in this codebase…"

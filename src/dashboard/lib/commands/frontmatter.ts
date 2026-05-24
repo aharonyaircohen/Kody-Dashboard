@@ -1,15 +1,15 @@
 /**
  * @fileType util
  * @domain kody
- * @pattern prompts-frontmatter
- * @ai-summary YAML frontmatter parser/serializer for prompt files. The
+ * @pattern commands-frontmatter
+ * @ai-summary YAML frontmatter parser/serializer for command files. The
  *   format mirrors Claude Code skills: `description` (one-line summary
  *   shown in the slash menu) and `argument-hint` (placeholder rendered
  *   next to the slug in autocomplete). Flat scalar keys only — same
  *   30-line parser shape as `duties-frontmatter.ts`.
  */
 
-export interface PromptFrontmatter {
+export interface CommandFrontmatter {
   /** Short one-line summary shown in the slash menu. */
   description?: string;
   /** Argument placeholder hint, e.g. `<pr-number>` or `[topic]`. */
@@ -19,7 +19,7 @@ export interface PromptFrontmatter {
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 export function splitFrontmatter(raw: string): {
-  frontmatter: PromptFrontmatter;
+  frontmatter: CommandFrontmatter;
   body: string;
 } {
   const match = FRONTMATTER_RE.exec(raw);
@@ -30,7 +30,7 @@ export function splitFrontmatter(raw: string): {
 }
 
 export function joinFrontmatter(
-  frontmatter: PromptFrontmatter,
+  frontmatter: CommandFrontmatter,
   body: string,
 ): string {
   const lines = serializeFlatYaml(frontmatter);
@@ -38,8 +38,8 @@ export function joinFrontmatter(
   return `---\n${lines.join("\n")}\n---\n\n${body.replace(/^\s+/, "")}`;
 }
 
-function parseFlatYaml(text: string): PromptFrontmatter {
-  const out: PromptFrontmatter = {};
+function parseFlatYaml(text: string): CommandFrontmatter {
+  const out: CommandFrontmatter = {};
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) continue;
@@ -55,7 +55,7 @@ function parseFlatYaml(text: string): PromptFrontmatter {
   return out;
 }
 
-function serializeFlatYaml(frontmatter: PromptFrontmatter): string[] {
+function serializeFlatYaml(frontmatter: CommandFrontmatter): string[] {
   const lines: string[] = [];
   if (frontmatter.description)
     lines.push(`description: ${quoteIfNeeded(frontmatter.description)}`);

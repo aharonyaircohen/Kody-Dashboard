@@ -135,7 +135,7 @@ Likely a length issue (Slack > 40KB, Telegram > 4096, Discord > 2000) or a malfo
 Some other writer (manual issue edit, another dashboard instance) clobbered the manifest. The CAS retry should handle most cases; if you see this happen, check the manifest issue's edit history (`/issues/<n>/timeline` on GitHub).
 
 **Multiple deploy PR notifications fired for one merge.**
-Both the engine (`release-deploy/deploy.sh`) and the dashboard fire today. After verifying the dashboard path works, the engine notify block can be removed in kody2 to deduplicate. See [`PLAN-kody-engine.md`](../PLAN-kody-engine.md).
+Both the engine (`release-deploy/deploy.sh`) and the dashboard fire today. After verifying the dashboard path works, the engine notify block can be removed in kody2 to deduplicate.
 
 ## Adding a new channel type
 

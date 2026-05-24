@@ -127,10 +127,10 @@ model is the engine's. The system prompt is `CHAT_SYSTEM_PROMPT` in
 
 ## Slash commands
 
-Slash commands (`/plan`, `/research`, `/issue`, repo `.kody/prompts/*.md`,
+Slash commands (`/plan`, `/research`, `/issue`, repo `.kody/commands/*.md`,
 …) work identically across all three backends: the composer expands
 `/<slug>` into rendered text **before** sending, so every endpoint just
-receives a normal user message. See [`../prompts.md`](../prompts.md).
+receives a normal user message. See [`../commands.md`](../commands.md).
 
 ## Deprecated endpoint
 

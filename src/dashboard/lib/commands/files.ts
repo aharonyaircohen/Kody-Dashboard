@@ -1,14 +1,14 @@
 /**
  * @fileType util
  * @domain kody
- * @pattern prompts-files
- * @ai-summary Read/write prompt files under `.kody/prompts/<slug>.md`
+ * @pattern commands-files
+ * @ai-summary Read/write command files under `.kody/commands/<slug>.md`
  *   via the GitHub contents API. Same shape as `duties-files.ts`:
  *   filename is the slug, frontmatter holds description/argument-hint,
- *   body is the prompt template that gets substituted with $ARGUMENTS.
+ *   body is the command template that gets substituted with $ARGUMENTS.
  *
- *   A sentinel file `.kody/prompts/.disable-builtins` (any content)
- *   suppresses every built-in prompt for the repo without requiring
+ *   A sentinel file `.kody/commands/.disable-builtins` (any content)
+ *   suppresses every built-in command for the repo without requiring
  *   per-slug overrides.
  */
 
@@ -17,22 +17,22 @@ import {
   getOctokit,
   getOwner,
   getRepo,
-  invalidatePromptsCache,
+  invalidateCommandsCache,
 } from "../github-client";
 import {
   joinFrontmatter,
   splitFrontmatter,
-  type PromptFrontmatter,
+  type CommandFrontmatter,
 } from "./frontmatter";
 
-export interface PromptFile {
+export interface CommandFile {
   /** Filename without `.md` — stable identity, becomes `/<slug>` in chat. */
   slug: string;
   /** One-line description from frontmatter (or empty). */
   description: string;
   /** Argument hint from frontmatter, e.g. `<topic>` (or empty). */
   argumentHint: string;
-  /** Prompt body — what gets sent to the model after substitution. */
+  /** Command body — what gets sent to the model after substitution. */
   body: string;
   /** Source: repo-defined file vs. dashboard built-in. */
   source: "repo" | "builtin";
@@ -44,7 +44,7 @@ export interface PromptFile {
   htmlUrl: string;
 }
 
-const PROMPTS_DIR = ".kody/prompts";
+const COMMANDS_DIR = ".kody/commands";
 const DISABLE_BUILTINS_FILE = ".disable-builtins";
 
 function slugFromName(name: string): string | null {
@@ -61,7 +61,7 @@ export function isValidSlug(slug: string): boolean {
 
 function buildHtmlUrl(slug: string, branch: string | null): string {
   const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${PROMPTS_DIR}/${slug}.md`;
+  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${COMMANDS_DIR}/${slug}.md`;
 }
 
 async function getDefaultBranch(octokit: Octokit): Promise<string> {
@@ -93,8 +93,8 @@ async function fetchLastCommitDate(
   }
 }
 
-function parsePromptMarkdown(raw: string): {
-  frontmatter: PromptFrontmatter;
+function parseCommandMarkdown(raw: string): {
+  frontmatter: CommandFrontmatter;
   body: string;
 } {
   const { frontmatter, body } = splitFrontmatter(raw);
@@ -102,12 +102,12 @@ function parsePromptMarkdown(raw: string): {
 }
 
 /**
- * List every prompt file under `.kody/prompts/`. Returns `[]` if the
+ * List every command file under `.kody/commands/`. Returns `[]` if the
  * directory does not exist. Also returns a flag indicating whether the
- * repo has opted out of built-in prompts.
+ * repo has opted out of built-in commands.
  */
-export async function listRepoPromptFiles(): Promise<{
-  prompts: PromptFile[];
+export async function listRepoCommandFiles(): Promise<{
+  commands: CommandFile[];
   builtinsDisabled: boolean;
 }> {
   const octokit = getOctokit();
@@ -118,13 +118,13 @@ export async function listRepoPromptFiles(): Promise<{
     const { data } = await octokit.repos.getContent({
       owner: getOwner(),
       repo: getRepo(),
-      path: PROMPTS_DIR,
+      path: COMMANDS_DIR,
     });
-    if (!Array.isArray(data)) return { prompts: [], builtinsDisabled: false };
+    if (!Array.isArray(data)) return { commands: [], builtinsDisabled: false };
     entries = data as Array<{ name: string; sha: string; type: string }>;
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) {
-      return { prompts: [], builtinsDisabled: false };
+      return { commands: [], builtinsDisabled: false };
     }
     throw error;
   }
@@ -143,7 +143,7 @@ export async function listRepoPromptFiles(): Promise<{
   const files = await Promise.all(
     slugs.map(async ({ slug, sha, name }) => {
       try {
-        const filePath = `${PROMPTS_DIR}/${name}`;
+        const filePath = `${COMMANDS_DIR}/${name}`;
         const { data } = await octokit.repos.getContent({
           owner: getOwner(),
           repo: getRepo(),
@@ -152,7 +152,7 @@ export async function listRepoPromptFiles(): Promise<{
         if (Array.isArray(data) || !("content" in data) || !data.content)
           return null;
         const raw = Buffer.from(data.content, "base64").toString("utf-8");
-        const { frontmatter, body } = parsePromptMarkdown(raw);
+        const { frontmatter, body } = parseCommandMarkdown(raw);
         const updatedAt = await fetchLastCommitDate(octokit, filePath);
         return {
           slug,
@@ -163,28 +163,28 @@ export async function listRepoPromptFiles(): Promise<{
           sha,
           updatedAt,
           htmlUrl: buildHtmlUrl(slug, branch),
-        } satisfies PromptFile;
+        } satisfies CommandFile;
       } catch {
         return null;
       }
     }),
   );
 
-  const nonNull: PromptFile[] = files.filter(
+  const nonNull: CommandFile[] = files.filter(
     (f): f is NonNullable<typeof f> => f !== null,
   );
   nonNull.sort((a, b) => a.slug.localeCompare(b.slug));
-  return { prompts: nonNull, builtinsDisabled };
+  return { commands: nonNull, builtinsDisabled };
 }
 
-export async function readPromptFile(
+export async function readCommandFile(
   slug: string,
   octokitOverride?: Octokit,
-): Promise<PromptFile | null> {
+): Promise<CommandFile | null> {
   if (!isValidSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);
-  const filePath = `${PROMPTS_DIR}/${slug}.md`;
+  const filePath = `${COMMANDS_DIR}/${slug}.md`;
 
   try {
     const { data } = await octokit.repos.getContent({
@@ -195,7 +195,7 @@ export async function readPromptFile(
     if (Array.isArray(data) || !("content" in data) || !data.content)
       return null;
     const raw = Buffer.from(data.content, "base64").toString("utf-8");
-    const { frontmatter, body } = parsePromptMarkdown(raw);
+    const { frontmatter, body } = parseCommandMarkdown(raw);
     const updatedAt = await fetchLastCommitDate(octokit, filePath);
     return {
       slug,
@@ -226,7 +226,7 @@ interface WriteOptions {
 function buildFileContent(
   opts: Omit<WriteOptions, "octokit" | "sha" | "message">,
 ): string {
-  const frontmatter: PromptFrontmatter = {
+  const frontmatter: CommandFrontmatter = {
     description: opts.description.trim() || undefined,
     argumentHint: opts.argumentHint?.trim() || undefined,
   };
@@ -235,17 +235,17 @@ function buildFileContent(
   return joinFrontmatter(frontmatter, ensureTrailingNewline);
 }
 
-export async function writePromptFile(opts: WriteOptions): Promise<PromptFile> {
+export async function writeCommandFile(opts: WriteOptions): Promise<CommandFile> {
   if (!isValidSlug(opts.slug)) {
     throw new Error(
-      `Invalid prompt slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`,
+      `Invalid command slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`,
     );
   }
-  const filePath = `${PROMPTS_DIR}/${opts.slug}.md`;
+  const filePath = `${COMMANDS_DIR}/${opts.slug}.md`;
   const content = buildFileContent(opts);
   const message =
     opts.message ??
-    `${opts.sha ? "chore" : "feat"}(prompts): ${opts.sha ? "update" : "add"} ${opts.slug}`;
+    `${opts.sha ? "chore" : "feat"}(commands): ${opts.sha ? "update" : "add"} ${opts.slug}`;
 
   await opts.octokit.repos.createOrUpdateFileContents({
     owner: getOwner(),
@@ -256,34 +256,34 @@ export async function writePromptFile(opts: WriteOptions): Promise<PromptFile> {
     sha: opts.sha,
   });
 
-  invalidatePromptsCache(opts.slug);
+  invalidateCommandsCache(opts.slug);
   // Confirm with the same octokit that wrote — not the per-request global,
   // which a concurrent request may have cleared (→ 401 "Bad credentials").
-  const refreshed = await readPromptFile(opts.slug, opts.octokit);
+  const refreshed = await readCommandFile(opts.slug, opts.octokit);
   if (!refreshed) {
     throw new Error(
-      "writePromptFile: file was written but could not be re-read",
+      "writeCommandFile: file was written but could not be re-read",
     );
   }
   return refreshed;
 }
 
-export async function deletePromptFile(
+export async function deleteCommandFile(
   octokit: Octokit,
   slug: string,
 ): Promise<void> {
   if (!isValidSlug(slug)) {
-    throw new Error(`Invalid prompt slug: "${slug}".`);
+    throw new Error(`Invalid command slug: "${slug}".`);
   }
-  const existing = await readPromptFile(slug);
+  const existing = await readCommandFile(slug);
   if (!existing) return;
-  const filePath = `${PROMPTS_DIR}/${slug}.md`;
+  const filePath = `${COMMANDS_DIR}/${slug}.md`;
   await octokit.repos.deleteFile({
     owner: getOwner(),
     repo: getRepo(),
     path: filePath,
-    message: `chore(prompts): remove ${slug}`,
+    message: `chore(commands): remove ${slug}`,
     sha: existing.sha,
   });
-  invalidatePromptsCache(slug);
+  invalidateCommandsCache(slug);
 }

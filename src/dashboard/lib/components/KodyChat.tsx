@@ -36,12 +36,12 @@ import { useAuth } from "../auth-context";
 import { toast } from "sonner";
 import type { KodyTask } from "../types";
 import {
-  useSlashPrompts,
+  useSlashCommands,
   parseSlashTrigger,
   expandSlashCommand,
-} from "../prompts/useSlashPrompts";
+} from "../commands/useSlashCommands";
 import { parseGoalMention, type GoalRef } from "../goal-mention";
-import { SlashCommandMenu, filterPrompts } from "./SlashCommandMenu";
+import { SlashCommandMenu, filterCommands } from "./SlashCommandMenu";
 
 /** Build fetch headers including client auth when available */
 function authHeaders(): Record<string, string> {
@@ -741,10 +741,10 @@ export function KodyChat({
   // and never remounts after Settings saves a Brain config — the dropdown
   // entry wouldn't appear until a full page reload.
   const { auth, loading: authLoading } = useAuth();
-  // Slash command prompt list (builtins + repo `.kody/prompts/*.md`).
+  // Slash command list (builtins + repo `.kody/commands/*.md`).
   // Stale-while-revalidate keeps autocomplete instant; the API itself
   // is cached on the server side via the GitHub client.
-  const { prompts: slashPrompts } = useSlashPrompts(auth);
+  const { commands: slashCommands } = useSlashCommands(auth);
   // Brain visibility is driven exclusively by the per-user Settings entry
   // (URL + API key in localStorage). A server-wide `BRAIN_CHAT_URL` env on
   // the deployment used to also surface the row, but that meant every
@@ -4071,7 +4071,7 @@ export function KodyChat({
       return;
     }
 
-    const expanded = expandSlashCommand(rawInput, slashPrompts);
+    const expanded = expandSlashCommand(rawInput, slashCommands);
     const userMessage = expanded ? expanded.text : rawInput;
     setInput("");
     setSlashMenuOpen(false);
@@ -4152,11 +4152,11 @@ export function KodyChat({
     voiceChatRef.current?.stopConversation();
   }, [voiceOverlayOpen]);
 
-  // Apply a slash prompt to the input: replaces the entire input with
+  // Apply a slash command to the input: replaces the entire input with
   // "/slug " so the user can immediately type arguments, OR sends right
   // away when the prompt takes no arguments and the user pressed Enter.
   const applySlashSelection = (slug: string) => {
-    const prompt = slashPrompts.find((p) => p.slug === slug);
+    const command = slashCommands.find((p) => p.slug === slug);
     if (!prompt) return;
     setSlashMenuOpen(false);
     setSlashSelectedIndex(0);
@@ -4172,7 +4172,7 @@ export function KodyChat({
     // the user types a space the menu's gone and normal handling resumes).
     if (slashMenuOpen) {
       const { filter } = parseSlashTrigger(input);
-      const matches = filterPrompts(slashPrompts, filter);
+      const matches = filterCommands(slashCommands, filter);
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setSlashSelectedIndex((i) =>
@@ -5253,7 +5253,7 @@ export function KodyChat({
           <div className="flex-1 relative">
             {slashMenuOpen && (
               <SlashCommandMenu
-                prompts={slashPrompts}
+                commands={slashCommands}
                 filter={parseSlashTrigger(input).filter}
                 selectedIndex={slashSelectedIndex}
                 onSelect={applySlashSelection}
@@ -5269,7 +5269,7 @@ export function KodyChat({
                 // the user types the slug, closes when they add a space
                 // or clear the slash.
                 const trigger = parseSlashTrigger(next);
-                setSlashMenuOpen(trigger.active && slashPrompts.length > 0);
+                setSlashMenuOpen(trigger.active && slashCommands.length > 0);
                 if (trigger.active) setSlashSelectedIndex(0);
                 // Auto-expand height
                 e.target.style.height = "auto";

@@ -1,11 +1,11 @@
 /**
  * @fileType data
  * @domain kody
- * @pattern prompts-builtins
- * @ai-summary Default prompts shipped with the dashboard. Each entry
+ * @pattern commands-builtins
+ * @ai-summary Default commands shipped with the dashboard. Each entry
  *   becomes a slash command in the chat (`/<slug>`). Repo-defined files
- *   at `.kody/prompts/<slug>.md` override built-ins by slug. Drop a file
- *   `.kody/prompts/.disable-builtins` in the repo to hide every built-in
+ *   at `.kody/commands/<slug>.md` override built-ins by slug. Drop a file
+ *   `.kody/commands/.disable-builtins` in the repo to hide every built-in
  *   without overriding individually.
  *
  *   `/research`, `/plan`, and `/issue` enforce the research-first flow
@@ -16,20 +16,20 @@
  *   gated on explicit user confirmation.
  */
 
-export interface BuiltinPrompt {
+export interface BuiltinCommand {
   slug: string;
   description: string;
   argumentHint?: string;
   body: string;
 }
 
-export const BUILTIN_PROMPTS: readonly BuiltinPrompt[] = [
+export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
   {
     slug: "init",
     description: "Install the Kody engine in this repo",
     argumentHint: "[--force]",
     // Body is unused — KodyChat.sendMessage intercepts `/init` before
-    // the slash-prompt expansion and runs the install action directly.
+    // the slash-command expansion and runs the install action directly.
     // Kept here so the slash menu lists it as a first-class command.
     body: "",
   },

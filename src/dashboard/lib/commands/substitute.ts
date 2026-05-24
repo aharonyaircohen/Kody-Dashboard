@@ -1,8 +1,8 @@
 /**
  * @fileType util
  * @domain kody
- * @pattern prompts-substitute
- * @ai-summary Substitute slash-command arguments into a prompt body.
+ * @pattern commands-substitute
+ * @ai-summary Substitute slash-command arguments into a command body.
  *   Mirrors Claude Code semantics so muscle memory transfers:
  *     - `$ARGUMENTS`  → full argument string (everything after `/slug `)
  *     - `$0`, `$1`, … → positional args, shell-style quoted

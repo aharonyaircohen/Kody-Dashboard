@@ -1,9 +1,9 @@
 /**
  * @fileType component
- * @domain prompts
+ * @domain commands
  * @pattern slash-menu
  * @ai-summary Floating menu shown above the chat composer while the
- *   user types a slash command. Filters prompts by prefix, supports
+ *   user types a slash command. Filters commands by prefix, supports
  *   keyboard navigation (handled by the parent via onKeyDown to keep
  *   focus inside the textarea), and dispatches selection to the parent.
  */
@@ -11,23 +11,23 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import type { SlashPrompt } from "../prompts/useSlashPrompts";
+import type { SlashCommand } from "../commands/useSlashCommands";
 
 interface Props {
-  prompts: SlashPrompt[];
+  commands: SlashCommand[];
   filter: string;
   selectedIndex: number;
   onSelect: (slug: string) => void;
   onHover: (index: number) => void;
 }
 
-export function filterPrompts(
-  prompts: SlashPrompt[],
+export function filterCommands(
+  commands: SlashCommand[],
   filter: string,
-): SlashPrompt[] {
+): SlashCommand[] {
   const f = filter.toLowerCase();
-  if (!f) return prompts;
-  return prompts.filter(
+  if (!f) return commands;
+  return commands.filter(
     (p) =>
       p.slug.toLowerCase().startsWith(f) ||
       p.description.toLowerCase().includes(f),
@@ -35,23 +35,23 @@ export function filterPrompts(
 }
 
 export function SlashCommandMenu({
-  prompts,
+  commands,
   filter,
   selectedIndex,
   onSelect,
   onHover,
 }: Props) {
   const filtered = useMemo(
-    () => filterPrompts(prompts, filter),
-    [prompts, filter],
+    () => filterCommands(commands, filter),
+    [commands, filter],
   );
 
   if (filtered.length === 0) {
     return (
       <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl px-3 py-2 text-xs text-white/50">
         No matching commands. Manage them at{" "}
-        <Link className="underline hover:text-white/80" href="/prompts">
-          /prompts
+        <Link className="underline hover:text-white/80" href="/commands">
+          /commands
         </Link>
         .
       </div>
@@ -104,7 +104,7 @@ export function SlashCommandMenu({
       </ul>
       <div className="border-t border-white/[0.06] px-3 py-1.5 text-[10px] text-white/35 flex items-center justify-between">
         <span>↑↓ navigate · Enter/Tab select · Esc close</span>
-        <Link href="/prompts" className="underline hover:text-white/70">
+        <Link href="/commands" className="underline hover:text-white/70">
           Manage
         </Link>
       </div>
