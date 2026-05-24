@@ -93,10 +93,10 @@ test.describe("KodyChat — render smoke (post-extraction)", () => {
         return;
       }
 
-      // The composer textarea is the proof the component rendered.
-      const composer = page
-        .getByPlaceholder(/ask kody|kody is waiting|message/i)
-        .first();
+      // The composer textarea is the proof the component rendered. Use the
+      // element (not a placeholder string) — the placeholder is dynamic
+      // (e.g. "Click Start to warm up the runner." for default kody-live).
+      const composer = page.locator("textarea").first();
       await expect(composer).toBeVisible({ timeout: 15_000 });
 
       const critical = errors.filter(
