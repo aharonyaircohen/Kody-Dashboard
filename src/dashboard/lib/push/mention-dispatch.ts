@@ -83,15 +83,43 @@ function plainSnippet(body: string, max = 180): string {
 // `user@host` references don't trigger.
 const MENTION_RE = /(^|[^A-Za-z0-9_/-])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\b/g;
 
+/**
+ * Logins that are the Kody bot itself, never a human operator. `@kody` is the
+ * engine's command handle — orchestrator trigger comments (`@kody sync --pr 12`,
+ * `@kody bug --base …`) and CTO recommendations that quote the command the
+ * operator should run all carry a literal `@kody`. Recording those as inbox
+ * mentions floods the shared, byte-capped feed and evicts real operator
+ * mentions (the bug that made a QA `@you` ping vanish from the inbox while the
+ * push still fired). No human reads a "kody" inbox, so they're never valid
+ * recipients. `kodyade` is the bot's GitHub account, dropped for the same reason.
+ */
+const BOT_MENTION_HANDLES = new Set(["kody", "kodyade"]);
+
+/**
+ * Blank out inline code spans and fenced code blocks before scanning for
+ * mentions. GitHub itself does not notify for an `@mention` inside code, and
+ * the engine deliberately backtick-wraps neutralized command directives
+ * (`@kody sync …`) — so a mention inside code is never a real ping. Matching
+ * that behavior keeps command examples out of the inbox feed.
+ */
+function stripCode(body: string): string {
+  return body
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`\n]*`/g, " ");
+}
+
 export function extractMentions(body: string | null | undefined): string[] {
   if (!body) return [];
   const found = new Set<string>();
-  for (const m of body.matchAll(MENTION_RE)) {
+  for (const m of stripCode(body).matchAll(MENTION_RE)) {
     const login = m[2];
     if (!login) continue;
+    const lc = login.toLowerCase();
+    // The bot's own command handle is a directive, not a person to notify.
+    if (BOT_MENTION_HANDLES.has(lc)) continue;
     // Skip team mentions like `@org/team` — the leading-char class already
     // excludes most of these, but be defensive.
-    found.add(login.toLowerCase());
+    found.add(lc);
   }
   return [...found];
 }

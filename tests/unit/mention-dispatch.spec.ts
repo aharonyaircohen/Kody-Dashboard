@@ -156,6 +156,28 @@ describe("extractMentions", () => {
   it("matches a mention at the very start of the body", () => {
     expect(extractMentions("@lead please review")).toEqual(["lead"]);
   });
+
+  it("ignores the bot's own command handle (bare orchestrator triggers)", () => {
+    // Exempt orchestrator trigger comments carry a literal @kody; they are
+    // commands, not pings. Recording them flooded the shared inbox feed.
+    expect(extractMentions("@kody bug --base 1979-foo")).toEqual([]);
+    expect(extractMentions("@kody sync --pr 1573")).toEqual([]);
+    expect(extractMentions("@kodyade did the work")).toEqual([]);
+  });
+
+  it("ignores mentions inside inline code and fenced blocks", () => {
+    // GitHub doesn't notify for @mentions inside code; neither do we.
+    expect(extractMentions("Confirming will run `@kody sync --pr 1573`.")).toEqual([]);
+    expect(extractMentions("```\n@kody resolve --pr 1574\n```")).toEqual([]);
+  });
+
+  it("still records a real operator mention alongside a quoted command", () => {
+    // CTO/QA comment that pings the operator but quotes the @kody command:
+    // the human mention survives, the bot command is dropped.
+    expect(
+      extractMentions("@aguyaharonyair please run `@kody sync --pr 1573`"),
+    ).toEqual(["aguyaharonyair"]);
+  });
 });
 
 describe("dispatchMentionPushes", () => {
