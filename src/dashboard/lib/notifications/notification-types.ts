@@ -2,51 +2,49 @@
  * @fileType utility
  * @domain kody
  * @pattern notification-type-mapper
- * @ai-summary Maps the shared `MentionEvent` (a classified webhook event from
- *   `mention-dispatch.ts`) to a `ServerNotificationType` the per-type mute
- *   prefs can key on.
+ * @ai-summary Maps a normalized `SourceEvent` to a `ServerNotificationType`
+ *   the per-type mute prefs can key on.
  *
- *   The server's webhook spine (`mention-dispatch.ts`) only produces a subset
- *   of `NotificationType` — those backed by GitHub webhooks. Types produced
- *   purely by client-side polling (`task-completed`, `task-failed`,
+ *   The webhook spine (`mention-dispatch.ts`) only produces a subset of the
+ *   client's `NotificationType` — those backed by GitHub webhooks. Types
+ *   produced purely by client-side polling (`task-completed`, `task-failed`,
  *   `task-started`, `stage-change`, `retry-started`) are outside the webhook
  *   spine and cannot be enforced server-side in this PR.
  *
  *   The mapping is intentionally conservative: events that don't clearly map
  *   to a mute-able type return `null` and are delivered without type filtering.
- *   Extending the map is a one-line addition.
+ *   Reading from `SourceEvent` (not the mention spine's old `MentionEvent`)
+ *   keeps this module dependency-free of the dispatcher — no circular import.
  */
 
 import type { ServerNotificationType } from "./prefs-store";
-import type { MentionEvent } from "../push/mention-dispatch";
+import type { SourceEvent } from "./source-event";
 
 /**
- * Map a classified webhook event to a server-known notification type.
+ * Map a normalized webhook event to a server-known notification type.
  * Returns `null` when the event has no mute-able type.
  *
- * Only these events are mapped (matching the `isMentionAction` gate in
- * `mention-dispatch.ts`):
+ * | GitHub event / action                  | ServerNotificationType |
+ * | --------------------------------------- | ---------------------- |
+ * | issue_comment / created                 | chat-response          |
+ * | pull_request_review_comment / created   | chat-response          |
+ * | commit_comment / created                | chat-response          |
+ * | discussion_comment / created            | chat-response          |
+ * | pull_request_review / submitted         | chat-response          |
+ * | discussion / opened|edited              | chat-response          |
+ * | issues / opened                         | task-assigned          |
+ * | pull_request / opened                   | pr-ready               |
+ * | pull_request / closed (merged)          | pr-merged              |
  *
- * | GitHub event / action              | ServerNotificationType |
- * | ---------------------------------- | ---------------------- |
- * | issue_comment / created            | chat-response          |
- * | pull_request_review_comment / created | chat-response        |
- * | commit_comment / created           | chat-response          |
- * | discussion_comment / created       | chat-response          |
- * | pull_request_review / submitted    | chat-response          |
- * | issues / opened                   | task-assigned          |
- * | pull_request / opened             | pr-ready               |
- * | pull_request / closed (merged)    | pr-merged              |
- *
- * `gate-waiting` is produced by client-side polling and cannot be enforced
- * server-side in this PR.
+ * `gate-waiting` / `task-*` come from client-side polling and can't be
+ * enforced server-side in this PR.
  */
 export function classifyNotificationType(
-  ev: MentionEvent,
-  eventType: string,
-  action: string,
+  ev: SourceEvent,
 ): ServerNotificationType | null {
-  // Comment / review / discussion events — all treated as chat-response
+  const { eventType, action } = ev;
+
+  // Comment / review events — all treated as chat-response.
   if (
     eventType === "issue_comment" ||
     eventType === "pull_request_review_comment" ||
@@ -57,31 +55,21 @@ export function classifyNotificationType(
     return "chat-response";
   }
 
-  // Issue events
   if (eventType === "issues") {
-    if (action === "opened") return "task-assigned";
-    // "closed" with a body might be task-completed but we can't reliably tell —
-    // the client-side polling is the authoritative source for column= done/failed.
-    return null;
+    return action === "opened" ? "task-assigned" : null;
   }
 
-  // PR events
   if (eventType === "pull_request") {
     if (action === "opened") return "pr-ready";
-    if (action === "closed") {
-      // Check merged flag — available on the MentionEvent via the pr object
-      // (set by buildSourceEvent → extractEvent).
-      const merged = ev.pr?.merged;
-      if (merged === true) return "pr-merged";
-      return null;
-    }
+    // `closed` + merged is `pr-merged`, but note the mention spine's action
+    // gate rejects `closed`, so this branch is only reachable if a future
+    // caller relaxes that gate. Harmless to keep correct.
+    if (action === "closed") return ev.pr?.merged ? "pr-merged" : null;
     return null;
   }
 
-  // Discussion events
   if (eventType === "discussion") {
-    if (action === "opened" || action === "edited") return "chat-response";
-    return null;
+    return action === "opened" || action === "edited" ? "chat-response" : null;
   }
 
   return null;
