@@ -45,9 +45,11 @@ live dashboard URL.
    - **Report present** → read the verdict (`QA [PASS|CONCERNS|FAIL]` title or
      `kody:qa-report` label — do not free-text guess):
      - **PASS** → swap the marker to ` · ✅ QA <today>`, close the tracking
-       issue, post one inbox rec **`approve`**.
+       issue, post one **informational** inbox rec (already shipped — clear to
+       ship, so it carries **no** `kody-cmd:` line; the operator just dismisses).
      - **CONCERNS / FAIL** → swap the marker to ` · ⚠️ QA <today> (#<finding>)`,
-       close the tracking issue, post one inbox rec **`fix`** linking the finding.
+       close the tracking issue, post one inbox rec whose `kody-cmd:` is
+       `@kody fix <one-line concern> (#<finding>)` — never `@kody approve`.
    - **Stuck** (no report, issue ≥ 2h old) → strip the marker (back to
      untested), comment the stall on the tracking issue, exit. A `🔄` must never
      block QA forever.
@@ -76,14 +78,21 @@ that mention is the only thing that routes it into the dashboard inbox:
 
 <one or two sentences: what was tested, the verdict, what confirming does>
 
-<!-- kody-cmd: @kody <exact command to run on approve> -->
+<!-- kody-cmd: @kody fix <one-line concern> (#<finding>) -->
 
 _Confirm or dismiss in the dashboard inbox. QA will not act on its own._
 ```
 
-`<action>` is `approve` (PASS — clear to ship) or `fix` (CONCERNS/FAIL). The
-`kody-cmd:` line is load-bearing — the Approve button posts it verbatim; it
-MUST start with `@kody`, one line, ≤ 300 chars.
+`<action>` is `verified` (PASS — clear to ship) or `fix` (CONCERNS/FAIL).
+
+- **PASS → omit the `kody-cmd:` line entirely.** The change already shipped, so
+  there is nothing for the engine to run; the rec is informational and the
+  operator just dismisses it.
+- **CONCERNS / FAIL → the `kody-cmd:` line is required and MUST be a real engine
+  verb:** `@kody fix <one-line concern>` (optionally `--pr <n>`). The Approve
+  button posts it verbatim, so it MUST start with `@kody fix`, be one line,
+  ≤ 300 chars. **Never emit `@kody approve`** — the engine has no `approve`
+  verb and rejects it.
 
 ## Allowed Commands
 
@@ -95,8 +104,8 @@ MUST start with `@kody`, one line, ≤ 300 chars.
 ## Restrictions
 
 - **Advisory on outcomes.** Dispatching `qa-engineer` is read-only (it never
-  commits). But `approve` / `fix` are recommendations only — never merge,
-  approve a PR/review, label, or run a fix yourself.
+  commits). The `fix` rec is a recommendation only — never merge, approve a
+  PR/review, label, or run a fix yourself.
 - **One run in flight at a time.** If any bullet shows `🔄`, never start a
   second run this tick.
 - **Changelog: markers only.** Edit solely the trailing ` · 🔄/✅/⚠️ …` segment.

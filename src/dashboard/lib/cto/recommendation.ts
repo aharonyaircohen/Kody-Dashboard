@@ -68,15 +68,32 @@ const FALLBACK_COMMAND: Partial<Record<CtoAction, string>> = {
 const MAX_COMMAND_LEN = 300;
 
 /**
+ * Verbs the engine has no executable for. A `kody-cmd` naming one is a persona
+ * bug — e.g. the QA duty emitting `@kody approve` for a PASS/CONCERNS result.
+ * `approve`/`reject`/`dismiss` are human inbox gates, not engine commands, so
+ * posting them verbatim makes the engine reply "I don't recognize approve."
+ * Treat any such command as invalid so the rec surfaces read-only instead.
+ */
+const NON_ENGINE_VERBS = new Set(["approve", "reject", "dismiss"]);
+
+/** True for `@kody <verb>` whose verb the engine can't dispatch (dead verb). */
+function isNonEngineCommand(cmd: string): boolean {
+  const verb = cmd.slice("@kody".length).trim().split(/\s+/)[0]?.toLowerCase();
+  return verb ? NON_ENGINE_VERBS.has(verb) : false;
+}
+
+/**
  * Extract the literal command the CTO wants Approve to post, from the raw
- * comment body. Guarded: must be a single `@kody …` line, length-capped.
- * Returns null when absent/invalid (rec then surfaces read-only).
+ * comment body. Guarded: must be a single `@kody …` line, length-capped, and
+ * not a non-engine verb (see `NON_ENGINE_VERBS`). Returns null when
+ * absent/invalid (rec then surfaces read-only).
  */
 export function parseCtoCommand(rawBody: string): string | null {
   const m = rawBody.match(/<!--\s*kody-cmd:\s*(@kody[^\n]*?)\s*-->/i);
   if (!m) return null;
   const cmd = m[1].trim();
   if (!cmd.startsWith("@kody") || cmd.length > MAX_COMMAND_LEN) return null;
+  if (isNonEngineCommand(cmd)) return null;
   return cmd;
 }
 
@@ -240,9 +257,12 @@ export function detectCtoRecommendation(
   // The command the CTO explicitly asked Approve to post (parsed from the
   // raw body at write time) wins. Legacy recs with no `kody-cmd` line fall
   // back to the verb→command map. No command → read-only (never misroute).
+  // Entries persisted before the parse-time guard (or by a regressed persona)
+  // may carry a dead verb like `@kody approve`; drop it so we never post a
+  // command the engine rejects.
   const stored = entry.ctoCommand?.trim();
   const command =
-    stored && stored.startsWith("@kody")
+    stored && stored.startsWith("@kody") && !isNonEngineCommand(stored)
       ? stored
       : (dispatchCommand(action) ?? null);
 

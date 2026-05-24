@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseCtoStaff,
   parseCtoAction,
+  parseCtoCommand,
   detectCtoRecommendation,
 } from "@dashboard/lib/cto/recommendation";
 import { buildSnippet } from "@dashboard/lib/inbox/types";
@@ -113,6 +114,31 @@ describe("detectCtoRecommendation — staff scoping", () => {
 
   it("returns null for a non-recommendation mention", () => {
     expect(detectCtoRecommendation(entry({ snippet: "hi" }))).toBeNull();
+  });
+});
+
+describe("non-engine verbs never get dispatched", () => {
+  it("parseCtoCommand rejects a dead `@kody approve` command", () => {
+    expect(parseCtoCommand("<!-- kody-cmd: @kody approve -->")).toBeNull();
+    expect(parseCtoCommand("<!-- kody-cmd: @kody reject -->")).toBeNull();
+  });
+
+  it("parseCtoCommand still accepts a real engine verb", () => {
+    expect(parseCtoCommand("<!-- kody-cmd: @kody fix --pr 42 -->")).toBe(
+      "@kody fix --pr 42",
+    );
+    // Bare `@kody` (execute) has no verb — must remain valid.
+    expect(parseCtoCommand("<!-- kody-cmd: @kody -->")).toBe("@kody");
+  });
+
+  it("detectCtoRecommendation drops a stored `@kody approve` to read-only", () => {
+    // A QA rec persisted before the fix carried `@kody approve` as its command.
+    const rec = detectCtoRecommendation(
+      entry({ ctoAction: "fix", ctoStaff: "qa", ctoCommand: "@kody approve" }),
+    );
+    expect(rec).not.toBeNull();
+    // Falls back to the verb→command map (fix → @kody), never the dead verb.
+    expect(rec!.command).not.toBe("@kody approve");
   });
 });
 
