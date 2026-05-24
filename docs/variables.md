@@ -26,7 +26,7 @@ Use a variable for **non-sensitive config** the dashboard or engine
 reads at request time:
 
 - LLM config — the `LLM_MODELS` list (each entry binds a model to a
-  provider, protocol, and the *name* of a secret to read at request
+  provider, protocol, and the _name_ of a secret to read at request
   time; the key value itself stays in the vault).
 - QA targeting — `QA_URL` (the URL the QA agent browses) and
   `LOGIN_USER` (the test-account username).
@@ -58,7 +58,7 @@ so the next read sees the new value.
 ### Editing a variable
 
 Click **Edit** on the row. Unlike secrets, the current value **is**
-shown — variables are non-sensitive, so the list returns names *and*
+shown — variables are non-sensitive, so the list returns names _and_
 values. Save overwrites the entry.
 
 ### Deleting a variable
@@ -124,20 +124,20 @@ in-flight dedup, so polling endpoints don't stampede GitHub.
 - **CAS**: every write reads the latest SHA and passes it to the next
   `createOrUpdateFileContents` call. `updateVariables` retries up to 3
   times on a 409 SHA conflict, re-running the mutate against the freshly
-  read doc — so concurrent writes to *different* keys don't clobber each
+  read doc — so concurrent writes to _different_ keys don't clobber each
   other.
 
 ## File reference
 
-| File                                                                                                          | Purpose                                                                          |
-| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| [`src/dashboard/lib/variables/get-variable.ts`](../src/dashboard/lib/variables/get-variable.ts)               | Runtime helper: `getVariable(name, { req })` with `process.env` fallback         |
-| [`src/dashboard/lib/variables/store.ts`](../src/dashboard/lib/variables/store.ts)                             | GitHub Contents API read/write of `.kody/variables.json` + per-repo cache + CAS  |
-| [`src/dashboard/lib/variables/models.ts`](../src/dashboard/lib/variables/models.ts)                           | Typed accessor + Zod schema for the `LLM_MODELS` variable                        |
-| [`app/api/kody/variables/route.ts`](../app/api/kody/variables/route.ts)                                       | `GET` (list with values) and `POST` (upsert)                                     |
-| [`app/api/kody/variables/[name]/route.ts`](../app/api/kody/variables/%5Bname%5D/route.ts)                     | `DELETE`                                                                          |
-| [`app/(chat-rail)/variables/page.tsx`](<../app/(chat-rail)/variables/page.tsx>)                               | The `/variables` page route                                                      |
-| [`src/dashboard/lib/components/VariablesManager.tsx`](../src/dashboard/lib/components/VariablesManager.tsx)    | The `/variables` page UI                                                         |
+| File                                                                                                        | Purpose                                                                         |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [`src/dashboard/lib/variables/get-variable.ts`](../src/dashboard/lib/variables/get-variable.ts)             | Runtime helper: `getVariable(name, { req })` with `process.env` fallback        |
+| [`src/dashboard/lib/variables/store.ts`](../src/dashboard/lib/variables/store.ts)                           | GitHub Contents API read/write of `.kody/variables.json` + per-repo cache + CAS |
+| [`src/dashboard/lib/variables/models.ts`](../src/dashboard/lib/variables/models.ts)                         | Typed accessor + Zod schema for the `LLM_MODELS` variable                       |
+| [`app/api/kody/variables/route.ts`](../app/api/kody/variables/route.ts)                                     | `GET` (list with values) and `POST` (upsert)                                    |
+| [`app/api/kody/variables/[name]/route.ts`](../app/api/kody/variables/%5Bname%5D/route.ts)                   | `DELETE`                                                                        |
+| [`app/(chat-rail)/variables/page.tsx`](<../app/(chat-rail)/variables/page.tsx>)                             | The `/variables` page route                                                     |
+| [`src/dashboard/lib/components/VariablesManager.tsx`](../src/dashboard/lib/components/VariablesManager.tsx) | The `/variables` page UI                                                        |
 
 ## FAQ
 
@@ -168,7 +168,7 @@ Two keys, both in the engine's preflight scripts:
   `resolveQaUrl`, after `--url`, a goal's latest Vercel deployment, and
   `$PREVIEW_URL`.
 - `LOGIN_USER` — the test-account username. `loadQaContext` pairs it
-  with the `LOGIN_PASSWORD` *secret* (from the vault) to build the
+  with the `LOGIN_PASSWORD` _secret_ (from the vault) to build the
   agent's auth instructions. Username is plaintext config; the password
   is encrypted.
 

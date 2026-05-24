@@ -228,11 +228,12 @@ export function latestCtoDecisions(
 ): Record<string, CtoLatestDecision> {
   const out: Record<string, CtoLatestDecision> = {};
   for (const e of manifest.log) {
-    out[staffDecisionKey(e.staff ?? DEFAULT_STAFF_SLUG, e.taskNumber, e.action)] =
-      {
-        decision: e.decision,
-        at: e.at,
-      };
+    out[
+      staffDecisionKey(e.staff ?? DEFAULT_STAFF_SLUG, e.taskNumber, e.action)
+    ] = {
+      decision: e.decision,
+      at: e.at,
+    };
   }
   return out;
 }

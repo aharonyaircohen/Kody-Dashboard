@@ -126,8 +126,8 @@ describe("buildActivitySnapshot", () => {
       NOW,
     );
     expect(snap.signals.medianDurationSec).toBe(90);
-    expect(
-      new Date(snap.runs[0].createdAt).getTime(),
-    ).toBeGreaterThan(new Date(snap.runs[1].createdAt).getTime());
+    expect(new Date(snap.runs[0].createdAt).getTime()).toBeGreaterThan(
+      new Date(snap.runs[1].createdAt).getTime(),
+    );
   });
 });

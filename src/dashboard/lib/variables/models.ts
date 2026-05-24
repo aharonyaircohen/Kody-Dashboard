@@ -162,7 +162,9 @@ export function pickDefaultModel(models: ChatModel[]): ChatModel | null {
  */
 export function pickEngineDefaultModel(models: ChatModel[]): ChatModel | null {
   const enabled = models.filter((m) => m.enabled !== false);
-  return enabled.find((m) => m.engineDefault === true) ?? pickDefaultModel(models);
+  return (
+    enabled.find((m) => m.engineDefault === true) ?? pickDefaultModel(models)
+  );
 }
 
 /**

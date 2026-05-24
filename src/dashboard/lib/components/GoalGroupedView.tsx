@@ -228,10 +228,7 @@ export function useGoalCollapse(goals: Goal[], tasks: KodyTask[]) {
   const allKeys = visibleGroups.map((g) => g.key);
   const allCollapsed =
     allKeys.length > 0 && allKeys.every((k) => isCollapsed(k));
-  const expandAll = useCallback(
-    () => setCollapsed(new Set()),
-    [setCollapsed],
-  );
+  const expandAll = useCallback(() => setCollapsed(new Set()), [setCollapsed]);
   const collapseAll = useCallback(
     () => setCollapsed(new Set(allKeys)),
     [allKeys, setCollapsed],

@@ -17,14 +17,7 @@
  * is captured from the PUT body and decoded, so we assert on real output.
  */
 
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as appendPOST } from "../../app/api/kody/chat/interactive/append/route";
@@ -33,19 +26,16 @@ const GITHUB_API = "https://api.github.com";
 const REAL_FETCH = globalThis.fetch;
 
 function makeRequest(body: unknown): NextRequest {
-  return new NextRequest(
-    "https://dash.test/api/kody/chat/interactive/append",
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-kody-token": "ghp_test",
-        "x-kody-owner": "acme",
-        "x-kody-repo": "widgets",
-      },
-      body: JSON.stringify(body),
+  return new NextRequest("https://dash.test/api/kody/chat/interactive/append", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-kody-token": "ghp_test",
+      "x-kody-owner": "acme",
+      "x-kody-repo": "widgets",
     },
-  );
+    body: JSON.stringify(body),
+  });
 }
 
 /**
@@ -129,7 +119,9 @@ describe("POST /api/kody/chat/interactive/append", () => {
     // Primer rode along…
     expect(written.content).toContain("[Vibe mode");
     expect(written.content).toContain("Use the existing branch `42-header`");
-    expect(written.content).toContain("never end a turn with uncommitted changes");
+    expect(written.content).toContain(
+      "never end a turn with uncommitted changes",
+    );
     // …and the user's actual message survived, at the end.
     expect(written.content.endsWith("make the header bigger")).toBe(true);
   });

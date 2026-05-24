@@ -1327,8 +1327,7 @@ export async function fetchWorkflowRuns(options?: {
     event: (run as any).event ?? undefined,
     run_number: (run as any).run_number ?? undefined,
     run_attempt: (run as any).run_attempt ?? undefined,
-    actor:
-      (run as any).triggering_actor?.login ?? (run as any).actor?.login,
+    actor: (run as any).triggering_actor?.login ?? (run as any).actor?.login,
   }));
 
   setCache(cacheKey, CACHE_TTL.pipeline, runs, { etag: newEtag });
@@ -1977,7 +1976,9 @@ export async function fetchCompanyActivity(
       path: ACTIVITY_DIR,
       // Engine commits the activity feed to the dedicated state branch.
       ref: STATE_BRANCH,
-      headers: listStale?.etag ? { "If-None-Match": listStale.etag } : undefined,
+      headers: listStale?.etag
+        ? { "If-None-Match": listStale.etag }
+        : undefined,
     });
     const etag = (res.headers as Record<string, string | undefined>)?.etag;
     if (Array.isArray(res.data)) {
@@ -1989,7 +1990,9 @@ export async function fetchCompanyActivity(
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
     if (status === 304 && listStale) {
-      setCache(listKey, CACHE_TTL.tasks, listStale.data, { etag: listStale.etag });
+      setCache(listKey, CACHE_TTL.tasks, listStale.data, {
+        etag: listStale.etag,
+      });
       files = listStale.data;
     } else if (status === 404) {
       return [];

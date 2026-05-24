@@ -26,7 +26,10 @@ import { ensureDiscussionsReady } from "@dashboard/lib/discussions-ready";
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
-    return NextResponse.json({ error: "github_token_expired" }, { status: 401 });
+    return NextResponse.json(
+      { error: "github_token_expired" },
+      { status: 401 },
+    );
   }
   if (error?.status === 403 || error?.message?.includes("rate limit")) {
     return NextResponse.json(

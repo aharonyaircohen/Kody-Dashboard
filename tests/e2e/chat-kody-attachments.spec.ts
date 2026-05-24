@@ -162,9 +162,9 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
     await input.press("Enter");
 
     // Reply rendered → request completed.
-    await expect(
-      page.getByText("I see your image.").first(),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("I see your image.").first()).toBeVisible({
+      timeout: 15_000,
+    });
 
     // 1) The outgoing payload must use structured parts, not a base64
     // string smashed into the text. Last user message → content array

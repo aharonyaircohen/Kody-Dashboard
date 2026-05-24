@@ -58,7 +58,11 @@ function contentsResponse(doc: VaultDocument, sha = "sha-1") {
 const DOC: VaultDocument = {
   version: 1,
   secrets: {
-    OPENAI_API_KEY: { value: "sk-1", updatedAt: "2026-01-01T00:00:00Z", updatedBy: "alice" },
+    OPENAI_API_KEY: {
+      value: "sk-1",
+      updatedAt: "2026-01-01T00:00:00Z",
+      updatedBy: "alice",
+    },
   },
 };
 

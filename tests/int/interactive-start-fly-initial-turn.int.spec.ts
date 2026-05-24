@@ -44,11 +44,14 @@ const AUTH_HEADERS = {
 };
 
 function makeRequest(body: unknown): NextRequest {
-  return new NextRequest("https://dash.test/api/kody/chat/interactive/start-fly", {
-    method: "POST",
-    headers: AUTH_HEADERS,
-    body: JSON.stringify(body),
-  });
+  return new NextRequest(
+    "https://dash.test/api/kody/chat/interactive/start-fly",
+    {
+      method: "POST",
+      headers: AUTH_HEADERS,
+      body: JSON.stringify(body),
+    },
+  );
 }
 
 /**

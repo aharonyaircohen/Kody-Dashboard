@@ -79,7 +79,9 @@ export function useOperators(): UseOperators {
         );
         setOperators(saved);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save operators");
+        setError(
+          err instanceof Error ? err.message : "Failed to save operators",
+        );
         throw err;
       } finally {
         setSaving(false);

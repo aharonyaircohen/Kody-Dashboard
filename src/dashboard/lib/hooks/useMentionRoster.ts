@@ -29,9 +29,10 @@ export interface MentionEntry {
  * dispatch, resolved server-side). Self is always included so you can
  * self-mention even on a bot-only/private repo.
  */
-export function useMentionRoster(
-  self?: { login?: string; avatar_url?: string },
-): MentionEntry[] {
+export function useMentionRoster(self?: {
+  login?: string;
+  avatar_url?: string;
+}): MentionEntry[] {
   const { data: collaborators } = useCollaborators();
   const { data: staff } = useStaff();
 

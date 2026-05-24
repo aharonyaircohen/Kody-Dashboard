@@ -66,13 +66,9 @@ export function CommentEditor({
     error,
   } = usePostComment(issueNumber, githubUser?.login);
 
-  const hasReadyAttachment = att.attachments.some(
-    (a) => a.status === "done",
-  );
+  const hasReadyAttachment = att.attachments.some((a) => a.status === "done");
   const canSubmit =
-    (!!comment.trim() || hasReadyAttachment) &&
-    !isPosting &&
-    !att.isUploading;
+    (!!comment.trim() || hasReadyAttachment) && !isPosting && !att.isUploading;
 
   // Fetch collaborators for @mentions
   useEffect(() => {
@@ -335,7 +331,10 @@ export function CommentEditor({
         {...att.dropzoneProps}
       >
         {showPreview ? (
-          <div dir="auto" className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs prose prose-sm dark:prose-invert max-w-none">
+          <div
+            dir="auto"
+            className="min-h-[60px] p-2 border border-border rounded-md bg-background text-xs prose prose-sm dark:prose-invert max-w-none"
+          >
             <ReactMarkdown>{comment || "*Nothing to preview*"}</ReactMarkdown>
           </div>
         ) : (

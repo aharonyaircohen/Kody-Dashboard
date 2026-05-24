@@ -38,7 +38,11 @@ async function injectAuth(page: Page): Promise<void> {
       owner,
       repo,
       token: TEST_TOKEN,
-      user: { login: "e2e-test", avatar_url: "https://github.com/github-mark.png", id: 1 },
+      user: {
+        login: "e2e-test",
+        avatar_url: "https://github.com/github-mark.png",
+        id: 1,
+      },
       loggedInAt: Date.now(),
     },
   );
@@ -47,7 +51,9 @@ async function injectAuth(page: Page): Promise<void> {
 test.describe("warm pool — live through deployed dashboard", () => {
   test.skip(!TEST_TOKEN, "E2E_GITHUB_TOKEN not set");
 
-  test("dashboard reaches the pool owner and reports live counts", async ({ page }) => {
+  test("dashboard reaches the pool owner and reports live counts", async ({
+    page,
+  }) => {
     // Authenticate (localStorage is origin-scoped → set after first nav).
     await page.goto(`${BASE_URL}/login`);
     await page.waitForLoadState("domcontentloaded");
@@ -70,7 +76,11 @@ test.describe("warm pool — live through deployed dashboard", () => {
       { token: TEST_TOKEN, owner, repo },
     );
 
-    console.log("[pool-live] /api/kody/pool/status →", result.status, result.body);
+    console.log(
+      "[pool-live] /api/kody/pool/status →",
+      result.status,
+      result.body,
+    );
     expect(result.status).toBe(200);
     const json = JSON.parse(result.body) as {
       status: { min: number; free: number; total: number } | null;
@@ -81,7 +91,9 @@ test.describe("warm pool — live through deployed dashboard", () => {
     expect(json.status?.min).toBeGreaterThan(0);
   });
 
-  test("Settings renders the LiteLLM card with the warm-pool line", async ({ page }) => {
+  test("Settings renders the LiteLLM card with the warm-pool line", async ({
+    page,
+  }) => {
     await page.goto(`${BASE_URL}/login`);
     await page.waitForLoadState("domcontentloaded");
     await injectAuth(page);
@@ -90,14 +102,20 @@ test.describe("warm pool — live through deployed dashboard", () => {
 
     // Best-effort visual proof. The card only renders when the connected repo
     // has FLY_API_TOKEN in its vault; capture a screenshot regardless.
-    await page.screenshot({ path: "test-results/pool-settings.png", fullPage: true });
+    await page.screenshot({
+      path: "test-results/pool-settings.png",
+      fullPage: true,
+    });
     const litellm = page.getByText("LiteLLM proxy", { exact: false });
     if (await litellm.count()) {
-      await expect(page.getByText(/Warm pool/i)).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText(/Warm pool/i)).toBeVisible({
+        timeout: 15_000,
+      });
     } else {
       test.info().annotations.push({
         type: "note",
-        description: "LiteLLM card not shown — repo vault has no FLY_API_TOKEN; API check covers reachability.",
+        description:
+          "LiteLLM card not shown — repo vault has no FLY_API_TOKEN; API check covers reachability.",
       });
     }
   });

@@ -42,14 +42,11 @@ export function useCommentAttachments() {
   const dragDepth = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const patch = useCallback(
-    (id: string, next: Partial<CommentAttachment>) => {
-      setAttachments((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, ...next } : a)),
-      );
-    },
-    [],
-  );
+  const patch = useCallback((id: string, next: Partial<CommentAttachment>) => {
+    setAttachments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, ...next } : a)),
+    );
+  }, []);
 
   const uploadOne = useCallback(
     async (file: File) => {

@@ -168,10 +168,14 @@ describe("fetchOpenPRs", () => {
   it("invalidatePRCache clears the cached PR listing", async () => {
     graphql.mockResolvedValue(openPRsResponse([1]));
     await fetchOpenPRs();
-    expect(getCacheStats().keys.some((k) => k.startsWith("open-prs:"))).toBe(true);
+    expect(getCacheStats().keys.some((k) => k.startsWith("open-prs:"))).toBe(
+      true,
+    );
 
     invalidatePRCache();
-    expect(getCacheStats().keys.some((k) => k.startsWith("open-prs:"))).toBe(false);
+    expect(getCacheStats().keys.some((k) => k.startsWith("open-prs:"))).toBe(
+      false,
+    );
   });
 });
 
@@ -183,7 +187,11 @@ describe("fetchIssues REST→GraphQL fallback", () => {
     const issues = await fetchIssues();
 
     expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({ number: 55, title: "gql-issue-55", state: "open" });
+    expect(issues[0]).toMatchObject({
+      number: 55,
+      title: "gql-issue-55",
+      state: "open",
+    });
     expect(graphql).toHaveBeenCalledTimes(1);
   });
 

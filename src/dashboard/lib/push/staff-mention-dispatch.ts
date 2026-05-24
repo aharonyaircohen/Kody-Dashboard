@@ -20,10 +20,7 @@ import "server-only";
 import { Octokit } from "@octokit/rest";
 import { setGitHubContext, clearGitHubContext } from "../github-client";
 import { listStaffFiles } from "../staff-files";
-import {
-  dispatchWorkerAsk,
-  type WorkerAskReply,
-} from "../control-issue";
+import { dispatchWorkerAsk, type WorkerAskReply } from "../control-issue";
 import { extractStaffMentions } from "../mentions/staff-mentions";
 import { buildSourceEvent } from "../notifications/source-event";
 import { logger } from "../logger";

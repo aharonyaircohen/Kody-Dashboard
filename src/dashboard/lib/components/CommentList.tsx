@@ -374,7 +374,10 @@ function CommentItem({ comment }: { comment: GitHubComment }) {
       </div>
 
       {/* Body - Rendered markdown */}
-      <div dir="auto" className="prose prose-sm dark:prose-invert max-w-none text-sm">
+      <div
+        dir="auto"
+        className="prose prose-sm dark:prose-invert max-w-none text-sm"
+      >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{

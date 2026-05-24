@@ -36,7 +36,10 @@ export function authHeaders(): Record<string, string> {
 // later turn reuses it verbatim regardless of transient prefix/session churn.
 const BRAIN_CHAT_ID_KEY = "kody-brain-chat-ids";
 
-export function stickyBrainChatId(logicalKey: string, candidate: string): string {
+export function stickyBrainChatId(
+  logicalKey: string,
+  candidate: string,
+): string {
   if (typeof window === "undefined") return candidate;
   try {
     const raw = window.localStorage.getItem(BRAIN_CHAT_ID_KEY);

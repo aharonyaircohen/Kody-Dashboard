@@ -108,8 +108,8 @@ test.describe("Kody direct agent", () => {
 
     // The streamed text lands in an assistant bubble — assert on the text
     // itself rather than a brittle class chain.
-    await expect(
-      page.getByText("Hello from Kody direct!").first(),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Hello from Kody direct!").first()).toBeVisible(
+      { timeout: 15_000 },
+    );
   });
 });

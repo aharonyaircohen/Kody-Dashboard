@@ -24,7 +24,11 @@ export async function GET(req: NextRequest) {
   if (!headerAuth) {
     // The event log lives in the *connected* repo; without header auth we
     // have no repo to read. (The polled health view still works via env.)
-    return NextResponse.json({ events: [], total: 0, computedAt: new Date().toISOString() });
+    return NextResponse.json({
+      events: [],
+      total: 0,
+      computedAt: new Date().toISOString(),
+    });
   }
 
   try {

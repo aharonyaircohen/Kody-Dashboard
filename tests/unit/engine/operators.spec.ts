@@ -28,10 +28,12 @@ function octokitWithConfig(config: unknown) {
             sha: "sha-1",
           },
         }),
-        createOrUpdateFileContents: vi.fn().mockImplementation(async (p: Record<string, unknown>) => {
-          writes.push(p);
-          return { data: { commit: { sha: "commit-1" } } };
-        }),
+        createOrUpdateFileContents: vi
+          .fn()
+          .mockImplementation(async (p: Record<string, unknown>) => {
+            writes.push(p);
+            return { data: { commit: { sha: "commit-1" } } };
+          }),
       },
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,7 +70,11 @@ describe("writeOperators", () => {
       quality: { something: true },
     });
 
-    const res = await writeOperators(octokit, "o", "r", ["@alice", "alice", "bob"]);
+    const res = await writeOperators(octokit, "o", "r", [
+      "@alice",
+      "alice",
+      "bob",
+    ]);
 
     expect(res.operators).toEqual(["alice", "bob"]);
     const written = lastWritten();
@@ -84,7 +90,9 @@ describe("writeOperators", () => {
 describe("readOperators", () => {
   it("returns a normalized list, empty when unset", async () => {
     const a = octokitWithConfig({ executables: { default: "run" } });
-    expect(await readOperators(a.octokit, "o", "r", { force: true })).toEqual([]);
+    expect(await readOperators(a.octokit, "o", "r", { force: true })).toEqual(
+      [],
+    );
 
     const b = octokitWithConfig({
       executables: { default: "run" },

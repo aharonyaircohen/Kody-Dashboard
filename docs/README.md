@@ -53,7 +53,7 @@ Surfaced while writing the docs:
   `lockedAgentId ?? "kody-live"`, so the default agent is `kody-live`, not
   `kody`. CLAUDE.md's "Chat flow" section was updated to match.
 - **Cron cadence**: ✅ reconciled (no behavior bug). The wake is `*/15` (15
-  min, canonical); `job-scheduler`'s `*/5` is a *max eligible* cadence that
+  min, canonical); `job-scheduler`'s `*/5` is a _max eligible_ cadence that
   matches every 15-min wake; the dashboard's 15m mirror is correct. The only
   stale artifact is the `templates/kody.yml` comment that says "every 30
   minutes" — it should read "15 minutes". (Left for the engine repo; not edited

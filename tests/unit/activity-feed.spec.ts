@@ -101,9 +101,7 @@ describe("buildFeedSnapshot", () => {
       entry({ payload: { sessionId: "live-test-1" } }),
       entry({ payload: { sessionId: "live-abc" } }),
     ]);
-    const by = Object.fromEntries(
-      sessions.map((s) => [s.sessionId, s]),
-    );
+    const by = Object.fromEntries(sessions.map((s) => [s.sessionId, s]));
     expect(by["vibe-1587-xyz"].origin).toBe("vibe");
     expect(by["vibe-1587-xyz"].issueNumber).toBe(1587);
     expect(by["live-direct-123"].origin).toBe("direct");

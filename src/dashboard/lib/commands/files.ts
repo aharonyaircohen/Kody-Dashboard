@@ -235,7 +235,9 @@ function buildFileContent(
   return joinFrontmatter(frontmatter, ensureTrailingNewline);
 }
 
-export async function writeCommandFile(opts: WriteOptions): Promise<CommandFile> {
+export async function writeCommandFile(
+  opts: WriteOptions,
+): Promise<CommandFile> {
   if (!isValidSlug(opts.slug)) {
     throw new Error(
       `Invalid command slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`,

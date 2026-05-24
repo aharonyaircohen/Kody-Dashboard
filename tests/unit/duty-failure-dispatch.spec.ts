@@ -127,7 +127,12 @@ describe("touchesActivityLog", () => {
 describe("buildEntries", () => {
   it("emits one entry per (operator × failure) with a deterministic id", () => {
     const failure = rec({ duty: "d1", ts: "2026-05-23T00:00:00.000Z" });
-    const entries = buildEntries("acme", "widgets", ["alice", "bob"], [failure]);
+    const entries = buildEntries(
+      "acme",
+      "widgets",
+      ["alice", "bob"],
+      [failure],
+    );
     expect(entries).toHaveLength(2);
     expect(entries.map((e) => e.id)).toEqual([
       "duty-fail:alice:d1:2026-05-23T00:00:00.000Z",
@@ -144,9 +149,12 @@ describe("buildEntries", () => {
   });
 
   it("falls back to the repo URL when the run URL is missing", () => {
-    const entries = buildEntries("acme", "widgets", ["alice"], [
-      rec({ runUrl: null }),
-    ]);
+    const entries = buildEntries(
+      "acme",
+      "widgets",
+      ["alice"],
+      [rec({ runUrl: null })],
+    );
     expect(entries[0].url).toBe("https://github.com/acme/widgets");
   });
 

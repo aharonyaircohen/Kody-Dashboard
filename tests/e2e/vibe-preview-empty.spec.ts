@@ -17,10 +17,12 @@
  */
 import { test, expect } from "@playwright/test";
 
-const BASE_URL = process.env.BASE_URL ?? "https://kody-dashboard-sable.vercel.app";
+const BASE_URL =
+  process.env.BASE_URL ?? "https://kody-dashboard-sable.vercel.app";
 const TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const REPO_URL =
-  process.env.E2E_GITHUB_REPO ?? "https://github.com/aharonyaircohen/Kody-Engine-Tester";
+  process.env.E2E_GITHUB_REPO ??
+  "https://github.com/aharonyaircohen/Kody-Engine-Tester";
 
 function parseRepo(url: string): { owner: string; repo: string } {
   const u = new URL(url);
@@ -30,7 +32,10 @@ function parseRepo(url: string): { owner: string; repo: string } {
 const { owner, repo } = parseRepo(REPO_URL);
 const TARGET_FILE = "src/app/(frontend)/page.tsx";
 
-async function gh<T = unknown>(path: string, init?: RequestInit): Promise<{ ok: boolean; status: number; json: T }> {
+async function gh<T = unknown>(
+  path: string,
+  init?: RequestInit,
+): Promise<{ ok: boolean; status: number; json: T }> {
   const res = await fetch(`https://api.github.com${path}`, {
     ...init,
     headers: {
@@ -66,25 +71,34 @@ async function readEvents(taskId: string): Promise<Array<{ event?: string }>> {
 test.describe("REPRO — Vibe preview is empty (runner never pushes to the pre-created branch)", () => {
   test.skip(!TOKEN, "E2E_GITHUB_TOKEN not set");
 
-  test("a real change lands on the pre-created vibe branch's draft PR", async ({ request }) => {
+  test("a real change lands on the pre-created vibe branch's draft PR", async ({
+    request,
+  }) => {
     test.setTimeout(9 * 60_000);
     const stamp = Date.now();
 
     // ── Mirror vibe_start_execution: issue → branch (from default) →
     //    placeholder commit → draft PR. ──────────────────────────────────
-    const repoInfo = await gh<{ default_branch: string }>(`/repos/${owner}/${repo}`);
+    const repoInfo = await gh<{ default_branch: string }>(
+      `/repos/${owner}/${repo}`,
+    );
     const base = repoInfo.json.default_branch || "main";
-    const baseRef = await gh<{ object: { sha: string } }>(`/repos/${owner}/${repo}/git/ref/heads/${base}`);
+    const baseRef = await gh<{ object: { sha: string } }>(
+      `/repos/${owner}/${repo}/git/ref/heads/${base}`,
+    );
     const baseSha = baseRef.json.object.sha;
     expect(baseSha, "base sha").toBeTruthy();
 
-    const issue = await gh<{ number: number }>(`/repos/${owner}/${repo}/issues`, {
-      method: "POST",
-      body: JSON.stringify({
-        title: `REPRO preview-empty ${stamp}`,
-        body: `In \`${TARGET_FILE}\`, change the welcome heading text to "REPRO ${stamp}". One-line edit.`,
-      }),
-    });
+    const issue = await gh<{ number: number }>(
+      `/repos/${owner}/${repo}/issues`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: `REPRO preview-empty ${stamp}`,
+          body: `In \`${TARGET_FILE}\`, change the welcome heading text to "REPRO ${stamp}". One-line edit.`,
+        }),
+      },
+    );
     expect(issue.ok, `create issue ${issue.status}`).toBe(true);
     const issueNumber = issue.json.number;
     const branch = `${issueNumber}-repro-preview`;
@@ -94,17 +108,23 @@ test.describe("REPRO — Vibe preview is empty (runner never pushes to the pre-c
       method: "POST",
       body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: baseSha }),
     });
-    expect(mkBranch.ok || mkBranch.status === 422, `create branch ${mkBranch.status}`).toBe(true);
+    expect(
+      mkBranch.ok || mkBranch.status === 422,
+      `create branch ${mkBranch.status}`,
+    ).toBe(true);
 
     // Placeholder commit so the draft PR can open (mirrors "vibe: start session").
-    await gh(`/repos/${owner}/${repo}/contents/.kody/vibe-placeholder-${stamp}.txt`, {
-      method: "PUT",
-      body: JSON.stringify({
-        message: "vibe: start session",
-        content: Buffer.from(`vibe ${stamp}`).toString("base64"),
-        branch,
-      }),
-    });
+    await gh(
+      `/repos/${owner}/${repo}/contents/.kody/vibe-placeholder-${stamp}.txt`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          message: "vibe: start session",
+          content: Buffer.from(`vibe ${stamp}`).toString("base64"),
+          branch,
+        }),
+      },
+    );
 
     const pr = await gh<{ number: number }>(`/repos/${owner}/${repo}/pulls`, {
       method: "POST",
@@ -116,16 +136,29 @@ test.describe("REPRO — Vibe preview is empty (runner never pushes to the pre-c
         draft: true,
       }),
     });
-    expect(pr.ok, `create draft PR ${pr.status} ${JSON.stringify(pr.json)}`).toBe(true);
+    expect(
+      pr.ok,
+      `create draft PR ${pr.status} ${JSON.stringify(pr.json)}`,
+    ).toBe(true);
     const prNumber = pr.json.number;
     // eslint-disable-next-line no-console
-    console.log(`[repro-empty] issue #${issueNumber} branch=${branch} draftPR #${prNumber} taskId=${taskId}`);
+    console.log(
+      `[repro-empty] issue #${issueNumber} branch=${branch} draftPR #${prNumber} taskId=${taskId}`,
+    );
 
     // ── Hand off to the runner, exactly as the chat does. ───────────────
-    const start = await request.post(`${BASE_URL}/api/kody/chat/interactive/start-fly`, {
-      headers: { "x-kody-token": TOKEN, "x-kody-owner": owner, "x-kody-repo": repo, "content-type": "application/json" },
-      data: { taskId, idleExitMs: 360_000, hardCapMs: 480_000 },
-    });
+    const start = await request.post(
+      `${BASE_URL}/api/kody/chat/interactive/start-fly`,
+      {
+        headers: {
+          "x-kody-token": TOKEN,
+          "x-kody-owner": owner,
+          "x-kody-repo": repo,
+          "content-type": "application/json",
+        },
+        data: { taskId, idleExitMs: 360_000, hardCapMs: 480_000 },
+      },
+    );
     expect(start.ok(), `start-fly ${start.status()}`).toBe(true);
     // eslint-disable-next-line no-console
     console.log(`[repro-empty] runner=${(await start.json()).runner}`);
@@ -151,7 +184,12 @@ test.describe("REPRO — Vibe preview is empty (runner never pushes to the pre-c
     // bug: the runner sits idle and the preview PR stays empty.
     if (ready) {
       await request.post(`${BASE_URL}/api/kody/chat/interactive/append`, {
-        headers: { "x-kody-token": TOKEN, "x-kody-owner": owner, "x-kody-repo": repo, "content-type": "application/json" },
+        headers: {
+          "x-kody-token": TOKEN,
+          "x-kody-owner": owner,
+          "x-kody-repo": repo,
+          "content-type": "application/json",
+        },
         data: {
           taskId,
           vibeMode: true,
@@ -174,7 +212,10 @@ test.describe("REPRO — Vibe preview is empty (runner never pushes to the pre-c
         const files = await gh<Array<{ filename: string; additions: number }>>(
           `/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`,
         );
-        if (files.ok && files.json.some((f) => f.filename === TARGET_FILE && f.additions > 0)) {
+        if (
+          files.ok &&
+          files.json.some((f) => f.filename === TARGET_FILE && f.additions > 0)
+        ) {
           landed = true;
           // eslint-disable-next-line no-console
           console.log(`[repro-empty] change landed on draft PR #${prNumber}`);

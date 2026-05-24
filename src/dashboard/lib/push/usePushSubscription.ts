@@ -104,8 +104,7 @@ export function usePushSubscription(
   const [status, setStatus] = useState<PushStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [channelNotify, setChannelNotifyState] =
-    useState<ChannelNotify>("all");
+  const [channelNotify, setChannelNotifyState] = useState<ChannelNotify>("all");
 
   useEffect(() => {
     setChannelNotifyState(loadChannelNotify());

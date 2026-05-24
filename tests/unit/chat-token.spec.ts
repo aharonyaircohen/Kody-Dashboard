@@ -10,7 +10,10 @@
  * invalidates tokens), and the missing-key error path.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mintSessionToken, verifySessionToken } from "@dashboard/lib/chat-token";
+import {
+  mintSessionToken,
+  verifySessionToken,
+} from "@dashboard/lib/chat-token";
 
 let savedKey: string | undefined;
 
@@ -32,7 +35,9 @@ describe("chat session token", () => {
   });
 
   it("verifies a freshly minted token", () => {
-    expect(verifySessionToken("session-1", mintSessionToken("session-1"))).toBe(true);
+    expect(verifySessionToken("session-1", mintSessionToken("session-1"))).toBe(
+      true,
+    );
   });
 
   it("rejects a token minted for a different session", () => {
@@ -41,7 +46,9 @@ describe("chat session token", () => {
   });
 
   it("rejects a forged / garbage token", () => {
-    expect(verifySessionToken("session-1", "deadbeefdeadbeefdeadbeefdeadbeef")).toBe(false);
+    expect(
+      verifySessionToken("session-1", "deadbeefdeadbeefdeadbeefdeadbeef"),
+    ).toBe(false);
     expect(verifySessionToken("session-1", "not-hex")).toBe(false);
     expect(verifySessionToken("session-1", "")).toBe(false);
   });
@@ -65,6 +72,8 @@ describe("chat session token", () => {
 
   it("throws when the master key is missing", () => {
     delete process.env.KODY_MASTER_KEY;
-    expect(() => mintSessionToken("session-1")).toThrow(/KODY_MASTER_KEY not configured/);
+    expect(() => mintSessionToken("session-1")).toThrow(
+      /KODY_MASTER_KEY not configured/,
+    );
   });
 });

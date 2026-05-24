@@ -85,7 +85,9 @@ const createDutySchema = z.object({
  */
 function normalizeMentions(mentions?: string[]): string[] {
   if (!mentions) return [];
-  return mentions.map((m) => m.trim().replace(/^@/, "")).filter((m) => m.length > 0);
+  return mentions
+    .map((m) => m.trim().replace(/^@/, ""))
+    .filter((m) => m.length > 0);
 }
 
 function slugifyTitle(title: string): string {

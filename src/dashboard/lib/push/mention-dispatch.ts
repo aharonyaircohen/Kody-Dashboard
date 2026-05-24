@@ -4,12 +4,13 @@
  * @pattern mention-push-dispatch
  * @ai-summary Server-only orchestrator for the mention/inbox notification
  *   spine. It owns the *flow* only — normalize the webhook (`buildSourceEvent`),
- *   resolve who to notify (`resolveRecipients`), then fan out to the channel
- *   adapters: the durable inbox (`channels/inbox.deliverInbox`) and per-recipient
- *   web push (`channels/mention-push.deliverMentionPush`). The "what counts as a
- *   mention", "who gets it", "how an entry is written", and "how a push is sent"
- *   all live in those dedicated modules now — this file just sequences them and
- *   never throws so the webhook always ACKs.
+ *   classify it to a mute-able notification type, resolve who to notify
+ *   (`resolveRecipients`, applying each recipient's per-type mute prefs), then
+ *   fan out to the channel adapters: the durable inbox (`channels/inbox.deliverInbox`)
+ *   and per-recipient web push (`channels/mention-push.deliverMentionPush`). The
+ *   "what counts as a mention", "who gets it", "how an entry is written", and
+ *   "how a push is sent" all live in those dedicated modules now — this file
+ *   just sequences them and never throws so the webhook always ACKs.
  */
 import "server-only";
 import { setGitHubContext, clearGitHubContext } from "../github-client";
@@ -19,7 +20,13 @@ import type { PushSubscriptionRecord } from "../push";
 import { PUSH_MANIFEST_ISSUE_TITLE } from "../push";
 import { logger } from "../logger";
 import { buildSourceEvent, type SourceEvent } from "../notifications/source-event";
-import { resolveRecipients } from "../notifications/recipients";
+import {
+  resolveRecipients,
+  extractMentions,
+  type ServerNotificationType,
+} from "../notifications/recipients";
+import { classifyNotificationType } from "../notifications/notification-types";
+import { readNotificationPrefs } from "../notifications/prefs-store";
 import { deliverInbox } from "../notifications/channels/inbox";
 import { deliverMentionPush } from "../notifications/channels/mention-push";
 import { INBOX_FEED_ISSUE_TITLE } from "../inbox/feed";
@@ -97,6 +104,57 @@ function extractEvent(
 }
 
 /**
+ * Build the `login → mutedTypes` map for the recipients who *could* receive
+ * this event, so the resolver can drop anyone who muted this notification type.
+ * Skips all GitHub reads when the event has no mute-able type. Candidates are
+ * the subscriber set for a channel broadcast, or the body's @mentions otherwise
+ * — and `readNotificationPrefs` is ETag-cached (a free 304 / cheap 404 for the
+ * common "no prefs file" case), so this stays within the hot-path budget.
+ */
+async function loadMutedTypes(
+  ev: SourceEvent,
+  subs: PushSubscriptionRecord[],
+  notificationType: ServerNotificationType | null,
+  ctx: { owner: string; repo: string; token: string },
+): Promise<Map<string, ServerNotificationType[]> | undefined> {
+  if (!notificationType) return undefined;
+  const candidates = ev.channel
+    ? [
+        ...new Set(
+          subs
+            .map((s) => s.userLogin?.toLowerCase())
+            .filter((l): l is string => !!l),
+        ),
+      ]
+    : extractMentions(ev.body);
+  if (candidates.length === 0) return undefined;
+
+  const muted = new Map<string, ServerNotificationType[]>();
+  setGitHubContext(ctx.owner, ctx.repo, ctx.token);
+  try {
+    await Promise.all(
+      candidates.map(async (login) => {
+        const prefs = await readNotificationPrefs(login, ctx.token);
+        if (prefs.mutedTypes.length > 0) muted.set(login, prefs.mutedTypes);
+      }),
+    );
+  } catch (err) {
+    // Fail open — a prefs read failure must never suppress a real notification.
+    logger.warn(
+      {
+        event: "mention_push_prefs_read_failed",
+        error: err instanceof Error ? err.message : String(err),
+        repo: ev.repoFullName,
+      },
+      "Notification prefs read failed — delivering without per-type mute",
+    );
+  } finally {
+    clearGitHubContext();
+  }
+  return muted;
+}
+
+/**
  * Entry point — call from the webhook receiver. Never throws; logs and swallows
  * errors so a misconfigured push setup can't break GitHub delivery.
  */
@@ -168,10 +226,23 @@ export async function dispatchMentionPushes(
       clearGitHubContext();
     }
 
-    // Who to notify — the single resolver owns the decision; we only log/bail.
+    // Per-type mute: classify the event, then look up muted types for the
+    // candidate recipients so the resolver can drop anyone who muted it. Both
+    // are skipped entirely when the event has no mute-able type.
+    const notificationType = classifyNotificationType(ev);
+    const mutedTypesByLogin = await loadMutedTypes(
+      ev,
+      subs,
+      notificationType,
+      ctx,
+    );
+
+    // Who to notify — the single resolver owns the decision (mention scrape,
+    // channel broadcast, and per-type mute); we only log/bail.
     const { logins: recipients, isChannelBroadcast } = resolveRecipients(
       ev,
       subs,
+      { notificationType, mutedTypesByLogin },
     );
     if (isChannelBroadcast) {
       logger.info(
@@ -193,7 +264,7 @@ export async function dispatchMentionPushes(
             repo: ev.repoFullName,
             bodyPreview: ev.body.slice(0, 80),
           },
-          "Event body contained no @mentions",
+          "Event body contained no @mentions (or all recipients muted this type)",
         );
         return;
       }

@@ -16,12 +16,7 @@
  *   Pure and side-effect free → unit-tested in isolation.
  */
 
-export type ThreadType =
-  | "Issue"
-  | "PullRequest"
-  | "Discussion"
-  | "Commit"
-  | "";
+export type ThreadType = "Issue" | "PullRequest" | "Discussion" | "Commit" | "";
 
 /** Channels are Discussions whose title starts with this marker. */
 export const CHANNEL_TITLE_PREFIX = "#";
@@ -83,10 +78,14 @@ function str(v: unknown): string {
 }
 
 function obj(v: unknown): Record<string, unknown> | undefined {
-  return v && typeof v === "object" ? (v as Record<string, unknown>) : undefined;
+  return v && typeof v === "object"
+    ? (v as Record<string, unknown>)
+    : undefined;
 }
 
-function login(holder: Record<string, unknown> | undefined): string | undefined {
+function login(
+  holder: Record<string, unknown> | undefined,
+): string | undefined {
   return userInfo(holder).login;
 }
 

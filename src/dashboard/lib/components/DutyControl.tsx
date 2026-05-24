@@ -116,8 +116,13 @@ export function DutyControl({ embedded = false }: DutyControlProps = {}) {
 }
 
 export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
-  const { data: duties = [], isLoading, isFetching, refetch, error } =
-    useDuties();
+  const {
+    data: duties = [],
+    isLoading,
+    isFetching,
+    refetch,
+    error,
+  } = useDuties();
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -563,10 +568,7 @@ function DutyDetail({
                     ? "Enable duty scheduler"
                     : "Disable duty scheduler"
                 }
-                className={cn(
-                  "w-9 px-0",
-                  duty.disabled && "text-amber-400",
-                )}
+                className={cn("w-9 px-0", duty.disabled && "text-amber-400")}
               >
                 {duty.disabled ? (
                   <PowerOff className="w-3.5 h-3.5" />
@@ -621,8 +623,8 @@ function DutyDetail({
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Use <span className="font-medium text-foreground">Edit</span> to
-                describe the duty&apos;s intent, system prompt, allowed commands,
-                and restrictions.
+                describe the duty&apos;s intent, system prompt, allowed
+                commands, and restrictions.
               </p>
             </div>
             <Button
@@ -691,8 +693,8 @@ function CreateDutyDialog({
         <DialogHeader>
           <DialogTitle>New duty</DialogTitle>
           <DialogDescription>
-            Describe the duty&apos;s intent, system prompt, allowed commands, and
-            restrictions.
+            Describe the duty&apos;s intent, system prompt, allowed commands,
+            and restrictions.
           </DialogDescription>
         </DialogHeader>
 
@@ -1090,9 +1092,7 @@ function ScheduleSelect({
       <Label htmlFor="duty-schedule">Schedule</Label>
       <Select
         value={value ?? AUTO}
-        onValueChange={(v) =>
-          onChange(v === AUTO ? null : (v as DutySchedule))
-        }
+        onValueChange={(v) => onChange(v === AUTO ? null : (v as DutySchedule))}
       >
         <SelectTrigger id="duty-schedule" className="w-full">
           <SelectValue />
@@ -1144,9 +1144,7 @@ function StaffSelect({
       >
         <SelectTrigger id="duty-staff" className="w-full">
           <SelectValue
-            placeholder={
-              isLoading ? "Loading staff…" : "Select a staff member"
-            }
+            placeholder={isLoading ? "Loading staff…" : "Select a staff member"}
           />
         </SelectTrigger>
         <SelectContent>
@@ -1248,7 +1246,9 @@ function MentionsInput({
             !chosen.has(c.login.toLowerCase()) ||
             c.login.toLowerCase() === token,
         )
-        .filter((c) => token.length === 0 || c.login.toLowerCase().includes(token))
+        .filter(
+          (c) => token.length === 0 || c.login.toLowerCase().includes(token),
+        )
         .slice(0, 6),
     [collaborators, chosen, token],
   );

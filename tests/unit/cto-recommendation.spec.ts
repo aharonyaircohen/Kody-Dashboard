@@ -85,19 +85,26 @@ describe("parseCtoAction — generalized detection", () => {
   });
 
   it("returns 'other' when a rec is tagged but the verb is unrecoverable", () => {
-    const body = "<!-- kody-staff: qa -->\nsome freeform note with no known verb";
+    const body =
+      "<!-- kody-staff: qa -->\nsome freeform note with no known verb";
     expect(parseCtoAction(body)).toBe("other");
   });
 
   it("returns null for a plain comment (no marker, no staff line)", () => {
-    expect(parseCtoAction("hey @aguyaharonyair can you look at this?")).toBeNull();
+    expect(
+      parseCtoAction("hey @aguyaharonyair can you look at this?"),
+    ).toBeNull();
   });
 });
 
 describe("detectCtoRecommendation — staff scoping", () => {
   it("returns the QA slug for a QA rec", () => {
     const rec = detectCtoRecommendation(
-      entry({ ctoAction: "fix", ctoStaff: "qa", ctoCommand: "@kody fix --pr 42" }),
+      entry({
+        ctoAction: "fix",
+        ctoStaff: "qa",
+        ctoCommand: "@kody fix --pr 42",
+      }),
     );
     expect(rec).not.toBeNull();
     expect(rec!.staff).toBe("qa");

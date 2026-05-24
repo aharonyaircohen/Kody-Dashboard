@@ -61,7 +61,11 @@ describe("getSecret", () => {
     process.env.MY_SECRET = "from-env"; // vault must win
 
     expect(await getSecret("MY_SECRET", { req })).toBe("from-vault");
-    expect(mReadVault).toHaveBeenCalledWith(expect.anything(), "acme", "widgets");
+    expect(mReadVault).toHaveBeenCalledWith(
+      expect.anything(),
+      "acme",
+      "widgets",
+    );
   });
 
   it("falls through to process.env when the vault has no such entry", async () => {

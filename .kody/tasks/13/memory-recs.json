@@ -1,0 +1,26 @@
+[
+  {
+    "type": "decision",
+    "name": "server-notification-type-subset",
+    "hook": "ServerNotificationType is only the webhook-backed subset, not all NotificationTypes",
+    "body": "Only notification types produced by the webhook spine (task-assigned, pr-ready, pr-merged, chat-response, gate-waiting, task-completed, task-failed) are enforceable server-side. Client-only types like build-error return null from classifyNotificationType, so resolveRecipients applies no mute filtering for them.\n\n**Why:** Webhook spine is the only place we have event metadata to classify. Dashboard-native events never touch the webhook path, so server enforcement has nothing to classify.\n\n**How to apply:** When adding a new notification type, decide whether it comes from the webhook path. If yes, add it to the ServerNotificationType union and classifyNotificationType mapping. If no, it can only be muted client-side.",
+    "why": "Prevents confusion when adding new types — some are server-mutable, others are client-only.",
+    "confidence": 0.95
+  },
+  {
+    "type": "lesson",
+    "name": "module-level-cache-needs-test-reset",
+    "hook": "Module-level Map cache must be reset between unit tests",
+    "body": "The prefs-store uses a module-level `cache = new Map()` that persists across tests in the same process. Without `_resetPrefsCache()` called in `beforeEach`, tests that share a login (e.g. 'alice') get stale data from prior tests.\n\n**Why:** When tests run in the same process with the same module, the in-memory cache from one test can pollute another.\n\n**How to apply:** Always export a `_resetCache()` function for any module-level cache and call it in `beforeEach` in the test file.",
+    "why": "Spent time debugging a test that returned wrong data due to cache pollution between tests sharing the same login.",
+    "confidence": 1.0
+  },
+  {
+    "type": "decision",
+    "name": "mention-event-exported-from-mention-dispatch",
+    "hook": "MentionEvent must be exported from mention-dispatch for use by notification-types tests",
+    "body": "The notification-types.ts module (and its tests) need `MentionEvent` from mention-dispatch.ts. Since mention-dispatch.ts is the canonical source of event metadata shape and is already imported by notification-types.ts's callers, MentionEvent must be exported.\n\n**Why:** TypeScript only exports what's explicitly exported; a local interface in mention-dispatch.ts was invisible to downstream modules.\n\n**How to apply:** Export any interface that is consumed by other modules, even if only for type annotations.",
+    "why": "TypeScript TS2459 error when notification-types.spec.ts tried to import MentionEvent.",
+    "confidence": 1.0
+  }
+]

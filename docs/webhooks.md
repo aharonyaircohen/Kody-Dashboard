@@ -50,7 +50,7 @@ verification is sufficient auth for a cache-invalidation endpoint.
 1. **IP check.** `getClientIp` reads the first entry of
    `x-forwarded-for` (falling back to `x-real-ip`). `isFromGitHub` matches
    it against the `hooks[]` CIDR list. No match → **403** `{ error:
-   "forbidden" }`.
+"forbidden" }`.
 2. **Dedupe.** GitHub may deliver the same event more than once. The
    `X-GitHub-Delivery` id is tracked in a per-instance `Set` capped at
    512 entries; a repeat returns **200** `{ ok: true, dedup: true }`
@@ -75,19 +75,19 @@ ui-verify label, `pull_request` `closed`+`merged` appends to
 
 ### Event → cache invalidation map
 
-| Event(s)                                                                              | Action                                                              |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `ping`                                                                                | No-op (acknowledged as handled)                                     |
-| `issues`                                                                              | `invalidateIssueCache(issue.number)`                                |
-| `issue_comment`                                                                       | `invalidateIssueCache(issue.number)` (+ ui-verify verdict label)    |
-| `pull_request`, `pull_request_review`, `pull_request_review_comment`                  | `invalidatePRCache()`, `invalidatePRBehindCache()`, `invalidateIssueCache(pr.number)` (+ changelog on merge) |
-| `release`                                                                             | Promote `CHANGELOG.md` `[Unreleased]` on `published` (no cache flush) |
-| `check_run`                                                                           | `invalidateWorkflowCache()` (ui-verify auto-dispatch is disabled)   |
-| `workflow_run`, `workflow_job`, `check_suite`                                         | `invalidateWorkflowCache()`                                         |
-| `push`, `create`, `delete`                                                            | `invalidateBranchCache()`, `invalidatePRBehindCache()`              |
-| `discussion`, `discussion_comment`                                                    | `invalidateDiscussionCache()`                                       |
-| `repository`                                                                          | `invalidateDiscussionCache()` (repo capability changes)            |
-| anything else                                                                         | `{ handled: false }`                                                |
+| Event(s)                                                             | Action                                                                                                       |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `ping`                                                               | No-op (acknowledged as handled)                                                                              |
+| `issues`                                                             | `invalidateIssueCache(issue.number)`                                                                         |
+| `issue_comment`                                                      | `invalidateIssueCache(issue.number)` (+ ui-verify verdict label)                                             |
+| `pull_request`, `pull_request_review`, `pull_request_review_comment` | `invalidatePRCache()`, `invalidatePRBehindCache()`, `invalidateIssueCache(pr.number)` (+ changelog on merge) |
+| `release`                                                            | Promote `CHANGELOG.md` `[Unreleased]` on `published` (no cache flush)                                        |
+| `check_run`                                                          | `invalidateWorkflowCache()` (ui-verify auto-dispatch is disabled)                                            |
+| `workflow_run`, `workflow_job`, `check_suite`                        | `invalidateWorkflowCache()`                                                                                  |
+| `push`, `create`, `delete`                                           | `invalidateBranchCache()`, `invalidatePRBehindCache()`                                                       |
+| `discussion`, `discussion_comment`                                   | `invalidateDiscussionCache()`                                                                                |
+| `repository`                                                         | `invalidateDiscussionCache()` (repo capability changes)                                                      |
+| anything else                                                        | `{ handled: false }`                                                                                         |
 
 ### IP verification
 
@@ -158,12 +158,12 @@ cross-instance invalidation without adding a database.
 
 ## File reference
 
-| File                                                                                        | Purpose                                                                 |
-| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| [`app/api/webhooks/github/route.ts`](../app/api/webhooks/github/route.ts)                   | Receiver: IP check → dedupe → dispatch cache invalidation + side effects |
-| [`app/api/webhooks/register/route.ts`](../app/api/webhooks/register/route.ts)               | Manual registration endpoint (`POST` after login)                       |
-| [`src/dashboard/lib/webhooks/github-ip.ts`](../src/dashboard/lib/webhooks/github-ip.ts)     | Source-IP verification against GitHub's `hooks[]`/`actions[]` CIDRs (24h cache) |
-| [`src/dashboard/lib/webhooks/register.ts`](../src/dashboard/lib/webhooks/register.ts)       | `ensureWebhook` registrar + `DEFAULT_WEBHOOK_EVENTS`                     |
+| File                                                                                    | Purpose                                                                         |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [`app/api/webhooks/github/route.ts`](../app/api/webhooks/github/route.ts)               | Receiver: IP check → dedupe → dispatch cache invalidation + side effects        |
+| [`app/api/webhooks/register/route.ts`](../app/api/webhooks/register/route.ts)           | Manual registration endpoint (`POST` after login)                               |
+| [`src/dashboard/lib/webhooks/github-ip.ts`](../src/dashboard/lib/webhooks/github-ip.ts) | Source-IP verification against GitHub's `hooks[]`/`actions[]` CIDRs (24h cache) |
+| [`src/dashboard/lib/webhooks/register.ts`](../src/dashboard/lib/webhooks/register.ts)   | `ensureWebhook` registrar + `DEFAULT_WEBHOOK_EVENTS`                            |
 
 ## FAQ
 

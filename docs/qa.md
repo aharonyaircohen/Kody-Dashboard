@@ -14,12 +14,12 @@ just hits a login wall. Flip the duties on once you've done the one-time
 
 ## The pieces
 
-| Piece | What it is | Where |
-| ----- | ---------- | ----- |
-| `qa` **staff** | Identity only — a senior quality advocate who trusts what it has *seen* over what a diff claims, flags but never fixes, never rubber-stamps. No tasks, verbs, or cadence live here. | [`../.kody/staff/qa.md`](../.kody/staff/qa.md) |
-| `qa` **duty** | Changelog verification (`every: 30m`, `disabled: true`). | [`../.kody/duties/qa.md`](../.kody/duties/qa.md) |
-| `qa-sweep` **duty** | Broad exploratory smoke (`every: 1h`, ~once/day, `disabled: true`). | [`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md) |
-| `qa-engineer` **executable** | The browser. Playwright MCP (headless Chromium), read-only on the repo, emits one structured report. | engine: `src/executables/qa-engineer/` |
+| Piece                        | What it is                                                                                                                                                                          | Where                                                        |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `qa` **staff**               | Identity only — a senior quality advocate who trusts what it has _seen_ over what a diff claims, flags but never fixes, never rubber-stamps. No tasks, verbs, or cadence live here. | [`../.kody/staff/qa.md`](../.kody/staff/qa.md)               |
+| `qa` **duty**                | Changelog verification (`every: 30m`, `disabled: true`).                                                                                                                            | [`../.kody/duties/qa.md`](../.kody/duties/qa.md)             |
+| `qa-sweep` **duty**          | Broad exploratory smoke (`every: 1h`, ~once/day, `disabled: true`).                                                                                                                 | [`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md) |
+| `qa-engineer` **executable** | The browser. Playwright MCP (headless Chromium), read-only on the repo, emits one structured report.                                                                                | engine: `src/executables/qa-engineer/`                       |
 
 Neither duty browses anything itself. Each one opens a tracking issue and
 posts `@kody qa-engineer …` onto it; the engine picks that up, runs the
@@ -28,16 +28,16 @@ later tick. **One run in flight at a time** — that bound is the cost guard.
 
 ## The `qa` duty — changelog verification
 
-The **changelog *is* the state.** Each `## [Unreleased]` bullet in
+The **changelog _is_ the state.** Each `## [Unreleased]` bullet in
 [`../CHANGELOG.md`](../CHANGELOG.md) (one per merged PR) carries a trailing
-QA marker, appended after the `— @author` and joined with ` · `:
+QA marker, appended after the `— @author` and joined with `·`:
 
-| State | Marker |
-| ----- | ------ |
-| untested | _(none)_ |
-| running | ` · 🔄 QA (#<tracking>)` |
-| verified | ` · ✅ QA <YYYY-MM-DD>` |
-| issues | ` · ⚠️ QA <YYYY-MM-DD> (#<finding>)` |
+| State    | Marker                               |
+| -------- | ------------------------------------ |
+| untested | _(none)_                             |
+| running  | ` · 🔄 QA (#<tracking>)`             |
+| verified | ` · ✅ QA <YYYY-MM-DD>`              |
+| issues   | ` · ⚠️ QA <YYYY-MM-DD> (#<finding>)` |
 
 Per tick (one mutation max) it either resolves the in-flight run — read the
 tracking issue, swap `🔄` → `✅`/`⚠️`, close it, post **one** inbox
@@ -51,10 +51,10 @@ entry being re-processed. Full body: [`../.kody/duties/qa.md`](../.kody/duties/q
 ## The `qa-sweep` duty — broad exploratory pass
 
 The most expensive run, so it self-throttles: a 24h cadence guard means
-`every: 1h` only *wakes* it; it actually sweeps roughly once a day. It
+`every: 1h` only _wakes_ it; it actually sweeps roughly once a day. It
 dispatches `qa-engineer` with **no `--scope`**, so the engine smoke-tests
 every discovered route against the live deployment — catching regressions in
-already-shipped features that the changelog duty (which only tests *new*
+already-shipped features that the changelog duty (which only tests _new_
 entries) never revisits. One inbox rec per sweep: `fix` if it opened
 findings, `note` for a clean run. Full body:
 [`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md).
@@ -107,12 +107,12 @@ verbatim. QA is advisory only: it never merges, approves, labels, or fixes.
 
 ## QA context model
 
-> **Pending: engine publish + per-repo migration.** This is the *target*
+> **Pending: engine publish + per-repo migration.** This is the _target_
 > design, landed on the engine in commit `kody-engine 5024a0a`
 > ("feat(qa): replace .kody/qa-guide.md with profile + variables + vault")
 > but **not yet published** to npm. Until the engine is published and each
 > repo migrated, `qa-engineer` runs against whatever engine version your
-> `kody.yml` pins. Treat this section as how QA *will* source its context,
+> `kody.yml` pins. Treat this section as how QA _will_ source its context,
 > not necessarily what a current production run does.
 
 The legacy committed `.kody/qa-guide.md` (and the `loadQaGuide` preflight)
@@ -121,12 +121,12 @@ context from the three dashboard-managed, per-repo stores — the same stores
 the rest of the dashboard already uses — so QA setup happens entirely in the
 UI, with no hand-edited committed guide:
 
-| QA input | Sourced from | Store |
-| -------- | ------------ | ----- |
-| Scenarios & notes | Company Profile — every `.kody/profile/*.md`, concatenated | [./profile.md](./profile.md) |
-| Login username | `LOGIN_USER` variable in `.kody/variables.json` | [./variables.md](./variables.md) |
-| Login password | `LOGIN_PASSWORD` secret in the encrypted vault `.kody/secrets.enc` | [./secrets-vault.md](./secrets-vault.md) |
-| Base URL | `QA_URL` variable in `.kody/variables.json` (replaces the old `config.qa.fallbackUrl`) | [./variables.md](./variables.md) |
+| QA input          | Sourced from                                                                           | Store                                    |
+| ----------------- | -------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Scenarios & notes | Company Profile — every `.kody/profile/*.md`, concatenated                             | [./profile.md](./profile.md)             |
+| Login username    | `LOGIN_USER` variable in `.kody/variables.json`                                        | [./variables.md](./variables.md)         |
+| Login password    | `LOGIN_PASSWORD` secret in the encrypted vault `.kody/secrets.enc`                     | [./secrets-vault.md](./secrets-vault.md) |
+| Base URL          | `QA_URL` variable in `.kody/variables.json` (replaces the old `config.qa.fallbackUrl`) | [./variables.md](./variables.md)         |
 
 Two preflights consume these:
 
@@ -172,15 +172,15 @@ per-PR verification; add the sweep for periodic broad coverage.
 
 ## File reference
 
-| File | Purpose |
-| ---- | ------- |
-| [`../.kody/staff/qa.md`](../.kody/staff/qa.md) | QA persona (identity only) |
-| [`../.kody/duties/qa.md`](../.kody/duties/qa.md) | Changelog-verification duty |
-| [`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md) | Broad exploratory sweep duty |
-| `src/executables/qa-engineer/profile.json` (engine) | Executable manifest — inputs, tools, preflight chain |
-| `src/executables/qa-engineer/prompt.md` (engine) | The QA engineer's browsing prompt + report format |
-| `src/scripts/resolveQaUrl.ts` (engine) | Base-URL resolution preflight |
-| `src/scripts/loadQaContext.ts` (engine) | Profile + Variables + Vault context preflight |
+| File                                                         | Purpose                                              |
+| ------------------------------------------------------------ | ---------------------------------------------------- |
+| [`../.kody/staff/qa.md`](../.kody/staff/qa.md)               | QA persona (identity only)                           |
+| [`../.kody/duties/qa.md`](../.kody/duties/qa.md)             | Changelog-verification duty                          |
+| [`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md) | Broad exploratory sweep duty                         |
+| `src/executables/qa-engineer/profile.json` (engine)          | Executable manifest — inputs, tools, preflight chain |
+| `src/executables/qa-engineer/prompt.md` (engine)             | The QA engineer's browsing prompt + report format    |
+| `src/scripts/resolveQaUrl.ts` (engine)                       | Base-URL resolution preflight                        |
+| `src/scripts/loadQaContext.ts` (engine)                      | Profile + Variables + Vault context preflight        |
 
 ## FAQ
 
@@ -194,7 +194,7 @@ nothing. Enable only after [Setup](#setup) gives QA a URL and credentials.
 
 Both, by role. The `qa-engineer` report lands as a comment on the tracking
 issue (and one labelled issue per finding). The `qa` duty then copies the
-*outcome* into `CHANGELOG.md` as a `✅`/`⚠️` marker — that marker is the
+_outcome_ into `CHANGELOG.md` as a `✅`/`⚠️` marker — that marker is the
 authoritative state, and what stops an entry being re-tested.
 
 **Can I run a one-off QA pass without enabling the duties?**

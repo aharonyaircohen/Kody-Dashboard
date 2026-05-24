@@ -11,7 +11,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Octokit } from "@octokit/rest";
 
-import { buildMetaLine, writeSessionMeta } from "@dashboard/lib/interactive-session";
+import {
+  buildMetaLine,
+  writeSessionMeta,
+} from "@dashboard/lib/interactive-session";
 
 /** Octokit double: getContent always 404 (new file), create follows a script. */
 function makeOctokit(createScript: Array<"ok" | number>) {
@@ -32,7 +35,11 @@ function makeOctokit(createScript: Array<"ok" | number>) {
     throw err;
   });
   const octokit = { repos: { getContent, createOrUpdateFileContents } };
-  return { octokit: octokit as unknown as Octokit, createOrUpdateFileContents, getContent };
+  return {
+    octokit: octokit as unknown as Octokit,
+    createOrUpdateFileContents,
+    getContent,
+  };
 }
 
 const META = buildMetaLine({ idleExitMs: 120_000, hardCapMs: 300_000 });

@@ -648,8 +648,8 @@ function EditStaffDialog({
         <DialogHeader>
           <DialogTitle>Edit staff member `{member.slug}`</DialogTitle>
           <DialogDescription>
-            Update the staff member&apos;s title or body. Saving commits the file
-            to the default branch.
+            Update the staff member&apos;s title or body. Saving commits the
+            file to the default branch.
           </DialogDescription>
         </DialogHeader>
 
@@ -725,11 +725,7 @@ function SendTaskDialog({
 
         <div className="space-y-1.5 mt-2">
           <Label>Message</Label>
-          <MarkdownEditor
-            value={message}
-            onChange={setMessage}
-            rows={8}
-          />
+          <MarkdownEditor value={message} onChange={setMessage} rows={8} />
         </div>
 
         <div className="flex justify-end gap-2 mt-4">

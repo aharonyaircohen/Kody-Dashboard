@@ -1,0 +1,23 @@
+{
+  "taskId": "13",
+  "taskType": "issue",
+  "target": "13-featnotifications-per-type-prefs-server-side-githu",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "All quality gates pass: typecheck ok, 812 tests green, format clean",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/notifications/prefs-store.ts",
+    "src/dashboard/lib/notifications/notification-types.ts",
+    "src/dashboard/lib/notifications/recipients.ts",
+    "src/dashboard/lib/push/mention-dispatch.ts",
+    "src/dashboard/lib/notifications/NotificationPreferences.tsx",
+    "src/dashboard/lib/push/PushToggle.tsx",
+    "app/api/notifications/preferences/route.ts",
+    "tests/unit/notification-prefs-store.spec.ts",
+    "tests/unit/notification-types.spec.ts",
+    "tests/unit/recipients.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/13.jsonl"
+}

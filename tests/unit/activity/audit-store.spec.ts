@@ -119,9 +119,7 @@ describe("manifest body parse/serialize (the store config)", () => {
   it("equality is id-and-order sensitive (drives CAS verify)", () => {
     const a = { version: 1 as const, events: [ev("01"), ev("02")] };
     expect(h.config.equals(a, a)).toBe(true);
-    expect(
-      h.config.equals(a, { version: 1, events: [ev("01")] }),
-    ).toBe(false);
+    expect(h.config.equals(a, { version: 1, events: [ev("01")] })).toBe(false);
     expect(
       h.config.equals(a, { version: 1, events: [ev("02"), ev("01")] }),
     ).toBe(false);

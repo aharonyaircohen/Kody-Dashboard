@@ -58,9 +58,11 @@ describe("mapRunActions", () => {
       run({ id: 3, display_title: "unrelated #420" }), // must NOT match #42
     ];
     const issues = [
-      issue({ number: 42, title: "Do the thing", labels: [
-        { name: "kody:fixing", color: "x" },
-      ] }),
+      issue({
+        number: 42,
+        title: "Do the thing",
+        labels: [{ name: "kody:fixing", color: "x" }],
+      }),
     ];
     const map = mapRunActions(runs, issues);
     expect(map[1]).toBe("fix");

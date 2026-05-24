@@ -198,7 +198,9 @@ export function LitellmFlyCard({
               <span className="text-amber-300/80">{pool.booting} warming</span>
             )}
             {pool.claimsInFlight > 0 && (
-              <span className="text-sky-300/80">{pool.claimsInFlight} claiming</span>
+              <span className="text-sky-300/80">
+                {pool.claimsInFlight} claiming
+              </span>
             )}
             <span className="text-white/35 ml-auto">target {pool.min}</span>
           </div>

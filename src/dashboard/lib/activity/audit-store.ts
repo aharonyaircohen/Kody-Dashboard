@@ -90,7 +90,9 @@ const store = createManifestStore<AuditManifest>({
 
 function clampDetail(detail: string | null | undefined): string | null {
   if (!detail) return null;
-  return detail.length > MAX_DETAIL ? `${detail.slice(0, MAX_DETAIL - 1)}…` : detail;
+  return detail.length > MAX_DETAIL
+    ? `${detail.slice(0, MAX_DETAIL - 1)}…`
+    : detail;
 }
 
 /**

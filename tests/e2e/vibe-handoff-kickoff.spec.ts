@@ -17,10 +17,12 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 
-const BASE_URL = process.env.BASE_URL ?? "https://kody-dashboard-sable.vercel.app";
+const BASE_URL =
+  process.env.BASE_URL ?? "https://kody-dashboard-sable.vercel.app";
 const TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const REPO_URL =
-  process.env.E2E_GITHUB_REPO ?? "https://github.com/aharonyaircohen/Kody-Engine-Tester";
+  process.env.E2E_GITHUB_REPO ??
+  "https://github.com/aharonyaircohen/Kody-Engine-Tester";
 
 function parseRepo(url: string): { owner: string; repo: string } {
   const u = new URL(url);
@@ -33,13 +35,24 @@ const TARGET_FILE = "src/app/(frontend)/page.tsx";
 async function injectAuth(page: Page): Promise<void> {
   await page.evaluate(
     (a) => localStorage.setItem("kody_auth", JSON.stringify(a)),
-    { repoUrl: REPO_URL, owner, repo, token: TOKEN, user: { login: "e2e", avatar_url: "x", id: 1 }, loggedInAt: Date.now() },
+    {
+      repoUrl: REPO_URL,
+      owner,
+      repo,
+      token: TOKEN,
+      user: { login: "e2e", avatar_url: "x", id: 1 },
+      loggedInAt: Date.now(),
+    },
   );
 }
 
 async function ghJson<T>(path: string): Promise<T | null> {
   const res = await fetch(`https://api.github.com${path}`, {
-    headers: { Authorization: `Bearer ${TOKEN}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+    headers: {
+      Authorization: `Bearer ${TOKEN}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
   });
   return res.ok ? ((await res.json()) as T) : null;
 }
@@ -73,16 +86,23 @@ test.describe("REPRO — Vibe chat hand-off delivers the kickoff", () => {
     test.skip((vp?.width ?? 1280) < 768, "chat rail hidden on mobile");
 
     // Default agent (minimax). Send the request.
-    const input = page.getByPlaceholder(/ask kody|kody is waiting|ask about/i).first();
+    const input = page
+      .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
+      .first();
     await input.waitFor({ state: "visible", timeout: 30_000 });
     const want = `Kody Tester Repo ${Date.now()}`;
-    await input.fill(`Change the landing page heading in ${TARGET_FILE} from "Welcome to your new project." to "${want}".`);
+    await input.fill(
+      `Change the landing page heading in ${TARGET_FILE} from "Welcome to your new project." to "${want}".`,
+    );
     await input.press("Enter");
 
     // Approve when asked (or proceed if the agent created the issue directly).
     const approval = page
       .locator(".prose")
-      .filter({ hasText: /approve|ship it|want me to|should i|shall i|proceed|go ahead|confirm/i })
+      .filter({
+        hasText:
+          /approve|ship it|want me to|should i|shall i|proceed|go ahead|confirm/i,
+      })
       .last();
     await Promise.race([
       approval.waitFor({ state: "visible", timeout: 240_000 }),
@@ -102,7 +122,9 @@ test.describe("REPRO — Vibe chat hand-off delivers the kickoff", () => {
     // Give the hand-off time to fire start + the kickoff append.
     await page.waitForTimeout(45_000);
     // eslint-disable-next-line no-console
-    console.log(`[repro-handoff] startFlyCalled=${startFlyCalled} appendCalled=${appendCalled} appends=${appendBodies.length}`);
+    console.log(
+      `[repro-handoff] startFlyCalled=${startFlyCalled} appendCalled=${appendCalled} appends=${appendBodies.length}`,
+    );
 
     // Find the PR for this issue and poll for a real change to the target file.
     let prNumber = 0;
@@ -118,9 +140,9 @@ test.describe("REPRO — Vibe chat hand-off delivers the kickoff", () => {
     const deadline = Date.now() + 7 * 60_000;
     let landed = false;
     while (Date.now() < deadline) {
-      const files = await ghJson<Array<{ filename: string; additions: number }>>(
-        `/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`,
-      );
+      const files = await ghJson<
+        Array<{ filename: string; additions: number }>
+      >(`/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`);
       if (files?.some((f) => f.filename === TARGET_FILE && f.additions > 0)) {
         landed = true;
         break;
@@ -129,7 +151,9 @@ test.describe("REPRO — Vibe chat hand-off delivers the kickoff", () => {
     }
 
     // eslint-disable-next-line no-console
-    console.log(`[repro-handoff] PR #${prNumber} landed=${landed} startFly=${startFlyCalled} append=${appendCalled}`);
+    console.log(
+      `[repro-handoff] PR #${prNumber} landed=${landed} startFly=${startFlyCalled} append=${appendCalled}`,
+    );
     expect(
       landed,
       `chat hand-off must deliver the kickoff and land the change on PR #${prNumber}. ` +

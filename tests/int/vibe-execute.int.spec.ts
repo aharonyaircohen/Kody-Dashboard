@@ -62,7 +62,11 @@ function okContext(defaultBranch = "main") {
       repo: "widgets",
       githubToken: "ghp_test",
       octokit: {
-        repos: { get: vi.fn().mockResolvedValue({ data: { default_branch: defaultBranch } }) },
+        repos: {
+          get: vi
+            .fn()
+            .mockResolvedValue({ data: { default_branch: defaultBranch } }),
+        },
       },
       allSecrets: {},
       flyToken: "fly_test",
@@ -96,7 +100,12 @@ describe("POST /api/kody/vibe/execute", () => {
 
   it("returns 400 when issueNumber is missing or non-positive", async () => {
     resolveFlyContext.mockResolvedValue(okContext());
-    for (const bad of [{}, { issueNumber: 0 }, { issueNumber: -3 }, { issueNumber: "x" }]) {
+    for (const bad of [
+      {},
+      { issueNumber: 0 },
+      { issueNumber: -3 },
+      { issueNumber: "x" },
+    ]) {
       const res = await vibeExecutePOST(makeRequest(bad));
       expect(res.status).toBe(400);
     }
@@ -126,7 +135,10 @@ describe("POST /api/kody/vibe/execute", () => {
   it("falls back to a fresh Fly spawn on pool miss and reports runner=fly", async () => {
     resolveFlyContext.mockResolvedValue(okContext());
     claimFromPool.mockResolvedValue({ ok: false, reason: "empty-pool" });
-    spawnRunner.mockResolvedValue({ machineId: "fresh-machine-9", region: "iad" });
+    spawnRunner.mockResolvedValue({
+      machineId: "fresh-machine-9",
+      region: "iad",
+    });
 
     const res = await vibeExecutePOST(makeRequest({ issueNumber: 7 }));
     expect(res.status).toBe(200);
@@ -152,7 +164,11 @@ describe("POST /api/kody/vibe/execute", () => {
       expect.objectContaining({ ref: "develop", repo: "acme/widgets" }),
     );
     expect(spawnRunner).toHaveBeenCalledWith(
-      expect.objectContaining({ ref: "develop", repo: "acme/widgets", issueNumber: 7 }),
+      expect.objectContaining({
+        ref: "develop",
+        repo: "acme/widgets",
+        issueNumber: 7,
+      }),
     );
   });
 
@@ -164,7 +180,10 @@ describe("POST /api/kody/vibe/execute", () => {
     ctx.context.octokit.repos.get = vi
       .fn()
       .mockRejectedValue(
-        new DOMException("The operation was aborted due to timeout", "TimeoutError"),
+        new DOMException(
+          "The operation was aborted due to timeout",
+          "TimeoutError",
+        ),
       );
     resolveFlyContext.mockResolvedValue(ctx);
     claimFromPool.mockResolvedValue({ ok: false, reason: "miss" });

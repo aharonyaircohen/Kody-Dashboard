@@ -104,7 +104,10 @@ export async function PUT(req: NextRequest) {
       "operators: write failed",
     );
     if ((err as { status?: number })?.status === 401) {
-      return NextResponse.json({ error: "github_token_expired" }, { status: 401 });
+      return NextResponse.json(
+        { error: "github_token_expired" },
+        { status: 401 },
+      );
     }
     return NextResponse.json(
       { error: "operators_write_failed", message: (err as Error).message },

@@ -65,11 +65,7 @@ export function useChannelThread(channelNumber: number | null) {
 
 export function useCreateChannel(actorLogin?: string) {
   const queryClient = useQueryClient();
-  return useMutation<
-    MessageChannel,
-    Error,
-    { name: string; topic?: string }
-  >({
+  return useMutation<MessageChannel, Error, { name: string; topic?: string }>({
     mutationFn: (data) =>
       kodyApi.messages.createChannel({
         ...data,

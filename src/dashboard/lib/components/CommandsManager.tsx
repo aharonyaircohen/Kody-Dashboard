@@ -262,9 +262,8 @@ function CommandsManagerInner() {
               <Sparkles className="w-8 h-8 text-white/30 mx-auto" />
               <p className="text-sm text-white/70">No commands yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                Commands appear as{" "}
-                <code className="text-white/55">/slash</code> entries in chat.
-                Stored at{" "}
+                Commands appear as <code className="text-white/55">/slash</code>{" "}
+                entries in chat. Stored at{" "}
                 <code className="text-white/55">
                   .kody/commands/&lt;slug&gt;.md
                 </code>{" "}
@@ -284,11 +283,14 @@ function CommandsManagerInner() {
           />
         )}
 
-        {!isLoading && !error && commands.length > 0 && filtered.length === 0 && (
-          <p className="text-sm text-white/50 px-1">
-            No command matches your search.
-          </p>
-        )}
+        {!isLoading &&
+          !error &&
+          commands.length > 0 &&
+          filtered.length === 0 && (
+            <p className="text-sm text-white/50 px-1">
+              No command matches your search.
+            </p>
+          )}
 
         <ul className="space-y-2">
           {filtered.map((p) => (

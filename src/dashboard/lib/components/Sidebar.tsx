@@ -11,11 +11,11 @@
  *   menu (MobileMenu) — this rail is the desktop replacement for the
  *   kebab-triggered SettingsDrawer.
  */
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { usePathname, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -23,144 +23,142 @@ import {
   LogOut,
   Moon,
   Sun,
-} from 'lucide-react'
+} from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
-import { useTheme } from '@dashboard/providers/Theme'
-import { cn } from '@dashboard/lib/utils/ui'
-import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
-import { SimpleTooltip } from './SimpleTooltip'
-import { InboxBadge } from './InboxBadge'
+import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+import { useTheme } from "@dashboard/providers/Theme";
+import { cn } from "@dashboard/lib/utils/ui";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { SimpleTooltip } from "./SimpleTooltip";
+import { InboxBadge } from "./InboxBadge";
 import {
   HOME_NAV_ITEM,
   PRIMARY_NAV_ITEMS,
   PRIMARY_NAV_TITLE,
   SETTINGS_NAV_SECTIONS,
   type SettingsNavItem,
-} from './settings-nav'
+} from "./settings-nav";
 
 /** Pull just the `text-…` color token out of an item's `tint` (which is a
  *  combined "text-X bg-Y" chip class) so the rail can color the bare icon. */
 function iconTintClass(item: SettingsNavItem): string | undefined {
-  return item.tint?.split(' ').find((c) => c.startsWith('text-'))
+  return item.tint?.split(" ").find((c) => c.startsWith("text-"));
 }
 
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
 
-type NavItem = SettingsNavItem
+type NavItem = SettingsNavItem;
 
-const COLLAPSED_KEY = 'kody.sidebar.collapsed'
+const COLLAPSED_KEY = "kody.sidebar.collapsed";
 
 function isActive(pathname: string, search: string, item: NavItem): boolean {
   // Hrefs may include a query string (e.g. "/duties?tab=reports"). Compare the
   // pathname and search portions independently so tab-scoped entries don't
   // collide with their bare-path siblings.
-  const [hrefPath, hrefQuery = ''] = item.href.split('?')
+  const [hrefPath, hrefQuery = ""] = item.href.split("?");
   if (hrefQuery) {
-    return pathname === hrefPath && search === hrefQuery
+    return pathname === hrefPath && search === hrefQuery;
   }
-  if (item.exact) return pathname === hrefPath && !search
-  return pathname === hrefPath || pathname.startsWith(`${hrefPath}/`)
+  if (item.exact) return pathname === hrefPath && !search;
+  return pathname === hrefPath || pathname.startsWith(`${hrefPath}/`);
 }
 
 export function Sidebar() {
-  const pathname = usePathname() ?? '/'
-  const searchParams = useSearchParams()
-  const search = searchParams?.toString() ?? ''
-  const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity()
-  const { theme, setTheme } = useTheme()
-  const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false)
-  const [collapsed, setCollapsed] = useState<boolean>(false)
-  const [hydrated, setHydrated] = useState<boolean>(false)
+  const pathname = usePathname() ?? "/";
+  const searchParams = useSearchParams();
+  const search = searchParams?.toString() ?? "";
+  const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
+  const { theme, setTheme } = useTheme();
+  const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false);
+  const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [hydrated, setHydrated] = useState<boolean>(false);
 
   useEffect(() => {
     try {
-      if (window.localStorage.getItem(COLLAPSED_KEY) === '1') {
-        setCollapsed(true)
+      if (window.localStorage.getItem(COLLAPSED_KEY) === "1") {
+        setCollapsed(true);
       }
     } catch {
       // localStorage unavailable (private mode, etc.) — fall back to defaults
     }
-    setHydrated(true)
-  }, [])
+    setHydrated(true);
+  }, []);
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
-      const next = !prev
+      const next = !prev;
       try {
-        window.localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0')
+        window.localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
       } catch {
         // ignore — UI still updates
       }
-      return next
-    })
-  }
+      return next;
+    });
+  };
 
-  const width = collapsed ? 'w-[64px]' : 'w-[220px]'
+  const width = collapsed ? "w-[64px]" : "w-[220px]";
 
   const renderLink = (item: NavItem) => {
-    const Icon = item.icon
-    const active = isActive(pathname, search, item)
+    const Icon = item.icon;
+    const active = isActive(pathname, search, item);
     const link = (
       <Link
         href={item.href}
-        aria-current={active ? 'page' : undefined}
+        aria-current={active ? "page" : undefined}
         aria-label={item.label}
         className={cn(
-          'relative flex items-center gap-3 rounded-md text-sm transition-colors',
-          'h-9 px-3',
-          collapsed && 'justify-center px-0',
+          "relative flex items-center gap-3 rounded-md text-sm transition-colors",
+          "h-9 px-3",
+          collapsed && "justify-center px-0",
           active
-            ? 'bg-accent text-foreground'
-            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+            ? "bg-accent text-foreground"
+            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
         )}
       >
-        <Icon className={cn('w-4 h-4 shrink-0', iconTintClass(item))} />
+        <Icon className={cn("w-4 h-4 shrink-0", iconTintClass(item))} />
         {!collapsed && <span className="truncate">{item.label}</span>}
-        {item.href === '/inbox' && (
+        {item.href === "/inbox" && (
           <InboxBadge
-            className={cn(
-              collapsed
-                ? 'absolute top-1 right-1'
-                : 'ml-auto',
-            )}
+            className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}
       </Link>
-    )
+    );
     return collapsed ? (
       <SimpleTooltip key={item.href} content={item.label} side="right">
         {link}
       </SimpleTooltip>
     ) : (
       <div key={item.href}>{link}</div>
-    )
-  }
+    );
+  };
 
   return (
     <aside
       className={cn(
-        'hidden md:flex flex-col shrink-0 border-r border-white/[0.06] bg-black/30',
-        'h-screen sticky top-0 z-30 transition-[width] duration-150 ease-out',
+        "hidden md:flex flex-col shrink-0 border-r border-white/[0.06] bg-black/30",
+        "h-screen sticky top-0 z-30 transition-[width] duration-150 ease-out",
         width,
       )}
       aria-label="Primary navigation"
-      data-hydrated={hydrated ? 'true' : 'false'}
+      data-hydrated={hydrated ? "true" : "false"}
     >
       <div
         className={cn(
-          'flex items-center px-3 h-14 border-b border-white/[0.06]',
-          collapsed ? 'justify-center' : 'justify-between',
+          "flex items-center px-3 h-14 border-b border-white/[0.06]",
+          collapsed ? "justify-center" : "justify-between",
         )}
       >
         <SimpleTooltip
-          content={APP_VERSION ? `Kody v${APP_VERSION}` : 'Kody'}
+          content={APP_VERSION ? `Kody v${APP_VERSION}` : "Kody"}
           side="right"
         >
           <Link
             href="/"
             className="flex items-center gap-2 text-foreground hover:text-foreground/80"
-            aria-label={APP_VERSION ? `Kody home (v${APP_VERSION})` : 'Kody home'}
+            aria-label={
+              APP_VERSION ? `Kody home (v${APP_VERSION})` : "Kody home"
+            }
           >
             <div className="h-7 w-7 rounded-md bg-emerald-600 flex items-center justify-center text-white font-semibold text-sm shrink-0">
               K
@@ -224,8 +222,8 @@ export function Sidebar() {
             <SimpleTooltip
               content={
                 githubUser
-                  ? `@${githubUser.login}${connectedRepo ? ` · ${connectedRepo}` : ''}`
-                  : (connectedRepo ?? 'Connected')
+                  ? `@${githubUser.login}${connectedRepo ? ` · ${connectedRepo}` : ""}`
+                  : (connectedRepo ?? "Connected")
               }
               side="right"
             >
@@ -236,9 +234,9 @@ export function Sidebar() {
                 aria-expanded={userMenuOpen}
                 aria-label="Account"
                 className={cn(
-                  'flex items-center gap-3 w-full rounded-md text-sm h-9 px-3 transition-colors',
-                  'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                  collapsed && 'justify-center px-0',
+                  "flex items-center gap-3 w-full rounded-md text-sm h-9 px-3 transition-colors",
+                  "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                  collapsed && "justify-center px-0",
                 )}
               >
                 {githubUser ? (
@@ -256,7 +254,7 @@ export function Sidebar() {
                 )}
                 {!collapsed && (
                   <span className="truncate flex-1 text-left">
-                    {githubUser ? `@${githubUser.login}` : 'Connected'}
+                    {githubUser ? `@${githubUser.login}` : "Connected"}
                   </span>
                 )}
               </button>
@@ -265,7 +263,7 @@ export function Sidebar() {
               <div className="absolute bottom-full left-0 mb-1 w-56 py-1 bg-popover border rounded-md shadow-lg z-50">
                 {connectedRepo && (
                   <div className="px-3 py-1.5 text-xs text-muted-foreground border-b mb-1">
-                    <span className="font-medium text-foreground">Repo:</span>{' '}
+                    <span className="font-medium text-foreground">Repo:</span>{" "}
                     {connectedRepo}
                   </div>
                 )}
@@ -273,8 +271,8 @@ export function Sidebar() {
                   <button
                     type="button"
                     onClick={() => {
-                      clearGitHubUser()
-                      setUserMenuOpen(false)
+                      clearGitHubUser();
+                      setUserMenuOpen(false);
                     }}
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent"
                   >
@@ -293,46 +291,48 @@ export function Sidebar() {
 
         {/* Theme toggle — global chrome, moved here from the page header. */}
         <SimpleTooltip
-          content={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          content={
+            theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+          }
           side="right"
         >
           <button
             type="button"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             aria-label={
-              theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
+              theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
             }
             className={cn(
-              'flex items-center gap-3 w-full rounded-md text-sm h-9 px-3',
-              'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-              collapsed && 'justify-center px-0',
+              "flex items-center gap-3 w-full rounded-md text-sm h-9 px-3",
+              "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+              collapsed && "justify-center px-0",
             )}
           >
-            {theme === 'dark' ? (
+            {theme === "dark" ? (
               <Sun className="w-4 h-4 shrink-0" />
             ) : (
               <Moon className="w-4 h-4 shrink-0" />
             )}
             {!collapsed && (
               <span className="truncate">
-                {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                {theme === "dark" ? "Light mode" : "Dark mode"}
               </span>
             )}
           </button>
         </SimpleTooltip>
 
         <SimpleTooltip
-          content={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          content={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           side="right"
         >
           <button
             type="button"
             onClick={toggleCollapsed}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={cn(
-              'flex items-center gap-3 w-full rounded-md text-sm h-9 px-3',
-              'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-              collapsed && 'justify-center px-0',
+              "flex items-center gap-3 w-full rounded-md text-sm h-9 px-3",
+              "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+              collapsed && "justify-center px-0",
             )}
           >
             {collapsed ? (
@@ -347,8 +347,8 @@ export function Sidebar() {
         {APP_VERSION && (
           <p
             className={cn(
-              'pt-1 text-[10px] font-mono text-muted-foreground/50 select-none',
-              collapsed ? 'text-center' : 'px-3',
+              "pt-1 text-[10px] font-mono text-muted-foreground/50 select-none",
+              collapsed ? "text-center" : "px-3",
             )}
           >
             v{APP_VERSION}
@@ -356,5 +356,5 @@ export function Sidebar() {
         )}
       </div>
     </aside>
-  )
+  );
 }
