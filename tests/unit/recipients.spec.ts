@@ -15,6 +15,7 @@ function sub(userLogin: string, channelNotify?: "off" | "mentions" | "all") {
     endpoint: `https://push/${userLogin}`,
     keys: { p256dh: "p", auth: "a" },
     userLogin,
+    createdAt: "2026-01-01T00:00:00.000Z",
     ...(channelNotify ? { channelNotify } : {}),
   };
 }
