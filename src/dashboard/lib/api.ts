@@ -391,36 +391,6 @@ export const tasksApi = {
     return handleResponse(res);
   },
 
-  approveGate: async (
-    issueNumber: number,
-    actorLogin?: string,
-  ): Promise<ActionResponse> => {
-    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify({
-        action: "approve",
-        ...(actorLogin && { actorLogin }),
-      }),
-    });
-    return handleResponse(res);
-  },
-
-  rejectGate: async (
-    issueNumber: number,
-    actorLogin?: string,
-  ): Promise<ActionResponse> => {
-    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify({
-        action: "reject",
-        ...(actorLogin && { actorLogin }),
-      }),
-    });
-    return handleResponse(res);
-  },
-
   approveUI: async (
     issueNumber: number,
     actorLogin?: string,

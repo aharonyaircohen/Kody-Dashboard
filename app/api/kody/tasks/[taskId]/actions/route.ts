@@ -49,8 +49,6 @@ import { withActor, postWithFallback } from "@dashboard/lib/kody-command";
 
 const actionSchema = z.object({
   action: z.enum([
-    "approve",
-    "reject",
     "rerun",
     "execute",
     "abort",
@@ -133,21 +131,6 @@ export async function POST(
     });
 
     switch (action) {
-      case "approve": {
-        await postWithFallback(
-          issueNumber,
-          "@kody approve",
-          actor,
-          userOctokit,
-        );
-        return NextResponse.json({ success: true, message: "Gate approved" });
-      }
-
-      case "reject": {
-        await postWithFallback(issueNumber, "@kody reject", actor, userOctokit);
-        return NextResponse.json({ success: true, message: "Gate rejected" });
-      }
-
       case "rerun": {
         await triggerWorkflow(
           {
