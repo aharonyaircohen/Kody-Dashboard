@@ -21,6 +21,7 @@ import {
 import { sendNotification } from "./notifications/channels/send";
 import { buildSourceEvent, type SourcePr } from "./notifications/source-event";
 import { readNotificationsManifestFresh } from "./notifications-server";
+import { resolveVaultGithubToken } from "./vault/bootstrap";
 import { logger } from "./logger";
 
 interface DispatchContext {
@@ -159,14 +160,14 @@ export async function dispatchNotifications(
   const ev = buildSourceEvent(eventType, payload);
   if (!ev || !ev.owner || !ev.repo) return;
 
-  const token =
-    process.env.KODY_BOT_TOKEN ||
-    process.env.GITHUB_TOKEN ||
-    process.env.GH_PAT;
+  // Per-repo vault token (decrypted with KODY_MASTER_KEY). Never the shared
+  // env token — webhooks fire constantly and would drain the bot account's
+  // 5000 req/hr budget, breaking every dashboard read.
+  const token = await resolveVaultGithubToken(ev.owner, ev.repo);
   if (!token) {
     logger.warn(
-      { event: "notifications_no_token" },
-      "No bot token configured — cannot read notifications manifest",
+      { event: "notifications_no_token", repo: ev.repoFullName },
+      "No vault GITHUB_TOKEN for repo — cannot read notifications manifest",
     );
     return;
   }
