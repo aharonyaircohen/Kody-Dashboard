@@ -38,7 +38,15 @@ export const INBOX_FEED_MAX_ENTRIES = 500;
  * exactly how the feed silently stopped appending once it bloated past the
  * limit. We keep well under 65536 so the preamble + fence markers always fit.
  */
-export const INBOX_FEED_MAX_BODY_CHARS = 60000;
+export const INBOX_FEED_MAX_BODY_CHARS = 50000;
+/**
+ * Trim target — once the body exceeds `MAX_BODY_CHARS`, drop oldest entries
+ * down to this size, NOT just under the cap. Leaves comfortable headroom so
+ * the next 10–20 appends fit without re-triggering the (somewhat expensive)
+ * trim loop. Past regression: trimming only to "just under cap" let a single
+ * burst of fat CTO recs push us right back over on the very next write.
+ */
+export const INBOX_FEED_TARGET_BODY_CHARS = 40000;
 
 export interface InboxFeedEntry {
   /** Stable opaque id — `${login}:${url}`. Re-deliveries dedupe; a new
@@ -137,14 +145,23 @@ export function serializeInboxFeedBody(manifest: InboxFeedManifest): string {
  * binding constraint — fat CTO-recommendation entries blow it long before the
  * count cap. Self-healing: an already-oversized feed shrinks to fit on the
  * next append, which makes the PATCH succeed again.
+ *
+ * Two-step trim: once we're over `MAX_BODY_CHARS`, we keep dropping until the
+ * body fits under `TARGET_BODY_CHARS` (not just MAX). This leaves room for
+ * many subsequent appends before another trim is needed — without it, a feed
+ * that grazes the cap re-triggers trim on every single write and a single
+ * burst of fat entries flips us right back over.
  */
 export function capFeedEntries(entries: InboxFeedEntry[]): InboxFeedEntry[] {
   let kept = entries.slice(0, INBOX_FEED_MAX_ENTRIES);
-  while (
-    kept.length > 0 &&
-    serializeInboxFeedBody({ version: 1, entries: kept }).length >
-      INBOX_FEED_MAX_BODY_CHARS
-  ) {
+  const overCap = (list: InboxFeedEntry[]): boolean =>
+    serializeInboxFeedBody({ version: 1, entries: list }).length >
+    INBOX_FEED_MAX_BODY_CHARS;
+  const overTarget = (list: InboxFeedEntry[]): boolean =>
+    serializeInboxFeedBody({ version: 1, entries: list }).length >
+    INBOX_FEED_TARGET_BODY_CHARS;
+  if (!overCap(kept)) return kept;
+  while (kept.length > 0 && overTarget(kept)) {
     // Drop ~10% of the oldest tail per pass (min 1) so we converge in a few
     // iterations instead of one-at-a-time on a badly bloated feed.
     const drop = Math.max(1, Math.floor(kept.length * 0.1));
