@@ -23,6 +23,7 @@ import { listStaffFiles } from "../staff-files";
 import { dispatchWorkerAsk, type WorkerAskReply } from "../control-issue";
 import { extractStaffMentions } from "../mentions/staff-mentions";
 import { buildSourceEvent } from "../notifications/source-event";
+import { resolveVaultGithubToken } from "../vault/bootstrap";
 import { logger } from "../logger";
 
 interface StaffDispatchEvent {
@@ -109,14 +110,15 @@ export async function dispatchStaffMentions(
     const [owner, repo] = ev.repoFullName.split("/");
     if (!owner || !repo) return;
 
-    const token =
-      process.env.KODY_BOT_TOKEN ||
-      process.env.GITHUB_TOKEN ||
-      process.env.GH_PAT;
+    // Per-repo vault token (decrypted with KODY_MASTER_KEY). Never the
+    // shared env token — see notifications-dispatch for the rate-limit
+    // rationale: webhooks fire constantly, env-token reuse drains the bot
+    // account.
+    const token = await resolveVaultGithubToken(owner, repo);
     if (!token) {
       logger.warn(
-        { event: "staff_mention_no_token" },
-        "No bot token — cannot resolve staff / dispatch worker-ask",
+        { event: "staff_mention_no_token", repo: ev.repoFullName },
+        "No vault GITHUB_TOKEN for repo — cannot resolve staff / dispatch worker-ask",
       );
       return;
     }

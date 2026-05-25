@@ -9,6 +9,7 @@
  */
 
 import { Octokit } from "@octokit/rest";
+import { resolveVaultGithubToken } from "../vault/bootstrap";
 
 export const CHANGELOG_PATH = "CHANGELOG.md";
 
@@ -26,25 +27,19 @@ export interface ChangelogFile {
   htmlUrl: string | null;
 }
 
-let _serverOctokit: Octokit | null = null;
-
 /**
- * Server-only Octokit using GITHUB_TOKEN (or KODY_BOT_TOKEN/GH_PAT).
- * Used by webhook handlers — they don't have a per-user request context.
+ * Server-only Octokit built from the consumer repo's vault token. Webhook
+ * handlers must not reuse a shared env token — the bot account's 5000
+ * req/hr budget is drained by webhook traffic, breaking every dashboard
+ * read. Returns null when the vault has no `GITHUB_TOKEN` for this repo.
  */
-export function getServerOctokit(): Octokit {
-  if (_serverOctokit) return _serverOctokit;
-  const token =
-    process.env.KODY_BOT_TOKEN ||
-    process.env.GITHUB_TOKEN ||
-    process.env.GH_PAT;
-  if (!token) {
-    throw new Error(
-      "No GitHub token configured. Set KODY_BOT_TOKEN, GITHUB_TOKEN, or GH_PAT.",
-    );
-  }
-  _serverOctokit = new Octokit({ auth: token });
-  return _serverOctokit;
+export async function getServerOctokit(
+  owner: string,
+  repo: string,
+): Promise<Octokit | null> {
+  const token = await resolveVaultGithubToken(owner, repo);
+  if (!token) return null;
+  return new Octokit({ auth: token });
 }
 
 export async function readChangelog(
