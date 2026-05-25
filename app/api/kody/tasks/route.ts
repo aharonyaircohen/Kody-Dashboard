@@ -529,19 +529,33 @@ export async function GET(req: NextRequest) {
           (workflowRun?.status === "in_progress" ||
             workflowRun?.status === "queued");
         const kodyState = kodyStateByIssueNumber.get(issue.number) ?? null;
+        // Canonical engine state wins over a stray active workflow run.
+        // Without this guard, an unrelated run whose display_title contains
+        // `#<issueNumber>` or the taskId can flip a shipped task back to
+        // "building" until the next poll — visible to users as a task
+        // randomly jumping between completed and running.
+        const terminalFromEngine: ColumnId | null =
+          kodyState?.core.phase === "shipped"
+            ? "done"
+            : kodyState?.core.phase === "failed" ||
+                kodyState?.core.status === "failed"
+              ? "failed"
+              : null;
         const column: ColumnId =
           issue.state === "closed"
             ? "done"
-            : pipelineStatus && !pipelineLooksStale
-              ? deriveColumnFromPipeline(pipelineStatus)
-              : pipelineLooksStale
-                ? "building"
-                : getColumnForIssue(
-                    issue,
-                    workflowRun ?? undefined,
-                    pr ?? null,
-                    kodyState,
-                  );
+            : terminalFromEngine
+              ? terminalFromEngine
+              : pipelineStatus && !pipelineLooksStale
+                ? deriveColumnFromPipeline(pipelineStatus)
+                : pipelineLooksStale
+                  ? "building"
+                  : getColumnForIssue(
+                      issue,
+                      workflowRun ?? undefined,
+                      pr ?? null,
+                      kodyState,
+                    );
 
         // Derive gate type: prefer pipeline controlMode, fall back to issue labels
         const gateType = deriveGateType(pipelineStatus);
