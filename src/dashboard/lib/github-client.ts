@@ -723,8 +723,8 @@ export async function findStatusOnBranch(
  *
  * Uses the polling token (no per-user octokit) because the goals listing
  * route is hot — every poll fetches goals, and per-user reads would
- * multiply the rate-limit cost. The state file lives on default branch and
- * is engine-readable, so the polling token is sufficient.
+ * multiply the rate-limit cost. The state file lives on the kody-state
+ * branch (engine commits it there), so the polling token is sufficient.
  */
 export async function fetchGoalStateFromRepo(goalId: string): Promise<{
   goalIssueNumber?: number;
@@ -750,6 +750,7 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
       owner: getOwner(),
       repo: getRepo(),
       path,
+      ref: STATE_BRANCH,
       headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
     });
     const data = response.data as {

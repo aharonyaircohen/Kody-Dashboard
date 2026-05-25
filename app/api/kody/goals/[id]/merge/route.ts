@@ -26,6 +26,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import { goalStatePath, type GoalRunState } from "@dashboard/lib/goal-state";
+import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
@@ -64,6 +65,8 @@ async function fetchExisting(
       owner,
       repo,
       path,
+      // Goal state lives on the dedicated state branch.
+      ref: STATE_BRANCH,
       headers: { "If-None-Match": "" },
     });
     const data = res.data as FileResponse | FileResponse[];
@@ -170,6 +173,7 @@ export async function POST(
       path,
       message: `chore(goals): approve merge for ${id}`,
       content,
+      branch: STATE_BRANCH,
       ...(existing.sha ? { sha: existing.sha } : {}),
     });
 

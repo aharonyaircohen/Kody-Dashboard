@@ -23,6 +23,7 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
+import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 import { logger } from "@dashboard/lib/logger";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
@@ -82,6 +83,8 @@ async function fetchExisting(
       owner,
       repo,
       path,
+      // Goal state lives on the dedicated state branch (engine reads it there).
+      ref: STATE_BRANCH,
       headers: { "If-None-Match": "" },
     });
     const data = res.data as FileResponse | FileResponse[];
@@ -245,6 +248,8 @@ export async function PUT(
       path,
       message,
       content,
+      // Write to the dedicated state branch, not the default branch.
+      branch: STATE_BRANCH,
       ...(existing?.sha ? { sha: existing.sha } : {}),
     });
 
