@@ -429,8 +429,16 @@ async function createMachine(
           method: "GET",
           path: "/healthz",
           interval: "15s",
-          timeout: "5s",
-          grace_period: "30s",
+          // The first chat message clones the repo (a big checkout can pin
+          // the machine for ~40s) right after boot. A short grace/timeout
+          // made /healthz miss during that window, so Fly marked the machine
+          // unhealthy and DROPPED the in-flight chat connection — the user
+          // saw an error instead of just waiting for the reply. Give boot +
+          // first-clone a wide grace and a generous per-check timeout so the
+          // single chat connection survives the warm-up and streams the
+          // reply once it's ready.
+          timeout: "10s",
+          grace_period: "120s",
         },
       },
     },
