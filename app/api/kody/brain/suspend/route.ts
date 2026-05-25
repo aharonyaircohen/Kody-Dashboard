@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   try {
     await suspendBrain({
       flyToken: ctx.context.flyToken,
-      owner: ctx.context.owner,
+      account: ctx.context.account,
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

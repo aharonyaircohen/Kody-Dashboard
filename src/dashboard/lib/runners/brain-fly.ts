@@ -14,7 +14,7 @@
  *     "suspend" so it resumes on demand (~1s cold) and idles at near-zero
  *     cost. Shares only the `flyToken` plumbing from runners/fly-context.
  *
- * One Fly app per user. App name = `kody-brain-<owner>` (lowercased,
+ * One Fly app per user. App name = `kody-brain-<account>` (lowercased,
  * hyphen-safe). The app exposes :443 → :8080 (the brain-serve HTTP port).
  * Auth between dashboard and brain-serve is a 32-byte hex API key
  * generated at provision time and stored on the machine as
@@ -54,8 +54,13 @@ const DEFAULT_PERF_TIER: PerfTier = "medium";
 
 export interface ProvisionBrainInput {
   flyToken: string;
-  /** GitHub login the Brain belongs to. Used to derive the app name. */
-  owner: string;
+  /**
+   * The authenticated GitHub account the Brain belongs to — derives the app
+   * name (`kody-brain-<account>`). MUST be the verified PAT owner, NOT the
+   * connected repo's owner, so one stable Brain serves all of a person's
+   * repos instead of being pinned to whatever repo was connected at setup.
+   */
+  account: string;
   /** owner/name of the repo the Brain will clone on boot. */
   repo: string;
   /** GitHub token the Brain uses to clone (the user's PAT). */
@@ -77,7 +82,7 @@ export interface ProvisionBrainInput {
 }
 
 export interface ProvisionBrainResult {
-  /** Fly app name (kody-brain-<owner>). */
+  /** Fly app name (kody-brain-<account>). */
   app: string;
   /** Public URL the dashboard's Brain proxy points at. */
   url: string;
@@ -91,25 +96,25 @@ export interface ProvisionBrainResult {
 
 export interface DestroyBrainInput {
   flyToken: string;
-  owner: string;
+  account: string;
   appNameOverride?: string;
 }
 
 export interface BrainStatusInput {
   flyToken: string;
-  owner: string;
+  account: string;
   appNameOverride?: string;
 }
 
 export interface SuspendBrainInput {
   flyToken: string;
-  owner: string;
+  account: string;
   appNameOverride?: string;
 }
 
 export interface ResumeBrainInput {
   flyToken: string;
-  owner: string;
+  account: string;
   appNameOverride?: string;
 }
 
@@ -159,18 +164,18 @@ export async function waitForBrainHealth(
 }
 
 /**
- * Normalize a GitHub login into a Fly-app-safe slug. Fly app names must
- * match `^[a-z0-9][a-z0-9-]*$` and are globally unique, so we prefix
- * with `kody-brain-` and lowercase the owner. Non-alphanumerics become
+ * Normalize a GitHub account login into a Fly-app-safe slug. Fly app names
+ * must match `^[a-z0-9][a-z0-9-]*$` and are globally unique, so we prefix
+ * with `kody-brain-` and lowercase the account. Non-alphanumerics become
  * hyphens; multiple hyphens collapse; leading/trailing hyphens stripped.
  */
-export function brainAppName(owner: string): string {
-  const slug = owner
+export function brainAppName(account: string): string {
+  const slug = account
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   if (!slug) {
-    throw new Error("brainAppName: owner is empty after slugify");
+    throw new Error("brainAppName: account is empty after slugify");
   }
   return `kody-brain-${slug}`;
 }
@@ -435,7 +440,7 @@ async function createMachine(
 
 /**
  * Provision a Brain for the given user. Idempotent at the app level
- * (re-uses an existing kody-brain-<owner> app) but NOT at the machine
+ * (re-uses an existing kody-brain-<account> app) but NOT at the machine
  * level — if a machine already exists, we leave it and reuse it rather
  * than minting a fresh API key. The caller should `destroy` first when
  * they want to rotate.
@@ -448,7 +453,7 @@ export async function provisionBrain(
       "brain-fly: flyToken required (set FLY_API_TOKEN in the repo secrets vault)",
     );
   }
-  const app = input.appNameOverride ?? brainAppName(input.owner);
+  const app = input.appNameOverride ?? brainAppName(input.account);
   const url = brainAppUrl(app);
 
   await ensureApp(input.flyToken, app);
@@ -499,7 +504,7 @@ export async function destroyBrain(input: DestroyBrainInput): Promise<void> {
   if (!input.flyToken?.trim()) {
     throw new Error("brain-fly: flyToken required");
   }
-  const app = input.appNameOverride ?? brainAppName(input.owner);
+  const app = input.appNameOverride ?? brainAppName(input.account);
 
   const existing = await flyFetch<FlyApp>(`/apps/${encodeURIComponent(app)}`, {
     token: input.flyToken,
@@ -532,7 +537,7 @@ export async function suspendBrain(input: SuspendBrainInput): Promise<void> {
   if (!input.flyToken?.trim()) {
     throw new Error("brain-fly: flyToken required");
   }
-  const app = input.appNameOverride ?? brainAppName(input.owner);
+  const app = input.appNameOverride ?? brainAppName(input.account);
 
   const machine = await findExistingMachine(input.flyToken, app);
   if (!machine) {
@@ -568,7 +573,7 @@ export async function resumeBrain(input: ResumeBrainInput): Promise<void> {
   if (!input.flyToken?.trim()) {
     throw new Error("brain-fly: flyToken required");
   }
-  const app = input.appNameOverride ?? brainAppName(input.owner);
+  const app = input.appNameOverride ?? brainAppName(input.account);
 
   const machine = await findExistingMachine(input.flyToken, app);
   if (!machine) {
@@ -597,7 +602,7 @@ export async function brainStatus(
   if (!input.flyToken?.trim()) {
     throw new Error("brain-fly: flyToken required");
   }
-  const app = input.appNameOverride ?? brainAppName(input.owner);
+  const app = input.appNameOverride ?? brainAppName(input.account);
 
   const existing = await flyFetch<FlyApp>(`/apps/${encodeURIComponent(app)}`, {
     token: input.flyToken,
