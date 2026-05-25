@@ -40,6 +40,10 @@ import type {
 } from "@dashboard/lib/types";
 import { matchWorkflowRunToTask } from "@dashboard/lib/workflow-matching";
 import {
+  deriveTaskColumn,
+  getColumnForIssue,
+} from "@dashboard/lib/tasks/derive-column";
+import {
   parseKodyPhase,
   parseKodyFlow,
   TASK_ID_REGEX,
@@ -78,27 +82,6 @@ function truncateReason(s: string): string {
 }
 
 /**
- * Derive column from live pipeline status.
- * Pipeline state is more accurate than GitHub labels (no propagation delay).
- * Called first when pipeline data is available; label-based fallback used otherwise.
- */
-function deriveColumnFromPipeline(pipeline: KodyPipelineStatus): ColumnId {
-  switch (pipeline.state) {
-    case "running":
-      return "building";
-    case "paused":
-      return "gate-waiting";
-    case "completed":
-      return "review";
-    case "failed":
-    case "timeout":
-      return "failed";
-    default:
-      return "building";
-  }
-}
-
-/**
  * Derive gate type from pipeline controlMode. The dashboard no longer reads
  * `hard-stop` / `risk-gated` labels; gate state is sourced from pipeline JSON.
  */
@@ -108,131 +91,6 @@ function deriveGateType(
   if (pipeline?.controlMode === "hard-stop") return "hard-stop";
   if (pipeline?.controlMode === "risk-gated") return "risk-gated";
   return undefined;
-}
-
-// Map GitHub issue state to column using agent labels, workflow runs, and PR status.
-// Used as fallback when no live pipeline data is available.
-// Priority: kodyState (canonical engine truth) > kody:failed/done > gate labels > kody:planning/building > active runs > completed runs > PR > other labels
-function getColumnForIssue(
-  issue: GitHubIssue,
-  workflowRun?: WorkflowRun,
-  associatedPR?: GitHubPR | null,
-  kodyState?: KodyTaskState | null,
-): ColumnId {
-  const labelNames = issue.labels.map((l) => l.name.toLowerCase());
-
-  // -2. Canonical engine state, when present, is the source of truth.
-  //     Labels and workflow run conclusions can drift (e.g. a concurrency-
-  //     cancelled duplicate run looks like a build failure to step 6 even
-  //     though the engine actually succeeded). The state comment is what
-  //     the engine itself recorded; trust it before the projections.
-  if (kodyState) {
-    const { phase, status } = kodyState.core;
-    if (phase === "shipped") return "done";
-    if (status === "failed" || phase === "failed") return "failed";
-    if (status === "running") {
-      if (phase === "reviewing" && (associatedPR || kodyState.core.prUrl))
-        return "review";
-      return "building";
-    }
-    if (status === "succeeded") {
-      if (associatedPR && !associatedPR.merged_at) return "review";
-      if (associatedPR?.merged_at) return "done";
-      // Engine reports succeeded but no PR yet — keep visible as building so
-      // the user sees the in-flight task instead of it dropping to backlog.
-      return "building";
-    }
-    // status === 'pending' falls through to the legacy heuristics below.
-  }
-
-  // -1. Fresh activity overrides terminal state. When the user runs `@kody sync`
-  //     or `@kody fix-ci` on a done/failed task, a new workflow dispatches but
-  //     the kody:done/failed label persists. The active run is the truer signal.
-  if (
-    workflowRun?.status === "in_progress" ||
-    workflowRun?.status === "queued"
-  ) {
-    return "building";
-  }
-
-  // 0. Terminal lifecycle labels (highest priority)
-  if (labelNames.includes("kody:failed")) return "failed";
-  if (labelNames.includes("kody:done")) return "done";
-
-  // 1. Review phase — pipeline finished, PR open, awaiting human review
-  if (
-    labelNames.includes("kody:reviewing") ||
-    labelNames.includes("kody:reviewing-ui")
-  )
-    return "review";
-
-  // 2. Any other kody:* active phase collapses to the "building" lane
-  if (
-    labelNames.includes("kody:building") ||
-    labelNames.includes("kody:classifying") ||
-    labelNames.includes("kody:researching") ||
-    labelNames.includes("kody:planning") ||
-    labelNames.includes("kody:running") ||
-    labelNames.includes("kody:fixing") ||
-    labelNames.includes("kody:fixing-ci") ||
-    labelNames.includes("kody:resolving") ||
-    labelNames.includes("kody:syncing") ||
-    labelNames.includes("kody:orchestrating")
-  ) {
-    return "building";
-  }
-
-  // 4. (Active workflow handled at step -1; only completed runs reach here.)
-
-  // 5. Explicit state labels (only checked when no active workflow run)
-  if (labelNames.includes("failed")) return "failed";
-  if (labelNames.includes("gate-waiting")) return "gate-waiting";
-  if (labelNames.includes("retrying")) return "retrying";
-
-  // 6. Workflow run completed status
-  if (workflowRun?.status === "completed") {
-    // Also handle timed_out and cancelled as failures
-    if (
-      workflowRun.conclusion === "failure" ||
-      workflowRun.conclusion === "timed_out" ||
-      workflowRun.conclusion === "cancelled"
-    )
-      return "failed";
-  }
-
-  // 7. Associated PR (always fetched via bulk)
-  if (associatedPR && !associatedPR.merged_at) {
-    // Mid-flow kody:* labels on the PR mean the engine is actively working
-    // on it (e.g. @kody fix added kody:fixing). The issue's labels don't
-    // change in this case, so without this check the task stays in "review"
-    // while kody is in fact rebuilding.
-    const prLabels = (associatedPR.labels ?? []).map((l) => l.toLowerCase());
-    const prMidFlow = prLabels.some(
-      (l) =>
-        l === "kody:fixing" ||
-        l === "kody:fixing-ci" ||
-        l === "kody:syncing" ||
-        l === "kody:resolving" ||
-        l === "kody:building" ||
-        l === "kody:running" ||
-        l === "kody:planning" ||
-        l === "kody:classifying" ||
-        l === "kody:researching" ||
-        l === "kody:orchestrating",
-    );
-    if (prMidFlow) return "building";
-    return "review";
-  }
-
-  // 8. Other labels
-  if (labelNames.includes("released")) return "done";
-  if (labelNames.includes("in-progress") || labelNames.includes("building"))
-    return "building";
-  if (labelNames.includes("review") || labelNames.includes("pr"))
-    return "review";
-
-  // 9. Default to open
-  return "open";
 }
 
 export async function GET(req: NextRequest) {
@@ -511,51 +369,18 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        // Column derivation: pipeline status is authoritative when fresh,
-        // falling back to label-based derivation. Exception: when a new
-        // workflow run is in-flight (sync/fix-ci) but the cached pipeline
-        // JSON still reflects the previous completed/failed run, prefer the
-        // active workflow signal so the task moves back to "building".
-        //
-        // Closed-state short-circuit: a manually-closed issue is terminal
-        // regardless of stale `kody:planning`/`kody:building` labels or an
-        // open PR. Without this, closed tasks leak into the Running view
-        // (column='building'/'review') or stay in Backlog (column='open').
-        const pipelineLooksStale =
-          pipelineStatus &&
-          (pipelineStatus.state === "completed" ||
-            pipelineStatus.state === "failed" ||
-            pipelineStatus.state === "timeout") &&
-          (workflowRun?.status === "in_progress" ||
-            workflowRun?.status === "queued");
+        // Column derivation lives in @dashboard/lib/tasks/derive-column.
+        // Order: closed-issue → engine-canonical (shipped/failed) → live
+        // pipeline (when fresh) → stale-pipeline + active-run override →
+        // label/PR fallback. See tests/unit/derive-column.spec.ts.
         const kodyState = kodyStateByIssueNumber.get(issue.number) ?? null;
-        // Canonical engine state wins over a stray active workflow run.
-        // Without this guard, an unrelated run whose display_title contains
-        // `#<issueNumber>` or the taskId can flip a shipped task back to
-        // "building" until the next poll — visible to users as a task
-        // randomly jumping between completed and running.
-        const terminalFromEngine: ColumnId | null =
-          kodyState?.core.phase === "shipped"
-            ? "done"
-            : kodyState?.core.phase === "failed" ||
-                kodyState?.core.status === "failed"
-              ? "failed"
-              : null;
-        const column: ColumnId =
-          issue.state === "closed"
-            ? "done"
-            : terminalFromEngine
-              ? terminalFromEngine
-              : pipelineStatus && !pipelineLooksStale
-                ? deriveColumnFromPipeline(pipelineStatus)
-                : pipelineLooksStale
-                  ? "building"
-                  : getColumnForIssue(
-                      issue,
-                      workflowRun ?? undefined,
-                      pr ?? null,
-                      kodyState,
-                    );
+        const column: ColumnId = deriveTaskColumn({
+          issue,
+          workflowRun,
+          associatedPR: pr,
+          kodyState,
+          pipelineStatus,
+        });
 
         // Derive gate type: prefer pipeline controlMode, fall back to issue labels
         const gateType = deriveGateType(pipelineStatus);
