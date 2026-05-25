@@ -1725,6 +1725,24 @@ export function KodyChat({
     }
   };
 
+  // Paste handler: pull image/file blobs straight off the clipboard
+  // (e.g. a screenshot copied to the clipboard, or "Copy image" from a
+  // browser) and route them through the same addFiles pipeline as
+  // drag-drop and the file picker. Only intercept when the clipboard
+  // actually carries files — a plain text paste falls through to the
+  // textarea's default behavior so typing/pasting text is unaffected.
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const dt = e.clipboardData;
+    if (!dt) return;
+    const files = Array.from(dt.items)
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((f): f is File => f != null);
+    if (files.length === 0) return;
+    e.preventDefault();
+    await addFiles(files);
+  };
+
   const removeAttachment = (id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
     // Drop the IDB blob too — the user removed it before sending, so
@@ -4752,6 +4770,7 @@ export function KodyChat({
                 e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
               }}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               onBlur={() => {
                 // Small delay so the menu's onMouseDown can fire before
                 // close — onMouseDown uses preventDefault to avoid blur,
