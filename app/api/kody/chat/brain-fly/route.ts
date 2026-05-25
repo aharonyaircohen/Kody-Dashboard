@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await provisionBrain({
       flyToken: ctx.context.flyToken,
-      owner: ctx.context.owner,
+      account: ctx.context.account,
       repo: `${ctx.context.owner}/${ctx.context.repo}`,
       githubToken: ctx.context.githubToken,
       allSecrets: ctx.context.allSecrets,

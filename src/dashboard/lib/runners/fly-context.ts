@@ -15,7 +15,11 @@
 import type { NextRequest } from "next/server";
 import type { Octokit } from "@octokit/rest";
 
-import { getRequestAuth, getUserOctokit } from "@dashboard/lib/auth";
+import {
+  getRequestAuth,
+  getUserOctokit,
+  resolveActorFromToken,
+} from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import { readVault } from "@dashboard/lib/vault/store";
 import type { PerfTier } from "./fly";
@@ -27,6 +31,14 @@ import type { PerfTier } from "./fly";
 export interface FlyContext {
   owner: string;
   repo: string;
+  /**
+   * The authenticated GitHub account behind the PAT (verified via
+   * `GET /user`), NOT the connected repo's owner. Stable per person across
+   * repos/orgs — use this to key per-user infra like the Brain app, so it
+   * doesn't get pinned to whatever repo happened to be connected at setup.
+   * Falls back to `owner` if the lookup fails.
+   */
+  account: string;
   githubToken: string;
   octokit: Octokit;
   /** Secrets the engine reads at runtime; FLY_API_TOKEN is already extracted. */
@@ -111,6 +123,12 @@ export async function resolveFlyContext(
     };
   }
 
+  // Verified account behind the PAT — the stable per-person key (the repo
+  // `owner` above is incidental: it's just whatever repo is connected).
+  // Cached for 1h inside resolveActorFromToken; falls back to owner.
+  const actor = await resolveActorFromToken(githubToken);
+  const account = actor?.login ?? owner;
+
   const allSecrets = await buildAllSecretsFromVault(octokit, owner, repo);
 
   // Fly Machines API token is a PROJECT credential pulled from the same
@@ -136,6 +154,7 @@ export async function resolveFlyContext(
     context: {
       owner,
       repo,
+      account,
       githubToken,
       octokit,
       allSecrets,

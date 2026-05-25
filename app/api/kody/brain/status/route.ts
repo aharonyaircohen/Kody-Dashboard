@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   try {
     const result = await brainStatus({
       flyToken: ctx.context.flyToken,
-      owner: ctx.context.owner,
+      account: ctx.context.account,
     });
     return NextResponse.json(result);
   } catch (err) {

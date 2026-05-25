@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   try {
     await resumeBrain({
       flyToken: ctx.context.flyToken,
-      owner: ctx.context.owner,
+      account: ctx.context.account,
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

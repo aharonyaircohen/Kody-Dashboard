@@ -108,8 +108,8 @@ describe("brainAppName", () => {
     expect(brainAppName("--weird--")).toBe("kody-brain-weird");
   });
 
-  it("throws on an effectively empty owner", () => {
-    expect(() => brainAppName("!!!")).toThrow(/owner is empty/);
+  it("throws on an effectively empty account", () => {
+    expect(() => brainAppName("!!!")).toThrow(/account is empty/);
   });
 });
 
@@ -196,7 +196,7 @@ describe("provisionBrain", () => {
 
     const out = await provisionBrain({
       flyToken: TOKEN,
-      owner: "alice",
+      account: "alice",
       repo: "alice/repo",
       githubToken: "gh-pat",
       apiKeyOverride: "static-key-for-test",
@@ -255,7 +255,7 @@ describe("provisionBrain", () => {
 
     const out = await provisionBrain({
       flyToken: TOKEN,
-      owner: "alice",
+      account: "alice",
       repo: "alice/repo",
       githubToken: "gh-pat",
     });
@@ -284,7 +284,7 @@ describe("provisionBrain", () => {
     await expect(
       provisionBrain({
         flyToken: TOKEN,
-        owner: "alice",
+        account: "alice",
         repo: "alice/repo",
         githubToken: "gh-pat",
       }),
@@ -316,7 +316,7 @@ describe("provisionBrain", () => {
 
     const out = await provisionBrain({
       flyToken: TOKEN,
-      owner: "alice",
+      account: "alice",
       repo: "alice/repo",
       githubToken: "gh-pat",
       apiKeyOverride: "k",
@@ -328,7 +328,7 @@ describe("provisionBrain", () => {
     await expect(
       provisionBrain({
         flyToken: "   ",
-        owner: "alice",
+        account: "alice",
         repo: "alice/repo",
         githubToken: "gh",
       }),
@@ -353,7 +353,7 @@ describe("provisionBrain", () => {
     });
     await provisionBrain({
       flyToken: TOKEN,
-      owner: "alice",
+      account: "alice",
       repo: "a/r",
       githubToken: "gh",
       perfTier: "high",
@@ -389,7 +389,7 @@ describe("provisionBrain", () => {
     });
     await provisionBrain({
       flyToken: TOKEN,
-      owner: "alice",
+      account: "alice",
       repo: "a/r",
       githubToken: "gh",
       allSecrets: { ANTHROPIC_API_KEY: "sk-test", OPENAI_API_KEY: "sk-2" },
@@ -423,7 +423,7 @@ describe("provisionBrain", () => {
     });
     await provisionBrain({
       flyToken: TOKEN,
-      owner: "alice",
+      account: "alice",
       repo: "a/r",
       githubToken: "gh",
       apiKeyOverride: "k",
@@ -577,7 +577,7 @@ describe("destroyBrain", () => {
   it("returns silently when the app does not exist", async () => {
     installFetchStub(() => ({ status: 404 }));
     await expect(
-      destroyBrain({ flyToken: TOKEN, owner: "alice" }),
+      destroyBrain({ flyToken: TOKEN, account: "alice" }),
     ).resolves.toBeUndefined();
   });
 
@@ -597,7 +597,7 @@ describe("destroyBrain", () => {
       }
       throw new Error(`unexpected: ${call.method} ${call.url}`);
     });
-    await destroyBrain({ flyToken: TOKEN, owner: "alice" });
+    await destroyBrain({ flyToken: TOKEN, account: "alice" });
     const del = calls.find((c) => c.method === "DELETE");
     expect(del).toBeDefined();
     expect(del!.url).toContain("force=true");
@@ -605,7 +605,7 @@ describe("destroyBrain", () => {
 
   it("rejects when flyToken is empty", async () => {
     await expect(
-      destroyBrain({ flyToken: "", owner: "alice" }),
+      destroyBrain({ flyToken: "", account: "alice" }),
     ).rejects.toThrow(/flyToken required/);
   });
 });
@@ -617,7 +617,7 @@ describe("destroyBrain", () => {
 describe("brainStatus", () => {
   it("returns state='off' when no app exists", async () => {
     installFetchStub(() => ({ status: 404 }));
-    const out = await brainStatus({ flyToken: TOKEN, owner: "alice" });
+    const out = await brainStatus({ flyToken: TOKEN, account: "alice" });
     expect(out).toEqual({ app: "kody-brain-alice", state: "off" });
   });
 
@@ -634,7 +634,7 @@ describe("brainStatus", () => {
       }
       throw new Error(`unexpected: ${call.method} ${call.url}`);
     });
-    const out = await brainStatus({ flyToken: TOKEN, owner: "alice" });
+    const out = await brainStatus({ flyToken: TOKEN, account: "alice" });
     expect(out.state).toBe("off");
     expect(out.url).toBe("https://kody-brain-alice.fly.dev");
   });
@@ -652,7 +652,7 @@ describe("brainStatus", () => {
       }
       throw new Error(`unexpected: ${call.method} ${call.url}`);
     });
-    const out = await brainStatus({ flyToken: TOKEN, owner: "alice" });
+    const out = await brainStatus({ flyToken: TOKEN, account: "alice" });
     expect(out.state).toBe("running");
     expect(out.machineId).toBe("m");
   });
@@ -670,7 +670,7 @@ describe("brainStatus", () => {
       }
       throw new Error(`unexpected: ${call.method} ${call.url}`);
     });
-    const out = await brainStatus({ flyToken: TOKEN, owner: "alice" });
+    const out = await brainStatus({ flyToken: TOKEN, account: "alice" });
     expect(out.state).toBe("suspended");
   });
 
@@ -687,12 +687,12 @@ describe("brainStatus", () => {
       }
       throw new Error(`unexpected: ${call.method} ${call.url}`);
     });
-    const out = await brainStatus({ flyToken: TOKEN, owner: "alice" });
+    const out = await brainStatus({ flyToken: TOKEN, account: "alice" });
     expect(out.state).toBe("stopped");
   });
 
   it("rejects when flyToken is empty", async () => {
-    await expect(brainStatus({ flyToken: "", owner: "alice" })).rejects.toThrow(
+    await expect(brainStatus({ flyToken: "", account: "alice" })).rejects.toThrow(
       /flyToken required/,
     );
   });
