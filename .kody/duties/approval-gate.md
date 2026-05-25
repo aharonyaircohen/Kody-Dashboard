@@ -21,9 +21,9 @@ disabled: true
   any other PR — normal feature/bug PRs are entirely out of scope here, so the
   `merge` verb can never auto-fire on a non-QA PR.
 - The only commands this job may emit are
-  `@kody qa-engineer --pr <n>` (verification) and `@kody merge --pr <n>`
-  (the squash-merge), and `@kody merge` auto-only when the ledger marks it
-  `"auto"`.
+  `@kody qa-engineer --issue <n> --goal <goal-id>` (verification) and
+  `@kody merge --pr <n>` (the squash-merge), and `@kody merge` auto-only when
+  the ledger marks it `"auto"`.
 - **Advisory by default.** Never merge, approve, label, or close anything
   yourself. The actual merge is done by the engine `merge` primitive via an
   `@kody merge` comment — this job only verifies, recommends, and (when
@@ -76,8 +76,12 @@ the PR `rejected`, and exit. Don't verify or merge a duplicate.
 
 Otherwise the PR's fix must pass a fresh QA pass before it can ship:
 
-- **No QA verdict yet on this PR** → dispatch `@kody qa-engineer --pr <n>`
-  (qa-engineer browses the PR's preview deployment), stage `verifying`, exit.
+- **No QA verdict yet on this PR** → dispatch
+  `@kody qa-engineer --issue <n> --goal <goal-id>`, where `<goal-id>` is the
+  PR's `goal:qa-*` label minus the `goal:` prefix. `--goal` resolves the goal's
+  preview deployment to browse; `--issue <n>` posts the verdict on the PR and,
+  by design, does **not** create a goal (qa-engineer is advisory when given a
+  target). Stage `verifying`, exit.
 - **qa-engineer reported `QA PASS`** → go to step 5.
 - **qa-engineer reported `QA CONCERNS`/`QA FAIL`** → do **not** merge. Post a
   `reject` rec linking the finding, stage `rejected`, exit.
