@@ -21,6 +21,7 @@ import {
   resolveActorFromToken,
 } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
+import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { readVault } from "@dashboard/lib/vault/store";
 import type { PerfTier } from "./fly";
 
@@ -39,6 +40,14 @@ export interface FlyContext {
    * Falls back to `owner` if the lookup fails.
    */
   account: string;
+  /**
+   * The engine model spec from the connected repo's kody.config.json
+   * (`agent.model`, e.g. "minimax/MiniMax-M2.7-highspeed"). Resolved here so
+   * a repo-less Brain can be told its model at provision time via the MODEL
+   * env var, instead of reading it from a boot repo at runtime. undefined if
+   * the repo has no config.
+   */
+  engineModel: string | undefined;
   githubToken: string;
   octokit: Octokit;
   /** Secrets the engine reads at runtime; FLY_API_TOKEN is already extracted. */
@@ -129,6 +138,16 @@ export async function resolveFlyContext(
   const actor = await resolveActorFromToken(githubToken);
   const account = actor?.login ?? owner;
 
+  // Engine model from the connected repo's config — so a repo-less Brain can
+  // be handed its model at provision time (it no longer reads a boot repo).
+  let engineModel: string | undefined;
+  try {
+    const { config } = await getEngineConfig(octokit, owner, repo);
+    engineModel = config.agent?.model;
+  } catch (err) {
+    logger.warn({ err, owner, repo }, "fly-context: engine model resolve failed");
+  }
+
   const allSecrets = await buildAllSecretsFromVault(octokit, owner, repo);
 
   // Fly Machines API token is a PROJECT credential pulled from the same
@@ -155,6 +174,7 @@ export async function resolveFlyContext(
       owner,
       repo,
       account,
+      engineModel,
       githubToken,
       octokit,
       allSecrets,

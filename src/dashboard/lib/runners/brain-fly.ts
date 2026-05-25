@@ -61,8 +61,13 @@ export interface ProvisionBrainInput {
    * repos instead of being pinned to whatever repo was connected at setup.
    */
   account: string;
-  /** owner/name of the repo the Brain will clone on boot. */
-  repo: string;
+  /**
+   * Optional boot repo (owner/name) cloned at startup as a convenience.
+   * Omit for a repo-less Brain — it boots with no work repo and clones each
+   * repo on demand per chat message. `model` below still drives which model
+   * the Brain runs; this only controls the (optional) boot clone.
+   */
+  repo?: string;
   /** GitHub token the Brain uses to clone (the user's PAT). */
   githubToken: string;
   /** Provider keys etc. (mirrors GH Actions toJSON(secrets)). */
@@ -193,11 +198,12 @@ function buildMachineEnv(
   apiKey: string,
 ): Record<string, string> {
   const env: Record<string, string> = {
-    REPO: input.repo,
     GITHUB_TOKEN: input.githubToken,
     BRAIN_API_KEY: apiKey,
     PORT: "8080",
   };
+  // Optional boot repo — omitted for a repo-less Brain.
+  if (input.repo) env.REPO = input.repo;
   if (input.model) env.MODEL = input.model;
   if (input.ref) env.REF = input.ref;
   if (input.litellmUrl) env.KODY_LITELLM_URL = input.litellmUrl;

@@ -98,7 +98,9 @@ export async function POST(req: NextRequest) {
     const result = await provisionBrain({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
-      repo: `${ctx.context.owner}/${ctx.context.repo}`,
+      // Repo-less Brain: no boot repo. It clones each repo per chat message.
+      // We still hand it the model resolved from the connected repo's config.
+      model: ctx.context.engineModel,
       githubToken: ctx.context.githubToken,
       allSecrets: ctx.context.allSecrets,
       perfTier: ctx.context.perfTier,
