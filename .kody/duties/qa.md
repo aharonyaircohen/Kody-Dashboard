@@ -47,10 +47,11 @@ live dashboard URL.
      - **PASS** → swap the marker to ` · ✅ QA <today>`, close the tracking
        issue, post one **informational** inbox rec (already shipped — clear to
        ship, so it carries **no** `kody-cmd:` line; the operator just dismisses).
-     - **CONCERNS / FAIL** → swap the marker to ` · ⚠️ QA <today> (#<finding>)`,
-       close the tracking issue, post one inbox rec whose `kody-cmd:` is
-       `@kody fix --pr <pr> <one-line concern>` (`<pr>` is the bullet's linked
-       PR; the concern text is the inline feedback) — never `@kody approve`.
+     - **CONCERNS / FAIL** → swap the marker to ` · ⚠️ QA <today> (#<tracking>)`,
+       **leave the tracking issue open** (the `qa-goal` verb reads the report
+       from it on approve), and post one inbox rec whose `kody-cmd:` is
+       `@kody qa-goal --issue <tracking> --scope "<title>"` — approving promotes
+       qa-engineer's report into a fix goal. Never `@kody approve`.
    - **Stuck** (no report, issue ≥ 2h old) → strip the marker (back to
      untested), comment the stall on the tracking issue, exit. A `🔄` must never
      block QA forever.
@@ -79,23 +80,23 @@ that mention is the only thing that routes it into the dashboard inbox:
 
 <one or two sentences: what was tested, the verdict, what confirming does>
 
-<!-- kody-cmd: @kody fix --pr <pr> <one-line concern> -->
+<!-- kody-cmd: @kody qa-goal --issue <tracking> --scope "<title>" -->
 
 _Confirm or dismiss in the dashboard inbox. QA will not act on its own._
 ```
 
 `<action>` is `verified` (PASS — clear to ship) or `fix` (CONCERNS/FAIL).
 
-- **PASS → omit the `kody-cmd:` line entirely.** The change already shipped, so
-  there is nothing for the engine to run; the rec is informational and the
-  operator just dismisses it.
-- **CONCERNS / FAIL → the `kody-cmd:` line is required and MUST carry `fix`'s
-  mandatory flag:** `@kody fix --pr <pr> <one-line concern>`. `fix` applies
-  feedback to an **existing PR branch**, so **`--pr <pr>` is required** — the
-  engine preflight rejects `@kody fix` without it. The text after `--pr <pr>`
-  is the inline feedback. The Approve button posts it verbatim, so it MUST
-  start with `@kody fix --pr`, be one line, ≤ 300 chars. **Never emit
-  `@kody approve`** — the engine has no `approve` verb and rejects it.
+- **PASS → omit the `kody-cmd:` line entirely.** The change already shipped; the
+  rec is informational and the operator just dismisses it.
+- **CONCERNS / FAIL → the `kody-cmd:` line is required:**
+  `@kody qa-goal --issue <tracking> --scope "<title>"`. qa-engineer already
+  posted its report on the tracking issue; on approve, `qa-goal` reads that
+  report and promotes it into a fix goal (manifest entry + one fix-ticket per
+  finding). The Approve button posts the line verbatim, so it MUST start with
+  `@kody qa-goal --issue`, be one line, ≤ 300 chars. **Never emit
+  `@kody approve`** — the engine has no `approve` verb. QA never creates the
+  goal itself — that's gated behind your approval.
 
 ## Allowed Commands
 
