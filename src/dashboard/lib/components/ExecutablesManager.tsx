@@ -15,6 +15,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -271,6 +273,71 @@ export function ExecutablesManager() {
   );
 }
 
+/**
+ * Standalone editor page for `/executables/new` (slug=null) and
+ * `/executables/<slug>`. Owns the save mutation and returns to the list on
+ * save/back via the router — so the browser Back button lands on the list,
+ * not wherever you were before opening the dashboard.
+ */
+export function ExecutableEditorPage({ slug }: { slug: string | null }) {
+  return (
+    <AuthGuard>
+      <ExecutableEditorPageInner slug={slug} />
+    </AuthGuard>
+  );
+}
+
+function ExecutableEditorPageInner({ slug }: { slug: string | null }) {
+  const { auth } = useAuth();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...buildAuthHeaders(auth),
+  };
+  const actorLogin = auth?.user.login;
+
+  const { data } = useQuery({
+    queryKey,
+    queryFn: () => listApi(headers),
+    enabled: !!auth,
+    staleTime: 30_000,
+  });
+  const existingSlugs = new Set((data?.executables ?? []).map((e) => e.slug));
+
+  const save = useMutation({
+    mutationFn: (payload: SavePayload) => saveApi(headers, payload, actorLogin),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success("Executable saved");
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to save"),
+  });
+
+  const back = () => router.push("/executables");
+
+  return (
+    <PageShell
+      title={slug ? `Edit @kody ${slug}` : "New executable"}
+      icon={Boxes}
+      iconClassName="text-amber-400"
+      subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
+    >
+      <ExecutableEditor
+        slug={slug}
+        headers={headers}
+        existingSlugs={existingSlugs}
+        saving={save.isPending}
+        onClose={back}
+        onSave={async (payload) => {
+          await save.mutateAsync(payload);
+          back();
+        }}
+      />
+    </PageShell>
+  );
+}
+
 function ExecutablesManagerInner() {
   const { auth } = useAuth();
   const headers: Record<string, string> = {
@@ -288,15 +355,6 @@ function ExecutablesManagerInner() {
   });
   const executables = useMemo(() => data?.executables ?? [], [data]);
   const defaults = data?.defaults ?? { issue: null, pr: null };
-
-  const save = useMutation({
-    mutationFn: (payload: SavePayload) => saveApi(headers, payload, actorLogin),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-      toast.success("Executable saved");
-    },
-    onError: (err: Error) => toast.error(err.message || "Failed to save"),
-  });
 
   const remove = useMutation({
     mutationFn: (slug: string) => deleteApi(headers, slug),
@@ -326,7 +384,6 @@ function ExecutablesManagerInner() {
     onError: (err: Error) => toast.error(err.message || "Failed to run"),
   });
 
-  const [editing, setEditing] = useState<{ slug: string | null } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [running, setRunning] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -348,194 +405,180 @@ function ExecutablesManagerInner() {
       iconClassName="text-amber-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
       actions={
-        <Button
-          size="sm"
-          onClick={() => setEditing({ slug: null })}
-          className="gap-1"
-        >
-          <Plus className="w-4 h-4" />
-          New executable
+        <Button asChild size="sm" className="gap-1">
+          <Link href="/executables/new">
+            <Plus className="w-4 h-4" />
+            New executable
+          </Link>
         </Button>
       }
     >
-      {editing ? (
-        <ExecutableEditor
-          slug={editing.slug}
-          headers={headers}
-          existingSlugs={new Set(executables.map((e) => e.slug))}
-          saving={save.isPending}
-          onClose={() => setEditing(null)}
-          onSave={async (payload) => {
-            await save.mutateAsync(payload);
-            setEditing(null);
-          }}
-        />
-      ) : (
-        <div className="space-y-3">
-          {isLoading && (
-            <p className="text-sm text-white/50 flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> Loading executables…
-            </p>
-          )}
+      <div className="space-y-3">
+        {isLoading && (
+          <p className="text-sm text-white/50 flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading executables…
+          </p>
+        )}
 
-          {error && (
-            <Card className="border-rose-500/30 bg-rose-950/20">
-              <CardContent className="p-4 text-sm">
-                <p className="text-rose-300 font-medium">
-                  Couldn&apos;t load executables
-                </p>
-                <p className="text-rose-200/70 mt-1">
-                  {error instanceof Error ? error.message : "Unknown error"}
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-3"
-                  onClick={() => refetch()}
-                >
-                  Retry
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+        {error && (
+          <Card className="border-rose-500/30 bg-rose-950/20">
+            <CardContent className="p-4 text-sm">
+              <p className="text-rose-300 font-medium">
+                Couldn&apos;t load executables
+              </p>
+              <p className="text-rose-200/70 mt-1">
+                {error instanceof Error ? error.message : "Unknown error"}
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3"
+                onClick={() => refetch()}
+              >
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
-          {!isLoading && !error && executables.length === 0 && (
-            <Card className="border-white/[0.08] bg-white/[0.02]">
-              <CardContent className="p-6 text-center space-y-3">
-                <Sparkles className="w-8 h-8 text-white/30 mx-auto" />
-                <p className="text-sm text-white/70">No executables yet.</p>
-                <p className="text-xs text-white/40 max-w-md mx-auto">
-                  An executable is a custom{" "}
-                  <code className="text-white/55">@kody &lt;slug&gt;</code>{" "}
-                  action stored at{" "}
-                  <code className="text-white/55">
-                    .kody/executables/&lt;slug&gt;/
-                  </code>{" "}
-                  in this repo. The engine runs it before its built-ins.
-                </p>
-              </CardContent>
-            </Card>
-          )}
+        {!isLoading && !error && executables.length === 0 && (
+          <Card className="border-white/[0.08] bg-white/[0.02]">
+            <CardContent className="p-6 text-center space-y-3">
+              <Sparkles className="w-8 h-8 text-white/30 mx-auto" />
+              <p className="text-sm text-white/70">No executables yet.</p>
+              <p className="text-xs text-white/40 max-w-md mx-auto">
+                An executable is a custom{" "}
+                <code className="text-white/55">@kody &lt;slug&gt;</code> action
+                stored at{" "}
+                <code className="text-white/55">
+                  .kody/executables/&lt;slug&gt;/
+                </code>{" "}
+                in this repo. The engine runs it before its built-ins.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-          {!isLoading && !error && executables.length > 0 && (
-            <ListSearch
-              value={search}
-              onChange={setSearch}
-              placeholder="Search executables…"
-              ariaLabel="Search executables"
-              accent="teal"
-            />
-          )}
+        {!isLoading && !error && executables.length > 0 && (
+          <ListSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search executables…"
+            ariaLabel="Search executables"
+            accent="teal"
+          />
+        )}
 
-          <ul className="space-y-2">
-            {filtered.map((e) => {
-              const isIssueDefault = defaults.issue === e.slug;
-              const isPrDefault = defaults.pr === e.slug;
-              return (
-                <li key={e.slug}>
-                  <Card className="border-white/[0.08] bg-white/[0.03]">
-                    <CardContent className="p-3 flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-mono text-sm text-white/90 truncate">
-                            @kody {e.slug}
-                          </p>
-                          <span className="text-[10px] uppercase tracking-wide bg-white/[0.06] text-white/50 px-1.5 py-0.5 rounded">
-                            {e.landing === "pr" ? "opens PR" : "comments"}
+        <ul className="space-y-2">
+          {filtered.map((e) => {
+            const isIssueDefault = defaults.issue === e.slug;
+            const isPrDefault = defaults.pr === e.slug;
+            return (
+              <li key={e.slug}>
+                <Card className="border-white/[0.08] bg-white/[0.03]">
+                  <CardContent className="p-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-mono text-sm text-white/90 truncate">
+                          @kody {e.slug}
+                        </p>
+                        <span className="text-[10px] uppercase tracking-wide bg-white/[0.06] text-white/50 px-1.5 py-0.5 rounded">
+                          {e.landing === "pr" ? "opens PR" : "comments"}
+                        </span>
+                        {isIssueDefault && (
+                          <span className="text-[10px] uppercase tracking-wide bg-amber-500/15 text-amber-300/90 px-1.5 py-0.5 rounded">
+                            issue default
                           </span>
-                          {isIssueDefault && (
-                            <span className="text-[10px] uppercase tracking-wide bg-amber-500/15 text-amber-300/90 px-1.5 py-0.5 rounded">
-                              issue default
-                            </span>
-                          )}
-                          {isPrDefault && (
-                            <span className="text-[10px] uppercase tracking-wide bg-sky-500/15 text-sky-300/90 px-1.5 py-0.5 rounded">
-                              PR default
-                            </span>
-                          )}
-                        </div>
-                        {e.describe && (
-                          <p className="text-xs text-white/60 mt-1 truncate">
-                            {e.describe}
-                          </p>
                         )}
-                        {e.updatedAt && (
-                          <p className="text-[11px] text-white/40 mt-0.5">
-                            Updated {formatRelative(e.updatedAt)}
-                          </p>
+                        {isPrDefault && (
+                          <span className="text-[10px] uppercase tracking-wide bg-sky-500/15 text-sky-300/90 px-1.5 py-0.5 rounded">
+                            PR default
+                          </span>
                         )}
-                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                          <Button
-                            size="sm"
-                            variant={isIssueDefault ? "secondary" : "ghost"}
-                            className="h-6 gap-1 text-[11px] px-2"
-                            onClick={() =>
-                              setDefault.mutate({
-                                slug: e.slug,
-                                target: "issue",
-                                clear: isIssueDefault,
-                              })
-                            }
-                          >
-                            <Star className="w-3 h-3" />
-                            {isIssueDefault
-                              ? "Issue default ✓"
-                              : "Set issue default"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={isPrDefault ? "secondary" : "ghost"}
-                            className="h-6 gap-1 text-[11px] px-2"
-                            onClick={() =>
-                              setDefault.mutate({
-                                slug: e.slug,
-                                target: "pr",
-                                clear: isPrDefault,
-                              })
-                            }
-                          >
-                            <Star className="w-3 h-3" />
-                            {isPrDefault ? "PR default ✓" : "Set PR default"}
-                          </Button>
-                        </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
+                      {e.describe && (
+                        <p className="text-xs text-white/60 mt-1 truncate">
+                          {e.describe}
+                        </p>
+                      )}
+                      {e.updatedAt && (
+                        <p className="text-[11px] text-white/40 mt-0.5">
+                          Updated {formatRelative(e.updatedAt)}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         <Button
                           size="sm"
-                          variant="ghost"
-                          className="gap-1"
-                          onClick={() => setRunning(e.slug)}
+                          variant={isIssueDefault ? "secondary" : "ghost"}
+                          className="h-6 gap-1 text-[11px] px-2"
+                          onClick={() =>
+                            setDefault.mutate({
+                              slug: e.slug,
+                              target: "issue",
+                              clear: isIssueDefault,
+                            })
+                          }
                         >
-                          <Play className="w-3.5 h-3.5" />
-                          Run
+                          <Star className="w-3 h-3" />
+                          {isIssueDefault
+                            ? "Issue default ✓"
+                            : "Set issue default"}
                         </Button>
                         <Button
                           size="sm"
-                          variant="ghost"
-                          className="gap-1"
-                          onClick={() => setEditing({ slug: e.slug })}
+                          variant={isPrDefault ? "secondary" : "ghost"}
+                          className="h-6 gap-1 text-[11px] px-2"
+                          onClick={() =>
+                            setDefault.mutate({
+                              slug: e.slug,
+                              target: "pr",
+                              clear: isPrDefault,
+                            })
+                          }
                         >
+                          <Star className="w-3 h-3" />
+                          {isPrDefault ? "PR default ✓" : "Set PR default"}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-1"
+                        onClick={() => setRunning(e.slug)}
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                        Run
+                      </Button>
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="ghost"
+                        className="gap-1"
+                      >
+                        <Link href={`/executables/${e.slug}`}>
                           <Pencil className="w-3.5 h-3.5" />
                           Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="gap-1 text-rose-300 hover:text-rose-200"
-                          onClick={() => setDeleting(e.slug)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          Delete
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+                        </Link>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-1 text-rose-300 hover:text-rose-200"
+                        onClick={() => setDeleting(e.slug)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
 
       {running && (
         <RunDialog
