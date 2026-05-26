@@ -18,6 +18,14 @@ export interface KodyConfig {
   executables: {
     default: string;
   };
+  /** Executable that runs for a bare `@kody` comment on an **issue**. This is
+   * the field the engine actually reads (`config.defaultExecutable`, defaults
+   * to `classify`) — distinct from the dashboard's `executables.default`
+   * seed, which the engine ignores for dispatch. */
+  defaultExecutable?: string;
+  /** Executable that runs for a bare `@kody` comment on a **PR**
+   * (`config.defaultPrExecutable`, defaults to `fix`). */
+  defaultPrExecutable?: string;
   /** Engine repo context plus the operator list. `operators` is the set of
    * GitHub logins that recommendation duties (pr-health/CTO) @-mention so the
    * comment routes into their dashboard inbox. Empty/absent = nobody is
@@ -75,6 +83,8 @@ async function fetchConfig(
         executables: parsed.executables ?? { default: "run" },
         agent: parsed.agent,
         github: parsed.github,
+        defaultExecutable: parsed.defaultExecutable,
+        defaultPrExecutable: parsed.defaultPrExecutable,
       },
       sha: data.sha ?? null,
     };
@@ -310,4 +320,75 @@ export async function writeOperators(
   });
   invalidateEngineConfigCache(owner, repo);
   return { sha: data.commit.sha ?? null, operators: normalized };
+}
+
+/**
+ * Set the bare-`@kody` default executable(s) in the consumer repo's
+ * kody.config.json. `target: "issue"` writes `defaultExecutable`, `"pr"`
+ * writes `defaultPrExecutable` — the two top-level fields the engine reads
+ * when a comment is just `@kody` with no verb (see kody2/src/dispatch.ts).
+ * A `null` value clears the field, reverting to the engine's built-in default
+ * (`classify` for issues, `fix` for PRs). Mirrors `writeOperators`'
+ * read→merge→commit so it never clobbers other config keys.
+ */
+export async function writeDefaultExecutable(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  target: "issue" | "pr",
+  executable: string | null,
+  commitMessage?: string,
+): Promise<{ sha: string | null }> {
+  let existing: Record<string, unknown> = {};
+  let existingSha: string | null = null;
+  try {
+    const res = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: KODY_CONFIG_PATH,
+    });
+    const data = res.data;
+    if (!Array.isArray(data) && "content" in data && data.content) {
+      existingSha = data.sha ?? null;
+      try {
+        existing = JSON.parse(
+          Buffer.from(data.content, "base64").toString("utf-8"),
+        ) as Record<string, unknown>;
+      } catch {
+        existing = {};
+      }
+    }
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    if (status !== 404) throw err;
+  }
+
+  const key = target === "issue" ? "defaultExecutable" : "defaultPrExecutable";
+  const next: Record<string, unknown> = {
+    ...existing,
+    executables: existing.executables ?? { default: "run" },
+    github: existing.github ?? { owner, repo },
+  };
+  if (executable && executable.trim().length > 0) {
+    next[key] = executable.trim();
+  } else {
+    delete next[key];
+  }
+  delete next.model; // strip the legacy key the engine never read
+
+  const content = Buffer.from(JSON.stringify(next, null, 2), "utf-8").toString(
+    "base64",
+  );
+  const { data } = await octokit.rest.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: KODY_CONFIG_PATH,
+    message:
+      commitMessage ??
+      `chore(kody): set default ${target} executable${executable ? ` to ${executable}` : ""}`,
+    content,
+    ...(existingSha ? { sha: existingSha } : {}),
+  });
+  invalidateEngineConfigCache(owner, repo);
+  return { sha: data.commit.sha ?? null };
 }

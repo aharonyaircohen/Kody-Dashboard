@@ -11,6 +11,7 @@ import {
   Activity,
   Bell,
   Bot,
+  Boxes,
   Building2,
   Cpu,
   FileText,
@@ -131,6 +132,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: Bot,
         description: "Slash commands in the chat composer.",
         tint: "text-violet-300 bg-violet-500/10",
+      },
+      {
+        href: "/executables",
+        label: "Executables",
+        icon: Boxes,
+        description:
+          "Custom @kody <slug> actions stored in the repo — the engine runs them before its built-ins.",
+        tint: "text-teal-300 bg-teal-500/10",
       },
       {
         href: "/instructions",

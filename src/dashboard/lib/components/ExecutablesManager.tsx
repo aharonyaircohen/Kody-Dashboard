@@ -1,0 +1,1081 @@
+/**
+ * @fileType component
+ * @domain executables
+ * @pattern executables-manager
+ * @ai-summary CRUD UI for custom executables stored at
+ *   `.kody/executables/<slug>/` in the connected repo. The engine resolves
+ *   these before its own built-ins, so `@kody <slug>` runs them. The editor
+ *   is a simple form (describe + prompt + model/permission/tools), plus a
+ *   skills tab (one `SKILL.md` each) and a scripts tab (one `*.sh` each). A
+ *   Validate button checks the generated profile.json before saving; Run
+ *   posts `@kody <slug>` on an issue; "Set default" writes the bare-`@kody`
+ *   default into kody.config.json.
+ */
+"use client";
+
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import {
+  Boxes,
+  CheckCircle2,
+  Loader2,
+  Pencil,
+  Play,
+  Plus,
+  Sparkles,
+  Star,
+  Trash2,
+  XCircle,
+} from "lucide-react";
+import { PageShell } from "./PageShell";
+import { ListSearch } from "./ListSearch";
+import { Button } from "@dashboard/ui/button";
+import { Card, CardContent } from "@dashboard/ui/card";
+import { Input } from "@dashboard/ui/input";
+import { Label } from "@dashboard/ui/label";
+import { Textarea } from "@dashboard/ui/textarea";
+import { Checkbox } from "@dashboard/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dashboard/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@dashboard/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { AuthGuard } from "../auth-guard";
+import { useAuth, buildAuthHeaders } from "../auth-context";
+import {
+  COMMON_TOOLS,
+  PERMISSION_MODES,
+  composeProfile,
+  isValidSlug,
+  serializeProfile,
+  validateProfile,
+  type ExecutableLanding,
+  type PermissionMode,
+} from "../executables/profile";
+
+interface ExecutableSkill {
+  name: string;
+  body: string;
+}
+interface ExecutableShellScript {
+  name: string;
+  content: string;
+}
+interface ExecutableSummary {
+  slug: string;
+  describe: string;
+  landing: ExecutableLanding;
+  updatedAt: string;
+  htmlUrl: string;
+}
+interface ExecutableDetail extends ExecutableSummary {
+  prompt: string;
+  model: string;
+  permissionMode: PermissionMode;
+  tools: string[];
+  skills: ExecutableSkill[];
+  shellScripts: ExecutableShellScript[];
+  profileJson: string;
+}
+interface DefaultsState {
+  issue: string | null;
+  pr: string | null;
+}
+
+const queryKey = ["kody-executables"] as const;
+
+function formatRelative(iso: string): string {
+  if (!iso) return "";
+  try {
+    const ms = Date.now() - new Date(iso).getTime();
+    const min = Math.floor(ms / 60000);
+    if (min < 1) return "just now";
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const day = Math.floor(hr / 24);
+    if (day < 30) return `${day}d ago`;
+    return new Date(iso).toLocaleDateString();
+  } catch {
+    return iso;
+  }
+}
+
+async function listApi(
+  headers: Record<string, string>,
+): Promise<{ executables: ExecutableSummary[]; defaults: DefaultsState }> {
+  const res = await fetch("/api/kody/executables", { headers });
+  const json = (await res.json().catch(() => ({}))) as {
+    executables?: ExecutableSummary[];
+    defaults?: DefaultsState;
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok)
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  return {
+    executables: json.executables ?? [],
+    defaults: json.defaults ?? { issue: null, pr: null },
+  };
+}
+
+async function readApi(
+  headers: Record<string, string>,
+  slug: string,
+): Promise<ExecutableDetail> {
+  const res = await fetch(`/api/kody/executables/${encodeURIComponent(slug)}`, {
+    headers,
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    executable?: ExecutableDetail;
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok || !json.executable)
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  return json.executable;
+}
+
+interface SavePayload {
+  slug: string;
+  describe: string;
+  prompt: string;
+  model: string;
+  permissionMode: PermissionMode;
+  tools: string[];
+  skills: ExecutableSkill[];
+  shellScripts: ExecutableShellScript[];
+  landing: ExecutableLanding;
+  isUpdate: boolean;
+}
+
+async function saveApi(
+  headers: Record<string, string>,
+  payload: SavePayload,
+  actorLogin?: string,
+): Promise<void> {
+  const { slug, isUpdate, ...rest } = payload;
+  const url = isUpdate
+    ? `/api/kody/executables/${encodeURIComponent(slug)}`
+    : "/api/kody/executables";
+  const res = await fetch(url, {
+    method: isUpdate ? "PATCH" : "POST",
+    headers,
+    body: JSON.stringify(
+      isUpdate ? { ...rest, actorLogin } : { slug, ...rest, actorLogin },
+    ),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok)
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+}
+
+async function deleteApi(
+  headers: Record<string, string>,
+  slug: string,
+): Promise<void> {
+  const res = await fetch(`/api/kody/executables/${encodeURIComponent(slug)}`, {
+    method: "DELETE",
+    headers,
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok)
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+}
+
+async function setDefaultApi(
+  headers: Record<string, string>,
+  slug: string,
+  target: "issue" | "pr",
+  clear: boolean,
+  actorLogin?: string,
+): Promise<void> {
+  const res = await fetch(
+    `/api/kody/executables/${encodeURIComponent(slug)}/default`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ target, clear, actorLogin }),
+    },
+  );
+  const json = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok)
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+}
+
+async function runApi(
+  headers: Record<string, string>,
+  slug: string,
+  issue: number,
+  actorLogin?: string,
+): Promise<string> {
+  const res = await fetch(
+    `/api/kody/executables/${encodeURIComponent(slug)}/run`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ issue, actorLogin }),
+    },
+  );
+  const json = (await res.json().catch(() => ({}))) as {
+    commentUrl?: string;
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok)
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  return json.commentUrl ?? "";
+}
+
+export function ExecutablesManager() {
+  return (
+    <AuthGuard>
+      <ExecutablesManagerInner />
+    </AuthGuard>
+  );
+}
+
+function ExecutablesManagerInner() {
+  const { auth } = useAuth();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...buildAuthHeaders(auth),
+  };
+  const actorLogin = auth?.user.login;
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey,
+    queryFn: () => listApi(headers),
+    enabled: !!auth,
+    staleTime: 30_000,
+  });
+  const executables = useMemo(() => data?.executables ?? [], [data]);
+  const defaults = data?.defaults ?? { issue: null, pr: null };
+
+  const save = useMutation({
+    mutationFn: (payload: SavePayload) => saveApi(headers, payload, actorLogin),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success("Executable saved");
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to save"),
+  });
+
+  const remove = useMutation({
+    mutationFn: (slug: string) => deleteApi(headers, slug),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success("Executable deleted");
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to delete"),
+  });
+
+  const setDefault = useMutation({
+    mutationFn: (v: { slug: string; target: "issue" | "pr"; clear: boolean }) =>
+      setDefaultApi(headers, v.slug, v.target, v.clear, actorLogin),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success("Default updated");
+    },
+    onError: (err: Error) =>
+      toast.error(err.message || "Failed to set default"),
+  });
+
+  const run = useMutation({
+    mutationFn: (v: { slug: string; issue: number }) =>
+      runApi(headers, v.slug, v.issue, actorLogin),
+    onSuccess: (url) =>
+      toast.success(url ? "Dispatched — comment posted" : "Dispatched"),
+    onError: (err: Error) => toast.error(err.message || "Failed to run"),
+  });
+
+  const [editing, setEditing] = useState<{ slug: string | null } | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [running, setRunning] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return executables;
+    return executables.filter(
+      (e) =>
+        e.slug.toLowerCase().includes(q) ||
+        e.describe.toLowerCase().includes(q),
+    );
+  }, [executables, search]);
+
+  return (
+    <PageShell
+      title="Executables"
+      icon={Boxes}
+      iconClassName="text-amber-400"
+      subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
+      actions={
+        <Button
+          size="sm"
+          onClick={() => setEditing({ slug: null })}
+          className="gap-1"
+        >
+          <Plus className="w-4 h-4" />
+          New executable
+        </Button>
+      }
+    >
+      <div className="space-y-3">
+        {isLoading && (
+          <p className="text-sm text-white/50 flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading executables…
+          </p>
+        )}
+
+        {error && (
+          <Card className="border-rose-500/30 bg-rose-950/20">
+            <CardContent className="p-4 text-sm">
+              <p className="text-rose-300 font-medium">
+                Couldn&apos;t load executables
+              </p>
+              <p className="text-rose-200/70 mt-1">
+                {error instanceof Error ? error.message : "Unknown error"}
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3"
+                onClick={() => refetch()}
+              >
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {!isLoading && !error && executables.length === 0 && (
+          <Card className="border-white/[0.08] bg-white/[0.02]">
+            <CardContent className="p-6 text-center space-y-3">
+              <Sparkles className="w-8 h-8 text-white/30 mx-auto" />
+              <p className="text-sm text-white/70">No executables yet.</p>
+              <p className="text-xs text-white/40 max-w-md mx-auto">
+                An executable is a custom{" "}
+                <code className="text-white/55">@kody &lt;slug&gt;</code> action
+                stored at{" "}
+                <code className="text-white/55">
+                  .kody/executables/&lt;slug&gt;/
+                </code>{" "}
+                in this repo. The engine runs it before its built-ins.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {!isLoading && !error && executables.length > 0 && (
+          <ListSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search executables…"
+            ariaLabel="Search executables"
+            accent="teal"
+          />
+        )}
+
+        <ul className="space-y-2">
+          {filtered.map((e) => {
+            const isIssueDefault = defaults.issue === e.slug;
+            const isPrDefault = defaults.pr === e.slug;
+            return (
+              <li key={e.slug}>
+                <Card className="border-white/[0.08] bg-white/[0.03]">
+                  <CardContent className="p-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-mono text-sm text-white/90 truncate">
+                          @kody {e.slug}
+                        </p>
+                        <span className="text-[10px] uppercase tracking-wide bg-white/[0.06] text-white/50 px-1.5 py-0.5 rounded">
+                          {e.landing === "pr" ? "opens PR" : "comments"}
+                        </span>
+                        {isIssueDefault && (
+                          <span className="text-[10px] uppercase tracking-wide bg-amber-500/15 text-amber-300/90 px-1.5 py-0.5 rounded">
+                            issue default
+                          </span>
+                        )}
+                        {isPrDefault && (
+                          <span className="text-[10px] uppercase tracking-wide bg-sky-500/15 text-sky-300/90 px-1.5 py-0.5 rounded">
+                            PR default
+                          </span>
+                        )}
+                      </div>
+                      {e.describe && (
+                        <p className="text-xs text-white/60 mt-1 truncate">
+                          {e.describe}
+                        </p>
+                      )}
+                      {e.updatedAt && (
+                        <p className="text-[11px] text-white/40 mt-0.5">
+                          Updated {formatRelative(e.updatedAt)}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant={isIssueDefault ? "secondary" : "ghost"}
+                          className="h-6 gap-1 text-[11px] px-2"
+                          onClick={() =>
+                            setDefault.mutate({
+                              slug: e.slug,
+                              target: "issue",
+                              clear: isIssueDefault,
+                            })
+                          }
+                        >
+                          <Star className="w-3 h-3" />
+                          {isIssueDefault
+                            ? "Issue default ✓"
+                            : "Set issue default"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={isPrDefault ? "secondary" : "ghost"}
+                          className="h-6 gap-1 text-[11px] px-2"
+                          onClick={() =>
+                            setDefault.mutate({
+                              slug: e.slug,
+                              target: "pr",
+                              clear: isPrDefault,
+                            })
+                          }
+                        >
+                          <Star className="w-3 h-3" />
+                          {isPrDefault ? "PR default ✓" : "Set PR default"}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-1"
+                        onClick={() => setRunning(e.slug)}
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                        Run
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-1"
+                        onClick={() => setEditing({ slug: e.slug })}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-1 text-rose-300 hover:text-rose-200"
+                        onClick={() => setDeleting(e.slug)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      {editing && (
+        <ExecutableEditor
+          slug={editing.slug}
+          headers={headers}
+          existingSlugs={new Set(executables.map((e) => e.slug))}
+          saving={save.isPending}
+          onClose={() => setEditing(null)}
+          onSave={async (payload) => {
+            await save.mutateAsync(payload);
+            setEditing(null);
+          }}
+        />
+      )}
+
+      {running && (
+        <RunDialog
+          slug={running}
+          running={run.isPending}
+          onClose={() => setRunning(null)}
+          onRun={async (issue) => {
+            await run.mutateAsync({ slug: running, issue });
+            setRunning(null);
+          }}
+        />
+      )}
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title={`Delete @kody ${deleting}?`}
+        description="The whole .kody/executables/<slug>/ folder is removed from the repo."
+        confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
+        variant="destructive"
+        onConfirm={() => {
+          if (deleting) remove.mutate(deleting);
+        }}
+        onClose={() => setDeleting(null)}
+      />
+    </PageShell>
+  );
+}
+
+interface EditorProps {
+  slug: string | null;
+  headers: Record<string, string>;
+  existingSlugs: Set<string>;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (payload: SavePayload) => Promise<void>;
+}
+
+const DEFAULT_PROMPT =
+  "You are working on issue #{{issueNumber}}.\n\n{{issueBody}}\n\nImplement the change end-to-end.\n";
+
+function ExecutableEditor({
+  slug,
+  headers,
+  existingSlugs,
+  saving,
+  onClose,
+  onSave,
+}: EditorProps) {
+  const isNew = slug === null;
+  const detail = useQuery({
+    queryKey: ["kody-executable", slug],
+    queryFn: () => readApi(headers, slug as string),
+    enabled: !isNew,
+  });
+
+  if (!isNew && detail.isLoading) {
+    return (
+      <Dialog open onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-w-4xl">
+          <p className="text-sm text-white/60 flex items-center gap-2 py-8 justify-center">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+          </p>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <ExecutableEditorForm
+      isNew={isNew}
+      initial={detail.data ?? null}
+      existingSlugs={existingSlugs}
+      saving={saving}
+      onClose={onClose}
+      onSave={onSave}
+    />
+  );
+}
+
+function ExecutableEditorForm({
+  isNew,
+  initial,
+  existingSlugs,
+  saving,
+  onClose,
+  onSave,
+}: {
+  isNew: boolean;
+  initial: ExecutableDetail | null;
+  existingSlugs: Set<string>;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (payload: SavePayload) => Promise<void>;
+}) {
+  const [slug, setSlug] = useState(initial?.slug ?? "");
+  const [touchedSlug, setTouchedSlug] = useState(false);
+  const [describe, setDescribe] = useState(initial?.describe ?? "");
+  const [prompt, setPrompt] = useState(initial?.prompt ?? DEFAULT_PROMPT);
+  const [model, setModel] = useState(initial?.model ?? "inherit");
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>(
+    initial?.permissionMode ?? "acceptEdits",
+  );
+  const [tools, setTools] = useState<string[]>(
+    initial?.tools ?? ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+  );
+  const [landing, setLanding] = useState<ExecutableLanding>(
+    initial?.landing ?? "pr",
+  );
+  const [skills, setSkills] = useState<ExecutableSkill[]>(
+    initial?.skills ?? [],
+  );
+  const [shellScripts, setShellScripts] = useState<ExecutableShellScript[]>(
+    initial?.shellScripts ?? [],
+  );
+
+  const slugError = (() => {
+    if (!isNew || !touchedSlug) return null;
+    if (!slug) return "Required";
+    if (!isValidSlug(slug))
+      return "Use lowercase letters, digits, dashes, underscores. Start with a letter or digit.";
+    if (existingSlugs.has(slug)) return `"${slug}" already exists`;
+    return null;
+  })();
+  const promptError = prompt.trim().length === 0 ? "Prompt is required" : null;
+  const canSave =
+    !saving && !slugError && !promptError && (isNew ? !!slug : true);
+
+  // Live validation of the profile the form will generate.
+  const validation = useMemo(() => {
+    const effectiveSlug = isNew ? slug || "draft" : slug;
+    const profile = composeProfile({
+      slug: effectiveSlug,
+      describe,
+      prompt,
+      model,
+      permissionMode,
+      tools,
+      skills: skills.map((s) => s.name),
+      shellScripts: shellScripts.map((s) => s.name),
+      landing,
+    });
+    const errors = validateProfile(profile);
+    // Local consistency: skill/sh names must be present and well-formed.
+    for (const s of skills)
+      if (!s.name.trim()) errors.push("a skill is missing a name");
+    for (const s of shellScripts)
+      if (!/^[a-zA-Z0-9._-]+\.sh$/.test(s.name))
+        errors.push(`shell file "${s.name || "(blank)"}" must be a *.sh name`);
+    return { errors, json: serializeProfile(profile) };
+  }, [
+    isNew,
+    slug,
+    describe,
+    prompt,
+    model,
+    permissionMode,
+    tools,
+    skills,
+    shellScripts,
+    landing,
+  ]);
+
+  const toggleTool = (tool: string) =>
+    setTools((prev) =>
+      prev.includes(tool) ? prev.filter((t) => t !== tool) : [...prev, tool],
+    );
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[88vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {isNew ? "New executable" : `Edit @kody ${initial?.slug}`}
+          </DialogTitle>
+          <DialogDescription>
+            Stored at .kody/executables/&lt;slug&gt;/. The engine runs it for
+            <code className="mx-1">@kody &lt;slug&gt;</code>.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs defaultValue="config" className="mt-2">
+          <TabsList>
+            <TabsTrigger value="config">Config</TabsTrigger>
+            <TabsTrigger value="prompt">Prompt</TabsTrigger>
+            <TabsTrigger value="skills">Skills ({skills.length})</TabsTrigger>
+            <TabsTrigger value="scripts">
+              Scripts ({shellScripts.length})
+            </TabsTrigger>
+            <TabsTrigger value="review">Review</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="config" className="space-y-3">
+            <div>
+              <Label htmlFor="exec-slug" className="text-xs">
+                Slug (becomes @kody slug)
+              </Label>
+              <Input
+                id="exec-slug"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value.toLowerCase())}
+                onBlur={() => setTouchedSlug(true)}
+                disabled={!isNew}
+                placeholder="ship-feature"
+                className="font-mono"
+              />
+              {slugError && (
+                <p className="text-xs text-rose-300 mt-1">{slugError}</p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="exec-describe" className="text-xs">
+                Description
+              </Label>
+              <Input
+                id="exec-describe"
+                value={describe}
+                onChange={(e) => setDescribe(e.target.value)}
+                placeholder="Implement an issue end-to-end and open a PR"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Landing</Label>
+                <Select
+                  value={landing}
+                  onValueChange={(v) => setLanding(v as ExecutableLanding)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pr">Opens a PR</SelectItem>
+                    <SelectItem value="comment">
+                      Just comments (beta)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Permission mode</Label>
+                <Select
+                  value={permissionMode}
+                  onValueChange={(v) => setPermissionMode(v as PermissionMode)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PERMISSION_MODES.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="exec-model" className="text-xs">
+                Model (inherit = use the repo&apos;s default)
+              </Label>
+              <Input
+                id="exec-model"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="inherit"
+                className="font-mono text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Tools</Label>
+              <div className="grid grid-cols-2 gap-1.5 mt-1">
+                {COMMON_TOOLS.map((tool) => (
+                  <label
+                    key={tool}
+                    className="flex items-center gap-2 text-xs text-white/70 cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={tools.includes(tool)}
+                      onCheckedChange={() => toggleTool(tool)}
+                    />
+                    <span className="font-mono">{tool}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="prompt" className="space-y-2">
+            <p className="text-[11px] text-white/40">
+              Markdown with <code>{"{{issueNumber}}"}</code>,{" "}
+              <code>{"{{issueBody}}"}</code> tokens. Saved as prompt.md.
+            </p>
+            <Textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              className="font-mono text-xs"
+              rows={16}
+            />
+            {promptError && (
+              <p className="text-xs text-rose-300">{promptError}</p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="skills" className="space-y-3">
+            <p className="text-[11px] text-white/40">
+              Each skill is a SKILL.md the agent loads. Saved at
+              skills/&lt;name&gt;/SKILL.md.
+            </p>
+            {skills.map((s, i) => (
+              <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={s.name}
+                      onChange={(e) =>
+                        setSkills((prev) =>
+                          prev.map((x, xi) =>
+                            xi === i
+                              ? { ...x, name: e.target.value.toLowerCase() }
+                              : x,
+                          ),
+                        )
+                      }
+                      placeholder="skill-name"
+                      className="font-mono text-xs h-8"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-rose-300"
+                      onClick={() =>
+                        setSkills((prev) => prev.filter((_, xi) => xi !== i))
+                      }
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={s.body}
+                    onChange={(e) =>
+                      setSkills((prev) =>
+                        prev.map((x, xi) =>
+                          xi === i ? { ...x, body: e.target.value } : x,
+                        ),
+                      )
+                    }
+                    placeholder="---&#10;name: skill-name&#10;description: …&#10;---&#10;&#10;Skill instructions…"
+                    className="font-mono text-xs"
+                    rows={6}
+                  />
+                </CardContent>
+              </Card>
+            ))}
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              onClick={() =>
+                setSkills((prev) => [...prev, { name: "", body: "" }])
+              }
+            >
+              <Plus className="w-3.5 h-3.5" /> Add skill
+            </Button>
+          </TabsContent>
+
+          <TabsContent value="scripts" className="space-y-3">
+            <p className="text-[11px] text-white/40">
+              Each script runs as a preflight step before the agent. Saved as a
+              &lt;name&gt;.sh file next to the profile.
+            </p>
+            {shellScripts.map((s, i) => (
+              <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={s.name}
+                      onChange={(e) =>
+                        setShellScripts((prev) =>
+                          prev.map((x, xi) =>
+                            xi === i ? { ...x, name: e.target.value } : x,
+                          ),
+                        )
+                      }
+                      placeholder="setup.sh"
+                      className="font-mono text-xs h-8"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-rose-300"
+                      onClick={() =>
+                        setShellScripts((prev) =>
+                          prev.filter((_, xi) => xi !== i),
+                        )
+                      }
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={s.content}
+                    onChange={(e) =>
+                      setShellScripts((prev) =>
+                        prev.map((x, xi) =>
+                          xi === i ? { ...x, content: e.target.value } : x,
+                        ),
+                      )
+                    }
+                    placeholder="#!/usr/bin/env bash&#10;set -euo pipefail&#10;npm install -g some-tool"
+                    className="font-mono text-xs"
+                    rows={6}
+                  />
+                </CardContent>
+              </Card>
+            ))}
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              onClick={() =>
+                setShellScripts((prev) => [...prev, { name: "", content: "" }])
+              }
+            >
+              <Plus className="w-3.5 h-3.5" /> Add script
+            </Button>
+          </TabsContent>
+
+          <TabsContent value="review" className="space-y-3">
+            {validation.errors.length === 0 ? (
+              <p className="text-sm text-emerald-300 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" /> Valid — ready to save.
+              </p>
+            ) : (
+              <div className="text-sm text-rose-300 space-y-1">
+                <p className="flex items-center gap-2">
+                  <XCircle className="w-4 h-4" /> Problems:
+                </p>
+                <ul className="list-disc pl-6 text-rose-200/80 text-xs">
+                  {validation.errors.map((e, i) => (
+                    <li key={i}>{e}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div>
+              <Label className="text-xs">Generated profile.json</Label>
+              <pre className="mt-1 text-[11px] font-mono bg-black/40 border border-white/[0.08] rounded p-3 overflow-x-auto max-h-72">
+                {validation.json}
+              </pre>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            disabled={!canSave || validation.errors.length > 0}
+            onClick={() => {
+              if (!canSave) return;
+              onSave({
+                slug,
+                describe,
+                prompt,
+                model,
+                permissionMode,
+                tools,
+                skills,
+                shellScripts,
+                landing,
+                isUpdate: !isNew,
+              });
+            }}
+          >
+            {saving ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                Saving…
+              </>
+            ) : isNew ? (
+              "Create"
+            ) : (
+              "Update"
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RunDialog({
+  slug,
+  running,
+  onClose,
+  onRun,
+}: {
+  slug: string;
+  running: boolean;
+  onClose: () => void;
+  onRun: (issue: number) => Promise<void>;
+}) {
+  const [issue, setIssue] = useState("");
+  const n = Number(issue);
+  const valid = Number.isInteger(n) && n > 0;
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Run @kody {slug}</DialogTitle>
+          <DialogDescription>
+            Posts <code>@kody {slug}</code> as a comment on the issue, which the
+            engine picks up.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-2">
+          <Label htmlFor="run-issue" className="text-xs">
+            Issue number
+          </Label>
+          <Input
+            id="run-issue"
+            value={issue}
+            onChange={(e) => setIssue(e.target.value.replace(/[^0-9]/g, ""))}
+            placeholder="123"
+            className="font-mono"
+            autoFocus
+          />
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            disabled={running}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            disabled={!valid || running}
+            onClick={() => valid && onRun(n)}
+            className="gap-1"
+          >
+            {running ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Play className="w-3.5 h-3.5" />
+            )}
+            Run on #{valid ? n : "…"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
