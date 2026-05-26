@@ -151,12 +151,13 @@ export interface KodyChatProps {
    */
   onDirectToGoal?: (goalId: string) => void;
   /**
-   * Text to append to the composer when `id` changes. Used by the preview
-   * element picker to drop a selected DOM element into chat as context.
-   * The `id` makes appends idempotent across re-renders — same id is a
-   * no-op, a new id appends once.
+   * A context chip to attach to the composer when `id` changes. Used by the
+   * preview element picker: `label` shows as a removable pill above the input
+   * (e.g. `<button#submit>`), `context` is the full block appended to the
+   * outgoing message on send (so the input stays clean). The `id` makes this
+   * idempotent across re-renders — same id is a no-op, a new id adds one chip.
    */
-  composerInjection?: { id: string; text: string } | null;
+  composerInjection?: { id: string; label: string; context: string } | null;
 }
 
 /**

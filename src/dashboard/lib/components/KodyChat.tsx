@@ -27,6 +27,7 @@ import {
   PanelLeftClose,
   Maximize2,
   Minimize2,
+  MousePointerClick,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import { buildAgentList, type ChatModelEntry } from "../chat/agent-entries";
@@ -187,18 +188,25 @@ export function KodyChat({
   >({});
 
   const [input, setInput] = useState("");
-  // Append picker selections to the composer. Keyed by id so a re-render with
-  // the same selection doesn't double-append; a new id appends exactly once.
+  // Context chips attached to the composer (e.g. picked preview elements).
+  // Shown as removable pills above the input; their `context` is appended to
+  // the outgoing message on send so the visible input stays clean.
+  const [contextChips, setContextChips] = useState<
+    Array<{ id: string; label: string; context: string }>
+  >([]);
+  // Add a picker selection as a chip. Keyed by id so a re-render with the same
+  // selection doesn't double-add; a new id adds exactly one chip.
   const lastInjectionIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!composerInjection || composerInjection.id === lastInjectionIdRef.current) {
       return;
     }
     lastInjectionIdRef.current = composerInjection.id;
-    setInput((prev) =>
-      prev.trim() ? `${prev}\n\n${composerInjection.text}` : composerInjection.text,
-    );
+    setContextChips((prev) => [...prev, composerInjection]);
   }, [composerInjection]);
+  const removeContextChip = useCallback((id: string) => {
+    setContextChips((prev) => prev.filter((c) => c.id !== id));
+  }, []);
   // Slash command autocomplete state. Open while the user is typing the
   // slug portion of `/foo` (no space yet). Once a space is typed the
   // menu closes and we treat the rest of the line as arguments. Enter
@@ -3486,7 +3494,8 @@ export function KodyChat({
   ]);
 
   const sendMessage = async () => {
-    if (!input.trim() && attachments.length === 0) return;
+    if (!input.trim() && attachments.length === 0 && contextChips.length === 0)
+      return;
     // Expand slash commands before send: `/review` or `/explain foo` →
     // the prompt body with $ARGUMENTS substituted. The model never sees
     // the slash form (every backend just gets normal text). Unknown
@@ -3577,8 +3586,16 @@ export function KodyChat({
     }
 
     const expanded = expandSlashCommand(rawInput, slashCommands);
-    const userMessage = expanded ? expanded.text : rawInput;
+    const baseMessage = expanded ? expanded.text : rawInput;
+    // Append any attached context chips (picked preview elements) to the
+    // outgoing message, so the model sees the element details even though the
+    // composer only showed compact pills.
+    const currentChips = [...contextChips];
+    const userMessage = [baseMessage, ...currentChips.map((c) => c.context)]
+      .filter((s) => s.trim())
+      .join("\n\n");
     setInput("");
+    setContextChips([]);
     setSlashMenuOpen(false);
     setSlashSelectedIndex(0);
     const currentAttachments = [...attachments];
@@ -4569,6 +4586,31 @@ export function KodyChat({
                 onClick={() => removeAttachment(attachment.id)}
                 className="ml-1 hover:text-destructive"
                 disabled={loading}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Context chips (e.g. picked preview elements) — compact removable
+          pills; the full element details ride along on send, not in the box. */}
+      {contextChips.length > 0 && (
+        <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
+          {contextChips.map((chip) => (
+            <div
+              key={chip.id}
+              className="flex items-center gap-1.5 px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-md text-xs font-mono"
+              title={chip.context}
+            >
+              <MousePointerClick className="w-3 h-3 shrink-0" />
+              <span className="max-w-[180px] truncate">{chip.label}</span>
+              <button
+                type="button"
+                onClick={() => removeContextChip(chip.id)}
+                className="ml-0.5 hover:text-destructive"
+                aria-label="Remove element context"
               >
                 <X className="w-3 h-3" />
               </button>

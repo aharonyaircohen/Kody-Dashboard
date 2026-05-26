@@ -23,7 +23,10 @@ import { KodyChat } from "./KodyChat";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { cn, getPreviewBypassUrl } from "../utils";
 import { useElementPicker } from "../picker/useElementPicker";
-import { formatPickedElement } from "../picker/protocol";
+import {
+  formatPickedElement,
+  formatPickedElementLabel,
+} from "../picker/protocol";
 import {
   ArrowLeft,
   GitPullRequest,
@@ -144,15 +147,17 @@ export function PreviewModal({
   // click in the preview, the selected element is appended to the chat composer.
   const [composerInjection, setComposerInjection] = useState<{
     id: string;
-    text: string;
+    label: string;
+    context: string;
   } | null>(null);
   const picker = useElementPicker({
     onSelect: (el) => {
       setComposerInjection({
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        text: formatPickedElement(el),
+        label: formatPickedElementLabel(el),
+        context: formatPickedElement(el),
       });
-      toast.success(`Added <${el.tagName}> to chat`);
+      toast.success(`Added ${formatPickedElementLabel(el)} to chat`);
     },
   });
 

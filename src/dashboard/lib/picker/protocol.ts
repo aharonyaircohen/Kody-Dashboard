@@ -39,6 +39,16 @@ export type PickerExtMessage =
   | { source: typeof PICKER_EXT_SOURCE; type: "selected"; element: PickedElement };
 
 /**
+ * Short, chip-friendly label for a picked element, e.g. `<button#submit.btn>`.
+ * Capped so a long class list doesn't blow out the composer chip.
+ */
+export function formatPickedElementLabel(el: PickedElement): string {
+  const id = el.id ? `#${el.id}` : "";
+  const cls = el.classes.length ? `.${el.classes[0]}` : "";
+  return `<${el.tagName}${id}${cls}>`;
+}
+
+/**
  * Render a picked element as a chat-ready context block. Kept here (not in the
  * hook) so any surface can format selections identically.
  */
