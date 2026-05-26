@@ -163,6 +163,12 @@ export function composeProfile(
   const preflight: Array<Record<string, unknown>> = fields.shellScripts.map(
     (shell) => ({ shell }),
   );
+  // Skills only load if buildSyntheticPlugin assembles them in preflight
+  // (it reads claudeCode.skills + the skills/<name>/ folders). The built-in
+  // `probe-skill` declares it the same way; without it skills are inert.
+  if (fields.skills.length > 0) {
+    preflight.push({ script: "buildSyntheticPlugin" });
+  }
 
   const base: Record<string, unknown> = {
     name: fields.slug,

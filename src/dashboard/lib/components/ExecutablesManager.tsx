@@ -5,8 +5,9 @@
  * @ai-summary CRUD UI for custom executables stored at
  *   `.kody/executables/<slug>/` in the connected repo. The engine resolves
  *   these before its own built-ins, so `@kody <slug>` runs them. The editor
- *   is a simple form (describe + prompt + model/permission/tools), plus a
- *   skills tab (one `SKILL.md` each) and a scripts tab (one `*.sh` each). A
+ *   is a simple form (describe + prompt + model + tools), plus a skills tab
+ *   (paste a `SKILL.md` or import one from a GitHub source) and a scripts tab
+ *   (one `*.sh` each). A
  *   Validate button checks the generated profile.json before saving; Run
  *   posts `@kody <slug>` on an issue; "Set default" writes the bare-`@kody`
  *   default into kody.config.json.
@@ -19,6 +20,7 @@ import { toast } from "sonner";
 import {
   Boxes,
   CheckCircle2,
+  Download,
   Loader2,
   Pencil,
   Play,
@@ -56,7 +58,6 @@ import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
 import {
   COMMON_TOOLS,
-  PERMISSION_MODES,
   composeProfile,
   isValidSlug,
   serializeProfile,
@@ -64,6 +65,19 @@ import {
   type ExecutableLanding,
   type PermissionMode,
 } from "../executables/profile";
+
+/** One-line explanation per tool, shown beside its checkbox. */
+const TOOL_DESCRIPTIONS: Record<string, string> = {
+  Read: "Read files in the repo.",
+  Write: "Create new files.",
+  Edit: "Modify existing files.",
+  Bash: "Run shell commands (build, tests, scripts).",
+  Grep: "Search file contents.",
+  Glob: "Find files by name or pattern.",
+  Agent: "Spawn sub-agents to delegate or parallelize work (advanced).",
+  "mcp__kody-verify":
+    "Gives the agent a 'verify' tool it can call to re-check its work. It does NOT run verify automatically — the agent decides when to call it. PR-landing already runs verify as its own step.",
+};
 
 interface ExecutableSkill {
   name: string;
@@ -594,6 +608,7 @@ function ExecutableEditor({
       initial={detail.data ?? null}
       existingSlugs={existingSlugs}
       saving={saving}
+      headers={headers}
       onClose={onClose}
       onSave={onSave}
     />
@@ -605,6 +620,7 @@ function ExecutableEditorForm({
   initial,
   existingSlugs,
   saving,
+  headers,
   onClose,
   onSave,
 }: {
@@ -612,6 +628,7 @@ function ExecutableEditorForm({
   initial: ExecutableDetail | null;
   existingSlugs: Set<string>;
   saving: boolean;
+  headers: Record<string, string>;
   onClose: () => void;
   onSave: (payload: SavePayload) => Promise<void>;
 }) {
@@ -620,9 +637,10 @@ function ExecutableEditorForm({
   const [describe, setDescribe] = useState(initial?.describe ?? "");
   const [prompt, setPrompt] = useState(initial?.prompt ?? DEFAULT_PROMPT);
   const [model, setModel] = useState(initial?.model ?? "inherit");
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>(
-    initial?.permissionMode ?? "acceptEdits",
-  );
+  // Not user-tunable: the engine runs headless (no human to approve tool
+  // prompts), so "accept edits" is the only workable mode — exposing the
+  // others just invites a stuck run. Hardcoded.
+  const permissionMode: PermissionMode = "acceptEdits";
   const [tools, setTools] = useState<string[]>(
     initial?.tools ?? ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
   );
@@ -635,6 +653,42 @@ function ExecutableEditorForm({
   const [shellScripts, setShellScripts] = useState<ExecutableShellScript[]>(
     initial?.shellScripts ?? [],
   );
+  const [skillSource, setSkillSource] = useState("");
+  const [importing, setImporting] = useState(false);
+
+  // Import a skill from a GitHub source (the same source format the `skills`
+  // CLI uses, e.g. vercel-labs/agent-skills). Fetches its SKILL.md and adds
+  // it as a skill entry; it's committed into skills/<name>/ on save.
+  async function importSkillFromSource() {
+    const source = skillSource.trim();
+    if (!source) return;
+    setImporting(true);
+    try {
+      const res = await fetch("/api/kody/executables/import-skill", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ source }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        skill?: ExecutableSkill;
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok || !json.skill)
+        throw new Error(json.message || json.error || `HTTP ${res.status}`);
+      const imported = json.skill;
+      setSkills((prev) => [
+        ...prev.filter((s) => s.name !== imported.name),
+        imported,
+      ]);
+      setSkillSource("");
+      toast.success(`Imported skill "${imported.name}"`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  }
 
   const slugError = (() => {
     if (!isNew || !touchedSlug) return null;
@@ -741,40 +795,27 @@ function ExecutableEditorForm({
                 placeholder="Implement an issue end-to-end and open a PR"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Landing</Label>
-                <Select
-                  value={landing}
-                  onValueChange={(v) => setLanding(v as ExecutableLanding)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pr">Opens a PR</SelectItem>
-                    <SelectItem value="comment">Just comments</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Permission mode</Label>
-                <Select
-                  value={permissionMode}
-                  onValueChange={(v) => setPermissionMode(v as PermissionMode)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PERMISSION_MODES.map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {m}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <Label className="text-xs">Landing</Label>
+              <Select
+                value={landing}
+                onValueChange={(v) => setLanding(v as ExecutableLanding)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pr">Opens a PR (commits + PR)</SelectItem>
+                  <SelectItem value="comment">
+                    Just comments (posts an answer)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-white/40 mt-1">
+                {landing === "pr"
+                  ? "Edits code and opens a pull request."
+                  : "Reads and replies with a comment — no code changes."}
+              </p>
             </div>
             <div>
               <Label htmlFor="exec-model" className="text-xs">
@@ -789,18 +830,25 @@ function ExecutableEditorForm({
               />
             </div>
             <div>
-              <Label className="text-xs">Tools</Label>
-              <div className="grid grid-cols-2 gap-1.5 mt-1">
+              <Label className="text-xs">Tools the agent may use</Label>
+              <div className="grid grid-cols-1 gap-1.5 mt-1">
                 {COMMON_TOOLS.map((tool) => (
                   <label
                     key={tool}
-                    className="flex items-center gap-2 text-xs text-white/70 cursor-pointer"
+                    className="flex items-start gap-2 text-xs text-white/70 cursor-pointer"
                   >
                     <Checkbox
                       checked={tools.includes(tool)}
                       onCheckedChange={() => toggleTool(tool)}
+                      className="mt-0.5"
                     />
-                    <span className="font-mono">{tool}</span>
+                    <span>
+                      <span className="font-mono text-white/90">{tool}</span>
+                      <span className="text-white/45">
+                        {" "}
+                        — {TOOL_DESCRIPTIONS[tool] ?? ""}
+                      </span>
+                    </span>
                   </label>
                 ))}
               </div>
@@ -827,9 +875,49 @@ function ExecutableEditorForm({
 
           <TabsContent value="skills" className="space-y-3">
             <p className="text-[11px] text-white/40">
-              Each skill is a SKILL.md the agent loads. Saved at
-              skills/&lt;name&gt;/SKILL.md.
+              Each skill is a SKILL.md the agent loads, saved at
+              skills/&lt;name&gt;/SKILL.md and committed into this executable.
             </p>
+            <Card className="border-white/[0.08] bg-white/[0.02]">
+              <CardContent className="p-3 space-y-1.5">
+                <Label className="text-xs">
+                  Import from the skills ecosystem
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={skillSource}
+                    onChange={(e) => setSkillSource(e.target.value)}
+                    placeholder="vercel-labs/agent-skills/skill-name"
+                    className="font-mono text-xs h-8"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        importSkillFromSource();
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1 shrink-0"
+                    disabled={importing || !skillSource.trim()}
+                    onClick={importSkillFromSource}
+                  >
+                    {importing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5" />
+                    )}
+                    Import
+                  </Button>
+                </div>
+                <p className="text-[11px] text-white/40">
+                  Same sources as <code>npx skills add</code> — a GitHub repo or{" "}
+                  <code>owner/repo/path</code>. Fetches its SKILL.md; you can
+                  edit it below before saving.
+                </p>
+              </CardContent>
+            </Card>
             {skills.map((s, i) => (
               <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
                 <CardContent className="p-3 space-y-2">
