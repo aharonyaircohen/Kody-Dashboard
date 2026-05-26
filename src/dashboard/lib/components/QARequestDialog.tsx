@@ -23,14 +23,14 @@ interface QARequestDialogProps {
   onClose: () => void;
   /** Receives trimmed scope text, or empty string for a broad smoke pass. */
   onSubmit: (scope: string) => Promise<void>;
-  issueNumber: number;
+  prNumber: number;
 }
 
 export function QARequestDialog({
   isOpen,
   onClose,
   onSubmit,
-  issueNumber,
+  prNumber,
 }: QARequestDialogProps) {
   const [scope, setScope] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -56,13 +56,13 @@ export function QARequestDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Stethoscope className="w-5 h-5 text-emerald-400" />
-            QA Issue #{issueNumber}
+            QA PR #{prNumber}
           </DialogTitle>
           <DialogDescription>
             Optional: narrow what Kody should verify. Leave empty for a broad
             smoke pass. Posts{" "}
             <code className="text-emerald-400">@kody qa-engineer</code> on the
-            issue; the report comes back as a comment.
+            PR; the report comes back as a comment there.
           </DialogDescription>
         </DialogHeader>
 

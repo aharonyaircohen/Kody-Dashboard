@@ -200,10 +200,17 @@ export function PreviewActions({
   };
 
   /**
-   * QA the completed task: post `@kody qa-engineer` on the *issue* (not the
-   * PR). The dispatcher auto-binds the issue number to qa-engineer's `issue`
-   * input, qa-engineer browses the configured QA URL, and the postflight
-   * comments the PASS/CONCERNS/FAIL report back on the same issue.
+   * QA the completed task: post `@kody qa-engineer` on the *PR* so the
+   * PASS/CONCERNS/FAIL report lands on the thing under review.
+   *
+   * We pass `--issue <pr.number>` explicitly rather than relying on the
+   * dispatcher's auto-bind: qa-engineer declares only an `issue` input (no
+   * `pr`), so on a PR comment the dispatcher binds nothing and the executable
+   * would fall back to opening a fresh goal. An explicit `--issue` short-
+   * circuits that — qa-engineer's postflight does `gh issue comment <n>`,
+   * which targets a PR number just as happily as an issue number. The URL it
+   * browses comes from config (PREVIEW_URL / QA_URL), not the thread, so the
+   * report is identical either way; only the comment target moves.
    *
    * `scope` is optional — empty string runs a broad smoke pass; a non-empty
    * value gets passed as `--scope "<text>"` to narrow the focus.
@@ -212,11 +219,11 @@ export function PreviewActions({
     // Escape any double quotes the user typed so the shell-style flag stays valid.
     const safeScope = scope.replace(/"/g, '\\"');
     const command = safeScope
-      ? `@kody qa-engineer --scope "${safeScope}"`
-      : "@kody qa-engineer";
+      ? `@kody qa-engineer --issue ${pr.number} --scope "${safeScope}"`
+      : `@kody qa-engineer --issue ${pr.number}`;
     try {
-      await tasksApi.comment(task.issueNumber, command, actorLogin);
-      toast.success("QA requested — report will appear as a comment");
+      await prsApi.postComment(pr.number, command, actorLogin);
+      toast.success("QA requested — report will appear on the PR");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to request QA");
       throw err; // re-throw so dialog keeps open on failure
@@ -396,7 +403,7 @@ export function PreviewActions({
         isOpen={showQADialog}
         onClose={() => setShowQADialog(false)}
         onSubmit={handleRunQA}
-        issueNumber={task.issueNumber}
+        prNumber={pr.number}
       />
 
       <ConfirmDialog
