@@ -38,6 +38,9 @@ import { useElementPicker } from "../picker/useElementPicker";
 import {
   formatPickedElement,
   formatPickedElementLabel,
+  PICKER_DOWNLOAD_PATH,
+  PICKER_DOCS_URL,
+  PICKER_INSTALL_HINT,
 } from "../picker/protocol";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useKodyTasks } from "../hooks";
@@ -611,10 +614,19 @@ export function VibePage() {
                     </button>
                   ) : (
                     <a
-                      href="https://github.com/aharonyaircohen/Kody-Dashboard/blob/main/extension/README.md"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Install the Kody Element Picker extension to select elements from the preview"
+                      href={PICKER_DOWNLOAD_PATH}
+                      download
+                      onClick={() =>
+                        toast.info(PICKER_INSTALL_HINT, {
+                          duration: 12000,
+                          action: {
+                            label: "Guide",
+                            onClick: () =>
+                              window.open(PICKER_DOCS_URL, "_blank"),
+                          },
+                        })
+                      }
+                      title="Download the Kody Element Picker, then load it unpacked"
                       className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
                     >
                       <Puzzle className="w-3 h-3" />
