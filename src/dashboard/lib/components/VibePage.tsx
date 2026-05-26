@@ -18,6 +18,8 @@ import {
   ExternalLink,
   ListChecks,
   Loader2,
+  MousePointerClick,
+  Puzzle,
   RefreshCw,
   Sparkles,
 } from "lucide-react";
@@ -32,6 +34,11 @@ import {
 } from "@dashboard/ui/sheet";
 import { cn, getPreviewBypassUrl } from "../utils";
 import { useChatScope } from "./ChatRailShell";
+import { useElementPicker } from "../picker/useElementPicker";
+import {
+  formatPickedElement,
+  formatPickedElementLabel,
+} from "../picker/protocol";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useKodyTasks } from "../hooks";
 import { tasksApi, getStoredAuth, redirectToLogin } from "../api";
@@ -122,7 +129,21 @@ async function saveDashboardConfig(
 export function VibePage() {
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
-  const { setScope, setOnIssueCreated } = useChatScope();
+  const { setScope, setOnIssueCreated, setComposerInjection } = useChatScope();
+
+  // Element picker: clicking an element in the preview attaches it to the
+  // chat composer (rendered by the rail, so we route through useChatScope).
+  // Requires the Kody Element Picker browser extension (cross-origin iframe).
+  const picker = useElementPicker({
+    onSelect: (el) => {
+      setComposerInjection({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        label: formatPickedElementLabel(el),
+        context: formatPickedElement(el),
+      });
+      toast.success(`Added ${formatPickedElementLabel(el)} to chat`);
+    },
+  });
 
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
@@ -568,6 +589,38 @@ export function VibePage() {
             <div className="flex items-center gap-2">
               {previewUrl && (
                 <>
+                  {picker.available ? (
+                    <button
+                      type="button"
+                      onClick={picker.toggle}
+                      title={
+                        picker.armed
+                          ? "Click an element in the preview (Esc to cancel)"
+                          : "Pick an element from the preview into chat"
+                      }
+                      aria-pressed={picker.armed}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors",
+                        picker.armed
+                          ? "bg-blue-500/20 text-blue-300 border-blue-500/40"
+                          : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border-zinc-700",
+                      )}
+                    >
+                      <MousePointerClick className="w-3 h-3" />
+                      {picker.armed ? "Picking…" : "Pick element"}
+                    </button>
+                  ) : (
+                    <a
+                      href="https://github.com/aharonyaircohen/Kody-Dashboard/blob/main/extension/README.md"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Install the Kody Element Picker extension to select elements from the preview"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
+                    >
+                      <Puzzle className="w-3 h-3" />
+                      Get picker
+                    </a>
+                  )}
                   <button
                     type="button"
                     onClick={() => setIframeKey((k) => k + 1)}

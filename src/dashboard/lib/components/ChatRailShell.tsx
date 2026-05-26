@@ -63,6 +63,16 @@ interface ChatRailApi {
    * Pass `null` to unregister (e.g. on unmount).
    */
   setOnIssueCreated: (cb: ((issueNumber: number) => void) | null) => void;
+  /**
+   * Attach a context chip to the chat composer (e.g. an element picked from
+   * the Vibe preview). The chat shows `label` as a removable pill and appends
+   * `context` to the next outgoing message. `id` makes it idempotent. Pass
+   * `null` to clear. Mirrors how PreviewModal passes `composerInjection`
+   * directly — Vibe routes it through here because its chat is the rail.
+   */
+  setComposerInjection: (
+    injection: { id: string; label: string; context: string } | null,
+  ) => void;
 }
 
 const ChatRailContext = createContext<ChatRailApi | null>(null);
@@ -81,6 +91,7 @@ const NOOP_API: ChatRailApi = {
   setScope: () => {},
   openMobileChat: () => {},
   setOnIssueCreated: () => {},
+  setComposerInjection: () => {},
 };
 
 // Routes that must NOT render the chat rail (none currently — the rail
@@ -215,8 +226,22 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     onIssueCreatedRef.current?.(issueNumber);
   }, []);
 
+  // Composer context chip (picked Vibe-preview element) — held as state so
+  // both KodyChat instances below re-render with the new chip.
+  const [composerInjection, setComposerInjection] = useState<{
+    id: string;
+    label: string;
+    context: string;
+  } | null>(null);
+
   const api = useMemo<ChatRailApi>(
-    () => ({ scope, setScope, openMobileChat, setOnIssueCreated }),
+    () => ({
+      scope,
+      setScope,
+      openMobileChat,
+      setOnIssueCreated,
+      setComposerInjection,
+    }),
     [scope, openMobileChat, setOnIssueCreated],
   );
 
@@ -283,6 +308,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                     )
                   }
                   railFullscreen={railMode === "fullscreen"}
+                  composerInjection={composerInjection}
                 />
               ) : (
                 <div className="flex-1 flex items-center justify-center p-6">
@@ -382,6 +408,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                     onIssueCreated={dispatchIssueCreated}
                     knownGoals={goals}
                     onDirectToGoal={directToGoal}
+                    composerInjection={composerInjection}
                   />
                 ) : mobileOpen ? (
                   <div className="flex-1 flex items-center justify-center p-6">
