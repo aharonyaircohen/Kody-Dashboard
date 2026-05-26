@@ -59,10 +59,11 @@ export function QARequestDialog({
             QA PR #{prNumber}
           </DialogTitle>
           <DialogDescription>
-            Optional: narrow what Kody should verify. Leave empty for a broad
-            smoke pass. Posts{" "}
+            Optional: narrow what Kody should verify. Leave empty to focus on
+            this PR&apos;s changes (uses the PR title). Posts{" "}
             <code className="text-emerald-400">@kody qa-engineer</code> on the
-            PR; the report comes back as a comment there.
+            PR against its preview deployment; the report comes back as a
+            comment there.
           </DialogDescription>
         </DialogHeader>
 
