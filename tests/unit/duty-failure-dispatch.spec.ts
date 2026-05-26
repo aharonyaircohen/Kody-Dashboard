@@ -64,6 +64,8 @@ function rec(over: Partial<CompanyActivityRecord> = {}): CompanyActivityRecord {
     staffTitle: "QA Engineer",
     trigger: "schedule",
     outcome: "failed",
+    outcomeKind: null,
+    reason: null,
     durationMs: 1234,
     runUrl: "https://github.com/acme/widgets/actions/runs/42",
     ...over,
@@ -146,6 +148,43 @@ describe("buildEntries", () => {
       title: "Duty failed: Verify changelog",
       url: "https://github.com/acme/widgets/actions/runs/42",
     });
+  });
+
+  it("puts the failure reason in the snippet from outcomeKind", () => {
+    const entries = buildEntries(
+      "acme",
+      "widgets",
+      ["alice"],
+      [rec({ outcomeKind: "model_error" })],
+    );
+    expect(entries[0].snippet).toBe("QA Engineer — model error");
+  });
+
+  it("falls back to the raw reason text when outcomeKind is unmapped", () => {
+    const entries = buildEntries(
+      "acme",
+      "widgets",
+      ["alice"],
+      [rec({ outcomeKind: "generic_failed", reason: "boom: kaput" })],
+    );
+    expect(entries[0].snippet).toBe("QA Engineer — boom: kaput");
+  });
+
+  it("labels stopped-early kinds differently from a real failure", () => {
+    const entries = buildEntries(
+      "acme",
+      "widgets",
+      ["alice"],
+      [rec({ outcomeKind: "out_of_turns" })],
+    );
+    expect(entries[0].title).toBe("Duty stopped early: Verify changelog");
+    expect(entries[0].snippet).toBe("QA Engineer — agent hit its turn limit");
+  });
+
+  it("keeps the generic 'failed' wording for older records (no kind)", () => {
+    const entries = buildEntries("acme", "widgets", ["alice"], [rec()]);
+    expect(entries[0].title).toBe("Duty failed: Verify changelog");
+    expect(entries[0].snippet).toBe("QA Engineer — run failed");
   });
 
   it("falls back to the repo URL when the run URL is missing", () => {

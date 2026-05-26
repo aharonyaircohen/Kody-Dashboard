@@ -68,6 +68,36 @@ export function touchesActivityLog(payload: Record<string, unknown>): boolean {
   });
 }
 
+/** Failure kinds where the agent stopped before finishing — the run didn't
+ *  "fail" in the work sense, it never got to do the work. Worth wording
+ *  differently so an operator isn't sent chasing a broken result that doesn't
+ *  exist. */
+const STOPPED_EARLY_KINDS = new Set([
+  "stalled",
+  "out_of_turns",
+  "rate_limit",
+]);
+
+/** Turn the engine's structured `outcomeKind` into a plain-English phrase for
+ *  the inbox snippet. Falls back to the raw `reason` text, then a generic
+ *  "failed" for older records that carry neither. */
+function describeFailure(rec: CompanyActivityRecord): string {
+  switch (rec.outcomeKind) {
+    case "stalled":
+      return "agent stalled (no response)";
+    case "out_of_turns":
+      return "agent hit its turn limit";
+    case "rate_limit":
+      return "rate-limited by the model";
+    case "tool_error":
+      return "a tool failed";
+    case "model_error":
+      return "model error";
+  }
+  if (rec.reason) return rec.reason;
+  return "run failed";
+}
+
 /** One inbox-feed entry per (operator × failed record). Exported for unit
  *  tests. */
 export function buildEntries(
@@ -81,8 +111,13 @@ export function buildEntries(
   const entries: InboxFeedEntry[] = [];
   for (const rec of failures) {
     const who = rec.staffTitle ?? rec.staff ?? "Kody";
-    const title = `Duty failed: ${rec.dutyTitle ?? rec.duty}`;
-    const snippet = `${who} — ${rec.trigger} run failed`;
+    const stoppedEarly =
+      rec.outcomeKind != null && STOPPED_EARLY_KINDS.has(rec.outcomeKind);
+    const what = rec.dutyTitle ?? rec.duty;
+    const title = stoppedEarly
+      ? `Duty stopped early: ${what}`
+      : `Duty failed: ${what}`;
+    const snippet = `${who} — ${describeFailure(rec)}`;
     for (const login of operators) {
       entries.push({
         id: `duty-fail:${login}:${rec.duty}:${rec.ts}`,

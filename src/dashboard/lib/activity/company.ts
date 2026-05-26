@@ -21,6 +21,11 @@ export interface CompanyActivityRecord {
   staffTitle: string | null;
   trigger: "schedule" | "manual" | "event";
   outcome: "completed" | "failed" | "unknown";
+  /** Structured failure kind from the engine agent (e.g. "stalled",
+   *  "out_of_turns", "model_error"). Null on success / older records. */
+  outcomeKind: string | null;
+  /** Short human-readable failure message. Null on success / older records. */
+  reason: string | null;
   durationMs: number | null;
   runUrl: string | null;
 }
@@ -47,6 +52,8 @@ function coerce(raw: unknown): CompanyActivityRecord | null {
       typeof r.outcome === "string" && OUTCOMES.has(r.outcome)
         ? (r.outcome as CompanyActivityRecord["outcome"])
         : "unknown",
+    outcomeKind: typeof r.outcomeKind === "string" ? r.outcomeKind : null,
+    reason: typeof r.reason === "string" ? r.reason : null,
     durationMs: typeof r.durationMs === "number" ? r.durationMs : null,
     runUrl: typeof r.runUrl === "string" ? r.runUrl : null,
   };
