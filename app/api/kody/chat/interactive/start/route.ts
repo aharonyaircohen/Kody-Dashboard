@@ -35,15 +35,24 @@ import {
   applyVibePrimerToContent,
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
+import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+import { claimOrSpawnFly } from "@dashboard/lib/runners/fly-run";
+import { checkGitHubActionsHealth } from "@dashboard/lib/runners/github-health";
+import { dispatchRun } from "@dashboard/lib/runners/runner-dispatch";
 
 export const runtime = "nodejs";
 
-function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
+function getChatRepoOverride(): { owner: string; repo: string } | undefined {
   const override = (process.env.KODY_CHAT_WORKFLOW_REPO ?? "").trim();
-  if (override && override.includes("/")) {
-    const [owner, repo] = override.split("/").map((s) => s.trim());
-    if (owner && repo) return { owner, repo };
-  }
+  if (!override || !override.includes("/")) return undefined;
+  const [owner, repo] = override.split("/").map((s) => s.trim());
+  if (!owner || !repo) return undefined;
+  return { owner, repo };
+}
+
+function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
+  const override = getChatRepoOverride();
+  if (override) return override;
   const headerAuth = getRequestAuth(req);
   if (headerAuth) return { owner: headerAuth.owner, repo: headerAuth.repo };
   const { GITHUB_OWNER, GITHUB_REPO } = process.env as Record<string, string>;
@@ -126,23 +135,69 @@ export async function POST(req: NextRequest) {
     // polling (every 3s with ETag caching) is simpler and reliable.
     const workflowInputs: Record<string, string> = { sessionId: taskId };
 
-    await octokit.actions.createWorkflowDispatch({
-      owner,
-      repo,
-      workflow_id: "kody.yml",
-      ref: "main",
-      inputs: workflowInputs,
+    // GitHub is the base runner; Fly is the fallback when GitHub Actions is
+    // degraded or its queue is backed up (proactive), or when the dispatch
+    // call itself throws (reactive). Resolve the Fly context up front so the
+    // fallback has everything it needs — flyAvailable is false when the repo
+    // has no FLY_API_TOKEN, in which case we just stay on GitHub.
+    const flyCtx = await resolveFlyContext(req, {
+      repoOverride: getChatRepoOverride(),
+    }).catch(() => null);
+    const flyContext =
+      flyCtx && flyCtx.ok && flyCtx.context.flyToken
+        ? flyCtx.context
+        : undefined;
+    const flyAvailable = !!flyContext;
+
+    const outcome = await dispatchRun({
+      flyAvailable,
+      checkHealth: () =>
+        checkGitHubActionsHealth({
+          countQueuedRuns: async () => {
+            const res = await octokit.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: "kody.yml",
+              status: "queued",
+              per_page: 1,
+            });
+            return res.data.total_count ?? 0;
+          },
+        }),
+      dispatchGitHub: () =>
+        octokit.actions
+          .createWorkflowDispatch({
+            owner,
+            repo,
+            workflow_id: "kody.yml",
+            ref: "main",
+            inputs: workflowInputs,
+          })
+          .then(() => undefined),
+      runFly: () =>
+        claimOrSpawnFly(flyCtx!.ok ? flyCtx!.context : (null as never), {
+          taskId,
+          idleExitMs,
+          hardCapMs,
+        }),
     });
 
     logger.info(
-      { taskId, workflowId: "kody.yml", owner, repo },
-      "interactive: workflow dispatched",
+      { taskId, owner, repo, runner: outcome.runner, reason: outcome.reason },
+      "interactive: session started",
     );
     return NextResponse.json({
       ok: true,
       taskId,
       mode: "interactive",
-      target: { owner, repo, branch: "main", workflow: "kody.yml" },
+      runner: outcome.runner,
+      reason: outcome.reason,
+      ...(outcome.fellBackOnError ? { fellBackOnError: true } : {}),
+      ...(outcome.flyResult ? { machineId: outcome.flyResult.machineId } : {}),
+      target:
+        outcome.runner === "github"
+          ? { owner, repo, branch: "main", workflow: "kody.yml" }
+          : { owner, repo, branch: "main", workflow: "fly" },
     });
   } catch (err) {
     logger.error({ err, taskId }, "interactive: start failed");

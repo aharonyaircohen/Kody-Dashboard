@@ -27,9 +27,8 @@ import {
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
-import { spawnRunner } from "@dashboard/lib/runners/fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
-import { claimFromPool } from "@dashboard/lib/runners/pool-client";
+import { claimOrSpawnFly } from "@dashboard/lib/runners/fly-run";
 
 export const runtime = "nodejs";
 
@@ -95,16 +94,7 @@ export async function POST(req: NextRequest) {
       { status: ctxResult.status },
     );
   }
-  const {
-    owner,
-    repo,
-    githubToken,
-    octokit,
-    allSecrets,
-    flyToken,
-    perfTier,
-    litellmUrl,
-  } = ctxResult.context;
+  const { owner, repo, octokit } = ctxResult.context;
 
   try {
     logger.info(
@@ -151,64 +141,27 @@ export async function POST(req: NextRequest) {
       )}&token=${token}`;
     }
 
-    // Fast path: claim a pre-booted machine from this repo's warm pool and
-    // have it boot the interactive session (~1s wake) instead of cold-starting
-    // a fresh one (~3 min). The pool owner reads the repo's secrets from its
-    // vault, so no token/secrets cross the wire. On any miss (empty pool,
-    // unreachable, repo has no FLY_API_TOKEN) we fall through to create-fresh.
-    const claim = await claimFromPool({
-      jobId: taskId,
-      repo: `${owner}/${repo}`,
-      mode: "interactive",
-      sessionId: taskId,
+    // Claim a warm pool machine (~1s wake) else spawn a fresh one (~3min).
+    // Shared with the GitHub→Fly fallback in /interactive/start so the two
+    // paths can't drift.
+    const result = await claimOrSpawnFly(ctxResult.context, {
+      taskId,
       idleExitMs,
       hardCapMs,
       dashboardUrl: ingestUrl,
     });
-    if (claim.ok) {
-      logger.info(
-        { taskId, machineId: claim.machineId, owner, repo },
-        "interactive-fly: claimed warm pool machine",
-      );
-      return NextResponse.json({
-        ok: true,
-        taskId,
-        mode: "interactive",
-        runner: "pool",
-        machineId: claim.machineId,
-        target: { owner, repo, branch: "main", workflow: "fly" },
-      });
-    }
 
     logger.info(
-      { taskId, owner, repo, poolMiss: claim.reason },
-      "interactive-fly: pool miss — spawning fresh runner",
-    );
-
-    const { machineId, region } = await spawnRunner({
-      repo: `${owner}/${repo}`,
-      githubToken,
-      sessionId: taskId,
-      dashboardUrl: ingestUrl,
-      idleExitMs,
-      hardCapMs,
-      allSecrets,
-      flyToken,
-      perfTier,
-      litellmUrl,
-    });
-
-    logger.info(
-      { taskId, machineId, region, owner, repo },
-      "interactive-fly: machine spawned",
+      { taskId, machineId: result.machineId, runner: result.runner, owner, repo },
+      "interactive-fly: session started on Fly",
     );
 
     return NextResponse.json({
       ok: true,
       taskId,
       mode: "interactive",
-      runner: "fly",
-      machineId,
+      runner: result.runner,
+      machineId: result.machineId,
       target: { owner, repo, branch: "main", workflow: "fly" },
     });
   } catch (err) {
