@@ -21,7 +21,7 @@ import {
 import { sendNotification } from "./notifications/channels/send";
 import { buildSourceEvent, type SourcePr } from "./notifications/source-event";
 import { readNotificationsManifestFresh } from "./notifications-server";
-import { resolveVaultGithubToken } from "./vault/bootstrap";
+import { resolveBackgroundToken } from "./auth/background-token";
 import { logger } from "./logger";
 
 interface DispatchContext {
@@ -160,17 +160,18 @@ export async function dispatchNotifications(
   const ev = buildSourceEvent(eventType, payload);
   if (!ev || !ev.owner || !ev.repo) return;
 
-  // Per-repo vault token (decrypted with KODY_MASTER_KEY). Never the shared
-  // env token — webhooks fire constantly and would drain the bot account's
-  // 5000 req/hr budget, breaking every dashboard read.
-  const token = await resolveVaultGithubToken(ev.owner, ev.repo);
-  if (!token) {
+  // App installation token (preferred) or vault GITHUB_TOKEN fallback. Never
+  // a shared human PAT — webhooks fire constantly and would drain (and flag)
+  // that account's budget, breaking every dashboard read.
+  const bg = await resolveBackgroundToken(ev.owner, ev.repo);
+  if (!bg) {
     logger.warn(
       { event: "notifications_no_token", repo: ev.repoFullName },
-      "No vault GITHUB_TOKEN for repo — cannot read notifications manifest",
+      "No App install or vault GITHUB_TOKEN for repo — cannot read notifications manifest",
     );
     return;
   }
+  const token = bg.token;
 
   if (ev.eventType === "pull_request") {
     const merged = isDeployPrMerged(ev.action, ev.pr);

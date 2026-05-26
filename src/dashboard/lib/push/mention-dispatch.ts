@@ -14,7 +14,7 @@
  */
 import "server-only";
 import { setGitHubContext, clearGitHubContext } from "../github-client";
-import { resolveVaultGithubToken } from "../vault/bootstrap";
+import { resolveBackgroundToken } from "../auth/background-token";
 import { readPushManifest } from "../push-server";
 import type { PushSubscriptionRecord } from "../push";
 import { PUSH_MANIFEST_ISSUE_TITLE } from "../push";
@@ -191,24 +191,24 @@ export async function dispatchMentionPushes(
     const { owner, repo } = ev;
     if (!owner || !repo) return;
 
-    // Token comes from the repo's vault, decrypted with KODY_MASTER_KEY. The
-    // webhook is unauthenticated, so there is no user/env token to use; the
-    // encrypted vault blob is world-readable on public repos, so we can
-    // bootstrap the token from it.
-    const token = await resolveVaultGithubToken(owner, repo);
-    if (!token) {
+    // App installation token (preferred) or vault GITHUB_TOKEN fallback. The
+    // webhook is unauthenticated — there's no user PAT to use — so the App
+    // bot is the right identity; the public-repo vault read is the backstop
+    // when the App isn't installed.
+    const bg = await resolveBackgroundToken(owner, repo);
+    if (!bg) {
       logger.warn(
         { event: "mention_push_no_token", repo: ev.repoFullName },
-        "No vault GITHUB_TOKEN for repo — cannot read push manifest / write inbox feed",
+        "No App install or vault GITHUB_TOKEN for repo — cannot read push manifest / write inbox feed",
       );
       return;
     }
-    const ctx = { owner, repo, token };
+    const ctx = { owner, repo, token: bg.token };
 
     // Read the push manifest once: channel broadcasts use it as the audience,
     // and the push fan-out reuses it. A read failure must not drop inbox
     // entries, so fail open with an empty list.
-    setGitHubContext(owner, repo, token);
+    setGitHubContext(owner, repo, bg.token);
     let subs: PushSubscriptionRecord[] = [];
     try {
       const { manifest } = await readPushManifest();
