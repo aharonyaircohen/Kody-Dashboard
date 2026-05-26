@@ -31,7 +31,7 @@ import {
   fetchCompanyActivity,
 } from "../github-client";
 import { readOperators } from "../engine/config";
-import { resolveVaultGithubToken } from "../vault/bootstrap";
+import { resolveBackgroundToken } from "../auth/background-token";
 import { appendInboxFeed } from "../inbox/feed-server";
 import type { InboxFeedEntry } from "../inbox/feed";
 import type { CompanyActivityRecord } from "../activity/company";
@@ -121,16 +121,17 @@ export async function dispatchDutyFailures(
     const [owner, repo] = repoFullName.split("/");
     if (!owner || !repo) return;
 
-    // Unauthenticated webhook → bootstrap the repo's token from its vault
-    // blob, same as mention dispatch.
-    const token = await resolveVaultGithubToken(owner, repo);
-    if (!token) {
+    // Unauthenticated webhook → App installation token (preferred) or vault
+    // GITHUB_TOKEN fallback, same as mention dispatch.
+    const bg = await resolveBackgroundToken(owner, repo);
+    if (!bg) {
       logger.warn(
         { event: "duty_failure_no_token", repo: repoFullName },
-        "No vault GITHUB_TOKEN for repo — cannot read activity / write inbox feed",
+        "No App install or vault GITHUB_TOKEN for repo — cannot read activity / write inbox feed",
       );
       return;
     }
+    const token = bg.token;
 
     // Operators are the audience. Empty list = nobody to notify — the same
     // silent-inbox state the Operators card already warns about.

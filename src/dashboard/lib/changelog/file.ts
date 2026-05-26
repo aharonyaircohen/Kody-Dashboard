@@ -9,7 +9,7 @@
  */
 
 import { Octokit } from "@octokit/rest";
-import { resolveVaultGithubToken } from "../vault/bootstrap";
+import { resolveBackgroundToken } from "../auth/background-token";
 
 export const CHANGELOG_PATH = "CHANGELOG.md";
 
@@ -28,18 +28,18 @@ export interface ChangelogFile {
 }
 
 /**
- * Server-only Octokit built from the consumer repo's vault token. Webhook
- * handlers must not reuse a shared env token — the bot account's 5000
- * req/hr budget is drained by webhook traffic, breaking every dashboard
- * read. Returns null when the vault has no `GITHUB_TOKEN` for this repo.
+ * Server-only Octokit for webhook handlers — App installation token
+ * preferred, vault `GITHUB_TOKEN` fallback. Never a shared human PAT: webhook
+ * traffic would drain (and flag) that account, breaking every dashboard read.
+ * Returns null when neither token source is available for this repo.
  */
 export async function getServerOctokit(
   owner: string,
   repo: string,
 ): Promise<Octokit | null> {
-  const token = await resolveVaultGithubToken(owner, repo);
-  if (!token) return null;
-  return new Octokit({ auth: token });
+  const bg = await resolveBackgroundToken(owner, repo);
+  if (!bg) return null;
+  return new Octokit({ auth: bg.token });
 }
 
 export async function readChangelog(

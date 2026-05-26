@@ -23,7 +23,7 @@ import { listStaffFiles } from "../staff-files";
 import { dispatchWorkerAsk, type WorkerAskReply } from "../control-issue";
 import { extractStaffMentions } from "../mentions/staff-mentions";
 import { buildSourceEvent } from "../notifications/source-event";
-import { resolveVaultGithubToken } from "../vault/bootstrap";
+import { resolveBackgroundToken } from "../auth/background-token";
 import { logger } from "../logger";
 
 interface StaffDispatchEvent {
@@ -110,18 +110,19 @@ export async function dispatchStaffMentions(
     const [owner, repo] = ev.repoFullName.split("/");
     if (!owner || !repo) return;
 
-    // Per-repo vault token (decrypted with KODY_MASTER_KEY). Never the
-    // shared env token — see notifications-dispatch for the rate-limit
-    // rationale: webhooks fire constantly, env-token reuse drains the bot
+    // App installation token (preferred) or vault GITHUB_TOKEN fallback.
+    // Never a shared human PAT — see notifications-dispatch for the
+    // rate-limit rationale: webhooks fire constantly and would flag the
     // account.
-    const token = await resolveVaultGithubToken(owner, repo);
-    if (!token) {
+    const bg = await resolveBackgroundToken(owner, repo);
+    if (!bg) {
       logger.warn(
         { event: "staff_mention_no_token", repo: ev.repoFullName },
-        "No vault GITHUB_TOKEN for repo — cannot resolve staff / dispatch worker-ask",
+        "No App install or vault GITHUB_TOKEN for repo — cannot resolve staff / dispatch worker-ask",
       );
       return;
     }
+    const token = bg.token;
 
     // Resolve this repo's staff roster (per-repo `.kody/staff/`), so a
     // newly-connected repo works with zero setup.
