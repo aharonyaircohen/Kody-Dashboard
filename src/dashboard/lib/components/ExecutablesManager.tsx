@@ -559,7 +559,7 @@ interface EditorProps {
 }
 
 const DEFAULT_PROMPT =
-  "You are working on issue #{{issueNumber}}.\n\n{{issueBody}}\n\nImplement the change end-to-end.\n";
+  "You are working on issue #{{issue.number}}: {{issue.title}}\n\n{{issue.body}}\n\nImplement the change end-to-end.\n";
 
 function ExecutableEditor({
   slug,
@@ -809,8 +809,10 @@ function ExecutableEditorForm({
 
           <TabsContent value="prompt" className="space-y-2">
             <p className="text-[11px] text-white/40">
-              Markdown with <code>{"{{issueNumber}}"}</code>,{" "}
-              <code>{"{{issueBody}}"}</code> tokens. Saved as prompt.md.
+              Markdown with <code>{"{{issue.number}}"}</code>,{" "}
+              <code>{"{{issue.title}}"}</code>, <code>{"{{issue.body}}"}</code>{" "}
+              tokens. Saved as prompt.md. The required output format is appended
+              automatically.
             </p>
             <Textarea
               value={prompt}

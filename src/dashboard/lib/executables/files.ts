@@ -14,10 +14,12 @@
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "../github-client";
 import {
+  appendContract,
   composeProfile,
   fieldsFromProfile,
   isValidSlug,
   serializeProfile,
+  stripContract,
   type ExecutableFields,
   type ExecutableLanding,
 } from "./profile";
@@ -191,7 +193,11 @@ export async function readExecutableFile(
   const profile = parseProfileJson(profileRaw);
   if (!profile) return null;
 
-  const prompt = (await readFileText(octokit, `${base}/prompt.md`)) ?? "";
+  // The stored prompt.md ends with the managed output-format contract;
+  // strip it so the editor shows only the user-authored part.
+  const prompt = stripContract(
+    (await readFileText(octokit, `${base}/prompt.md`)) ?? "",
+  );
 
   // Enumerate the folder once to find `*.sh` files and the skills/ subdir.
   let entries: Array<{ name: string; type: string }> = [];
@@ -390,7 +396,11 @@ export async function writeExecutableFile(
     { path: `${base}/profile.json`, content: profileJson },
     {
       path: `${base}/prompt.md`,
-      content: ensureTrailingNewline(fields.prompt),
+      // Append the managed output-format contract so the marker block is the
+      // agent's final instruction (it ignores a system-prompt-only contract).
+      content: ensureTrailingNewline(
+        appendContract(fields.prompt, fields.landing),
+      ),
     },
   ];
   for (const s of opts.shellScripts) {

@@ -71,6 +71,67 @@ export function isValidSlug(slug: string): boolean {
 }
 
 /**
+ * The engine parses the agent's FINAL message for `DONE` / `COMMIT_MSG` /
+ * `PR_SUMMARY` / `FAILED` markers (kody2/src/prompt.ts `parseAgentResult`).
+ * The built-in `feature` flow bakes this contract into its prompt; `plan`
+ * puts it at the END of its prompt.md. Live testing showed the agent only
+ * reliably emits the markers when the contract is the LAST instruction it
+ * sees — `systemPromptAppend` alone gets ignored. So we APPEND the contract
+ * to prompt.md (after a managed sentinel) on write, and strip it on read so
+ * the editor only shows the user's part. Without the markers,
+ * `parseAgentResult` reports markerMissing → no commit and no comment.
+ */
+export const OUTPUT_CONTRACT_SENTINEL =
+  "<!-- kody:output-format (managed — edit above this line only) -->";
+
+const PR_OUTPUT_CONTRACT = `
+
+# Final message format (required)
+Your FINAL message MUST be exactly this block, with nothing before it:
+
+DONE
+COMMIT_MSG: <conventional commit, e.g. "feat: add X">
+PR_SUMMARY:
+<2–6 bullets: what you changed, why, and how it works>
+
+If you cannot complete the task, output a single line instead: FAILED: <reason>`;
+
+const COMMENT_OUTPUT_CONTRACT = `
+
+# Final message format (required)
+Your FINAL message MUST be exactly this block, with nothing before it:
+
+DONE
+PR_SUMMARY:
+<your complete answer to the issue — this text is posted verbatim as a comment>
+
+If you cannot answer, output a single line instead: FAILED: <reason>`;
+
+/** The output-format contract appended to prompt.md for a given landing. */
+export function contractFor(landing: ExecutableLanding): string {
+  return landing === "pr" ? PR_OUTPUT_CONTRACT : COMMENT_OUTPUT_CONTRACT;
+}
+
+/**
+ * Append the managed output-format contract to a user's prompt so it's the
+ * final instruction the agent sees. Idempotent: any previously-appended
+ * contract is stripped first.
+ */
+export function appendContract(
+  userPrompt: string,
+  landing: ExecutableLanding,
+): string {
+  const base = stripContract(userPrompt).replace(/\s+$/, "");
+  return `${base}\n\n${OUTPUT_CONTRACT_SENTINEL}${contractFor(landing)}`;
+}
+
+/** Remove the managed contract (everything from the sentinel on). */
+export function stripContract(prompt: string): string {
+  const i = prompt.indexOf(OUTPUT_CONTRACT_SENTINEL);
+  return i === -1 ? prompt : prompt.slice(0, i).replace(/\s+$/, "");
+}
+
+/**
  * Build a valid engine profile object from the form fields. Mirrors the
  * built-in `feature` profile for the PR landing so it is known-good.
  */
@@ -82,6 +143,9 @@ export function composeProfile(
     permissionMode: fields.permissionMode,
     maxTurns: null,
     maxTurnTimeoutSec: 1200,
+    // The output-format contract lives at the END of prompt.md (see
+    // appendContract), not here — the agent ignores a system-prompt-only
+    // contract. Kept null so we don't duplicate/conflict.
     systemPromptAppend: null,
     cacheable: true,
     enableVerifyTool: fields.landing === "pr",
