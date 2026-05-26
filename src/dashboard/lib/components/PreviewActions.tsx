@@ -12,7 +12,6 @@ import { Button } from "@dashboard/ui/button";
 import { MergeButton } from "./MergeButton";
 import { FixRequestDialog } from "./FixRequestDialog";
 import { ReportIssueDialog } from "./ReportIssueDialog";
-import { QARequestDialog } from "./QARequestDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SimpleTooltip } from "./SimpleTooltip";
 import {
@@ -23,7 +22,6 @@ import {
   Eye,
   Camera,
   AlertTriangle,
-  Stethoscope,
 } from "lucide-react";
 import { tasksApi, prsApi } from "../api";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
@@ -86,7 +84,6 @@ export function PreviewActions({
 }: PreviewActionsProps) {
   const [showFixDialog, setShowFixDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
-  const [showQADialog, setShowQADialog] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -199,43 +196,6 @@ export function PreviewActions({
     }
   };
 
-  /**
-   * QA the completed task: post `@kody qa-engineer` on the *PR* so the
-   * PASS/CONCERNS/FAIL report lands on the thing under review.
-   *
-   * We pass `--issue <pr.number>` explicitly rather than relying on the
-   * dispatcher's auto-bind: qa-engineer declares only an `issue` input (no
-   * `pr`), so on a PR comment the dispatcher binds nothing and the executable
-   * would fall back to opening a fresh goal. An explicit `--issue` short-
-   * circuits that — qa-engineer's postflight does `gh issue comment <n>`,
-   * which targets a PR number just as happily as an issue number. The URL it
-   * browses comes from config (PREVIEW_URL / QA_URL), not the thread, so the
-   * report is identical either way; only the comment target moves.
-   *
-   * To make QA about *this PR* rather than a generic sweep, we hand the agent
-   * two things it otherwise lacks:
-   *   - `--url <previewUrl>` so it browses the PR's own preview deployment, not
-   *     the shared fallback QA URL (which doesn't contain the PR's changes).
-   *   - `--scope` defaulting to the PR title so the smoke pass focuses on what
-   *     the PR touched. A non-empty `scope` typed in the dialog overrides it.
-   * If no preview URL is known yet we omit `--url` and qa-engineer falls back
-   * to its configured QA_URL as before.
-   */
-  const handleRunQA = async (scope: string) => {
-    // Escape any double quotes so the shell-style flags stay valid. Fall back to
-    // the PR title when the user didn't narrow the scope themselves.
-    const safeScope = (scope.trim() || pr.title).replace(/"/g, '\\"');
-    const urlFlag = task.previewUrl ? ` --url ${task.previewUrl}` : "";
-    const command = `@kody qa-engineer --issue ${pr.number}${urlFlag} --scope "${safeScope}"`;
-    try {
-      await prsApi.postComment(pr.number, command, actorLogin);
-      toast.success("QA requested — report will appear on the PR");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to request QA");
-      throw err; // re-throw so dialog keeps open on failure
-    }
-  };
-
   return (
     <>
       <div
@@ -345,18 +305,6 @@ export function PreviewActions({
             </Button>
           </SimpleTooltip>
 
-          <SimpleTooltip content="QA the completed task">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowQADialog(true)}
-              className="h-8 w-8 cursor-pointer text-zinc-300 hover:bg-zinc-800/60 hover:text-zinc-100 active:scale-[0.97]"
-              aria-label="QA"
-            >
-              <Stethoscope className="w-4 h-4" />
-            </Button>
-          </SimpleTooltip>
-
           <SimpleTooltip content="Request a fix">
             <Button
               variant="ghost"
@@ -405,12 +353,6 @@ export function PreviewActions({
         issueNumber={task.issueNumber}
       />
 
-      <QARequestDialog
-        isOpen={showQADialog}
-        onClose={() => setShowQADialog(false)}
-        onSubmit={handleRunQA}
-        prNumber={pr.number}
-      />
 
       <ConfirmDialog
         open={showCancelConfirm}
