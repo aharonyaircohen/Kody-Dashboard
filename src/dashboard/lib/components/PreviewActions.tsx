@@ -212,15 +212,21 @@ export function PreviewActions({
    * browses comes from config (PREVIEW_URL / QA_URL), not the thread, so the
    * report is identical either way; only the comment target moves.
    *
-   * `scope` is optional — empty string runs a broad smoke pass; a non-empty
-   * value gets passed as `--scope "<text>"` to narrow the focus.
+   * To make QA about *this PR* rather than a generic sweep, we hand the agent
+   * two things it otherwise lacks:
+   *   - `--url <previewUrl>` so it browses the PR's own preview deployment, not
+   *     the shared fallback QA URL (which doesn't contain the PR's changes).
+   *   - `--scope` defaulting to the PR title so the smoke pass focuses on what
+   *     the PR touched. A non-empty `scope` typed in the dialog overrides it.
+   * If no preview URL is known yet we omit `--url` and qa-engineer falls back
+   * to its configured QA_URL as before.
    */
   const handleRunQA = async (scope: string) => {
-    // Escape any double quotes the user typed so the shell-style flag stays valid.
-    const safeScope = scope.replace(/"/g, '\\"');
-    const command = safeScope
-      ? `@kody qa-engineer --issue ${pr.number} --scope "${safeScope}"`
-      : `@kody qa-engineer --issue ${pr.number}`;
+    // Escape any double quotes so the shell-style flags stay valid. Fall back to
+    // the PR title when the user didn't narrow the scope themselves.
+    const safeScope = (scope.trim() || pr.title).replace(/"/g, '\\"');
+    const urlFlag = task.previewUrl ? ` --url ${task.previewUrl}` : "";
+    const command = `@kody qa-engineer --issue ${pr.number}${urlFlag} --scope "${safeScope}"`;
     try {
       await prsApi.postComment(pr.number, command, actorLogin);
       toast.success("QA requested — report will appear on the PR");
