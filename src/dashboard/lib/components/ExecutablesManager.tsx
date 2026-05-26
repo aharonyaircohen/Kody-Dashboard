@@ -753,9 +753,7 @@ function ExecutableEditorForm({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pr">Opens a PR</SelectItem>
-                    <SelectItem value="comment">
-                      Just comments (beta)
-                    </SelectItem>
+                    <SelectItem value="comment">Just comments</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

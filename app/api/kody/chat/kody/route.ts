@@ -53,6 +53,7 @@ import { createGoalTools } from "../tools/goal-tools";
 import { createDutyTools } from "../tools/duty-tools";
 import { createStaffTools } from "../tools/staff-tools";
 import { createMemoryTools } from "../tools/memory-tools";
+import { createExecutableTools } from "../tools/executable-tools";
 import { createPlannerTools } from "../tools/planner-tools";
 import { createReleaseTools } from "../tools/release-tools";
 import { createKodyTools } from "../tools/kody-tools";
@@ -565,6 +566,12 @@ export async function POST(req: NextRequest) {
         actorLogin: body.actorLogin ?? null,
       }),
       ...createKodyTools({ octokit, owner: repo.owner, repo: repo.repo }),
+      ...createExecutableTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
       // Vibe-only: pre-create branch + draft PR so Vercel cold-builds in
       // parallel with the runner warmup. Stripped from the tool set when
       // not in vibe mode below (alongside the @kody dispatch tools).

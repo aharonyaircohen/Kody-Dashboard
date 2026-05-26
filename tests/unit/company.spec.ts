@@ -31,6 +31,11 @@ const h = vi.hoisted(() => ({
   // instructions/files
   readInstructionsFile: vi.fn(),
   writeInstructionsFile: vi.fn(),
+  // executables
+  listExecutableFiles: vi.fn(async () => []),
+  readExecutableFile: vi.fn(async () => null),
+  writeExecutableFile: vi.fn(),
+  fieldsFromProfile: vi.fn(() => ({})),
   // github-client
   getOwner: vi.fn(() => "acme"),
   getRepo: vi.fn(() => "widgets"),
@@ -54,6 +59,12 @@ vi.mock("@dashboard/lib/commands/files", () => ({
 vi.mock("@dashboard/lib/instructions/files", () => ({
   readInstructionsFile: h.readInstructionsFile,
   writeInstructionsFile: h.writeInstructionsFile,
+}));
+vi.mock("@dashboard/lib/executables", () => ({
+  listExecutableFiles: h.listExecutableFiles,
+  readExecutableFile: h.readExecutableFile,
+  writeExecutableFile: h.writeExecutableFile,
+  fieldsFromProfile: h.fieldsFromProfile,
 }));
 vi.mock("@dashboard/lib/github-client", () => ({
   getOwner: h.getOwner,
@@ -99,6 +110,7 @@ describe("companyBundleSchema", () => {
     staff: [],
     duties: [],
     commands: [],
+    executables: [],
     instructions: null,
   };
 
@@ -266,6 +278,7 @@ describe("applyCompanyBundle", () => {
     commands: [
       { slug: "review", description: "d", argumentHint: "", body: "B" },
     ],
+    executables: [],
     instructions: "Be terse.",
   };
 
