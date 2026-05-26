@@ -22,6 +22,7 @@ import { BranchBehindBanner } from "./BranchBehindBanner";
 import { KodyChat } from "./KodyChat";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
+import { PreviewIframe } from "./PreviewIframe";
 import { cn, getPreviewBypassUrl } from "../utils";
 import { useElementPicker } from "../picker/useElementPicker";
 import {
@@ -550,12 +551,10 @@ export function PreviewModal({
                 {/* iframe */}
                 <div className="flex-1 min-h-0">
                   {effectivePreviewUrl ? (
-                    <iframe
-                      key={`${previewView}-${previewKey}`}
+                    <PreviewIframe
                       src={getPreviewBypassUrl(getPreviewUrl()) || undefined}
                       title="Preview Deployment"
-                      className="w-full h-full border-0 bg-white"
-                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                      reloadKey={`${previewView}-${previewKey}`}
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full">

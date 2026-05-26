@@ -45,6 +45,7 @@ import {
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useKodyTasks } from "../hooks";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
+import { PreviewIframe } from "./PreviewIframe";
 import { tasksApi, getStoredAuth, redirectToLogin } from "../api";
 import { RateLimitError, NoTokenError, SessionExpiredError } from "../api";
 import type { KodyTask } from "../types";
@@ -673,12 +674,10 @@ export function VibePage() {
             )}
           >
             {previewUrl ? (
-              <iframe
-                key={`${previewUrl}-${iframeKey}`}
+              <PreviewIframe
                 src={bypassedUrl ?? undefined}
                 title="Preview deployment"
-                className="w-full h-full border-0 bg-white"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                reloadKey={`${previewUrl}-${iframeKey}`}
               />
             ) : showDefaultPreviewEditor ? (
               <div className="h-full flex items-center justify-center p-6">
