@@ -40,17 +40,25 @@ export function buildModelSignal(input: {
   modelSpec: string | null | undefined;
   hasKey: boolean;
 }): HealthSignal {
-  const base: Pick<HealthSignal, "id" | "label"> = { id: "model", label: "Model provider" };
+  const base: Pick<HealthSignal, "id" | "label"> = {
+    id: "model",
+    label: "Model provider",
+  };
   if (!input.modelSpec) {
     return {
       ...base,
       level: "degraded",
-      detail: "No engine model configured (agent.model unset) — runs fall back to a default.",
+      detail:
+        "No engine model configured (agent.model unset) — runs fall back to a default.",
     };
   }
   const resolved = keyNameForModelSpec(input.modelSpec);
   if (!resolved) {
-    return { ...base, level: "degraded", detail: `Model "${input.modelSpec}" is malformed.` };
+    return {
+      ...base,
+      level: "degraded",
+      detail: `Model "${input.modelSpec}" is malformed.`,
+    };
   }
   if (!input.hasKey) {
     return {

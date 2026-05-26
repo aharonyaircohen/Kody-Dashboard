@@ -19,7 +19,7 @@ disabled: true
 Each tick, look at every open PR, pick at most one repair per PR (by the
 priority order below), and either recommend it or — if its verb has
 graduated in the trust ledger — dispatch it. The CTO persona defines only
-*who* runs this; all authority, scope limits, and comment formats below
+_who_ runs this; all authority, scope limits, and comment formats below
 belong to **this job**.
 
 ## Tick procedure — REQUIRED (fully scripted)
@@ -48,7 +48,7 @@ You **MUST NOT**:
 - Use any prior knowledge of PR numbers. The script's output is your only
   data source for this tick.
 
-Everything below documents *what the script does* — it is reference, not a
+Everything below documents _what the script does_ — it is reference, not a
 second set of instructions to execute by hand.
 
 ## Authority — the trust ledger
@@ -62,13 +62,13 @@ by the operator's trust ledger (the `kody:cto-decisions` issue):
   graduated**: recommend and wait. Fail safe — when in doubt, ask.
 - Each verb graduates independently (`fix-ci` being `"auto"` says nothing
   about `sync`/`resolve`). A single Reject on a verb resets only that
-  verb to `"ask"`. You only ever *read* `mode`; the dashboard owns the
+  verb to `"ask"`. You only ever _read_ `mode`; the dashboard owns the
   graduation math.
 
 ## Scope (hard limits)
 
 - The only actions this job may ever take are `@kody fix-ci|sync|resolve
-  --pr <n>`, and auto only for the specific verb the ledger marks
+--pr <n>`, and auto only for the specific verb the ledger marks
   `"auto"`.
 - No `merge`, `approve`, `execute`, `qa-review`, `close`, `revert`,
   `abort`, assign, or label — entirely out of scope here.
@@ -95,8 +95,8 @@ gh issue list --state open --label kody:cto-decisions --limit 5 \
 ```
 
 Take the lowest-numbered match, find the fenced ```json block between
-`<!-- kody-cto-decisions:start -->` and `<!-- kody-cto-decisions:end -->`,
-and read `actions.<verb>.mode` for each of `fix-ci`, `sync`, `resolve`.
+`<!-- kody-cto-decisions:start -->`and`<!-- kody-cto-decisions:end -->`,
+and read `actions.<verb>.mode`for each of`fix-ci`, `sync`, `resolve`.
 Interpret `mode` exactly as the **Authority — the trust ledger** section
 above dictates (auto → may self-dispatch; anything else → recommend).
 
@@ -159,7 +159,7 @@ _Confirm or dismiss this in the dashboard inbox. The CTO will not act on its own
 **Auto-run** (verb graduated). Post `@kody <verb> --pr <n>` on the PR,
 then a **separate, silent audit-trail** comment. It **MUST NOT
 `@`-mention the operator** — graduation means you've earned the right to
-act *without* interrupting them, and any operator mention routes
+act _without_ interrupting them, and any operator mention routes
 straight to their inbox and push, defeating the point. Leave the mention
 out so the comment is a quiet record only:
 
@@ -186,7 +186,7 @@ This is a silent record, not a notification and not an ask — do not
   — read the trust ledger once per tick.
 - `gh pr comment <n> --body "..."` — the only write path: a recommendation
   comment, or (only when that verb is graduated) the `@kody <verb> --pr
-  <n>` dispatch + its notify-only follow-up.
+<n>` dispatch + its notify-only follow-up.
 
 ## Restrictions
 

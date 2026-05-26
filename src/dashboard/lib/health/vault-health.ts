@@ -20,20 +20,29 @@ export function buildVaultSignal(input: {
   configured: boolean;
   hasGithubToken: boolean;
 }): HealthSignal {
-  const base: Pick<HealthSignal, "id" | "label"> = { id: "vault", label: "Secrets vault" };
+  const base: Pick<HealthSignal, "id" | "label"> = {
+    id: "vault",
+    label: "Secrets vault",
+  };
   if (!input.configured) {
     return {
       ...base,
       level: "degraded",
-      detail: "Vault not configured (KODY_MASTER_KEY unset) — secrets fall back to env vars.",
+      detail:
+        "Vault not configured (KODY_MASTER_KEY unset) — secrets fall back to env vars.",
     };
   }
   if (!input.hasGithubToken) {
     return {
       ...base,
       level: "degraded",
-      detail: "Vault has no GITHUB_TOKEN — webhook-driven inbox/notification writes will be skipped.",
+      detail:
+        "Vault has no GITHUB_TOKEN — webhook-driven inbox/notification writes will be skipped.",
     };
   }
-  return { ...base, level: "ok", detail: "Vault configured with a GITHUB_TOKEN." };
+  return {
+    ...base,
+    level: "ok",
+    detail: "Vault configured with a GITHUB_TOKEN.",
+  };
 }

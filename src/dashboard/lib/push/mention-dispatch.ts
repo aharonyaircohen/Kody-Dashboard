@@ -19,7 +19,10 @@ import { readPushManifest } from "../push-server";
 import type { PushSubscriptionRecord } from "../push";
 import { PUSH_MANIFEST_ISSUE_TITLE } from "../push";
 import { logger } from "../logger";
-import { buildSourceEvent, type SourceEvent } from "../notifications/source-event";
+import {
+  buildSourceEvent,
+  type SourceEvent,
+} from "../notifications/source-event";
 import {
   resolveRecipients,
   extractMentions,

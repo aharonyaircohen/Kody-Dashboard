@@ -21,6 +21,7 @@ import { CIFailureBanner } from "./CIFailureBanner";
 import { BranchBehindBanner } from "./BranchBehindBanner";
 import { KodyChat } from "./KodyChat";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { usePreviewUrl } from "../hooks/usePreviewUrl";
 import { cn, getPreviewBypassUrl } from "../utils";
 import { useElementPicker } from "../picker/useElementPicker";
 import {
@@ -181,6 +182,12 @@ export function PreviewModal({
   const pr = task.associatedPR;
   const actorLogin = githubUser?.login;
 
+  // Resolve the preview URL directly by the PR's head commit so it appears
+  // immediately on open instead of waiting for the background tasks poll
+  // (which only finds links among the 100 most-recent deployments).
+  const { url: effectivePreviewUrl, isResolving: previewResolving } =
+    usePreviewUrl(pr?.head?.sha, task.previewUrl ?? null);
+
   // Callback to refresh comment list after adding a comment
   const handleCommentAdded = () => {
     setCommentsKey((k) => k + 1);
@@ -200,8 +207,8 @@ export function PreviewModal({
 
   // Get preview URL based on current view (web or admin)
   const getPreviewUrl = () => {
-    if (!task.previewUrl) return null;
-    const baseUrl = task.previewUrl;
+    if (!effectivePreviewUrl) return null;
+    const baseUrl = effectivePreviewUrl;
     if (previewView === "admin") {
       // Ensure single slash between base URL and /admin
       const normalized = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
@@ -450,7 +457,7 @@ export function PreviewModal({
             {activeTab === "preview" && (
               <div className="h-full flex flex-col">
                 {/* Preview actions header */}
-                {task.previewUrl && (
+                {effectivePreviewUrl && (
                   <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-zinc-800 bg-zinc-900/50">
                     <div className="flex items-center gap-1">
                       <button
@@ -542,7 +549,7 @@ export function PreviewModal({
                 )}
                 {/* iframe */}
                 <div className="flex-1 min-h-0">
-                  {task.previewUrl ? (
+                  {effectivePreviewUrl ? (
                     <iframe
                       key={`${previewView}-${previewKey}`}
                       src={getPreviewBypassUrl(getPreviewUrl()) || undefined}
@@ -556,11 +563,14 @@ export function PreviewModal({
                         <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
                         <div className="space-y-1">
                           <p className="text-sm text-zinc-300">
-                            Preview is being built by Vercel…
+                            {previewResolving
+                              ? "Loading preview…"
+                              : "Preview is being built by Vercel…"}
                           </p>
                           <p className="text-xs text-zinc-500">
-                            This usually takes a minute. The preview will appear
-                            here automatically when ready.
+                            {previewResolving
+                              ? "Fetching this PR's Vercel preview — it'll appear here as soon as the build is ready."
+                              : "This usually takes a minute. The preview will appear here automatically when ready."}
                           </p>
                         </div>
                       </div>

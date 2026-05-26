@@ -37,11 +37,15 @@ export function classifyDeliveries(
   if (!hookFound) {
     return {
       level: "degraded",
-      detail: "No GitHub webhook registered — the dashboard falls back to slower polling.",
+      detail:
+        "No GitHub webhook registered — the dashboard falls back to slower polling.",
     };
   }
   if (deliveries.length === 0) {
-    return { level: "ok", detail: "Webhook registered; no recent deliveries to judge." };
+    return {
+      level: "ok",
+      detail: "Webhook registered; no recent deliveries to judge.",
+    };
   }
   const failed = deliveries.filter(
     (d) => typeof d.status_code === "number" && d.status_code >= 400,
@@ -68,14 +72,21 @@ export async function probeWebhookHealth(
   repo: string,
   dashboardUrlHint?: string,
 ): Promise<HealthSignal> {
-  const base: Pick<HealthSignal, "id" | "label"> = { id: "webhook", label: "GitHub webhook" };
+  const base: Pick<HealthSignal, "id" | "label"> = {
+    id: "webhook",
+    label: "GitHub webhook",
+  };
   const key = `${owner}/${repo}`.toLowerCase();
   const hit = cache.get(key);
   if (hit && hit.expiresAt > Date.now()) return hit.signal;
 
   let signal: HealthSignal;
   try {
-    const { data: hooks } = await octokit.rest.repos.listWebhooks({ owner, repo, per_page: 100 });
+    const { data: hooks } = await octokit.rest.repos.listWebhooks({
+      owner,
+      repo,
+      per_page: 100,
+    });
     // Prefer the hook pointing at our dashboard receiver; else the first active one.
     const hook =
       hooks.find((h) =>

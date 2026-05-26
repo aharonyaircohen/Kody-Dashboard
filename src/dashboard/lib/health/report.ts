@@ -18,7 +18,10 @@ import { probeWebhookHealth } from "./webhook-health";
 import { buildRunsSignal, type RunLite } from "./runs-health";
 import { buildModelSignal } from "./model-health";
 import { buildVaultSignal } from "./vault-health";
-import { buildDispatchSignal, recentDispatchFailures } from "./dispatch-failures";
+import {
+  buildDispatchSignal,
+  recentDispatchFailures,
+} from "./dispatch-failures";
 
 export interface HealthReportInput {
   octokit: Octokit;
@@ -46,7 +49,9 @@ export async function buildHealthReport(
 
   // Async probes (network). Each already fails soft; allSettled guards anyway.
   const [actions, token, webhook] = await Promise.all([
-    probeGitHubActionsStatus().catch(fallback("github-actions", "GitHub Actions")),
+    probeGitHubActionsStatus().catch(
+      fallback("github-actions", "GitHub Actions"),
+    ),
     probeTokenHealth(input.token).catch(fallback("token", "GitHub token")),
     probeWebhookHealth(
       input.octokit,
@@ -58,7 +63,10 @@ export async function buildHealthReport(
 
   // Pure/derived signals.
   const runs = buildRunsSignal(input.runs, now);
-  const model = buildModelSignal({ modelSpec: input.modelSpec, hasKey: input.hasModelKey });
+  const model = buildModelSignal({
+    modelSpec: input.modelSpec,
+    hasKey: input.hasModelKey,
+  });
   const vault = buildVaultSignal({
     configured: input.vaultConfigured,
     hasGithubToken: input.hasVaultGithubToken,

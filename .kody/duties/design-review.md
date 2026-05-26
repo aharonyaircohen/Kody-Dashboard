@@ -11,6 +11,7 @@ disabled: true
 Periodic **design-health sweep** of the product's UI — coherence and usability, not feature behavior. The job itself cannot run shell beyond `gh`, so it opens a tracking issue delegating the analysis to a Kody executable in CI and tracks the result.
 
 Scope of the delegated sweep:
+
 - **Layout & spacing** — inconsistent padding/margins, misalignment, cramped or unbalanced composition; values that don't sit on the spacing scale.
 - **Typography** — unclear hierarchy, ad-hoc font sizes/weights/line-heights that bypass the type ramp, illegible body text.
 - **Theme & color** — colors used outside the defined roles/tokens, dark/light-mode breakage, and **contrast** below WCAG AA.

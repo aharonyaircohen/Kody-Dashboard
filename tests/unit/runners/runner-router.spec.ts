@@ -33,7 +33,11 @@ describe("chooseRunner", () => {
 
   it("falls back to Fly when status is degraded and Fly is available", () => {
     const d = chooseRunner({
-      health: health({ healthy: false, statusDegraded: true, reason: "actions status degraded_performance" }),
+      health: health({
+        healthy: false,
+        statusDegraded: true,
+        reason: "actions status degraded_performance",
+      }),
       flyAvailable: true,
     });
     expect(d.runner).toBe("fly");
@@ -43,7 +47,12 @@ describe("chooseRunner", () => {
 
   it("falls back to Fly when the queue is full and Fly is available", () => {
     const d = chooseRunner({
-      health: health({ healthy: false, queueFull: true, queuedCount: 25, reason: "queue full (25 ≥ 10)" }),
+      health: health({
+        healthy: false,
+        queueFull: true,
+        queuedCount: 25,
+        reason: "queue full (25 ≥ 10)",
+      }),
       flyAvailable: true,
     });
     expect(d.runner).toBe("fly");

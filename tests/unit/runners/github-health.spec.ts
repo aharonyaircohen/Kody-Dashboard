@@ -46,7 +46,9 @@ describe("probeActionsStatus", () => {
   });
 
   it("fails open on a non-200 status response", async () => {
-    const fetchImpl = vi.fn(async () => ({ ok: false, status: 503 }) as Response) as unknown as typeof fetch;
+    const fetchImpl = vi.fn(
+      async () => ({ ok: false, status: 503 }) as Response,
+    ) as unknown as typeof fetch;
     const probe = await probeActionsStatus(fetchImpl);
     expect(probe.degraded).toBe(false);
   });

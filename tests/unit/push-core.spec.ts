@@ -26,7 +26,10 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock("web-push", () => ({
-  default: { setVapidDetails: h.setVapidDetails, sendNotification: h.sendNotification },
+  default: {
+    setVapidDetails: h.setVapidDetails,
+    sendNotification: h.sendNotification,
+  },
   WebPushError: h.WebPushError,
 }));
 vi.mock("@dashboard/lib/github-client", () => ({

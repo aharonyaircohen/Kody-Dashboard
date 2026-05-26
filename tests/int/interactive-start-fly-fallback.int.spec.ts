@@ -16,7 +16,15 @@
  * module seams so the test is deterministic — the real glue under test is the
  * route handler + the dispatchRun orchestrator.
  */
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import nock from "nock";
 import { NextRequest } from "next/server";
 
@@ -57,10 +65,18 @@ function makeRequest(body: unknown): NextRequest {
 /** Mock the session-meta write (GET 404 → PUT 201). */
 function nockSessionWrite(sessionId: string): void {
   nock(GITHUB_API)
-    .get(new RegExp(`/repos/acme/widgets/contents/\\.kody.*sessions.*${sessionId}\\.jsonl`))
+    .get(
+      new RegExp(
+        `/repos/acme/widgets/contents/\\.kody.*sessions.*${sessionId}\\.jsonl`,
+      ),
+    )
     .query(true)
     .reply(404)
-    .put(new RegExp(`/repos/acme/widgets/contents/\\.kody.*sessions.*${sessionId}\\.jsonl`))
+    .put(
+      new RegExp(
+        `/repos/acme/widgets/contents/\\.kody.*sessions.*${sessionId}\\.jsonl`,
+      ),
+    )
     .reply(201, { content: { sha: "newsha" } });
 }
 

@@ -96,7 +96,10 @@ export async function handlePrMerged(payload: PRWebhookPayload): Promise<void> {
     const octokit = await getServerOctokit(repoCoords.owner, repoCoords.repo);
     if (!octokit) {
       logger.warn(
-        { event: "changelog_skip_no_token", repo: `${repoCoords.owner}/${repoCoords.repo}` },
+        {
+          event: "changelog_skip_no_token",
+          repo: `${repoCoords.owner}/${repoCoords.repo}`,
+        },
         "CHANGELOG append skipped — no vault GITHUB_TOKEN for repo",
       );
       return;
@@ -158,7 +161,10 @@ export async function handleReleasePublished(
     const octokit = await getServerOctokit(repoCoords.owner, repoCoords.repo);
     if (!octokit) {
       logger.warn(
-        { event: "changelog_promote_skip_no_token", repo: `${repoCoords.owner}/${repoCoords.repo}` },
+        {
+          event: "changelog_promote_skip_no_token",
+          repo: `${repoCoords.owner}/${repoCoords.repo}`,
+        },
         "CHANGELOG promote skipped — no vault GITHUB_TOKEN for repo",
       );
       return;

@@ -32,8 +32,7 @@ proceed and set `data.lastRunISO` to now (UTC ISO) before emitting state.
 2. **Run the seven checks.** For each violation, record one line in the
    findings under its section. Mechanical findings include a `**Fix:**`
    line; non-mechanical ones don't (the operator investigates).
-
-   1. **Broken worker reference** *(mechanical)* — job's `worker:`
+   1. **Broken worker reference** _(mechanical)_ — job's `worker:`
       field names a slug that does not exist in `.kody/workers/`.
       Fix: create `.kody/workers/<slug>.md` (identity-only) or correct
       the job's `worker:` field.
@@ -43,9 +42,9 @@ proceed and set `data.lastRunISO` to now (UTC ISO) before emitting state.
       (operator decides whether to delete or leave as standby).
    3. **Missed tick** — job is enabled, has an `every:` cadence, and
       its `state.json` `data.lastRunISO` is older than `now - 2 ×
-      cadence`. Jobs with `every: manual` or no cadence are skipped.
+cadence`. Jobs with `every: manual` or no cadence are skipped.
       No mechanical fix (often transient cron skew).
-   4. **Missing state** *(mechanical)* — job has been ticked (body
+   4. **Missing state** _(mechanical)_ — job has been ticked (body
       changed since creation, or commits touched it) but no
       `<slug>.state.json` file exists. Without state nothing
       future-gates it; it will re-fire on every wake.
@@ -73,16 +72,21 @@ proceed and set `data.lastRunISO` to now (UTC ISO) before emitting state.
    `gh` CLI's default repo is not guaranteed in this context. **Always
    pass `--repo` explicitly** to every `gh issue` call below. Resolve
    it once from the checked-out working tree:
+
    ```
    REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
    ```
+
    Then look for an open issue titled exactly **`Kody system audit`**
    in that repo:
+
    ```
    issue_number=$(gh issue list --repo "$REPO" --search "Kody system audit in:title" --state open --limit 1 --json number -q '.[0].number')
    ```
+
    If empty, open it once with a stable body explaining its purpose
    (one-time setup; subsequent ticks just comment):
+
    ```
    gh issue create --repo "$REPO" \
      --title "Kody system audit" \
@@ -97,15 +101,16 @@ proceed and set `data.lastRunISO` to now (UTC ISO) before emitting state.
    `## System Audit — <total> finding(s)` then one section per check
    that has at least one violation:
 
-   ````
+   ```
    ## System Audit — 1 finding(s)
 
    ### Missing state
    - `pr-health-triage` → no `state.json`; will re-fire on every wake.
      **Fix:** add a closing `kody-job-next-state` block to the body.
-   ````
+   ```
 
    Post with:
+
    ```
    gh issue comment "$issue_number" --repo "$REPO" --body "$COMMENT_BODY"
    ```

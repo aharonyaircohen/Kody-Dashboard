@@ -13,8 +13,9 @@ import { __resetDispatchFailures } from "@dashboard/lib/health/dispatch-failures
 
 /** Build a fetch stub returning the given JSON body + ok flag. */
 function jsonFetch(body: unknown, ok = true, status = 200): typeof fetch {
-  return vi.fn(async () =>
-    new Response(JSON.stringify(body), { status: ok ? status : status }),
+  return vi.fn(
+    async () =>
+      new Response(JSON.stringify(body), { status: ok ? status : status }),
   ) as unknown as typeof fetch;
 }
 function throwingFetch(): typeof fetch {
@@ -31,14 +32,18 @@ beforeEach(() => {
 
 describe("probeGitHubActionsStatus (glue)", () => {
   it("reads the live Actions component", async () => {
-    const f = jsonFetch({ components: [{ name: "Actions", status: "major_outage" }] });
+    const f = jsonFetch({
+      components: [{ name: "Actions", status: "major_outage" }],
+    });
     const sig = await probeGitHubActionsStatus(f);
     expect(sig.level).toBe("down");
     expect(f).toHaveBeenCalledTimes(1);
   });
 
   it("caches within the TTL (second call does not re-fetch)", async () => {
-    const f = jsonFetch({ components: [{ name: "Actions", status: "operational" }] });
+    const f = jsonFetch({
+      components: [{ name: "Actions", status: "operational" }],
+    });
     await probeGitHubActionsStatus(f);
     await probeGitHubActionsStatus(f);
     expect(f).toHaveBeenCalledTimes(1); // served from cache
@@ -65,20 +70,28 @@ describe("probeTokenHealth (glue)", () => {
   });
 
   it("classifies a healthy core reading", async () => {
-    const f = jsonFetch({ resources: { core: { limit: 5000, remaining: 4900, reset } } });
+    const f = jsonFetch({
+      resources: { core: { limit: 5000, remaining: 4900, reset } },
+    });
     const sig = await probeTokenHealth("tok", f);
     expect(sig.level).toBe("ok");
   });
 
   it("classifies the throttled (60/hr) reading as down", async () => {
-    const f = jsonFetch({ resources: { core: { limit: 60, remaining: 46, reset } } });
+    const f = jsonFetch({
+      resources: { core: { limit: 60, remaining: 46, reset } },
+    });
     const sig = await probeTokenHealth("tok", f);
     expect(sig.level).toBe("down");
   });
 
   it("degrades when the rate-limit endpoint errors", async () => {
-    expect((await probeTokenHealth("tok", throwingFetch())).level).toBe("degraded");
-    expect((await probeTokenHealth("tok", jsonFetch({}, false, 403))).level).toBe("degraded");
+    expect((await probeTokenHealth("tok", throwingFetch())).level).toBe(
+      "degraded",
+    );
+    expect(
+      (await probeTokenHealth("tok", jsonFetch({}, false, 403))).level,
+    ).toBe("degraded");
   });
 });
 
@@ -108,12 +121,20 @@ describe("probeWebhookHealth (glue)", () => {
   });
 
   it("degrades when there is no hook", async () => {
-    expect((await probeWebhookHealth(octokitWith([], []), "o", "r")).level).toBe("degraded");
+    expect(
+      (await probeWebhookHealth(octokitWith([], []), "o", "r")).level,
+    ).toBe("degraded");
   });
 
   it("degrades when the API throws", async () => {
     const boom: any = {
-      rest: { repos: { listWebhooks: vi.fn(async () => { throw new Error("x"); }) } },
+      rest: {
+        repos: {
+          listWebhooks: vi.fn(async () => {
+            throw new Error("x");
+          }),
+        },
+      },
       request: vi.fn(),
     };
     expect((await probeWebhookHealth(boom, "o", "r")).level).toBe("degraded");
@@ -125,17 +146,24 @@ describe("buildHealthReport (aggregator)", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  function stubNetwork(actionsStatus: string, core: { limit: number; remaining: number }) {
+  function stubNetwork(
+    actionsStatus: string,
+    core: { limit: number; remaining: number },
+  ) {
     // github-status + token both use global fetch; route by URL.
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
         if (String(url).includes("githubstatus.com")) {
           return new Response(
-            JSON.stringify({ components: [{ name: "Actions", status: actionsStatus }] }),
+            JSON.stringify({
+              components: [{ name: "Actions", status: actionsStatus }],
+            }),
           );
         }
-        return new Response(JSON.stringify({ resources: { core: { ...core, reset } } }));
+        return new Response(
+          JSON.stringify({ resources: { core: { ...core, reset } } }),
+        );
       }),
     );
   }
@@ -145,7 +173,9 @@ describe("buildHealthReport (aggregator)", () => {
     rest: {
       repos: {
         listWebhooks: vi.fn(async () => ({
-          data: [{ id: 1, active: true, config: { url: "x/api/webhooks/github" } }],
+          data: [
+            { id: 1, active: true, config: { url: "x/api/webhooks/github" } },
+          ],
         })),
       },
     },
@@ -156,7 +186,13 @@ describe("buildHealthReport (aggregator)", () => {
     owner: "o",
     repo: "r",
     token: "tok",
-    runs: [{ status: "completed" as const, conclusion: "success", createdAt: new Date().toISOString() }],
+    runs: [
+      {
+        status: "completed" as const,
+        conclusion: "success",
+        createdAt: new Date().toISOString(),
+      },
+    ],
     modelSpec: "minimax/x",
     hasModelKey: true,
     vaultConfigured: true,
@@ -167,12 +203,22 @@ describe("buildHealthReport (aggregator)", () => {
     stubNetwork("major_outage", { limit: 5000, remaining: 4900 });
     const report = await buildHealthReport({ ...base, now: Date.now() });
     expect(report.level).toBe("down");
-    expect(report.signals.find((s) => s.id === "github-actions")?.level).toBe("down");
+    expect(report.signals.find((s) => s.id === "github-actions")?.level).toBe(
+      "down",
+    );
     // worst-first ordering puts a down signal first
     expect(report.signals[0]?.level).toBe("down");
     // every probe is present
     expect(report.signals.map((s) => s.id).sort()).toEqual(
-      ["dispatch", "engine-runs", "github-actions", "model", "token", "vault", "webhook"].sort(),
+      [
+        "dispatch",
+        "engine-runs",
+        "github-actions",
+        "model",
+        "token",
+        "vault",
+        "webhook",
+      ].sort(),
     );
   });
 

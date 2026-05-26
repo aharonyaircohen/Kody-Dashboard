@@ -40,9 +40,9 @@ gh issue list --state open --label kody:cto-decisions --limit 5 --json number,bo
 ```
 
 Take the lowest-numbered match, find the fenced ```json block between
-`<!-- kody-cto-decisions:start -->` and `<!-- kody-cto-decisions:end -->`, and
-read `staff.cto.merge.mode`. `"auto"` → the `merge` verb has **graduated** (you
-may dispatch it yourself this tick). Anything else — `"ask"`, missing, no
+`<!-- kody-cto-decisions:start -->`and`<!-- kody-cto-decisions:end -->`, and
+read `staff.cto.merge.mode`. `"auto"`→ the`merge`verb has **graduated** (you
+may dispatch it yourself this tick). Anything else —`"ask"`, missing, no
 ledger, parse failure, or any doubt → **not graduated**: recommend and wait.
 Fail safe. You only ever *read* `mode`; the dashboard owns the graduation math
 (10 clean approvals graduates `merge`; one Reject resets it to `"ask"`).
@@ -127,7 +127,7 @@ _Confirm or dismiss in the dashboard inbox. The CTO will not merge on its own._
 
 **Reject recommendation** (duplicate, or QA verdict failed). Same shape, action
 `reject`. There is **no** `kody-cmd` line: closing an unmerged PR isn't an
-`@kody` primitive yet (`revert` is for *merged* commits), so this rec surfaces
+`@kody` primitive yet (`revert` is for _merged_ commits), so this rec surfaces
 the problem and the operator closes the PR manually. Omitting the `kody-cmd`
 also means the inbox shows no Approve/auto button — reject-only by design:
 
@@ -172,6 +172,7 @@ approved it 10 times running). A **Reject** on `merge` returns me to asking.
 `cursor`: always `"idle"` — stages are per-PR.
 
 `data.prs` — keyed by PR number, each value:
+
 - `stage` — `verifying` | `merge-recommended` | `merge-auto` | `rejected`.
 - `lastActAt` — ISO of the last comment. Diagnostic only.
 

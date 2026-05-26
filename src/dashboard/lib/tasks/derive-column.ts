@@ -180,8 +180,7 @@ export function deriveTaskColumn(input: DeriveColumnInput): ColumnId {
   }
 
   const hasActiveRun =
-    workflowRun?.status === "in_progress" ||
-    workflowRun?.status === "queued";
+    workflowRun?.status === "in_progress" || workflowRun?.status === "queued";
 
   const pipelineLooksStale =
     !!pipelineStatus &&

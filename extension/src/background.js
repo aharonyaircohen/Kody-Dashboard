@@ -26,7 +26,11 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   if (msg?.kind === "selected") {
     // Route the picked element up to the dashboard bridge (top frame).
     chrome.tabs
-      .sendMessage(tabId, { kind: "selected", element: msg.element }, { frameId: 0 })
+      .sendMessage(
+        tabId,
+        { kind: "selected", element: msg.element },
+        { frameId: 0 },
+      )
       .catch(() => {});
   }
 });
