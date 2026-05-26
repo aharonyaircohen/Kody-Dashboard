@@ -59,6 +59,17 @@ export interface CompanyCommandEntry {
   body: string;
 }
 
+/**
+ * A custom executable. Unlike the single-file concepts above, an executable
+ * is a *folder*, so it ships as a path→content map of every file under
+ * `.kody/executables/<slug>/` (profile.json + prompt.md + optional `*.sh` +
+ * optional `skills/<name>/SKILL.md`). Paths are relative to the folder.
+ */
+export interface CompanyExecutableEntry {
+  slug: string;
+  files: Record<string, string>;
+}
+
 /** The full portable bundle. */
 export interface CompanyBundle {
   /** Format discriminator + version. */
@@ -70,6 +81,7 @@ export interface CompanyBundle {
   staff: CompanyTickEntry[];
   duties: CompanyTickEntry[];
   commands: CompanyCommandEntry[];
+  executables: CompanyExecutableEntry[];
   /** Repo instructions body, or `null` when the source repo had none. */
   instructions: string | null;
 }
@@ -98,6 +110,7 @@ export interface CompanyImportResult {
   staff: CompanyImportCounts;
   duties: CompanyImportCounts;
   commands: CompanyImportCounts;
+  executables: CompanyImportCounts;
   instructions: CompanyInstructionsOutcome;
   /** Human-readable per-item notes (e.g. failures), newest last. */
   notes: string[];
@@ -126,6 +139,11 @@ const commandEntrySchema = z.object({
   body: z.string().min(1),
 });
 
+const executableEntrySchema = z.object({
+  slug: slugSchema,
+  files: z.record(z.string(), z.string()),
+});
+
 /**
  * Zod schema for an uploaded bundle. Tolerant of missing collections
  * (defaults to empty) but strict on the discriminator and entry shapes,
@@ -145,6 +163,7 @@ export const companyBundleSchema = z
      * older bundles still import their slash commands.
      */
     prompts: z.array(commandEntrySchema).optional(),
+    executables: z.array(executableEntrySchema).default([]),
     instructions: z.string().nullable().default(null),
   })
   .transform(({ prompts, commands, ...rest }) => ({

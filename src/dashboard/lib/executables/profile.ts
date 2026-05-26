@@ -16,9 +16,9 @@
  *   so the dashboard can reject a broken profile before committing.
  */
 
-/** Where the executable's result lands. `pr` opens a pull request; `comment`
- * posts a status comment. Only `pr` is fully wired today — `comment` is a
- * placeholder pending a generic "post agent result" engine postflight. */
+/** Where the executable's result lands. `pr` opens a pull request (the
+ * `pr-branch` lifecycle); `comment` posts the agent's answer as a comment
+ * (the engine's `postAgentComment` postflight) with no branch or PR. */
 export type ExecutableLanding = "pr" | "comment";
 
 export const PERMISSION_MODES = [
@@ -138,9 +138,9 @@ export function composeProfile(
     };
   }
 
-  // comment landing (placeholder until a generic "post agent answer"
-  // postflight exists in the engine): load the issue, compose the prompt,
-  // run the agent, post a status comment. No PR branch.
+  // comment landing: load the issue, compose the prompt, run the agent,
+  // post the agent's answer as a comment (no branch, no PR). Uses the
+  // engine's generic `postAgentComment` postflight.
   return {
     ...base,
     scripts: {
@@ -151,7 +151,7 @@ export function composeProfile(
       ],
       postflight: [
         { script: "parseAgentResult" },
-        { script: "postIssueComment" },
+        { script: "postAgentComment" },
       ],
     },
   };

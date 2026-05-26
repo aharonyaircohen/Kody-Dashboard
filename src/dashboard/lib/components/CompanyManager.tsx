@@ -20,6 +20,7 @@ import {
   Users,
   ListChecks,
   Bot,
+  Boxes,
   ScrollText,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
@@ -76,9 +77,10 @@ function CompanyManagerInner() {
         bundle.staff.length +
         bundle.duties.length +
         bundle.commands.length +
+        bundle.executables.length +
         (bundle.instructions ? 1 : 0);
       toast.success(
-        `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.commands.length} commands${
+        `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.commands.length} commands, ${bundle.executables.length} executables${
           bundle.instructions ? ", instructions" : ""
         } (${total} items)`,
       );
@@ -230,6 +232,7 @@ function CompanyManagerInner() {
                 <p>{countLine("Staff", lastImport.staff)}</p>
                 <p>{countLine("Duties", lastImport.duties)}</p>
                 <p>{countLine("Commands", lastImport.commands)}</p>
+                <p>{countLine("Executables", lastImport.executables)}</p>
                 <p>Instructions: {lastImport.instructions}</p>
                 {lastImport.notes.length > 0 && (
                   <ul className="text-rose-300/80 mt-1 list-disc list-inside">
@@ -248,6 +251,7 @@ function CompanyManagerInner() {
           <Included icon={Users} label="Staff" />
           <Included icon={ListChecks} label="Duties" />
           <Included icon={Bot} label="Commands" />
+          <Included icon={Boxes} label="Executables" />
           <Included icon={ScrollText} label="Instructions" />
         </div>
       </div>
