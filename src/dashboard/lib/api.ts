@@ -1678,6 +1678,17 @@ export const activityApi = {
     });
     return handleResponse(res);
   },
+  /**
+   * Upstream health — "can runs even start, and are their dependencies
+   * healthy?" (GitHub Actions status, token rate-limit, webhook, vault,
+   * model key, recent runs, dispatch failures). Cheap to poll.
+   */
+  health: async (): Promise<import("./health/types").HealthReport> => {
+    const res = await fetch(`${API_BASE}/health`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse(res);
+  },
 };
 
 // ============ Messaging channels (team chat over Discussions) ============

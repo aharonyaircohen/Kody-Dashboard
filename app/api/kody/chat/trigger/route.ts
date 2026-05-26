@@ -31,6 +31,7 @@ import {
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
 import { applyPageContextToLastUser } from "@dashboard/lib/chat/page-context";
+import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
 import { Buffer } from "buffer";
 
 export const runtime = "nodejs";
@@ -213,6 +214,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, taskId, workflowId });
   } catch (err) {
     logger.error({ err, taskId }, "chat: trigger failed");
+    // Surface to the Health banner: a failed dispatch produces no run, so it's
+    // otherwise invisible in the Activity list (this is how the GitHub Actions
+    // outage 500s become observable).
+    const ghStatus = (err as { status?: number }).status ?? 500;
+    recordDispatchFailure(
+      ghStatus,
+      err instanceof Error ? err.message : "dispatch failed",
+    );
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Trigger failed" },
       { status: 500 },

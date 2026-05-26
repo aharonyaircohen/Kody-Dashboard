@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import { PageShell } from "./PageShell";
+import { HealthBanner } from "./HealthBanner";
 import { useAuth } from "../auth-context";
 import { useActivity } from "../hooks/useActivity";
 import { useActivityFeed } from "../hooks/useActivityFeed";
@@ -827,6 +828,8 @@ export function ActivityPage() {
           {error instanceof Error ? error.message : "Failed to load activity"}
         </div>
       )}
+
+      <HealthBanner />
 
       <div className="mb-4 flex items-center gap-1">
         {(["log", "auto", "runs", "feed"] as ActivityTab[]).map((t) => (
