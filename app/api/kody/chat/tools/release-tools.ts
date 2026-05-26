@@ -4,16 +4,17 @@
  * @pattern ai-sdk-tool
  * @ai-summary Release-request tool for the kody-direct chat agent.
  *
- * Opens a release-tracking GitHub issue and posts a `@kody <mode>` comment
- * on it so the Kody engine kicks off the release. Mirrors the bug-tools
- * pattern (issue created under the user's GitHub identity), but unlike
- * `report_bug` this DOES auto-trigger the pipeline — that's the point.
+ * Opens a release-tracking GitHub issue and posts `@kody release` on it so the
+ * Kody engine runs the FULL release orchestrator (prepare → wait CI → merge →
+ * publish → deploy → notify). Mirrors the bug-tools pattern (issue created
+ * under the user's GitHub identity), but unlike `report_bug` this DOES
+ * auto-trigger the pipeline — that's the point.
  *
- * Supported modes (engine executables, see kody2/src/dispatch.ts):
- *   release          — full orchestrator: prepare → publish → deploy
- *   release-prepare  — just bump version files, open the release PR
- *   release-publish  — publish a previously-prepared release
- *   release-deploy   — deploy a previously-published release
+ * Only the full `release` flow is exposed on purpose: triggering a partial
+ * step (release-publish / release-deploy on its own) leaves the release
+ * half-done (e.g. published but no dev→main promotion PR). If you genuinely
+ * need to resume a single step, comment `@kody release-<step>` on the issue
+ * by hand. See kody2/src/dispatch.ts + the kody2 release executables.
  */
 import { tool } from "ai";
 import { z } from "zod";
@@ -29,23 +30,15 @@ interface Ctx {
   actorLogin: string | null;
 }
 
-const RELEASE_MODES = [
-  "release",
-  "release-prepare",
-  "release-publish",
-  "release-deploy",
-] as const;
 const BUMPS = ["patch", "minor", "major"] as const;
 const PREFERS = ["ours", "theirs"] as const;
 
-type ReleaseMode = (typeof RELEASE_MODES)[number];
 type Bump = (typeof BUMPS)[number];
 type Prefer = (typeof PREFERS)[number];
 
 interface ReleaseRequestInput {
   title?: string;
   notes?: string;
-  mode?: ReleaseMode;
   bump?: Bump;
   prefer?: Prefer;
   dryRun?: boolean;
@@ -53,9 +46,7 @@ interface ReleaseRequestInput {
 
 function buildIssueBody(input: ReleaseRequestInput, command: string): string {
   const lines: string[] = ["# 🚀 Release request", ""];
-  lines.push("## Mode");
-  lines.push(`\`${input.mode ?? "release"}\``);
-  if (input.bump) lines.push(`\nBump: \`${input.bump}\``);
+  if (input.bump) lines.push(`Bump: \`${input.bump}\``);
   if (input.prefer) lines.push(`Prefer: \`${input.prefer}\``);
   if (input.dryRun) lines.push("Dry run: yes");
   lines.push("");
@@ -68,15 +59,13 @@ function buildIssueBody(input: ReleaseRequestInput, command: string): string {
 }
 
 function buildCommand(input: ReleaseRequestInput): string {
-  const parts: string[] = [`@kody ${input.mode ?? "release"}`];
-  // Only `release-prepare` accepts bump/prefer/dry-run flags. The
-  // orchestrator and publish/deploy profiles ignore them — see
-  // kody2/src/executables/*/profile.json.
-  if ((input.mode ?? "release") === "release-prepare") {
-    if (input.bump) parts.push(input.bump);
-    if (input.prefer) parts.push(`--prefer ${input.prefer}`);
-    if (input.dryRun) parts.push("--dry-run");
-  }
+  // Always the full orchestrator. It accepts bump / prefer / dry-run
+  // (see kody2/src/executables/release/profile.json) and threads them
+  // through to the prepare step internally.
+  const parts: string[] = ["@kody release"];
+  if (input.bump) parts.push(input.bump);
+  if (input.prefer) parts.push(`--prefer ${input.prefer}`);
+  if (input.dryRun) parts.push("--dry-run");
   return parts.join(" ");
 }
 
@@ -87,16 +76,14 @@ export function createReleaseTools(ctx: Ctx) {
     request_release: tool({
       description:
         `Open a release-tracking GitHub issue in ${owner}/${repo} and trigger the ` +
-        "Kody release pipeline by posting `@kody <mode>` on it. Use this when the " +
-        'user asks to "ship a release", "cut a release", "publish version X", ' +
-        '"prepare a release", "deploy the release", etc. The issue is created ' +
-        'under the user\'s GitHub identity with labels ["release"]. Unlike ' +
-        "`report_bug`, this DOES auto-trigger the pipeline — confirm intent with " +
-        "the user before calling if the conversation is ambiguous. Pick `mode` " +
-        'based on what the user asked for: "release" (full orchestrator: prepare ' +
-        '→ publish → deploy) is the default; use "release-prepare" for just the ' +
-        'PR (supports bump / prefer / dry-run), "release-publish" or ' +
-        '"release-deploy" for resuming a previously-prepared release.',
+        "FULL Kody release by posting `@kody release` on it — the orchestrator " +
+        "runs prepare → wait CI → merge → publish → deploy → notify end-to-end " +
+        '(including the dev→main promotion PR). Use this when the user asks to ' +
+        '"ship a release", "cut a release", "publish version X", "deploy the ' +
+        "release\", etc. The issue is created under the user's GitHub identity " +
+        'with labels ["release"]. Unlike `report_bug`, this DOES auto-trigger ' +
+        "the pipeline — confirm intent with the user before calling if the " +
+        "conversation is ambiguous.",
       inputSchema: z.object({
         title: z
           .string()
@@ -113,41 +100,30 @@ export function createReleaseTools(ctx: Ctx) {
             "Optional release notes / context to include in the issue body " +
               "(highlights, intent, scope). Plain markdown.",
           ),
-        mode: z
-          .enum(RELEASE_MODES)
-          .optional()
-          .describe(
-            'Which release executable to dispatch. Defaults to "release" ' +
-              "(full orchestrator: prepare → publish → deploy).",
-          ),
         bump: z
           .enum(BUMPS)
           .optional()
           .describe(
-            "Version bump for `release-prepare`. Ignored by other modes. " +
-              "Engine default is patch when omitted.",
+            "Version bump increment. Engine default is patch when omitted.",
           ),
         prefer: z
           .enum(PREFERS)
           .optional()
           .describe(
-            'On `release-prepare` branch collision: "ours" force-pushes, ' +
-              '"theirs" reuses the existing PR. Default (omit) refuses non-ff. ' +
-              "Ignored by other modes.",
+            'On release-branch collision: "ours" force-pushes, "theirs" reuses ' +
+              "the existing PR. Default (omit) refuses non-ff.",
           ),
         dryRun: z
           .boolean()
           .optional()
           .describe(
-            "For `release-prepare`: print the plan without committing or " +
-              "opening a PR. Ignored by other modes.",
+            "Print the plan without committing or opening a PR.",
           ),
       }),
       execute: async (input) => {
-        const mode: ReleaseMode = input.mode ?? "release";
-        const command = buildCommand({ ...input, mode });
-        const title = input.title?.trim() || `Release request (${mode})`;
-        const body = buildIssueBody({ ...input, mode }, command);
+        const command = buildCommand(input);
+        const title = input.title?.trim() || "Release request";
+        const body = buildIssueBody(input, command);
 
         try {
           const { data: issue } = await octokit.rest.issues.create({
@@ -175,7 +151,6 @@ export function createReleaseTools(ctx: Ctx) {
               number: issue.number,
               title: issue.title,
               url: issue.html_url,
-              mode,
               command,
               triggered: false,
               note:
@@ -185,23 +160,19 @@ export function createReleaseTools(ctx: Ctx) {
           }
 
           logger.info(
-            { owner, repo, number: issue.number, mode, command },
+            { owner, repo, number: issue.number, command },
             "request_release: created issue and triggered pipeline",
           );
           return {
             number: issue.number,
             title: issue.title,
             url: issue.html_url,
-            mode,
             command,
             triggered: true,
             note: `Release pipeline triggered via \`${command}\` on issue #${issue.number}.`,
           };
         } catch (err) {
-          logger.warn(
-            { err, owner, repo, title, mode },
-            "request_release failed",
-          );
+          logger.warn({ err, owner, repo, title }, "request_release failed");
           return {
             error:
               err instanceof Error
