@@ -49,13 +49,22 @@ const LEVEL_STYLES: Record<
   },
 };
 
-function LevelIcon({ level, className }: { level: HealthLevel; className?: string }) {
+function LevelIcon({
+  level,
+  className,
+}: {
+  level: HealthLevel;
+  className?: string;
+}) {
   if (level === "down") return <XCircle className={className} />;
   if (level === "degraded") return <AlertTriangle className={className} />;
   return <CheckCircle2 className={className} />;
 }
 
-function summaryText(level: HealthLevel, counts: Record<HealthLevel, number>): string {
+function summaryText(
+  level: HealthLevel,
+  counts: Record<HealthLevel, number>,
+): string {
   if (level === "ok") return "All systems healthy";
   const parts: string[] = [];
   if (counts.down > 0) parts.push(`${counts.down} down`);
@@ -67,7 +76,10 @@ function SignalRow({ sig }: { sig: HealthSignal }) {
   const st = LEVEL_STYLES[sig.level];
   return (
     <li className="flex items-start gap-2.5 px-3 py-2">
-      <LevelIcon level={sig.level} className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", st.text)} />
+      <LevelIcon
+        level={sig.level}
+        className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", st.text)}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-white/85">{sig.label}</span>
@@ -83,7 +95,9 @@ function SignalRow({ sig }: { sig: HealthSignal }) {
             </a>
           )}
         </div>
-        <div className="mt-0.5 text-[11px] leading-snug text-white/55">{sig.detail}</div>
+        <div className="mt-0.5 text-[11px] leading-snug text-white/55">
+          {sig.detail}
+        </div>
       </div>
     </li>
   );
@@ -106,7 +120,9 @@ export function HealthBanner() {
   const counts = countByLevel(data.signals);
 
   return (
-    <div className={cn("mb-4 overflow-hidden rounded-lg border", st.border, st.bg)}>
+    <div
+      className={cn("mb-4 overflow-hidden rounded-lg border", st.border, st.bg)}
+    >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -124,7 +140,10 @@ export function HealthBanner() {
         <span className="ml-auto flex items-center gap-2 text-[10px] text-white/40">
           {data.signals.length} checks
           <ChevronDown
-            className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")}
+            className={cn(
+              "h-3.5 w-3.5 transition-transform",
+              open && "rotate-180",
+            )}
           />
         </span>
       </button>

@@ -21,11 +21,7 @@ import type { SendContext } from "./index";
 import { setGitHubContext, clearGitHubContext } from "../../github-client";
 import { readPushManifest } from "../../push-server";
 import { logger } from "../../logger";
-import {
-  deliverPush,
-  ensureVapid,
-  type PushPayload,
-} from "./push-core";
+import { deliverPush, ensureVapid, type PushPayload } from "./push-core";
 
 type Channel = Extract<NotificationChannel, { type: "web-push" }>;
 
@@ -73,7 +69,9 @@ export async function sendWebPush(
   // Unlike the mention spine (which degrades gracefully), a configured rule
   // failing to init VAPID is a real misconfig — surface it as an error.
   if (!ensureVapid()) {
-    throw new Error("web-push: VAPID keys unavailable (KODY_MASTER_KEY unset?)");
+    throw new Error(
+      "web-push: VAPID keys unavailable (KODY_MASTER_KEY unset?)",
+    );
   }
 
   // Load the subscriptions list under the user's auth context. We set/clear

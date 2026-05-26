@@ -79,14 +79,22 @@ export async function probeTokenHealth(
   }
   try {
     const res = await fetchImpl(RATE_LIMIT_URL, {
-      headers: { Authorization: `token ${token}`, Accept: "application/vnd.github+json" },
+      headers: {
+        Authorization: `token ${token}`,
+        Accept: "application/vnd.github+json",
+      },
     });
     if (!res.ok) throw new Error(`status ${res.status}`);
     const body = (await res.json()) as { resources?: { core?: CoreRateLimit } };
     const core = body.resources?.core;
     if (!core) throw new Error("no core resource");
     const mapped = classifyRateLimit(core);
-    return { ...base, level: mapped.level, detail: mapped.detail, at: new Date(core.reset * 1000).toISOString() };
+    return {
+      ...base,
+      level: mapped.level,
+      detail: mapped.detail,
+      at: new Date(core.reset * 1000).toISOString(),
+    };
   } catch {
     return {
       ...base,

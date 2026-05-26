@@ -57,7 +57,11 @@ describe("claimOrSpawnFly", () => {
 
   it("spawns a fresh machine on a pool miss, forwarding token + secrets + perf tier", async () => {
     claimFromPool.mockResolvedValue({ ok: false, reason: "empty pool" });
-    spawnRunner.mockResolvedValue({ machineId: "m-fresh", app: "kody-runner", region: "fra" });
+    spawnRunner.mockResolvedValue({
+      machineId: "m-fresh",
+      app: "kody-runner",
+      region: "fra",
+    });
 
     const out = await claimOrSpawnFly(ctx(), {
       taskId: "s2",

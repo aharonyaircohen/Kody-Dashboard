@@ -27,7 +27,9 @@ function ev(overrides: Partial<SourceEvent> = {}): SourceEvent {
 describe("classifyNotificationType", () => {
   it("maps issue_comment:created → chat-response", () => {
     expect(
-      classifyNotificationType(ev({ eventType: "issue_comment", action: "created" })),
+      classifyNotificationType(
+        ev({ eventType: "issue_comment", action: "created" }),
+      ),
     ).toBe("chat-response");
   });
 
@@ -41,7 +43,9 @@ describe("classifyNotificationType", () => {
 
   it("maps commit_comment:created → chat-response", () => {
     expect(
-      classifyNotificationType(ev({ eventType: "commit_comment", action: "created" })),
+      classifyNotificationType(
+        ev({ eventType: "commit_comment", action: "created" }),
+      ),
     ).toBe("chat-response");
   });
 
@@ -81,7 +85,9 @@ describe("classifyNotificationType", () => {
 
   it("maps pull_request:opened → pr-ready", () => {
     expect(
-      classifyNotificationType(ev({ eventType: "pull_request", action: "opened" })),
+      classifyNotificationType(
+        ev({ eventType: "pull_request", action: "opened" }),
+      ),
     ).toBe("pr-ready");
   });
 
@@ -113,19 +119,25 @@ describe("classifyNotificationType", () => {
 
   it("maps discussion:opened → chat-response", () => {
     expect(
-      classifyNotificationType(ev({ eventType: "discussion", action: "opened" })),
+      classifyNotificationType(
+        ev({ eventType: "discussion", action: "opened" }),
+      ),
     ).toBe("chat-response");
   });
 
   it("maps discussion:edited → chat-response", () => {
     expect(
-      classifyNotificationType(ev({ eventType: "discussion", action: "edited" })),
+      classifyNotificationType(
+        ev({ eventType: "discussion", action: "edited" }),
+      ),
     ).toBe("chat-response");
   });
 
   it("maps unknown event types → null", () => {
     expect(
-      classifyNotificationType(ev({ eventType: "unknown_event", action: "created" })),
+      classifyNotificationType(
+        ev({ eventType: "unknown_event", action: "created" }),
+      ),
     ).toBe(null);
   });
 });

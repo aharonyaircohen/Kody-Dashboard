@@ -15,11 +15,12 @@ dispatch), but the **design and observed behavior**: does this duty's
 procedure achieve its stated goal, are its steps reachable, does its
 cadence guard fire, and has it actually been running and producing output?
 
-This duty cannot *execute* the duty it reviews — there is no way to prove a
+This duty cannot _execute_ the duty it reviews — there is no way to prove a
 duty works live. It reads the duty's instructions plus its real run history
 (state file + recent commits + any report it writes) and reasons about
 whether the logic is sound and the evidence shows it working. Static review
-+ evidence, not a live test.
+
+- evidence, not a live test.
 
 Purely diagnostic: it never edits, re-kicks, or relabels anything. Output is
 findings on the **Kody duty review** tracking issue, and an end-of-cycle
@@ -33,14 +34,17 @@ to now (UTC ISO) before emitting state.
 
 1. **Pin the repo.** `gh`'s default repo is not guaranteed here — resolve it
    once and pass `--repo` to every `gh issue` call:
+
    ```
    REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
    ```
 
 2. **Enumerate duties.** List every `<slug>.md` in `.kody/duties/`:
+
    ```
    gh api "/repos/$REPO/contents/.kody/duties" -q '.[].name'
    ```
+
    Drop `.state.json` files and **drop `duty-review.md` itself** (don't
    review yourself — same self-exemption as `system-audit`).
 
@@ -97,26 +101,29 @@ to now (UTC ISO) before emitting state.
 6. **Post findings — only when the duty has at least one `BROKEN` or `WARN`.**
    Healthy duties produce **no comment** (the inbox is precious); they're
    recorded in state only. Find or open the tracking issue:
+
    ```
    ISSUE=$(gh issue list --repo "$REPO" --search "Kody duty review in:title" --state open --limit 1 --json number -q '.[0].number')
    ```
+
    If empty, open it once (label `kody:duty-review`, create the label first
    if missing):
+
    ```
    gh issue create --repo "$REPO" --title "Kody duty review" --label "kody:duty-review" \
      --body "Tracking issue for the duty-review duty. Each tick deep-reviews one duty's design and observed behavior; flagged duties get a comment here. Read-only — never close."
    ```
-   Then post one comment, lead line `## Duty review — \`<slug>\` — <verdict>`
-   where `<verdict>` is `BROKEN` / `WARN`, followed by the finding lines.
-   Each line: `` - **BROKEN** — <what's wrong>. **Why it matters:** <effect>. ``
+
+   Then post one comment, lead line `## Duty review — \`<slug>\` — <verdict>`where`<verdict>`is`BROKEN`/`WARN`, followed by the finding lines.
+Each line: `- **BROKEN** — <what's wrong>. **Why it matters:** <effect>.`
    Reference the duty section by name (e.g. "Cadence guard", "step 3").
 
 7. **End-of-cycle summary** (only in step 3 when a cycle completes): one
    comment on the tracking issue —
    `## Duty review — cycle <N> complete — reviewed <count>, flagged <m>`
    then a one-line-per-flagged-duty roster (`- \`<slug>\` — <verdict>`).
-   This is the low-noise "everything got looked at" heartbeat (~once per
-   full sweep, i.e. every `count × 6h`). Skip the roster if zero flagged.
+This is the low-noise "everything got looked at" heartbeat (~once per
+full sweep, i.e. every `count × 6h`). Skip the roster if zero flagged.
 
 8. **Emit closing state** (step "State" below) as the very last thing in the
    reply, recording the slug reviewed this tick and its verdict.

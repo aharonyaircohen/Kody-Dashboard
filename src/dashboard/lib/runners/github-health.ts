@@ -52,7 +52,8 @@ export function _resetActionsHealthCacheForTests(): void {
 export async function probeActionsStatus(
   fetchImpl: typeof fetch = fetch,
 ): Promise<StatusProbe> {
-  if (statusCache && statusCache.expiresAt > Date.now()) return statusCache.probe;
+  if (statusCache && statusCache.expiresAt > Date.now())
+    return statusCache.probe;
   try {
     const res = await fetchImpl(STATUS_URL, {
       headers: { "User-Agent": "kody-dashboard" },

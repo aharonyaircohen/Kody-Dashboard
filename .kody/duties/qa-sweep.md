@@ -13,7 +13,7 @@ Periodic **broad exploratory QA** of the whole app — no scenario, no scope.
 Delegates to the `qa-engineer` executable with **no `--scope`**, so it smoke-tests
 every discovered route against the live deployment, then summarizes the result
 to the inbox. This catches regressions and rough edges in already-shipped
-features that the changelog-verification duty (which only tests *new* entries)
+features that the changelog-verification duty (which only tests _new_ entries)
 never revisits.
 
 `disabled: true` until a browser auth profile exists — same blocker as the

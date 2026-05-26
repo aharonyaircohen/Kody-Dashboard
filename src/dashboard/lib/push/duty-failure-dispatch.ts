@@ -72,11 +72,7 @@ export function touchesActivityLog(payload: Record<string, unknown>): boolean {
  *  "fail" in the work sense, it never got to do the work. Worth wording
  *  differently so an operator isn't sent chasing a broken result that doesn't
  *  exist. */
-const STOPPED_EARLY_KINDS = new Set([
-  "stalled",
-  "out_of_turns",
-  "rate_limit",
-]);
+const STOPPED_EARLY_KINDS = new Set(["stalled", "out_of_turns", "rate_limit"]);
 
 /** Turn the engine's structured `outcomeKind` into a plain-English phrase for
  *  the inbox snippet. Falls back to the raw `reason` text, then a generic

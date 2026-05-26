@@ -69,9 +69,7 @@ test.describe("Notification Settings — push toggle + per-type switches", () =>
       test.skip(true, "Notification bell is desktop-only (hidden on mobile)");
 
     // 1) App loads when authed — bell icon visible in header.
-    const bell = page
-      .getByRole("button", { name: /^Notifications/ })
-      .first();
+    const bell = page.getByRole("button", { name: /^Notifications/ }).first();
     await bell.waitFor({ state: "visible", timeout: 20_000 });
     await expect(bell).toBeVisible();
 
@@ -116,8 +114,7 @@ test.describe("Notification Settings — push toggle + per-type switches", () =>
 
     // Assert the explicit On/Off LABEL is rendered (off→"Off"+Enable,
     // on→"On"+Disable). This is the regression we're guarding.
-    const hasExplicitState =
-      (hasOff && hasEnable) || (hasOn && hasDisable);
+    const hasExplicitState = (hasOff && hasEnable) || (hasOn && hasDisable);
 
     // Attach diagnostics so the report can state exactly what was seen.
     test.info().annotations.push({

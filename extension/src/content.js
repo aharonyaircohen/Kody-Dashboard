@@ -40,7 +40,10 @@
     }
 
     const postToPage = (payload) => {
-      window.postMessage({ source: EXT_SOURCE, ...payload }, window.location.origin);
+      window.postMessage(
+        { source: EXT_SOURCE, ...payload },
+        window.location.origin,
+      );
     };
 
     window.addEventListener("message", (event) => {
@@ -119,7 +122,9 @@
       e.stopPropagation();
       const el = e.target instanceof Element ? e.target : current;
       if (!el) return;
-      chrome.runtime.sendMessage({ kind: "selected", element: describe(el) }).catch(() => {});
+      chrome.runtime
+        .sendMessage({ kind: "selected", element: describe(el) })
+        .catch(() => {});
       disarm();
     }
 

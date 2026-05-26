@@ -45,7 +45,11 @@ export type PickerExtMessage =
   | { source: typeof PICKER_EXT_SOURCE; type: "pong"; version: string }
   | { source: typeof PICKER_EXT_SOURCE; type: "armed" }
   | { source: typeof PICKER_EXT_SOURCE; type: "disarmed" }
-  | { source: typeof PICKER_EXT_SOURCE; type: "selected"; element: PickedElement };
+  | {
+      source: typeof PICKER_EXT_SOURCE;
+      type: "selected";
+      element: PickedElement;
+    };
 
 /**
  * Short, chip-friendly label for a picked element, e.g. `<button#submit.btn>`.

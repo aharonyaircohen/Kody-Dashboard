@@ -78,7 +78,7 @@ export function createReleaseTools(ctx: Ctx) {
         `Open a release-tracking GitHub issue in ${owner}/${repo} and trigger the ` +
         "FULL Kody release by posting `@kody release` on it — the orchestrator " +
         "runs prepare → wait CI → merge → publish → deploy → notify end-to-end " +
-        '(including the dev→main promotion PR). Use this when the user asks to ' +
+        "(including the dev→main promotion PR). Use this when the user asks to " +
         '"ship a release", "cut a release", "publish version X", "deploy the ' +
         "release\", etc. The issue is created under the user's GitHub identity " +
         'with labels ["release"]. Unlike `report_bug`, this DOES auto-trigger ' +
@@ -116,9 +116,7 @@ export function createReleaseTools(ctx: Ctx) {
         dryRun: z
           .boolean()
           .optional()
-          .describe(
-            "Print the plan without committing or opening a PR.",
-          ),
+          .describe("Print the plan without committing or opening a PR."),
       }),
       execute: async (input) => {
         const command = buildCommand(input);

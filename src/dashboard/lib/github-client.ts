@@ -2194,6 +2194,66 @@ async function getDeploymentStatusUrl(
 }
 
 /**
+ * Resolve the Vercel preview URL for a single commit SHA, looked up directly
+ * by that commit (not via the recent-100 bulk window). This is the on-demand
+ * path used when a preview pane opens: GitHub always answers "what's the
+ * Preview deployment for *this* commit?" regardless of how old it is, so it
+ * fixes PRs that have aged out of `getRecentPreviewDeployments`'s window.
+ *
+ * Returns the URL, or `null` when the deployment is still building / has no
+ * `environment_url` yet. Both the per-SHA deployment lookup and the status
+ * lookup are ETag-revalidated and cached, so repeated opens cost a free 304.
+ */
+export async function fetchPreviewForSha(sha: string): Promise<string | null> {
+  if (!sha) return null;
+
+  const cacheKey = `previews:sha:${getOwner()}:${getRepo()}:${sha}`;
+  const cached = getCached<{ id: number | null }>(cacheKey);
+  const stale = getStale<{ id: number | null }>(cacheKey);
+  const octokit = getOctokit();
+
+  let deploymentId: number | null;
+  if (cached) {
+    deploymentId = cached.id;
+  } else {
+    try {
+      const response = await octokit.repos.listDeployments({
+        owner: getOwner(),
+        repo: getRepo(),
+        sha,
+        environment: "Preview",
+        per_page: 1,
+        headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
+      });
+      const newEtag = (response.headers as Record<string, string | undefined>)
+        ?.etag;
+      deploymentId = response.data[0]?.id ?? null;
+      setCache(
+        cacheKey,
+        PREVIEW_REVALIDATE_TTL,
+        { id: deploymentId },
+        {
+          etag: newEtag,
+        },
+      );
+    } catch (error: any) {
+      if (error.status === 304 && stale) {
+        setCache(cacheKey, PREVIEW_REVALIDATE_TTL, stale.data, {
+          etag: stale.etag,
+        });
+        deploymentId = stale.data.id;
+      } else {
+        console.error("[Kody] Error resolving preview for SHA:", error);
+        return null;
+      }
+    }
+  }
+
+  if (deploymentId === null) return null;
+  return getDeploymentStatusUrl(deploymentId);
+}
+
+/**
  * Fetch Vercel preview URLs for a set of PR head SHAs.
  * Strategy: 1 bulk call for the 100 most recent Preview deployments (GitHub's
  * max page size, ETag-revalidated), then 1 status call per matched deployment

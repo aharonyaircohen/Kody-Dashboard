@@ -44,6 +44,7 @@ import {
 } from "../picker/protocol";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useKodyTasks } from "../hooks";
+import { usePreviewUrl } from "../hooks/usePreviewUrl";
 import { tasksApi, getStoredAuth, redirectToLogin } from "../api";
 import { RateLimitError, NoTokenError, SessionExpiredError } from "../api";
 import type { KodyTask } from "../types";
@@ -434,7 +435,14 @@ export function VibePage() {
   }, [selectedTask, mergeMutation]);
 
   // ── Preview URL resolution ──────────────────────────────────────────────
-  const activePreviewUrl = selectedTask?.previewUrl ?? null;
+  // Resolve the selected PR's preview directly by its head commit so it
+  // appears immediately on open, instead of waiting for the background tasks
+  // poll (which only finds links among the 100 most-recent deployments).
+  const { url: activePreviewUrl, isResolving: previewResolving } =
+    usePreviewUrl(
+      selectedTask?.associatedPR?.head?.sha,
+      selectedTask?.previewUrl ?? null,
+    );
   const fallbackPreviewUrl = !selectedTask ? defaultPreviewUrl : null;
   const baseUrl = activePreviewUrl ?? fallbackPreviewUrl;
   // Append /admin when the user picks the Admin view — same logic as
@@ -685,6 +693,15 @@ export function VibePage() {
                     isSaving={saveConfigMutation.isPending}
                   />
                 )}
+              </div>
+            ) : previewResolving ? (
+              <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
+                <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+                <p className="text-sm text-zinc-300">Loading preview…</p>
+                <p className="text-xs text-zinc-500 max-w-md">
+                  Fetching this PR&apos;s Vercel preview. It&apos;ll appear here
+                  as soon as the build is ready.
+                </p>
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">

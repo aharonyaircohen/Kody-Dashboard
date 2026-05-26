@@ -353,7 +353,6 @@ export function PreviewActions({
         issueNumber={task.issueNumber}
       />
 
-
       <ConfirmDialog
         open={showCancelConfirm}
         title="Close PR"

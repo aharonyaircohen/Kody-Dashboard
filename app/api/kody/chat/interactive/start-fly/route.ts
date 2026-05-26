@@ -152,7 +152,13 @@ export async function POST(req: NextRequest) {
     });
 
     logger.info(
-      { taskId, machineId: result.machineId, runner: result.runner, owner, repo },
+      {
+        taskId,
+        machineId: result.machineId,
+        runner: result.runner,
+        owner,
+        repo,
+      },
       "interactive-fly: session started on Fly",
     );
 

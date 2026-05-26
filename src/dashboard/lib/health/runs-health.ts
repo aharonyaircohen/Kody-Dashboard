@@ -35,20 +35,31 @@ function isSuccess(r: RunLite): boolean {
  *  - last K completed all failed  ⇒ down (engine broken end-to-end).
  *  - otherwise                    ⇒ ok.
  */
-export function buildRunsSignal(runs: readonly RunLite[], now: number): HealthSignal {
-  const base: Pick<HealthSignal, "id" | "label"> = { id: "engine-runs", label: "Engine runs" };
+export function buildRunsSignal(
+  runs: readonly RunLite[],
+  now: number,
+): HealthSignal {
+  const base: Pick<HealthSignal, "id" | "label"> = {
+    id: "engine-runs",
+    label: "Engine runs",
+  };
 
   if (runs.length === 0) {
     return { ...base, level: "degraded", detail: "No engine runs found yet." };
   }
 
-  const newestMs = Math.max(...runs.map((r) => new Date(r.createdAt).getTime()));
+  const newestMs = Math.max(
+    ...runs.map((r) => new Date(r.createdAt).getTime()),
+  );
   const sinceMin = Math.round((now - newestMs) / 60_000);
 
   // Failing streak over the most recent completed runs.
   const completed = runs
     .filter((r) => r.status === "completed")
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
   const recent = completed.slice(0, STREAK_LEN);
   if (recent.length >= STREAK_LEN && recent.every(isFailure)) {
     return {

@@ -29,7 +29,7 @@ Daily check that test coverage on `dev` (and `main`) hasn't fallen below the flo
    Stash `data.lastBreach = { stmts, branches, runId, openedISO, issue }`.
 5. **Above floor and previously breached:** post a closing comment on the open issue and clear `data.lastBreach`:
    ```
-   gh issue comment <n> --body "Floor restored — stmts <X>%, branches <Y>%. Auto-closing." 
+   gh issue comment <n> --body "Floor restored — stmts <X>%, branches <Y>%. Auto-closing."
    gh issue close <n>
    ```
 6. **Above floor and no prior breach:** narrate briefly, do nothing.

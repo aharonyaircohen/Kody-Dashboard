@@ -145,7 +145,10 @@ export async function resolveFlyContext(
     const { config } = await getEngineConfig(octokit, owner, repo);
     engineModel = config.agent?.model;
   } catch (err) {
-    logger.warn({ err, owner, repo }, "fly-context: engine model resolve failed");
+    logger.warn(
+      { err, owner, repo },
+      "fly-context: engine model resolve failed",
+    );
   }
 
   const allSecrets = await buildAllSecretsFromVault(octokit, owner, repo);

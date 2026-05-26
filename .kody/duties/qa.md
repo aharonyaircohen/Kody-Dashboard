@@ -10,16 +10,16 @@ disabled: true
 ## Job
 
 Verify every shipped-but-unverified scenario in `CHANGELOG.md` against the live
-app, and record the verdict **back into the changelog** — the changelog *is*
+app, and record the verdict **back into the changelog** — the changelog _is_
 this job's state. Each `## [Unreleased]` bullet (one per merged PR) carries a
-trailing QA marker, appended after the `— @author`, joined by ` · `:
+trailing QA marker, appended after the `— @author`, joined by `·`:
 
-| State        | Marker                          |
-| ------------ | ------------------------------- |
-| **untested** | _(none)_                        |
-| **running**  | ` · 🔄 QA (#<tracking>)`        |
-| **verified** | ` · ✅ QA <YYYY-MM-DD>`          |
-| **issues**   | ` · ⚠️ QA <YYYY-MM-DD> (#<n>)`   |
+| State        | Marker                         |
+| ------------ | ------------------------------ |
+| **untested** | _(none)_                       |
+| **running**  | ` · 🔄 QA (#<tracking>)`       |
+| **verified** | ` · ✅ QA <YYYY-MM-DD>`        |
+| **issues**   | ` · ⚠️ QA <YYYY-MM-DD> (#<n>)` |
 
 Browsing is delegated to the `qa-engineer` executable (the job runs no browser
 itself); the job opens a tracking issue, dispatches the run onto it, and reads

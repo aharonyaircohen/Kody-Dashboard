@@ -217,9 +217,11 @@ export async function GET(req: NextRequest) {
       if (url) {
         previewByPrNumber.set(pr.number, url);
       }
-      // No fallback — showing no preview URL is better than a wrong one.
-      // The fetchDeploymentPreviews function now handles SHA-based lookups
-      // for older deployments that fall outside the bulk fetch window.
+      // No fallback here — showing no preview URL is better than a wrong one.
+      // This bulk path stays windowed to the 100 most-recent deployments to
+      // keep the polled tasks list cheap. PRs that have aged out of that
+      // window are resolved on demand when their preview pane opens, via
+      // `/api/kody/prs/preview` (fetchPreviewForSha — direct per-commit lookup).
     }
 
     // First pass: match workflow runs once per issue (reused later in the

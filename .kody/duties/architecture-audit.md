@@ -11,6 +11,7 @@ disabled: true
 Periodic **architecture-health sweep** of the codebase — boundaries and coupling, not line-level style. The job itself cannot run shell beyond `gh`, so it opens a tracking issue delegating the analysis to a Kody executable in CI and tracks the result.
 
 Scope of the delegated sweep:
+
 - **Module boundaries / single responsibility** — god-modules and god-routes that have accreted multiple jobs.
 - **Dependency direction** — layering violations (a shared/core util importing a feature/app layer) and any import cycles.
 - **Premature / dead abstractions** — interfaces or layers with a single implementation and no second caller; abstractions no longer used.

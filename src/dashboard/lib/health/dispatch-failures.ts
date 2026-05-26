@@ -30,8 +30,12 @@ export function recordDispatchFailure(status: number, reason: string): void {
 }
 
 /** Recent failures within the window (newest first). Exported for the probe + tests. */
-export function recentDispatchFailures(now: number = Date.now()): DispatchFailure[] {
-  return ring.filter((f) => now - f.at <= WINDOW_MS).sort((a, b) => b.at - a.at);
+export function recentDispatchFailures(
+  now: number = Date.now(),
+): DispatchFailure[] {
+  return ring
+    .filter((f) => now - f.at <= WINDOW_MS)
+    .sort((a, b) => b.at - a.at);
 }
 
 /** Test-only reset. */
@@ -44,8 +48,13 @@ export function __resetDispatchFailures(): void {
  * its input. 1+ recent failures ⇒ degraded (the run may still have been
  * retried); a burst (3+) ⇒ down.
  */
-export function buildDispatchSignal(recent: readonly DispatchFailure[]): HealthSignal {
-  const base: Pick<HealthSignal, "id" | "label"> = { id: "dispatch", label: "Run dispatch" };
+export function buildDispatchSignal(
+  recent: readonly DispatchFailure[],
+): HealthSignal {
+  const base: Pick<HealthSignal, "id" | "label"> = {
+    id: "dispatch",
+    label: "Run dispatch",
+  };
   if (recent.length === 0) {
     return { ...base, level: "ok", detail: "No recent dispatch failures." };
   }

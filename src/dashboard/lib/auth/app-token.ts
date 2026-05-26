@@ -137,7 +137,10 @@ export async function getInstallationToken(
     }
     const body = (await res.json()) as { token?: string };
     if (!body.token) return null;
-    tokenCache.set(key, { token: body.token, expiresAt: Date.now() + TOKEN_TTL_MS });
+    tokenCache.set(key, {
+      token: body.token,
+      expiresAt: Date.now() + TOKEN_TTL_MS,
+    });
     return body.token;
   } catch (err) {
     logger.warn(

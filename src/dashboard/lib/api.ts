@@ -642,6 +642,15 @@ export const prsApi = {
     const data = await handleResponse<{ comments: PRComment[] }>(res);
     return data.comments;
   },
+  // Resolves a PR's preview URL directly by its head commit (on-demand),
+  // so the preview pane doesn't wait for the background tasks poll.
+  preview: async (sha: string): Promise<string | null> => {
+    const res = await fetch(`${API_BASE}/prs/preview?sha=${sha}`, {
+      headers: buildHeaders(),
+    });
+    const data = await handleResponse<{ previewUrl: string | null }>(res);
+    return data.previewUrl;
+  },
   postComment: async (
     prNumber: number,
     body: string,

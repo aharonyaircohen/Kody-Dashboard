@@ -37,8 +37,15 @@ export async function claimOrSpawnFly(
   ctx: FlyContext,
   opts: ClaimOrSpawnOpts,
 ): Promise<ClaimOrSpawnResult> {
-  const { owner, repo, githubToken, allSecrets, flyToken, perfTier, litellmUrl } =
-    ctx;
+  const {
+    owner,
+    repo,
+    githubToken,
+    allSecrets,
+    flyToken,
+    perfTier,
+    litellmUrl,
+  } = ctx;
 
   const claim = await claimFromPool({
     jobId: opts.taskId,

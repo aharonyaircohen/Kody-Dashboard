@@ -5,7 +5,7 @@ disabled: true
 
 # Kody Health Check
 
-## Job 
+## Job
 
 Daily digest of **tasks already assigned to Kody** — any open issue carrying an active `kody:*` lifecycle label other than `kody:done` — that **haven't been updated in the last 6 hours**. Purely diagnostic: never re-kicks, closes, or relabels anything. The operator reads the digest and decides what (if anything) to nudge.
 
@@ -14,9 +14,11 @@ Daily digest of **tasks already assigned to Kody** — any open issue carrying a
 **Per tick (one action max):**
 
 1. For each label below, list open issues and **filter client-side** to those whose `updatedAt` is older than `now - 6h`:
+
    ```
    gh issue list --state open --label "<label>" --json number,title,url,updatedAt --limit 100
    ```
+
    Labels to scan:
    - `kody:queued`, `kody:running`, `kody:fixing`, `kody:resolving`, `kody:reviewing`, `kody:syncing`, `kody:needs-fix`, `kody:failed`
 
@@ -28,6 +30,7 @@ Daily digest of **tasks already assigned to Kody** — any open issue carrying a
    If every phase reports zero stuck issues, the body after the H1 is one line: `All Kody-assigned tasks were updated within the last 6h. ✨`. Skip empty phases — keep the report short.
 
 3. Write the report at the canonical path **`.kody/reports/health-check.md`** via `gh api`:
+
    ```
    # If the file exists, fetch its sha first:
    sha=$(gh api "/repos/<owner>/<repo>/contents/.kody/reports/health-check.md" -q .sha 2>/dev/null || true)
@@ -39,6 +42,7 @@ Daily digest of **tasks already assigned to Kody** — any open issue carrying a
      -f branch="<defaultBranch>" \
      ${sha:+-f sha="$sha"}
    ```
+
    `<owner>`, `<repo>`, and `<defaultBranch>` come from the GitHub context — for A-Guy they are `A-Guy-educ`, `A-Guy`, `dev`.
 
    If the rendered body is byte-identical to the existing file, **skip the PUT** (the GitHub API would no-op anyway, but skipping keeps git history clean).

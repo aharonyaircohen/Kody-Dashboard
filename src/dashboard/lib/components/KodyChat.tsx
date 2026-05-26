@@ -198,7 +198,10 @@ export function KodyChat({
   // selection doesn't double-add; a new id adds exactly one chip.
   const lastInjectionIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!composerInjection || composerInjection.id === lastInjectionIdRef.current) {
+    if (
+      !composerInjection ||
+      composerInjection.id === lastInjectionIdRef.current
+    ) {
       return;
     }
     lastInjectionIdRef.current = composerInjection.id;

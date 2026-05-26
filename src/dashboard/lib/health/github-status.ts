@@ -34,7 +34,8 @@ export function mapActionsComponentStatus(status: string | undefined): {
     case "degraded_performance":
       return {
         level: "degraded",
-        detail: "GitHub Actions is degraded — runs may start slowly or intermittently.",
+        detail:
+          "GitHub Actions is degraded — runs may start slowly or intermittently.",
       };
     case "partial_outage":
       return {

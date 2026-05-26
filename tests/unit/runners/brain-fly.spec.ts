@@ -692,8 +692,8 @@ describe("brainStatus", () => {
   });
 
   it("rejects when flyToken is empty", async () => {
-    await expect(brainStatus({ flyToken: "", account: "alice" })).rejects.toThrow(
-      /flyToken required/,
-    );
+    await expect(
+      brainStatus({ flyToken: "", account: "alice" }),
+    ).rejects.toThrow(/flyToken required/);
   });
 });
