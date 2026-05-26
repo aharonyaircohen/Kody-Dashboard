@@ -150,6 +150,13 @@ export interface KodyChatProps {
    * the `goal-planner` ChatContext and pushes it back down via `context`.
    */
   onDirectToGoal?: (goalId: string) => void;
+  /**
+   * Text to append to the composer when `id` changes. Used by the preview
+   * element picker to drop a selected DOM element into chat as context.
+   * The `id` makes appends idempotent across re-renders — same id is a
+   * no-op, a new id appends once.
+   */
+  composerInjection?: { id: string; text: string } | null;
 }
 
 /**

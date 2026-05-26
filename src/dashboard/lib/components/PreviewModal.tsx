@@ -22,6 +22,8 @@ import { BranchBehindBanner } from "./BranchBehindBanner";
 import { KodyChat } from "./KodyChat";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { cn, getPreviewBypassUrl } from "../utils";
+import { useElementPicker } from "../picker/useElementPicker";
+import { formatPickedElement } from "../picker/protocol";
 import {
   ArrowLeft,
   GitPullRequest,
@@ -34,6 +36,8 @@ import {
   Monitor,
   ChevronRight,
   ChevronDown,
+  MousePointerClick,
+  Puzzle,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 
@@ -134,6 +138,23 @@ export function PreviewModal({
   const [changesKey, setChangesKey] = useState(0); // Bump to force re-fetch of changed files
   const [localRefreshing, setLocalRefreshing] = useState(false);
   const [showCommentDialog, setShowCommentDialog] = useState(false);
+
+  // Element picker: requires the Kody Element Picker browser extension (the
+  // preview is a cross-origin iframe the page itself can't reach into). On a
+  // click in the preview, the selected element is appended to the chat composer.
+  const [composerInjection, setComposerInjection] = useState<{
+    id: string;
+    text: string;
+  } | null>(null);
+  const picker = useElementPicker({
+    onSelect: (el) => {
+      setComposerInjection({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        text: formatPickedElement(el),
+      });
+      toast.success(`Added <${el.tagName}> to chat`);
+    },
+  });
 
   const handleRefreshAll = useCallback(async () => {
     setLocalRefreshing(true);
@@ -345,6 +366,7 @@ export function PreviewModal({
           <KodyChat
             context={{ kind: "task", task }}
             actorLogin={githubUser?.login}
+            composerInjection={composerInjection}
           />
           <div
             role="separator"
@@ -447,6 +469,38 @@ export function PreviewModal({
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
+                      {picker.available ? (
+                        <button
+                          type="button"
+                          onClick={picker.toggle}
+                          title={
+                            picker.armed
+                              ? "Click an element in the preview (Esc to cancel)"
+                              : "Pick an element from the preview into chat"
+                          }
+                          aria-pressed={picker.armed}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border transition-colors",
+                            picker.armed
+                              ? "bg-blue-500/20 text-blue-300 border-blue-500/40"
+                              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border-zinc-700",
+                          )}
+                        >
+                          <MousePointerClick className="w-3 h-3" />
+                          {picker.armed ? "Picking…" : "Pick element"}
+                        </button>
+                      ) : (
+                        <a
+                          href="https://github.com/aharonyaircohen/Kody-Dashboard/blob/main/extension/README.md"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Install the Kody Element Picker extension to select elements from the preview"
+                          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
+                        >
+                          <Puzzle className="w-3 h-3" />
+                          Get picker
+                        </a>
+                      )}
                       <button
                         type="button"
                         onClick={() => setPreviewKey((k) => k + 1)}
