@@ -130,6 +130,7 @@ export function KodyChat({
   onIssueCreated,
   knownGoals,
   onDirectToGoal,
+  composerInjection,
 }: KodyChatProps) {
   // Current route — drives the page-aware composer placeholder AND tells the
   // model which dashboard page the user is looking at ("what am I viewing?").
@@ -186,6 +187,18 @@ export function KodyChat({
   >({});
 
   const [input, setInput] = useState("");
+  // Append picker selections to the composer. Keyed by id so a re-render with
+  // the same selection doesn't double-append; a new id appends exactly once.
+  const lastInjectionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!composerInjection || composerInjection.id === lastInjectionIdRef.current) {
+      return;
+    }
+    lastInjectionIdRef.current = composerInjection.id;
+    setInput((prev) =>
+      prev.trim() ? `${prev}\n\n${composerInjection.text}` : composerInjection.text,
+    );
+  }, [composerInjection]);
   // Slash command autocomplete state. Open while the user is typing the
   // slug portion of `/foo` (no space yet). Once a space is typed the
   // menu closes and we treat the rest of the line as arguments. Enter
