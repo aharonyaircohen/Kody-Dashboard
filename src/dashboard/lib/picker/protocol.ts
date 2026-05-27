@@ -34,11 +34,34 @@ export interface PickedElement {
   url: string;
 }
 
+/** A console error/warning captured from the preview. */
+export interface LogEntry {
+  level: "error" | "warn";
+  message: string;
+  ts: number;
+}
+
+/** A failed network request (status >= 400 or thrown) from the preview. */
+export interface NetworkEntry {
+  url: string;
+  method: string;
+  /** HTTP status, or 0 when the request threw (network error / CORS). */
+  status: number;
+  error?: string;
+  ts: number;
+}
+
 /** Messages the dashboard page sends to the extension bridge. */
-export type PickerPageMessage =
-  | { source: typeof PICKER_PAGE_SOURCE; type: "ping" }
-  | { source: typeof PICKER_PAGE_SOURCE; type: "arm" }
-  | { source: typeof PICKER_PAGE_SOURCE; type: "disarm" };
+export type PickerPageMessage = {
+  source: typeof PICKER_PAGE_SOURCE;
+  type:
+    | "ping"
+    | "arm"
+    | "disarm"
+    | "collect-logs"
+    | "collect-network"
+    | "screenshot";
+};
 
 /** Messages the extension bridge sends back to the dashboard page. */
 export type PickerExtMessage =
@@ -49,6 +72,18 @@ export type PickerExtMessage =
       source: typeof PICKER_EXT_SOURCE;
       type: "selected";
       element: PickedElement;
+    }
+  | { source: typeof PICKER_EXT_SOURCE; type: "logs"; entries: LogEntry[] }
+  | {
+      source: typeof PICKER_EXT_SOURCE;
+      type: "network";
+      entries: NetworkEntry[];
+    }
+  | {
+      source: typeof PICKER_EXT_SOURCE;
+      type: "screenshot";
+      dataUrl?: string;
+      error?: string;
     };
 
 /**
@@ -84,4 +119,39 @@ export function formatPickedElement(el: PickedElement): string {
   }
   lines.push(`- URL: ${el.url}`);
   return lines.join("\n");
+}
+
+/** Render captured console errors/warnings as a chat-ready block. */
+export function formatLogs(entries: LogEntry[]): string {
+  const body = entries
+    .map((e) => `[${e.level}] ${e.message}`)
+    .join("\n")
+    .slice(0, 4000);
+  return [
+    `Console output from the preview (${entries.length} ${
+      entries.length === 1 ? "entry" : "entries"
+    }):`,
+    "```",
+    body,
+    "```",
+  ].join("\n");
+}
+
+/** Render failed network requests as a chat-ready block. */
+export function formatNetwork(entries: NetworkEntry[]): string {
+  const body = entries
+    .map((e) => {
+      const status = e.status === 0 ? `ERR ${e.error ?? "network error"}` : e.status;
+      return `${e.method} ${e.url} → ${status}`;
+    })
+    .join("\n")
+    .slice(0, 4000);
+  return [
+    `Failed requests in the preview (${entries.length} ${
+      entries.length === 1 ? "request" : "requests"
+    }):`,
+    "```",
+    body,
+    "```",
+  ].join("\n");
 }

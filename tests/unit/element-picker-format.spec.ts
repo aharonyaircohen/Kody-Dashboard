@@ -7,6 +7,8 @@
 import { describe, it, expect } from "vitest";
 import {
   formatPickedElement,
+  formatLogs,
+  formatNetwork,
   type PickedElement,
 } from "@dashboard/lib/picker/protocol";
 
@@ -81,5 +83,41 @@ describe("formatPickedElement", () => {
     const attrLine = out.split("\n").find((l) => l.startsWith("- Attributes:"));
     expect(attrLine).toBeDefined();
     expect((attrLine!.match(/data-a\d+=/g) || []).length).toBe(8);
+  });
+});
+
+describe("formatLogs", () => {
+  it("renders entries in a fenced block with level prefixes and a count", () => {
+    const out = formatLogs([
+      { level: "error", message: "Boom", ts: 1 },
+      { level: "warn", message: "Careful", ts: 2 },
+    ]);
+    expect(out).toContain("2 entries");
+    expect(out).toContain("[error] Boom");
+    expect(out).toContain("[warn] Careful");
+    expect(out.match(/```/g)?.length).toBe(2);
+  });
+
+  it("uses singular wording for a single entry", () => {
+    expect(formatLogs([{ level: "error", message: "x", ts: 1 }])).toContain(
+      "1 entry",
+    );
+  });
+});
+
+describe("formatNetwork", () => {
+  it("renders method/url/status and a count", () => {
+    const out = formatNetwork([
+      { url: "https://api/x", method: "GET", status: 500, ts: 1 },
+    ]);
+    expect(out).toContain("1 request");
+    expect(out).toContain("GET https://api/x → 500");
+  });
+
+  it("shows ERR + reason when the request threw (status 0)", () => {
+    const out = formatNetwork([
+      { url: "https://api/y", method: "POST", status: 0, error: "TypeError", ts: 1 },
+    ]);
+    expect(out).toContain("POST https://api/y → ERR TypeError");
   });
 });

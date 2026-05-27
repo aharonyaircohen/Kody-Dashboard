@@ -158,6 +158,18 @@ export interface KodyChatProps {
    * idempotent across re-renders — same id is a no-op, a new id adds one chip.
    */
   composerInjection?: { id: string; label: string; context: string } | null;
+  /**
+   * Attach an image to the composer when `id` changes (e.g. a preview
+   * screenshot from the element picker). Added to the chat's attachment list
+   * as if the user had dropped the file. `id` makes it idempotent. Pass `null`
+   * to clear.
+   */
+  attachmentInjection?: {
+    id: string;
+    name: string;
+    dataUrl: string;
+    mimeType: string;
+  } | null;
 }
 
 /**

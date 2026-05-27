@@ -132,6 +132,7 @@ export function KodyChat({
   knownGoals,
   onDirectToGoal,
   composerInjection,
+  attachmentInjection,
 }: KodyChatProps) {
   // Current route — drives the page-aware composer placeholder AND tells the
   // model which dashboard page the user is looking at ("what am I viewing?").
@@ -210,6 +211,36 @@ export function KodyChat({
   const removeContextChip = useCallback((id: string) => {
     setContextChips((prev) => prev.filter((c) => c.id !== id));
   }, []);
+  // Add an injected image (e.g. a preview screenshot) as a chat attachment,
+  // mirroring a user file drop. Keyed by id so re-renders don't duplicate it.
+  const lastAttachmentIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      !attachmentInjection ||
+      attachmentInjection.id === lastAttachmentIdRef.current
+    ) {
+      return;
+    }
+    lastAttachmentIdRef.current = attachmentInjection.id;
+    const { id, name, dataUrl, mimeType } = attachmentInjection;
+    void (async () => {
+      let storedId = id;
+      let size = 0;
+      try {
+        const blob = await (await fetch(dataUrl)).blob();
+        size = blob.size;
+        const ref = await putAttachment({ name, mimeType, size, blob });
+        storedId = ref.id;
+      } catch (err) {
+        // IDB/convert failed — fall back to a transient, non-rehydratable id.
+        console.error("Screenshot attachment failed to persist:", err);
+      }
+      setAttachments((prev) => [
+        ...prev,
+        { id: storedId, name, type: mimeType, size, data: dataUrl, mimeType },
+      ]);
+    })();
+  }, [attachmentInjection]);
   // Slash command autocomplete state. Open while the user is typing the
   // slug portion of `/foo` (no space yet). Once a space is typed the
   // menu closes and we treat the rest of the line as arguments. Enter

@@ -1,8 +1,13 @@
-# Element Picker (browser extension)
+# Preview Inspector (browser extension)
 
-The element picker lets you **click an element in a PR/Vibe preview** and drop
-it into Kody chat as context — selector, tag, text, and attributes. Kody then
-knows exactly which part of the UI you mean.
+The preview inspector lets you pull live context out of a PR/Vibe preview into
+Kody chat:
+
+- **Pick element** — click any element; its selector, tag, text, and attributes
+  become a chat chip.
+- **Console errors** — send the errors/warnings the preview has logged.
+- **Failed requests** — send the preview's failed network calls (4xx/5xx/threw).
+- **Screenshot** — drop a picture of the preview into chat as an attachment.
 
 It ships as a small browser extension because the preview is a **cross-origin
 iframe**: the dashboard's own page is forbidden by the browser from reaching
@@ -34,13 +39,21 @@ Safari aren't supported.
 
 ## Use it
 
-1. Open a PR's **Preview** tab (or the **Vibe** page) with a live preview.
-2. Click **Pick element**.
-3. Hover the preview — elements highlight green. Click the one you mean.
-   (Press **Esc** to cancel.)
-4. A blue chip appears above the chat composer, e.g. `<button#submit>`. Remove
-   it with its ×, or just type your question and send — the element details
-   ride along with your message.
+Open a PR's **Preview** tab (or the **Vibe** page) with a live preview. The
+toolbar shows four inspector actions:
+
+- **Pick element** → hover the preview (elements highlight green), click the one
+  you mean (Esc cancels). A blue chip like `<button#submit>` appears above the
+  composer; type your question and send — the details ride along.
+- **🐞 Console errors** → sends whatever the preview has logged to `console`.
+- **📈 Failed requests** → sends the preview's failed network calls.
+- **📷 Screenshot** → attaches a picture of the preview to your message.
+
+Chips and attachments are removable before you send, and chip-only sends (no
+typed text) are allowed.
+
+Note: console/network capture starts when the preview loads with the extension
+installed — reload the preview after installing so nothing is missed.
 
 ## Updating
 

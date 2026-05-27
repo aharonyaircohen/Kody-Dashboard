@@ -24,14 +24,7 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
 import { PreviewIframe } from "./PreviewIframe";
 import { cn, getPreviewBypassUrl } from "../utils";
-import { useElementPicker } from "../picker/useElementPicker";
-import {
-  formatPickedElement,
-  formatPickedElementLabel,
-  PICKER_DOWNLOAD_PATH,
-  PICKER_DOCS_URL,
-  PICKER_INSTALL_HINT,
-} from "../picker/protocol";
+import { PreviewInspector } from "../picker/PreviewInspector";
 import {
   ArrowLeft,
   GitPullRequest,
@@ -44,8 +37,6 @@ import {
   Monitor,
   ChevronRight,
   ChevronDown,
-  MousePointerClick,
-  Puzzle,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 
@@ -147,24 +138,21 @@ export function PreviewModal({
   const [localRefreshing, setLocalRefreshing] = useState(false);
   const [showCommentDialog, setShowCommentDialog] = useState(false);
 
-  // Element picker: requires the Kody Element Picker browser extension (the
-  // preview is a cross-origin iframe the page itself can't reach into). On a
-  // click in the preview, the selected element is appended to the chat composer.
+  // Preview inspector (element picker + console/network/screenshot). Requires
+  // the Kody Preview Inspector extension — the preview is a cross-origin iframe
+  // the page can't reach into. Results land in the chat composer/attachments.
+  const previewRef = useRef<HTMLDivElement>(null);
   const [composerInjection, setComposerInjection] = useState<{
     id: string;
     label: string;
     context: string;
   } | null>(null);
-  const picker = useElementPicker({
-    onSelect: (el) => {
-      setComposerInjection({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        label: formatPickedElementLabel(el),
-        context: formatPickedElement(el),
-      });
-      toast.success(`Added ${formatPickedElementLabel(el)} to chat`);
-    },
-  });
+  const [attachmentInjection, setAttachmentInjection] = useState<{
+    id: string;
+    name: string;
+    dataUrl: string;
+    mimeType: string;
+  } | null>(null);
 
   const handleRefreshAll = useCallback(async () => {
     setLocalRefreshing(true);
@@ -383,6 +371,7 @@ export function PreviewModal({
             context={{ kind: "task", task }}
             actorLogin={githubUser?.login}
             composerInjection={composerInjection}
+            attachmentInjection={attachmentInjection}
           />
           <div
             role="separator"
@@ -485,47 +474,11 @@ export function PreviewModal({
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
-                      {picker.available ? (
-                        <button
-                          type="button"
-                          onClick={picker.toggle}
-                          title={
-                            picker.armed
-                              ? "Click an element in the preview (Esc to cancel)"
-                              : "Pick an element from the preview into chat"
-                          }
-                          aria-pressed={picker.armed}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border transition-colors",
-                            picker.armed
-                              ? "bg-blue-500/20 text-blue-300 border-blue-500/40"
-                              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border-zinc-700",
-                          )}
-                        >
-                          <MousePointerClick className="w-3 h-3" />
-                          {picker.armed ? "Picking…" : "Pick element"}
-                        </button>
-                      ) : (
-                        <a
-                          href={PICKER_DOWNLOAD_PATH}
-                          download
-                          onClick={() =>
-                            toast.info(PICKER_INSTALL_HINT, {
-                              duration: 12000,
-                              action: {
-                                label: "Guide",
-                                onClick: () =>
-                                  window.open(PICKER_DOCS_URL, "_blank"),
-                              },
-                            })
-                          }
-                          title="Download the Kody Element Picker, then load it unpacked"
-                          className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
-                        >
-                          <Puzzle className="w-3 h-3" />
-                          Get picker
-                        </a>
-                      )}
+                      <PreviewInspector
+                        previewRef={previewRef}
+                        onContext={setComposerInjection}
+                        onAttachment={setAttachmentInjection}
+                      />
                       <button
                         type="button"
                         onClick={() => setPreviewKey((k) => k + 1)}
@@ -549,7 +502,7 @@ export function PreviewModal({
                   </div>
                 )}
                 {/* iframe */}
-                <div className="flex-1 min-h-0">
+                <div className="flex-1 min-h-0" ref={previewRef}>
                   {effectivePreviewUrl ? (
                     <PreviewIframe
                       src={getPreviewBypassUrl(getPreviewUrl()) || undefined}

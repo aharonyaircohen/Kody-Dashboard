@@ -18,8 +18,6 @@ import {
   ExternalLink,
   ListChecks,
   Loader2,
-  MousePointerClick,
-  Puzzle,
   RefreshCw,
   Sparkles,
 } from "lucide-react";
@@ -34,14 +32,7 @@ import {
 } from "@dashboard/ui/sheet";
 import { cn, getPreviewBypassUrl } from "../utils";
 import { useChatScope } from "./ChatRailShell";
-import { useElementPicker } from "../picker/useElementPicker";
-import {
-  formatPickedElement,
-  formatPickedElementLabel,
-  PICKER_DOWNLOAD_PATH,
-  PICKER_DOCS_URL,
-  PICKER_INSTALL_HINT,
-} from "../picker/protocol";
+import { PreviewInspector } from "../picker/PreviewInspector";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useKodyTasks } from "../hooks";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
@@ -134,21 +125,12 @@ async function saveDashboardConfig(
 export function VibePage() {
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
-  const { setScope, setOnIssueCreated, setComposerInjection } = useChatScope();
+  const { setScope, setOnIssueCreated, setComposerInjection, setAttachmentInjection } =
+    useChatScope();
 
-  // Element picker: clicking an element in the preview attaches it to the
-  // chat composer (rendered by the rail, so we route through useChatScope).
-  // Requires the Kody Element Picker browser extension (cross-origin iframe).
-  const picker = useElementPicker({
-    onSelect: (el) => {
-      setComposerInjection({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        label: formatPickedElementLabel(el),
-        context: formatPickedElement(el),
-      });
-      toast.success(`Added ${formatPickedElementLabel(el)} to chat`);
-    },
-  });
+  // Preview inspector (element picker + console/network/screenshot). The Vibe
+  // chat is the rail, not a child here, so results route through useChatScope.
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
@@ -601,47 +583,11 @@ export function VibePage() {
             <div className="flex items-center gap-2">
               {previewUrl && (
                 <>
-                  {picker.available ? (
-                    <button
-                      type="button"
-                      onClick={picker.toggle}
-                      title={
-                        picker.armed
-                          ? "Click an element in the preview (Esc to cancel)"
-                          : "Pick an element from the preview into chat"
-                      }
-                      aria-pressed={picker.armed}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors",
-                        picker.armed
-                          ? "bg-blue-500/20 text-blue-300 border-blue-500/40"
-                          : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border-zinc-700",
-                      )}
-                    >
-                      <MousePointerClick className="w-3 h-3" />
-                      {picker.armed ? "Picking…" : "Pick element"}
-                    </button>
-                  ) : (
-                    <a
-                      href={PICKER_DOWNLOAD_PATH}
-                      download
-                      onClick={() =>
-                        toast.info(PICKER_INSTALL_HINT, {
-                          duration: 12000,
-                          action: {
-                            label: "Guide",
-                            onClick: () =>
-                              window.open(PICKER_DOCS_URL, "_blank"),
-                          },
-                        })
-                      }
-                      title="Download the Kody Element Picker, then load it unpacked"
-                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
-                    >
-                      <Puzzle className="w-3 h-3" />
-                      Get picker
-                    </a>
-                  )}
+                  <PreviewInspector
+                    previewRef={previewRef}
+                    onContext={setComposerInjection}
+                    onAttachment={setAttachmentInjection}
+                  />
                   <button
                     type="button"
                     onClick={() => setIframeKey((k) => k + 1)}
@@ -668,6 +614,7 @@ export function VibePage() {
 
           {/* Iframe / empty states */}
           <div
+            ref={previewRef}
             className={cn(
               "flex-1 min-h-0",
               previewUrl ? "bg-white" : "bg-zinc-950",
