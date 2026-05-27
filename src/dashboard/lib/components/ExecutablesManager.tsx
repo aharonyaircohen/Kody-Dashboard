@@ -701,6 +701,71 @@ function ExecutableEditorForm({
   );
   const [skillSource, setSkillSource] = useState("");
   const [importing, setImporting] = useState(false);
+  const [mcpSource, setMcpSource] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+
+  // Analyze a GitHub repo and pre-fill a tool from it: the user pastes a URL,
+  // the server reads the repo's README/package.json and proposes the MCP
+  // command/args + an install command. We pre-fill (never auto-save) so the
+  // user reviews — especially the install command, which runs in the runner.
+  async function analyzeToolFromSource() {
+    const source = mcpSource.trim();
+    if (!source) return;
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/kody/executables/analyze-tool", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ source }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        proposal?: {
+          name: string;
+          command: string;
+          args: string[];
+          installCommand: string;
+          isMcpServer: boolean;
+          notes: string;
+        };
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok || !json.proposal)
+        throw new Error(json.message || json.error || `HTTP ${res.status}`);
+      const p = json.proposal;
+      setMcpServers((prev) => [
+        ...prev.filter((s) => s.name !== p.name),
+        {
+          name: p.name,
+          command: p.command,
+          args: p.args.length > 0 ? p.args : undefined,
+        },
+      ]);
+      // Pre-fill the install command as a preflight script so the binary is
+      // present at run time (the run breaks otherwise). User reviews it.
+      if (p.installCommand.trim()) {
+        const fname = `install-${p.name}.sh`;
+        const content = `#!/usr/bin/env bash\nset -euo pipefail\n${p.installCommand.trim()}\n`;
+        setShellScripts((prev) => [
+          ...prev.filter((s) => s.name !== fname),
+          { name: fname, content },
+        ]);
+      }
+      setMcpSource("");
+      if (!p.isMcpServer)
+        toast.warning(
+          `${p.name}: repo may not ship an MCP server — review the command. ${p.notes}`.trim(),
+        );
+      else
+        toast.success(
+          `Added "${p.name}". Review the command + the install-${p.name}.sh script before saving.`,
+        );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Analyze failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
 
   // Import a skill from a GitHub source (the same source format the `skills`
   // CLI uses, e.g. vercel-labs/agent-skills). Fetches its SKILL.md and adds
@@ -1066,6 +1131,46 @@ function ExecutableEditorForm({
             <code className="text-white/70">codegraph</code>, args{" "}
             <code className="text-white/70">serve --mcp</code>.
           </p>
+          <Card className="border-white/[0.08] bg-white/[0.02]">
+            <CardContent className="p-3 space-y-1.5">
+              <Label className="text-xs">Add from a GitHub repo</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={mcpSource}
+                  onChange={(e) => setMcpSource(e.target.value)}
+                  placeholder="colbymchenry/codegraph"
+                  className="font-mono text-xs h-8"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      analyzeToolFromSource();
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1 shrink-0"
+                  disabled={analyzing || !mcpSource.trim()}
+                  onClick={analyzeToolFromSource}
+                >
+                  {analyzing ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )}
+                  Analyze
+                </Button>
+              </div>
+              <p className="text-[11px] text-white/40">
+                Reads the repo&apos;s README + package.json and pre-fills the
+                command, args, and an install script below.{" "}
+                <span className="text-amber-300/70">
+                  Review the generated install script before saving.
+                </span>
+              </p>
+            </CardContent>
+          </Card>
           {mcpServers.map((m, i) => (
             <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
               <CardContent className="p-3 space-y-2">
