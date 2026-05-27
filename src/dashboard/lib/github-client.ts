@@ -1243,6 +1243,7 @@ export async function fetchComments(
     id: comment.id,
     body: comment.body ?? "",
     created_at: comment.created_at ?? "",
+    updated_at: comment.updated_at ?? comment.created_at ?? "",
     user: {
       login: comment.user?.login ?? "unknown",
       type: comment.user?.type ?? "User",

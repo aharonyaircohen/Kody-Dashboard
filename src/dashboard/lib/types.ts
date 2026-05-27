@@ -199,6 +199,10 @@ export interface GitHubComment {
   id: number;
   body: string;
   created_at: string;
+  // GitHub bumps this when the comment is edited. The engine edits its
+  // canonical state comment in place, so `updated_at` — not `created_at` —
+  // is the true recency signal when picking among multiple state comments.
+  updated_at?: string;
   user: { login: string; type: string; avatar_url?: string };
 }
 
