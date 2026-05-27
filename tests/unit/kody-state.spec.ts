@@ -160,4 +160,49 @@ describe("findKodyStateInComments", () => {
     expect(result?.core.phase).toBe("reviewing");
     expect(result?.core.status).toBe("succeeded");
   });
+
+  it("picks the comment edited most recently, not the one created last (regression: #2140 flapping)", () => {
+    // Real-world shape: the engine's canonical comment was CREATED first
+    // (10:06) then EDITED in place to `shipped` (12:16). A re-classify posted
+    // a SECOND, stale comment later (created 11:31, never re-edited). Creation
+    // order would pick the stale `running` one and flap a done task back to
+    // "building"; `updated_at` correctly picks the shipped canonical comment.
+    const canonical = renderComment({
+      ...minimalState,
+      core: { ...minimalState.core, phase: "shipped", status: "succeeded" },
+    });
+    const staleDuplicate = renderComment({
+      ...minimalState,
+      core: { ...minimalState.core, phase: "idle", status: "running" },
+    });
+    const result = findKodyStateInComments([
+      {
+        body: canonical,
+        created_at: "2026-05-27T10:06:49Z",
+        updated_at: "2026-05-27T12:16:27Z",
+      },
+      {
+        body: staleDuplicate,
+        created_at: "2026-05-27T11:31:29Z",
+        updated_at: "2026-05-27T11:31:29Z",
+      },
+    ]);
+    expect(result?.core.phase).toBe("shipped");
+    expect(result?.core.status).toBe("succeeded");
+  });
+
+  it("falls back to created_at when updated_at is absent", () => {
+    const older = renderComment(minimalState);
+    const newer = renderComment({
+      ...minimalState,
+      core: { ...minimalState.core, phase: "reviewing", status: "succeeded" },
+    });
+    const result = findKodyStateInComments([
+      { body: newer, created_at: "2026-05-27T12:00:00Z" },
+      { body: older, created_at: "2026-05-27T10:00:00Z" },
+    ]);
+    // `newer` appears first in the list but has the later created_at, so it
+    // must win — proving timestamp beats position.
+    expect(result?.core.phase).toBe("reviewing");
+  });
 });
