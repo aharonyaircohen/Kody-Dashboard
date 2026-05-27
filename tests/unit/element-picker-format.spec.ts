@@ -32,7 +32,9 @@ function el(overrides: Partial<PickedElement> = {}): PickedElement {
 describe("formatPickedElement", () => {
   it("always opens with the header and includes tag, selector, and url", () => {
     const out = formatPickedElement(el());
-    expect(out.startsWith("Selected element from the preview:")).toBe(true);
+    expect(out.startsWith("I'm pointing at this element in the preview")).toBe(
+      true,
+    );
     expect(out).toContain("- Tag: `<button>`");
     expect(out).toContain("- Selector: `div > button:nth-of-type(2)`");
     expect(out).toContain("- URL: https://preview.example.com/");

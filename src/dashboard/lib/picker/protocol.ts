@@ -147,7 +147,9 @@ export function formatPickedElementLabel(el: PickedElement): string {
  * hook) so any surface can format selections identically.
  */
 export function formatPickedElement(el: PickedElement): string {
-  const lines: string[] = ["Selected element from the preview:"];
+  const lines: string[] = [
+    "I'm pointing at this element in the preview — treat it as the target of my request:",
+  ];
   const classes = el.classes.length ? `.${el.classes.join(".")}` : "";
   lines.push(`- Tag: \`<${el.tagName}${el.id ? `#${el.id}` : ""}${classes}>\``);
   lines.push(`- Selector: \`${el.selector}\``);
@@ -174,7 +176,7 @@ export function formatLogs(entries: LogEntry[]): string {
     .join("\n")
     .slice(0, 4000);
   return [
-    `Console output from the preview (${entries.length} ${
+    `Console errors/warnings from the running preview — please diagnose what's causing them and fix it (${entries.length} ${
       entries.length === 1 ? "entry" : "entries"
     }):`,
     "```",
@@ -195,7 +197,7 @@ function kb(bytes: number): string {
 /** Render a performance snapshot as a chat-ready, actionable block. */
 export function formatPerf(report: PerfReport): string {
   const lines = [
-    "Preview performance snapshot:",
+    "Preview performance snapshot — please point out the biggest problems and suggest concrete fixes:",
     `- TTFB: ${ms(report.ttfbMs)}`,
     `- First Contentful Paint: ${ms(report.fcpMs)}`,
     `- Largest Contentful Paint: ${report.lcpMs ? ms(report.lcpMs) : "n/a"}`,
@@ -227,7 +229,10 @@ export function formatPlaywrightTest(steps: RecordedStep[], url: string): string
     }
   }
   return [
-    `Recorded ${steps.length} step(s) as a Playwright test:`,
+    `I recorded this ${steps.length}-step flow in the preview. Please save it as ` +
+      `an end-to-end Playwright test in this repo — put it with the project's ` +
+      `other e2e tests, make the selectors robust, and add assertions for the ` +
+      `expected end state:`,
     "```ts",
     `import { test, expect } from '@playwright/test';`,
     "",
@@ -249,7 +254,7 @@ export function formatNetwork(entries: NetworkEntry[]): string {
     .join("\n")
     .slice(0, 4000);
   return [
-    `Failed requests in the preview (${entries.length} ${
+    `Failed requests in the running preview — please investigate why they're failing and how to fix them (${entries.length} ${
       entries.length === 1 ? "request" : "requests"
     }):`,
     "```",
