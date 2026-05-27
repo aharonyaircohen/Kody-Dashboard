@@ -1028,7 +1028,7 @@ function ExecutableEditorForm({
                 <Input
                   value={skillSource}
                   onChange={(e) => setSkillSource(e.target.value)}
-                  placeholder="vercel-labs/agent-skills/skill-name"
+                  placeholder="https://github.com/owner/repo/tree/main/path/to/skill"
                   className="font-mono text-xs h-8"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -1053,9 +1053,9 @@ function ExecutableEditorForm({
                 </Button>
               </div>
               <p className="text-[11px] text-white/40">
-                Same sources as <code>npx skills add</code> — a GitHub repo or{" "}
-                <code>owner/repo/path</code>. Fetches its SKILL.md; you can edit
-                it below before saving.
+                Paste the GitHub URL of a skill folder (the one containing its
+                SKILL.md). Shorthand <code>owner/repo/path</code> also works.
+                Fetches its SKILL.md; you can edit it below before saving.
               </p>
             </CardContent>
           </Card>

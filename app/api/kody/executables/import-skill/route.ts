@@ -60,6 +60,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // A skill lives in a folder (the one with SKILL.md), so a bare repo URL
+    // isn't enough — guide the user before we 404 on a root-level SKILL.md.
+    if (!parsed.path) {
+      return NextResponse.json(
+        {
+          error: "no_skill_path",
+          message:
+            "Point at the skill folder, not the repo root — paste the URL of the folder that contains SKILL.md (e.g. .../tree/main/path/to/skill).",
+        },
+        { status: 400 },
+      );
+    }
+
     const octokit = await getUserOctokit(req);
     if (!octokit) {
       return NextResponse.json(
