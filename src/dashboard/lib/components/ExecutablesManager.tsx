@@ -739,8 +739,6 @@ function ExecutableEditorForm({
     return null;
   })();
   const promptError = prompt.trim().length === 0 ? "Prompt is required" : null;
-  const canSave =
-    !saving && !slugError && !promptError && (isNew ? !!slug : true);
 
   // Live validation of the profile the form will generate.
   const validation = useMemo(() => {
@@ -776,6 +774,15 @@ function ExecutableEditorForm({
     shellScripts,
     landing,
   ]);
+
+  // Block save when the composed profile fails the engine invariants or a
+  // referenced skill/shell file is malformed — not just slug/prompt.
+  const canSave =
+    !saving &&
+    !slugError &&
+    !promptError &&
+    validation.errors.length === 0 &&
+    (isNew ? !!slug : true);
 
   const toggleTool = (tool: string) =>
     setTools((prev) =>
@@ -1120,7 +1127,7 @@ function ExecutableEditorForm({
         </Button>
         <Button
           size="sm"
-          disabled={!canSave || validation.errors.length > 0}
+          disabled={!canSave}
           onClick={() => {
             if (!canSave) return;
             onSave({
