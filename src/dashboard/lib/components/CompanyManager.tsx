@@ -25,8 +25,6 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
-import { OperatorsCard } from "./OperatorsCard";
-import { EngineConfigCards } from "./EngineConfigCards";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { AuthGuard } from "../auth-guard";
@@ -143,13 +141,6 @@ function CompanyManagerInner() {
           Repo-specific state (memory, secrets, variables, goals, default
           branch) stays behind by design.
         </p>
-
-        {/* Operators — who recommendation duties @-mention into the inbox */}
-        <OperatorsCard />
-
-        {/* Repo-wide engine config: quality commands, access gate, default
-            branch, comment aliases */}
-        <EngineConfigCards />
 
         {/* Export */}
         <Card className="border-white/[0.08] bg-white/[0.03]">

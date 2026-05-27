@@ -6,7 +6,7 @@
  *   repo has no operators set (`github.operators` empty), because that means
  *   recommendation duties post but @-mention no one, so the inbox silently
  *   stays empty. One-click "add me" for the signed-in user, plus a link to
- *   Company settings for the full list. Renders nothing while loading or when
+ *   the Config page for the full list. Renders nothing while loading or when
  *   at least one operator exists.
  */
 "use client";
@@ -30,8 +30,8 @@ export function OperatorsWarningBanner() {
           <p className="text-xs text-amber-100/70 mt-1">
             Recommendations are being posted but @-mention no one, so they never
             reach this inbox. Set who should receive them in{" "}
-            <Link href="/company" className="underline">
-              Company settings
+            <Link href="/config" className="underline">
+              Config
             </Link>
             .
           </p>
