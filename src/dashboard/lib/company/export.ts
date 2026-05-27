@@ -10,15 +10,17 @@
  *   an established GitHub context (see the API route).
  */
 
-import { getOwner, getRepo } from "../github-client";
+import { getOctokit, getOwner, getRepo } from "../github-client";
 import { listDutyFiles } from "../duties-files";
 import { listStaffFiles } from "../staff-files";
 import { listRepoCommandFiles } from "../commands/files";
 import { readInstructionsFile } from "../instructions/files";
 import { listExecutableFiles, readExecutableFile } from "../executables";
+import { getEngineConfig } from "../engine/config";
 import {
   COMPANY_BUNDLE_VERSION,
   type CompanyBundle,
+  type CompanyConfigBundle,
   type CompanyTickEntry,
   type CompanyCommandEntry,
   type CompanyExecutableEntry,
@@ -70,19 +72,52 @@ async function buildExecutableEntries(): Promise<CompanyExecutableEntry[]> {
 }
 
 /**
+ * Read the portable engine-config slice from kody.config.json. Only fields
+ * that are actually set are emitted, so an unconfigured repo exports `null`
+ * rather than a bag of empties. The default branch is intentionally omitted —
+ * it's repo-specific, not company-level.
+ */
+async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
+  const { config } = await getEngineConfig(getOctokit(), getOwner(), getRepo());
+  const out: CompanyConfigBundle = {};
+
+  const quality: NonNullable<CompanyConfigBundle["quality"]> = {};
+  for (const k of ["typecheck", "lint", "format", "testUnit"] as const) {
+    const v = config.quality?.[k]?.trim();
+    if (v) quality[k] = v;
+  }
+  if (Object.keys(quality).length > 0) out.quality = quality;
+
+  if (config.aliases && Object.keys(config.aliases).length > 0) {
+    out.aliases = config.aliases;
+  }
+  const assoc = config.access?.allowedAssociations;
+  if (Array.isArray(assoc) && assoc.length > 0) out.allowedAssociations = assoc;
+  if (config.defaultExecutable) out.defaultExecutable = config.defaultExecutable;
+  if (config.defaultPrExecutable) {
+    out.defaultPrExecutable = config.defaultPrExecutable;
+  }
+  const perExec = config.agent?.perExecutable;
+  if (perExec && Object.keys(perExec).length > 0) out.perExecutable = perExec;
+
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+/**
  * Read every company-level artifact from the connected repo and assemble
  * the portable bundle. The four reads are independent — fan them out.
  * Only repo-defined commands are exported (built-ins ship with the
  * dashboard, so re-importing them would be redundant).
  */
 export async function buildCompanyBundle(): Promise<CompanyBundle> {
-  const [staff, duties, commandsResult, executables, instructions] =
+  const [staff, duties, commandsResult, executables, instructions, config] =
     await Promise.all([
       listStaffFiles(),
       listDutyFiles(),
       listRepoCommandFiles(),
       buildExecutableEntries(),
       readInstructionsFile(),
+      buildConfigBundle(),
     ]);
 
   return {
@@ -96,5 +131,6 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
       .map(toCommandEntry),
     executables,
     instructions: instructions?.body?.trim() ? instructions.body : null,
+    config,
   };
 }

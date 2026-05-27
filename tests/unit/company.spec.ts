@@ -39,6 +39,10 @@ const h = vi.hoisted(() => ({
   // github-client
   getOwner: vi.fn(() => "acme"),
   getRepo: vi.fn(() => "widgets"),
+  getOctokit: vi.fn(() => ({})),
+  // engine/config
+  getEngineConfig: vi.fn(async () => ({ config: {}, sha: null })),
+  writeConfigPatch: vi.fn(async () => ({ sha: null })),
 }));
 
 vi.mock("@dashboard/lib/duties-files", () => ({
@@ -69,6 +73,11 @@ vi.mock("@dashboard/lib/executables", () => ({
 vi.mock("@dashboard/lib/github-client", () => ({
   getOwner: h.getOwner,
   getRepo: h.getRepo,
+  getOctokit: h.getOctokit,
+}));
+vi.mock("@dashboard/lib/engine/config", () => ({
+  getEngineConfig: h.getEngineConfig,
+  writeConfigPatch: h.writeConfigPatch,
 }));
 
 import {
@@ -112,6 +121,7 @@ describe("companyBundleSchema", () => {
     commands: [],
     executables: [],
     instructions: null,
+    config: null,
   };
 
   it("accepts a valid bundle and applies collection defaults", () => {
@@ -280,6 +290,7 @@ describe("applyCompanyBundle", () => {
     ],
     executables: [],
     instructions: "Be terse.",
+    config: null,
   };
 
   it("creates everything on a fresh repo", async () => {

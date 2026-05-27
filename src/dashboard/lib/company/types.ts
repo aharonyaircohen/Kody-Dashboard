@@ -70,6 +70,27 @@ export interface CompanyExecutableEntry {
   files: Record<string, string>;
 }
 
+/**
+ * The portable engine-config slice of a Company. Only repo-agnostic policy is
+ * carried — quality commands, comment aliases, the `@kody` access gate,
+ * per-executable model routing, and the bare-`@kody` default executables
+ * (slugs that resolve against the bundled executables). The default branch
+ * (`git.defaultBranch`) is deliberately excluded: it's repo-specific.
+ */
+export interface CompanyConfigBundle {
+  quality?: {
+    typecheck?: string;
+    lint?: string;
+    format?: string;
+    testUnit?: string;
+  };
+  aliases?: Record<string, string>;
+  allowedAssociations?: string[];
+  defaultExecutable?: string;
+  defaultPrExecutable?: string;
+  perExecutable?: Record<string, string>;
+}
+
 /** The full portable bundle. */
 export interface CompanyBundle {
   /** Format discriminator + version. */
@@ -84,6 +105,8 @@ export interface CompanyBundle {
   executables: CompanyExecutableEntry[];
   /** Repo instructions body, or `null` when the source repo had none. */
   instructions: string | null;
+  /** Portable engine config (omitted by older bundles → `null`). */
+  config: CompanyConfigBundle | null;
 }
 
 /** How an import resolves a slug/file that already exists on the target. */
@@ -104,6 +127,11 @@ export type CompanyInstructionsOutcome =
   | "skipped"
   | "absent";
 
+/** What happened to the engine-config slice on import. `applied` = some field
+ * was written; `skipped` = bundle had config but skip-mode left every field
+ * (target already set them); `absent` = bundle carried no config. */
+export type CompanyConfigOutcome = "applied" | "skipped" | "absent";
+
 /** Structured result of applying a bundle to the target repo. */
 export interface CompanyImportResult {
   mode: CompanyImportMode;
@@ -112,6 +140,7 @@ export interface CompanyImportResult {
   commands: CompanyImportCounts;
   executables: CompanyImportCounts;
   instructions: CompanyInstructionsOutcome;
+  config: CompanyConfigOutcome;
   /** Human-readable per-item notes (e.g. failures), newest last. */
   notes: string[];
 }
@@ -144,6 +173,24 @@ const executableEntrySchema = z.object({
   files: z.record(z.string(), z.string()),
 });
 
+/** Portable engine config. Every field optional + bounded; an unknown or
+ * malformed shape is rejected so a junk bundle can't poison kody.config.json. */
+const configBundleSchema = z.object({
+  quality: z
+    .object({
+      typecheck: z.string().max(500).optional(),
+      lint: z.string().max(500).optional(),
+      format: z.string().max(500).optional(),
+      testUnit: z.string().max(500).optional(),
+    })
+    .optional(),
+  aliases: z.record(z.string().max(64), z.string().max(64)).optional(),
+  allowedAssociations: z.array(z.string().max(40)).max(16).optional(),
+  defaultExecutable: z.string().max(64).optional(),
+  defaultPrExecutable: z.string().max(64).optional(),
+  perExecutable: z.record(z.string().max(64), z.string().max(128)).optional(),
+});
+
 /**
  * Zod schema for an uploaded bundle. Tolerant of missing collections
  * (defaults to empty) but strict on the discriminator and entry shapes,
@@ -165,10 +212,12 @@ export const companyBundleSchema = z
     prompts: z.array(commandEntrySchema).optional(),
     executables: z.array(executableEntrySchema).default([]),
     instructions: z.string().nullable().default(null),
+    config: configBundleSchema.nullish(),
   })
-  .transform(({ prompts, commands, ...rest }) => ({
+  .transform(({ prompts, commands, config, ...rest }) => ({
     ...rest,
     commands: commands ?? prompts ?? [],
+    config: config ?? null,
   }));
 
 export type ParsedCompanyBundle = z.infer<typeof companyBundleSchema>;

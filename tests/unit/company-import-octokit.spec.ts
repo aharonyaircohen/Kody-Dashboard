@@ -121,6 +121,7 @@ const bundle = {
   commands: [{ slug: "review", description: "d", argumentHint: "", body: "B" }],
   executables: [],
   instructions: "Be terse.",
+  config: null,
 };
 
 beforeEach(() => {

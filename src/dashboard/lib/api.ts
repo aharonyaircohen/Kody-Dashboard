@@ -1870,7 +1870,46 @@ export const companyApi = {
       return data.operators;
     },
   },
+
+  /** Repo-wide engine config fields that don't have their own page:
+   * quality commands, comment aliases, the `@kody` access gate, and the
+   * default branch. */
+  config: {
+    get: async (): Promise<EngineEditableConfig> => {
+      const res = await fetch(`${API_BASE}/company/config`, {
+        headers: buildHeaders(),
+        cache: "no-store",
+      });
+      return handleResponse<EngineEditableConfig>(res);
+    },
+    patch: async (
+      patch: Partial<EngineEditableConfig>,
+      actorLogin?: string,
+    ): Promise<EngineEditableConfig> => {
+      const res = await fetch(`${API_BASE}/company/config`, {
+        method: "PATCH",
+        headers: buildHeaders(),
+        body: JSON.stringify({ ...patch, ...(actorLogin && { actorLogin }) }),
+      });
+      return handleResponse<EngineEditableConfig>(res);
+    },
+  },
 };
+
+/** The dashboard-editable slice of kody.config.json (see /company/config).
+ * `perExecutable` (model routing) is edited on /models, the rest on /company. */
+export interface EngineEditableConfig {
+  quality: {
+    typecheck?: string;
+    lint?: string;
+    format?: string;
+    testUnit?: string;
+  };
+  aliases: Record<string, string>;
+  allowedAssociations: string[];
+  defaultBranch: string;
+  perExecutable: Record<string, string>;
+}
 
 // ============ Combined API ============
 

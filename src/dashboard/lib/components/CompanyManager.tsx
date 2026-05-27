@@ -22,9 +22,11 @@ import {
   Bot,
   Boxes,
   ScrollText,
+  SlidersHorizontal,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
 import { OperatorsCard } from "./OperatorsCard";
+import { EngineConfigCards } from "./EngineConfigCards";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { AuthGuard } from "../auth-guard";
@@ -78,11 +80,12 @@ function CompanyManagerInner() {
         bundle.duties.length +
         bundle.commands.length +
         bundle.executables.length +
-        (bundle.instructions ? 1 : 0);
+        (bundle.instructions ? 1 : 0) +
+        (bundle.config ? 1 : 0);
       toast.success(
         `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.commands.length} commands, ${bundle.executables.length} executables${
           bundle.instructions ? ", instructions" : ""
-        } (${total} items)`,
+        }${bundle.config ? ", config" : ""} (${total} items)`,
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Export failed");
@@ -132,15 +135,21 @@ function CompanyManagerInner() {
           portable operating manual — its{" "}
           <span className="text-white/80">staff</span>,{" "}
           <span className="text-white/80">duties</span>,{" "}
-          <span className="text-white/80">commands</span>, and{" "}
-          <span className="text-white/80">instructions</span>. Export it from
-          one repo and import it into another to stand up the same team
-          instantly. Repo-specific state (memory, secrets, variables, goals)
-          stays behind by design.
+          <span className="text-white/80">commands</span>,{" "}
+          <span className="text-white/80">instructions</span>, and portable{" "}
+          <span className="text-white/80">config</span> (quality commands,
+          aliases, access gate, model routing). Export it from one repo and
+          import it into another to stand up the same team instantly.
+          Repo-specific state (memory, secrets, variables, goals, default
+          branch) stays behind by design.
         </p>
 
         {/* Operators — who recommendation duties @-mention into the inbox */}
         <OperatorsCard />
+
+        {/* Repo-wide engine config: quality commands, access gate, default
+            branch, comment aliases */}
+        <EngineConfigCards />
 
         {/* Export */}
         <Card className="border-white/[0.08] bg-white/[0.03]">
@@ -234,6 +243,7 @@ function CompanyManagerInner() {
                 <p>{countLine("Commands", lastImport.commands)}</p>
                 <p>{countLine("Executables", lastImport.executables)}</p>
                 <p>Instructions: {lastImport.instructions}</p>
+                <p>Config: {lastImport.config}</p>
                 {lastImport.notes.length > 0 && (
                   <ul className="text-rose-300/80 mt-1 list-disc list-inside">
                     {lastImport.notes.map((n, i) => (
@@ -253,6 +263,7 @@ function CompanyManagerInner() {
           <Included icon={Bot} label="Commands" />
           <Included icon={Boxes} label="Executables" />
           <Included icon={ScrollText} label="Instructions" />
+          <Included icon={SlidersHorizontal} label="Config" />
         </div>
       </div>
     </PageShell>

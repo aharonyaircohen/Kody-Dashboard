@@ -28,6 +28,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
+import { PerExecutableModelCard } from "./PerExecutableModelCard";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
@@ -345,6 +346,9 @@ function ModelsManagerInner() {
           . With no models or a missing key the chat falls back to{" "}
           <strong className="text-white/60">Kody Live</strong>.
         </p>
+
+        {/* Per-executable model overrides (agent.perExecutable) */}
+        {!isLoading && !error && <PerExecutableModelCard models={models} />}
       </div>
 
       {editing && (

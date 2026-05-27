@@ -25,9 +25,17 @@ import {
   writeExecutableFile,
   fieldsFromProfile,
 } from "../executables";
+import { getOwner, getRepo } from "../github-client";
+import {
+  getEngineConfig,
+  writeConfigPatch,
+  type ConfigPatch,
+} from "../engine/config";
 import type { TickFile } from "../ticked/files";
 import type { TickWriteOptions } from "../ticked/files";
 import type {
+  CompanyConfigBundle,
+  CompanyConfigOutcome,
   CompanyImportCounts,
   CompanyImportMode,
   CompanyImportResult,
@@ -200,6 +208,78 @@ async function importExecutables(
 }
 
 /**
+ * Apply the portable engine-config slice to kody.config.json in one commit.
+ * In `overwrite` mode every present field is written; in `skip` mode a field
+ * is only written when the target doesn't already have it (so an import never
+ * clobbers a deliberately-set value). Returns "absent" when the bundle carried
+ * no config, "skipped" when skip-mode left every field, else "applied".
+ */
+async function importConfig(
+  octokit: Octokit,
+  config: CompanyConfigBundle | null,
+  mode: CompanyImportMode,
+  notes: string[],
+): Promise<CompanyConfigOutcome> {
+  if (!config || Object.keys(config).length === 0) return "absent";
+
+  try {
+    const owner = getOwner();
+    const repo = getRepo();
+    // In skip mode we need the target's current values to leave set fields be.
+    const existing =
+      mode === "skip"
+        ? (await getEngineConfig(octokit, owner, repo, { force: true })).config
+        : null;
+
+    const has = {
+      quality:
+        !!existing?.quality &&
+        Object.values(existing.quality).some((v) => v?.trim()),
+      aliases: !!existing?.aliases && Object.keys(existing.aliases).length > 0,
+      allowedAssociations:
+        Array.isArray(existing?.access?.allowedAssociations) &&
+        existing.access.allowedAssociations.length > 0,
+      defaultExecutable: !!existing?.defaultExecutable,
+      defaultPrExecutable: !!existing?.defaultPrExecutable,
+      perExecutable:
+        !!existing?.agent?.perExecutable &&
+        Object.keys(existing.agent.perExecutable).length > 0,
+    };
+
+    const patch: ConfigPatch = {};
+    if (config.quality && !has.quality) patch.quality = config.quality;
+    if (config.aliases && !has.aliases) patch.aliases = config.aliases;
+    if (config.allowedAssociations && !has.allowedAssociations) {
+      patch.allowedAssociations = config.allowedAssociations;
+    }
+    if (config.defaultExecutable && !has.defaultExecutable) {
+      patch.defaultExecutable = config.defaultExecutable;
+    }
+    if (config.defaultPrExecutable && !has.defaultPrExecutable) {
+      patch.defaultPrExecutable = config.defaultPrExecutable;
+    }
+    if (config.perExecutable && !has.perExecutable) {
+      patch.perExecutable = config.perExecutable;
+    }
+
+    if (Object.keys(patch).length === 0) return "skipped";
+
+    await writeConfigPatch(
+      octokit,
+      owner,
+      repo,
+      patch,
+      "chore(kody): import company config",
+    );
+    return "applied";
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    notes.push(`config failed: ${msg}`);
+    return "absent";
+  }
+}
+
+/**
  * Apply a validated bundle to the connected repo. Staff first, then
  * duties — so a duty that names a staff member lands after its executor
  * exists (cosmetic ordering; the engine resolves at tick time regardless).
@@ -255,5 +335,18 @@ export async function applyCompanyBundle(
     }
   }
 
-  return { mode, staff, duties, commands, executables, instructions, notes };
+  // Config last: it may reference executables (default*Executable slugs) that
+  // the steps above just created.
+  const config = await importConfig(octokit, bundle.config, mode, notes);
+
+  return {
+    mode,
+    staff,
+    duties,
+    commands,
+    executables,
+    instructions,
+    config,
+    notes,
+  };
 }
