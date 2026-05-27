@@ -26,6 +26,7 @@ import {
   ScrollText,
   Settings as SettingsIcon,
   Settings2,
+  SlidersHorizontal,
   Sparkles,
   Users,
   type LucideIcon,
@@ -162,6 +163,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "Company",
     items: [
+      {
+        href: "/config",
+        label: "Config",
+        icon: SlidersHorizontal,
+        description:
+          "Repo-wide engine settings: operators, quality commands, the @kody access gate, default branch, and aliases.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
       {
         href: "/company",
         label: "Import / Export",

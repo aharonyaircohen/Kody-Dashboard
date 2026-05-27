@@ -193,27 +193,37 @@ function AccessGateCard({ cfg }: { cfg: UseEngineConfig }) {
         {loading ? (
           <Loading />
         ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {ASSOCIATIONS.map((a) => {
-              const on = selected.has(a);
-              return (
-                <button
-                  key={a}
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void toggle(a)}
-                  className={cn(
-                    "px-2 py-1 rounded border text-xs transition-colors disabled:opacity-50",
-                    on
-                      ? "border-amber-500/50 bg-amber-500/10 text-amber-200"
-                      : "border-white/10 text-white/50 hover:text-white/80",
-                  )}
-                >
-                  {a}
-                </button>
-              );
-            })}
-          </div>
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              {ASSOCIATIONS.map((a) => {
+                const on = selected.has(a);
+                return (
+                  <button
+                    key={a}
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void toggle(a)}
+                    className={cn(
+                      "px-2 py-1 rounded border text-xs transition-colors disabled:opacity-50",
+                      on
+                        ? "border-amber-500/50 bg-amber-500/10 text-amber-200"
+                        : "border-white/10 text-white/50 hover:text-white/80",
+                    )}
+                  >
+                    {a}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-white/40">
+              Currently active:{" "}
+              <span className="text-white/70">
+                {selected.size > 0
+                  ? Array.from(selected).join(", ")
+                  : "OWNER, MEMBER, COLLABORATOR (engine default)"}
+              </span>
+            </p>
+          </>
         )}
       </CardContent>
     </Card>
@@ -251,28 +261,36 @@ function DefaultBranchCard({ cfg }: { cfg: UseEngineConfig }) {
         {loading ? (
           <Loading />
         ) : (
-          <div className="flex items-center gap-2">
-            <Input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && dirty) {
-                  e.preventDefault();
-                  void handleSave();
-                }
-              }}
-              placeholder="main"
-              disabled={saving}
-              className="h-8 text-sm font-mono max-w-xs"
-            />
-            <Button
-              size="sm"
-              disabled={saving || !dirty}
-              onClick={() => void handleSave()}
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
-            </Button>
-          </div>
+          <>
+            <div className="flex items-center gap-2">
+              <Input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && dirty) {
+                    e.preventDefault();
+                    void handleSave();
+                  }
+                }}
+                placeholder="main"
+                disabled={saving}
+                className="h-8 text-sm font-mono max-w-xs"
+              />
+              <Button
+                size="sm"
+                disabled={saving || !dirty}
+                onClick={() => void handleSave()}
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+              </Button>
+            </div>
+            <p className="text-[11px] text-white/40">
+              Currently:{" "}
+              <span className="text-white/70 font-mono">
+                {config?.defaultBranch?.trim() || "main (engine default)"}
+              </span>
+            </p>
+          </>
         )}
       </CardContent>
     </Card>
@@ -381,6 +399,12 @@ function AliasesCard({ cfg }: { cfg: UseEngineConfig }) {
                 )}
               </Button>
             </div>
+            {entries.length === 0 && (
+              <p className="text-[11px] text-white/40">
+                No custom aliases. Built-ins (e.g.{" "}
+                <code className="text-white/60">build → run</code>) always apply.
+              </p>
+            )}
           </>
         )}
       </CardContent>
