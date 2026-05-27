@@ -846,11 +846,12 @@ function ExecutableEditorForm({
             <Label htmlFor="exec-describe" className="text-xs">
               Description
             </Label>
-            <Input
+            <Textarea
               id="exec-describe"
               value={describe}
               onChange={(e) => setDescribe(e.target.value)}
               placeholder="Implement an issue end-to-end and open a PR"
+              rows={4}
             />
           </div>
           <div>
