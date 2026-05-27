@@ -22,7 +22,7 @@ const BROADCAST_DOWN = new Set([
   "collect-logs",
   "collect-network",
 ]);
-const RELAY_UP = new Set(["selected", "logs", "network"]);
+const RELAY_UP = new Set(["selected", "logs", "network", "counts"]);
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
   const tabId = sender.tab?.id;

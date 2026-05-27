@@ -81,6 +81,12 @@ export type PickerExtMessage =
     }
   | {
       source: typeof PICKER_EXT_SOURCE;
+      type: "counts";
+      logs: number;
+      network: number;
+    }
+  | {
+      source: typeof PICKER_EXT_SOURCE;
       type: "screenshot";
       dataUrl?: string;
       error?: string;

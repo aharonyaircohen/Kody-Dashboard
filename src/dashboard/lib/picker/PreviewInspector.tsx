@@ -146,9 +146,9 @@ export function PreviewInspector({
       const clip = rect
         ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
         : undefined;
-      const dataUrl = await picker.captureScreenshot(clip);
+      const { dataUrl, error } = await picker.captureScreenshot(clip);
       if (!dataUrl) {
-        toast.error("Couldn't capture a screenshot");
+        toast.error(`Couldn't capture a screenshot: ${error ?? "unknown error"}`);
         return;
       }
       onAttachment({
@@ -188,23 +188,47 @@ export function PreviewInspector({
         type="button"
         onClick={sendLogs}
         disabled={busy !== null}
-        title="Send the preview's console errors to chat"
+        title={
+          picker.logCount > 0
+            ? `Send ${picker.logCount} console error(s) to chat`
+            : "No console errors captured yet"
+        }
         aria-label="Send console errors to chat"
-        className={cn(BTN_BASE, BTN_IDLE)}
+        className={cn(
+          BTN_BASE,
+          picker.logCount > 0
+            ? "bg-red-500/15 text-red-300 border-red-500/40 hover:bg-red-500/25"
+            : cn(BTN_IDLE, "opacity-60"),
+        )}
       >
         <Bug className={cn("w-3 h-3", busy === "logs" && "animate-pulse")} />
+        {picker.logCount > 0 && (
+          <span className="tabular-nums">{picker.logCount}</span>
+        )}
       </button>
       <button
         type="button"
         onClick={sendNetwork}
         disabled={busy !== null}
-        title="Send the preview's failed network requests to chat"
+        title={
+          picker.networkCount > 0
+            ? `Send ${picker.networkCount} failed request(s) to chat`
+            : "No failed requests captured yet"
+        }
         aria-label="Send failed requests to chat"
-        className={cn(BTN_BASE, BTN_IDLE)}
+        className={cn(
+          BTN_BASE,
+          picker.networkCount > 0
+            ? "bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25"
+            : cn(BTN_IDLE, "opacity-60"),
+        )}
       >
         <Activity
           className={cn("w-3 h-3", busy === "network" && "animate-pulse")}
         />
+        {picker.networkCount > 0 && (
+          <span className="tabular-nums">{picker.networkCount}</span>
+        )}
       </button>
       <button
         type="button"

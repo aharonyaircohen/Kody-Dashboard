@@ -32,6 +32,9 @@ export interface ScreenshotClip {
   height: number;
 }
 
+/** Result of a screenshot attempt — a data URL, or the reason it failed. */
+export type ScreenshotResult = { dataUrl?: string; error?: string };
+
 interface ElementPicker {
   /** True once the extension's bridge answers (installed + on this page). */
   available: boolean;
@@ -40,12 +43,16 @@ interface ElementPicker {
   arm: () => void;
   disarm: () => void;
   toggle: () => void;
+  /** Live count of console errors/warnings buffered in the preview. */
+  logCount: number;
+  /** Live count of failed requests buffered in the preview. */
+  networkCount: number;
   /** Pull the console errors/warnings buffered from the preview frame(s). */
   collectLogs: () => Promise<LogEntry[]>;
   /** Pull the failed requests buffered from the preview frame(s). */
   collectNetwork: () => Promise<NetworkEntry[]>;
   /** Capture the visible tab as a PNG data URL, optionally cropped to `clip`. */
-  captureScreenshot: (clip?: ScreenshotClip) => Promise<string | null>;
+  captureScreenshot: (clip?: ScreenshotClip) => Promise<ScreenshotResult>;
 }
 
 type PageMessageType =
@@ -98,6 +105,8 @@ async function cropDataUrl(
 export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
   const [available, setAvailable] = useState(false);
   const [armed, setArmed] = useState(false);
+  const [logCount, setLogCount] = useState(0);
+  const [networkCount, setNetworkCount] = useState(0);
 
   // Keep the latest callback without re-subscribing the message listener.
   const onSelectRef = useRef(opts.onSelect);
@@ -127,6 +136,10 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
         case "selected":
           setArmed(false);
           onSelectRef.current(data.element);
+          break;
+        case "counts":
+          setLogCount(data.logs);
+          setNetworkCount(data.network);
           break;
       }
     };
@@ -186,7 +199,7 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
   );
 
   const captureScreenshot = useCallback(
-    (clip?: ScreenshotClip): Promise<string | null> =>
+    (clip?: ScreenshotClip): Promise<ScreenshotResult> =>
       new Promise((resolve) => {
         const handler = async (event: MessageEvent) => {
           if (event.source !== window) return;
@@ -196,20 +209,22 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
           window.removeEventListener("message", handler);
           clearTimeout(timer);
           if (!data.dataUrl) {
-            resolve(null);
+            resolve({ error: data.error ?? "capture returned no image" });
             return;
           }
           try {
-            resolve(clip ? await cropDataUrl(data.dataUrl, clip) : data.dataUrl);
+            resolve({
+              dataUrl: clip ? await cropDataUrl(data.dataUrl, clip) : data.dataUrl,
+            });
           } catch {
-            resolve(data.dataUrl);
+            resolve({ dataUrl: data.dataUrl });
           }
         };
         window.addEventListener("message", handler);
         postToExtension("screenshot");
         const timer = setTimeout(() => {
           window.removeEventListener("message", handler);
-          resolve(null);
+          resolve({ error: "timed out (is the extension reloaded?)" });
         }, 6000);
       }),
     [],
@@ -221,6 +236,8 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
     arm,
     disarm,
     toggle,
+    logCount,
+    networkCount,
     collectLogs,
     collectNetwork,
     captureScreenshot,

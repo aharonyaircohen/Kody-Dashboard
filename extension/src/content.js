@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.2.0";
+  const VERSION = "0.2.1";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -86,6 +86,8 @@
         postToPage({ type: "network", entries: msg.entries });
       } else if (msg?.kind === "screenshot") {
         postToPage({ type: "screenshot", dataUrl: msg.dataUrl, error: msg.error });
+      } else if (msg?.kind === "counts") {
+        postToPage({ type: "counts", logs: msg.logs, network: msg.network });
       }
     });
   }
@@ -101,6 +103,24 @@
     const netBuffer = [];
 
     injectCollector();
+    // Reset the dashboard badges for this (re)loaded frame.
+    pushCounts();
+
+    // Coalesce count pushes so a chatty app doesn't flood the bridge.
+    let countsTimer = null;
+    function pushCounts() {
+      if (countsTimer) return;
+      countsTimer = setTimeout(() => {
+        countsTimer = null;
+        chrome.runtime
+          .sendMessage({
+            kind: "counts",
+            logs: logBuffer.length,
+            network: netBuffer.length,
+          })
+          .catch(() => {});
+      }, 400);
+    }
 
     // Receive buffered entries from the page main-world collector.
     window.addEventListener("message", (event) => {
@@ -111,6 +131,7 @@
       if (!buf) return;
       buf.push(d.entry);
       if (buf.length > BUFFER_CAP) buf.shift();
+      pushCounts();
     });
 
     chrome.runtime.onMessage.addListener((msg) => {
