@@ -1,5 +1,5 @@
 ---
-every: 30m
+every: 1d
 staff: tech-writer
 mentions: aguyaharonyair
 disabled: true
@@ -23,22 +23,20 @@ and lets the operator approve the actual edit.
 mark of merged PRs already inspected. The first run with no cursor set should
 record "now" and exit (don't retro-scan history).
 
-**Per tick (one action max):**
+**Per tick (catch up on every PR merged since the cursor):**
 
 1. List recently merged PRs newest-first:
-   `gh pr list --state merged --base main --json number,title,mergedAt,files --limit 20`
-2. Take the **oldest** PR whose `mergedAt > data.lastCheckedMergedAt`. If none,
-   idle (emit unchanged state, exit). Inspecting one PR per tick keeps the
-   single-action bound.
-3. Map its changed `files[].path` to documented areas using the table below.
-   - If the PR touched **no** documented area → advance
-     `data.lastCheckedMergedAt` to this PR's `mergedAt` and exit (nothing to
-     flag, but the PR is now checked).
+   `gh pr list --state merged --base main --json number,title,mergedAt,files --limit 30`
+2. Take **every** PR whose `mergedAt > data.lastCheckedMergedAt`, oldest-first
+   (a daily tick may cover several merges). If none, idle (emit unchanged
+   state, exit). Process each in turn, then advance the cursor once at the end.
+3. For each PR, map its changed `files[].path` to documented areas using the table below.
+   - If the PR touched **no** documented area → nothing to flag; move to the
+     next PR.
    - If it touched a documented area **and also changed the mapped
-     `docs/*.md`** in the same PR → the author already updated the doc.
-     Advance the cursor and exit.
+     `docs/*.md`** in the same PR → the author already updated the doc; move on.
    - If it touched a documented area but **left the doc untouched** → that's
-     drift. Continue to step 4.
+     drift. Do step 4 for it, then move to the next PR.
 4. Dedup, then flag (one issue + one inbox rec per drifted area):
    - Title: `docs-drift: <docPath> (#<pr>)`. If an open issue with that title
      already exists
@@ -52,7 +50,8 @@ record "now" and exit (don't retro-scan history).
        --body "<see body template>"
      ```
    - Post one inbox recommendation (format below).
-5. Advance `data.lastCheckedMergedAt` to this PR's `mergedAt`.
+5. After all PRs are processed, advance `data.lastCheckedMergedAt` to the
+   **newest** processed PR's `mergedAt` (one write, at the end).
 
 ### Area → doc map
 
@@ -128,7 +127,8 @@ verb.
 - **Advisory only.** Never edit, commit, or push a doc; never open a PR; never
   merge/approve/label a PR. You flag and recommend — the operator approves the
   edit, the engine writes it.
-- **One PR inspected per tick**, **one issue + one rec** per drifted area.
+- **Catch up on all PRs merged since the cursor** each tick (batch — it's
+  light bookkeeping), **one issue + one rec** per drifted area.
 - **Dedup by tracking-issue title** (`docs-drift: <docPath> (#<pr>)`); skip if
   an open one already exists.
 - **Never retro-scan**: the first run sets the cursor to "now" and exits. Only

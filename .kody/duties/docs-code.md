@@ -1,5 +1,5 @@
 ---
-every: 1h
+every: 1d
 staff: tech-writer
 mentions: aguyaharonyair
 disabled: true
@@ -24,7 +24,8 @@ both are checked.
 **Cadence guard.** A full coverage sweep is broad and noisy if run too often.
 If `data.lastRunISO` is set and within the last 24 hours, emit unchanged state
 and exit. Otherwise proceed and set `data.lastRunISO` to now (UTC ISO).
-(`every: 1h` just wakes it; the guard makes it sweep ~once/day.)
+(`every: 1d` is the cadence; the 24h guard is just a backstop against an extra
+early wake.)
 
 **One finding flagged per tick** — pick the single worst-covered folder, not a
 batch. Doc-coverage debt is paid down one folder at a time so the inbox isn't
@@ -104,7 +105,7 @@ Never emit `@kody approve` — the engine has no `approve` verb.
   merge/approve/label. You flag and recommend — the operator approves, the
   engine writes the headers.
 - **One folder flagged per tick**, and at most **one** issue + one rec.
-- **24h cadence guard** (`data.lastRunISO`); `every: 1h` only wakes it.
+- **Daily** (`every: 1d`); the 24h `data.lastRunISO` guard is a backstop.
 - **Dedup by tracking-issue title** (folder path); skip if an open one exists.
 - Skip `components/` and `utils/` — folder-level headers there aren't useful.
 - All writes go through `gh` — never `git commit`/`git push`.
