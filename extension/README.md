@@ -1,8 +1,15 @@
-# Kody Element Picker (browser extension)
+# Kody Preview Inspector (browser extension)
 
-A point-and-click element picker for the dashboard's preview. When armed, you
-hover the live preview, click an element, and its details (selector, tag, text,
-attributes, position) are sent into Kody chat as context.
+Pulls live context out of the dashboard's preview into Kody chat:
+
+- **Pick element** — hover + click; selector/tag/text/attributes → chat chip.
+- **Console errors** — the errors/warnings the preview has logged.
+- **Failed requests** — the preview's failed network calls (4xx/5xx/threw).
+- **Screenshot** — a picture of the preview, attached to the message.
+
+Console/network are captured by a tiny script injected into the page's main
+world (content scripts can't see the page's own `console`/`fetch`); it buffers
+the last 50 of each and hands them over on demand.
 
 ## Why an extension?
 

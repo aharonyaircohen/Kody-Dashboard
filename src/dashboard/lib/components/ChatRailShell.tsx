@@ -73,6 +73,19 @@ interface ChatRailApi {
   setComposerInjection: (
     injection: { id: string; label: string; context: string } | null,
   ) => void;
+  /**
+   * Attach an image to the chat composer (e.g. a Vibe-preview screenshot).
+   * Mirrors `setComposerInjection` but for the attachment list. Pass `null`
+   * to clear.
+   */
+  setAttachmentInjection: (
+    injection: {
+      id: string;
+      name: string;
+      dataUrl: string;
+      mimeType: string;
+    } | null,
+  ) => void;
 }
 
 const ChatRailContext = createContext<ChatRailApi | null>(null);
@@ -92,6 +105,7 @@ const NOOP_API: ChatRailApi = {
   openMobileChat: () => {},
   setOnIssueCreated: () => {},
   setComposerInjection: () => {},
+  setAttachmentInjection: () => {},
 };
 
 // Routes that must NOT render the chat rail (none currently — the rail
@@ -233,6 +247,12 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     label: string;
     context: string;
   } | null>(null);
+  const [attachmentInjection, setAttachmentInjection] = useState<{
+    id: string;
+    name: string;
+    dataUrl: string;
+    mimeType: string;
+  } | null>(null);
 
   const api = useMemo<ChatRailApi>(
     () => ({
@@ -241,6 +261,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       openMobileChat,
       setOnIssueCreated,
       setComposerInjection,
+      setAttachmentInjection,
     }),
     [scope, openMobileChat, setOnIssueCreated],
   );
@@ -309,6 +330,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                   }
                   railFullscreen={railMode === "fullscreen"}
                   composerInjection={composerInjection}
+                  attachmentInjection={attachmentInjection}
                 />
               ) : (
                 <div className="flex-1 flex items-center justify-center p-6">
@@ -409,6 +431,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                     knownGoals={goals}
                     onDirectToGoal={directToGoal}
                     composerInjection={composerInjection}
+                    attachmentInjection={attachmentInjection}
                   />
                 ) : mobileOpen ? (
                   <div className="flex-1 flex items-center justify-center p-6">

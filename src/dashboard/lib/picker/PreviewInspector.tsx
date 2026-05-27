@@ -1,0 +1,221 @@
+/**
+ * @fileType component
+ * @domain picker
+ * @pattern preview-inspector-toolbar
+ * @ai-summary Toolbar buttons that drive the Kody Preview Inspector extension —
+ *   pick an element, send console errors / failed requests, and screenshot the
+ *   preview into chat. Shared by PreviewModal and VibePage. Emits results via
+ *   `onContext` (a composer chip) and `onAttachment` (a chat image); the host
+ *   decides where those go. Renders an install link when the extension is
+ *   absent.
+ */
+"use client";
+
+import { useState, type RefObject } from "react";
+import { toast } from "sonner";
+import {
+  Bug,
+  Activity,
+  Camera,
+  MousePointerClick,
+  Puzzle,
+} from "lucide-react";
+import { cn } from "../utils";
+import { useElementPicker } from "./useElementPicker";
+import {
+  formatLogs,
+  formatNetwork,
+  formatPickedElement,
+  formatPickedElementLabel,
+  PICKER_DOWNLOAD_PATH,
+  PICKER_DOCS_URL,
+  PICKER_INSTALL_HINT,
+} from "./protocol";
+
+export interface ComposerChip {
+  id: string;
+  label: string;
+  context: string;
+}
+export interface AttachmentInjection {
+  id: string;
+  name: string;
+  dataUrl: string;
+  mimeType: string;
+}
+
+interface PreviewInspectorProps {
+  /** The preview area element — used to crop screenshots to the preview. */
+  previewRef: RefObject<HTMLElement | null>;
+  /** Emit a composer context chip (picked element, console errors, network). */
+  onContext: (chip: ComposerChip) => void;
+  /** Emit a chat image attachment (preview screenshot). */
+  onAttachment: (attachment: AttachmentInjection) => void;
+}
+
+const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const BTN_BASE =
+  "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+const BTN_IDLE =
+  "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border-zinc-700";
+
+export function PreviewInspector({
+  previewRef,
+  onContext,
+  onAttachment,
+}: PreviewInspectorProps) {
+  const [busy, setBusy] = useState<null | "logs" | "network" | "shot">(null);
+
+  const picker = useElementPicker({
+    onSelect: (el) => {
+      onContext({
+        id: newId(),
+        label: formatPickedElementLabel(el),
+        context: formatPickedElement(el),
+      });
+      toast.success(`Added ${formatPickedElementLabel(el)} to chat`);
+    },
+  });
+
+  if (!picker.available) {
+    return (
+      <a
+        href={PICKER_DOWNLOAD_PATH}
+        download
+        onClick={() =>
+          toast.info(PICKER_INSTALL_HINT, {
+            duration: 12000,
+            action: {
+              label: "Guide",
+              onClick: () => window.open(PICKER_DOCS_URL, "_blank"),
+            },
+          })
+        }
+        title="Download the Kody Preview Inspector, then load it unpacked"
+        className={cn(BTN_BASE, "text-zinc-400", BTN_IDLE)}
+      >
+        <Puzzle className="w-3 h-3" />
+        Get inspector
+      </a>
+    );
+  }
+
+  const sendLogs = async () => {
+    setBusy("logs");
+    try {
+      const logs = await picker.collectLogs();
+      if (!logs.length) {
+        toast.info("No console errors captured from the preview");
+        return;
+      }
+      onContext({
+        id: newId(),
+        label: `${logs.length} console ${logs.length === 1 ? "error" : "errors"}`,
+        context: formatLogs(logs),
+      });
+      toast.success("Added console output to chat");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const sendNetwork = async () => {
+    setBusy("network");
+    try {
+      const net = await picker.collectNetwork();
+      if (!net.length) {
+        toast.info("No failed requests captured from the preview");
+        return;
+      }
+      onContext({
+        id: newId(),
+        label: `${net.length} failed ${net.length === 1 ? "request" : "requests"}`,
+        context: formatNetwork(net),
+      });
+      toast.success("Added failed requests to chat");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const sendScreenshot = async () => {
+    setBusy("shot");
+    try {
+      const rect = previewRef.current?.getBoundingClientRect();
+      const clip = rect
+        ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+        : undefined;
+      const dataUrl = await picker.captureScreenshot(clip);
+      if (!dataUrl) {
+        toast.error("Couldn't capture a screenshot");
+        return;
+      }
+      onAttachment({
+        id: newId(),
+        name: `preview-${Date.now()}.png`,
+        dataUrl,
+        mimeType: "image/png",
+      });
+      toast.success("Added preview screenshot to chat");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={picker.toggle}
+        title={
+          picker.armed
+            ? "Click an element in the preview (Esc to cancel)"
+            : "Pick an element from the preview into chat"
+        }
+        aria-pressed={picker.armed}
+        className={cn(
+          BTN_BASE,
+          picker.armed
+            ? "bg-blue-500/20 text-blue-300 border-blue-500/40"
+            : BTN_IDLE,
+        )}
+      >
+        <MousePointerClick className="w-3 h-3" />
+        {picker.armed ? "Picking…" : "Pick element"}
+      </button>
+      <button
+        type="button"
+        onClick={sendLogs}
+        disabled={busy !== null}
+        title="Send the preview's console errors to chat"
+        aria-label="Send console errors to chat"
+        className={cn(BTN_BASE, BTN_IDLE)}
+      >
+        <Bug className={cn("w-3 h-3", busy === "logs" && "animate-pulse")} />
+      </button>
+      <button
+        type="button"
+        onClick={sendNetwork}
+        disabled={busy !== null}
+        title="Send the preview's failed network requests to chat"
+        aria-label="Send failed requests to chat"
+        className={cn(BTN_BASE, BTN_IDLE)}
+      >
+        <Activity
+          className={cn("w-3 h-3", busy === "network" && "animate-pulse")}
+        />
+      </button>
+      <button
+        type="button"
+        onClick={sendScreenshot}
+        disabled={busy !== null}
+        title="Screenshot the preview into chat"
+        aria-label="Screenshot the preview into chat"
+        className={cn(BTN_BASE, BTN_IDLE)}
+      >
+        <Camera className={cn("w-3 h-3", busy === "shot" && "animate-pulse")} />
+      </button>
+    </>
+  );
+}

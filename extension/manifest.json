@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Kody Element Picker",
-  "version": "0.1.0",
-  "description": "Point-and-click element picker that feeds the selected DOM element from a preview into Kody chat as context.",
+  "name": "Kody Preview Inspector",
+  "version": "0.2.0",
+  "description": "Inspect a Kody preview: pick elements, and send console errors, failed requests, and screenshots into Kody chat as context.",
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "src/background.js" },
   "content_scripts": [

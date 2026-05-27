@@ -2,9 +2,10 @@
  * @fileType hook
  * @domain picker
  * @pattern extension-bridge
- * @ai-summary Detects the Kody Element Picker extension, arms/disarms it, and
- *   surfaces picked elements. All cross-frame work happens in the extension;
- *   this just talks to its bridge over window.postMessage.
+ * @ai-summary Detects the Kody Preview Inspector extension and exposes its
+ *   capabilities — pick an element, collect console errors / failed requests,
+ *   capture a screenshot. All cross-frame work happens in the extension; this
+ *   just talks to its bridge over window.postMessage.
  */
 "use client";
 
@@ -12,6 +13,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   PICKER_EXT_SOURCE,
   PICKER_PAGE_SOURCE,
+  type LogEntry,
+  type NetworkEntry,
   type PickedElement,
   type PickerExtMessage,
 } from "./protocol";
@@ -19,6 +22,14 @@ import {
 interface UseElementPickerOptions {
   /** Fired once per click, after the picker auto-disarms. */
   onSelect: (element: PickedElement) => void;
+}
+
+/** A clip rectangle (CSS pixels, viewport-relative) to crop a screenshot to. */
+export interface ScreenshotClip {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 interface ElementPicker {
@@ -29,14 +40,59 @@ interface ElementPicker {
   arm: () => void;
   disarm: () => void;
   toggle: () => void;
+  /** Pull the console errors/warnings buffered from the preview frame(s). */
+  collectLogs: () => Promise<LogEntry[]>;
+  /** Pull the failed requests buffered from the preview frame(s). */
+  collectNetwork: () => Promise<NetworkEntry[]>;
+  /** Capture the visible tab as a PNG data URL, optionally cropped to `clip`. */
+  captureScreenshot: (clip?: ScreenshotClip) => Promise<string | null>;
 }
 
-function postToExtension(type: "ping" | "arm" | "disarm"): void {
+type PageMessageType =
+  | "ping"
+  | "arm"
+  | "disarm"
+  | "collect-logs"
+  | "collect-network"
+  | "screenshot";
+
+function postToExtension(type: PageMessageType): void {
   if (typeof window === "undefined") return;
   window.postMessage(
     { source: PICKER_PAGE_SOURCE, type },
     window.location.origin,
   );
+}
+
+/** Crop a PNG data URL to a CSS-pixel rect (scaled by devicePixelRatio). */
+async function cropDataUrl(
+  dataUrl: string,
+  clip: ScreenshotClip,
+): Promise<string> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = reject;
+    el.src = dataUrl;
+  });
+  const dpr = window.devicePixelRatio || 1;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(clip.width * dpr));
+  canvas.height = Math.max(1, Math.round(clip.height * dpr));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUrl;
+  ctx.drawImage(
+    img,
+    clip.x * dpr,
+    clip.y * dpr,
+    clip.width * dpr,
+    clip.height * dpr,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+  return canvas.toDataURL("image/png");
 }
 
 export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
@@ -93,5 +149,80 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
     else arm();
   }, [armed, arm, disarm]);
 
-  return { available, armed, arm, disarm, toggle };
+  // Sub-frame buffers reply asynchronously; gather everything that arrives in a
+  // short window (the preview is usually one frame, but ads/embeds add more).
+  const collect = useCallback(
+    <T,>(
+      request: "collect-logs" | "collect-network",
+      replyType: "logs" | "network",
+    ): Promise<T[]> =>
+      new Promise((resolve) => {
+        const acc: T[] = [];
+        const handler = (event: MessageEvent) => {
+          if (event.source !== window) return;
+          const data = event.data as PickerExtMessage | undefined;
+          if (!data || data.source !== PICKER_EXT_SOURCE) return;
+          if (data.type === replyType) {
+            acc.push(...((data.entries as unknown[]) as T[]));
+          }
+        };
+        window.addEventListener("message", handler);
+        postToExtension(request);
+        setTimeout(() => {
+          window.removeEventListener("message", handler);
+          resolve(acc);
+        }, 600);
+      }),
+    [],
+  );
+
+  const collectLogs = useCallback(
+    () => collect<LogEntry>("collect-logs", "logs"),
+    [collect],
+  );
+  const collectNetwork = useCallback(
+    () => collect<NetworkEntry>("collect-network", "network"),
+    [collect],
+  );
+
+  const captureScreenshot = useCallback(
+    (clip?: ScreenshotClip): Promise<string | null> =>
+      new Promise((resolve) => {
+        const handler = async (event: MessageEvent) => {
+          if (event.source !== window) return;
+          const data = event.data as PickerExtMessage | undefined;
+          if (!data || data.source !== PICKER_EXT_SOURCE) return;
+          if (data.type !== "screenshot") return;
+          window.removeEventListener("message", handler);
+          clearTimeout(timer);
+          if (!data.dataUrl) {
+            resolve(null);
+            return;
+          }
+          try {
+            resolve(clip ? await cropDataUrl(data.dataUrl, clip) : data.dataUrl);
+          } catch {
+            resolve(data.dataUrl);
+          }
+        };
+        window.addEventListener("message", handler);
+        postToExtension("screenshot");
+        const timer = setTimeout(() => {
+          window.removeEventListener("message", handler);
+          resolve(null);
+        }, 6000);
+      }),
+    [],
+  );
+
+  return {
+    available,
+    armed,
+    arm,
+    disarm,
+    toggle,
+    collectLogs,
+    collectNetwork,
+    captureScreenshot,
+  };
 }
