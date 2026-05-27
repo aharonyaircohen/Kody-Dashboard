@@ -116,11 +116,15 @@ export function useChannelsUnread(): UseChannelsUnreadResult {
     onSuccess: (next) => qc.setQueryData(key, next),
   });
 
+  // `mutateAsync` is referentially stable across renders; the mutation object
+  // itself is NOT — depending on the whole object made `markSeen` change every
+  // render, which spun the mark-seen effect into an infinite POST loop.
+  const { mutateAsync: markSeenAsync } = markSeenMut;
   const markSeen = useCallback(
     async (channelNumber: number) => {
-      await markSeenMut.mutateAsync(channelNumber);
+      await markSeenAsync(channelNumber);
     },
-    [markSeenMut],
+    [markSeenAsync],
   );
 
   return {

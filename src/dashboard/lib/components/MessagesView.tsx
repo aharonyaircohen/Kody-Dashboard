@@ -999,9 +999,15 @@ export function MessagesView() {
   const activeChannel = channels.find((c) => c.number === selected) ?? null;
 
   // Opening a channel marks it read (synced via the per-user gist), so its
-  // nav badge / list dot clears on this and every other device.
+  // nav badge / list dot clears on this and every other device. Guarded by a
+  // ref so it fires once per channel selection — never on every render (that
+  // would spin into an endless POST loop).
+  const lastMarkedRef = useRef<number | null>(null);
   useEffect(() => {
-    if (selected !== null) void markSeen(selected);
+    if (selected === null) return;
+    if (lastMarkedRef.current === selected) return;
+    lastMarkedRef.current = selected;
+    void markSeen(selected);
   }, [selected, markSeen]);
 
   if (isLoading) {
