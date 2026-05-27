@@ -74,7 +74,14 @@ export function getColumnForIssue(
     if (status === "running") {
       if (phase === "reviewing" && (associatedPR || kodyState.core.prUrl))
         return "review";
-      return "building";
+      // `idle` is the parked phase — classified but no working phase started,
+      // or a phase ended without finalizing. It is NOT active work. Returning
+      // "building" here makes backlog issues flap into "running" whenever this
+      // stale state happens to be read (kodyState is only fetched when the old
+      // run is still in the recent-runs window, which churns minute-to-minute).
+      // Fall through: a genuinely live run is still caught by the in_progress
+      // check below; otherwise the issue settles into its label/PR lane.
+      if (phase !== "idle") return "building";
     }
     if (status === "succeeded") {
       if (associatedPR && !associatedPR.merged_at) return "review";

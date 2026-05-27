@@ -59,6 +59,21 @@ function failedState(): KodyTaskState {
   };
 }
 
+function idleRunningState(): KodyTaskState {
+  // Real-world stuck state: classify ran, set status=running, but the task
+  // is parked at phase=idle (no working phase started). Backlog item.
+  return {
+    schemaVersion: 1,
+    core: {
+      phase: "idle",
+      status: "running",
+      currentExecutable: "classify",
+      lastOutcome: null,
+      attempts: { classify: 1 },
+    },
+  };
+}
+
 function activeRun(): WorkflowRun {
   return {
     id: 999,
@@ -163,6 +178,29 @@ describe("deriveTaskColumn — label fallback when no pipeline data", () => {
       issue: issue({ labels: [{ name: "kody:done", color: "" }] }),
     });
     expect(result).toBe("done");
+  });
+
+  it("idle+running engine state with no live run → 'open' (no flap to building)", () => {
+    // Regression: a backlog issue with a stale `phase:idle, status:running`
+    // state comment was returning 'building', and only when that state
+    // happened to be read — so the card flapped running↔backlog as the old
+    // run slid in/out of the recent-runs window. Idle is not active work.
+    const result = deriveTaskColumn({
+      issue: issue({ labels: [{ name: "feature", color: "" }] }),
+      kodyState: idleRunningState(),
+    });
+    expect(result).toBe("open");
+  });
+
+  it("idle+running engine state WITH a live run still → 'building'", () => {
+    // The fall-through must still catch genuinely active work: when a real
+    // in_progress run backs the idle state, it belongs in 'building'.
+    const result = deriveTaskColumn({
+      issue: issue({ labels: [{ name: "feature", color: "" }] }),
+      kodyState: idleRunningState(),
+      workflowRun: activeRun(),
+    });
+    expect(result).toBe("building");
   });
 
   it("open PR with no labels → 'review'", () => {
