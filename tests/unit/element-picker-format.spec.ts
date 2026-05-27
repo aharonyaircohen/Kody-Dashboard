@@ -9,7 +9,10 @@ import {
   formatPickedElement,
   formatLogs,
   formatNetwork,
+  formatPerf,
+  formatPlaywrightTest,
   type PickedElement,
+  type PerfReport,
 } from "@dashboard/lib/picker/protocol";
 
 function el(overrides: Partial<PickedElement> = {}): PickedElement {
@@ -119,5 +122,62 @@ describe("formatNetwork", () => {
       { url: "https://api/y", method: "POST", status: 0, error: "TypeError", ts: 1 },
     ]);
     expect(out).toContain("POST https://api/y → ERR TypeError");
+  });
+});
+
+function perf(overrides: Partial<PerfReport> = {}): PerfReport {
+  return {
+    url: "https://preview/",
+    ttfbMs: 120,
+    domContentLoadedMs: 800,
+    loadMs: 2300,
+    fcpMs: 900,
+    lcpMs: 2500,
+    resourceCount: 42,
+    totalBytes: 1024 * 1024 * 2,
+    slowest: [{ url: "https://preview/main.js", type: "script", durationMs: 1800, bytes: 512 * 1024 }],
+    ...overrides,
+  };
+}
+
+describe("formatPerf", () => {
+  it("renders timings with s/ms units and lists slowest resources", () => {
+    const out = formatPerf(perf());
+    expect(out).toContain("TTFB: 120ms");
+    expect(out).toContain("Largest Contentful Paint: 2.50s");
+    expect(out).toContain("Load: 2.30s");
+    expect(out).toContain("2.0MB transferred");
+    expect(out).toContain("main.js");
+  });
+
+  it("shows 'still loading' when loadMs is 0 and n/a LCP when missing", () => {
+    const out = formatPerf(perf({ loadMs: 0, lcpMs: 0 }));
+    expect(out).toContain("Load: still loading");
+    expect(out).toContain("Largest Contentful Paint: n/a");
+  });
+});
+
+describe("formatPlaywrightTest", () => {
+  it("emits goto + click/fill calls with escaped quotes", () => {
+    const out = formatPlaywrightTest(
+      [
+        { type: "click", selector: "button.cta", text: "Buy" },
+        { type: "fill", selector: "input#email", value: "a@b.co" },
+      ],
+      "https://preview/checkout",
+    );
+    expect(out).toContain("await page.goto('https://preview/checkout');");
+    expect(out).toContain("await page.click('button.cta');");
+    expect(out).toContain("await page.fill('input#email', 'a@b.co');");
+    expect(out).toContain("import { test, expect } from '@playwright/test';");
+  });
+
+  it("escapes single quotes in selectors/values", () => {
+    const out = formatPlaywrightTest(
+      [{ type: "fill", selector: "input[name='q']", value: "it's" }],
+      "https://preview/",
+    );
+    expect(out).toContain("input[name=\\'q\\']");
+    expect(out).toContain("it\\'s");
   });
 });

@@ -21,8 +21,19 @@ const BROADCAST_DOWN = new Set([
   "disarm",
   "collect-logs",
   "collect-network",
+  "collect-perf",
+  "record-start",
+  "record-stop",
 ]);
-const RELAY_UP = new Set(["selected", "logs", "network", "counts"]);
+const RELAY_UP = new Set([
+  "selected",
+  "logs",
+  "network",
+  "counts",
+  "perf",
+  "recording",
+  "rec-count",
+]);
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
   const tabId = sender.tab?.id;

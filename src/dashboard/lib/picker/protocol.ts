@@ -51,6 +51,35 @@ export interface NetworkEntry {
   ts: number;
 }
 
+/** A single timed resource in a performance snapshot. */
+export interface PerfResource {
+  url: string;
+  type: string;
+  durationMs: number;
+  bytes: number;
+}
+
+/** A performance snapshot of the preview (page load timings + resources). */
+export interface PerfReport {
+  url: string;
+  ttfbMs: number;
+  domContentLoadedMs: number;
+  loadMs: number;
+  fcpMs: number;
+  lcpMs: number;
+  resourceCount: number;
+  totalBytes: number;
+  slowest: PerfResource[];
+}
+
+/** A recorded user action, turned into a Playwright step. */
+export interface RecordedStep {
+  type: "click" | "fill";
+  selector: string;
+  text?: string;
+  value?: string;
+}
+
 /** Messages the dashboard page sends to the extension bridge. */
 export type PickerPageMessage = {
   source: typeof PICKER_PAGE_SOURCE;
@@ -60,6 +89,9 @@ export type PickerPageMessage = {
     | "disarm"
     | "collect-logs"
     | "collect-network"
+    | "collect-perf"
+    | "record-start"
+    | "record-stop"
     | "screenshot";
 };
 
@@ -85,6 +117,14 @@ export type PickerExtMessage =
       logs: number;
       network: number;
     }
+  | { source: typeof PICKER_EXT_SOURCE; type: "perf"; report: PerfReport }
+  | {
+      source: typeof PICKER_EXT_SOURCE;
+      type: "recording";
+      steps: RecordedStep[];
+      url: string;
+    }
+  | { source: typeof PICKER_EXT_SOURCE; type: "rec-count"; count: number }
   | {
       source: typeof PICKER_EXT_SOURCE;
       type: "screenshot";
@@ -139,6 +179,62 @@ export function formatLogs(entries: LogEntry[]): string {
     }):`,
     "```",
     body,
+    "```",
+  ].join("\n");
+}
+
+function ms(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(2)}s` : `${Math.round(n)}ms`;
+}
+function kb(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)}MB`
+    : `${Math.round(bytes / 1024)}KB`;
+}
+
+/** Render a performance snapshot as a chat-ready, actionable block. */
+export function formatPerf(report: PerfReport): string {
+  const lines = [
+    "Preview performance snapshot:",
+    `- TTFB: ${ms(report.ttfbMs)}`,
+    `- First Contentful Paint: ${ms(report.fcpMs)}`,
+    `- Largest Contentful Paint: ${report.lcpMs ? ms(report.lcpMs) : "n/a"}`,
+    `- DOMContentLoaded: ${ms(report.domContentLoadedMs)}`,
+    `- Load: ${report.loadMs ? ms(report.loadMs) : "still loading"}`,
+    `- Resources: ${report.resourceCount} (${kb(report.totalBytes)} transferred)`,
+  ];
+  if (report.slowest.length) {
+    lines.push("- Slowest resources:");
+    for (const r of report.slowest) {
+      const file = r.url.split("/").pop() || r.url;
+      lines.push(`  - ${ms(r.durationMs)} · ${kb(r.bytes)} · ${r.type} · ${file}`);
+    }
+  }
+  lines.push(`- URL: ${report.url}`);
+  return lines.join("\n");
+}
+
+/** Turn recorded actions into a Playwright test the user/Kody can save. */
+export function formatPlaywrightTest(steps: RecordedStep[], url: string): string {
+  const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const body = [`  await page.goto('${esc(url)}');`];
+  for (const step of steps) {
+    if (step.type === "click") {
+      const comment = step.text ? `  // ${step.text}` : "";
+      body.push(`  await page.click('${esc(step.selector)}');${comment}`);
+    } else {
+      body.push(`  await page.fill('${esc(step.selector)}', '${esc(step.value ?? "")}');`);
+    }
+  }
+  return [
+    `Recorded ${steps.length} step(s) as a Playwright test:`,
+    "```ts",
+    `import { test, expect } from '@playwright/test';`,
+    "",
+    `test('recorded flow', async ({ page }) => {`,
+    ...body,
+    `  // TODO: add assertions for what should be true at the end.`,
+    `});`,
     "```",
   ].join("\n");
 }

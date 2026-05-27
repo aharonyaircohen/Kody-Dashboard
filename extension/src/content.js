@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.2.2";
+  const VERSION = "0.3.0";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -56,6 +56,9 @@
       disarm: { kind: "disarm" },
       "collect-logs": { kind: "collect-logs" },
       "collect-network": { kind: "collect-network" },
+      "collect-perf": { kind: "collect-perf" },
+      "record-start": { kind: "record-start" },
+      "record-stop": { kind: "record-stop" },
       screenshot: { kind: "capture-screenshot" },
     };
 
@@ -88,6 +91,12 @@
         postToPage({ type: "screenshot", dataUrl: msg.dataUrl, error: msg.error });
       } else if (msg?.kind === "counts") {
         postToPage({ type: "counts", logs: msg.logs, network: msg.network });
+      } else if (msg?.kind === "perf") {
+        postToPage({ type: "perf", report: msg.report });
+      } else if (msg?.kind === "recording") {
+        postToPage({ type: "recording", steps: msg.steps, url: msg.url });
+      } else if (msg?.kind === "rec-count") {
+        postToPage({ type: "rec-count", count: msg.count });
       }
     });
   }
@@ -101,6 +110,23 @@
     let current = null;
     const logBuffer = [];
     const netBuffer = [];
+
+    // Largest Contentful Paint — observed (buffered replays past entries) so a
+    // late-loading content script still sees it. Read on demand for "Speed".
+    let lcpMs = 0;
+    try {
+      new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        const last = entries[entries.length - 1];
+        if (last) lcpMs = last.renderTime || last.startTime || lcpMs;
+      }).observe({ type: "largest-contentful-paint", buffered: true });
+    } catch {
+      /* unsupported — report omits LCP */
+    }
+
+    // Test recorder — buffers user actions (click/fill) while recording.
+    let recording = false;
+    const recSteps = [];
 
     // Coalesce count pushes so a chatty app doesn't flood the bridge.
     // NOTE: declared before first use — `pushCounts` reads `countsTimer`, so
@@ -148,6 +174,21 @@
         chrome.runtime
           .sendMessage({ kind: "network", entries: netBuffer.slice() })
           .catch(() => {});
+      } else if (msg?.kind === "collect-perf") {
+        chrome.runtime
+          .sendMessage({ kind: "perf", report: computePerf() })
+          .catch(() => {});
+      } else if (msg?.kind === "record-start") {
+        startRecording();
+      } else if (msg?.kind === "record-stop") {
+        chrome.runtime
+          .sendMessage({
+            kind: "recording",
+            steps: recSteps.slice(),
+            url: window.location.href,
+          })
+          .catch(() => {});
+        stopRecording();
       }
     });
 
@@ -196,6 +237,89 @@
         .sendMessage({ kind: "selected", element: describe(el) })
         .catch(() => {});
       disarm();
+    }
+
+    // -- test recorder ---------------------------------------------------------
+    // Records user actions (without blocking them) so one click-through becomes
+    // a Playwright test. `change` (not keystroke) captures fills on commit.
+    function startRecording() {
+      if (recording) return;
+      recording = true;
+      recSteps.length = 0;
+      document.addEventListener("click", onRecClick, true);
+      document.addEventListener("change", onRecChange, true);
+      pushRecCount();
+    }
+
+    function stopRecording() {
+      recording = false;
+      document.removeEventListener("click", onRecClick, true);
+      document.removeEventListener("change", onRecChange, true);
+    }
+
+    function onRecClick(e) {
+      const el = e.target instanceof Element ? e.target : null;
+      if (!el) return;
+      recSteps.push({
+        type: "click",
+        selector: buildSelector(el),
+        text: (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 80),
+      });
+      pushRecCount();
+    }
+
+    function onRecChange(e) {
+      const el = e.target;
+      if (
+        !(
+          el instanceof HTMLInputElement ||
+          el instanceof HTMLTextAreaElement ||
+          el instanceof HTMLSelectElement
+        )
+      ) {
+        return;
+      }
+      const masked = el instanceof HTMLInputElement && el.type === "password";
+      recSteps.push({
+        type: "fill",
+        selector: buildSelector(el),
+        value: masked ? "********" : String(el.value).slice(0, 200),
+      });
+      pushRecCount();
+    }
+
+    function pushRecCount() {
+      chrome.runtime
+        .sendMessage({ kind: "rec-count", count: recSteps.length })
+        .catch(() => {});
+    }
+
+    // -- performance snapshot --------------------------------------------------
+    function computePerf() {
+      const nav = performance.getEntriesByType("navigation")[0];
+      const paints = performance.getEntriesByType("paint");
+      const fcp = paints.find((p) => p.name === "first-contentful-paint");
+      const resources = performance.getEntriesByType("resource");
+      const slowest = resources
+        .map((r) => ({
+          url: r.name,
+          type: r.initiatorType,
+          durationMs: Math.round(r.duration),
+          bytes: r.transferSize || 0,
+        }))
+        .sort((a, b) => b.durationMs - a.durationMs)
+        .slice(0, 8);
+      return {
+        url: window.location.href,
+        ttfbMs: nav ? Math.round(nav.responseStart) : 0,
+        domContentLoadedMs: nav ? Math.round(nav.domContentLoadedEventEnd) : 0,
+        loadMs: nav ? Math.round(nav.loadEventEnd) : 0,
+        fcpMs: fcp ? Math.round(fcp.startTime) : 0,
+        lcpMs: Math.round(lcpMs),
+        resourceCount: resources.length,
+        totalBytes: resources.reduce((s, r) => s + (r.transferSize || 0), 0),
+        slowest,
+      };
     }
 
     // -- highlight overlay -----------------------------------------------------

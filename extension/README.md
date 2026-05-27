@@ -6,6 +6,8 @@ Pulls live context out of the dashboard's preview into Kody chat:
 - **Console errors** — the errors/warnings the preview has logged.
 - **Failed requests** — the preview's failed network calls (4xx/5xx/threw).
 - **Screenshot** — a picture of the preview, attached to the message.
+- **Speed check** — load timings (TTFB/FCP/LCP/load) + slowest resources.
+- **Record a test** — record a click-through → a Playwright test chip.
 
 Console/network are captured by a tiny script injected into the page's main
 world (content scripts can't see the page's own `console`/`fetch`); it buffers

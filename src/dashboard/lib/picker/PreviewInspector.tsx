@@ -17,6 +17,9 @@ import {
   Bug,
   Activity,
   Camera,
+  Gauge,
+  Circle,
+  Square,
   MousePointerClick,
   Puzzle,
 } from "lucide-react";
@@ -25,8 +28,10 @@ import { useElementPicker } from "./useElementPicker";
 import {
   formatLogs,
   formatNetwork,
+  formatPerf,
   formatPickedElement,
   formatPickedElementLabel,
+  formatPlaywrightTest,
   PICKER_DOWNLOAD_PATH,
   PICKER_DOCS_URL,
   PICKER_INSTALL_HINT,
@@ -65,7 +70,9 @@ export function PreviewInspector({
   onContext,
   onAttachment,
 }: PreviewInspectorProps) {
-  const [busy, setBusy] = useState<null | "logs" | "network" | "shot">(null);
+  const [busy, setBusy] = useState<
+    null | "logs" | "network" | "shot" | "perf" | "rec"
+  >(null);
 
   const picker = useElementPicker({
     onSelect: (el) => {
@@ -163,6 +170,46 @@ export function PreviewInspector({
     }
   };
 
+  const sendPerf = async () => {
+    setBusy("perf");
+    try {
+      const report = await picker.collectPerf();
+      if (!report) {
+        toast.error("Couldn't read performance from the preview");
+        return;
+      }
+      onContext({
+        id: newId(),
+        label: report.lcpMs
+          ? `Speed · LCP ${(report.lcpMs / 1000).toFixed(1)}s`
+          : "Speed snapshot",
+        context: formatPerf(report),
+      });
+      toast.success("Added performance snapshot to chat");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const toggleRecording = async () => {
+    if (!picker.recording) {
+      picker.startRecording();
+      toast.info("Recording — click through the preview, then press Stop");
+      return;
+    }
+    const result = await picker.stopRecording();
+    if (!result || !result.steps.length) {
+      toast.info("No steps recorded");
+      return;
+    }
+    onContext({
+      id: newId(),
+      label: `Test · ${result.steps.length} step(s)`,
+      context: formatPlaywrightTest(result.steps, result.url),
+    });
+    toast.success("Added recorded test to chat");
+  };
+
   return (
     <>
       <button
@@ -239,6 +286,41 @@ export function PreviewInspector({
         className={cn(BTN_BASE, BTN_IDLE)}
       >
         <Camera className={cn("w-3 h-3", busy === "shot" && "animate-pulse")} />
+      </button>
+      <button
+        type="button"
+        onClick={sendPerf}
+        disabled={busy !== null}
+        title="Measure the preview's load speed and what's dragging it"
+        aria-label="Send a performance snapshot to chat"
+        className={cn(BTN_BASE, BTN_IDLE)}
+      >
+        <Gauge className={cn("w-3 h-3", busy === "perf" && "animate-pulse")} />
+      </button>
+      <button
+        type="button"
+        onClick={toggleRecording}
+        title={
+          picker.recording
+            ? "Stop recording and add the test to chat"
+            : "Record a click-through, then turn it into a Playwright test"
+        }
+        aria-pressed={picker.recording}
+        className={cn(
+          BTN_BASE,
+          picker.recording
+            ? "bg-red-500/20 text-red-300 border-red-500/50"
+            : BTN_IDLE,
+        )}
+      >
+        {picker.recording ? (
+          <>
+            <Square className="w-3 h-3 fill-current" />
+            Stop · {picker.recStepCount}
+          </>
+        ) : (
+          <Circle className="w-3 h-3" />
+        )}
       </button>
     </>
   );

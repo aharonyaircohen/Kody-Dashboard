@@ -15,8 +15,10 @@ import {
   PICKER_PAGE_SOURCE,
   type LogEntry,
   type NetworkEntry,
+  type PerfReport,
   type PickedElement,
   type PickerExtMessage,
+  type RecordedStep,
 } from "./protocol";
 
 interface UseElementPickerOptions {
@@ -53,6 +55,15 @@ interface ElementPicker {
   collectNetwork: () => Promise<NetworkEntry[]>;
   /** Capture the visible tab as a PNG data URL, optionally cropped to `clip`. */
   captureScreenshot: (clip?: ScreenshotClip) => Promise<ScreenshotResult>;
+  /** Snapshot the preview's load performance + slowest resources. */
+  collectPerf: () => Promise<PerfReport | null>;
+  /** True while recording a click-through into a test. */
+  recording: boolean;
+  /** Live count of recorded steps. */
+  recStepCount: number;
+  startRecording: () => void;
+  /** Stop recording and resolve the captured steps + start URL. */
+  stopRecording: () => Promise<{ steps: RecordedStep[]; url: string } | null>;
 }
 
 type PageMessageType =
@@ -61,6 +72,9 @@ type PageMessageType =
   | "disarm"
   | "collect-logs"
   | "collect-network"
+  | "collect-perf"
+  | "record-start"
+  | "record-stop"
   | "screenshot";
 
 function postToExtension(type: PageMessageType): void {
@@ -107,6 +121,8 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
   const [armed, setArmed] = useState(false);
   const [logCount, setLogCount] = useState(0);
   const [networkCount, setNetworkCount] = useState(0);
+  const [recording, setRecording] = useState(false);
+  const [recStepCount, setRecStepCount] = useState(0);
 
   // Keep the latest callback without re-subscribing the message listener.
   const onSelectRef = useRef(opts.onSelect);
@@ -140,6 +156,9 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
         case "counts":
           setLogCount(data.logs);
           setNetworkCount(data.network);
+          break;
+        case "rec-count":
+          setRecStepCount(data.count);
           break;
       }
     };
@@ -230,6 +249,58 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
     [],
   );
 
+  const collectPerf = useCallback(
+    (): Promise<PerfReport | null> =>
+      new Promise((resolve) => {
+        const handler = (event: MessageEvent) => {
+          if (event.source !== window) return;
+          const data = event.data as PickerExtMessage | undefined;
+          if (!data || data.source !== PICKER_EXT_SOURCE) return;
+          if (data.type !== "perf") return;
+          window.removeEventListener("message", handler);
+          clearTimeout(timer);
+          resolve(data.report);
+        };
+        window.addEventListener("message", handler);
+        postToExtension("collect-perf");
+        const timer = setTimeout(() => {
+          window.removeEventListener("message", handler);
+          resolve(null);
+        }, 1500);
+      }),
+    [],
+  );
+
+  const startRecording = useCallback(() => {
+    setRecStepCount(0);
+    setRecording(true);
+    postToExtension("record-start");
+  }, []);
+
+  const stopRecording = useCallback(
+    (): Promise<{ steps: RecordedStep[]; url: string } | null> =>
+      new Promise((resolve) => {
+        const handler = (event: MessageEvent) => {
+          if (event.source !== window) return;
+          const data = event.data as PickerExtMessage | undefined;
+          if (!data || data.source !== PICKER_EXT_SOURCE) return;
+          if (data.type !== "recording") return;
+          window.removeEventListener("message", handler);
+          clearTimeout(timer);
+          setRecording(false);
+          resolve({ steps: data.steps, url: data.url });
+        };
+        window.addEventListener("message", handler);
+        postToExtension("record-stop");
+        const timer = setTimeout(() => {
+          window.removeEventListener("message", handler);
+          setRecording(false);
+          resolve(null);
+        }, 1500);
+      }),
+    [],
+  );
+
   return {
     available,
     armed,
@@ -241,5 +312,10 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
     collectLogs,
     collectNetwork,
     captureScreenshot,
+    collectPerf,
+    recording,
+    recStepCount,
+    startRecording,
+    stopRecording,
   };
 }

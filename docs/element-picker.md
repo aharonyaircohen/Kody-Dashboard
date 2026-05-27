@@ -8,6 +8,10 @@ Kody chat:
 - **Console errors** — send the errors/warnings the preview has logged.
 - **Failed requests** — send the preview's failed network calls (4xx/5xx/threw).
 - **Screenshot** — drop a picture of the preview into chat as an attachment.
+- **Speed check** — load timings (TTFB/FCP/LCP/load) plus the slowest resources,
+  so Kody can see what's dragging the page.
+- **Record a test** — start recording, click through the preview once, stop; your
+  actions become a Playwright test chip you (or Kody) can save under `tests/`.
 
 It ships as a small browser extension because the preview is a **cross-origin
 iframe**: the dashboard's own page is forbidden by the browser from reaching
@@ -48,6 +52,9 @@ toolbar shows four inspector actions:
 - **🐞 Console errors** → sends whatever the preview has logged to `console`.
 - **📈 Failed requests** → sends the preview's failed network calls.
 - **📷 Screenshot** → attaches a picture of the preview to your message.
+- **⏱ Speed** → sends a load-performance snapshot + the slowest resources.
+- **⏺ Record** → starts recording; click through the preview, then press **Stop**
+  to drop a Playwright test of what you did into chat.
 
 Chips and attachments are removable before you send, and chip-only sends (no
 typed text) are allowed.
