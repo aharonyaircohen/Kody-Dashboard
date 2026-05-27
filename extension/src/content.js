@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.3.0";
+  const VERSION = "0.3.1";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -361,20 +361,48 @@
     // -- element description ---------------------------------------------------
     function describe(el) {
       const rect = el.getBoundingClientRect();
+      const tag = el.tagName.toLowerCase();
+      const isField = tag === "input" || tag === "textarea";
+      const sensitive = isSensitiveField(el, tag);
       const attributes = {};
       for (const attr of Array.from(el.attributes)) {
+        // A field's value can hold a password, token, or PII — never surface
+        // it to chat. Redact sensitive fields; drop the value for any field.
+        if (attr.name === "value" && isField) {
+          if (sensitive) attributes[attr.name] = "[redacted]";
+          continue;
+        }
         attributes[attr.name] = attr.value;
       }
       return {
         selector: buildSelector(el),
-        tagName: el.tagName.toLowerCase(),
+        tagName: tag,
         id: el.id || null,
         classes: Array.from(el.classList),
-        text: (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 300),
+        // Sensitive fields: don't capture text either (some inputs mirror the
+        // value into a sibling/shadow node shown as ••• / ***).
+        text: sensitive
+          ? ""
+          : (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 300),
         attributes,
         rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
         url: window.location.href,
       };
+    }
+
+    // Password / secret / payment fields whose value must never leave the page.
+    function isSensitiveField(el, tag) {
+      if (tag !== "input" && tag !== "textarea") return false;
+      const type = (el.getAttribute("type") || "").toLowerCase();
+      if (type === "password") return true;
+      const hint = (
+        (el.getAttribute("name") || "") +
+        " " +
+        (el.id || "") +
+        " " +
+        (el.getAttribute("autocomplete") || "")
+      ).toLowerCase();
+      return /pass|secret|cvv|cvc|card|otp|ssn|token|\bpin\b/.test(hint);
     }
 
     // Build a reasonably stable CSS selector by walking up to <body>,
