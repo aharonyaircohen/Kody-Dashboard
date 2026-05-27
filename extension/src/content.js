@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.2.1";
+  const VERSION = "0.2.2";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -102,11 +102,10 @@
     const logBuffer = [];
     const netBuffer = [];
 
-    injectCollector();
-    // Reset the dashboard badges for this (re)loaded frame.
-    pushCounts();
-
     // Coalesce count pushes so a chatty app doesn't flood the bridge.
+    // NOTE: declared before first use — `pushCounts` reads `countsTimer`, so
+    // calling it before this `let` runs would throw (TDZ) and abort init,
+    // silently breaking arm/disarm. Keep this above injectCollector().
     let countsTimer = null;
     function pushCounts() {
       if (countsTimer) return;
@@ -121,6 +120,10 @@
           .catch(() => {});
       }, 400);
     }
+
+    injectCollector();
+    // Reset the dashboard badges for this (re)loaded frame.
+    pushCounts();
 
     // Receive buffered entries from the page main-world collector.
     window.addEventListener("message", (event) => {
