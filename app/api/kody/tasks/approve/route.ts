@@ -20,7 +20,6 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import type { Octokit } from "@octokit/rest";
 import {
   requireKodyAuth,
   verifyActorLogin,
@@ -35,6 +34,7 @@ import {
   getRepo,
 } from "@dashboard/lib/github-client";
 import { isProtectedBranch } from "@dashboard/lib/branches";
+import { attemptSquashMerge } from "@dashboard/lib/kody/squash-merge";
 
 const ApproveRequestSchema = z.object({
   issueNumber: z.number().int().positive(),
@@ -42,45 +42,6 @@ const ApproveRequestSchema = z.object({
   branchName: z.string().optional(),
   actorLogin: z.string().optional(),
 });
-
-type MergeOutcome =
-  | { kind: "merged" }
-  | { kind: "already-merged" }
-  | { kind: "failed-ci" }
-  | { kind: "failed-conflict" }
-  | { kind: "failed-other"; message: string; status?: number };
-
-async function attemptSquashMerge(
-  octokit: Octokit,
-  prNumber: number,
-): Promise<MergeOutcome> {
-  try {
-    await octokit.pulls.merge({
-      owner: getOwner(),
-      repo: getRepo(),
-      pull_number: prNumber,
-      merge_method: "squash",
-    });
-    return { kind: "merged" };
-  } catch (err) {
-    const e = err as { status?: number; message?: string };
-    const msg = e.message ?? "";
-    // GitHub returns 405 for non-mergeable (CI failing, branch protection,
-    // mergeable_state is "blocked" / "behind" / "dirty"). 422 for conflicts.
-    // We classify so the caller (and the dashboard UI) can show the right
-    // message instead of a generic 500.
-    if (msg.includes("already merged") || msg.includes("Already up to date")) {
-      return { kind: "already-merged" };
-    }
-    if (msg.includes("not mergeable") || e.status === 405) {
-      return { kind: "failed-ci" };
-    }
-    if (e.status === 409 || /conflict/i.test(msg)) {
-      return { kind: "failed-conflict" };
-    }
-    return { kind: "failed-other", message: msg, status: e.status };
-  }
-}
 
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
