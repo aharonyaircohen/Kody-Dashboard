@@ -37,6 +37,10 @@ export const CTO_ACTIONS = [
   "sync",
   "resolve",
   "qa-review",
+  // Dashboard-executed (NOT an `@kody` command — the engine never auto-merges).
+  // Approve on a `merge` rec squash-merges the PR via the GitHub API; the
+  // QA-verify duty emits these once ui-review confirms the fix/feature works.
+  "merge",
   "approve",
   "comment",
   "other",
@@ -158,9 +162,23 @@ const PARSEABLE: CtoAction[] = [
   "fix",
   "sync",
   "resolve",
+  "merge",
   "approve",
   "comment",
 ];
+
+/**
+ * Actions the dashboard executes itself rather than posting an `@kody`
+ * command. `merge` squash-merges the PR via the GitHub API (the engine never
+ * auto-merges). These are *dispatchable* (Approve acts) even though they carry
+ * no `kody-cmd` line.
+ */
+const DASHBOARD_ACTIONS = new Set<CtoAction>(["merge"]);
+
+/** True for an action the dashboard runs directly (e.g. `merge`). */
+export function isDashboardAction(action: CtoAction): boolean {
+  return DASHBOARD_ACTIONS.has(action);
+}
 
 function parseAction(haystack: string): CtoAction | null {
   for (const a of PARSEABLE) {
@@ -270,5 +288,9 @@ export function detectCtoRecommendation(
   // slug line) default to the CTO so their trust keeps accruing under `cto`.
   const staff = entry.ctoStaff ?? DEFAULT_STAFF_SLUG;
 
-  return { staff, taskNumber, action, command, dispatchable: command !== null };
+  // `merge` is dashboard-executed (no `@kody` command) but still actionable —
+  // Approve squash-merges the PR. Other actions are dispatchable iff they
+  // resolved to a command to post.
+  const dispatchable = isDashboardAction(action) || command !== null;
+  return { staff, taskNumber, action, command, dispatchable };
 }

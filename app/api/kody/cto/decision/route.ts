@@ -38,8 +38,10 @@ import {
   clearGitHubContext,
   invalidateTaskCache,
   invalidateIssueCache,
+  getOctokit,
 } from "@dashboard/lib/github-client";
 import { postWithFallback } from "@dashboard/lib/kody-command";
+import { attemptSquashMerge, isMerged } from "@dashboard/lib/kody/squash-merge";
 import {
   mutateCtoDecisions,
   readCtoDecisions,
@@ -52,6 +54,7 @@ import {
 import {
   CTO_ACTIONS,
   isDispatchable,
+  isDashboardAction,
   dispatchCommand,
   isNonEngineCommand,
 } from "@dashboard/lib/cto/recommendation";
@@ -115,35 +118,58 @@ export async function POST(req: NextRequest) {
     const userOctokit = (await getUserOctokit(req)) ?? undefined;
 
     // Approve → run the recommended action before recording, so a failed
-    // dispatch doesn't get logged as a trusted approval.
+    // dispatch/merge doesn't get logged as a trusted approval.
     let executed = false;
-    // The CTO's own command wins (guarded: must be a single `@kody …`, and
-    // not a non-engine verb like `@kody approve` — those make the engine
-    // reply "I don't recognize approve", so we drop them to the verb→command
-    // fallback rather than posting a dead command). Legacy recs with no
-    // command fall back to the verb→command map.
-    const resolved =
-      requested &&
-      requested.startsWith("@kody") &&
-      !requested.includes("\n") &&
-      !isNonEngineCommand(requested)
-        ? requested
-        : isDispatchable(action)
-          ? dispatchCommand(action)
-          : null;
-    const command = decision === "approve" ? resolved : null;
-    if (command) {
-      // Each action maps to the exact engine command: `execute`/`fix` →
-      // `@kody` (for `fix` the QA-failure comment is already in-thread, so
-      // re-dispatching IS the fix); `qa-review` → `@kody ui-review`.
-      // Non-dispatchable verbs never reach here — recorded only, never
-      // rerouted.
-      await postWithFallback(taskNumber, command, actorLogin, userOctokit);
+
+    if (decision === "approve" && isDashboardAction(action)) {
+      // `merge`: the dashboard squash-merges the PR itself (the engine never
+      // auto-merges). The rec's taskNumber IS the PR number (the QA-verify
+      // duty posts the rec on the PR). A blocked merge (CI/conflict) returns
+      // 409 BEFORE recording, so it never counts toward the trust streak.
+      const mergeOctokit = userOctokit ?? getOctokit();
+      const outcome = await attemptSquashMerge(mergeOctokit, taskNumber);
+      if (!isMerged(outcome)) {
+        return NextResponse.json(
+          {
+            error: "merge_blocked",
+            outcome: outcome.kind,
+            message: `Merge of PR #${taskNumber} did not succeed (${outcome.kind}); not recorded as approved.`,
+          },
+          { status: 409 },
+        );
+      }
       executed = true;
-      // The task issue just got a comment, and the task list view may
-      // change — invalidate both per CLAUDE.md rate-limit rule 5.
       invalidateIssueCache(taskNumber);
       invalidateTaskCache();
+    } else {
+      // The CTO's own command wins (guarded: must be a single `@kody …`, and
+      // not a non-engine verb like `@kody approve` — those make the engine
+      // reply "I don't recognize approve", so we drop them to the verb→command
+      // fallback rather than posting a dead command). Legacy recs with no
+      // command fall back to the verb→command map.
+      const resolved =
+        requested &&
+        requested.startsWith("@kody") &&
+        !requested.includes("\n") &&
+        !isNonEngineCommand(requested)
+          ? requested
+          : isDispatchable(action)
+            ? dispatchCommand(action)
+            : null;
+      const command = decision === "approve" ? resolved : null;
+      if (command) {
+        // Each action maps to the exact engine command: `execute`/`fix` →
+        // `@kody` (for `fix` the QA-failure comment is already in-thread, so
+        // re-dispatching IS the fix); `qa-review` → `@kody ui-review`.
+        // Non-dispatchable verbs never reach here — recorded only, never
+        // rerouted.
+        await postWithFallback(taskNumber, command, actorLogin, userOctokit);
+        executed = true;
+        // The task issue just got a comment, and the task list view may
+        // change — invalidate both per CLAUDE.md rate-limit rule 5.
+        invalidateIssueCache(taskNumber);
+        invalidateTaskCache();
+      }
     }
 
     const { manifest } = await mutateCtoDecisions(
