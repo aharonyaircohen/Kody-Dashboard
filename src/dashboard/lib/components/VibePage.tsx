@@ -18,8 +18,11 @@ import {
   ExternalLink,
   ListChecks,
   Loader2,
+  Monitor,
   RefreshCw,
+  Smartphone,
   Sparkles,
+  Tablet,
 } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
@@ -36,7 +39,11 @@ import { PreviewInspector } from "../picker/PreviewInspector";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useKodyTasks } from "../hooks";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
-import { PreviewIframe } from "./PreviewIframe";
+import {
+  PreviewIframe,
+  DEVICE_WIDTHS,
+  type PreviewDevice,
+} from "./PreviewIframe";
 import { tasksApi, getStoredAuth, redirectToLogin } from "../api";
 import { RateLimitError, NoTokenError, SessionExpiredError } from "../api";
 import type { KodyTask } from "../types";
@@ -207,6 +214,8 @@ export function VibePage() {
   const [iframeKey, setIframeKey] = useState(0);
   // Same Web/Admin split as PreviewModal so vibe iterations can target /admin.
   const [previewView, setPreviewView] = useState<"web" | "admin">("web");
+  const [previewDevice, setPreviewDevice] =
+    useState<PreviewDevice>("desktop");
   // Mobile-only: the issue list lives in a Sheet so the preview can own
   // the screen. On desktop the Sheet stays closed; the aside renders.
   const [mobileIssuesOpen, setMobileIssuesOpen] = useState(false);
@@ -583,6 +592,32 @@ export function VibePage() {
             <div className="flex items-center gap-2">
               {previewUrl && (
                 <>
+                  <div className="flex items-center gap-0.5 rounded-md border border-zinc-700 bg-zinc-800/50 p-0.5">
+                    {(
+                      [
+                        { id: "mobile", icon: Smartphone, label: "Mobile" },
+                        { id: "tablet", icon: Tablet, label: "Tablet" },
+                        { id: "desktop", icon: Monitor, label: "Desktop" },
+                      ] as const
+                    ).map(({ id, icon: Icon, label }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setPreviewDevice(id)}
+                        title={label}
+                        aria-label={`${label} viewport`}
+                        aria-pressed={previewDevice === id}
+                        className={cn(
+                          "inline-flex items-center justify-center rounded p-1.5 transition-colors",
+                          previewDevice === id
+                            ? "bg-zinc-700 text-white"
+                            : "text-zinc-400 hover:text-white hover:bg-zinc-700/50",
+                        )}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                      </button>
+                    ))}
+                  </div>
                   <PreviewInspector
                     previewRef={previewRef}
                     onContext={setComposerInjection}
@@ -625,6 +660,7 @@ export function VibePage() {
                 src={bypassedUrl ?? undefined}
                 title="Preview deployment"
                 reloadKey={`${previewUrl}-${iframeKey}`}
+                maxWidthPx={DEVICE_WIDTHS[previewDevice]}
               />
             ) : showDefaultPreviewEditor ? (
               <div className="h-full flex items-center justify-center p-6">

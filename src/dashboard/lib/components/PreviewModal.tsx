@@ -22,7 +22,11 @@ import { BranchBehindBanner } from "./BranchBehindBanner";
 import { KodyChat } from "./KodyChat";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
-import { PreviewIframe } from "./PreviewIframe";
+import {
+  PreviewIframe,
+  DEVICE_WIDTHS,
+  type PreviewDevice,
+} from "./PreviewIframe";
 import { cn, getPreviewBypassUrl } from "../utils";
 import { PreviewInspector } from "../picker/PreviewInspector";
 import {
@@ -35,6 +39,8 @@ import {
   AlertCircle,
   RefreshCw,
   Monitor,
+  Smartphone,
+  Tablet,
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
@@ -132,6 +138,8 @@ export function PreviewModal({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [commentCount, setCommentCount] = useState<number | null>(null);
   const [previewView, setPreviewView] = useState<"web" | "admin">("web");
+  const [previewDevice, setPreviewDevice] =
+    useState<PreviewDevice>("desktop");
   const [previewKey, setPreviewKey] = useState(0); // Bump to force iframe remount/refresh
   const [commentsKey, setCommentsKey] = useState(0); // Used to force-refresh comment list
   const [changesKey, setChangesKey] = useState(0); // Bump to force re-fetch of changed files
@@ -474,6 +482,36 @@ export function PreviewModal({
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-0.5 rounded-md border border-zinc-700 bg-zinc-800/50 p-0.5">
+                        {(
+                          [
+                            { id: "mobile", icon: Smartphone, label: "Mobile" },
+                            { id: "tablet", icon: Tablet, label: "Tablet" },
+                            {
+                              id: "desktop",
+                              icon: Monitor,
+                              label: "Desktop",
+                            },
+                          ] as const
+                        ).map(({ id, icon: Icon, label }) => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => setPreviewDevice(id)}
+                            title={label}
+                            aria-label={`${label} viewport`}
+                            aria-pressed={previewDevice === id}
+                            className={cn(
+                              "inline-flex items-center justify-center rounded p-1.5 transition-colors",
+                              previewDevice === id
+                                ? "bg-zinc-700 text-white"
+                                : "text-zinc-400 hover:text-white hover:bg-zinc-700/50",
+                            )}
+                          >
+                            <Icon className="w-3.5 h-3.5" />
+                          </button>
+                        ))}
+                      </div>
                       <PreviewInspector
                         previewRef={previewRef}
                         onContext={setComposerInjection}
@@ -508,6 +546,7 @@ export function PreviewModal({
                       src={getPreviewBypassUrl(getPreviewUrl()) || undefined}
                       title="Preview Deployment"
                       reloadKey={`${previewView}-${previewKey}`}
+                      maxWidthPx={DEVICE_WIDTHS[previewDevice]}
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full">
