@@ -24,7 +24,11 @@ import {
   type BrainDutyContext,
   type BrainTaskContext,
 } from "@dashboard/lib/brain-proxy";
-import { withPageContext } from "@dashboard/lib/chat/page-context";
+import {
+  withPageContext,
+  withDashboardContext,
+} from "@dashboard/lib/chat/page-context";
+import { loadContextForPrompt } from "@dashboard/lib/context/files";
 
 export const runtime = "nodejs";
 // Hold the proxy open up to Vercel's ceiling; the proxy itself closes ~30s
@@ -62,6 +66,13 @@ export async function POST(req: NextRequest) {
     resumeText?: string;
     /** Noun phrase for the page the user is viewing (see page-context.ts). */
     currentPage?: string;
+    /**
+     * First turn of a Brain chat. When set, fold the dashboard's curated
+     * Context (the /context feature) into the message so Brain answers with
+     * the same standing context the in-process `kody` chat gets. Sent once —
+     * Brain is stateful and keeps it for the chat's life.
+     */
+    includeContext?: boolean;
   };
   try {
     body = await req.json();
@@ -91,13 +102,23 @@ export async function POST(req: NextRequest) {
   // its own, so without this the worktree clone of a private repo fails.
   const repoToken = headerAuth?.token;
 
+  // First turn only: pull the dashboard's curated Context for the chat
+  // audience. Cached 60s in-process; `null` when the repo has none.
+  const dashboardContext =
+    !isResume && body.includeContext ? await loadContextForPrompt() : null;
+
   return streamBrainChat({
     brainUrl,
     brainKey,
     chatId,
-    // Brain has no ambient-context slot; prefix the page onto the user
-    // message (skip on resume, which carries no new message).
-    message: isResume ? "" : withPageContext(message ?? "", body.currentPage),
+    // Brain has no ambient-context slot; prefix the page + standing dashboard
+    // Context onto the user message (skip on resume, which has no new message).
+    message: isResume
+      ? ""
+      : withDashboardContext(
+          withPageContext(message ?? "", body.currentPage),
+          dashboardContext,
+        ),
     taskContext: body.taskContext,
     attachments: body.attachments,
     dutyContext: body.dutyContext,

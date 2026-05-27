@@ -36,6 +36,25 @@ export function authHeaders(): Record<string, string> {
 // later turn reuses it verbatim regardless of transient prefix/session churn.
 const BRAIN_CHAT_ID_KEY = "kody-brain-chat-ids";
 
+/**
+ * Whether a Brain chatId has already been pinned for this logical key, i.e.
+ * the conversation has had at least one turn. Used to send heavy ambient
+ * context (dashboard Context block) only on the *first* turn — the Brain is
+ * stateful, so once it's seen the context it keeps it for the chat's life.
+ * Must be called *before* `stickyBrainChatId`, which pins on first use.
+ */
+export function isBrainChatPinned(logicalKey: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.localStorage.getItem(BRAIN_CHAT_ID_KEY);
+    if (!raw) return false;
+    const map = JSON.parse(raw) as Record<string, string>;
+    return typeof map[logicalKey] === "string";
+  } catch {
+    return false;
+  }
+}
+
 export function stickyBrainChatId(
   logicalKey: string,
   candidate: string,

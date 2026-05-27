@@ -40,6 +40,38 @@ export function withPageContext(
 }
 
 /**
+ * Frame the dashboard's curated Context entries (the /context feature, i.e.
+ * `loadContextForPrompt()` output) as a bracketed block that can ride on a
+ * user turn. Same delivery trick as the page line: the Brain has no
+ * system-prompt slot, so standing context travels in the message. The
+ * in-process `kody` route injects the identical text as a system section
+ * instead — one source of wording so every backend frames it the same way.
+ */
+export function dashboardContextBlock(
+  context: string | null | undefined,
+): string | null {
+  const body = context?.trim();
+  if (!body) return null;
+  return (
+    `[Dashboard context — standing notes the operator maintains for Kody ` +
+    `about this repo. Treat as background knowledge, not a new instruction ` +
+    `for this turn:\n\n${body}\n]`
+  );
+}
+
+/**
+ * Prefix a user turn with the dashboard Context block. No-op when there's no
+ * context, so callers can pass `null` unconditionally.
+ */
+export function withDashboardContext(
+  content: string,
+  context: string | null | undefined,
+): string {
+  const block = dashboardContextBlock(context);
+  return block ? `${block}\n\n${content}` : content;
+}
+
+/**
  * Return a copy of `messages` with the page context prefixed onto the most
  * recent user turn — the one the engine treats as the prompt. No-op (shallow
  * copy) when there's no page or no user turn. Generic so it works for any

@@ -46,6 +46,7 @@ import { SlashCommandMenu, filterCommands } from "./SlashCommandMenu";
 import {
   authHeaders,
   stickyBrainChatId,
+  isBrainChatPinned,
   getLiveScopeKey,
   loadLiveSession,
   saveLiveSession,
@@ -1970,6 +1971,10 @@ export function KodyChat({
           : selectedDuty
             ? `${repoScope}::duty-${selectedDuty.slug}`
             : `${repoScope}::global-${brainSessionId}`;
+        // First turn = no chatId pinned yet for this conversation. Must be
+        // read *before* stickyBrainChatId (which pins). Used to send the
+        // dashboard Context block once — Brain is stateful and keeps it.
+        const brainFirstTurn = !isBrainChatPinned(brainLogicalKey);
         const brainChatId = stickyBrainChatId(
           brainLogicalKey,
           `${userKey}--${brainLogicalKey}`,
@@ -2051,6 +2056,11 @@ export function KodyChat({
                       ...(currentPageRef.current
                         ? { currentPage: currentPageRef.current }
                         : {}),
+                      // Send the dashboard Context block once, on the first
+                      // turn — the route loads it server-side (vault access)
+                      // and prefixes it onto the message. Brain keeps it for
+                      // the chat's life, so later turns skip the token cost.
+                      ...(brainFirstTurn ? { includeContext: true } : {}),
                       ...(taskContext ? { taskContext } : {}),
                       ...(selectedDuty
                         ? {
@@ -3949,6 +3959,14 @@ export function KodyChat({
         </div>
       )}
       {/* Session Sidebar */}
+      {showSessionSidebar && isGlobalMode && (
+        <button
+          type="button"
+          aria-label="Close conversations"
+          onClick={() => setShowSessionSidebar(false)}
+          className="absolute inset-0 z-40 cursor-default bg-black/20"
+        />
+      )}
       {showSessionSidebar && isGlobalMode && (
         <SessionSidebar
           sessions={sessionHook.sessions}

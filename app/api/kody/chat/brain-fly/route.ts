@@ -38,6 +38,11 @@ import {
   waitForBrainHealth,
 } from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+import {
+  withPageContext,
+  withDashboardContext,
+} from "@dashboard/lib/chat/page-context";
+import { loadContextForPrompt } from "@dashboard/lib/context/files";
 
 export const runtime = "nodejs";
 // Hold the proxy open up to Vercel's ceiling; the proxy itself closes ~30s
@@ -71,6 +76,10 @@ export async function POST(req: NextRequest) {
     voiceMode?: boolean;
     resumeSince?: number;
     resumeText?: string;
+    /** Noun phrase for the page the user is viewing (see page-context.ts). */
+    currentPage?: string;
+    /** First turn: fold the dashboard's curated Context into the message. */
+    includeContext?: boolean;
   };
   try {
     body = await req.json();
@@ -148,11 +157,23 @@ export async function POST(req: NextRequest) {
     : undefined;
   const repoToken = headerAuth?.token;
 
+  // First turn only: pull the dashboard's curated Context for the chat
+  // audience. Cached 60s in-process; `null` when the repo has none.
+  const dashboardContext =
+    !isResume && body.includeContext ? await loadContextForPrompt() : null;
+
   return streamBrainChat({
     brainUrl: provisioned.url,
     brainKey: provisioned.apiKey,
     chatId,
-    message: message ?? "",
+    // Brain has no ambient-context slot; prefix page + standing dashboard
+    // Context onto the user message (skip on resume — no new message).
+    message: isResume
+      ? ""
+      : withDashboardContext(
+          withPageContext(message ?? "", body.currentPage),
+          dashboardContext,
+        ),
     taskContext: body.taskContext,
     attachments: body.attachments,
     dutyContext: body.dutyContext,
