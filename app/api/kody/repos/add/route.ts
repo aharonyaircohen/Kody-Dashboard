@@ -132,11 +132,40 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
     if (ghRes.status === 403) {
+      // GitHub answers BOTH "missing scope" and "rate limit exceeded" with a
+      // 403 — don't blame the token's scopes when the account is just out of
+      // budget (the headers say which). Mislabelling it sends users off to
+      // mint new tokens, which share the same per-account limit and don't help.
+      const remaining = ghRes.headers.get("x-ratelimit-remaining");
+      const retryAfter = ghRes.headers.get("retry-after");
+      const resetEpoch = Number(ghRes.headers.get("x-ratelimit-reset"));
+      const rateLimited = remaining === "0" || !!retryAfter;
+      if (rateLimited) {
+        const resetMs =
+          Number.isFinite(resetEpoch) && resetEpoch > 0
+            ? resetEpoch * 1000
+            : retryAfter
+              ? Date.now() + Number(retryAfter) * 1000
+              : null;
+        const mins = resetMs
+          ? Math.max(1, Math.ceil((resetMs - Date.now()) / 60_000))
+          : null;
+        return NextResponse.json(
+          {
+            error: "rate_limited",
+            message: mins
+              ? `GitHub rate limit hit (5000/hr, shared across your whole account). The token is fine — it resets in ~${mins} min. A new token won't help; it shares the same limit.`
+              : "GitHub rate limit hit (5000/hr, shared across your whole account). The token is fine — wait for the limit to reset. A new token shares the same limit.",
+            ...(resetMs ? { resetAt: new Date(resetMs).toISOString() } : {}),
+          },
+          { status: 429 },
+        );
+      }
       return NextResponse.json(
         {
           error: "forbidden",
           message:
-            "GitHub returned 403. The token may be missing required scopes.",
+            "GitHub returned 403. The token may be missing required scopes (needs `repo`).",
         },
         { status: 403 },
       );
