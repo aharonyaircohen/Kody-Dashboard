@@ -102,6 +102,9 @@ export function createExecutableTools(ctx: Ctx) {
           tools: input.tools,
           skills: input.skills.map((s) => s.name),
           shellScripts: input.shellScripts.map((s) => s.name),
+          // MCP tool servers aren't exposed via the chat tool path; the
+          // dashboard editor (Tools tab) is where they're configured.
+          mcpServers: [],
           landing: input.landing,
         };
 

@@ -71,6 +71,12 @@ const shellSchema = z.object({
   name: z.string().regex(/^[a-zA-Z0-9._-]+\.sh$/, "must be a *.sh filename"),
   content: z.string().default(""),
 });
+const mcpServerSchema = z.object({
+  name: z.string().regex(/^[a-zA-Z0-9_-]+$/, "letters, digits, dash, underscore"),
+  command: z.string().min(1, "command is required"),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+});
 
 const updateExecutableSchema = z.object({
   describe: z.string().optional(),
@@ -80,6 +86,7 @@ const updateExecutableSchema = z.object({
   tools: z.array(z.string()).optional(),
   skills: z.array(skillSchema).optional(),
   shellScripts: z.array(shellSchema).optional(),
+  mcpServers: z.array(mcpServerSchema).optional(),
   landing: z.enum(["pr", "comment"]).optional(),
   profileJsonOverride: z.string().optional(),
   actorLogin: z.string().optional(),
@@ -144,6 +151,7 @@ export async function PATCH(
         tools: input.tools ?? existing.tools,
         skills: skills.map((s) => s.name),
         shellScripts: shellScripts.map((s) => s.name),
+        mcpServers: input.mcpServers ?? existing.mcpServers,
         landing: input.landing ?? existing.landing,
       },
       skills,
