@@ -31,6 +31,7 @@ import { cn } from "@dashboard/lib/utils/ui";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { InboxBadge } from "./InboxBadge";
+import { MessagesBadge } from "./MessagesBadge";
 import {
   HOME_NAV_ITEM,
   PRIMARY_NAV_ITEMS,
@@ -119,6 +120,11 @@ export function Sidebar() {
         {!collapsed && <span className="truncate">{item.label}</span>}
         {item.href === "/inbox" && (
           <InboxBadge
+            className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
+          />
+        )}
+        {item.href === "/messages" && (
+          <MessagesBadge
             className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}

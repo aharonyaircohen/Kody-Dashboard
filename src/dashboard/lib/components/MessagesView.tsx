@@ -28,6 +28,7 @@ import {
   MessageSquare,
   Plus,
   Send,
+  Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -49,6 +50,7 @@ import {
   useDeleteChannel,
   usePostChannelMessage,
 } from "../hooks/useMessages";
+import { useChannelsUnread } from "../hooks/useChannelsUnread";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
@@ -722,7 +724,10 @@ function ChannelThread({
             disabled={!onOpenChannels}
             className="md:cursor-default md:pointer-events-none min-w-0 flex flex-col items-start text-left -my-1 py-1 rounded-md md:hover:bg-transparent hover:bg-muted/60 px-1"
           >
-            <span className="inline-flex items-center gap-1 font-semibold truncate text-[15px] leading-tight">
+            <span
+              dir="auto"
+              className="inline-flex items-center gap-1 font-semibold truncate text-[15px] leading-tight"
+            >
               {channelName}
               {onOpenChannels ? (
                 <ChevronDown className="md:hidden w-3.5 h-3.5 text-muted-foreground shrink-0" />
@@ -733,16 +738,32 @@ function ChannelThread({
             </span>
           </button>
         </div>
-        <a
-          href={channelUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-md px-2 py-1.5 hover:bg-muted transition-colors shrink-0"
-          title="Open on GitHub"
-        >
-          <ExternalLink className="w-4 h-4" />
-          <span className="hidden sm:inline">GitHub</span>
-        </a>
+        <div className="flex items-center gap-1 shrink-0">
+          <a
+            href={channelUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-md px-2 py-1.5 hover:bg-muted transition-colors"
+            title="Open on GitHub"
+          >
+            <ExternalLink className="w-4 h-4" />
+            <span className="hidden sm:inline">GitHub</span>
+          </a>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="inline-flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+            title="Delete channel"
+            aria-label="Delete channel"
+          >
+            {deleting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4" />
+            )}
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -801,6 +822,7 @@ function CreateChannelForm({ onClose }: { onClose: () => void }) {
         }}
         placeholder="new-channel-name"
         autoFocus
+        dir="auto"
         disabled={isPending}
         className="h-8 text-sm"
       />
@@ -835,12 +857,15 @@ function ChannelListPanel({
   onSelect,
   creating,
   setCreating,
+  unread,
 }: {
   channels: ReadonlyArray<{ number: number; name: string }>;
   selected: number | null;
   onSelect: (n: number) => void;
   creating: boolean;
   setCreating: (next: boolean | ((prev: boolean) => boolean)) => void;
+  /** Channel numbers with new activity since the user last opened them. */
+  unread?: Set<number>;
 }) {
   return (
     <>
@@ -877,6 +902,7 @@ function ChannelListPanel({
         ) : (
           channels.map((c) => {
             const active = c.number === selected;
+            const hasUnread = !active && !!unread?.has(c.number);
             return (
               <button
                 key={c.number}
@@ -885,7 +911,9 @@ function ChannelListPanel({
                   "group relative w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-[15px] text-left transition-colors",
                   active
                     ? "bg-primary/10 text-primary font-medium"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    : hasUnread
+                      ? "text-foreground font-medium hover:bg-muted"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 {active ? (
@@ -899,7 +927,15 @@ function ChannelListPanel({
                       : "text-muted-foreground/60 group-hover:text-foreground",
                   )}
                 />
-                <span className="truncate">{c.name}</span>
+                <span dir="auto" className="truncate">
+                  {c.name}
+                </span>
+                {hasUnread ? (
+                  <span
+                    className="ml-auto h-2 w-2 shrink-0 rounded-full bg-amber-500"
+                    aria-label="New messages"
+                  />
+                ) : null}
               </button>
             );
           })
@@ -912,6 +948,7 @@ function ChannelListPanel({
 export function MessagesView() {
   const router = useRouter();
   const { data, isLoading, error, refetch } = useMessageChannels();
+  const { unreadChannels, markSeen } = useChannelsUnread();
 
   // Deep link from a push notification / inbox entry:
   // /messages?channel=<n>&c=<commentDatabaseId>. Read once on mount.
@@ -961,6 +998,12 @@ export function MessagesView() {
 
   const activeChannel = channels.find((c) => c.number === selected) ?? null;
 
+  // Opening a channel marks it read (synced via the per-user gist), so its
+  // nav badge / list dot clears on this and every other device.
+  useEffect(() => {
+    if (selected !== null) void markSeen(selected);
+  }, [selected, markSeen]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[70vh]">
@@ -998,6 +1041,7 @@ export function MessagesView() {
           onSelect={setSelected}
           creating={creating}
           setCreating={setCreating}
+          unread={unreadChannels}
         />
       </aside>
 
@@ -1072,6 +1116,7 @@ export function MessagesView() {
             }}
             creating={creating}
             setCreating={setCreating}
+            unread={unreadChannels}
           />
         </SheetContent>
       </Sheet>
