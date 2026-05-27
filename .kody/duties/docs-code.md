@@ -2,7 +2,7 @@
 every: 1d
 staff: tech-writer
 mentions: aguyaharonyair
-disabled: true
+disabled: false
 ---
 
 # Docs Coverage — in-code / folder headers
