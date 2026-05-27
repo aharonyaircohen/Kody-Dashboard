@@ -22,6 +22,7 @@ import {
   stripContract,
   type ExecutableFields,
   type ExecutableLanding,
+  type McpServerSpec,
 } from "./profile";
 
 export { isValidSlug } from "./profile";
@@ -57,6 +58,8 @@ export interface ExecutableDetail extends ExecutableSummary {
   tools: string[];
   skills: ExecutableSkill[];
   shellScripts: ExecutableShellScript[];
+  /** External MCP tool servers (`claudeCode.mcpServers`). */
+  mcpServers: McpServerSpec[];
   /** The raw profile.json text, for the advanced editor. */
   profileJson: string;
 }
@@ -241,6 +244,7 @@ export async function readExecutableFile(
     tools: fields.tools,
     skills,
     shellScripts,
+    mcpServers: fields.mcpServers,
     profileJson: profileRaw,
   };
 }

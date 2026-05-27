@@ -66,6 +66,7 @@ import {
   serializeProfile,
   validateProfile,
   type ExecutableLanding,
+  type McpServerSpec,
   type PermissionMode,
 } from "../executables/profile";
 
@@ -104,6 +105,7 @@ interface ExecutableDetail extends ExecutableSummary {
   tools: string[];
   skills: ExecutableSkill[];
   shellScripts: ExecutableShellScript[];
+  mcpServers: McpServerSpec[];
   profileJson: string;
 }
 interface DefaultsState {
@@ -174,6 +176,7 @@ interface SavePayload {
   tools: string[];
   skills: ExecutableSkill[];
   shellScripts: ExecutableShellScript[];
+  mcpServers: McpServerSpec[];
   landing: ExecutableLanding;
   isUpdate: boolean;
 }
@@ -693,6 +696,9 @@ function ExecutableEditorForm({
   const [shellScripts, setShellScripts] = useState<ExecutableShellScript[]>(
     initial?.shellScripts ?? [],
   );
+  const [mcpServers, setMcpServers] = useState<McpServerSpec[]>(
+    initial?.mcpServers ?? [],
+  );
   const [skillSource, setSkillSource] = useState("");
   const [importing, setImporting] = useState(false);
 
@@ -752,6 +758,7 @@ function ExecutableEditorForm({
       tools,
       skills: skills.map((s) => s.name),
       shellScripts: shellScripts.map((s) => s.name),
+      mcpServers,
       landing,
     });
     const errors = validateProfile(profile);
@@ -761,6 +768,14 @@ function ExecutableEditorForm({
     for (const s of shellScripts)
       if (!/^[a-zA-Z0-9._-]+\.sh$/.test(s.name))
         errors.push(`shell file "${s.name || "(blank)"}" must be a *.sh name`);
+    for (const m of mcpServers) {
+      if (!/^[a-zA-Z0-9_-]+$/.test(m.name))
+        errors.push(
+          `tool name "${m.name || "(blank)"}" must be letters, digits, dash, underscore`,
+        );
+      if (!m.command.trim())
+        errors.push(`tool "${m.name || "(unnamed)"}" is missing a command`);
+    }
     return { errors, json: serializeProfile(profile) };
   }, [
     isNew,
@@ -772,6 +787,7 @@ function ExecutableEditorForm({
     tools,
     skills,
     shellScripts,
+    mcpServers,
     landing,
   ]);
 
@@ -818,6 +834,7 @@ function ExecutableEditorForm({
           <TabsTrigger value="config">Config</TabsTrigger>
           <TabsTrigger value="prompt">Prompt</TabsTrigger>
           <TabsTrigger value="skills">Skills ({skills.length})</TabsTrigger>
+          <TabsTrigger value="tools">Tools ({mcpServers.length})</TabsTrigger>
           <TabsTrigger value="scripts">
             Scripts ({shellScripts.length})
           </TabsTrigger>
@@ -1034,6 +1051,105 @@ function ExecutableEditorForm({
           </Button>
         </TabsContent>
 
+        <TabsContent value="tools" className="space-y-3">
+          <p className="text-[11px] text-white/40">
+            Connect an external{" "}
+            <span className="font-mono text-white/70">MCP</span> tool server the
+            agent can call. Each entry is written to
+            <code className="mx-1">claudeCode.mcpServers</code> and its tools
+            are auto-allowed. The <code>command</code> must be available in the
+            run (install it via a preflight Script).
+          </p>
+          <p className="text-[11px] text-white/40">
+            Example — codegraph: name{" "}
+            <code className="text-white/70">codegraph</code>, command{" "}
+            <code className="text-white/70">codegraph</code>, args{" "}
+            <code className="text-white/70">serve --mcp</code>.
+          </p>
+          {mcpServers.map((m, i) => (
+            <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
+              <CardContent className="p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={m.name}
+                    onChange={(e) =>
+                      setMcpServers((prev) =>
+                        prev.map((x, xi) =>
+                          xi === i
+                            ? { ...x, name: e.target.value.toLowerCase() }
+                            : x,
+                        ),
+                      )
+                    }
+                    placeholder="tool-name"
+                    className="font-mono text-xs h-8"
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-rose-300"
+                    onClick={() =>
+                      setMcpServers((prev) => prev.filter((_, xi) => xi !== i))
+                    }
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                <div>
+                  <Label className="text-[11px] text-white/50">Command</Label>
+                  <Input
+                    value={m.command}
+                    onChange={(e) =>
+                      setMcpServers((prev) =>
+                        prev.map((x, xi) =>
+                          xi === i ? { ...x, command: e.target.value } : x,
+                        ),
+                      )
+                    }
+                    placeholder="codegraph"
+                    className="font-mono text-xs h-8"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] text-white/50">
+                    Args (space-separated)
+                  </Label>
+                  <Input
+                    value={(m.args ?? []).join(" ")}
+                    onChange={(e) => {
+                      const args = e.target.value
+                        .split(/\s+/)
+                        .filter(Boolean);
+                      setMcpServers((prev) =>
+                        prev.map((x, xi) =>
+                          xi === i
+                            ? {
+                                ...x,
+                                args: args.length > 0 ? args : undefined,
+                              }
+                            : x,
+                        ),
+                      );
+                    }}
+                    placeholder="serve --mcp"
+                    className="font-mono text-xs h-8"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1"
+            onClick={() =>
+              setMcpServers((prev) => [...prev, { name: "", command: "" }])
+            }
+          >
+            <Plus className="w-3.5 h-3.5" /> Add tool
+          </Button>
+        </TabsContent>
+
         <TabsContent value="scripts" className="space-y-3">
           <p className="text-[11px] text-white/40">
             Each script runs as a preflight step before the agent. Saved as a
@@ -1140,6 +1256,7 @@ function ExecutableEditorForm({
               tools,
               skills,
               shellScripts,
+              mcpServers,
               landing,
               isUpdate: !isNew,
             });

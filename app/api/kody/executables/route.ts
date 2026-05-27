@@ -90,6 +90,12 @@ const shellSchema = z.object({
   name: z.string().regex(/^[a-zA-Z0-9._-]+\.sh$/, "must be a *.sh filename"),
   content: z.string().default(""),
 });
+const mcpServerSchema = z.object({
+  name: z.string().regex(/^[a-zA-Z0-9_-]+$/, "letters, digits, dash, underscore"),
+  command: z.string().min(1, "command is required"),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+});
 
 const createExecutableSchema = z.object({
   slug: z.string().min(1).max(64),
@@ -100,6 +106,7 @@ const createExecutableSchema = z.object({
   tools: z.array(z.string()).default([]),
   skills: z.array(skillSchema).default([]),
   shellScripts: z.array(shellSchema).default([]),
+  mcpServers: z.array(mcpServerSchema).default([]),
   landing: z.enum(["pr", "comment"]).default("pr"),
   profileJsonOverride: z.string().optional(),
   actorLogin: z.string().optional(),
@@ -165,6 +172,7 @@ export async function POST(req: NextRequest) {
         tools: input.tools,
         skills: input.skills.map((s) => s.name),
         shellScripts: input.shellScripts.map((s) => s.name),
+        mcpServers: input.mcpServers,
         landing: input.landing,
       },
       skills: input.skills,

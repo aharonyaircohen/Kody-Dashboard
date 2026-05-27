@@ -21,6 +21,25 @@
  * (the engine's `postAgentComment` postflight) with no branch or PR. */
 export type ExecutableLanding = "pr" | "comment";
 
+/**
+ * An external MCP (Model Context Protocol) server the engine spawns so the
+ * agent can call its tools. Matches the engine's `McpServerSpec`
+ * (kody2/src/executables/types.ts) exactly — `{ name, command, args?, env? }`
+ * — so a dashboard-authored entry drops straight into `claudeCode.mcpServers`.
+ * Example: `{ name: "codegraph", command: "codegraph", args: ["serve","--mcp"] }`.
+ */
+export interface McpServerSpec {
+  name: string;
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
+/** The allowlist token that grants the agent every tool from an MCP server. */
+export function mcpAllowToken(serverName: string): string {
+  return `mcp__${serverName}`;
+}
+
 export const PERMISSION_MODES = [
   "default",
   "acceptEdits",
@@ -60,6 +79,12 @@ export interface ExecutableFields {
   skills: string[];
   /** `.sh` filenames colocated with the profile, run as preflight shell steps. */
   shellScripts: string[];
+  /**
+   * External MCP tool servers the agent may call. Written to
+   * `claudeCode.mcpServers`; each server's tools are auto-added to the
+   * allowlist via {@link mcpAllowToken} so the agent is permitted to call them.
+   */
+  mcpServers: McpServerSpec[];
   /** Where the result lands. */
   landing: ExecutableLanding;
 }
@@ -138,6 +163,18 @@ export function stripContract(prompt: string): string {
 export function composeProfile(
   fields: ExecutableFields,
 ): Record<string, unknown> {
+  // Derive the MCP allow-tokens fresh from the server list and merge them into
+  // the user's checkbox tools, deduped. We strip any pre-existing `mcp__*`
+  // entries first so the allowlist is always exactly the current servers —
+  // otherwise round-tripping (fieldsFromProfile → composeProfile) would
+  // accumulate stale tokens for servers that were removed.
+  const mcpServers = fields.mcpServers ?? [];
+  const baseTools = fields.tools.filter((t) => !t.startsWith("mcp__"));
+  const tools = [
+    ...baseTools,
+    ...mcpServers.map((s) => mcpAllowToken(s.name)),
+  ];
+
   const claudeCode: Record<string, unknown> = {
     model: fields.model || "inherit",
     permissionMode: fields.permissionMode,
@@ -150,13 +187,13 @@ export function composeProfile(
     cacheable: true,
     enableVerifyTool: fields.landing === "pr",
     verifyAttempts: 4,
-    tools: fields.tools,
+    tools,
     hooks: fields.landing === "pr" ? ["block-git"] : [],
     skills: fields.skills,
     commands: [],
     subagents: [],
     plugins: [],
-    mcpServers: [],
+    mcpServers,
   };
 
   // Shell scripts run as preflight steps before the agent (setup work).
@@ -263,11 +300,34 @@ export function fieldsFromProfile(
     )
       ? (cc.permissionMode as PermissionMode)
       : "acceptEdits",
-    tools: Array.isArray(cc.tools) ? (cc.tools as string[]) : [],
+    // Strip the derived `mcp__*` allow-tokens — they're regenerated from
+    // mcpServers on write, so the editor only tracks the user's real tools.
+    tools: Array.isArray(cc.tools)
+      ? (cc.tools as string[]).filter((t) => !t.startsWith("mcp__"))
+      : [],
     skills: Array.isArray(cc.skills) ? (cc.skills as string[]) : [],
     shellScripts,
+    mcpServers: parseMcpServers(cc.mcpServers),
     landing: landingOf(profile),
   };
+}
+
+/** Parse a raw `claudeCode.mcpServers` value into validated specs ([] if absent/malformed). */
+function parseMcpServers(raw: unknown): McpServerSpec[] {
+  if (!Array.isArray(raw)) return [];
+  const out: McpServerSpec[] = [];
+  for (const e of raw) {
+    if (!e || typeof e !== "object") continue;
+    const r = e as Record<string, unknown>;
+    if (typeof r.name !== "string" || typeof r.command !== "string") continue;
+    const spec: McpServerSpec = { name: r.name, command: r.command };
+    if (Array.isArray(r.args))
+      spec.args = r.args.filter((a): a is string => typeof a === "string");
+    if (r.env && typeof r.env === "object" && !Array.isArray(r.env))
+      spec.env = r.env as Record<string, string>;
+    out.push(spec);
+  }
+  return out;
 }
 
 /**
