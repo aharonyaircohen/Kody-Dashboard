@@ -1138,7 +1138,7 @@ function ExecutableEditorForm({
                 <Input
                   value={mcpSource}
                   onChange={(e) => setMcpSource(e.target.value)}
-                  placeholder="colbymchenry/codegraph"
+                  placeholder="https://github.com/colbymchenry/codegraph"
                   className="font-mono text-xs h-8"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
