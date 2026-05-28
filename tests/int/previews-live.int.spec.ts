@@ -53,6 +53,9 @@ describe.skipIf(!TOKEN)(
         {
           repo: KEY.repo,
           pr: KEY.pr,
+          // ref is required even when image is provided (schema-level); the
+          // builder is skipped when image is set, so this string is unused.
+          ref: "main",
           image: "flyio/hellofly:latest",
           internalPort: 8080,
         },

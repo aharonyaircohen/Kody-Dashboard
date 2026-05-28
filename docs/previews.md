@@ -6,37 +6,70 @@ Per-PR preview hosting that replaces Vercel preview deployments.
 ## Why
 
 Vercel charges for previews per build minute (Build CPU is 96% of the
-historical bill). Turbopack is gated behind the $0.126/min Turbo tier.
-Fly Machines:
+historical bill) and gates Turbopack behind the $0.126/min Turbo tier.
+On Fly: builds run on Fly's hosted remote builder (cheap), Turbopack is
+free, and suspended preview machines cost ~$0.
 
-- Builds run on free GitHub Actions minutes
-- Turbopack is free (your own Dockerfile, no tier)
-- Suspended preview machines cost ~$0 (rootfs storage only)
-- A warm pool gets time-to-URL to ~3s (vs ~40s create-fresh)
+## Three-component architecture
 
-Expected savings on Vercel preview bill: ~90%.
+| Component               | Responsibility                            |
+| ----------------------- | ----------------------------------------- |
+| Dashboard               | Orchestrate lifecycle, manage webhooks    |
+| Preview builder (Fly)   | Clone repo + ref → build image            |
+| Preview machines (Fly)  | Boot the built image and serve traffic    |
 
-## Architecture
+**Consumer repos stay zero-touch** — no Dockerfile, no workflow, no
+secrets in the consumer repo. The builder ships a default
+`Dockerfile.preview` and the dashboard handles auth.
 
-Lives in two places inside the dashboard:
+## Dashboard side (`src/dashboard/lib/previews/`)
 
 ```
-src/dashboard/lib/previews/
-  fly-previews.ts        Fly Machines REST + GraphQL client
-  preview-key.ts         Deterministic kp-<owner>-<repo>-pr-<n> naming
-  preview-pool.ts        Warm-pool client (mirrors runners/pool-client.ts)
-  preview-lifecycle.ts   Try pool, fall back to create-fresh
-  config.ts              Per-repo vault → FlyPreviewConfig
-  webhook.ts             PR closed → destroyPreview
-
-app/api/kody/previews/
-  route.ts                              POST   (create or refresh)
-  [owner]/[name]/[pr]/route.ts          GET    (status + URL)
-                                        DELETE (destroy)
+fly-previews.ts        Fly Machines REST + GraphQL client
+preview-key.ts         Deterministic kp-<owner>-<repo>-pr-<n> naming
+builder-client.ts      Calls kody-preview-builder, shared-key auth via KODY_MASTER_KEY
+preview-pool.ts        Warm-pool client (mirrors runners/pool-client.ts contract)
+preview-lifecycle.ts   build → pool fast path → create-fresh fallback
+config.ts              Per-repo vault → FlyPreviewConfig
+webhook.ts             PR closed → destroyPreview
 ```
 
-PR webhook handler (`app/api/webhooks/github/route.ts`) calls
-`handlePrClosed` on `pull_request.closed` — no separate webhook.
+API routes (`app/api/kody/previews/`):
+
+| Method | Path                                  | Purpose                |
+| ------ | ------------------------------------- | ---------------------- |
+| POST   | `/`                                   | Create or refresh      |
+| GET    | `/:owner/:name/:pr`                   | Status + URL           |
+| DELETE | `/:owner/:name/:pr`                   | Destroy (idempotent)   |
+
+Webhook: `app/api/webhooks/github/route.ts` calls `handlePrClosed` on
+`pull_request.closed` — no separate webhook receiver.
+
+## Preview builder (`builder/`)
+
+Tiny Hono service that runs on its own Fly app
+(`kody-preview-builder`). One endpoint: `POST /build`.
+
+```
+{ repo, ref, appName, flyToken, githubToken? }
+  1. Clones <repo> at <ref> into /tmp
+  2. Drops in bundled default Dockerfile.preview if the repo has none
+  3. Runs `flyctl deploy --build-only --remote-only` against <appName>
+     (Fly's hosted remote builder does the real Docker build, so this
+      service stays small — no docker daemon, no BuildKit)
+  4. Returns { image: "registry.fly.io/<appName>:<tag>", durationMs }
+```
+
+Auth: `X-Builder-Auth` shared key derived from `KODY_MASTER_KEY` via
+HKDF-style purpose-prefix hash. Both dashboard and builder derive the
+same key independently — nothing travels over env vars or the wire.
+
+Deploy:
+
+```bash
+flyctl deploy -c builder/fly.toml --app kody-preview-builder
+flyctl secrets set KODY_MASTER_KEY=... --app kody-preview-builder
+```
 
 ## URL routing
 
@@ -46,113 +79,48 @@ Each PR gets its own Fly app, named deterministically:
 kp-<sha256(owner)[0..6]>-<sha256(repo)[0..6]>-pr-<n>
 ```
 
-Fly auto-issues HTTPS for `<app-name>.fly.dev`. No DNS work, no certs to
-manage. Vanity domain (`pr-123.previews.kody.dev`) is a future add-on:
-register the domain on the Fly app + add a CNAME; Fly handles the cert.
+Fly auto-issues HTTPS for `<app-name>.fly.dev`. No DNS work, no certs
+to manage.
 
 ## Lifecycle
 
 ```
 PR opened/synced
-  → CI builds Dockerfile.preview, pushes to registry.fly.io/kp-...:<sha>
-  → CI calls POST /api/kody/previews
+  → dashboard webhook OR caller hits POST /api/kody/previews { repo, pr, ref }
+  → dashboard creates the per-PR Fly app (if missing)
+  → dashboard calls builder /build { repo, ref, appName, flyToken }
+  → builder clones, runs flyctl --remote-only, returns image ref
   → dashboard tries warm pool (~3s) → falls back to create-fresh (~40s)
-  → returns { url, appName, machineId, state, source: "pool"|"fresh" }
-  → CI comments URL on PR (sticky)
+  → returns { url, image, machineId, state, source, buildMs }
 
-PR closed (merged or not)
-  → GitHub webhook → dashboard → DELETE preview
-  → pool reclaims slot OR app is destroyed
+PR closed
+  → GitHub webhook → dashboard → DELETE preview → app destroyed
 ```
 
-## Warm pool (`preview-pool.ts`)
+## Vibe mode "wait + chain"
 
-The pool owner runs alongside the runners pool owner on the
-`kody-litellm` Fly machine. It keeps N pre-booted, suspended Fly
-machines per repo running a generic Next.js base image. When a claim
-arrives:
-
-1. Pick a free suspended machine
-2. Swap its image config to the PR's just-built image
-3. Unfreeze + rename the parent app to `kp-...-pr-<n>`
-4. Return the new URL
-
-**Fall-back contract** (matches the runner pool): claim NEVER throws.
-Empty pool or unreachable owner → caller transparently uses
-create-fresh. The pool is an accelerator, not a hard dependency.
-
-Owner-side endpoints expected by `preview-pool.ts`:
-
-```
-POST /preview-pool/claim    → { appName, url, machineId }
-POST /preview-pool/release  → ok
-```
-
-The owner implementation lives in the engine repo
-(`kody2/src/scripts/previewPoolServe.ts`) — not in this repo. Falling
-back gracefully keeps this dashboard module shippable before the owner
-is built.
+When Vibe opens a draft PR, the dashboard can pre-warm the build by
+calling `POST /api/kody/previews` immediately with the default branch
+as `ref`. Fly's remote builder caches layers in its registry across
+builds for the same app, so when the agent commits and a second build
+runs against the new ref, the deps + base layers are already cached
+and the build runs ~4× faster (e.g. A-Guy: 5 min cold → ~1 min warm).
 
 ## Per-repo billing
 
 The dashboard reads `FLY_API_TOKEN` from the **target repo's** secrets
-vault (`.kody/secrets.enc`), not the dashboard's own env. Each repo's
-previews are billed to that repo's Fly account. Matches the "All Fly
-infrastructure must be per-repo" rule.
+vault (`.kody/secrets.enc`). Each repo's previews are billed to that
+repo's Fly account. Matches the per-repo-infra rule.
 
 If a repo has no `FLY_API_TOKEN` in its vault, the dashboard returns
-503 `fly_token_missing`. Webhook teardown is a silent no-op (repo
-isn't opted in).
-
-## Consumer wiring (per repo)
-
-1. Copy `templates/previews/Dockerfile.preview` → repo root as
-   `Dockerfile.preview`.
-2. Copy `templates/previews/preview-build.yml` →
-   `.github/workflows/preview-build.yml`.
-3. In the repo's `.kody/secrets.enc` vault, add `FLY_API_TOKEN`
-   (and optionally `FLY_ORG_SLUG`, `FLY_DEFAULT_REGION`).
-4. Add GitHub Actions secrets: `FLY_API_TOKEN`,
-   `KODY_DASHBOARD_URL`, `KODY_DASHBOARD_TOKEN`,
-   `KODY_DASHBOARD_OWNER`, `KODY_DASHBOARD_REPO`.
-5. Ensure `next.config.js` has `output: 'standalone'`.
-6. Disable Vercel preview deployments for non-main branches.
-
-## Build optimizations vs Vercel
-
-| Knob              | Vercel                              | Kody previews                                  |
-| ----------------- | ----------------------------------- | ---------------------------------------------- |
-| Turbopack build   | Turbo tier only — $0.126/build min  | Free — `next build --turbopack` in Dockerfile  |
-| Build CPU         | $0.014–$0.126/min                   | $0 (GitHub Actions free quota)                 |
-| Idle preview cost | per-invocation                       | $0 — Fly Machine auto-suspends                 |
-| Cold start        | ~instant (edge)                     | 1–3s (suspended wake)                          |
-| HTTPS             | automatic                           | automatic (`<app>.fly.dev`)                    |
-
-Next.js `output: 'standalone'` cuts the runtime image from ~1GB to
-~150MB.
-
-### Vibe mode "wait + chain"
-
-The template uses `concurrency.cancel-in-progress: false` and a
-per-branch BuildKit registry cache (`registry.fly.io/<app>:buildcache`).
-Effect: when Vibe opens a draft PR, the `pull_request.opened` event
-triggers a first build of the (empty-diff) branch. While the agent is
-working, that build finishes and populates the cache layers. When the
-agent commits, the `pull_request.synchronize` event queues a second
-build behind the first; that second build reuses the cache and runs
-~4× faster.
-
-Concrete A-Guy example: cold build ~5 min, post-commit cache-hit build
-~60–90s.
+503 `fly_token_missing`. Webhook teardown is a silent no-op.
 
 ## Testing
-
-Live integration test:
 
 ```bash
 FLY_API_TOKEN=... pnpm vitest run tests/int/previews-live.int.spec.ts
 ```
 
-Creates a real Fly app, verifies the URL serves 200, destroys it.
-Auto-skips when `FLY_API_TOKEN` is not set so CI without Fly stays
-green. Costs < $0.01 per run.
+Boots `flyio/hellofly` directly (skips the builder via the
+`image` body field), verifies the URL serves 200 over HTTPS, destroys
+the app. Auto-skips when `FLY_API_TOKEN` is not set. Costs < $0.01.
