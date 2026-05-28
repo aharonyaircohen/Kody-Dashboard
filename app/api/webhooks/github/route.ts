@@ -40,6 +40,7 @@ import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
 import { dispatchStaffMentions } from "@dashboard/lib/push/staff-mention-dispatch";
 import { dispatchDutyFailures } from "@dashboard/lib/push/duty-failure-dispatch";
+import { dispatchReportPushes } from "@dashboard/lib/push/report-dispatch";
 import { applyVerdictFromComment } from "@dashboard/lib/ui-verify/apply-label";
 import {
   handlePrMerged,
@@ -322,6 +323,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           error: err instanceof Error ? err.message : String(err),
         },
         "dispatchDutyFailures threw — should have been caught internally",
+      );
+    });
+    // New report committed to .kody/reports/<slug>.md on the default branch →
+    // broadcast browser banner to every subscribed device for the repo, so a
+    // report landing feels like an inbox/mention ping. Awaited for the same
+    // serverless reason as the entries above.
+    await dispatchReportPushes(eventType, obj).catch((err: unknown) => {
+      logger.error(
+        {
+          event: "report_push_dispatch_crashed",
+          error: err instanceof Error ? err.message : String(err),
+        },
+        "dispatchReportPushes threw — should have been caught internally",
       );
     });
   }
