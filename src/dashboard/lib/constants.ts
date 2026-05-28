@@ -181,7 +181,13 @@ export const CACHE_TTL = {
   tasks: 300000, // 5min - issues/comments listings; ETag handles freshness
   pipeline: 180000, // 3min - workflow runs + pipeline JSON; multi-minute stages
   boards: 900000, // 15min - labels/milestones rarely change
-  prs: 300000, // 5min - PRs don't change that often
+  // 30s (was 5min). Cross-instance invalidation isn't wired (in-memory
+  // cache only invalidates on the receiving serverless instance), so the
+  // worst-case staleness window other instances see equals this TTL.
+  // A user opening an issue moments after a PR is created/linked needs
+  // to see the link without a 5-minute wait. Proper fix: swap to
+  // unstable_cache + revalidateTag — tracked as a follow-up in CLAUDE.md.
+  prs: 30000,
 } as const;
 
 // ============ Emoji List ============
