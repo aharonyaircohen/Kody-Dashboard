@@ -28,7 +28,12 @@ import {
   setGitHubContext,
   clearGitHubContext,
   fetchKodyState,
+  getOwner,
+  getRepo,
 } from "@dashboard/lib/github-client";
+import { flyHostname } from "@dashboard/lib/previews/fly-previews";
+import { previewAppName } from "@dashboard/lib/previews/preview-key";
+import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import type { KodyTaskState } from "@dashboard/lib/kody-state";
 import type {
   KodyTask,
@@ -210,18 +215,47 @@ export async function GET(req: NextRequest) {
     // Fetch Vercel preview URLs for PRs that have them (1 bulk + N status calls, cached)
     const prShas = openPRs.map((pr) => pr.head.sha);
     const previewUrls = await fetchDeploymentPreviews(prShas);
+
+    // Detect Fly-preview opt-in once for this repo: cheap vault probe.
+    // Falls through silently when the repo isn't opted in, so non-Fly
+    // repos behave exactly as before (only Vercel URLs surfaced).
+    const flyPreviewCfg = await (async () => {
+      try {
+        const octokit = await getUserOctokit(req);
+        if (!octokit) return null;
+        return await resolvePreviewConfigForOctokit({
+          octokit,
+          owner: getOwner(),
+          repo: getRepo(),
+        });
+      } catch {
+        return null;
+      }
+    })();
+
     // Build SHA -> preview URL lookup keyed by PR number for easy access
     const previewByPrNumber = new Map<number, string>();
     for (const pr of openPRs) {
       const url = previewUrls.get(pr.head.sha);
       if (url) {
         previewByPrNumber.set(pr.number, url);
+        continue;
       }
-      // No fallback here — showing no preview URL is better than a wrong one.
-      // This bulk path stays windowed to the 100 most-recent deployments to
-      // keep the polled tasks list cheap. PRs that have aged out of that
-      // window are resolved on demand when their preview pane opens, via
-      // `/api/kody/prs/preview` (fetchPreviewForSha — direct per-commit lookup).
+      // Fallback to the deterministic Fly preview URL — but ONLY when
+      // the repo has Fly previews opted in (FLY_API_TOKEN in vault).
+      // Without the gate we'd surface a "Deploy" link on every PR even
+      // for repos that don't use Fly, leading to NXDOMAIN on click.
+      if (flyPreviewCfg) {
+        previewByPrNumber.set(
+          pr.number,
+          flyHostname(
+            previewAppName({
+              repo: `${getOwner()}/${getRepo()}`,
+              pr: pr.number,
+            }),
+          ),
+        );
+      }
     }
 
     // First pass: match workflow runs once per issue (reused later in the
