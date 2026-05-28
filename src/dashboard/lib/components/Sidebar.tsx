@@ -32,6 +32,7 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { InboxBadge } from "./InboxBadge";
 import { MessagesBadge } from "./MessagesBadge";
+import { ReportsBadge } from "./ReportsBadge";
 import {
   HOME_NAV_ITEM,
   PRIMARY_NAV_ITEMS,
@@ -125,6 +126,11 @@ export function Sidebar() {
         )}
         {item.href === "/messages" && (
           <MessagesBadge
+            className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
+          />
+        )}
+        {item.href === "/duties?tab=reports" && (
+          <ReportsBadge
             className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}

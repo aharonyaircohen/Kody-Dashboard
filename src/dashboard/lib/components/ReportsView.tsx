@@ -25,6 +25,7 @@ import { Button } from "@dashboard/ui/button";
 import { AuthGuard } from "../auth-guard";
 import { cn } from "../utils";
 import { useReports } from "../hooks/useReports";
+import { useReportsUnread } from "../hooks/useReportsUnread";
 import type { Report } from "../api";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { CreateGoalDialog } from "./GoalControl";
@@ -55,6 +56,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const { isUnread, markRead } = useReportsUnread();
   // Resource generators — pop dialogs prefilled from the active report.
   const [issueFromReport, setIssueFromReport] = useState<Report | null>(null);
   const [goalFromReport, setGoalFromReport] = useState<Report | null>(null);
@@ -85,6 +87,13 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
       setSelectedSlug(filtered[0]!.slug);
     }
   }, [filtered, selectedSlug]);
+
+  // Mark a report as read the moment it's opened in the detail pane —
+  // this is the "I've seen it" signal that drives the sidebar's
+  // ReportsBadge unread count down.
+  useEffect(() => {
+    if (selected) markRead(selected.slug, selected.updatedAt);
+  }, [selected, markRead]);
 
   // Push the active report into the chat scope so KodyChat in the rail
   // knows which report the user is viewing and can advise on follow-up
@@ -199,6 +208,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
                     <ReportRow
                       report={report}
                       isActive={selectedSlug === report.slug}
+                      unread={isUnread(report.slug, report.updatedAt)}
                       onSelect={() => setSelectedSlug(report.slug)}
                     />
                   </li>
@@ -277,10 +287,12 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
 function ReportRow({
   report,
   isActive,
+  unread,
   onSelect,
 }: {
   report: Report;
   isActive: boolean;
+  unread: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -302,9 +314,20 @@ function ReportRow({
             isActive ? "text-sky-400" : "text-muted-foreground",
           )}
         />
-        <span className="font-medium text-sm truncate flex-1">
+        <span
+          className={cn(
+            "text-sm truncate flex-1",
+            unread ? "font-semibold text-foreground" : "font-medium",
+          )}
+        >
           {report.title}
         </span>
+        {unread ? (
+          <span
+            className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0"
+            aria-label="unread report"
+          />
+        ) : null}
       </div>
       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
         <span className="font-mono opacity-80 truncate">{report.slug}</span>
