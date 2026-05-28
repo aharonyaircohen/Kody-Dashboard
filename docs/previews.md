@@ -131,6 +131,20 @@ isn't opted in).
 Next.js `output: 'standalone'` cuts the runtime image from ~1GB to
 ~150MB.
 
+### Vibe mode "wait + chain"
+
+The template uses `concurrency.cancel-in-progress: false` and a
+per-branch BuildKit registry cache (`registry.fly.io/<app>:buildcache`).
+Effect: when Vibe opens a draft PR, the `pull_request.opened` event
+triggers a first build of the (empty-diff) branch. While the agent is
+working, that build finishes and populates the cache layers. When the
+agent commits, the `pull_request.synchronize` event queues a second
+build behind the first; that second build reuses the cache and runs
+~4× faster.
+
+Concrete A-Guy example: cold build ~5 min, post-commit cache-hit build
+~60–90s.
+
 ## Testing
 
 Live integration test:

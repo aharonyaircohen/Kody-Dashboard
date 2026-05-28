@@ -7,6 +7,12 @@
 #      image (warm pool first, fresh fallback) and returns the public URL.
 #   4. Posts a sticky comment with the preview URL.
 #
+# Wait+chain behavior (for Vibe mode pre-builds): concurrency cancels
+# nothing in flight; a second push queues behind the first and reuses
+# its Docker layer cache. The base "agent opened a draft PR" build
+# becomes the cache for the post-commit build, cutting the second
+# build to ~1/4 the time.
+#
 # Required repo secrets:
 #   FLY_API_TOKEN           - Fly token used by `flyctl auth docker`
 #                             (must match the repo's secrets vault entry)
@@ -21,9 +27,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
 
+# Queue per-PR; do NOT cancel an in-flight build. The pre-build (PR
+# opened) must finish so the post-commit build inherits its registry
+# cache layers. GitHub then runs the queued sync build serially.
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
@@ -32,25 +41,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: docker/setup-buildx-action@v3
+
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Login to Fly registry
         run: flyctl auth docker
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Resolve app name
+      - name: Resolve app + cache tags
         id: name
         run: |
           OWNER_HASH=$(echo -n "${{ github.repository_owner }}" | sha256sum | cut -c1-6)
           NAME_HASH=$(echo -n "${{ github.event.repository.name }}" | sha256sum | cut -c1-6)
           APP="kp-${OWNER_HASH}-${NAME_HASH}-pr-${{ github.event.pull_request.number }}"
+          # Per-branch cache tag in Fly's registry. Both the pre-build
+          # (PR opened) and the post-commit build (PR sync) share the
+          # same cache image, so the second build reuses the first's
+          # layers — node_modules, .next/cache, etc.
+          CACHE_REF="registry.fly.io/${APP}:buildcache"
           echo "image=registry.fly.io/${APP}:${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          echo "cache_ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
 
-      - name: Build & push image
+      - name: Build & push image (with registry cache)
         run: |
           docker buildx build \
             --file Dockerfile.preview \
             --tag "${{ steps.name.outputs.image }}" \
+            --cache-from "type=registry,ref=${{ steps.name.outputs.cache_ref }}" \
+            --cache-to "type=registry,ref=${{ steps.name.outputs.cache_ref }},mode=max" \
             --push \
             .
 
