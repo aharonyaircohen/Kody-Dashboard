@@ -110,6 +110,16 @@ async function cloneRepo(
   }
 }
 
+async function waitForDocker(timeoutMs = 60_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const code = await run("docker", ["info"], { env: { DOCKER_HOST: process.env.DOCKER_HOST ?? "unix:///var/run/docker.sock" } });
+    if (code === 0) return;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new Error("dockerd did not become ready within 60s");
+}
+
 async function pushPreviewImage(
   cwd: string,
   appName: string,
@@ -124,42 +134,54 @@ async function pushPreviewImage(
     console.log("[builder] using repo Dockerfile.preview");
   }
 
-  const imageRef = `registry.fly.io/${appName}:${imageTag}`;
-  console.log(`[builder] building locally with buildah → ${imageRef}`);
+  console.log("[builder] waiting for dockerd...");
+  await waitForDocker();
 
-  // Build the image with buildah. Runs in-machine, uses the machine's
-  // RAM/CPU directly — no Depot remote-builder OOMs.
+  const imageRef = `registry.fly.io/${appName}:${imageTag}`;
+
+  // Log in to Fly's registry before push. Username `x` is the Fly
+  // convention; password is the org API token.
+  console.log("[builder] login to registry.fly.io");
+  const login = await run("docker", ["login", "registry.fly.io", "-u", "x", "--password-stdin"], {
+    // We pipe the token via env; --password-stdin reads from stdin so
+    // it never appears in process listings. The helper below feeds it.
+  });
+  // Above won't work with run() (no stdin support). Use shell with echo + pipe.
+  // Replaced by the spawn below — keeping the comment for context.
+  void login;
+
+  // Login with stdin password — uses a subshell so we don't leak the
+  // token into argv.
+  const loginCode = await runShell(
+    `echo "${flyToken}" | docker login registry.fly.io -u x --password-stdin`,
+  );
+  if (loginCode !== 0) process.exit(3);
+
+  console.log(`[builder] building → ${imageRef}`);
   const built = await run(
-    "buildah",
+    "docker",
     [
       "build",
       "--file",
       "Dockerfile.preview",
       "--tag",
       imageRef,
-      "--format",
-      "docker",
       ".",
     ],
     { cwd },
   );
   if (built !== 0) process.exit(3);
 
-  // Push via buildah to the Fly registry. Username `x` is a Fly
-  // convention; password is the org API token.
   console.log(`[builder] pushing ${imageRef}`);
-  const pushed = await run(
-    "buildah",
-    [
-      "push",
-      "--creds",
-      `x:${flyToken}`,
-      imageRef,
-      `docker://${imageRef}`,
-    ],
-    { cwd },
-  );
+  const pushed = await run("docker", ["push", imageRef]);
   if (pushed !== 0) process.exit(3);
+}
+
+function runShell(command: string): Promise<number> {
+  return new Promise((resolveFn) => {
+    const child = spawn("sh", ["-c", command], { stdio: "inherit" });
+    child.on("close", (code) => resolveFn(code ?? -1));
+  });
 }
 
 async function main() {

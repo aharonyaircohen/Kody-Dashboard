@@ -71,12 +71,19 @@ export async function spawnPreviewBuilder(
       },
       auto_destroy: true,
       restart: { policy: "no" },
-      // The build runs IN this machine (buildah inside the builder
-      // image). Memory + CPU here is what next build / webpack
-      // actually have. performance-4x / 8 GB matches what Vercel uses
-      // for its "Enhanced" builder so heavy apps (A-Guy: Payload +
-      // Sentry + Genkit) compile in reasonable time.
-      guest: { cpu_kind: "performance", cpus: 4, memory_mb: 8192 },
+      // The build runs IN this machine via real dockerd (not buildah).
+      // Kernel overlayfs + native SWC compile at the same speed as
+      // local docker / Vercel. performance-4x / 8 GB matches Vercel's
+      // "Enhanced" tier; bump to 8x if a customer's app demands it.
+      guest: {
+        cpu_kind: "performance",
+        cpus: 4,
+        memory_mb: 8192,
+        // Fly Firecracker VM with kernel capabilities sufficient for
+        // dockerd-in-machine. The dind image's entrypoint runs the
+        // daemon at PID 1; we just need overlay support.
+        kernel_args: ["overlay"],
+      },
     },
     region: input.flyRegion,
   };
