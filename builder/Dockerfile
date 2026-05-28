@@ -13,7 +13,8 @@ FROM node:22-alpine
 # storage without privileged mode.
 RUN apk add --no-cache \
       git ca-certificates curl bash \
-      buildah fuse-overlayfs
+      buildah fuse-overlayfs \
+      netavark aardvark-dns
 
 # Buildah rootless storage config — uses overlay+fuse-overlayfs so
 # layers stack the same way docker does, without needing /dev/fuse.
