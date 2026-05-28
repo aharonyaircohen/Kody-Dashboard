@@ -14,6 +14,10 @@
  *   FLY_API_TOKEN     for flyctl
  *   GITHUB_TOKEN      optional, for private clones
  *
+ * Build caching: Fly's Depot builder caches at org scope by default
+ * (--depot-scope=org), so dep + .next/cache layers persist across all
+ * builds in the org. No per-build configuration needed.
+ *
  * Exit codes:
  *   0   success — image pushed to registry.fly.io/<APP_NAME>:<IMAGE_TAG>
  *   1   bad / missing inputs
@@ -105,6 +109,10 @@ async function main() {
   }
 
   console.log(`[builder] pushing image to registry.fly.io/${appName}:${imageTag}`);
+  // Fly's Depot remote builder caches at org scope by default
+  // (--depot-scope=org), so dep + .next/cache layers persist automatically
+  // across builds — even across different per-PR apps. No explicit cache
+  // flags needed.
   const built = await run(
     "flyctl",
     [
@@ -116,6 +124,8 @@ async function main() {
       "--app",
       appName,
       "--remote-only",
+      "--depot=true",
+      "--depot-scope=org",
       "--yes",
     ],
     { cwd, env: { FLY_API_TOKEN: flyToken } },
