@@ -1,0 +1,247 @@
+/**
+ * @fileType library
+ * @domain previews
+ * @pattern fly-machines-client
+ *
+ * Fly Machines REST + GraphQL client for PR preview hosting.
+ *
+ * Separate from the runners' `fly.ts` because:
+ *   - runners spawn one-shot machines that exit; previews are long-lived
+ *     HTTP services that auto-suspend.
+ *   - previews need app creation + IP allocation per PR (each preview is
+ *     its own app, so it gets its own <app>.fly.dev hostname).
+ *   - runners share one `kody-runner` app; previews can't.
+ *
+ * The pool path (see `pool-claim.ts`) skips most of this — it claims a
+ * pre-booted suspended machine and only swaps the image.
+ */
+
+const FLY_MACHINES_BASE = "https://api.machines.dev/v1";
+const FLY_GRAPHQL = "https://api.fly.io/graphql";
+const REQUEST_TIMEOUT_MS = 30_000;
+
+export interface FlyPreviewConfig {
+  token: string;
+  orgSlug: string;
+  defaultRegion: string;
+}
+
+export interface CreatePreviewMachineInput {
+  appName: string;
+  region: string;
+  image: string;
+  env?: Record<string, string>;
+  internalPort?: number;
+  memoryMb?: number;
+  cpus?: number;
+  cpuKind?: "shared" | "performance";
+}
+
+export interface MachineInfo {
+  id: string;
+  state: string;
+  region: string;
+}
+
+async function flyFetch(
+  url: string,
+  init: RequestInit,
+  token: string,
+): Promise<Response> {
+  return fetch(url, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+}
+
+async function assertOk(res: Response, context: string): Promise<void> {
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `${context} failed: ${res.status} ${res.statusText} — ${text.slice(0, 400)}`,
+    );
+  }
+}
+
+export async function appExists(
+  appName: string,
+  cfg: FlyPreviewConfig,
+): Promise<boolean> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}`,
+    { method: "GET" },
+    cfg.token,
+  );
+  if (res.status === 404) return false;
+  await assertOk(res, "appExists");
+  return true;
+}
+
+export async function createApp(
+  appName: string,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        app_name: appName,
+        org_slug: cfg.orgSlug,
+      }),
+    },
+    cfg.token,
+  );
+  if (res.status === 422) return; // name taken — idempotent
+  await assertOk(res, "createApp");
+}
+
+/**
+ * Allocate shared IPv4 + IPv6 via GraphQL. Required for the
+ * auto-provisioned `<app>.fly.dev` hostname to answer HTTPS.
+ * Shared v4 = free; dedicated v4 would be $2/mo and is unnecessary here.
+ */
+export async function allocateSharedIps(
+  appName: string,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const mutation = `
+    mutation AllocateIps($appId: ID!) {
+      v4: allocateIpAddress(input: { appId: $appId, type: shared_v4 }) {
+        ipAddress { address }
+      }
+      v6: allocateIpAddress(input: { appId: $appId, type: v6 }) {
+        ipAddress { address }
+      }
+    }
+  `;
+  const res = await flyFetch(
+    FLY_GRAPHQL,
+    {
+      method: "POST",
+      body: JSON.stringify({ query: mutation, variables: { appId: appName } }),
+    },
+    cfg.token,
+  );
+  await assertOk(res, "allocateSharedIps");
+  const data = (await res.json()) as { errors?: Array<{ message: string }> };
+  if (data.errors && data.errors.length > 0) {
+    const msgs = data.errors.map((e) => e.message).join("; ");
+    if (!/already|exists/i.test(msgs)) {
+      throw new Error(`allocateSharedIps failed: ${msgs}`);
+    }
+  }
+}
+
+export async function createMachine(
+  input: CreatePreviewMachineInput,
+  cfg: FlyPreviewConfig,
+): Promise<MachineInfo> {
+  const internalPort = input.internalPort ?? 8080;
+  const body = {
+    region: input.region,
+    config: {
+      image: input.image,
+      env: input.env ?? {},
+      auto_destroy: false,
+      restart: { policy: "always" },
+      guest: {
+        cpu_kind: input.cpuKind ?? "shared",
+        cpus: input.cpus ?? 1,
+        memory_mb: input.memoryMb ?? 512,
+      },
+      services: [
+        {
+          ports: [
+            { port: 443, handlers: ["tls", "http"], force_https: false },
+            { port: 80, handlers: ["http"] },
+          ],
+          protocol: "tcp",
+          internal_port: internalPort,
+          auto_stop_machines: "suspend",
+          auto_start_machines: true,
+          min_machines_running: 0,
+        },
+      ],
+      checks: {
+        httpget: {
+          type: "http",
+          port: internalPort,
+          method: "GET",
+          path: "/",
+          interval: "15s",
+          timeout: "10s",
+          grace_period: "30s",
+        },
+      },
+    },
+  };
+
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(input.appName)}/machines`,
+    { method: "POST", body: JSON.stringify(body) },
+    cfg.token,
+  );
+  await assertOk(res, "createMachine");
+  const data = (await res.json()) as {
+    id: string;
+    state: string;
+    region: string;
+  };
+  return { id: data.id, state: data.state, region: data.region };
+}
+
+export async function waitForMachineStarted(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+  timeoutMs = 60_000,
+): Promise<void> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/wait?state=started&timeout=${Math.floor(timeoutMs / 1000)}`,
+    { method: "GET" },
+    cfg.token,
+  );
+  await assertOk(res, "waitForMachineStarted");
+}
+
+export async function listMachines(
+  appName: string,
+  cfg: FlyPreviewConfig,
+): Promise<MachineInfo[]> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines`,
+    { method: "GET" },
+    cfg.token,
+  );
+  if (res.status === 404) return [];
+  await assertOk(res, "listMachines");
+  const data = (await res.json()) as Array<{
+    id: string;
+    state: string;
+    region: string;
+  }>;
+  return data.map((m) => ({ id: m.id, state: m.state, region: m.region }));
+}
+
+export async function destroyApp(
+  appName: string,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}`,
+    { method: "DELETE" },
+    cfg.token,
+  );
+  if (res.status === 404) return;
+  await assertOk(res, "destroyApp");
+}
+
+export function flyHostname(appName: string): string {
+  return `https://${appName}.fly.dev`;
+}
