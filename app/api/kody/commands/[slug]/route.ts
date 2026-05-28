@@ -208,7 +208,7 @@ export async function DELETE(
         {
           error: "builtin_readonly",
           message:
-            "Built-in commands cannot be deleted. Use the disable-builtins toggle to hide them all, or override this slug by editing it (the dashboard will fork it into your repo).",
+            "Built-in commands cannot be deleted. Use the disable-builtins toggle to hide them all, or just edit this command to override it with your own version.",
         },
         { status: 405 },
       );

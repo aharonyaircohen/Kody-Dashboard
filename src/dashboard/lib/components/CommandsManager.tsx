@@ -5,8 +5,9 @@
  * @ai-summary CRUD UI for slash-command commands stored at
  *   `.kody/commands/<slug>.md` in the connected repo. Dashboard ships
  *   built-ins (`/plan`, `/review`, `/explain`, `/issue`, `/goal`,
- *   `/analyze`, `/duty`); editing a built-in forks it into the repo so
- *   the repo wins by slug.
+ *   `/analyze`, `/duty`); editing a built-in transparently writes a
+ *   same-slug copy into the repo so the repo wins by slug — the UI just
+ *   says "Edit", the fork happens silently.
  */
 "use client";
 
@@ -337,7 +338,7 @@ function CommandsManagerInner() {
                       onClick={() => setEditing({ command: p, isNew: false })}
                     >
                       <Pencil className="w-3.5 h-3.5" />
-                      {p.source === "builtin" ? "Fork" : "Edit"}
+                      Edit
                     </Button>
                     {p.source === "repo" && (
                       <Button
@@ -359,9 +360,9 @@ function CommandsManagerInner() {
 
         <p className="text-[11px] text-white/30 pt-4 flex items-center gap-1.5">
           <FileText className="w-3 h-3" />
-          Built-ins ship with the dashboard. Forking writes a same-slug file to
-          <code className="text-white/50 mx-1">.kody/commands/</code> and takes
-          over the slot.
+          Built-ins ship with the dashboard. Editing one saves a same-slug copy
+          to <code className="text-white/50 mx-1">.kody/commands/</code> in the
+          repo, which then takes over the slot.
         </p>
       </div>
 
@@ -411,7 +412,7 @@ function CommandEditor({
   onClose,
   onSave,
 }: CommandEditorProps) {
-  const isBuiltinFork = !isNew && initial?.source === "builtin";
+  const isBuiltinEdit = !isNew && initial?.source === "builtin";
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [argumentHint, setArgumentHint] = useState(initial?.argumentHint ?? "");
@@ -444,15 +445,11 @@ function CommandEditor({
       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>
-            {isNew
-              ? "New command"
-              : isBuiltinFork
-                ? `Fork /${initial?.slug}`
-                : `Edit /${initial?.slug}`}
+            {isNew ? "New command" : `Edit /${initial?.slug}`}
           </DialogTitle>
           <DialogDescription>
-            {isBuiltinFork
-              ? "Saving writes a same-slug file to .kody/commands/ that overrides the built-in."
+            {isBuiltinEdit
+              ? "Saving stores your version at .kody/commands/<slug>.md in the repo, which takes over from the built-in."
               : "Stored at .kody/commands/<slug>.md. Use $ARGUMENTS for the full input, $0/$1/… for positional tokens."}
           </DialogDescription>
         </DialogHeader>
@@ -540,10 +537,8 @@ function CommandEditor({
               </>
             ) : isNew ? (
               "Create"
-            ) : isBuiltinFork ? (
-              "Fork"
             ) : (
-              "Update"
+              "Save"
             )}
           </Button>
         </div>

@@ -4455,6 +4455,7 @@ export function KodyChat({
             className={`group flex ${msg.role === "user" ? "justify-end" : "justify-start"} relative`}
           >
             <div
+              dir="auto"
               className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
                 msg.role === "user"
                   ? "bg-primary text-primary-foreground"
@@ -4886,6 +4887,7 @@ export function KodyChat({
               }}
               placeholder={placeholder}
               rows={1}
+              dir="auto"
               className="w-full px-3 py-2 text-base rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading || (isKodyLive && interactiveState !== "ready")}
               style={{ height: "auto" }}
