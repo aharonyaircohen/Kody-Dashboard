@@ -46,7 +46,10 @@ import {
   handlePrMerged,
   handleReleasePublished,
 } from "@dashboard/lib/changelog/handlers";
-import { handlePrClosed as handlePreviewPrClosed } from "@dashboard/lib/previews/webhook";
+import {
+  handlePrClosed as handlePreviewPrClosed,
+  handlePrOpenedOrSynced as handlePreviewPrOpenedOrSynced,
+} from "@dashboard/lib/previews/webhook";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,7 +83,11 @@ interface IssueCommentPayload {
 }
 interface PullRequestPayload {
   action?: string;
-  pull_request?: { number?: number; merged?: boolean };
+  pull_request?: {
+    number?: number;
+    merged?: boolean;
+    head?: { sha?: string; ref?: string };
+  };
   repository?: { full_name?: string };
 }
 
@@ -183,6 +190,27 @@ function dispatch(
             prNumber: p.pull_request.number,
           }),
           `previews.destroy#${p.pull_request.number}`,
+        );
+      }
+      // Build + boot a preview on PR open, sync (push to branch), or
+      // reopen. Same opt-in via vault FLY_API_TOKEN; the handler tries
+      // the warm pool first and falls back to create-fresh.
+      if (
+        event === "pull_request" &&
+        (p?.action === "opened" ||
+          p?.action === "synchronize" ||
+          p?.action === "reopened") &&
+        typeof p?.pull_request?.number === "number" &&
+        p?.pull_request?.head?.sha &&
+        p?.repository?.full_name
+      ) {
+        fireAndForget(
+          handlePreviewPrOpenedOrSynced({
+            repoFullName: p.repository.full_name,
+            prNumber: p.pull_request.number,
+            ref: p.pull_request.head.sha,
+          }),
+          `previews.create#${p.pull_request.number}`,
         );
       }
       return { handled: true, detail: `pr#${p?.pull_request?.number ?? "?"}` };
