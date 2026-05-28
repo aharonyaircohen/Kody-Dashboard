@@ -46,6 +46,7 @@ import {
   handlePrMerged,
   handleReleasePublished,
 } from "@dashboard/lib/changelog/handlers";
+import { handlePrClosed as handlePreviewPrClosed } from "@dashboard/lib/previews/webhook";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,6 +81,7 @@ interface IssueCommentPayload {
 interface PullRequestPayload {
   action?: string;
   pull_request?: { number?: number; merged?: boolean };
+  repository?: { full_name?: string };
 }
 
 interface ReleasePayload {
@@ -164,6 +166,23 @@ function dispatch(
         fireAndForget(
           handlePrMerged(payload as Record<string, unknown>),
           `changelog.append#${p.pull_request.number ?? "?"}`,
+        );
+      }
+      // Tear down per-PR preview when the PR closes (merged OR not).
+      // No-op when the target repo isn't opted into previews (no
+      // FLY_API_TOKEN in vault) — handler resolves the config itself.
+      if (
+        event === "pull_request" &&
+        p?.action === "closed" &&
+        typeof p?.pull_request?.number === "number" &&
+        p?.repository?.full_name
+      ) {
+        fireAndForget(
+          handlePreviewPrClosed({
+            repoFullName: p.repository.full_name,
+            prNumber: p.pull_request.number,
+          }),
+          `previews.destroy#${p.pull_request.number}`,
         );
       }
       return { handled: true, detail: `pr#${p?.pull_request?.number ?? "?"}` };
