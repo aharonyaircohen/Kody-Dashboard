@@ -75,15 +75,19 @@ describe.skipIf(!FLY_TOKEN || !MASTER_KEY)(
         );
 
         expect(created.appName).toBe(previewAppName(KEY));
-        expect(created.image).toMatch(/^registry\.fly\.io\/kp-.+:.+$/);
         expect(created.url).toMatch(/^https:\/\/kp-.+\.fly\.dev$/);
-        expect(created.state).toBe("running");
-        expect(created.machineId).toBeTruthy();
-        expect(created.buildMs).toBeGreaterThan(0);
+        // createPreview now returns immediately after spawning the
+        // builder machine — the URL isn't reachable yet. Pending state
+        // is expected.
+        expect(created.state).toBe("pending");
+        expect(created.builderMachineId).toBeTruthy();
 
+        // Wait for the builder to finish the full pipeline (build +
+        // push + create preview machine). Longer timeout because we're
+        // now polling the END URL, not the builder.
         let lastStatus = 0;
         let lastBody = "";
-        for (let attempt = 0; attempt < 30; attempt++) {
+        for (let attempt = 0; attempt < 90; attempt++) {
           try {
             const res = await fetch(created.url, {
               redirect: "follow",
@@ -95,7 +99,7 @@ describe.skipIf(!FLY_TOKEN || !MASTER_KEY)(
           } catch {
             /* retrying */
           }
-          await new Promise((r) => setTimeout(r, 2000));
+          await new Promise((r) => setTimeout(r, 3000));
         }
         expect(
           lastStatus,

@@ -1,33 +1,48 @@
 /**
- * One-shot CLI builder.
+ * One-shot CLI that handles the FULL preview lifecycle inside a single
+ * Fly machine. The dashboard webhook spawns this machine with a single
+ * Fly Machines API call and returns immediately — no Vercel→Fly
+ * polling, no long-lived serverless function.
  *
- * Runs as a per-build Fly Machine, NOT a long-lived service. The
- * dashboard spawns a machine from the image this CLI lives in, passes
- * everything via env vars, and waits for the machine to exit. No HTTP
- * layer, no auth dance, no edge-proxy timeouts.
+ * Lifecycle, all Fly→Fly:
+ *   1. ensure per-PR Fly app exists
+ *   2. allocate shared IPs (idempotent; runs in parallel with clone)
+ *   3. clone repo at ref
+ *   4. flyctl deploy --build-only --push (build + push image)
+ *   5. destroy any stale preview machines
+ *   6. create the new preview machine
+ *   7. exit 0
  *
  * Required env:
  *   REPO              owner/name
  *   REF               branch or sha
- *   APP_NAME          Fly app to push the image into (must exist)
+ *   APP_NAME          per-PR Fly app name (kp-...)
  *   IMAGE_TAG         tag for the built image
- *   FLY_API_TOKEN     for flyctl
+ *   FLY_API_TOKEN     org token (also used for createApp + machine ops)
+ *   FLY_ORG_SLUG      optional, defaults to "personal"
+ *   FLY_REGION        optional, defaults to "fra"
  *   GITHUB_TOKEN      optional, for private clones
  *
- * Build caching: Fly's Depot builder caches at org scope by default
- * (--depot-scope=org), so dep + .next/cache layers persist across all
- * builds in the org. No per-build configuration needed.
- *
  * Exit codes:
- *   0   success — image pushed to registry.fly.io/<APP_NAME>:<IMAGE_TAG>
- *   1   bad / missing inputs
- *   2   clone failed
- *   3   flyctl build failed
+ *   0  success — preview machine is running
+ *   1  bad / missing inputs
+ *   2  clone failed
+ *   3  flyctl build failed
+ *   4  Fly orchestration failed
  */
 
 import { spawn } from "node:child_process";
 import { copyFile, mkdir, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+
+import {
+  allocateSharedIps,
+  appExists,
+  createApp,
+  createPreviewMachine,
+  destroyMachine,
+  listMachines,
+} from "./fly-api.ts";
 
 const DEFAULT_DOCKERFILE = "/app/default-Dockerfile.preview";
 
@@ -64,54 +79,43 @@ function run(
   });
 }
 
-async function main() {
-  const repo = required("REPO");
-  const ref = required("REF");
-  const appName = required("APP_NAME");
-  const imageTag = required("IMAGE_TAG");
-  const flyToken = required("FLY_API_TOKEN");
-  const githubToken = process.env.GITHUB_TOKEN?.trim() || "";
-
-  const cwd = "/tmp/work";
-  await mkdir(cwd, { recursive: true });
-
+async function cloneRepo(
+  repo: string,
+  ref: string,
+  cwd: string,
+  githubToken: string,
+): Promise<void> {
   const cloneUrl = githubToken
     ? `https://x-access-token:${githubToken}@github.com/${repo}.git`
     : `https://github.com/${repo}.git`;
 
   console.log(`[builder] cloning ${repo}@${ref}`);
-  // `git clone --depth=1 --branch <ref>` only works for branch/tag names.
-  // The dashboard webhook passes `head.sha` (a commit SHA) on PR sync,
-  // and SHAs need a two-step approach: shallow-clone the default branch
-  // first, then fetch + checkout the SHA explicitly.
   const looksLikeSha = /^[0-9a-f]{7,40}$/i.test(ref);
   if (looksLikeSha) {
-    const cloned = await run("git", ["clone", "--depth=1", cloneUrl, cwd]);
-    if (cloned !== 0) process.exit(2);
-    const fetched = await run(
-      "git",
-      ["fetch", "--depth=1", "origin", ref],
-      { cwd },
-    );
-    if (fetched !== 0) process.exit(2);
-    const checkedOut = await run(
-      "git",
-      ["checkout", "--detach", "FETCH_HEAD"],
-      { cwd },
-    );
-    if (checkedOut !== 0) process.exit(2);
+    if ((await run("git", ["clone", "--depth=1", cloneUrl, cwd])) !== 0) {
+      process.exit(2);
+    }
+    if ((await run("git", ["fetch", "--depth=1", "origin", ref], { cwd })) !== 0) {
+      process.exit(2);
+    }
+    if ((await run("git", ["checkout", "--detach", "FETCH_HEAD"], { cwd })) !== 0) {
+      process.exit(2);
+    }
   } else {
-    const cloned = await run("git", [
-      "clone",
-      "--depth=1",
-      "--branch",
-      ref,
-      cloneUrl,
-      cwd,
-    ]);
-    if (cloned !== 0) process.exit(2);
+    if (
+      (await run("git", ["clone", "--depth=1", "--branch", ref, cloneUrl, cwd])) !== 0
+    ) {
+      process.exit(2);
+    }
   }
+}
 
+async function pushPreviewImage(
+  cwd: string,
+  appName: string,
+  imageTag: string,
+  flyToken: string,
+): Promise<void> {
   const dockerfilePath = resolve(cwd, "Dockerfile.preview");
   if (!(await exists(dockerfilePath))) {
     await copyFile(DEFAULT_DOCKERFILE, dockerfilePath);
@@ -120,7 +124,6 @@ async function main() {
     console.log("[builder] using repo Dockerfile.preview");
   }
 
-  // flyctl deploy --build-only needs a fly.toml.
   const tomlPath = resolve(cwd, "fly.toml");
   if (!(await exists(tomlPath))) {
     await writeFile(
@@ -131,11 +134,7 @@ async function main() {
   }
 
   console.log(`[builder] pushing image to registry.fly.io/${appName}:${imageTag}`);
-  // Fly's Depot remote builder caches at org scope by default
-  // (--depot-scope=org), so dep + .next/cache layers persist automatically
-  // across builds — even across different per-PR apps. No explicit cache
-  // flags needed.
-  const built = await run(
+  const code = await run(
     "flyctl",
     [
       "deploy",
@@ -152,10 +151,63 @@ async function main() {
     ],
     { cwd, env: { FLY_API_TOKEN: flyToken } },
   );
-  if (built !== 0) process.exit(3);
+  if (code !== 0) process.exit(3);
+}
 
-  console.log(`[builder] done: registry.fly.io/${appName}:${imageTag}`);
-  process.exit(0);
+async function main() {
+  const repo = required("REPO");
+  const ref = required("REF");
+  const appName = required("APP_NAME");
+  const imageTag = required("IMAGE_TAG");
+  const flyToken = required("FLY_API_TOKEN");
+  const orgSlug = (process.env.FLY_ORG_SLUG ?? "personal").trim();
+  const region = (process.env.FLY_REGION ?? "fra").trim();
+  const githubToken = process.env.GITHUB_TOKEN?.trim() || "";
+
+  const cwd = "/tmp/work";
+  await mkdir(cwd, { recursive: true });
+
+  try {
+    // Run app + IP allocation in parallel with the clone. createApp is
+    // idempotent on 422; allocateSharedIps swallows "already allocated".
+    const flyPrep = (async () => {
+      if (!(await appExists(appName, flyToken))) {
+        console.log(`[builder] creating app ${appName}`);
+        await createApp(appName, orgSlug, flyToken);
+      }
+      console.log(`[builder] allocating shared IPs`);
+      await allocateSharedIps(appName, flyToken);
+    })();
+
+    await Promise.all([flyPrep, cloneRepo(repo, ref, cwd, githubToken)]);
+
+    await pushPreviewImage(cwd, appName, imageTag, flyToken);
+
+    // Destroy any stale machines from prior PR sync, then boot the new one.
+    const stale = await listMachines(appName, flyToken);
+    if (stale.length > 0) {
+      console.log(`[builder] destroying ${stale.length} stale machine(s)`);
+      await Promise.all(
+        stale.map((m) =>
+          destroyMachine(appName, m.id, flyToken).catch((err) =>
+            console.warn(`[builder] destroyMachine ${m.id} failed:`, err),
+          ),
+        ),
+      );
+    }
+
+    const image = `registry.fly.io/${appName}:${imageTag}`;
+    console.log(`[builder] creating preview machine from ${image}`);
+    const machineId = await createPreviewMachine(
+      { appName, region, image, internalPort: 8080 },
+      flyToken,
+    );
+    console.log(`[builder] done — preview machine ${machineId} at https://${appName}.fly.dev`);
+    process.exit(0);
+  } catch (err) {
+    console.error("[builder] orchestration failed:", err);
+    process.exit(4);
+  }
 }
 
 main().catch((err) => {

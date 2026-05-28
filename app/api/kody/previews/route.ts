@@ -99,12 +99,8 @@ export async function POST(req: NextRequest) {
         repo: parsed.data.repo,
         pr: parsed.data.pr,
         ref: parsed.data.ref,
-        image: parsed.data.image,
         // The operator's PAT lets the builder clone private repos.
         githubToken: auth.token,
-        internalPort: parsed.data.internalPort,
-        env: parsed.data.env,
-        region: parsed.data.region,
       },
       cfg,
     );

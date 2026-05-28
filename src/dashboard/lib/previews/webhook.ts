@@ -62,10 +62,9 @@ export async function handlePrOpenedOrSynced(
         repo: event.repoFullName,
         pr: event.prNumber,
         url: info.url,
-        source: info.source,
-        buildMs: info.buildMs,
+        builderMachineId: info.builderMachineId,
       },
-      "previews.webhook: created",
+      "previews.webhook: builder dispatched",
     );
   } catch (err) {
     logger.warn(

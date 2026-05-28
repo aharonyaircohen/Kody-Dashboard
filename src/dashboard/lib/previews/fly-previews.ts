@@ -43,20 +43,45 @@ export interface MachineInfo {
   region: string;
 }
 
+/**
+ * Transient errors we see from Vercel→Fly: TLS handshake races,
+ * ECONNRESET mid-request, and undici socket aborts. The Fly Machines API
+ * is idempotent enough on GET + safe for short retries on POST/DELETE
+ * (consumer-side dedup handles the rest), so backed-off retry keeps the
+ * webhook flow from dying on a single network blip.
+ */
+function isTransientFetchError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /socket|ECONNRESET|ENOTFOUND|ETIMEDOUT|TLS|EAI_AGAIN|fetch failed/i.test(
+    msg,
+  );
+}
+
 async function flyFetch(
   url: string,
   init: RequestInit,
   token: string,
 ): Promise<Response> {
-  return fetch(url, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    ...(init.headers ?? {}),
+  };
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await fetch(url, {
+        ...init,
+        headers,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientFetchError(err)) throw err;
+      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
+  throw lastErr ?? new Error("flyFetch exhausted retries");
 }
 
 async function assertOk(res: Response, context: string): Promise<void> {
