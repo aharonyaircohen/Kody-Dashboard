@@ -71,7 +71,12 @@ export async function spawnPreviewBuilder(
       },
       auto_destroy: true,
       restart: { policy: "no" },
-      guest: { cpu_kind: "shared", cpus: 2, memory_mb: 1024 },
+      // The build runs IN this machine (buildah inside the builder
+      // image). Memory here is what next build / webpack actually have
+      // — Depot remote-builder OOMs are gone. performance-2x / 4GB is
+      // the same as the user's "high" runner tier, sized for large
+      // Next.js webpack builds (A-Guy etc.).
+      guest: { cpu_kind: "performance", cpus: 2, memory_mb: 4096 },
     },
     region: input.flyRegion,
   };

@@ -124,34 +124,42 @@ async function pushPreviewImage(
     console.log("[builder] using repo Dockerfile.preview");
   }
 
-  const tomlPath = resolve(cwd, "fly.toml");
-  if (!(await exists(tomlPath))) {
-    await writeFile(
-      tomlPath,
-      `app = "${appName}"\nprimary_region = "fra"\n\n[build]\n  dockerfile = "Dockerfile.preview"\n`,
-      "utf8",
-    );
-  }
+  const imageRef = `registry.fly.io/${appName}:${imageTag}`;
+  console.log(`[builder] building locally with buildah → ${imageRef}`);
 
-  console.log(`[builder] pushing image to registry.fly.io/${appName}:${imageTag}`);
-  const code = await run(
-    "flyctl",
+  // Build the image with buildah. Runs in-machine, uses the machine's
+  // RAM/CPU directly — no Depot remote-builder OOMs.
+  const built = await run(
+    "buildah",
     [
-      "deploy",
-      "--build-only",
-      "--push",
-      "--image-label",
-      imageTag,
-      "--app",
-      appName,
-      "--remote-only",
-      "--depot=true",
-      "--depot-scope=org",
-      "--yes",
+      "build",
+      "--file",
+      "Dockerfile.preview",
+      "--tag",
+      imageRef,
+      "--format",
+      "docker",
+      ".",
     ],
-    { cwd, env: { FLY_API_TOKEN: flyToken } },
+    { cwd },
   );
-  if (code !== 0) process.exit(3);
+  if (built !== 0) process.exit(3);
+
+  // Push via buildah to the Fly registry. Username `x` is a Fly
+  // convention; password is the org API token.
+  console.log(`[builder] pushing ${imageRef}`);
+  const pushed = await run(
+    "buildah",
+    [
+      "push",
+      "--creds",
+      `x:${flyToken}`,
+      imageRef,
+      `docker://${imageRef}`,
+    ],
+    { cwd },
+  );
+  if (pushed !== 0) process.exit(3);
 }
 
 async function main() {
