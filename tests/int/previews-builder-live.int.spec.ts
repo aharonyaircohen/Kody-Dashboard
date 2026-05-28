@@ -90,7 +90,7 @@ describe.skipIf(!FLY_TOKEN || !MASTER_KEY)(
               signal: AbortSignal.timeout(10_000),
             });
             lastStatus = res.status;
-            lastBody = (await res.text()).slice(0, 400);
+            lastBody = await res.text();
             if (res.status === 200) break;
           } catch {
             /* retrying */
@@ -99,7 +99,7 @@ describe.skipIf(!FLY_TOKEN || !MASTER_KEY)(
         }
         expect(
           lastStatus,
-          `last response from ${created.url} body=${lastBody}`,
+          `last response from ${created.url} body=${lastBody.slice(0, 400)}`,
         ).toBe(200);
         // Asserts our smoke page actually rendered.
         expect(lastBody).toMatch(/kody preview smoke OK/);

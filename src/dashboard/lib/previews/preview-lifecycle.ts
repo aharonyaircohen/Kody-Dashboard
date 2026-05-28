@@ -27,6 +27,7 @@ import {
   createApp,
   createMachine,
   destroyApp,
+  destroyMachine,
   flyHostname,
   type FlyPreviewConfig,
   listMachines,
@@ -139,22 +140,14 @@ export async function createPreview(
   );
 
   // Wipe any prior machine for this key so the new image gets a clean boot.
+  // DON'T destroy the whole app — its registry namespace holds the image
+  // we just pushed, and destroying the app destroys the image with it.
+  // Destroy individual machines instead.
   if (await appExists(appName, cfg)) {
-    // App likely exists from the build step above; destroy any in-flight
-    // machine so we re-create from the new image. We can't just destroy
-    // the app (we'd lose the freshly-pushed image), so destroy+recreate
-    // is reserved for the case where there's no prior build.
     const existing = await listMachines(appName, cfg);
-    for (const m of existing) {
-      // No public API to destroy a single machine here yet; use the
-      // wholesale destroyApp + recreate path which is simpler. Note: the
-      // image lives in Fly's registry, not on the app, so re-creating
-      // the app is fine — the registry namespace is recreated with the
-      // same name and the existing image stays addressable.
-      void m;
-    }
-    await destroyApp(appName, cfg);
-    await createApp(appName, cfg);
+    await Promise.all(
+      existing.map((m) => destroyMachine(appName, m.id, cfg).catch(() => {})),
+    );
   } else {
     await createApp(appName, cfg);
   }

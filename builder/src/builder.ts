@@ -1,47 +1,40 @@
 /**
- * Build orchestration.
+ * One-shot CLI builder.
  *
- * Flow per request:
- *   1. Clone <repo> at <ref> into /tmp/kody-build-<uuid>
- *   2. If the working tree has no Dockerfile.preview, copy the bundled
- *      default from the image so consumer repos stay zero-touch.
- *   3. Run `flyctl deploy --build-only --image-label <tag>` against the
- *      target Fly app, with FLY_API_TOKEN injected. Fly's hosted remote
- *      builder does the actual Docker build and pushes to its registry.
- *   4. Return the resulting image ref.
+ * Runs as a per-build Fly Machine, NOT a long-lived service. The
+ * dashboard spawns a machine from the image this CLI lives in, passes
+ * everything via env vars, and waits for the machine to exit. No HTTP
+ * layer, no auth dance, no edge-proxy timeouts.
  *
- * The target Fly app passed in MUST exist beforehand — the dashboard
- * creates the per-PR app + allocates IPs before calling here. That keeps
- * "build" and "deploy" cleanly separated.
+ * Required env:
+ *   REPO              owner/name
+ *   REF               branch or sha
+ *   APP_NAME          Fly app to push the image into (must exist)
+ *   IMAGE_TAG         tag for the built image
+ *   FLY_API_TOKEN     for flyctl
+ *   GITHUB_TOKEN      optional, for private clones
+ *
+ * Exit codes:
+ *   0   success — image pushed to registry.fly.io/<APP_NAME>:<IMAGE_TAG>
+ *   1   bad / missing inputs
+ *   2   clone failed
+ *   3   flyctl build failed
  */
 
 import { spawn } from "node:child_process";
-import { randomUUID, createHash } from "node:crypto";
-import { copyFile, mkdir, rm, stat } from "node:fs/promises";
+import { copyFile, mkdir, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-export interface BuildRequest {
-  /** owner/name */
-  repo: string;
-  /** Git ref to check out (branch, tag, or sha). */
-  ref: string;
-  /** Fly app name the image will be tagged under. Must already exist. */
-  appName: string;
-  /** Tag for the resulting image (defaults to a hash of repo+ref). */
-  imageTag?: string;
-  /** Fly token with push access to <appName>. */
-  flyToken: string;
-  /** Optional GitHub token to clone private repos. */
-  githubToken?: string;
-}
-
-export interface BuildResult {
-  image: string;
-  durationMs: number;
-}
-
-const WORK_ROOT = "/tmp/kody-build";
 const DEFAULT_DOCKERFILE = "/app/default-Dockerfile.preview";
+
+function required(name: string): string {
+  const v = (process.env[name] ?? "").trim();
+  if (!v) {
+    console.error(`[builder] ${name} is required`);
+    process.exit(1);
+  }
+  return v;
+}
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -52,102 +45,88 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-function defaultTagFor(repo: string, ref: string): string {
-  return createHash("sha256")
-    .update(`${repo}@${ref}`)
-    .digest("hex")
-    .slice(0, 12);
-}
-
 function run(
   cmd: string,
   args: string[],
   opts: { cwd?: string; env?: Record<string, string> } = {},
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  return new Promise((resolvePromise) => {
+): Promise<number> {
+  return new Promise((resolveFn) => {
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: { ...process.env, ...(opts.env ?? {}) },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: "inherit",
     });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d) => {
-      stdout += d.toString();
-    });
-    child.stderr.on("data", (d) => {
-      stderr += d.toString();
-    });
-    child.on("close", (code) => {
-      resolvePromise({ code: code ?? -1, stdout, stderr });
-    });
+    child.on("close", (code) => resolveFn(code ?? -1));
   });
 }
 
-export async function build(req: BuildRequest): Promise<BuildResult> {
-  const startedAt = Date.now();
-  const id = randomUUID();
-  const cwd = resolve(WORK_ROOT, id);
+async function main() {
+  const repo = required("REPO");
+  const ref = required("REF");
+  const appName = required("APP_NAME");
+  const imageTag = required("IMAGE_TAG");
+  const flyToken = required("FLY_API_TOKEN");
+  const githubToken = process.env.GITHUB_TOKEN?.trim() || "";
+
+  const cwd = "/tmp/work";
   await mkdir(cwd, { recursive: true });
 
-  try {
-    const cloneUrl = req.githubToken
-      ? `https://x-access-token:${req.githubToken}@github.com/${req.repo}.git`
-      : `https://github.com/${req.repo}.git`;
+  const cloneUrl = githubToken
+    ? `https://x-access-token:${githubToken}@github.com/${repo}.git`
+    : `https://github.com/${repo}.git`;
 
-    const cloned = await run("git", [
-      "clone",
-      "--depth=1",
-      "--branch",
-      req.ref,
-      cloneUrl,
-      cwd,
-    ]);
-    if (cloned.code !== 0) {
-      throw new Error(
-        `git clone failed: ${cloned.stderr.slice(0, 500) || cloned.stdout.slice(0, 500)}`,
-      );
-    }
+  console.log(`[builder] cloning ${repo}@${ref}`);
+  const cloned = await run("git", [
+    "clone",
+    "--depth=1",
+    "--branch",
+    ref,
+    cloneUrl,
+    cwd,
+  ]);
+  if (cloned !== 0) process.exit(2);
 
-    // If the consumer repo ships its own Dockerfile.preview, use that.
-    // Otherwise drop in the bundled default — that's what keeps consumer
-    // repos zero-touch.
-    const dockerfilePath = resolve(cwd, "Dockerfile.preview");
-    if (!(await exists(dockerfilePath))) {
-      await copyFile(DEFAULT_DOCKERFILE, dockerfilePath);
-    }
-
-    const tag = req.imageTag ?? defaultTagFor(req.repo, req.ref);
-    const built = await run(
-      "flyctl",
-      [
-        "deploy",
-        "--build-only",
-        "--dockerfile",
-        "Dockerfile.preview",
-        "--image-label",
-        tag,
-        "--app",
-        req.appName,
-        "--remote-only",
-        "--yes",
-      ],
-      {
-        cwd,
-        env: { FLY_API_TOKEN: req.flyToken },
-      },
-    );
-    if (built.code !== 0) {
-      throw new Error(
-        `flyctl build failed: ${built.stderr.slice(0, 1000) || built.stdout.slice(0, 1000)}`,
-      );
-    }
-
-    return {
-      image: `registry.fly.io/${req.appName}:${tag}`,
-      durationMs: Date.now() - startedAt,
-    };
-  } finally {
-    await rm(cwd, { recursive: true, force: true }).catch(() => {});
+  const dockerfilePath = resolve(cwd, "Dockerfile.preview");
+  if (!(await exists(dockerfilePath))) {
+    await copyFile(DEFAULT_DOCKERFILE, dockerfilePath);
+    console.log("[builder] using bundled default Dockerfile.preview");
+  } else {
+    console.log("[builder] using repo Dockerfile.preview");
   }
+
+  // flyctl deploy --build-only needs a fly.toml.
+  const tomlPath = resolve(cwd, "fly.toml");
+  if (!(await exists(tomlPath))) {
+    await writeFile(
+      tomlPath,
+      `app = "${appName}"\nprimary_region = "fra"\n\n[build]\n  dockerfile = "Dockerfile.preview"\n`,
+      "utf8",
+    );
+  }
+
+  console.log(`[builder] pushing image to registry.fly.io/${appName}:${imageTag}`);
+  const built = await run(
+    "flyctl",
+    [
+      "deploy",
+      "--build-only",
+      "--push",
+      "--image-label",
+      imageTag,
+      "--app",
+      appName,
+      "--remote-only",
+      "--yes",
+    ],
+    { cwd, env: { FLY_API_TOKEN: flyToken } },
+  );
+  if (built !== 0) process.exit(3);
+
+  console.log(`[builder] done: registry.fly.io/${appName}:${imageTag}`);
+  process.exit(0);
 }
+
+main().catch((err) => {
+  console.error("[builder] unexpected:", err);
+  process.exit(1);
+});

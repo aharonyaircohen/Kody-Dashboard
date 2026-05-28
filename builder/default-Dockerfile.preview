@@ -21,6 +21,9 @@ WORKDIR /app
 RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Ensure optional dirs exist so the runtime stage's COPY always succeeds,
+# even on minimal Next.js apps that have no public/ folder.
+RUN mkdir -p public
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 RUN if [ -f pnpm-lock.yaml ]; then \

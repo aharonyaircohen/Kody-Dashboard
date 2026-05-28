@@ -182,18 +182,33 @@ export async function createMachine(
     },
   };
 
-  const res = await flyFetch(
-    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(input.appName)}/machines`,
-    { method: "POST", body: JSON.stringify(body) },
-    cfg.token,
-  );
-  await assertOk(res, "createMachine");
-  const data = (await res.json()) as {
-    id: string;
-    state: string;
-    region: string;
-  };
-  return { id: data.id, state: data.state, region: data.region };
+  // Fly's registry is eventually consistent: a freshly-pushed manifest
+  // can return MANIFEST_UNKNOWN for a few seconds. Retry on that
+  // specific class of error.
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const res = await flyFetch(
+      `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(input.appName)}/machines`,
+      { method: "POST", body: JSON.stringify(body) },
+      cfg.token,
+    );
+    if (res.ok) {
+      const data = (await res.json()) as {
+        id: string;
+        state: string;
+        region: string;
+      };
+      return { id: data.id, state: data.state, region: data.region };
+    }
+    const text = await res.text().catch(() => "");
+    const isManifestRace = /MANIFEST_UNKNOWN|manifest unknown/i.test(text);
+    lastErr = new Error(
+      `createMachine failed: ${res.status} ${res.statusText} — ${text.slice(0, 400)}`,
+    );
+    if (!isManifestRace) break;
+    await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+  }
+  throw lastErr ?? new Error("createMachine failed (unknown)");
 }
 
 export async function waitForMachineStarted(
@@ -227,6 +242,27 @@ export async function listMachines(
     region: string;
   }>;
   return data.map((m) => ({ id: m.id, state: m.state, region: m.region }));
+}
+
+export async function destroyMachine(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  // Stop first (Fly requires `force=true` to destroy a started machine in
+  // one call; using stop+destroy is more predictable).
+  await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/stop`,
+    { method: "POST" },
+    cfg.token,
+  ).catch(() => undefined);
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}?force=true`,
+    { method: "DELETE" },
+    cfg.token,
+  );
+  if (res.status === 404) return;
+  await assertOk(res, "destroyMachine");
 }
 
 export async function destroyApp(

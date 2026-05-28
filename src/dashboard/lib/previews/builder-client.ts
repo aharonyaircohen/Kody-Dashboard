@@ -1,48 +1,47 @@
 /**
  * @fileType library
  * @domain previews
- * @pattern builder-client
+ * @pattern fly-machine-job
  *
- * Dashboard-side client for the preview builder Fly service
- * (kody-preview-builder). Sends `{ repo, ref, appName, flyToken }`,
- * gets back `{ image }` ready to boot.
+ * Spawn a one-shot Fly Machine to build a preview image.
  *
- * Auth: shared key derived from KODY_MASTER_KEY via the same
- * purpose-prefix scheme as the builder side (see builder/src/auth.ts).
- * Both sides compute the key independently — nothing crosses the wire.
+ * Why this shape (vs an HTTP service): build runs can take 1–5 minutes,
+ * and Fly's edge HTTP proxy drops idle connections after ~60s. The
+ * Fly Machines API is built for long-running jobs — we ask Fly to
+ * start a machine, then wait for it to reach the `destroyed` state.
+ * The machine's exit code tells us whether the build succeeded.
  *
- * Failure mode: build is a hard dependency (unlike the warm pool). If
- * the builder is down, there's no image to boot, so we surface the
- * failure to the caller. The caller turns it into a 5xx.
+ * The machine pulls the builder image (`registry.fly.io/kody-preview-builder:latest`)
+ * and runs the CLI in builder/src/builder.ts, which:
+ *   1. Clones the repo at the given ref
+ *   2. Falls back to the bundled default Dockerfile.preview if missing
+ *   3. Runs `flyctl deploy --build-only --push` against the target app
+ *   4. Exits 0 on success
+ *
+ * On success, the image lives at `registry.fly.io/<appName>:<imageTag>`.
  */
 
 import { createHash } from "node:crypto";
 
 import { logger } from "@dashboard/lib/logger";
 
-const DEFAULT_BUILDER_URL = "https://kody-preview-builder.fly.dev";
-const BUILD_TIMEOUT_MS = 10 * 60 * 1000; // 10 min cap for the whole build
+const FLY_MACHINES_BASE = "https://api.machines.dev/v1";
+const BUILDER_IMAGE =
+  process.env.KODY_PREVIEW_BUILDER_IMAGE ??
+  "registry.fly.io/kody-preview-builder:latest";
+const BUILDER_HOST_APP =
+  process.env.KODY_PREVIEW_BUILDER_HOST_APP ?? "kody-preview-builder";
 
-function builderBaseUrl(): string {
-  return (process.env.KODY_PREVIEW_BUILDER_URL ?? DEFAULT_BUILDER_URL).replace(
-    /\/+$/,
-    "",
-  );
-}
-
-function deriveAuthKey(): string | null {
-  const master = (process.env.KODY_MASTER_KEY ?? "").trim();
-  if (!master) return null;
-  return createHash("sha256")
-    .update(`kody-preview-builder:v1:${master}`)
-    .digest("hex");
-}
+// Hard ceiling for an end-to-end build. Long enough for the slowest
+// Next.js cold build we'd reasonably accept; short enough that a hung
+// flyctl doesn't pin a builder Machine indefinitely.
+const BUILD_TIMEOUT_MS = 10 * 60 * 1000;
 
 export interface BuildPreviewImageInput {
   /** owner/name */
   repo: string;
   ref: string;
-  /** Fly app the resulting image will be tagged into. */
+  /** Fly app the resulting image will be tagged into (must already exist). */
   appName: string;
   imageTag?: string;
   flyToken: string;
@@ -54,44 +53,169 @@ export interface BuildPreviewImageResult {
   durationMs: number;
 }
 
+function defaultTagFor(repo: string, ref: string): string {
+  return createHash("sha256")
+    .update(`${repo}@${ref}`)
+    .digest("hex")
+    .slice(0, 12);
+}
+
+async function flyFetch(
+  url: string,
+  init: RequestInit,
+  token: string,
+): Promise<Response> {
+  return fetch(url, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+    signal: AbortSignal.timeout(60_000),
+  });
+}
+
+interface MachineState {
+  id: string;
+  state: string;
+  /** Set once the guest has exited (read from events[].request.exit_event). */
+  exit_code?: number;
+  /** True once any terminal event has fired (exit/stop/destroy). */
+  isTerminal: boolean;
+}
+
+async function getMachineState(
+  appName: string,
+  machineId: string,
+  token: string,
+): Promise<MachineState | null> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}?include_deleted=true`,
+    { method: "GET" },
+    token,
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`getMachineState ${res.status}: ${text.slice(0, 300)}`);
+  }
+  const data = (await res.json()) as {
+    id: string;
+    state: string;
+    events?: Array<{
+      type?: string;
+      status?: string;
+      request?: { exit_event?: { exit_code?: number } };
+    }>;
+  };
+  // Exit code lives in the most recent `type: "exit"` event.
+  const exitEvent = (data.events ?? []).find((e) => e.type === "exit");
+  const exit_code = exitEvent?.request?.exit_event?.exit_code;
+  const isTerminal =
+    data.state === "stopped" ||
+    data.state === "destroyed" ||
+    exit_code !== undefined;
+  return { id: data.id, state: data.state, exit_code, isTerminal };
+}
+
+async function destroyMachine(
+  appName: string,
+  machineId: string,
+  token: string,
+): Promise<void> {
+  await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}?force=true`,
+    { method: "DELETE" },
+    token,
+  ).catch(() => undefined);
+}
+
 export async function buildPreviewImage(
   input: BuildPreviewImageInput,
 ): Promise<BuildPreviewImageResult> {
-  const key = deriveAuthKey();
-  if (!key) {
-    throw new Error(
-      "preview builder not configured: KODY_MASTER_KEY missing on dashboard",
-    );
-  }
+  const startedAt = Date.now();
+  const tag = input.imageTag ?? defaultTagFor(input.repo, input.ref);
+  const imageRef = `registry.fly.io/${input.appName}:${tag}`;
 
-  const url = `${builderBaseUrl()}/build`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-builder-auth": key,
+  // Spawn the builder machine inside the BUILDER_HOST_APP.
+  // auto_destroy: true so Fly cleans up after the CLI exits — we still
+  // read exit_code from `events[]` via include_deleted=true, so we don't
+  // need the machine record to stick around.
+  const body = {
+    config: {
+      image: BUILDER_IMAGE,
+      env: {
+        REPO: input.repo,
+        REF: input.ref,
+        APP_NAME: input.appName,
+        IMAGE_TAG: tag,
+        FLY_API_TOKEN: input.flyToken,
+        ...(input.githubToken ? { GITHUB_TOKEN: input.githubToken } : {}),
+      },
+      auto_destroy: true,
+      restart: { policy: "no" },
+      guest: { cpu_kind: "shared", cpus: 2, memory_mb: 1024 },
     },
-    body: JSON.stringify({
-      repo: input.repo,
-      ref: input.ref,
-      appName: input.appName,
-      imageTag: input.imageTag,
-      flyToken: input.flyToken,
-      githubToken: input.githubToken,
-    }),
-    signal: AbortSignal.timeout(BUILD_TIMEOUT_MS),
-  });
+    region: "fra",
+  };
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    logger.error(
-      { status: res.status, body: text.slice(0, 500), repo: input.repo, ref: input.ref },
-      "previews.builder: build failed",
-    );
+  const createRes = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(BUILDER_HOST_APP)}/machines`,
+    { method: "POST", body: JSON.stringify(body) },
+    input.flyToken,
+  );
+  if (!createRes.ok) {
+    const text = await createRes.text().catch(() => "");
     throw new Error(
-      `builder ${res.status}: ${text.slice(0, 300) || res.statusText}`,
+      `builder machine create failed: ${createRes.status} ${text.slice(0, 300)}`,
+    );
+  }
+  const created = (await createRes.json()) as { id: string };
+  const machineId = created.id;
+
+  logger.info(
+    { repo: input.repo, ref: input.ref, machineId },
+    "previews.builder: machine spawned",
+  );
+
+  // Poll until the machine has an exit event in its history.
+  // include_deleted=true keeps the events readable even after auto_destroy.
+  const deadline = startedAt + BUILD_TIMEOUT_MS;
+  let lastState: MachineState | null = null;
+  let timedOut = true;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 4000));
+    lastState = await getMachineState(
+      BUILDER_HOST_APP,
+      machineId,
+      input.flyToken,
+    ).catch(() => null);
+
+    if (lastState?.isTerminal) {
+      timedOut = false;
+      break;
+    }
+  }
+
+  if (timedOut) {
+    // Best-effort cleanup if the machine got stuck.
+    await destroyMachine(BUILDER_HOST_APP, machineId, input.flyToken);
+    throw new Error(
+      `builder timed out after ${Math.round(BUILD_TIMEOUT_MS / 1000)}s (last state: ${lastState?.state ?? "unknown"})`,
     );
   }
 
-  return (await res.json()) as BuildPreviewImageResult;
+  if (lastState?.exit_code === undefined) {
+    throw new Error(
+      `builder finished but exit code unknown — check Fly logs for ${BUILDER_HOST_APP}/${machineId}`,
+    );
+  }
+  if (lastState.exit_code !== 0) {
+    throw new Error(
+      `builder exited with code ${lastState.exit_code} — check Fly logs for ${BUILDER_HOST_APP}/${machineId}`,
+    );
+  }
+
+  return { image: imageRef, durationMs: Date.now() - startedAt };
 }

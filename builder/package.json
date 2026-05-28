@@ -1,21 +1,15 @@
 {
   "name": "kody-preview-builder",
-  "version": "0.1.0",
-  "description": "Preview build service: clones a repo+ref, runs docker buildx, pushes image to Fly registry.",
+  "version": "0.2.0",
+  "description": "One-shot CLI run as a per-build Fly Machine: clone repo+ref, build Dockerfile.preview, push image to Fly registry. No long-running service.",
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "start": "node --experimental-strip-types src/server.ts",
+    "start": "node --experimental-strip-types src/builder.ts",
     "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@hono/node-server": "^1.13.7",
-    "hono": "^4.6.14"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
 }

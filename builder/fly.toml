@@ -1,28 +1,12 @@
-# Fly deploy config for the preview builder service.
-# Deploy with:
-#   flyctl deploy -c builder/fly.toml --app kody-preview-builder
+# Fly app config used ONLY to host the builder image in the Fly registry.
+# No service runs here. The dashboard pulls this image when spawning
+# per-build Fly Machines elsewhere.
 #
-# This service uses Fly's hosted remote builder under the hood (flyctl
-# deploy --build-only), so it doesn't need privileged docker. A small
-# VM is enough; the heavy build CPU lives on Fly's builder infra.
+# To push a new builder image after editing src/ or default-Dockerfile.preview:
+#   flyctl deploy -c builder/fly.toml --app kody-preview-builder --build-only --push --image-label latest
 
 app = "kody-preview-builder"
 primary_region = "fra"
 
 [build]
   dockerfile = "Dockerfile"
-
-[env]
-  PORT = "8080"
-
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = "suspend"
-  auto_start_machines = true
-  min_machines_running = 0
-
-[[vm]]
-  cpu_kind = "shared"
-  cpus = 2
-  memory_mb = 1024
