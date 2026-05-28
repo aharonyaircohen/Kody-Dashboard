@@ -48,7 +48,7 @@ ENV NODE_ENV=production
 # Let Node use the full memory the build machine has (default cap is
 # ~1.7GB regardless of available RAM, which OOMs on big Next.js
 # webpack builds — A-Guy hit this).
-ENV NODE_OPTIONS="--max-old-space-size=3584"
+ENV NODE_OPTIONS="--max-old-space-size=7168"
 # `.next/cache` holds Next.js's incremental compilation cache (SWC
 # output, webpack module cache). Mounting it persists across builds on
 # the same builder so a warm rebuild reuses prior work instead of
