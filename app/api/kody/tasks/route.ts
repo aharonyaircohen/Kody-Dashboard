@@ -233,18 +233,16 @@ export async function GET(req: NextRequest) {
       }
     })();
 
-    // Build SHA -> preview URL lookup keyed by PR number for easy access
+    // Build SHA -> preview URL lookup keyed by PR number.
+    //
+    // Precedence: when the repo has Fly previews opted in (FLY_API_TOKEN
+    // in vault), the deterministic Fly URL wins over the GitHub
+    // Deployments URL — that's where Vercel registers its previews, and
+    // we want repos that have moved off Vercel previews to show the new
+    // Fly URL in the dashboard. Repos without Fly opted in keep the
+    // Vercel-via-Deployments URL.
     const previewByPrNumber = new Map<number, string>();
     for (const pr of openPRs) {
-      const url = previewUrls.get(pr.head.sha);
-      if (url) {
-        previewByPrNumber.set(pr.number, url);
-        continue;
-      }
-      // Fallback to the deterministic Fly preview URL — but ONLY when
-      // the repo has Fly previews opted in (FLY_API_TOKEN in vault).
-      // Without the gate we'd surface a "Deploy" link on every PR even
-      // for repos that don't use Fly, leading to NXDOMAIN on click.
       if (flyPreviewCfg) {
         previewByPrNumber.set(
           pr.number,
@@ -255,7 +253,10 @@ export async function GET(req: NextRequest) {
             }),
           ),
         );
+        continue;
       }
+      const url = previewUrls.get(pr.head.sha);
+      if (url) previewByPrNumber.set(pr.number, url);
     }
 
     // First pass: match workflow runs once per issue (reused later in the
