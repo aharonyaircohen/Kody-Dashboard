@@ -82,29 +82,51 @@ export async function createPreview(
   const appName = previewAppName(key);
   const region = input.region ?? cfg.defaultRegion;
 
-  // 1. Build (skipped if a pre-built image was passed in).
+  // 1. Build + Fly-side setup, in parallel.
+  //
+  // The build runs on Fly's remote builder for ~100s. While that's
+  // happening, the slow Fly-side prep (createApp + shared IPs) can run
+  // on this side at the same time — both need to be done before
+  // createMachine, but they don't depend on each other. Running them
+  // sequentially burned ~5s of dead time per cold preview.
+  //
+  // Why this is safe: the builder pushes its image into <appName>'s
+  // registry namespace and only requires the app to exist by the time
+  // its `flyctl deploy --build-only --push` runs. createApp completes
+  // in ~2-3s and runs first inside the prep promise, well before
+  // builder spawn + clone + build complete.
   let image = input.image;
   let buildMs: number | undefined;
+
+  const flyPrep = (async () => {
+    if (!(await appExists(appName, cfg))) await createApp(appName, cfg);
+    // Allocate now — saves another sequential step after the build.
+    // GraphQL ignores re-allocation when the IP already exists, so this
+    // is safe across PR-sync rebuilds.
+    await allocateSharedIps(appName, cfg);
+  })();
+
   if (!image) {
-    // The builder pushes into <appName>'s registry namespace. Make sure
-    // the app exists first so it has a registry path; the deploy phase
-    // will reuse it.
-    if (!(await appExists(appName, cfg))) {
-      await createApp(appName, cfg);
-    }
-    const built = await buildPreviewImage({
-      repo: input.repo,
-      ref: input.ref,
-      appName,
-      flyToken: cfg.token,
-      githubToken: input.githubToken,
-    });
+    const [, built] = await Promise.all([
+      flyPrep,
+      buildPreviewImage({
+        repo: input.repo,
+        ref: input.ref,
+        appName,
+        flyToken: cfg.token,
+        githubToken: input.githubToken,
+      }),
+    ]);
     image = built.image;
     buildMs = built.durationMs;
     logger.info(
       { repo: input.repo, pr: input.pr, image, buildMs },
       "preview: image built",
     );
+  } else {
+    // Caller supplied a pre-built image — still run prep so the deploy
+    // phase below doesn't have to.
+    await flyPrep;
   }
 
   // 2. Deploy — pool fast path.
@@ -140,18 +162,12 @@ export async function createPreview(
   );
 
   // Wipe any prior machine for this key so the new image gets a clean boot.
-  // DON'T destroy the whole app — its registry namespace holds the image
-  // we just pushed, and destroying the app destroys the image with it.
-  // Destroy individual machines instead.
-  if (await appExists(appName, cfg)) {
-    const existing = await listMachines(appName, cfg);
-    await Promise.all(
-      existing.map((m) => destroyMachine(appName, m.id, cfg).catch(() => {})),
-    );
-  } else {
-    await createApp(appName, cfg);
-  }
-  await allocateSharedIps(appName, cfg);
+  // App + IPs are already in place from flyPrep above; only stale machines
+  // (from a PR-sync rebuild) need to be cleared before createMachine.
+  const existing = await listMachines(appName, cfg);
+  await Promise.all(
+    existing.map((m) => destroyMachine(appName, m.id, cfg).catch(() => {})),
+  );
   const machine = await createMachine(
     {
       appName,
