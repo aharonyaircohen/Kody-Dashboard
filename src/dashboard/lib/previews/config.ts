@@ -18,6 +18,7 @@
 
 import { Octokit } from "@octokit/rest";
 
+import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
 import { logger } from "@dashboard/lib/logger";
 import { readVault } from "@dashboard/lib/vault/store";
 
@@ -64,22 +65,24 @@ export async function resolvePreviewConfigForOctokit(
 }
 
 /**
- * Server-side path used by webhook handlers — uses KODY_BOT_TOKEN
- * (preferred) or GITHUB_TOKEN to build the Octokit. The bot token must
- * have repo access to read .kody/secrets.enc.
+ * Server-side path used by webhook handlers and other unattended
+ * background work. Resolves a token via the shared background-token
+ * policy: GitHub App installation token preferred, vault GITHUB_TOKEN
+ * fallback. Matches the rest of the dashboard's webhook fan-out so the
+ * App-vs-vault decision lives in one place.
  */
 export async function resolvePreviewConfigForRepo(
   owner: string,
   repo: string,
 ): Promise<FlyPreviewConfig | null> {
-  const auth = process.env.KODY_BOT_TOKEN ?? process.env.GITHUB_TOKEN ?? "";
-  if (!auth) {
+  const bg = await resolveBackgroundToken(owner, repo);
+  if (!bg) {
     logger.warn(
       { owner, repo },
-      "previews: no KODY_BOT_TOKEN/GITHUB_TOKEN to read vault",
+      "previews: no background token (App not installed and vault GITHUB_TOKEN missing)",
     );
     return null;
   }
-  const octokit = new Octokit({ auth });
+  const octokit = new Octokit({ auth: bg.token });
   return resolvePreviewConfigForOctokit({ octokit, owner, repo });
 }
