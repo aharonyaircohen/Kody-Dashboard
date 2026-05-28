@@ -80,15 +80,37 @@ async function main() {
     : `https://github.com/${repo}.git`;
 
   console.log(`[builder] cloning ${repo}@${ref}`);
-  const cloned = await run("git", [
-    "clone",
-    "--depth=1",
-    "--branch",
-    ref,
-    cloneUrl,
-    cwd,
-  ]);
-  if (cloned !== 0) process.exit(2);
+  // `git clone --depth=1 --branch <ref>` only works for branch/tag names.
+  // The dashboard webhook passes `head.sha` (a commit SHA) on PR sync,
+  // and SHAs need a two-step approach: shallow-clone the default branch
+  // first, then fetch + checkout the SHA explicitly.
+  const looksLikeSha = /^[0-9a-f]{7,40}$/i.test(ref);
+  if (looksLikeSha) {
+    const cloned = await run("git", ["clone", "--depth=1", cloneUrl, cwd]);
+    if (cloned !== 0) process.exit(2);
+    const fetched = await run(
+      "git",
+      ["fetch", "--depth=1", "origin", ref],
+      { cwd },
+    );
+    if (fetched !== 0) process.exit(2);
+    const checkedOut = await run(
+      "git",
+      ["checkout", "--detach", "FETCH_HEAD"],
+      { cwd },
+    );
+    if (checkedOut !== 0) process.exit(2);
+  } else {
+    const cloned = await run("git", [
+      "clone",
+      "--depth=1",
+      "--branch",
+      ref,
+      cloneUrl,
+      cwd,
+    ]);
+    if (cloned !== 0) process.exit(2);
+  }
 
   const dockerfilePath = resolve(cwd, "Dockerfile.preview");
   if (!(await exists(dockerfilePath))) {
