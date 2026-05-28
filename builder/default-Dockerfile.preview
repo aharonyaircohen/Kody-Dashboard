@@ -1,58 +1,46 @@
-# Template Dockerfile for Next.js previews on Fly.
+# Bundled default Dockerfile.preview.
 #
-# Copy this into a consumer repo at `Dockerfile.preview` and reference it
-# from .github/workflows/preview-build.yml. The image is built per PR,
-# pushed to `registry.fly.io/<app-name>:<sha>`, and the dashboard tells
-# kody-previews to boot a machine from it.
+# Used by kody-preview-builder when the consumer repo doesn't ship its
+# own Dockerfile.preview. Works on a plain Next.js repo WITHOUT
+# requiring `output: 'standalone'` in next.config.js, so consumer
+# repos stay zero-touch.
 #
-# Optimizations vs Vercel:
-#   - Turbopack build is enabled by default (no $0.126/min Turbo tier gate)
-#   - Multi-stage build keeps the runtime image small
-#   - `next start` runs the standalone output (no full node_modules at runtime)
-#
-# Required Next.js config (next.config.js):
-#   { output: 'standalone' }
+# Multi-stage: runtime image holds only node_modules + .next + public.
 
-# --- 1. deps stage -----------------------------------------------------------
 FROM node:22-alpine AS deps
 WORKDIR /app
-
-# pnpm with corepack — matches Kody-Dashboard's package manager
 RUN corepack enable
-
 COPY package.json pnpm-lock.yaml* package-lock.json* yarn.lock* ./
 RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; \
     elif [ -f package-lock.json ]; then npm ci; \
     elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
     else npm install; fi
 
-# --- 2. build stage ----------------------------------------------------------
 FROM node:22-alpine AS builder
 WORKDIR /app
 RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Turbopack build. NEXT_TELEMETRY_DISABLED kills telemetry network round-trip.
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+RUN if [ -f pnpm-lock.yaml ]; then \
+      pnpm exec next build --turbopack || pnpm exec next build; \
+    else npx next build --turbopack || npx next build; \
+    fi
+RUN if [ -f pnpm-lock.yaml ]; then pnpm prune --prod || true; fi
 
-RUN if [ -f pnpm-lock.yaml ]; then pnpm build --turbopack || pnpm build; \
-    else npm run build; fi
-
-# --- 3. runtime stage --------------------------------------------------------
 FROM node:22-alpine AS runner
 WORKDIR /app
-
+RUN corepack enable
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=8080
 ENV HOSTNAME=0.0.0.0
-
-# Standalone output puts only what's needed for `node server.js` into .next/standalone
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-
+# next.config is optional — copy only when present.
+COPY --from=builder /app/next.config* ./
 EXPOSE 8080
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "if [ -f pnpm-lock.yaml ]; then pnpm exec next start -H 0.0.0.0 -p 8080; else npx next start -H 0.0.0.0 -p 8080; fi"]
