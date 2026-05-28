@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+#
 # Bundled default Dockerfile.preview.
 #
 # Used by kody-preview-builder when the consumer repo doesn't ship its
@@ -5,7 +7,17 @@
 # requiring `output: 'standalone'` in next.config.js, so consumer
 # repos stay zero-touch.
 #
-# Multi-stage: runtime image holds only node_modules + .next + public.
+# Two BuildKit cache mounts let warm rebuilds finish in a fraction of
+# cold-build time:
+#   1. pnpm store mount   — skips re-downloading deps on dep cache hit
+#   2. .next/cache mount  — Next.js incremental compilation reuses
+#                           prior SWC/transform output across builds
+# Both persist on Fly's Depot remote builder between runs of the same
+# project. No volume, no flyctl flag — pure BuildKit.
+#
+# Bundler: webpack (Next.js default). NOT turbopack — production builds
+# on Vercel use webpack; matching the bundler keeps preview ↔ prod
+# behaviour identical so Turbopack-only bugs can't slip past review.
 
 FROM node:22-alpine AS deps
 WORKDIR /app
@@ -16,7 +28,9 @@ COPY package.json pnpm-lock.yaml* package-lock.json* yarn.lock* ./
 # environment that doesn't exist inside a stripped build container and
 # would otherwise crash the entire dep install. Apps that genuinely need
 # postinstall outputs can ship their own Dockerfile.preview.
-RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile --ignore-scripts; \
+RUN --mount=type=cache,id=kp-pnpm-store,target=/root/.local/share/pnpm/store \
+    --mount=type=cache,id=kp-npm-cache,target=/root/.npm \
+    if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile --ignore-scripts; \
     elif [ -f package-lock.json ]; then npm ci --ignore-scripts; \
     elif [ -f yarn.lock ]; then yarn install --frozen-lockfile --ignore-scripts; \
     else npm install --ignore-scripts; fi
@@ -31,9 +45,13 @@ COPY . .
 RUN mkdir -p public
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN if [ -f pnpm-lock.yaml ]; then \
-      pnpm exec next build --turbopack || pnpm exec next build; \
-    else npx next build --turbopack || npx next build; \
+# `.next/cache` holds Next.js's incremental compilation cache (SWC
+# output, webpack module cache). Mounting it persists across builds on
+# the same builder so a warm rebuild reuses prior work instead of
+# re-compiling every module.
+RUN --mount=type=cache,id=kp-next-cache,target=/app/.next/cache \
+    if [ -f pnpm-lock.yaml ]; then pnpm exec next build; \
+    else npx next build; \
     fi
 RUN if [ -f pnpm-lock.yaml ]; then pnpm prune --prod || true; fi
 
