@@ -45,32 +45,7 @@ Everything described below has been observed running on at least one private rep
 
 **Time from issue open → PR ready for review.** Under 15 minutes.
 
-### Case study 2 — CI / test failure fix
-
-**Trigger.** A scheduled CI run on the main branch failed. A GitHub `check_run` webhook arrived at the dashboard.
-
-**What Kody did.**
-
-1. Pulled the failing job's logs via the GitHub API.
-2. Identified the failing test and the assertion that broke.
-3. Located the source-of-truth file responsible for the regression (a recent refactor had changed a return shape).
-4. Pushed a fix commit to the same branch and re-triggered the workflow.
-5. Posted a short summary comment explaining the root cause.
-
-**Outcome.** CI green on the next run. The fix was a three-line change; the triage was the expensive part, and Kody owned it end-to-end.
-
-### Case study 3 — Scheduled duty / report generation
-
-**Setup.** A `weekly-review` duty configured on the repo with `every: 7d` cadence, owned by a `tech-writer` staff persona.
-
-**What Kody does on every tick.**
-
-1. Reads the previous week's merged PRs, closed issues, and committed reports.
-2. Summarizes activity, flags items that stalled, and lists open risks.
-3. Writes the report as a markdown file to `.kody/reports/<slug>-<date>.md` on the state branch via the GitHub API.
-4. The dashboard's Reports page surfaces the new file automatically; no additional plumbing.
-
-**Outcome.** Multiple weeks of reports accumulated on a private repo with zero human intervention between ticks. The operator reviews the report; the report is the artifact.
+_Earlier drafts of this page included two additional "private repo" case studies for CI failure repair and scheduled report generation. They were removed because they made claims with no public evidence backing them. Public evidence for scheduled work lives in Artifact 3 below; CI-failure-repair evidence will be added when a public run is reproducible end-to-end._
 
 ## Evidence
 
@@ -114,6 +89,22 @@ Demonstrates: the oversized-diff caveat from Artifact 1 was caused by `pnpm form
 | Human role             | Opened the issue, posted one `@kody` comment to trigger, fixed an unrelated stale lint error on `main` that broke Kody's preflight, posted a second `@kody` retry comment, reviewed the PR, squash-merged. No edits to Kody's diff.                                                                                                                                                                                          |
 | Evidence               | Issue thread: <https://github.com/aharonyaircohen/Kody-Dashboard/issues/21> · PR conversation: <https://github.com/aharonyaircohen/Kody-Dashboard/pull/22> · Engine run log: <https://github.com/aharonyaircohen/Kody-Dashboard/actions/runs/26664269712>                                                                                                                                                                    |
 | What this demonstrates | (1) Kody's first attempt **correctly aborted** when the repo's lint/format preflight was broken, surfacing the failure as a comment with the actual stderr — operator-friendly failure mode, no silent bad PRs. (2) Once the environment was healthy, the same prompt produced a clean, reviewable, single-purpose PR. (3) The 47-file caveat from Artifact 1 was the toolchain, not the agent — diff size went from 47 → 2. |
+
+### Artifact 3 — Scheduled duties running autonomously
+
+Demonstrates: configured duties on a cadence → engine fires them on schedule → each run is logged with timestamp, duty, staff owner, outcome, and a link to the actual GitHub Actions workflow run.
+
+| Field                             | Value                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository                        | [aharonyaircohen/Kody-Dashboard](https://github.com/aharonyaircohen/Kody-Dashboard)                                                                                                                                                                                                                                                                                                                                    |
+| Duties config                     | [.kody/duties/](https://github.com/aharonyaircohen/Kody-Dashboard/tree/kody-state/.kody/duties) on the `kody-state` branch — ten duty files including `docs-code`, `docs-readme`, `architecture-audit`, `coverage-floor`, `dead-code-sweep`, `dependency-bump`, `cleanup-branches`, `design-review`, `duty-review`, `approval-gate`. Each is a markdown file with frontmatter declaring its cadence.                   |
+| Staff owners                      | [.kody/staff/](https://github.com/aharonyaircohen/Kody-Dashboard/tree/kody-state/.kody/staff) — duties are owned by personas like `tech-writer` (owns the docs duties).                                                                                                                                                                                                                                                |
+| Activity log                      | [.kody/activity/2026-05-29.jsonl](https://github.com/aharonyaircohen/Kody-Dashboard/blob/kody-state/.kody/activity/2026-05-29.jsonl) — one JSON line per duty run, committed automatically by the engine.                                                                                                                                                                                                              |
+| Sample entry from 14 logged today | `{"ts":"2026-05-29T11:49:15Z","action":"Ran duty: Docs Coverage — in-code / folder headers","duty":"docs-code","staff":"tech-writer","trigger":"schedule","outcome":"completed","durationMs":20297,"runUrl":"https://github.com/aharonyaircohen/Kody-Dashboard/actions/runs/26635487225"}`                                                                                                                             |
+| Cadence observed today            | `docs-code` and `docs-readme` each fired four times across the day at roughly ~4-hour intervals; every run has `trigger: "schedule"` (engine cron tick, not user-initiated) and a `runUrl` linking to the underlying GitHub Actions run.                                                                                                                                                                               |
+| Auditability                      | Each entry's `runUrl` is a clickable link to the GitHub Actions run for that tick — the workflow logs, the duty's git-data commits, and the resulting code changes (if any) are all public and reachable from one click.                                                                                                                                                                                               |
+| Human role                        | None during the day — duties fired on the engine's schedule, the activity log accumulated automatically. Operator role is to read the log or the dashboard's Activity page.                                                                                                                                                                                                                                            |
+| Honest caveats                    | (1) The duties currently configured on this repo are infrastructural (docs, audit, coverage) — they don't always produce a code PR every tick; "ran the duty" can mean "checked and found nothing to do." (2) A separate per-duty markdown report (the `.kody/reports/<slug>-<date>.md` pattern referenced elsewhere in this repo's docs) is not yet enabled here; the activity log is the artifact for this artifact. |
 
 If you are evaluating Kody and need to see unredacted evidence, reach out directly — we can walk through a live private repo in a screen-share.
 
