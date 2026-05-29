@@ -148,6 +148,22 @@ async function findBaseImage(repo: string, flyToken: string): Promise<string | n
   return `registry.fly.io/${app}:latest`;
 }
 
+async function patchBaseImageInDockerfile(
+  dockerfilePath: string,
+  baseImage: string,
+): Promise<void> {
+  const { readFile } = await import("node:fs/promises");
+  const original = await readFile(dockerfilePath, "utf8");
+  // Replace the ARG default with the literal base image, then drop the
+  // `${BASE_IMAGE:-...}` indirection so flyctl never sees a --build-arg.
+  const patched = original
+    .replace(/^ARG BASE_IMAGE=.*$/m, `ARG BASE_IMAGE=${baseImage}`)
+    .replace(/\$\{BASE_IMAGE:-[^}]+\}/g, baseImage)
+    .replace(/\$\{BASE_IMAGE\}/g, baseImage);
+  const { writeFile: wf } = await import("node:fs/promises");
+  await wf(dockerfilePath, patched, "utf8");
+}
+
 async function pushPreviewImage(
   cwd: string,
   appName: string,
@@ -180,12 +196,13 @@ async function pushPreviewImage(
   console.log(`[builder] pushing image to registry.fly.io/${appName}:${imageTag}`);
   if (baseImage) {
     console.log(`[builder] inheriting from base image ${baseImage}`);
+    // flyctl --remote-only + --build-arg has a docker-daemon-resolution
+    // bug ('failed to parse daemon host'). Substitute the base image
+    // into the Dockerfile directly so flyctl never sees a --build-arg.
+    await patchBaseImageInDockerfile(resolve(cwd, "Dockerfile.preview"), baseImage);
   } else {
     console.log("[builder] no base image found — full cold build");
   }
-  // Fly's GraphQL/API layer is eventually consistent: an app created
-  // via the Machines REST API can take 30-60s to be visible to
-  // `flyctl deploy`. Retry a few times before giving up.
   let built = -1;
   const args = [
     "deploy",
@@ -199,9 +216,6 @@ async function pushPreviewImage(
     "--depot=false",
     "--yes",
   ];
-  if (baseImage) {
-    args.push("--build-arg", `BASE_IMAGE=${baseImage}`);
-  }
   for (let attempt = 0; attempt < 4; attempt++) {
     built = await run("flyctl", args, { cwd, env: { FLY_API_TOKEN: flyToken } });
     if (built === 0) break;
