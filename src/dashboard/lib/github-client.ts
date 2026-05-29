@@ -7,7 +7,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { throttling } from "@octokit/plugin-throttling";
 import { Octokit } from "@octokit/rest";
-import { revalidateTag } from "next/cache";
 import {
   GITHUB_OWNER,
   GITHUB_REPO,
@@ -120,6 +119,13 @@ function invalidateCache(prefix: string): void {
  */
 function revalidateTagSafe(tag: string): void {
   try {
+    // Lazy require keeps `next/cache` out of client bundles when
+    // github-client.ts is transitively imported by a client component
+    // (e.g. ModelsManager → variables/models → get-variable → here).
+    // Server-side this is a normal sync require; the client never reaches
+    // these write paths so the function is effectively a no-op there.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { revalidateTag } = require("next/cache") as typeof import("next/cache");
     revalidateTag(tag);
   } catch {
     // Outside a request scope (e.g. tests, scripts) revalidateTag throws.
