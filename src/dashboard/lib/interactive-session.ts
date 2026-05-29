@@ -174,7 +174,10 @@ export async function appendUserTurn(
     } catch (err: unknown) {
       const e = err as { status?: number };
       // 409 = sha mismatch (concurrent runner push). Retry with fresh sha.
-      if (e.status === 409 && attempt < maxRetries) continue;
+      if (e.status === 409 && attempt < maxRetries) {
+        await sleep(100 * attempt + Math.floor(Math.random() * 100));
+        continue;
+      }
       throw err;
     }
   }
