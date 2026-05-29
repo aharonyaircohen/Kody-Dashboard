@@ -1,0 +1,103 @@
+# Proof of Work
+
+Kody has been tested and used on private production repositories, where it has shipped real changes, fixed real failures, and produced real reports on a recurring schedule.
+
+## Why the evidence on this page is anonymized
+
+The repositories Kody runs against are private. We cannot link directly to issues, pull requests, commits, file paths, repo names, customers, or business logic — doing so would expose private source code and proprietary information.
+
+What this page provides instead:
+
+- A description of the capabilities that have been exercised end-to-end in production.
+- Anonymized case studies that describe the shape of the work, not the work itself.
+- Placeholders for sanitized screenshots and log excerpts where identifiers have been redacted.
+
+Everything described below has been observed running on at least one private repository. None of it is hypothetical.
+
+## Proven capabilities
+
+- [x] Autonomous feature implementation from a natural-language task description, ending in an opened pull request.
+- [x] CI failure triage: reading workflow logs, identifying the failing step, and pushing a fix to the same branch.
+- [x] Test failure repair: failing unit/integration test → diagnosis → code fix → green run.
+- [x] Scheduled "duties" that run on a cadence (hourly, daily, weekly) and produce committed reports.
+- [x] Code review on opened pull requests, posting structured feedback as comments.
+- [x] Multi-step workflows that chain executables (e.g. classify → implement → test → open PR) inside a single run.
+- [x] Cross-repository coordination via the Director: a goal opened in one repo dispatching work into another.
+- [x] Mention-driven inbox routing: `@kody`, `@<staff-slug>`, and operator mentions reach the right handler.
+- [x] Web Push notifications to the operator's installed PWA when their attention is required.
+- [x] Secrets vault: per-repo encrypted secrets read at runtime without leaking into logs or workflow YAML.
+
+## Case studies (anonymized)
+
+### Case study 1 — Autonomous feature implementation
+
+**Input.** An operator opened an issue on a private repo: a short paragraph describing a missing capability in a user-facing feature, no code references, no file paths.
+
+**What Kody did.**
+
+1. Picked up the issue from its mention queue.
+2. Ran a research pass over the repository to locate the relevant module and its tests.
+3. Drafted an implementation plan as a comment on the issue.
+4. Opened a pull request against the working branch containing: the new code path, updated types, and added unit tests.
+5. Re-ran on review feedback and pushed two follow-up commits in the same PR.
+
+**Outcome.** PR merged by the operator. No human-written code in the diff; human review only.
+
+**Time from issue open → PR ready for review.** Under 15 minutes.
+
+### Case study 2 — CI / test failure fix
+
+**Trigger.** A scheduled CI run on the main branch failed. A GitHub `check_run` webhook arrived at the dashboard.
+
+**What Kody did.**
+
+1. Pulled the failing job's logs via the GitHub API.
+2. Identified the failing test and the assertion that broke.
+3. Located the source-of-truth file responsible for the regression (a recent refactor had changed a return shape).
+4. Pushed a fix commit to the same branch and re-triggered the workflow.
+5. Posted a short summary comment explaining the root cause.
+
+**Outcome.** CI green on the next run. The fix was a three-line change; the triage was the expensive part, and Kody owned it end-to-end.
+
+### Case study 3 — Scheduled duty / report generation
+
+**Setup.** A `weekly-review` duty configured on the repo with `every: 7d` cadence, owned by a `tech-writer` staff persona.
+
+**What Kody does on every tick.**
+
+1. Reads the previous week's merged PRs, closed issues, and committed reports.
+2. Summarizes activity, flags items that stalled, and lists open risks.
+3. Writes the report as a markdown file to `.kody/reports/<slug>-<date>.md` on the state branch via the GitHub API.
+4. The dashboard's Reports page surfaces the new file automatically; no additional plumbing.
+
+**Outcome.** Multiple weeks of reports accumulated on a private repo with zero human intervention between ticks. The operator reviews the report; the report is the artifact.
+
+## Evidence
+
+Each artifact below documents one real Kody run. Identifiers (repo names, usernames, file paths, customer references, internal URLs) are redacted before publication. New artifacts are appended over time.
+
+### Artifact 1 — Natural-language task → PR opened
+
+Demonstrates: task description in an issue → repository research → implementation → pull request opened → human review. Run on this same open-source repo, so links are unredacted.
+
+| Field | Value |
+| --- | --- |
+| Repository | [aharonyaircohen/Kody-Dashboard](https://github.com/aharonyaircohen/Kody-Dashboard) |
+| Task / issue | [#19 — Cache invalidation: listing cache wiped on every single-item write (duties/staff/commands)](https://github.com/aharonyaircohen/Kody-Dashboard/issues/19) |
+| Pull request | [#20 — fix: guard listing cache wipe behind else in manifest cache invalidators](https://github.com/aharonyaircohen/Kody-Dashboard/pull/20) |
+| Date | 2026-05-29 |
+| Trigger → PR opened | ~16 min from `@kody` comment to PR ready for review |
+| What Kody changed (target fix) | Added `else` guards in `invalidateDutiesCache`, `invalidateStaffCache`, `invalidateCommandsCache`, and `invalidateMemoryCache` so the listing-cache wipe only runs when no slug/id is passed. Renamed `invalidateStaffCache` listing prefix from `staff:` to `staffs:` to avoid colliding with the per-item prefix (matching the `duty/duties` and `prompt/prompts` pattern in the same file). Added 8 unit tests in `tests/unit/github-client-cache.spec.ts` covering the per-item vs listing branches. |
+| Diff size | 47 files changed, +798 / −497 (the targeted fix is ~2 files; the rest are auto-generated docs/CHANGELOG updates, builder pkg-lock churn, and `.kody/tasks/19/*` run-state bookkeeping bundled into the same commit) |
+| Followups filed by Kody | Flagged `invalidateMemoryCache` key naming inconsistency (`memory-index:` vs `memories:`) for a separate audit — recorded in `.kody/tasks/19/followups.json`. |
+| CI status | CI Quality Checks ✅, Vitest unit+integration ✅, Production Smoke skipped, Vercel preview deploy ❌ failure (preview build, unrelated to the patched code) |
+| Merged | No — PR is **open**, pending human review at time of writing. This page will be updated with the merge outcome (and any review feedback Kody addresses in follow-up commits). |
+| Human role | Opened the issue (one paragraph + code reference). Posted one `@kody` comment to trigger the run. Will review the PR. No human edits to the diff before review. |
+| Evidence | Issue thread: <https://github.com/aharonyaircohen/Kody-Dashboard/issues/19> · PR conversation: <https://github.com/aharonyaircohen/Kody-Dashboard/pull/20> · Engine run log: <https://github.com/aharonyaircohen/Kody-Dashboard/actions/runs/26661029900> |
+| Honest caveats | (1) PR is oversized for the bug — Kody bundled unrelated repo state into one commit; clean-diff discipline is a known follow-up. (2) Vercel preview check failed; the unit-test suite did not. (3) Outcome (merged / changes-requested) not yet known — this artifact will be updated once the human review completes. |
+
+If you are evaluating Kody and need to see unredacted evidence, reach out directly — we can walk through a live private repo in a screen-share.
+
+## Public demo repository
+
+A dedicated public demo repository, where every capability above can be reproduced end-to-end with full links to issues, PRs, runs, and reports, will be added in a follow-up. This page will link to it once published.
