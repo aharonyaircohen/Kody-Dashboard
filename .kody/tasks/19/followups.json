@@ -1,0 +1,8 @@
+[
+  {
+    "title": "invalidateMemoryCache listing key naming inconsistency",
+    "body": "The `invalidateMemoryCache` function uses two different keys for listing cache: `memory-index:` and `memories:`. This differs from the pattern in `invalidateDutiesCache` (`duties:`) and `invalidateCommandsCache` (`prompts:`) which use a single plural key. The issue author said to 'audit' this function but did not specify a fix. The current behavior is: per-item uses `memory:`, listing uses both `memory-index:` and `memories:`. This may be intentional (two separate listing caches) or a naming inconsistency. No callers of `invalidateMemoryCache` were found in the codebase — the memory feature may use a different caching path.",
+    "rationale": "Naming inconsistency with other manifest-cache functions; unclear if intentional",
+    "priority": "low"
+  }
+]
