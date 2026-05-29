@@ -71,19 +71,12 @@ export async function spawnPreviewBuilder(
       },
       auto_destroy: true,
       restart: { policy: "no" },
-      // The build runs IN this machine via real dockerd (not buildah).
-      // Kernel overlayfs + native SWC compile at the same speed as
-      // local docker / Vercel. performance-4x / 8 GB matches Vercel's
-      // "Enhanced" tier; bump to 8x if a customer's app demands it.
-      guest: {
-        cpu_kind: "performance",
-        cpus: 4,
-        memory_mb: 8192,
-        // Fly Firecracker VM with kernel capabilities sufficient for
-        // dockerd-in-machine. The dind image's entrypoint runs the
-        // daemon at PID 1; we just need overlay support.
-        kernel_args: ["overlay"],
-      },
+      // This machine only orchestrates: clones, calls flyctl, manages
+      // app/IP/preview-machine on Fly's API. The actual `docker build`
+      // happens on the org's traditional remote builder app
+      // (fly-builder-<org>) — that's where memory + CPU matter. Keep
+      // this orchestrator small.
+      guest: { cpu_kind: "shared", cpus: 2, memory_mb: 1024 },
     },
     region: input.flyRegion,
   };
