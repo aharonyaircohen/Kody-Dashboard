@@ -302,7 +302,17 @@ async function pushPreviewImage(
   for (let attempt = 0; attempt < 4; attempt++) {
     built = await run("flyctl", args, {
       cwd,
-      env: { FLY_API_TOKEN: flyToken },
+      // DOCKER_HOST with a parseable TCP form sidesteps flyctl's
+      // "failed to parse daemon host unix:/// : missing hostname" bug
+      // on the heartbeat + metadata-load paths. We set it on the spawn
+      // env (not just the Dockerfile ENV) so it takes effect even if
+      // the parent shell already has a different DOCKER_HOST.
+      env: {
+        FLY_API_TOKEN: flyToken,
+        DOCKER_HOST: "tcp://127.0.0.1:2375",
+        // Tell flyctl's heartbeat to give up quickly rather than retry.
+        FLY_NO_DEPLOY_PROGRESS: "1",
+      },
     });
     if (built === 0) break;
     if (attempt < 3) {
