@@ -25,13 +25,13 @@ context entry" is a planned affordance but **not built yet**.
 
 ## The pieces
 
-| Piece                      | What it is                                                                                                                                                | Where                                                                          |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| **Context entry**          | One free-form markdown file. Slug = entry name (also the `###` heading Kody sees); body = the curated text. No built-ins.                                  | `.kody/context/<slug>.md`                                                       |
-| **`staff:` frontmatter**   | A tiny one-line inline YAML list naming the staff-member slugs that **own** the entry. Decides which consumers load it.                                    | Frontmatter block atop each file (`staff: [kody, qa-engineer]`)                 |
-| **Built-in audiences**     | `kody` (the in-process chat persona) and `qa-engineer` (the engine QA preflight). Always offered in the picker even without a `.kody/staff/*.md` file.     | [`context/frontmatter.ts`](../src/dashboard/lib/context/frontmatter.ts)         |
-| **`*` all-staff wildcard** | An entry owned by `*` is loaded by **every** consumer (chat, QA, and any future staff). Mutually exclusive with specific slugs — collapses to a lone `*`.   | `ALL_STAFF` constant                                                            |
-| **Chat-prompt loader**     | Concatenates the `kody`-owned (or `*`) entries into the chat system prompt under a `## Context` heading. 60s in-process per-repo cache.                     | `loadContextForPrompt()` in [`context/files.ts`](../src/dashboard/lib/context/files.ts) |
+| Piece                      | What it is                                                                                                                                                | Where                                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **Context entry**          | One free-form markdown file. Slug = entry name (also the `###` heading Kody sees); body = the curated text. No built-ins.                                 | `.kody/context/<slug>.md`                                                               |
+| **`staff:` frontmatter**   | A tiny one-line inline YAML list naming the staff-member slugs that **own** the entry. Decides which consumers load it.                                   | Frontmatter block atop each file (`staff: [kody, qa-engineer]`)                         |
+| **Built-in audiences**     | `kody` (the in-process chat persona) and `qa-engineer` (the engine QA preflight). Always offered in the picker even without a `.kody/staff/*.md` file.    | [`context/frontmatter.ts`](../src/dashboard/lib/context/frontmatter.ts)                 |
+| **`*` all-staff wildcard** | An entry owned by `*` is loaded by **every** consumer (chat, QA, and any future staff). Mutually exclusive with specific slugs — collapses to a lone `*`. | `ALL_STAFF` constant                                                                    |
+| **Chat-prompt loader**     | Concatenates the `kody`-owned (or `*`) entries into the chat system prompt under a `## Context` heading. 60s in-process per-repo cache.                   | `loadContextForPrompt()` in [`context/files.ts`](../src/dashboard/lib/context/files.ts) |
 
 There is **no schedule** and no built-in entries — Context is reference
 material, not scheduled work. (Contrast staff/duties, which are scheduled
@@ -44,13 +44,13 @@ written as an inline YAML list on one line because the engine parses it
 with a simple inline-list reader (keep it `staff: [a, b]` — comma-
 separated, square brackets). Three shapes:
 
-| `staff:` value          | Meaning                                                                  | Who loads it                          |
-| ----------------------- | ------------------------------------------------------------------------ | ------------------------------------- |
-| `[kody]` (default)      | Owned by the built-in chat persona.                                      | The in-process `kody` chat prompt     |
-| `[qa-engineer]`         | Owned by the QA reviewer persona.                                        | The engine's QA preflight only        |
-| `[kody, qa-engineer, …]`| Owned by several specific staff members.                                 | Each named consumer                   |
-| `[*]` (all-staff)       | Owned by everyone, including staff added later.                          | Every consumer                        |
-| `[]` (empty)            | **Unassigned** — owned by nobody.                                        | No consumer (parked/draft)            |
+| `staff:` value           | Meaning                                         | Who loads it                      |
+| ------------------------ | ----------------------------------------------- | --------------------------------- |
+| `[kody]` (default)       | Owned by the built-in chat persona.             | The in-process `kody` chat prompt |
+| `[qa-engineer]`          | Owned by the QA reviewer persona.               | The engine's QA preflight only    |
+| `[kody, qa-engineer, …]` | Owned by several specific staff members.        | Each named consumer               |
+| `[*]` (all-staff)        | Owned by everyone, including staff added later. | Every consumer                    |
+| `[]` (empty)             | **Unassigned** — owned by nobody.               | No consumer (parked/draft)        |
 
 So an entry attached to `qa-engineer` only never reaches the chat prompt,
 and an unassigned entry reaches no one — a valid "parked" state the UI
@@ -157,17 +157,17 @@ reads work with any dashboard auth.
 
 ## File reference
 
-| File                                                                                                       | Purpose                                                                                          |
-| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| [`src/dashboard/lib/context/files.ts`](../src/dashboard/lib/context/files.ts)                              | CRUD `.kody/context/<slug>.md` + `loadContextForPrompt()` (filters to `kody`/`*`, 60s cache)     |
-| [`src/dashboard/lib/context/frontmatter.ts`](../src/dashboard/lib/context/frontmatter.ts)                  | `staff:` frontmatter parse/serialize, legacy `audience:` mapping, `*` wildcard, built-in slugs   |
-| [`app/api/kody/context/route.ts`](../app/api/kody/context/route.ts)                                        | `GET` (list), `POST` (create)                                                                    |
-| [`app/api/kody/context/[slug]/route.ts`](../app/api/kody/context/%5Bslug%5D/route.ts)                      | `GET` (read), `PATCH` (body and/or staff), `DELETE`                                              |
-| [`src/dashboard/lib/components/ContextControl.tsx`](../src/dashboard/lib/components/ContextControl.tsx)     | The `/context` page UI — list, view, create, edit, delete, staff multi-select + badges           |
-| [`app/(chat-rail)/context/page.tsx`](<../app/(chat-rail)/context/page.tsx>)                                | `/context` route entry point                                                                     |
-| [`app/api/kody/chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts)                                    | Calls `loadContextForPrompt()` on each kody-direct turn                                          |
-| [`app/api/kody/chat/kody/system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)                    | Builds the `## Context — your default frame` system-prompt section                               |
-| [`src/dashboard/lib/api.ts`](../src/dashboard/lib/api.ts)                                                  | `contextApi` client + `ContextEntry` type                                                        |
+| File                                                                                                    | Purpose                                                                                        |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [`src/dashboard/lib/context/files.ts`](../src/dashboard/lib/context/files.ts)                           | CRUD `.kody/context/<slug>.md` + `loadContextForPrompt()` (filters to `kody`/`*`, 60s cache)   |
+| [`src/dashboard/lib/context/frontmatter.ts`](../src/dashboard/lib/context/frontmatter.ts)               | `staff:` frontmatter parse/serialize, legacy `audience:` mapping, `*` wildcard, built-in slugs |
+| [`app/api/kody/context/route.ts`](../app/api/kody/context/route.ts)                                     | `GET` (list), `POST` (create)                                                                  |
+| [`app/api/kody/context/[slug]/route.ts`](../app/api/kody/context/%5Bslug%5D/route.ts)                   | `GET` (read), `PATCH` (body and/or staff), `DELETE`                                            |
+| [`src/dashboard/lib/components/ContextControl.tsx`](../src/dashboard/lib/components/ContextControl.tsx) | The `/context` page UI — list, view, create, edit, delete, staff multi-select + badges         |
+| [`app/(chat-rail)/context/page.tsx`](<../app/(chat-rail)/context/page.tsx>)                             | `/context` route entry point                                                                   |
+| [`app/api/kody/chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts)                                 | Calls `loadContextForPrompt()` on each kody-direct turn                                        |
+| [`app/api/kody/chat/kody/system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)                 | Builds the `## Context — your default frame` system-prompt section                             |
+| [`src/dashboard/lib/api.ts`](../src/dashboard/lib/api.ts)                                               | `contextApi` client + `ContextEntry` type                                                      |
 
 ## FAQ
 

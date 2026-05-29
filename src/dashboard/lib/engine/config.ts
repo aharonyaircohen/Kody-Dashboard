@@ -410,9 +410,7 @@ function cleanCommands(q: KodyQuality): KodyQuality {
 }
 
 /** Trim keys + values, drop entries where either side is blank. */
-function cleanStringMap(
-  map: Record<string, string>,
-): Record<string, string> {
+function cleanStringMap(map: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(map)) {
     const key = k.trim().replace(/^@+/, "");

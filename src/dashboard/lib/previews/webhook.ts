@@ -85,10 +85,7 @@ export async function handlePrClosed(event: PRWebhookEvent): Promise<void> {
   if (!cfg) return;
 
   try {
-    await destroyPreview(
-      { repo: event.repoFullName, pr: event.prNumber },
-      cfg,
-    );
+    await destroyPreview({ repo: event.repoFullName, pr: event.prNumber }, cfg);
     logger.info(
       { repo: event.repoFullName, pr: event.prNumber },
       "previews.webhook: destroyed",

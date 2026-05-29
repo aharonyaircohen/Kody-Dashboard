@@ -1222,9 +1222,7 @@ function ExecutableEditorForm({
                   <Input
                     value={(m.args ?? []).join(" ")}
                     onChange={(e) => {
-                      const args = e.target.value
-                        .split(/\s+/)
-                        .filter(Boolean);
+                      const args = e.target.value.split(/\s+/).filter(Boolean);
                       setMcpServers((prev) =>
                         prev.map((x, xi) =>
                           xi === i

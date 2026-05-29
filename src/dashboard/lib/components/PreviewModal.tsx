@@ -138,8 +138,7 @@ export function PreviewModal({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [commentCount, setCommentCount] = useState<number | null>(null);
   const [previewView, setPreviewView] = useState<"web" | "admin">("web");
-  const [previewDevice, setPreviewDevice] =
-    useState<PreviewDevice>("desktop");
+  const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("desktop");
   const [previewKey, setPreviewKey] = useState(0); // Bump to force iframe remount/refresh
   const [commentsKey, setCommentsKey] = useState(0); // Used to force-refresh comment list
   const [changesKey, setChangesKey] = useState(0); // Bump to force re-fetch of changed files

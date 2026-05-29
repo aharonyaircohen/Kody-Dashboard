@@ -121,7 +121,13 @@ describe("formatNetwork", () => {
 
   it("shows ERR + reason when the request threw (status 0)", () => {
     const out = formatNetwork([
-      { url: "https://api/y", method: "POST", status: 0, error: "TypeError", ts: 1 },
+      {
+        url: "https://api/y",
+        method: "POST",
+        status: 0,
+        error: "TypeError",
+        ts: 1,
+      },
     ]);
     expect(out).toContain("POST https://api/y → ERR TypeError");
   });
@@ -137,7 +143,14 @@ function perf(overrides: Partial<PerfReport> = {}): PerfReport {
     lcpMs: 2500,
     resourceCount: 42,
     totalBytes: 1024 * 1024 * 2,
-    slowest: [{ url: "https://preview/main.js", type: "script", durationMs: 1800, bytes: 512 * 1024 }],
+    slowest: [
+      {
+        url: "https://preview/main.js",
+        type: "script",
+        durationMs: 1800,
+        bytes: 512 * 1024,
+      },
+    ],
     ...overrides,
   };
 }

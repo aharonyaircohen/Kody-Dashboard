@@ -209,7 +209,9 @@ export function formatPerf(report: PerfReport): string {
     lines.push("- Slowest resources:");
     for (const r of report.slowest) {
       const file = r.url.split("/").pop() || r.url;
-      lines.push(`  - ${ms(r.durationMs)} · ${kb(r.bytes)} · ${r.type} · ${file}`);
+      lines.push(
+        `  - ${ms(r.durationMs)} · ${kb(r.bytes)} · ${r.type} · ${file}`,
+      );
     }
   }
   lines.push(`- URL: ${report.url}`);
@@ -217,7 +219,10 @@ export function formatPerf(report: PerfReport): string {
 }
 
 /** Turn recorded actions into a Playwright test the user/Kody can save. */
-export function formatPlaywrightTest(steps: RecordedStep[], url: string): string {
+export function formatPlaywrightTest(
+  steps: RecordedStep[],
+  url: string,
+): string {
   const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   const body = [`  await page.goto('${esc(url)}');`];
   for (const step of steps) {
@@ -225,7 +230,9 @@ export function formatPlaywrightTest(steps: RecordedStep[], url: string): string
       const comment = step.text ? `  // ${step.text}` : "";
       body.push(`  await page.click('${esc(step.selector)}');${comment}`);
     } else {
-      body.push(`  await page.fill('${esc(step.selector)}', '${esc(step.value ?? "")}');`);
+      body.push(
+        `  await page.fill('${esc(step.selector)}', '${esc(step.value ?? "")}');`,
+      );
     }
   }
   return [
@@ -248,7 +255,8 @@ export function formatPlaywrightTest(steps: RecordedStep[], url: string): string
 export function formatNetwork(entries: NetworkEntry[]): string {
   const body = entries
     .map((e) => {
-      const status = e.status === 0 ? `ERR ${e.error ?? "network error"}` : e.status;
+      const status =
+        e.status === 0 ? `ERR ${e.error ?? "network error"}` : e.status;
       return `${e.method} ${e.url} → ${status}`;
     })
     .join("\n")

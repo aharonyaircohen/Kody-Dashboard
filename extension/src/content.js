@@ -88,7 +88,11 @@
       } else if (msg?.kind === "network") {
         postToPage({ type: "network", entries: msg.entries });
       } else if (msg?.kind === "screenshot") {
-        postToPage({ type: "screenshot", dataUrl: msg.dataUrl, error: msg.error });
+        postToPage({
+          type: "screenshot",
+          dataUrl: msg.dataUrl,
+          error: msg.error,
+        });
       } else if (msg?.kind === "counts") {
         postToPage({ type: "counts", logs: msg.logs, network: msg.network });
       } else if (msg?.kind === "perf") {
@@ -156,7 +160,8 @@
       if (event.source !== window) return;
       const d = event.data;
       if (!d || d.source !== COLLECTOR_SOURCE) return;
-      const buf = d.kind === "log" ? logBuffer : d.kind === "net" ? netBuffer : null;
+      const buf =
+        d.kind === "log" ? logBuffer : d.kind === "net" ? netBuffer : null;
       if (!buf) return;
       buf.push(d.entry);
       if (buf.length > BUFFER_CAP) buf.shift();
@@ -491,7 +496,9 @@
         level: "error",
         message:
           (e.message || "Error") +
-          (e.filename ? " (" + e.filename + ":" + e.lineno + ":" + e.colno + ")" : ""),
+          (e.filename
+            ? " (" + e.filename + ":" + e.lineno + ":" + e.colno + ")"
+            : ""),
         ts: Date.now(),
       });
     });
@@ -499,7 +506,8 @@
       var r = e.reason;
       post("log", {
         level: "error",
-        message: "Unhandled rejection: " + (r && r.message ? r.message : String(r)),
+        message:
+          "Unhandled rejection: " + (r && r.message ? r.message : String(r)),
         ts: Date.now(),
       });
     });
@@ -509,11 +517,17 @@
         var args = arguments;
         var first = args[0];
         var url = first && first.url ? first.url : String(first);
-        var method = (args[1] && args[1].method) || (first && first.method) || "GET";
+        var method =
+          (args[1] && args[1].method) || (first && first.method) || "GET";
         return origFetch.apply(this, args).then(
           function (res) {
             if (!res.ok)
-              post("net", { url: url, method: method, status: res.status, ts: Date.now() });
+              post("net", {
+                url: url,
+                method: method,
+                status: res.status,
+                ts: Date.now(),
+              });
             return res;
           },
           function (err) {

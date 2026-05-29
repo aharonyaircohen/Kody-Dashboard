@@ -16,15 +16,15 @@ QA-duty side of this.
 
 ## The pieces
 
-| Piece                       | What it is                                                                                                                                                                | Where                                                                            |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `## [Unreleased]` **bullet** | One merged PR, formatted `- <title> ([#<pr>](<url>)) — @<author>`, optionally suffixed with a QA marker joined by `·`. Idempotent on PR number.                            | [`../CHANGELOG.md`](../CHANGELOG.md)                                              |
-| **QA marker**                | The authoritative per-PR QA state — none / `🔄` / `✅` / `⚠️` — written by the `qa` duty, never by the append handler.                                                     | trailing segment of each bullet                                                  |
-| **Append handler**           | On `pull_request closed + merged`, inserts a bullet at the top of `## [Unreleased]`. Fire-and-forget; never marks QA.                                                      | [`../src/dashboard/lib/changelog/handlers.ts`](../src/dashboard/lib/changelog/handlers.ts) |
-| **Promote handler**          | On `release published`, renames `## [Unreleased]` → `## [<version>] - <date>` and inserts a fresh empty Unreleased above. No-op on draft/prerelease or an empty section.   | [`../src/dashboard/lib/changelog/handlers.ts`](../src/dashboard/lib/changelog/handlers.ts) |
-| **Pure transforms**          | `appendUnreleasedEntry` / `promoteUnreleased` / `formatEntry` — no I/O, idempotent, the entire format spec lives here.                                                     | [`../src/dashboard/lib/changelog/format.ts`](../src/dashboard/lib/changelog/format.ts)     |
-| **GitHub read/write**        | Contents-API read (with ETag) + read-modify-write with a 409-retry loop for near-simultaneous merges. Server token only (App installation → vault `GITHUB_TOKEN`).        | [`../src/dashboard/lib/changelog/file.ts`](../src/dashboard/lib/changelog/file.ts)         |
-| **Dashboard view**           | Read-only `/changelog` page — renders the file as markdown, "Refresh" + "View on GitHub". The dashboard never writes the changelog from the UI.                            | [`../src/dashboard/lib/components/ChangelogView.tsx`](../src/dashboard/lib/components/ChangelogView.tsx) |
+| Piece                        | What it is                                                                                                                                                                      | Where                                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `## [Unreleased]` **bullet** | One merged PR, formatted `- <title> ([#<pr>](<url>)) — @<author>`, optionally suffixed with a QA marker joined by `·`. Idempotent on PR number.                                 | [`../CHANGELOG.md`](../CHANGELOG.md)                                                                         |
+| **QA marker**                | The authoritative per-PR QA state — none / `🔄` / `✅` / `⚠️` — written by the `qa` duty, never by the append handler.                                                          | trailing segment of each bullet                                                                              |
+| **Append handler**           | On `pull_request closed + merged`, inserts a bullet at the top of `## [Unreleased]`. Fire-and-forget; never marks QA.                                                           | [`../src/dashboard/lib/changelog/handlers.ts`](../src/dashboard/lib/changelog/handlers.ts)                   |
+| **Promote handler**          | On `release published`, renames `## [Unreleased]` → `## [<version>] - <date>` and inserts a fresh empty Unreleased above. No-op on draft/prerelease or an empty section.        | [`../src/dashboard/lib/changelog/handlers.ts`](../src/dashboard/lib/changelog/handlers.ts)                   |
+| **Pure transforms**          | `appendUnreleasedEntry` / `promoteUnreleased` / `formatEntry` — no I/O, idempotent, the entire format spec lives here.                                                          | [`../src/dashboard/lib/changelog/format.ts`](../src/dashboard/lib/changelog/format.ts)                       |
+| **GitHub read/write**        | Contents-API read (with ETag) + read-modify-write with a 409-retry loop for near-simultaneous merges. Server token only (App installation → vault `GITHUB_TOKEN`).              | [`../src/dashboard/lib/changelog/file.ts`](../src/dashboard/lib/changelog/file.ts)                           |
+| **Dashboard view**           | Read-only `/changelog` page — renders the file as markdown, "Refresh" + "View on GitHub". The dashboard never writes the changelog from the UI.                                 | [`../src/dashboard/lib/components/ChangelogView.tsx`](../src/dashboard/lib/components/ChangelogView.tsx)     |
 | **Version auto-bump**        | A `main`-only pre-commit hook bumps `package.json` patch on every commit. Independent of `CHANGELOG.md`, but the source of the version a release later promotes the section to. | [`../.husky/pre-commit`](../.husky/pre-commit), [`../scripts/bump-version.mjs`](../scripts/bump-version.mjs) |
 
 ## The bullet + marker format
@@ -36,17 +36,17 @@ Each bullet is one merged PR. The base form, produced by `formatEntry`, is:
 ```
 
 The QA duty may append **exactly one** trailing marker, joined to the bullet
-with ` · `. The marker is the authoritative QA state for that entry:
+with `·`. The marker is the authoritative QA state for that entry:
 
-| State        | Marker                              | Meaning                                                              |
-| ------------ | ----------------------------------- | -------------------------------------------------------------------- |
-| **untested** | _(none)_                            | Merged, never QA'd. The duty's queue is "oldest bullet with no marker". |
-| **running**  | ` · 🔄 QA (#<tracking>)`            | A `qa-engineer` pass is in flight; `<tracking>` is its issue.        |
-| **verified** | ` · ✅ QA <YYYY-MM-DD>`             | Pass came back PASS. Done — never re-tested.                         |
+| State        | Marker                               | Meaning                                                                       |
+| ------------ | ------------------------------------ | ----------------------------------------------------------------------------- |
+| **untested** | _(none)_                             | Merged, never QA'd. The duty's queue is "oldest bullet with no marker".       |
+| **running**  | ` · 🔄 QA (#<tracking>)`             | A `qa-engineer` pass is in flight; `<tracking>` is its issue.                 |
+| **verified** | ` · ✅ QA <YYYY-MM-DD>`              | Pass came back PASS. Done — never re-tested.                                  |
 | **issues**   | ` · ⚠️ QA <YYYY-MM-DD> (#<finding>)` | Pass came back CONCERNS/FAIL; the tracking issue stays open for the fix goal. |
 
 A `🔄` older than 2h with no report is treated as stuck and stripped back to
-untested, so QA never wedges. The marker swap is the *only* signal that stops
+untested, so QA never wedges. The marker swap is the _only_ signal that stops
 an entry being re-processed — there is no separate ledger.
 
 > **Where the marker is written:** the `qa` duty writes markers directly via
@@ -150,18 +150,18 @@ with a Refresh button and a "View on GitHub" link.
 
 ## File reference
 
-| File                                                                                                       | Purpose                                                             |
-| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| [`../src/dashboard/lib/changelog/format.ts`](../src/dashboard/lib/changelog/format.ts)                     | Pure transforms — append bullet, promote version, format entry      |
-| [`../src/dashboard/lib/changelog/file.ts`](../src/dashboard/lib/changelog/file.ts)                         | Contents-API read/write + read-modify-write with 409 retry          |
-| [`../src/dashboard/lib/changelog/handlers.ts`](../src/dashboard/lib/changelog/handlers.ts)                 | Webhook side-effects: `handlePrMerged`, `handleReleasePublished`    |
-| [`../app/api/webhooks/github/route.ts`](../app/api/webhooks/github/route.ts)                               | Webhook receiver — dispatches merge → append, release → promote     |
-| [`../app/api/kody/changelog/route.ts`](../app/api/kody/changelog/route.ts)                                 | `GET /api/kody/changelog` — read-only fetch for the view            |
-| [`../src/dashboard/lib/components/ChangelogView.tsx`](../src/dashboard/lib/components/ChangelogView.tsx)   | Read-only markdown view                                             |
-| [`../src/dashboard/lib/hooks/useChangelog.ts`](../src/dashboard/lib/hooks/useChangelog.ts)                 | React Query hook (30s stale)                                        |
-| [`../app/changelog/page.tsx`](../app/changelog/page.tsx)                                                   | `/changelog` page entry point                                       |
-| [`../.husky/pre-commit`](../.husky/pre-commit), [`../scripts/bump-version.mjs`](../scripts/bump-version.mjs) | `main`-only `package.json` patch bump                              |
-| [`../.kody/duties/qa.md`](../.kody/duties/qa.md)                                                           | The duty that writes QA markers (see [./qa.md](./qa.md))            |
+| File                                                                                                         | Purpose                                                          |
+| ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| [`../src/dashboard/lib/changelog/format.ts`](../src/dashboard/lib/changelog/format.ts)                       | Pure transforms — append bullet, promote version, format entry   |
+| [`../src/dashboard/lib/changelog/file.ts`](../src/dashboard/lib/changelog/file.ts)                           | Contents-API read/write + read-modify-write with 409 retry       |
+| [`../src/dashboard/lib/changelog/handlers.ts`](../src/dashboard/lib/changelog/handlers.ts)                   | Webhook side-effects: `handlePrMerged`, `handleReleasePublished` |
+| [`../app/api/webhooks/github/route.ts`](../app/api/webhooks/github/route.ts)                                 | Webhook receiver — dispatches merge → append, release → promote  |
+| [`../app/api/kody/changelog/route.ts`](../app/api/kody/changelog/route.ts)                                   | `GET /api/kody/changelog` — read-only fetch for the view         |
+| [`../src/dashboard/lib/components/ChangelogView.tsx`](../src/dashboard/lib/components/ChangelogView.tsx)     | Read-only markdown view                                          |
+| [`../src/dashboard/lib/hooks/useChangelog.ts`](../src/dashboard/lib/hooks/useChangelog.ts)                   | React Query hook (30s stale)                                     |
+| [`../app/changelog/page.tsx`](../app/changelog/page.tsx)                                                     | `/changelog` page entry point                                    |
+| [`../.husky/pre-commit`](../.husky/pre-commit), [`../scripts/bump-version.mjs`](../scripts/bump-version.mjs) | `main`-only `package.json` patch bump                            |
+| [`../.kody/duties/qa.md`](../.kody/duties/qa.md)                                                             | The duty that writes QA markers (see [./qa.md](./qa.md))         |
 
 ## FAQ
 
@@ -174,7 +174,7 @@ write endpoint.
 
 **Why isn't the merge author the one adding the bullet?**
 
-Because the dashboard reacts to the *merge event* via webhook, not to a
+Because the dashboard reacts to the _merge event_ via webhook, not to a
 commit. That keeps the bullet text canonical (PR title + number + author from
 the GitHub payload) and means the changelog is correct even if the merge
 happened from the GitHub UI with no local tooling.
@@ -183,7 +183,7 @@ happened from the GitHub UI with no local tooling.
 
 The QA marker. Once a bullet reads `✅`/`⚠️`, the `qa` duty skips it — its
 queue is strictly "oldest bullet with no marker". There is no separate
-ledger; the marker *is* the state. See [./qa.md](./qa.md).
+ledger; the marker _is_ the state. See [./qa.md](./qa.md).
 
 **Does the dashboard parse the markers into UI badges?**
 

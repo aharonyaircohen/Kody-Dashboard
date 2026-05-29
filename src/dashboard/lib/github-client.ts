@@ -80,7 +80,7 @@ function getStale<T>(key: string): { data: T; etag?: string } | null {
 /**
  * Get cached data along with its ETag for conditional requests
  */
-function setCache<T>(
+export function setCache<T>(
   key: string,
   ttl: number,
   data: T,
@@ -203,9 +203,10 @@ export function invalidateDutiesCache(slug?: string): void {
     // Repo-scoped key shape: `duty:owner:repo:slug`. Wipe across repos.
     invalidateCache("duty:");
     revalidateTagSafe(`gh:duty:${slug}`);
+  } else {
+    invalidateCache("duties:");
+    revalidateTagSafe("gh:duties");
   }
-  invalidateCache("duties:");
-  revalidateTagSafe("gh:duties");
 }
 
 /**
@@ -219,9 +220,10 @@ export function invalidateStaffCache(slug?: string): void {
     // Repo-scoped key shape: `staff:owner:repo:slug`. Wipe across repos.
     invalidateCache("staff:");
     revalidateTagSafe(`gh:staff:${slug}`);
+  } else {
+    invalidateCache("staffs:");
+    revalidateTagSafe("gh:staffs");
   }
-  invalidateCache("staff:");
-  revalidateTagSafe("gh:staff");
 }
 
 /**
@@ -235,9 +237,10 @@ export function invalidateCommandsCache(slug?: string): void {
     // Repo-scoped key shape: `prompt:owner:repo:slug`. Wipe across repos.
     invalidateCache("prompt:");
     revalidateTagSafe(`gh:prompt:${slug}`);
+  } else {
+    invalidateCache("prompts:");
+    revalidateTagSafe("gh:prompts");
   }
-  invalidateCache("prompts:");
-  revalidateTagSafe("gh:prompts");
 }
 
 /**
@@ -249,10 +252,11 @@ export function invalidateMemoryCache(id?: string): void {
     // Repo-scoped key shape: `memory:owner:repo:id`. Wipe across repos.
     invalidateCache("memory:");
     revalidateTagSafe(`gh:memory:${id}`);
+  } else {
+    invalidateCache("memory-index:");
+    invalidateCache("memories:");
+    revalidateTagSafe("gh:memories");
   }
-  invalidateCache("memory-index:");
-  invalidateCache("memories:");
-  revalidateTagSafe("gh:memories");
 }
 
 /**

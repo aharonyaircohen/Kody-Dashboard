@@ -132,8 +132,12 @@ async function saveDashboardConfig(
 export function VibePage() {
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
-  const { setScope, setOnIssueCreated, setComposerInjection, setAttachmentInjection } =
-    useChatScope();
+  const {
+    setScope,
+    setOnIssueCreated,
+    setComposerInjection,
+    setAttachmentInjection,
+  } = useChatScope();
 
   // Preview inspector (element picker + console/network/screenshot). The Vibe
   // chat is the rail, not a child here, so results route through useChatScope.
@@ -214,8 +218,7 @@ export function VibePage() {
   const [iframeKey, setIframeKey] = useState(0);
   // Same Web/Admin split as PreviewModal so vibe iterations can target /admin.
   const [previewView, setPreviewView] = useState<"web" | "admin">("web");
-  const [previewDevice, setPreviewDevice] =
-    useState<PreviewDevice>("desktop");
+  const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("desktop");
   // Mobile-only: the issue list lives in a Sheet so the preview can own
   // the screen. On desktop the Sheet stays closed; the aside renders.
   const [mobileIssuesOpen, setMobileIssuesOpen] = useState(false);

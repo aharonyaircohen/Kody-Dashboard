@@ -4696,8 +4696,7 @@ export function KodyChat({
                   );
                   const elapsed = formatElapsed(bootElapsed);
                   const watch =
-                    interactiveTarget &&
-                    selectedAgentId !== "kody-live-fly"
+                    interactiveTarget && selectedAgentId !== "kody-live-fly"
                       ? ` · watching ${interactiveTarget.owner}/${interactiveTarget.repo}`
                       : "";
                   return `${phase} · ${elapsed} elapsed${watch}`;

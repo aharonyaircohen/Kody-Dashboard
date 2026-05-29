@@ -27,17 +27,17 @@ Two facts shape everything below:
 
 ## The pieces
 
-| Piece                       | What it is                                                                                                                                                                                       | Where                                                                                       |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| **Operator list**           | `github.operators` in the consumer repo's `kody.config.json` — the logins recommendation duties `@`-mention. Company-set, explicit (no auto-fill). Empty = recommendations reach nobody.        | [config.ts](../src/dashboard/lib/engine/config.ts#L301)                                     |
-| **Inbox feed** (server)     | Durable, bot-written hand-off buffer. The webhook scrapes `@login` mentions and appends one entry per mentioned login, byte-capped FIFO. One issue labelled `kody:inbox-feed`.                  | [feed.ts](../src/dashboard/lib/inbox/feed.ts), [feed-server.ts](../src/dashboard/lib/inbox/feed-server.ts) |
-| **Inbox gist** (per user)   | Each user's private per-repo gist (`kody-inbox:<owner>/<repo>`). The client watcher pulls _its own_ slice of the feed down into here — the inbox the operator actually reads.                   | [types.ts](../src/dashboard/lib/inbox/types.ts), [useInboxWatcher.tsx](../src/dashboard/lib/inbox/useInboxWatcher.tsx) |
-| **Recommendation detector** | Pure: decides whether an entry is a staff recommendation and extracts the emitting staff slug, task number, action verb, and the exact `@kody …` command to post on Approve.                    | [recommendation.ts](../src/dashboard/lib/cto/recommendation.ts)                             |
-| **Decision route**          | `POST /api/kody/cto/decision`. The operator's Approve/Reject/Dismiss verdict. Approve dispatches dispatchable verbs (or squash-merges); all three record to the trust ledger.                   | [decision/route.ts](../app/api/kody/cto/decision/route.ts)                                  |
-| **Trust ledger**            | `kody:cto-decisions` manifest issue. Tallies approvals/rejections per staff+action. Phase 2 reads it for "graduation" — stop asking once an action clears the threshold with zero rejections.  | [decisions.ts](../src/dashboard/lib/cto/decisions.ts)                                        |
-| **Backpressure gate**       | Code-enforced cap of **10 pending** undecided recommendations per staff member, applied at the single feed-write point so a chatty staff member can't flood (or crowd out) the queue.          | [backpressure.ts](../src/dashboard/lib/cto/backpressure.ts)                                  |
-| **Approve-gate route**      | `POST /api/kody/tasks/approve` — the human merge gate for a PR. Atomic approve-review → squash-merge → (only if merged) delete branch + close issue. Distinct from the recommendation verdict. | [tasks/approve/route.ts](../app/api/kody/tasks/approve/route.ts)                            |
-| **Inbox UI**                | Two sections (Unread / Read); each recommendation row carries Approve/Reject/Dismiss + the literal command preview. Same controls in the thread dialog footer.                                 | [InboxList.tsx](../src/dashboard/lib/components/InboxList.tsx)                               |
+| Piece                       | What it is                                                                                                                                                                                     | Where                                                                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Operator list**           | `github.operators` in the consumer repo's `kody.config.json` — the logins recommendation duties `@`-mention. Company-set, explicit (no auto-fill). Empty = recommendations reach nobody.       | [config.ts](../src/dashboard/lib/engine/config.ts#L301)                                                                |
+| **Inbox feed** (server)     | Durable, bot-written hand-off buffer. The webhook scrapes `@login` mentions and appends one entry per mentioned login, byte-capped FIFO. One issue labelled `kody:inbox-feed`.                 | [feed.ts](../src/dashboard/lib/inbox/feed.ts), [feed-server.ts](../src/dashboard/lib/inbox/feed-server.ts)             |
+| **Inbox gist** (per user)   | Each user's private per-repo gist (`kody-inbox:<owner>/<repo>`). The client watcher pulls _its own_ slice of the feed down into here — the inbox the operator actually reads.                  | [types.ts](../src/dashboard/lib/inbox/types.ts), [useInboxWatcher.tsx](../src/dashboard/lib/inbox/useInboxWatcher.tsx) |
+| **Recommendation detector** | Pure: decides whether an entry is a staff recommendation and extracts the emitting staff slug, task number, action verb, and the exact `@kody …` command to post on Approve.                   | [recommendation.ts](../src/dashboard/lib/cto/recommendation.ts)                                                        |
+| **Decision route**          | `POST /api/kody/cto/decision`. The operator's Approve/Reject/Dismiss verdict. Approve dispatches dispatchable verbs (or squash-merges); all three record to the trust ledger.                  | [decision/route.ts](../app/api/kody/cto/decision/route.ts)                                                             |
+| **Trust ledger**            | `kody:cto-decisions` manifest issue. Tallies approvals/rejections per staff+action. Phase 2 reads it for "graduation" — stop asking once an action clears the threshold with zero rejections.  | [decisions.ts](../src/dashboard/lib/cto/decisions.ts)                                                                  |
+| **Backpressure gate**       | Code-enforced cap of **10 pending** undecided recommendations per staff member, applied at the single feed-write point so a chatty staff member can't flood (or crowd out) the queue.          | [backpressure.ts](../src/dashboard/lib/cto/backpressure.ts)                                                            |
+| **Approve-gate route**      | `POST /api/kody/tasks/approve` — the human merge gate for a PR. Atomic approve-review → squash-merge → (only if merged) delete branch + close issue. Distinct from the recommendation verdict. | [tasks/approve/route.ts](../app/api/kody/tasks/approve/route.ts)                                                       |
+| **Inbox UI**                | Two sections (Unread / Read); each recommendation row carries Approve/Reject/Dismiss + the literal command preview. Same controls in the thread dialog footer.                                 | [InboxList.tsx](../src/dashboard/lib/components/InboxList.tsx)                                                         |
 
 ## How a recommendation reaches the operator
 
@@ -191,29 +191,29 @@ fresh re-post of the same `(task, action)` rec doesn't stamp the new one.
 
 ## File reference
 
-| File                                                                                     | Purpose                                                            |
-| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [recommendation.ts](../src/dashboard/lib/cto/recommendation.ts)                          | Pure detector — staff slug, task#, action verb, command to post   |
-| [decisions.ts](../src/dashboard/lib/cto/decisions.ts)                                    | Trust-ledger types + `applyDecision` (graduation lives here)      |
-| [decisions-server.ts](../src/dashboard/lib/cto/decisions-server.ts)                      | Server read/mutate over the `kody:cto-decisions` manifest issue   |
-| [backpressure.ts](../src/dashboard/lib/cto/backpressure.ts)                              | Per-staff ≤10-pending cap, applied at the feed-write point        |
-| [useCtoDecisions.ts](../src/dashboard/lib/cto/useCtoDecisions.ts)                        | Client query for the verdict badge (`sentAt`-gated)               |
-| [inbox/feed.ts](../src/dashboard/lib/inbox/feed.ts)                                       | Feed manifest types, parse/serialize, byte-cap, CTO collapse key  |
-| [inbox/feed-server.ts](../src/dashboard/lib/inbox/feed-server.ts)                         | CAS read/append over the `kody:inbox-feed` issue (bot token)      |
-| [inbox/types.ts](../src/dashboard/lib/inbox/types.ts)                                     | Per-user gist manifest types + `buildSnippet`                     |
-| [inbox/useInbox.ts](../src/dashboard/lib/inbox/useInbox.ts)                               | Client bindings — entries, mark-read, delete, append              |
-| [inbox/useInboxWatcher.tsx](../src/dashboard/lib/inbox/useInboxWatcher.tsx)               | 60s poller syncing the feed slice into the user's gist            |
-| [inbox/deep-link.ts](../src/dashboard/lib/inbox/deep-link.ts)                             | `?thread=<Type>:<n>` shareable inbox deep links                   |
-| [notifications/channels/inbox.ts](../src/dashboard/lib/notifications/channels/inbox.ts)  | Inbox channel adapter — parses CTO signals, applies backpressure  |
-| [push/mention-dispatch.ts](../src/dashboard/lib/push/mention-dispatch.ts)                | Webhook spine — mention scrape, recipient resolve, fan-out        |
-| [operators/useOperators.ts](../src/dashboard/lib/operators/useOperators.ts)              | Client read/write of the `github.operators` list                  |
-| [engine/config.ts](../src/dashboard/lib/engine/config.ts)                                | `readOperators` / `writeOperators` over `kody.config.json`        |
-| [kody/squash-merge.ts](../src/dashboard/lib/kody/squash-merge.ts)                         | Shared squash-merge helper + failure taxonomy                     |
-| [components/InboxList.tsx](../src/dashboard/lib/components/InboxList.tsx)                 | The inbox UI — rows, verdict controls, thread dialog footer       |
-| [components/OperatorsCard.tsx](../src/dashboard/lib/components/OperatorsCard.tsx)         | Config-page card to manage the operator list                      |
-| [components/OperatorsWarningBanner.tsx](../src/dashboard/lib/components/OperatorsWarningBanner.tsx) | Inbox banner when no operators are set                  |
-| [app/api/kody/cto/decision/route.ts](../app/api/kody/cto/decision/route.ts)              | The Approve/Reject/Dismiss verdict route + verdict GET            |
-| [app/api/kody/tasks/approve/route.ts](../app/api/kody/tasks/approve/route.ts)            | The human PR merge gate (atomic merge → cleanup)                  |
+| File                                                                                                | Purpose                                                          |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [recommendation.ts](../src/dashboard/lib/cto/recommendation.ts)                                     | Pure detector — staff slug, task#, action verb, command to post  |
+| [decisions.ts](../src/dashboard/lib/cto/decisions.ts)                                               | Trust-ledger types + `applyDecision` (graduation lives here)     |
+| [decisions-server.ts](../src/dashboard/lib/cto/decisions-server.ts)                                 | Server read/mutate over the `kody:cto-decisions` manifest issue  |
+| [backpressure.ts](../src/dashboard/lib/cto/backpressure.ts)                                         | Per-staff ≤10-pending cap, applied at the feed-write point       |
+| [useCtoDecisions.ts](../src/dashboard/lib/cto/useCtoDecisions.ts)                                   | Client query for the verdict badge (`sentAt`-gated)              |
+| [inbox/feed.ts](../src/dashboard/lib/inbox/feed.ts)                                                 | Feed manifest types, parse/serialize, byte-cap, CTO collapse key |
+| [inbox/feed-server.ts](../src/dashboard/lib/inbox/feed-server.ts)                                   | CAS read/append over the `kody:inbox-feed` issue (bot token)     |
+| [inbox/types.ts](../src/dashboard/lib/inbox/types.ts)                                               | Per-user gist manifest types + `buildSnippet`                    |
+| [inbox/useInbox.ts](../src/dashboard/lib/inbox/useInbox.ts)                                         | Client bindings — entries, mark-read, delete, append             |
+| [inbox/useInboxWatcher.tsx](../src/dashboard/lib/inbox/useInboxWatcher.tsx)                         | 60s poller syncing the feed slice into the user's gist           |
+| [inbox/deep-link.ts](../src/dashboard/lib/inbox/deep-link.ts)                                       | `?thread=<Type>:<n>` shareable inbox deep links                  |
+| [notifications/channels/inbox.ts](../src/dashboard/lib/notifications/channels/inbox.ts)             | Inbox channel adapter — parses CTO signals, applies backpressure |
+| [push/mention-dispatch.ts](../src/dashboard/lib/push/mention-dispatch.ts)                           | Webhook spine — mention scrape, recipient resolve, fan-out       |
+| [operators/useOperators.ts](../src/dashboard/lib/operators/useOperators.ts)                         | Client read/write of the `github.operators` list                 |
+| [engine/config.ts](../src/dashboard/lib/engine/config.ts)                                           | `readOperators` / `writeOperators` over `kody.config.json`       |
+| [kody/squash-merge.ts](../src/dashboard/lib/kody/squash-merge.ts)                                   | Shared squash-merge helper + failure taxonomy                    |
+| [components/InboxList.tsx](../src/dashboard/lib/components/InboxList.tsx)                           | The inbox UI — rows, verdict controls, thread dialog footer      |
+| [components/OperatorsCard.tsx](../src/dashboard/lib/components/OperatorsCard.tsx)                   | Config-page card to manage the operator list                     |
+| [components/OperatorsWarningBanner.tsx](../src/dashboard/lib/components/OperatorsWarningBanner.tsx) | Inbox banner when no operators are set                           |
+| [app/api/kody/cto/decision/route.ts](../app/api/kody/cto/decision/route.ts)                         | The Approve/Reject/Dismiss verdict route + verdict GET           |
+| [app/api/kody/tasks/approve/route.ts](../app/api/kody/tasks/approve/route.ts)                       | The human PR merge gate (atomic merge → cleanup)                 |
 
 ## FAQ
 

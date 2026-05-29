@@ -93,7 +93,8 @@ async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
   }
   const assoc = config.access?.allowedAssociations;
   if (Array.isArray(assoc) && assoc.length > 0) out.allowedAssociations = assoc;
-  if (config.defaultExecutable) out.defaultExecutable = config.defaultExecutable;
+  if (config.defaultExecutable)
+    out.defaultExecutable = config.defaultExecutable;
   if (config.defaultPrExecutable) {
     out.defaultPrExecutable = config.defaultPrExecutable;
   }

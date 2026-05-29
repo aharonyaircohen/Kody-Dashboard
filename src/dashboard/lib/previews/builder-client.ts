@@ -51,7 +51,10 @@ export interface SpawnBuilderResult {
 }
 
 function defaultTagFor(repo: string, ref: string): string {
-  return createHash("sha256").update(`${repo}@${ref}`).digest("hex").slice(0, 12);
+  return createHash("sha256")
+    .update(`${repo}@${ref}`)
+    .digest("hex")
+    .slice(0, 12);
 }
 
 export async function spawnPreviewBuilder(

@@ -198,7 +198,9 @@ export async function POST(req: NextRequest) {
     // Default the name to the repo if the model left it blank/odd.
     const proposal: Proposal = {
       ...result.data,
-      name: result.data.name || parsed.repo.toLowerCase().replace(/[^a-z0-9_-]/g, "-"),
+      name:
+        result.data.name ||
+        parsed.repo.toLowerCase().replace(/[^a-z0-9_-]/g, "-"),
     };
     return NextResponse.json({ proposal });
   } catch (error: unknown) {
@@ -210,11 +212,15 @@ export async function POST(req: NextRequest) {
     }
     const status = (error as { status?: number })?.status;
     if (status === 401)
-      return NextResponse.json({ error: "github_token_expired" }, { status: 401 });
+      return NextResponse.json(
+        { error: "github_token_expired" },
+        { status: 401 },
+      );
     return NextResponse.json(
       {
         error: "analyze_failed",
-        message: error instanceof Error ? error.message : "Failed to analyze repo",
+        message:
+          error instanceof Error ? error.message : "Failed to analyze repo",
       },
       { status: 500 },
     );

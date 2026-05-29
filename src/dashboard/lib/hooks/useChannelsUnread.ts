@@ -90,8 +90,7 @@ export function useChannelsUnread(): UseChannelsUnreadResult {
 
   const channelsQuery = useMessageChannels();
   const channels = useMemo(
-    () =>
-      channelsQuery.data?.enabled ? channelsQuery.data.channels : [],
+    () => (channelsQuery.data?.enabled ? channelsQuery.data.channels : []),
     [channelsQuery.data],
   );
 

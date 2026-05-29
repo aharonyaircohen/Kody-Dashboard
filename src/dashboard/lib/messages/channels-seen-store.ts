@@ -105,7 +105,10 @@ async function readRef(
   const id = await findGist(octokit, owner, repo);
   if (!id) return { id: null, manifest: emptyChannelsSeenManifest() };
   const raw = await readGistFile(octokit, id);
-  return { id, manifest: parseChannelsSeenManifest(raw) ?? emptyChannelsSeenManifest() };
+  return {
+    id,
+    manifest: parseChannelsSeenManifest(raw) ?? emptyChannelsSeenManifest(),
+  };
 }
 
 function lockKey(login: string | null, owner: string, repo: string): string {

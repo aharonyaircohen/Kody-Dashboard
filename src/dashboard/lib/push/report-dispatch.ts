@@ -24,10 +24,7 @@
  *   webhook delivery.
  */
 import "server-only";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github-client";
+import { setGitHubContext, clearGitHubContext } from "../github-client";
 import { resolveBackgroundToken } from "../auth/background-token";
 import { readPushManifest } from "../push-server";
 import { deliverPush, ensureVapid } from "../notifications/channels/push-core";
@@ -99,7 +96,11 @@ function humanizeSlug(slug: string): string {
       if (part.length === 0) return part;
       // Treat known acronyms specially.
       const upper = part.toUpperCase();
-      if (["ceo", "cto", "coo", "qa", "pr", "ui", "ux", "ci", "api"].includes(part)) {
+      if (
+        ["ceo", "cto", "coo", "qa", "pr", "ui", "ux", "ci", "api"].includes(
+          part,
+        )
+      ) {
         return upper;
       }
       return part[0]!.toUpperCase() + part.slice(1);
