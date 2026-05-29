@@ -7,7 +7,7 @@
 
 FROM node:22-alpine
 
-RUN apk add --no-cache git ca-certificates curl bash \
+RUN apk add --no-cache git ca-certificates curl bash skopeo \
     && curl -L https://fly.io/install.sh | sh \
     && cp /root/.fly/bin/flyctl /usr/local/bin/flyctl \
     && rm -rf /root/.fly

@@ -21,9 +21,15 @@
  *   FLY_API_TOKEN     org token (also used for createApp + machine ops)
  *   FLY_ORG_SLUG      optional, defaults to "personal"
  *   FLY_REGION        optional, defaults to "fra"
- *   GITHUB_TOKEN      optional, for private clones
+ *   GITHUB_TOKEN      optional, for private clones AND for pushing the
+ *                     base image to GHCR (needs `write:packages` scope
+ *                     when MIRROR_TO_GHCR_OWNER is set)
  *   BUILD_ENV_JSON    optional JSON object of build-time secrets
  *                     (written as .env.production.local in the clone)
+ *   MIRROR_TO_GHCR_OWNER  when set (e.g. "aguyaharonyair"), after a
+ *                         successful base build the image is mirrored
+ *                         to ghcr.io/<owner>/kp-<hash>-base:latest so
+ *                         PR builds can FROM it without Fly auth.
  *
  * Exit codes:
  *   0  success — preview machine is running
@@ -129,23 +135,79 @@ function baseAppName(repo: string): string {
 }
 
 /**
- * Check whether a base image exists in the Fly registry. Returns the
- * full image ref when present, null otherwise. We don't have a cheap
- * registry HEAD; instead we list machines on the base app — if the app
- * itself exists in Fly, the latest image is in its registry namespace.
+ * Probe GHCR for a public base image. Returns the full image ref when
+ * present, null otherwise. GHCR's public anonymous-pull token is
+ * minted on demand; we use it to ask for the manifest.
  */
-async function findBaseImage(repo: string, flyToken: string): Promise<string | null> {
-  const app = baseAppName(repo);
-  const res = await fetch(
-    `https://api.machines.dev/v1/apps/${encodeURIComponent(app)}`,
+async function findBaseImage(repo: string, ghcrOwner: string): Promise<string | null> {
+  const baseImage = `${ghcrOwner.toLowerCase()}/${baseAppName(repo)}`;
+  // GHCR requires a bearer token even for public reads.
+  const tokRes = await fetch(
+    `https://ghcr.io/token?scope=repository:${baseImage}:pull&service=ghcr.io`,
+    { signal: AbortSignal.timeout(15_000) },
+  ).catch(() => null);
+  if (!tokRes || !tokRes.ok) return null;
+  const { token } = (await tokRes.json()) as { token: string };
+  const res = await fetch(`https://ghcr.io/v2/${baseImage}/manifests/latest`, {
+    method: "HEAD",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept:
+        "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json",
+    },
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => null);
+  if (!res || res.status !== 200) return null;
+  return `ghcr.io/${baseImage}:latest`;
+}
+
+/**
+ * Mirror the freshly-pushed base image from Fly's registry to GHCR
+ * (public) so PR builds can FROM it inside flyctl's --remote-only
+ * context (which can't auth to the Fly registry but doesn't need auth
+ * for a public GHCR image).
+ */
+async function mirrorBaseToGhcr(
+  repo: string,
+  appName: string,
+  imageTag: string,
+  ghcrOwner: string,
+  ghcrToken: string,
+  flyToken: string,
+): Promise<void> {
+  const src = `docker://registry.fly.io/${appName}:${imageTag}`;
+  const ownerLower = ghcrOwner.toLowerCase();
+  const ghcrPath = `${ownerLower}/${baseAppName(repo)}`;
+  const dst = `docker://ghcr.io/${ghcrPath}:latest`;
+  console.log(`[builder] mirroring ${src} -> ${dst}`);
+  const code = await run("skopeo", [
+    "copy",
+    `--src-creds=x:${flyToken}`,
+    `--dest-creds=${ghcrOwner}:${ghcrToken}`,
+    src,
+    dst,
+  ]);
+  if (code !== 0) throw new Error("skopeo copy failed");
+  // Make the package public so flyctl can FROM it without auth. Idempotent.
+  const visRes = await fetch(
+    `https://api.github.com/user/packages/container/${encodeURIComponent(
+      baseAppName(repo),
+    )}/visibility`,
     {
-      headers: { Authorization: `Bearer ${flyToken}` },
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${ghcrToken}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ visibility: "public" }),
       signal: AbortSignal.timeout(15_000),
     },
-  );
-  if (res.status === 404) return null;
-  if (!res.ok) return null;
-  return `registry.fly.io/${app}:latest`;
+  ).catch(() => null);
+  if (visRes && visRes.status !== 204) {
+    const text = await visRes.text().catch(() => "");
+    console.warn(`[builder] make-public returned ${visRes.status}: ${text.slice(0, 200)}`);
+  }
 }
 
 async function patchBaseImageInDockerfile(
@@ -277,11 +339,35 @@ async function main() {
       console.log(`[builder] wrote .env.production.local with ${vaultKeys.length} vars`);
     }
 
-    // Image inheritance: if a base image exists for this repo, the
-    // PR Dockerfile FROMs it and skips deps install + cold compile.
-    const baseImage = await findBaseImage(repo, flyToken);
+    const ghcrOwner = process.env.MIRROR_TO_GHCR_OWNER?.trim();
+    const isBaseBuild = appName.endsWith("-base");
+
+    // Image inheritance: if a base image exists on GHCR for this repo,
+    // the PR Dockerfile FROMs it and skips deps install + cold compile.
+    // Base builds themselves never inherit (they're the source).
+    const baseImage =
+      !isBaseBuild && ghcrOwner
+        ? await findBaseImage(repo, ghcrOwner)
+        : null;
 
     await pushPreviewImage(cwd, appName, imageTag, flyToken, baseImage);
+
+    // After a successful base build, mirror it to GHCR so future PR
+    // builds can FROM it inside flyctl's --remote-only context.
+    if (isBaseBuild && ghcrOwner && githubToken) {
+      try {
+        await mirrorBaseToGhcr(
+          repo,
+          appName,
+          imageTag,
+          ghcrOwner,
+          githubToken,
+          flyToken,
+        );
+      } catch (err) {
+        console.warn("[builder] mirrorBaseToGhcr failed (non-fatal):", err);
+      }
+    }
 
     // Destroy any stale machines from prior PR sync, then boot the new one.
     const stale = await listMachines(appName, flyToken);
