@@ -187,27 +187,27 @@ async function main() {
 
     await Promise.all([flyPrep, cloneRepo(repo, ref, cwd, githubToken)]);
 
-    // Materialize build-time secrets as .env.production.local in the
-    // cloned repo BEFORE the docker build runs. Next.js / Vite / etc.
-    // pick this file up automatically during `next build`. Quotes
-    // around values handle spaces and most special chars.
+    // Parse vault secrets ONCE — used both at build (.env.production.local)
+    // and at runtime (preview machine env). Empty when no BUILD_ENV_JSON
+    // was passed in, which is fine for projects without secrets.
+    let vaultEnv: Record<string, string> = {};
     const buildEnvRaw = process.env.BUILD_ENV_JSON?.trim();
     if (buildEnvRaw) {
       try {
-        const obj = JSON.parse(buildEnvRaw) as Record<string, string>;
-        const keys = Object.keys(obj);
-        if (keys.length > 0) {
-          const lines = keys.map((k) => `${k}=${JSON.stringify(obj[k] ?? "")}`);
-          await writeFile(
-            resolve(cwd, ".env.production.local"),
-            lines.join("\n") + "\n",
-            "utf8",
-          );
-          console.log(`[builder] wrote .env.production.local with ${keys.length} vars`);
-        }
+        vaultEnv = JSON.parse(buildEnvRaw) as Record<string, string>;
       } catch (err) {
         console.warn("[builder] BUILD_ENV_JSON parse failed:", err);
       }
+    }
+    const vaultKeys = Object.keys(vaultEnv);
+    if (vaultKeys.length > 0) {
+      const lines = vaultKeys.map((k) => `${k}=${JSON.stringify(vaultEnv[k] ?? "")}`);
+      await writeFile(
+        resolve(cwd, ".env.production.local"),
+        lines.join("\n") + "\n",
+        "utf8",
+      );
+      console.log(`[builder] wrote .env.production.local with ${vaultKeys.length} vars`);
     }
 
     await pushPreviewImage(cwd, appName, imageTag, flyToken);
@@ -227,8 +227,12 @@ async function main() {
 
     const image = `registry.fly.io/${appName}:${imageTag}`;
     console.log(`[builder] creating preview machine from ${image}`);
+
+    // Same vault secrets that were baked into the build are also
+    // needed at runtime — SSR pages reading DATABASE_URL on each
+    // request, e.g. Payload CMS.
     const machineId = await createPreviewMachine(
-      { appName, region, image, internalPort: 8080 },
+      { appName, region, image, internalPort: 8080, env: vaultEnv },
       flyToken,
     );
     console.log(`[builder] done — preview machine ${machineId} at https://${appName}.fly.dev`);
