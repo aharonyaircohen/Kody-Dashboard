@@ -382,11 +382,22 @@ async function main() {
     const ghcrOwner = process.env.MIRROR_TO_GHCR_OWNER?.trim();
     const isBaseBuild = appName.endsWith("-base");
 
+    console.log(
+      `[builder] inherit-probe ghcrOwner=${ghcrOwner ?? "<unset>"} isBaseBuild=${isBaseBuild}`,
+    );
+
     // Image inheritance: if a base image exists on GHCR for this repo,
     // the PR Dockerfile FROMs it and skips deps install + cold compile.
     // Base builds themselves never inherit (they're the source).
-    const baseImage =
-      !isBaseBuild && ghcrOwner ? await findBaseImage(repo, ghcrOwner) : null;
+    let baseImage: string | null = null;
+    if (!isBaseBuild && ghcrOwner) {
+      try {
+        baseImage = await findBaseImage(repo, ghcrOwner);
+        console.log(`[builder] inherit-probe result=${baseImage ?? "<null>"}`);
+      } catch (err) {
+        console.warn("[builder] inherit-probe threw:", err);
+      }
+    }
 
     await pushPreviewImage(cwd, appName, imageTag, flyToken, baseImage);
 
