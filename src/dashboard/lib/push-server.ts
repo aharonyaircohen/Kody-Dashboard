@@ -57,6 +57,34 @@ function manifestsEqual(
   return true;
 }
 
+/**
+ * Hard cap on durable push subscriptions per repo. Each record is ~600 bytes
+ * (endpoint URL + two base64 keys + label + timestamps), so 1000 entries fits
+ * comfortably under the manifest-store byte budget with plenty of headroom for
+ * the JSON wrapper. Trim drops the *least-recently-seen* device first — the
+ * least likely to still be alive — so an organic install/uninstall churn never
+ * silently freezes new sign-ups.
+ */
+const MAX_PUSH_SUBSCRIPTIONS = 1000;
+
+function trimOldestSubscriptions(
+  manifest: PushSubscriptionsManifest,
+): PushSubscriptionsManifest {
+  if (manifest.subscriptions.length <= MAX_PUSH_SUBSCRIPTIONS) return manifest;
+  // Recency = lastSeenAt if known, else createdAt. Sort newest-first, slice
+  // to the cap, preserve the original order so equals/CAS stays stable.
+  const ranked = manifest.subscriptions
+    .map((sub, idx) => ({
+      sub,
+      idx,
+      seenAt: sub.lastSeenAt ?? sub.createdAt,
+    }))
+    .sort((a, b) => (a.seenAt < b.seenAt ? 1 : a.seenAt > b.seenAt ? -1 : 0))
+    .slice(0, MAX_PUSH_SUBSCRIPTIONS)
+    .sort((a, b) => a.idx - b.idx);
+  return { ...manifest, subscriptions: ranked.map((r) => r.sub) };
+}
+
 const store = createManifestStore<PushSubscriptionsManifest>({
   label: PUSH_SUBSCRIPTIONS_LABEL,
   title: PUSH_MANIFEST_ISSUE_TITLE,
@@ -66,6 +94,7 @@ const store = createManifestStore<PushSubscriptionsManifest>({
   serialize: serializePushManifestBody,
   empty: () => ({ ...EMPTY_PUSH_MANIFEST, subscriptions: [] }),
   equals: manifestsEqual,
+  beforeWrite: trimOldestSubscriptions,
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
