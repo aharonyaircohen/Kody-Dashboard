@@ -112,11 +112,48 @@ async function cloneRepo(
   }
 }
 
+/**
+ * Compute the deterministic per-repo base-image app name.
+ * Same hash shape as previewAppName but with a "-base" suffix instead
+ * of "-pr-<n>", so the base image storage is shared across all PRs of
+ * a given repo.
+ */
+function baseAppName(repo: string): string {
+  const [owner, name] = repo.split("/");
+  if (!owner || !name) throw new Error(`invalid repo "${repo}"`);
+  // Use the same SHA256 prefix scheme that preview-key.ts uses
+  // (imported manually here to keep builder CLI dep-free).
+  const sha = (s: string) =>
+    require("node:crypto").createHash("sha256").update(s).digest("hex").slice(0, 6);
+  return `kp-${sha(owner)}-${sha(name)}-base`;
+}
+
+/**
+ * Check whether a base image exists in the Fly registry. Returns the
+ * full image ref when present, null otherwise. We don't have a cheap
+ * registry HEAD; instead we list machines on the base app — if the app
+ * itself exists in Fly, the latest image is in its registry namespace.
+ */
+async function findBaseImage(repo: string, flyToken: string): Promise<string | null> {
+  const app = baseAppName(repo);
+  const res = await fetch(
+    `https://api.machines.dev/v1/apps/${encodeURIComponent(app)}`,
+    {
+      headers: { Authorization: `Bearer ${flyToken}` },
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) return null;
+  return `registry.fly.io/${app}:latest`;
+}
+
 async function pushPreviewImage(
   cwd: string,
   appName: string,
   imageTag: string,
   flyToken: string,
+  baseImage: string | null,
 ): Promise<void> {
   const dockerfilePath = resolve(cwd, "Dockerfile.preview");
   if (!(await exists(dockerfilePath))) {
@@ -141,27 +178,32 @@ async function pushPreviewImage(
   // time, every subsequent build inherits it. No --depot, so
   // Depot's auto-sized OOM-prone shared builder is bypassed.
   console.log(`[builder] pushing image to registry.fly.io/${appName}:${imageTag}`);
+  if (baseImage) {
+    console.log(`[builder] inheriting from base image ${baseImage}`);
+  } else {
+    console.log("[builder] no base image found — full cold build");
+  }
   // Fly's GraphQL/API layer is eventually consistent: an app created
   // via the Machines REST API can take 30-60s to be visible to
   // `flyctl deploy`. Retry a few times before giving up.
   let built = -1;
+  const args = [
+    "deploy",
+    "--build-only",
+    "--push",
+    "--image-label",
+    imageTag,
+    "--app",
+    appName,
+    "--remote-only",
+    "--depot=false",
+    "--yes",
+  ];
+  if (baseImage) {
+    args.push("--build-arg", `BASE_IMAGE=${baseImage}`);
+  }
   for (let attempt = 0; attempt < 4; attempt++) {
-    built = await run(
-      "flyctl",
-      [
-        "deploy",
-        "--build-only",
-        "--push",
-        "--image-label",
-        imageTag,
-        "--app",
-        appName,
-        "--remote-only",
-        "--depot=false",
-        "--yes",
-      ],
-      { cwd, env: { FLY_API_TOKEN: flyToken } },
-    );
+    built = await run("flyctl", args, { cwd, env: { FLY_API_TOKEN: flyToken } });
     if (built === 0) break;
     if (attempt < 3) {
       console.log(`[builder] flyctl deploy attempt ${attempt + 1} failed; retrying in ${(attempt + 1) * 15}s...`);
@@ -221,7 +263,11 @@ async function main() {
       console.log(`[builder] wrote .env.production.local with ${vaultKeys.length} vars`);
     }
 
-    await pushPreviewImage(cwd, appName, imageTag, flyToken);
+    // Image inheritance: if a base image exists for this repo, the
+    // PR Dockerfile FROMs it and skips deps install + cold compile.
+    const baseImage = await findBaseImage(repo, flyToken);
+
+    await pushPreviewImage(cwd, appName, imageTag, flyToken, baseImage);
 
     // Destroy any stale machines from prior PR sync, then boot the new one.
     const stale = await listMachines(appName, flyToken);
