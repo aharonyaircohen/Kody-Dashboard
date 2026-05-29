@@ -27,6 +27,19 @@ export interface UseKodyTTSPiperOptions {
 
 const DEFAULT_VOICE = "en_US-hfc_female-medium";
 
+// The library's default `ONNX_BASE` points at cdnjs's onnxruntime-web 1.18.0,
+// which doesn't ship the `.mjs` loader Piper now needs (404). Pin to 1.19.2
+// on jsDelivr — verified to host both the .mjs and the .wasm. The piper
+// phonemizer WASM default is fine, but spelled out for clarity / future
+// self-hosting.
+const WASM_PATHS = {
+  onnxWasm: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/",
+  piperData:
+    "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.data",
+  piperWasm:
+    "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.wasm",
+} as const;
+
 export function useKodyTTSPiper(
   options: UseKodyTTSPiperOptions = {},
 ): UseKodyTTSReturn {
@@ -56,7 +69,10 @@ export function useKodyTTSPiper(
       try {
         const mod = await import("@mintplex-labs/piper-tts-web");
         if (cancelled) return;
-        const session = await mod.TtsSession.create({ voiceId });
+        const session = await mod.TtsSession.create({
+          voiceId,
+          wasmPaths: WASM_PATHS,
+        });
         if (cancelled) return;
         sessionRef.current = session;
         setPiperReady(true);
