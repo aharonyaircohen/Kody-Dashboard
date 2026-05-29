@@ -22,6 +22,8 @@
  *   FLY_ORG_SLUG      optional, defaults to "personal"
  *   FLY_REGION        optional, defaults to "fra"
  *   GITHUB_TOKEN      optional, for private clones
+ *   BUILD_ENV_JSON    optional JSON object of build-time secrets
+ *                     (written as .env.production.local in the clone)
  *
  * Exit codes:
  *   0  success — preview machine is running
@@ -184,6 +186,29 @@ async function main() {
     })();
 
     await Promise.all([flyPrep, cloneRepo(repo, ref, cwd, githubToken)]);
+
+    // Materialize build-time secrets as .env.production.local in the
+    // cloned repo BEFORE the docker build runs. Next.js / Vite / etc.
+    // pick this file up automatically during `next build`. Quotes
+    // around values handle spaces and most special chars.
+    const buildEnvRaw = process.env.BUILD_ENV_JSON?.trim();
+    if (buildEnvRaw) {
+      try {
+        const obj = JSON.parse(buildEnvRaw) as Record<string, string>;
+        const keys = Object.keys(obj);
+        if (keys.length > 0) {
+          const lines = keys.map((k) => `${k}=${JSON.stringify(obj[k] ?? "")}`);
+          await writeFile(
+            resolve(cwd, ".env.production.local"),
+            lines.join("\n") + "\n",
+            "utf8",
+          );
+          console.log(`[builder] wrote .env.production.local with ${keys.length} vars`);
+        }
+      } catch (err) {
+        console.warn("[builder] BUILD_ENV_JSON parse failed:", err);
+      }
+    }
 
     await pushPreviewImage(cwd, appName, imageTag, flyToken);
 

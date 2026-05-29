@@ -39,6 +39,8 @@ export interface SpawnBuilderInput {
   flyOrgSlug: string;
   flyRegion: string;
   githubToken?: string;
+  /** Build-time secrets baked into the image as .env.production.local. */
+  buildEnv?: Record<string, string>;
 }
 
 export interface SpawnBuilderResult {
@@ -68,6 +70,11 @@ export async function spawnPreviewBuilder(
         FLY_ORG_SLUG: input.flyOrgSlug,
         FLY_REGION: input.flyRegion,
         ...(input.githubToken ? { GITHUB_TOKEN: input.githubToken } : {}),
+        // Build env passed as a single JSON blob so name collisions
+        // with builder control vars are impossible.
+        ...(input.buildEnv && Object.keys(input.buildEnv).length > 0
+          ? { BUILD_ENV_JSON: JSON.stringify(input.buildEnv) }
+          : {}),
       },
       auto_destroy: true,
       restart: { policy: "no" },
