@@ -141,22 +141,33 @@ async function pushPreviewImage(
   // time, every subsequent build inherits it. No --depot, so
   // Depot's auto-sized OOM-prone shared builder is bypassed.
   console.log(`[builder] pushing image to registry.fly.io/${appName}:${imageTag}`);
-  const built = await run(
-    "flyctl",
-    [
-      "deploy",
-      "--build-only",
-      "--push",
-      "--image-label",
-      imageTag,
-      "--app",
-      appName,
-      "--remote-only",
-      "--depot=false",
-      "--yes",
-    ],
-    { cwd, env: { FLY_API_TOKEN: flyToken } },
-  );
+  // Fly's GraphQL/API layer is eventually consistent: an app created
+  // via the Machines REST API can take 30-60s to be visible to
+  // `flyctl deploy`. Retry a few times before giving up.
+  let built = -1;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    built = await run(
+      "flyctl",
+      [
+        "deploy",
+        "--build-only",
+        "--push",
+        "--image-label",
+        imageTag,
+        "--app",
+        appName,
+        "--remote-only",
+        "--depot=false",
+        "--yes",
+      ],
+      { cwd, env: { FLY_API_TOKEN: flyToken } },
+    );
+    if (built === 0) break;
+    if (attempt < 3) {
+      console.log(`[builder] flyctl deploy attempt ${attempt + 1} failed; retrying in ${(attempt + 1) * 15}s...`);
+      await new Promise((r) => setTimeout(r, (attempt + 1) * 15_000));
+    }
+  }
   if (built !== 0) process.exit(3);
 }
 
