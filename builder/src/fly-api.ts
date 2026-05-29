@@ -98,6 +98,9 @@ export interface CreatePreviewMachineInput {
   region: string;
   image: string;
   internalPort?: number;
+  /** Runtime env (vault secrets) — needed for SSR pages that read
+   *  DATABASE_URL, BLOB_READ_WRITE_TOKEN, etc. on each request. */
+  env?: Record<string, string>;
 }
 
 export async function createPreviewMachine(
@@ -109,10 +112,13 @@ export async function createPreviewMachine(
     region: input.region,
     config: {
       image: input.image,
-      env: {},
+      env: input.env ?? {},
       auto_destroy: false,
       restart: { policy: "always" },
-      guest: { cpu_kind: "shared", cpus: 1, memory_mb: 512 },
+      // 1 GB / 1 CPU is too small for a Payload CMS-class app at boot.
+      // Bumping to 2 CPU / 2 GB keeps idle cost low while letting the
+      // app actually start.
+      guest: { cpu_kind: "shared", cpus: 2, memory_mb: 2048 },
       services: [
         {
           ports: [
