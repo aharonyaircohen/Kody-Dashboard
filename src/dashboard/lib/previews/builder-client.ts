@@ -73,6 +73,12 @@ export async function spawnPreviewBuilder(
         FLY_ORG_SLUG: input.flyOrgSlug,
         FLY_REGION: input.flyRegion,
         ...(input.githubToken ? { GITHUB_TOKEN: input.githubToken } : {}),
+        // When set, the builder probes GHCR for a per-repo base image
+        // (kp-<hash>-base:latest) and inherits from it via Docker FROM.
+        // Drops a typical PR build from ~13 min cold to ~3 min.
+        ...(process.env.KODY_PREVIEW_GHCR_OWNER
+          ? { MIRROR_TO_GHCR_OWNER: process.env.KODY_PREVIEW_GHCR_OWNER }
+          : {}),
         // Build env passed as a single JSON blob so name collisions
         // with builder control vars are impossible.
         ...(input.buildEnv && Object.keys(input.buildEnv).length > 0
