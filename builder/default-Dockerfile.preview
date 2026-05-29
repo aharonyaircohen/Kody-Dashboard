@@ -66,11 +66,11 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=8080
 ENV HOSTNAME=0.0.0.0
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-# next.config is optional — copy only when present.
-COPY --from=builder /app/next.config* ./
+# Copy the WHOLE app tree (source + node_modules + .next + public).
+# Hand-picking just package.json/.next/public misses sibling files
+# imported by next.config.js (e.g. redirects.js, middleware.ts) and
+# breaks startup. The build stage already pruned dev dependencies
+# with `pnpm prune --prod`, so this isn't bigger than necessary.
+COPY --from=builder /app ./
 EXPOSE 8080
 CMD ["sh", "-c", "if [ -f pnpm-lock.yaml ]; then pnpm exec next start -H 0.0.0.0 -p 8080; else npx next start -H 0.0.0.0 -p 8080; fi"]
