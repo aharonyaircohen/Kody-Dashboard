@@ -19,6 +19,9 @@
  * state of its own.
  */
 
+import { Octokit } from "@octokit/rest";
+
+import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
 import { logger } from "@dashboard/lib/logger";
 import {
   spawnPreviewBuilder,
@@ -35,6 +38,19 @@ import {
   type PreviewKey,
   previewAppName,
 } from "@dashboard/lib/previews/preview-key";
+import { readVault } from "@dashboard/lib/vault/store";
+
+/**
+ * Names always stripped before secrets get baked into a preview build.
+ * Fly infra credentials (FLY_API_TOKEN, etc.) are server-side only and
+ * must never leak into a user-facing image.
+ */
+const NEVER_PASS_TO_BUILD = new Set([
+  "FLY_API_TOKEN",
+  "FLY_ORG_SLUG",
+  "FLY_DEFAULT_REGION",
+  "KODY_MASTER_KEY",
+]);
 
 export interface CreatePreviewInput extends PreviewKey {
   ref: string;
@@ -53,12 +69,48 @@ export interface PreviewInfo {
   builderMachineId?: string;
 }
 
+async function loadVaultSecretsForBuild(
+  repo: string,
+): Promise<Record<string, string>> {
+  const [owner, name] = repo.split("/") as [string, string];
+  if (!owner || !name) return {};
+  const bg = await resolveBackgroundToken(owner, name);
+  if (!bg) {
+    logger.warn(
+      { owner, repo: name },
+      "preview: no background token for vault read; build will run with no secrets",
+    );
+    return {};
+  }
+  try {
+    const { doc } = await readVault(new Octokit({ auth: bg.token }), owner, name);
+    const out: Record<string, string> = {};
+    for (const [k, entry] of Object.entries(doc.secrets)) {
+      if (!entry?.value) continue;
+      if (NEVER_PASS_TO_BUILD.has(k)) continue;
+      out[k] = entry.value;
+    }
+    return out;
+  } catch (err) {
+    logger.warn(
+      { err, repo },
+      "preview: vault read failed; build will run with no secrets",
+    );
+    return {};
+  }
+}
+
 export async function createPreview(
   input: CreatePreviewInput,
   cfg: FlyPreviewConfig,
 ): Promise<PreviewInfo> {
   const key: PreviewKey = { repo: input.repo, pr: input.pr };
   const appName = previewAppName(key);
+
+  // Build-time secrets — read once from the target repo's vault and
+  // forward to the builder machine. Apps like Next.js read these as
+  // .env.production.local during `next build`.
+  const buildEnv = await loadVaultSecretsForBuild(input.repo);
 
   let spawned: SpawnBuilderResult;
   try {
@@ -72,6 +124,7 @@ export async function createPreview(
       flyOrgSlug: cfg.orgSlug,
       flyRegion: cfg.defaultRegion,
       githubToken: input.githubToken,
+      buildEnv,
     });
   } catch (err) {
     logger.error(
