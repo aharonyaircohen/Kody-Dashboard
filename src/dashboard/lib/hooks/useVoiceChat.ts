@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSpeechRecognition } from "./useSpeechRecognition";
-import { useKodyTTS } from "./useKodyTTS";
+import { useKodyTTSPiper } from "./useKodyTTSPiper";
 
 export type VoiceChatState = "idle" | "listening" | "processing" | "speaking";
 const STOP_WORDS =
@@ -49,7 +49,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     setState(s);
   }, []);
 
-  const tts = useKodyTTS({
+  const tts = useKodyTTSPiper({
     onEnd: () => {
       if (stateRef.current === "speaking" && !pausedRef.current) {
         setS("listening");
