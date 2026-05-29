@@ -18,15 +18,15 @@ files through the GitHub Git Data API.
 
 ## The pieces
 
-| Piece                          | What it is                                                                                                                                                              | Where                                                                                                |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| The executable **folder**      | `.kody/executables/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first.   | the connected repo                                                                                   |
-| **File layer**                 | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. Reads strip the managed prompt contract; writes re-append it. | [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)             |
-| **Profile helpers**            | Pure form-fields ↔ `profile.json` translation, slug validation, and engine-mirroring profile validation. No I/O.                                                       | [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)         |
-| The **/executables page**      | CRUD UI: list, create, edit, validate, run, delete, set-default, import a skill.                                                                                         | [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) |
-| **Control API**                | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/default`, `/run`, and `/import-skill` sub-routes.                                                            | [`../app/api/kody/executables/`](../app/api/kody/executables/)                                       |
-| **Chat tools**                 | In-process tools that let Kody build/manage executables by conversation — same file layer, same atomic commit.                                                          | [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)   |
-| **Company bundle**             | Export/import flattens each folder into a portable path→content map, so executables travel with the rest of a company profile.                                          | [`../src/dashboard/lib/company/`](../src/dashboard/lib/company/)                                      |
+| Piece                     | What it is                                                                                                                                                               | Where                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| The executable **folder** | `.kody/executables/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first.    | the connected repo                                                                                                 |
+| **File layer**            | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. Reads strip the managed prompt contract; writes re-append it. | [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           |
+| **Profile helpers**       | Pure form-fields ↔ `profile.json` translation, slug validation, and engine-mirroring profile validation. No I/O.                                                         | [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       |
+| The **/executables page** | CRUD UI: list, create, edit, validate, run, delete, set-default, import a skill.                                                                                         | [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) |
+| **Control API**           | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/default`, `/run`, and `/import-skill` sub-routes.                                                            | [`../app/api/kody/executables/`](../app/api/kody/executables/)                                                     |
+| **Chat tools**            | In-process tools that let Kody build/manage executables by conversation — same file layer, same atomic commit.                                                           | [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)                 |
+| **Company bundle**        | Export/import flattens each folder into a portable path→content map, so executables travel with the rest of a company profile.                                           | [`../src/dashboard/lib/company/`](../src/dashboard/lib/company/)                                                   |
 
 ## What a folder contains
 
@@ -34,12 +34,12 @@ Every executable is a folder, not a single file — which is why the file layer
 commits it through the Git Data API (one tree, one commit) rather than the
 single-file `createOrUpdateFileContents` the commands/duties helpers use.
 
-| File                       | Purpose                                                                                                       | Generated from                                  |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `profile.json`             | The engine manifest — role, inputs, `claudeCode` (model/tools/skills/permission), lifecycle, preflight chain. | the form fields (or a raw override you paste)   |
-| `prompt.md`                | The user-authored prompt, with the managed **output-format contract** appended after a sentinel.              | the prompt field + the landing                  |
-| `skills/<name>/SKILL.md`   | Each declared skill's body. Committed _into_ the folder — see [Skills](#skills).                              | the skills list                                 |
-| `*.sh`                     | Optional shell scripts run as preflight steps (setup work) before the agent.                                  | the shell-scripts list                          |
+| File                     | Purpose                                                                                                       | Generated from                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `profile.json`           | The engine manifest — role, inputs, `claudeCode` (model/tools/skills/permission), lifecycle, preflight chain. | the form fields (or a raw override you paste) |
+| `prompt.md`              | The user-authored prompt, with the managed **output-format contract** appended after a sentinel.              | the prompt field + the landing                |
+| `skills/<name>/SKILL.md` | Each declared skill's body. Committed _into_ the folder — see [Skills](#skills).                              | the skills list                               |
+| `*.sh`                   | Optional shell scripts run as preflight steps (setup work) before the agent.                                  | the shell-scripts list                        |
 
 On **read**, the file layer strips the managed contract from `prompt.md` so the
 editor shows only your part; on **write** it re-appends the right contract for
@@ -52,10 +52,10 @@ at a skill or script that isn't there.
 Every executable picks **where its result lands**, and that single choice
 drives the whole profile shape:
 
-| Landing     | `profile.json` shape                                                                                          | What happens                                                                                                      |
-| ----------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **PR**      | `lifecycle: "pr-branch"` (mirrors the built-in `feature`): context-load → composePrompt → agent → verify → commit → PR → comment. Gets the `block-git` hook and the verify tool. | The agent works a branch and opens a pull request. Final message must be `DONE` + `COMMIT_MSG` + `PR_SUMMARY`.     |
-| **Comment** | No lifecycle. Preflight `loadIssueContext` → `composePrompt`; postflight `parseAgentResult` → `postAgentComment`. | The agent answers and the engine's generic **`postAgentComment`** posts that answer verbatim as an issue comment — no branch, no PR. Comment-landing is **live**. Final message is `DONE` + `PR_SUMMARY` (the answer). |
+| Landing     | `profile.json` shape                                                                                                                                                             | What happens                                                                                                                                                                                                           |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PR**      | `lifecycle: "pr-branch"` (mirrors the built-in `feature`): context-load → composePrompt → agent → verify → commit → PR → comment. Gets the `block-git` hook and the verify tool. | The agent works a branch and opens a pull request. Final message must be `DONE` + `COMMIT_MSG` + `PR_SUMMARY`.                                                                                                         |
+| **Comment** | No lifecycle. Preflight `loadIssueContext` → `composePrompt`; postflight `parseAgentResult` → `postAgentComment`.                                                                | The agent answers and the engine's generic **`postAgentComment`** posts that answer verbatim as an issue comment — no branch, no PR. Comment-landing is **live**. Final message is `DONE` + `PR_SUMMARY` (the answer). |
 
 ### The output-format contract (why it's appended, not in the system prompt)
 
@@ -74,10 +74,10 @@ not an engine field.
 "Set default" is the only thing that doesn't write the executable folder — it
 writes two top-level fields in **`kody.config.json`**:
 
-| Target  | Field written         | Engine reads it when…                            | Built-in fallback when cleared |
-| ------- | --------------------- | ------------------------------------------------ | ------------------------------ |
-| issue   | `defaultExecutable`   | a comment on an **issue** is bare `@kody` (no verb) | `classify`                     |
-| PR      | `defaultPrExecutable` | a comment on a **PR** is bare `@kody` (no verb)     | `fix`                          |
+| Target | Field written         | Engine reads it when…                               | Built-in fallback when cleared |
+| ------ | --------------------- | --------------------------------------------------- | ------------------------------ |
+| issue  | `defaultExecutable`   | a comment on an **issue** is bare `@kody` (no verb) | `classify`                     |
+| PR     | `defaultPrExecutable` | a comment on a **PR** is bare `@kody` (no verb)     | `fix`                          |
 
 `POST /api/kody/executables/<slug>/default` with `{ target, clear? }` calls
 `writeDefaultExecutable`, which merges the field into `kody.config.json`
@@ -166,19 +166,19 @@ the company files in [`../src/dashboard/lib/company/`](../src/dashboard/lib/comp
 
 ## File reference
 
-| File                                                                                                              | Purpose                                                        |
-| ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                          | Folder CRUD via the Git Data API (atomic multi-file commits)   |
-| [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                      | Form fields ↔ `profile.json`, slug + profile validation, contract |
-| [`../src/dashboard/lib/executables/index.ts`](../src/dashboard/lib/executables/index.ts)                          | Public re-export surface                                       |
-| [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) | The /executables CRUD UI                                       |
-| [`../app/api/kody/executables/route.ts`](../app/api/kody/executables/route.ts)                                    | List (`GET`) + create (`POST`)                                 |
-| [`../app/api/kody/executables/[slug]/route.ts`](../app/api/kody/executables/[slug]/route.ts)                      | Read (`GET`) / update (`PATCH`) / delete (`DELETE`) one        |
-| [`../app/api/kody/executables/[slug]/default/route.ts`](../app/api/kody/executables/[slug]/default/route.ts)      | Set/clear the bare-`@kody` default executable                  |
-| [`../app/api/kody/executables/[slug]/run/route.ts`](../app/api/kody/executables/[slug]/run/route.ts)              | Run by posting `@kody <slug>` on an issue                      |
-| [`../app/api/kody/executables/import-skill/route.ts`](../app/api/kody/executables/import-skill/route.ts)          | Fetch a skill's `SKILL.md` from a GitHub source                |
-| [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)                | Chat tools for conversational CRUD                             |
-| `kody.config.json` (consumer repo)                                                                                | `defaultExecutable` / `defaultPrExecutable` (set-default writes here) |
+| File                                                                                                               | Purpose                                                               |
+| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           | Folder CRUD via the Git Data API (atomic multi-file commits)          |
+| [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       | Form fields ↔ `profile.json`, slug + profile validation, contract     |
+| [`../src/dashboard/lib/executables/index.ts`](../src/dashboard/lib/executables/index.ts)                           | Public re-export surface                                              |
+| [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) | The /executables CRUD UI                                              |
+| [`../app/api/kody/executables/route.ts`](../app/api/kody/executables/route.ts)                                     | List (`GET`) + create (`POST`)                                        |
+| [`../app/api/kody/executables/[slug]/route.ts`](../app/api/kody/executables/[slug]/route.ts)                       | Read (`GET`) / update (`PATCH`) / delete (`DELETE`) one               |
+| [`../app/api/kody/executables/[slug]/default/route.ts`](../app/api/kody/executables/[slug]/default/route.ts)       | Set/clear the bare-`@kody` default executable                         |
+| [`../app/api/kody/executables/[slug]/run/route.ts`](../app/api/kody/executables/[slug]/run/route.ts)               | Run by posting `@kody <slug>` on an issue                             |
+| [`../app/api/kody/executables/import-skill/route.ts`](../app/api/kody/executables/import-skill/route.ts)           | Fetch a skill's `SKILL.md` from a GitHub source                       |
+| [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)                 | Chat tools for conversational CRUD                                    |
+| `kody.config.json` (consumer repo)                                                                                 | `defaultExecutable` / `defaultPrExecutable` (set-default writes here) |
 
 ## FAQ
 

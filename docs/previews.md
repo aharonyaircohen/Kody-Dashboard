@@ -12,11 +12,11 @@ free, and suspended preview machines cost ~$0.
 
 ## Three-component architecture
 
-| Component               | Responsibility                            |
-| ----------------------- | ----------------------------------------- |
-| Dashboard               | Orchestrate lifecycle, manage webhooks    |
-| Preview builder (Fly)   | Clone repo + ref → build image            |
-| Preview machines (Fly)  | Boot the built image and serve traffic    |
+| Component              | Responsibility                         |
+| ---------------------- | -------------------------------------- |
+| Dashboard              | Orchestrate lifecycle, manage webhooks |
+| Preview builder (Fly)  | Clone repo + ref → build image         |
+| Preview machines (Fly) | Boot the built image and serve traffic |
 
 **Consumer repos stay zero-touch** — no Dockerfile, no workflow, no
 secrets in the consumer repo. The builder ships a default
@@ -36,11 +36,11 @@ webhook.ts             PR closed → destroyPreview
 
 API routes (`app/api/kody/previews/`):
 
-| Method | Path                                  | Purpose                |
-| ------ | ------------------------------------- | ---------------------- |
-| POST   | `/`                                   | Create or refresh      |
-| GET    | `/:owner/:name/:pr`                   | Status + URL           |
-| DELETE | `/:owner/:name/:pr`                   | Destroy (idempotent)   |
+| Method | Path                | Purpose              |
+| ------ | ------------------- | -------------------- |
+| POST   | `/`                 | Create or refresh    |
+| GET    | `/:owner/:name/:pr` | Status + URL         |
+| DELETE | `/:owner/:name/:pr` | Destroy (idempotent) |
 
 Webhook: `app/api/webhooks/github/route.ts` calls `handlePrClosed` on
 `pull_request.closed` — no separate webhook receiver.

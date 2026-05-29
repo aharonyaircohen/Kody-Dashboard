@@ -184,7 +184,7 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
   // Sub-frame buffers reply asynchronously; gather everything that arrives in a
   // short window (the preview is usually one frame, but ads/embeds add more).
   const collect = useCallback(
-    <T,>(
+    <T>(
       request: "collect-logs" | "collect-network",
       replyType: "logs" | "network",
     ): Promise<T[]> =>
@@ -195,7 +195,7 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
           const data = event.data as PickerExtMessage | undefined;
           if (!data || data.source !== PICKER_EXT_SOURCE) return;
           if (data.type === replyType) {
-            acc.push(...((data.entries as unknown[]) as T[]));
+            acc.push(...(data.entries as unknown[] as T[]));
           }
         };
         window.addEventListener("message", handler);
@@ -233,7 +233,9 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
           }
           try {
             resolve({
-              dataUrl: clip ? await cropDataUrl(data.dataUrl, clip) : data.dataUrl,
+              dataUrl: clip
+                ? await cropDataUrl(data.dataUrl, clip)
+                : data.dataUrl,
             });
           } catch {
             resolve({ dataUrl: data.dataUrl });

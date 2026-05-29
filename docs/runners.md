@@ -22,16 +22,16 @@ shared LiteLLM proxy is the _only_ cross-repo Fly exception.
 
 ## The pieces
 
-| Piece                  | What it is                                                                                                                                                  | Where                                                                                                              |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `chooseRunner`         | Pure decision: GitHub if healthy; Fly only if GitHub is unhealthy **and** a Fly token exists; otherwise stay on GitHub. No I/O — exhaustively unit-testable. | [`../src/dashboard/lib/runners/runner-router.ts`](../src/dashboard/lib/runners/runner-router.ts)                   |
-| `dispatchRun`          | Orchestrator. Probes health, calls `chooseRunner`, then dispatches. Falls back to Fly **proactively** (GitHub unhealthy) and **reactively** (dispatch threw). | [`../src/dashboard/lib/runners/runner-dispatch.ts`](../src/dashboard/lib/runners/runner-dispatch.ts)               |
-| `checkGitHubActionsHealth` | Live health probe: GitHub's status page lists Actions as operational **and** the `kody.yml` queue isn't backed up past a threshold. Both probes fail open. | [`../src/dashboard/lib/runners/github-health.ts`](../src/dashboard/lib/runners/github-health.ts)                   |
-| `claimOrSpawnFly`      | The Fly execution core: claim a warm-pool machine (~1s wake), else spawn a fresh one (~3min). Shared by the fallback and the dedicated Fly route so they can't drift. | [`../src/dashboard/lib/runners/fly-run.ts`](../src/dashboard/lib/runners/fly-run.ts)                               |
-| `resolveFlyContext`    | Builds the Fly spawn context: auth, repo, the decrypted secrets vault, the per-repo `FLY_API_TOKEN`, perf tier, LiteLLM URL. `flyAvailable` is just "did this return a token."  | [`../src/dashboard/lib/runners/fly-context.ts`](../src/dashboard/lib/runners/fly-context.ts)                       |
-| Warm pool client       | Claims a pre-booted, frozen Fly machine from the always-on pool owner. **Never throws** — any miss returns `ok:false` and the caller spawns fresh. Pools are per-repo. | [`../src/dashboard/lib/runners/pool-client.ts`](../src/dashboard/lib/runners/pool-client.ts)                       |
-| `spawnRunner`          | Thin Fly Machines API client — creates a one-shot machine that runs the engine image once and auto-destroys. VM shape comes from the perf tier.             | [`../src/dashboard/lib/runners/fly.ts`](../src/dashboard/lib/runners/fly.ts)                                       |
-| `/runner` page         | **Per-repo** Fly config: token status, warm-pool size, LiteLLM proxy, Brain-on-Fly — plus a per-browser perf tier.                                          | [`../app/(chat-rail)/runner/page.tsx`](<../app/(chat-rail)/runner/page.tsx>)                                       |
+| Piece                      | What it is                                                                                                                                                                     | Where                                                                                                |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `chooseRunner`             | Pure decision: GitHub if healthy; Fly only if GitHub is unhealthy **and** a Fly token exists; otherwise stay on GitHub. No I/O — exhaustively unit-testable.                   | [`../src/dashboard/lib/runners/runner-router.ts`](../src/dashboard/lib/runners/runner-router.ts)     |
+| `dispatchRun`              | Orchestrator. Probes health, calls `chooseRunner`, then dispatches. Falls back to Fly **proactively** (GitHub unhealthy) and **reactively** (dispatch threw).                  | [`../src/dashboard/lib/runners/runner-dispatch.ts`](../src/dashboard/lib/runners/runner-dispatch.ts) |
+| `checkGitHubActionsHealth` | Live health probe: GitHub's status page lists Actions as operational **and** the `kody.yml` queue isn't backed up past a threshold. Both probes fail open.                     | [`../src/dashboard/lib/runners/github-health.ts`](../src/dashboard/lib/runners/github-health.ts)     |
+| `claimOrSpawnFly`          | The Fly execution core: claim a warm-pool machine (~1s wake), else spawn a fresh one (~3min). Shared by the fallback and the dedicated Fly route so they can't drift.          | [`../src/dashboard/lib/runners/fly-run.ts`](../src/dashboard/lib/runners/fly-run.ts)                 |
+| `resolveFlyContext`        | Builds the Fly spawn context: auth, repo, the decrypted secrets vault, the per-repo `FLY_API_TOKEN`, perf tier, LiteLLM URL. `flyAvailable` is just "did this return a token." | [`../src/dashboard/lib/runners/fly-context.ts`](../src/dashboard/lib/runners/fly-context.ts)         |
+| Warm pool client           | Claims a pre-booted, frozen Fly machine from the always-on pool owner. **Never throws** — any miss returns `ok:false` and the caller spawns fresh. Pools are per-repo.         | [`../src/dashboard/lib/runners/pool-client.ts`](../src/dashboard/lib/runners/pool-client.ts)         |
+| `spawnRunner`              | Thin Fly Machines API client — creates a one-shot machine that runs the engine image once and auto-destroys. VM shape comes from the perf tier.                                | [`../src/dashboard/lib/runners/fly.ts`](../src/dashboard/lib/runners/fly.ts)                         |
+| `/runner` page             | **Per-repo** Fly config: token status, warm-pool size, LiteLLM proxy, Brain-on-Fly — plus a per-browser perf tier.                                                             | [`../app/(chat-rail)/runner/page.tsx`](<../app/(chat-rail)/runner/page.tsx>)                         |
 
 ## The routing decision
 
@@ -39,11 +39,11 @@ shared LiteLLM proxy is the _only_ cross-repo Fly exception.
 the live probe and the token lookup happen in the caller and the decision
 itself is exhaustively unit-tested:
 
-| GitHub Actions healthy? | Fly token present? | Runner                      | Why                                                       |
-| ----------------------- | ------------------ | --------------------------- | --------------------------------------------------------- |
-| yes                     | (irrelevant)       | **github** (base)           | GitHub is the default; never divert a healthy base.       |
-| no                      | yes                | **fly** (proactive fallback)| Status degraded or queue full — send it somewhere it'll run. |
-| no                      | no                 | **github**                  | Nowhere else to send it — stay on GitHub even if unhealthy. |
+| GitHub Actions healthy? | Fly token present? | Runner                       | Why                                                          |
+| ----------------------- | ------------------ | ---------------------------- | ------------------------------------------------------------ |
+| yes                     | (irrelevant)       | **github** (base)            | GitHub is the default; never divert a healthy base.          |
+| no                      | yes                | **fly** (proactive fallback) | Status degraded or queue full — send it somewhere it'll run. |
+| no                      | no                 | **github**                   | Nowhere else to send it — stay on GitHub even if unhealthy.  |
 
 "Healthy" is two signals combined by `checkGitHubActionsHealth`, **both
 failing open** so a status-page hiccup or a single list-call error never
@@ -132,13 +132,13 @@ is **per-user** (per-browser) only; the home of a control is decided by its
 blast radius, not by where it's stored. The page splits its cards into two
 labeled groups:
 
-| Group           | Card                  | What it does                                                                                                  | Storage                                          |
-| --------------- | --------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| **Repo-wide**   | Fly Machines token    | Read-only "configured / not set" probe of the `FLY_API_TOKEN` vault secret. The token is set on `/secrets`.   | vault `FLY_API_TOKEN` (per repo)                 |
-| **Repo-wide**   | Warm pool size        | How many machines to keep pre-booted (`POOL_MIN`, default 2, max 10; 0 = always cold-start).                  | vault `POOL_MIN` (per repo)                      |
-| **Repo-wide**   | LiteLLM proxy         | Read-only status of the shared always-on proxy.                                                               | —                                                |
-| **Repo-wide**   | Brain on Fly          | Toggle the Fly-hosted chat Brain.                                                                             | vault (per repo)                                 |
-| **Your sessions** | Performance tier    | VM shape (low / medium / high) for the Fly runs **this browser** starts. Sent as the `x-kody-fly-perf` header. | `localStorage.kody_auth.flyPerf` (per browser)   |
+| Group             | Card               | What it does                                                                                                   | Storage                                        |
+| ----------------- | ------------------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| **Repo-wide**     | Fly Machines token | Read-only "configured / not set" probe of the `FLY_API_TOKEN` vault secret. The token is set on `/secrets`.    | vault `FLY_API_TOKEN` (per repo)               |
+| **Repo-wide**     | Warm pool size     | How many machines to keep pre-booted (`POOL_MIN`, default 2, max 10; 0 = always cold-start).                   | vault `POOL_MIN` (per repo)                    |
+| **Repo-wide**     | LiteLLM proxy      | Read-only status of the shared always-on proxy.                                                                | —                                              |
+| **Repo-wide**     | Brain on Fly       | Toggle the Fly-hosted chat Brain.                                                                              | vault (per repo)                               |
+| **Your sessions** | Performance tier   | VM shape (low / medium / high) for the Fly runs **this browser** starts. Sent as the `x-kody-fly-perf` header. | `localStorage.kody_auth.flyPerf` (per browser) |
 
 The performance tier is the lone per-user knob on this page: it rides along
 on start-fly calls as `x-kody-fly-perf`, which `resolveFlyContext` reads and
@@ -153,20 +153,20 @@ the same repo can pick different VM sizes without stepping on each other.
 
 ## File reference
 
-| File                                                                                                | Purpose                                                            |
-| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [`../src/dashboard/lib/runners/runner-router.ts`](../src/dashboard/lib/runners/runner-router.ts)     | Pure runner decision (`chooseRunner`)                             |
-| [`../src/dashboard/lib/runners/runner-dispatch.ts`](../src/dashboard/lib/runners/runner-dispatch.ts) | Decide + execute orchestrator (`dispatchRun`)                    |
-| [`../src/dashboard/lib/runners/github-health.ts`](../src/dashboard/lib/runners/github-health.ts)     | GitHub Actions health probe (status + queue, fail-open)           |
-| [`../src/dashboard/lib/runners/fly-run.ts`](../src/dashboard/lib/runners/fly-run.ts)                 | Claim-warm-pool-else-spawn Fly core (`claimOrSpawnFly`)          |
-| [`../src/dashboard/lib/runners/fly-context.ts`](../src/dashboard/lib/runners/fly-context.ts)         | Fly spawn context: auth, vault, token, perf tier                  |
-| [`../src/dashboard/lib/runners/fly.ts`](../src/dashboard/lib/runners/fly.ts)                         | Fly Machines API client (`spawnRunner`, `PERF_GUEST`)            |
-| [`../src/dashboard/lib/runners/pool-client.ts`](../src/dashboard/lib/runners/pool-client.ts)         | Warm-pool claim + per-repo status (never throws)                  |
-| [`../src/dashboard/lib/runners/pool-keys.ts`](../src/dashboard/lib/runners/pool-keys.ts)             | Derives the pool API key from `KODY_MASTER_KEY` (HKDF)            |
-| [`../app/api/kody/chat/interactive/start/route.ts`](../app/api/kody/chat/interactive/start/route.ts) | Run-start route that wires `dispatchRun` (GitHub base + fallback) |
-| [`../app/api/kody/chat/interactive/start-fly/route.ts`](../app/api/kody/chat/interactive/start-fly/route.ts) | Always-Fly run-start route (`kody-live-fly`)              |
-| [`../app/(chat-rail)/runner/page.tsx`](<../app/(chat-rail)/runner/page.tsx>)                          | `/runner` page entry point                                       |
-| [`../src/dashboard/lib/components/RunnerManager.tsx`](../src/dashboard/lib/components/RunnerManager.tsx) | `/runner` UI (token probe, pool size, perf tier, cards)      |
+| File                                                                                                         | Purpose                                                           |
+| ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| [`../src/dashboard/lib/runners/runner-router.ts`](../src/dashboard/lib/runners/runner-router.ts)             | Pure runner decision (`chooseRunner`)                             |
+| [`../src/dashboard/lib/runners/runner-dispatch.ts`](../src/dashboard/lib/runners/runner-dispatch.ts)         | Decide + execute orchestrator (`dispatchRun`)                     |
+| [`../src/dashboard/lib/runners/github-health.ts`](../src/dashboard/lib/runners/github-health.ts)             | GitHub Actions health probe (status + queue, fail-open)           |
+| [`../src/dashboard/lib/runners/fly-run.ts`](../src/dashboard/lib/runners/fly-run.ts)                         | Claim-warm-pool-else-spawn Fly core (`claimOrSpawnFly`)           |
+| [`../src/dashboard/lib/runners/fly-context.ts`](../src/dashboard/lib/runners/fly-context.ts)                 | Fly spawn context: auth, vault, token, perf tier                  |
+| [`../src/dashboard/lib/runners/fly.ts`](../src/dashboard/lib/runners/fly.ts)                                 | Fly Machines API client (`spawnRunner`, `PERF_GUEST`)             |
+| [`../src/dashboard/lib/runners/pool-client.ts`](../src/dashboard/lib/runners/pool-client.ts)                 | Warm-pool claim + per-repo status (never throws)                  |
+| [`../src/dashboard/lib/runners/pool-keys.ts`](../src/dashboard/lib/runners/pool-keys.ts)                     | Derives the pool API key from `KODY_MASTER_KEY` (HKDF)            |
+| [`../app/api/kody/chat/interactive/start/route.ts`](../app/api/kody/chat/interactive/start/route.ts)         | Run-start route that wires `dispatchRun` (GitHub base + fallback) |
+| [`../app/api/kody/chat/interactive/start-fly/route.ts`](../app/api/kody/chat/interactive/start-fly/route.ts) | Always-Fly run-start route (`kody-live-fly`)                      |
+| [`../app/(chat-rail)/runner/page.tsx`](<../app/(chat-rail)/runner/page.tsx>)                                 | `/runner` page entry point                                        |
+| [`../src/dashboard/lib/components/RunnerManager.tsx`](../src/dashboard/lib/components/RunnerManager.tsx)     | `/runner` UI (token probe, pool size, perf tier, cards)           |
 
 ## FAQ
 

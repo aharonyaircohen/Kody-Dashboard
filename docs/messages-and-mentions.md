@@ -11,10 +11,10 @@ and the dashboard inbox. No bespoke message store, no extra webhook.
 
 ## The two halves
 
-| Half          | What it is                                                                                              | Where                                                                                  |
-| ------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| **Messages**  | Team chat. Channels = `#`-titled GitHub Discussions; messages = discussion comments; gist-backed unread state. | [`MessagesView.tsx`](../src/dashboard/lib/components/MessagesView.tsx)                  |
-| **Mentions**  | The webhook → notification fan-out. One `@login` in any GitHub-backed body → inbox entry + push.        | [`mention-dispatch.ts`](../src/dashboard/lib/push/mention-dispatch.ts)                 |
+| Half         | What it is                                                                                                     | Where                                                                  |
+| ------------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **Messages** | Team chat. Channels = `#`-titled GitHub Discussions; messages = discussion comments; gist-backed unread state. | [`MessagesView.tsx`](../src/dashboard/lib/components/MessagesView.tsx) |
+| **Mentions** | The webhook → notification fan-out. One `@login` in any GitHub-backed body → inbox entry + push.               | [`mention-dispatch.ts`](../src/dashboard/lib/push/mention-dispatch.ts) |
 
 They meet at the webhook: posting a message is a `discussion_comment`
 event, which the receiver routes straight into mention dispatch — so a
@@ -33,7 +33,7 @@ category exists, returns `{ enabled: false, reason, channels: [] }` so the
 UI renders a disabled badge instead of an empty list.
 
 A channel's message feed reuses the **goal-discussion comment** plumbing
-([`messages/[number]/route.ts`](<../app/api/kody/messages/[number]/route.ts>)):
+([`messages/[number]/route.ts`](../app/api/kody/messages/[number]/route.ts)):
 `fetchGoalDiscussionComments` to read, `postGoalDiscussionComment` to post.
 Posting therefore invalidates the right per-discussion comment cache and —
 because the comment is a real GitHub `discussion_comment` — fans @mentions
@@ -189,7 +189,7 @@ them:
 
 1. **Bot command handles as recipients.** `extractMentions`
    ([`recipients.ts`](../src/dashboard/lib/notifications/recipients.ts))
-   drops `@kody` / `@kodyade` from the *recipient* set — they're the
+   drops `@kody` / `@kodyade` from the _recipient_ set — they're the
    engine's command handle (`@kody sync --pr 12`), not a person. This is
    a recipient drop, not an author drop.
 2. **Bookkeeping manifest issues.** `BOOKKEEPING_THREAD_TITLES` skips the
@@ -198,7 +198,7 @@ them:
    and re-fires a webhook whose body is full of `@login` feed entries.
    Routing those would ping users with raw manifest text.
 
-The staff `worker-ask` reply path *does* guard against loops, but
+The staff `worker-ask` reply path _does_ guard against loops, but
 separately and in a different module — see below.
 
 ### Staff mentions
@@ -226,7 +226,7 @@ Summary:
 
 - **Backed by GitHub** (issues, PRs, comments, reviews, discussions) →
   **automatic.** The webhook already routes the payload through
-  `dispatchMentionPushes`. A new GitHub *event type* needs a `case` in
+  `dispatchMentionPushes`. A new GitHub _event type_ needs a `case` in
   `buildSourceEvent` + the mention spine's action gate, and the repo's
   webhook hook may need its event list refreshed (POST
   `/api/webhooks/register` — see [webhooks.md](./webhooks.md)).
@@ -241,25 +241,25 @@ why it needed no new dispatch code at all.
 
 ## File reference
 
-| File                                                                                            | Purpose                                                  |
-| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| [`MessagesView.tsx`](../src/dashboard/lib/components/MessagesView.tsx)                          | Channel rail + thread + composer; mark-seen effect       |
-| [`messages/route.ts`](../app/api/kody/messages/route.ts)                                        | List / create channels (Discussions in goals category)   |
-| [`messages/[number]/route.ts`](<../app/api/kody/messages/[number]/route.ts>)                    | Channel feed: GET comments, POST message, DELETE channel |
-| [`messages/read-state/route.ts`](../app/api/kody/messages/read-state/route.ts)                  | Per-user unread state (GET / POST mark-seen)             |
-| [`channels-seen.ts`](../src/dashboard/lib/messages/channels-seen.ts)                            | Read-state manifest types + parse/serialize              |
-| [`channels-seen-store.ts`](../src/dashboard/lib/messages/channels-seen-store.ts)                | Gist CRUD for read-state (lazy-create, mutex)            |
-| [`useChannelsUnread.ts`](../src/dashboard/lib/hooks/useChannelsUnread.ts)                       | Derives unread set; `markSeen` (loop-safe)               |
-| [`mention-dispatch.ts`](../src/dashboard/lib/push/mention-dispatch.ts)                          | `dispatchMentionPushes` orchestrator                     |
-| [`source-event.ts`](../src/dashboard/lib/notifications/source-event.ts)                         | Shared webhook → `SourceEvent` normalizer                |
-| [`recipients.ts`](../src/dashboard/lib/notifications/recipients.ts)                             | `extractMentions` + `resolveRecipients`                  |
-| [`staff-mention-dispatch.ts`](../src/dashboard/lib/push/staff-mention-dispatch.ts)              | `@slug` → one-shot `worker-ask` tick                     |
-| [`staff-mentions.ts`](../src/dashboard/lib/mentions/staff-mentions.ts)                          | Extract known staff slugs from a body                    |
+| File                                                                               | Purpose                                                  |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| [`MessagesView.tsx`](../src/dashboard/lib/components/MessagesView.tsx)             | Channel rail + thread + composer; mark-seen effect       |
+| [`messages/route.ts`](../app/api/kody/messages/route.ts)                           | List / create channels (Discussions in goals category)   |
+| [`messages/[number]/route.ts`](../app/api/kody/messages/[number]/route.ts)         | Channel feed: GET comments, POST message, DELETE channel |
+| [`messages/read-state/route.ts`](../app/api/kody/messages/read-state/route.ts)     | Per-user unread state (GET / POST mark-seen)             |
+| [`channels-seen.ts`](../src/dashboard/lib/messages/channels-seen.ts)               | Read-state manifest types + parse/serialize              |
+| [`channels-seen-store.ts`](../src/dashboard/lib/messages/channels-seen-store.ts)   | Gist CRUD for read-state (lazy-create, mutex)            |
+| [`useChannelsUnread.ts`](../src/dashboard/lib/hooks/useChannelsUnread.ts)          | Derives unread set; `markSeen` (loop-safe)               |
+| [`mention-dispatch.ts`](../src/dashboard/lib/push/mention-dispatch.ts)             | `dispatchMentionPushes` orchestrator                     |
+| [`source-event.ts`](../src/dashboard/lib/notifications/source-event.ts)            | Shared webhook → `SourceEvent` normalizer                |
+| [`recipients.ts`](../src/dashboard/lib/notifications/recipients.ts)                | `extractMentions` + `resolveRecipients`                  |
+| [`staff-mention-dispatch.ts`](../src/dashboard/lib/push/staff-mention-dispatch.ts) | `@slug` → one-shot `worker-ask` tick                     |
+| [`staff-mentions.ts`](../src/dashboard/lib/mentions/staff-mentions.ts)             | Extract known staff slugs from a body                    |
 
 ## Related docs
 
 - [push-notifications.md](./push-notifications.md) — device push internals, the trigger matrix, VAPID keys.
 - [notifications.md](./notifications.md) — rule-based Slack / Telegram / Discord / generic-webhook channels.
 - [webhooks.md](./webhooks.md) — the GitHub webhook receiver, IP verification, and event registration.
-</content>
-</invoke>
+  </content>
+  </invoke>

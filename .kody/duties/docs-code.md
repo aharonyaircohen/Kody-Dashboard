@@ -43,8 +43,8 @@ flooded.
      `@ai-summary` / purpose header?
    - **Module coverage:** roughly what fraction of the folder's `.ts`/`.tsx`
      files carry an `@ai-summary` header.
-   A folder is **under-documented** if it has ≥ 4 source files and either no
-   central header or < ~half its modules carry a summary.
+     A folder is **under-documented** if it has ≥ 4 source files and either no
+     central header or < ~half its modules carry a summary.
 3. Pick the **single worst** under-documented folder not already tracked
    (`gh issue list --label kody:docs-coverage --state open --json number,title --limit 50`;
    dedup key is the folder path in the title). If none qualify, idle.

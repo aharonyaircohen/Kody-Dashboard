@@ -15,15 +15,15 @@ adds a new backend — every existing chat route just learns one extra flag.
 
 ## The pieces
 
-| Piece                   | What it is                                                                                                                                                                  | Where                                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **Vibe page**           | Chat + live preview iframe + issue list. Selecting an issue swaps both chat scope and the preview URL. Route `/vibe`; chat is the rail, not a child.                       | [`VibePage.tsx`](../src/dashboard/lib/components/VibePage.tsx), [`app/vibe/page.tsx`](../app/vibe/page.tsx) |
-| **Preview Inspector**   | Toolbar over the preview: pick element, console errors, failed requests, screenshot, speed check, record-a-test. Shared by Vibe and the PR Preview modal.                  | [`PreviewInspector.tsx`](../src/dashboard/lib/picker/PreviewInspector.tsx)                     |
-| **Element-picker extension** | A browser extension — the preview is a cross-origin iframe the dashboard page can't reach into. Distributed as an unpacked zip, no web store.                          | [`extension/`](../extension), full guide: [./element-picker.md](./element-picker.md)           |
-| **Vibe primer**         | Server-only instruction block prepended to the user's message when `vibeMode: true`. Two variants (fresh issue vs. follow-up). Iterated without republishing the engine.   | [`vibe/primer.ts`](../src/dashboard/lib/vibe/primer.ts)                                         |
-| **`vibe_start_execution` tool** | Vibe-only chat tool: pre-creates the draft PR + branch _before_ handing off to the runner, so Vercel cold-builds while the runner warms up.                        | [`vibe-tools.ts`](../app/api/kody/chat/tools/vibe-tools.ts)                                     |
-| **Voice overlay**       | TTS-friendly prompt rules + the `voiceMode` wire schema. Appended LAST to the assembled system prompt so its formatting rules win.                                         | [`voice/overlay.ts`](../src/dashboard/lib/voice/overlay.ts)                                     |
-| **Voice hooks/UI**      | Web Speech API wrappers (speech-to-text + browser TTS), the LISTEN→PROCESS→SPEAK loop, the mic button, and the in-panel conversation overlay.                              | [`useVoiceChat`](../src/dashboard/lib/hooks/useVoiceChat.ts), [`VoiceButton`](../src/dashboard/lib/components/VoiceButton.tsx), [`VoiceChatOverlay`](../src/dashboard/lib/components/VoiceChatOverlay.tsx) |
+| Piece                           | What it is                                                                                                                                                               | Where                                                                                                                                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Vibe page**                   | Chat + live preview iframe + issue list. Selecting an issue swaps both chat scope and the preview URL. Route `/vibe`; chat is the rail, not a child.                     | [`VibePage.tsx`](../src/dashboard/lib/components/VibePage.tsx), [`app/vibe/page.tsx`](../app/vibe/page.tsx)                                                                                                |
+| **Preview Inspector**           | Toolbar over the preview: pick element, console errors, failed requests, screenshot, speed check, record-a-test. Shared by Vibe and the PR Preview modal.                | [`PreviewInspector.tsx`](../src/dashboard/lib/picker/PreviewInspector.tsx)                                                                                                                                 |
+| **Element-picker extension**    | A browser extension — the preview is a cross-origin iframe the dashboard page can't reach into. Distributed as an unpacked zip, no web store.                            | [`extension/`](../extension), full guide: [./element-picker.md](./element-picker.md)                                                                                                                       |
+| **Vibe primer**                 | Server-only instruction block prepended to the user's message when `vibeMode: true`. Two variants (fresh issue vs. follow-up). Iterated without republishing the engine. | [`vibe/primer.ts`](../src/dashboard/lib/vibe/primer.ts)                                                                                                                                                    |
+| **`vibe_start_execution` tool** | Vibe-only chat tool: pre-creates the draft PR + branch _before_ handing off to the runner, so Vercel cold-builds while the runner warms up.                              | [`vibe-tools.ts`](../app/api/kody/chat/tools/vibe-tools.ts)                                                                                                                                                |
+| **Voice overlay**               | TTS-friendly prompt rules + the `voiceMode` wire schema. Appended LAST to the assembled system prompt so its formatting rules win.                                       | [`voice/overlay.ts`](../src/dashboard/lib/voice/overlay.ts)                                                                                                                                                |
+| **Voice hooks/UI**              | Web Speech API wrappers (speech-to-text + browser TTS), the LISTEN→PROCESS→SPEAK loop, the mic button, and the in-panel conversation overlay.                            | [`useVoiceChat`](../src/dashboard/lib/hooks/useVoiceChat.ts), [`VoiceButton`](../src/dashboard/lib/components/VoiceButton.tsx), [`VoiceChatOverlay`](../src/dashboard/lib/components/VoiceChatOverlay.tsx) |
 
 ---
 
@@ -50,14 +50,14 @@ toolbar exposes six actions, each driven by
 [`useElementPicker`](../src/dashboard/lib/picker/useElementPicker.ts) talking to
 the extension bridge over `window.postMessage`:
 
-| Action               | What it sends                                                                                  | Lands as       |
-| -------------------- | ---------------------------------------------------------------------------------------------- | -------------- |
-| **Pick element**     | Click an element; its selector, tag, text, and attributes.                                     | composer chip  |
-| **Console errors**   | The errors/warnings the preview has logged (with a "diagnose and fix" framing).                | composer chip  |
-| **Failed requests**  | The preview's failed network calls (4xx/5xx or threw).                                          | composer chip  |
-| **Screenshot**       | A PNG of the preview, cropped to the preview rect.                                              | image attachment |
-| **Speed**            | Load timings (TTFB / FCP / LCP / load) plus the slowest resources.                              | composer chip  |
-| **Record a test**    | Start → click through → Stop; the actions become a Playwright test the user/Kody can save.      | composer chip  |
+| Action              | What it sends                                                                              | Lands as         |
+| ------------------- | ------------------------------------------------------------------------------------------ | ---------------- |
+| **Pick element**    | Click an element; its selector, tag, text, and attributes.                                 | composer chip    |
+| **Console errors**  | The errors/warnings the preview has logged (with a "diagnose and fix" framing).            | composer chip    |
+| **Failed requests** | The preview's failed network calls (4xx/5xx or threw).                                     | composer chip    |
+| **Screenshot**      | A PNG of the preview, cropped to the preview rect.                                         | image attachment |
+| **Speed**           | Load timings (TTFB / FCP / LCP / load) plus the slowest resources.                         | composer chip    |
+| **Record a test**   | Start → click through → Stop; the actions become a Playwright test the user/Kody can save. | composer chip    |
 
 All six are confirmed in the code. The inspector formats each capture into a
 chat-ready block (see [`protocol.ts`](../src/dashboard/lib/picker/protocol.ts) —
@@ -258,25 +258,25 @@ non-kody-direct backend is rejected server-side.
 
 ## File reference
 
-| File                                                                                              | Purpose                                                          |
-| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| [`app/vibe/page.tsx`](../app/vibe/page.tsx)                                                       | Vibe route (static, AuthGuard-wrapped)                           |
-| [`src/dashboard/lib/components/VibePage.tsx`](../src/dashboard/lib/components/VibePage.tsx)        | Vibe UI: chat + preview iframe + issue list; wires the inspector |
-| [`src/dashboard/lib/picker/PreviewInspector.tsx`](../src/dashboard/lib/picker/PreviewInspector.tsx) | Inspector toolbar (6 actions); emits `onContext`/`onAttachment`  |
-| [`src/dashboard/lib/picker/useElementPicker.ts`](../src/dashboard/lib/picker/useElementPicker.ts) | Extension bridge hook (postMessage, screenshot crop)             |
-| [`src/dashboard/lib/picker/protocol.ts`](../src/dashboard/lib/picker/protocol.ts)                 | Shared message contract + chat-block formatters                  |
-| [`src/dashboard/lib/components/ChatRailShell.tsx`](../src/dashboard/lib/components/ChatRailShell.tsx) | `setComposerInjection` / `setAttachmentInjection` rail API     |
-| [`app/api/kody/chat/tools/vibe-tools.ts`](../app/api/kody/chat/tools/vibe-tools.ts)               | `vibe_start_execution` — draft PR + branch, then hand off        |
-| [`app/api/kody/chat/kody/vibe-tool-policy.ts`](../app/api/kody/chat/kody/vibe-tool-policy.ts)     | Strips `@kody` dispatch / dup-creation tools in vibe mode        |
-| [`src/dashboard/lib/vibe/primer.ts`](../src/dashboard/lib/vibe/primer.ts)                         | Server-only vibe instruction block (fresh / follow-up)           |
-| [`src/dashboard/lib/vibe/recent-issue.ts`](../src/dashboard/lib/vibe/recent-issue.ts)             | Bridge the just-created issue until task scope catches up         |
-| [`src/dashboard/lib/voice/overlay.ts`](../src/dashboard/lib/voice/overlay.ts)                     | Voice overlay prompt + `applyVoiceOverlay` + `voiceMode` schema  |
-| [`src/dashboard/lib/hooks/useVoiceChat.ts`](../src/dashboard/lib/hooks/useVoiceChat.ts)           | LISTEN→PROCESS→SPEAK conversation state machine                  |
-| [`src/dashboard/lib/hooks/useSpeechRecognition.ts`](../src/dashboard/lib/hooks/useSpeechRecognition.ts) | Web Speech API STT wrapper                                 |
-| [`src/dashboard/lib/hooks/useKodyTTS.ts`](../src/dashboard/lib/hooks/useKodyTTS.ts)               | `speechSynthesis` TTS wrapper                                    |
-| [`src/dashboard/lib/components/VoiceButton.tsx`](../src/dashboard/lib/components/VoiceButton.tsx) | Composer mic (tap / long-press)                                  |
-| [`src/dashboard/lib/components/VoiceChatOverlay.tsx`](../src/dashboard/lib/components/VoiceChatOverlay.tsx) | In-panel voice conversation overlay                     |
-| [`extension/`](../extension)                                                                      | Element-picker browser extension source (see element-picker.md)  |
+| File                                                                                                        | Purpose                                                          |
+| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [`app/vibe/page.tsx`](../app/vibe/page.tsx)                                                                 | Vibe route (static, AuthGuard-wrapped)                           |
+| [`src/dashboard/lib/components/VibePage.tsx`](../src/dashboard/lib/components/VibePage.tsx)                 | Vibe UI: chat + preview iframe + issue list; wires the inspector |
+| [`src/dashboard/lib/picker/PreviewInspector.tsx`](../src/dashboard/lib/picker/PreviewInspector.tsx)         | Inspector toolbar (6 actions); emits `onContext`/`onAttachment`  |
+| [`src/dashboard/lib/picker/useElementPicker.ts`](../src/dashboard/lib/picker/useElementPicker.ts)           | Extension bridge hook (postMessage, screenshot crop)             |
+| [`src/dashboard/lib/picker/protocol.ts`](../src/dashboard/lib/picker/protocol.ts)                           | Shared message contract + chat-block formatters                  |
+| [`src/dashboard/lib/components/ChatRailShell.tsx`](../src/dashboard/lib/components/ChatRailShell.tsx)       | `setComposerInjection` / `setAttachmentInjection` rail API       |
+| [`app/api/kody/chat/tools/vibe-tools.ts`](../app/api/kody/chat/tools/vibe-tools.ts)                         | `vibe_start_execution` — draft PR + branch, then hand off        |
+| [`app/api/kody/chat/kody/vibe-tool-policy.ts`](../app/api/kody/chat/kody/vibe-tool-policy.ts)               | Strips `@kody` dispatch / dup-creation tools in vibe mode        |
+| [`src/dashboard/lib/vibe/primer.ts`](../src/dashboard/lib/vibe/primer.ts)                                   | Server-only vibe instruction block (fresh / follow-up)           |
+| [`src/dashboard/lib/vibe/recent-issue.ts`](../src/dashboard/lib/vibe/recent-issue.ts)                       | Bridge the just-created issue until task scope catches up        |
+| [`src/dashboard/lib/voice/overlay.ts`](../src/dashboard/lib/voice/overlay.ts)                               | Voice overlay prompt + `applyVoiceOverlay` + `voiceMode` schema  |
+| [`src/dashboard/lib/hooks/useVoiceChat.ts`](../src/dashboard/lib/hooks/useVoiceChat.ts)                     | LISTEN→PROCESS→SPEAK conversation state machine                  |
+| [`src/dashboard/lib/hooks/useSpeechRecognition.ts`](../src/dashboard/lib/hooks/useSpeechRecognition.ts)     | Web Speech API STT wrapper                                       |
+| [`src/dashboard/lib/hooks/useKodyTTS.ts`](../src/dashboard/lib/hooks/useKodyTTS.ts)                         | `speechSynthesis` TTS wrapper                                    |
+| [`src/dashboard/lib/components/VoiceButton.tsx`](../src/dashboard/lib/components/VoiceButton.tsx)           | Composer mic (tap / long-press)                                  |
+| [`src/dashboard/lib/components/VoiceChatOverlay.tsx`](../src/dashboard/lib/components/VoiceChatOverlay.tsx) | In-panel voice conversation overlay                              |
+| [`extension/`](../extension)                                                                                | Element-picker browser extension source (see element-picker.md)  |
 
 ## FAQ
 

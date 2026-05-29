@@ -125,7 +125,8 @@ function revalidateTagSafe(tag: string): void {
     // Server-side this is a normal sync require; the client never reaches
     // these write paths so the function is effectively a no-op there.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { revalidateTag } = require("next/cache") as typeof import("next/cache");
+    const { revalidateTag } =
+      require("next/cache") as typeof import("next/cache");
     revalidateTag(tag);
   } catch {
     // Outside a request scope (e.g. tests, scripts) revalidateTag throws.

@@ -91,7 +91,9 @@ const shellSchema = z.object({
   content: z.string().default(""),
 });
 const mcpServerSchema = z.object({
-  name: z.string().regex(/^[a-zA-Z0-9_-]+$/, "letters, digits, dash, underscore"),
+  name: z
+    .string()
+    .regex(/^[a-zA-Z0-9_-]+$/, "letters, digits, dash, underscore"),
   command: z.string().min(1, "command is required"),
   args: z.array(z.string()).optional(),
   env: z.record(z.string(), z.string()).optional(),

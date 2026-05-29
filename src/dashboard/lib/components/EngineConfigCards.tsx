@@ -26,7 +26,10 @@ import { Card, CardContent } from "@dashboard/ui/card";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { cn } from "../utils";
-import { useEngineConfig, type UseEngineConfig } from "../engine/useEngineConfig";
+import {
+  useEngineConfig,
+  type UseEngineConfig,
+} from "../engine/useEngineConfig";
 import type { EngineEditableConfig } from "../api";
 
 /** GitHub author associations the access gate accepts (display order).
@@ -122,7 +125,11 @@ function QualityCommandsCard({ cfg }: { cfg: UseEngineConfig }) {
   return (
     <Card className="border-white/[0.08] bg-white/[0.03]">
       <CardContent className="p-4 space-y-3">
-        <CardHeader icon={Terminal} iconClass="text-sky-400" title="Quality commands">
+        <CardHeader
+          icon={Terminal}
+          iconClass="text-sky-400"
+          title="Quality commands"
+        >
           The commands Kody runs to verify its own work. Leave a field blank to
           skip that check.
         </CardHeader>
@@ -182,7 +189,11 @@ function AccessGateCard({ cfg }: { cfg: UseEngineConfig }) {
   return (
     <Card className="border-white/[0.08] bg-white/[0.03]">
       <CardContent className="p-4 space-y-3">
-        <CardHeader icon={Shield} iconClass="text-amber-400" title="Who can trigger @kody">
+        <CardHeader
+          icon={Shield}
+          iconClass="text-amber-400"
+          title="Who can trigger @kody"
+        >
           Restrict <code className="text-white/70">@kody</code> to these GitHub
           author associations. None selected = engine default (team only:
           owners, members, collaborators). Add{" "}
@@ -254,7 +265,11 @@ function DefaultBranchCard({ cfg }: { cfg: UseEngineConfig }) {
   return (
     <Card className="border-white/[0.08] bg-white/[0.03]">
       <CardContent className="p-4 space-y-3">
-        <CardHeader icon={GitBranch} iconClass="text-emerald-400" title="Default branch">
+        <CardHeader
+          icon={GitBranch}
+          iconClass="text-emerald-400"
+          title="Default branch"
+        >
           The base branch new work branches off and targets. Blank = engine
           default (<code className="text-white/70">main</code>).
         </CardHeader>
@@ -331,7 +346,11 @@ function AliasesCard({ cfg }: { cfg: UseEngineConfig }) {
   return (
     <Card className="border-white/[0.08] bg-white/[0.03]">
       <CardContent className="p-4 space-y-3">
-        <CardHeader icon={ArrowRightLeft} iconClass="text-violet-400" title="Comment aliases">
+        <CardHeader
+          icon={ArrowRightLeft}
+          iconClass="text-violet-400"
+          title="Comment aliases"
+        >
           Map a word to a subcommand, e.g.{" "}
           <code className="text-white/70">build → run</code> lets{" "}
           <code className="text-white/70">@kody build</code> dispatch the{" "}
@@ -402,7 +421,8 @@ function AliasesCard({ cfg }: { cfg: UseEngineConfig }) {
             {entries.length === 0 && (
               <p className="text-[11px] text-white/40">
                 No custom aliases. Built-ins (e.g.{" "}
-                <code className="text-white/60">build → run</code>) always apply.
+                <code className="text-white/60">build → run</code>) always
+                apply.
               </p>
             )}
           </>

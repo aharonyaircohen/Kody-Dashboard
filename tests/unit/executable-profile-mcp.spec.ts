@@ -44,7 +44,11 @@ describe("executable profile — MCP tool servers", () => {
     const once = composeProfile(base);
     const back = fieldsFromProfile("research", once);
     const twice = claudeCode(
-      composeProfile({ ...base, tools: back.tools, mcpServers: back.mcpServers }),
+      composeProfile({
+        ...base,
+        tools: back.tools,
+        mcpServers: back.mcpServers,
+      }),
     );
     expect(twice.tools).toEqual(["Read", "Grep", "mcp__codegraph"]);
   });

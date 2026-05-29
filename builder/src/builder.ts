@@ -104,15 +104,26 @@ async function cloneRepo(
     if ((await run("git", ["clone", "--depth=1", cloneUrl, cwd])) !== 0) {
       process.exit(2);
     }
-    if ((await run("git", ["fetch", "--depth=1", "origin", ref], { cwd })) !== 0) {
+    if (
+      (await run("git", ["fetch", "--depth=1", "origin", ref], { cwd })) !== 0
+    ) {
       process.exit(2);
     }
-    if ((await run("git", ["checkout", "--detach", "FETCH_HEAD"], { cwd })) !== 0) {
+    if (
+      (await run("git", ["checkout", "--detach", "FETCH_HEAD"], { cwd })) !== 0
+    ) {
       process.exit(2);
     }
   } else {
     if (
-      (await run("git", ["clone", "--depth=1", "--branch", ref, cloneUrl, cwd])) !== 0
+      (await run("git", [
+        "clone",
+        "--depth=1",
+        "--branch",
+        ref,
+        cloneUrl,
+        cwd,
+      ])) !== 0
     ) {
       process.exit(2);
     }
@@ -139,7 +150,10 @@ function baseAppName(repo: string): string {
  * present, null otherwise. GHCR's public anonymous-pull token is
  * minted on demand; we use it to ask for the manifest.
  */
-async function findBaseImage(repo: string, ghcrOwner: string): Promise<string | null> {
+async function findBaseImage(
+  repo: string,
+  ghcrOwner: string,
+): Promise<string | null> {
   const baseImage = `${ghcrOwner.toLowerCase()}/${baseAppName(repo)}`;
   // GHCR requires a bearer token even for public reads.
   const tokRes = await fetch(
@@ -206,7 +220,9 @@ async function mirrorBaseToGhcr(
   ).catch(() => null);
   if (visRes && visRes.status !== 204) {
     const text = await visRes.text().catch(() => "");
-    console.warn(`[builder] make-public returned ${visRes.status}: ${text.slice(0, 200)}`);
+    console.warn(
+      `[builder] make-public returned ${visRes.status}: ${text.slice(0, 200)}`,
+    );
   }
 }
 
@@ -255,13 +271,18 @@ async function pushPreviewImage(
   // `flyctl scale -a fly-builder-<org>` — set once at provision
   // time, every subsequent build inherits it. No --depot, so
   // Depot's auto-sized OOM-prone shared builder is bypassed.
-  console.log(`[builder] pushing image to registry.fly.io/${appName}:${imageTag}`);
+  console.log(
+    `[builder] pushing image to registry.fly.io/${appName}:${imageTag}`,
+  );
   if (baseImage) {
     console.log(`[builder] inheriting from base image ${baseImage}`);
     // flyctl --remote-only + --build-arg has a docker-daemon-resolution
     // bug ('failed to parse daemon host'). Substitute the base image
     // into the Dockerfile directly so flyctl never sees a --build-arg.
-    await patchBaseImageInDockerfile(resolve(cwd, "Dockerfile.preview"), baseImage);
+    await patchBaseImageInDockerfile(
+      resolve(cwd, "Dockerfile.preview"),
+      baseImage,
+    );
   } else {
     console.log("[builder] no base image found — full cold build");
   }
@@ -279,10 +300,15 @@ async function pushPreviewImage(
     "--yes",
   ];
   for (let attempt = 0; attempt < 4; attempt++) {
-    built = await run("flyctl", args, { cwd, env: { FLY_API_TOKEN: flyToken } });
+    built = await run("flyctl", args, {
+      cwd,
+      env: { FLY_API_TOKEN: flyToken },
+    });
     if (built === 0) break;
     if (attempt < 3) {
-      console.log(`[builder] flyctl deploy attempt ${attempt + 1} failed; retrying in ${(attempt + 1) * 15}s...`);
+      console.log(
+        `[builder] flyctl deploy attempt ${attempt + 1} failed; retrying in ${(attempt + 1) * 15}s...`,
+      );
       await new Promise((r) => setTimeout(r, (attempt + 1) * 15_000));
     }
   }
@@ -330,13 +356,17 @@ async function main() {
     }
     const vaultKeys = Object.keys(vaultEnv);
     if (vaultKeys.length > 0) {
-      const lines = vaultKeys.map((k) => `${k}=${JSON.stringify(vaultEnv[k] ?? "")}`);
+      const lines = vaultKeys.map(
+        (k) => `${k}=${JSON.stringify(vaultEnv[k] ?? "")}`,
+      );
       await writeFile(
         resolve(cwd, ".env.production.local"),
         lines.join("\n") + "\n",
         "utf8",
       );
-      console.log(`[builder] wrote .env.production.local with ${vaultKeys.length} vars`);
+      console.log(
+        `[builder] wrote .env.production.local with ${vaultKeys.length} vars`,
+      );
     }
 
     const ghcrOwner = process.env.MIRROR_TO_GHCR_OWNER?.trim();
@@ -346,9 +376,7 @@ async function main() {
     // the PR Dockerfile FROMs it and skips deps install + cold compile.
     // Base builds themselves never inherit (they're the source).
     const baseImage =
-      !isBaseBuild && ghcrOwner
-        ? await findBaseImage(repo, ghcrOwner)
-        : null;
+      !isBaseBuild && ghcrOwner ? await findBaseImage(repo, ghcrOwner) : null;
 
     await pushPreviewImage(cwd, appName, imageTag, flyToken, baseImage);
 
@@ -392,7 +420,9 @@ async function main() {
       { appName, region, image, internalPort: 8080, env: vaultEnv },
       flyToken,
     );
-    console.log(`[builder] done — preview machine ${machineId} at https://${appName}.fly.dev`);
+    console.log(
+      `[builder] done — preview machine ${machineId} at https://${appName}.fly.dev`,
+    );
     process.exit(0);
   } catch (err) {
     console.error("[builder] orchestration failed:", err);

@@ -170,10 +170,7 @@ export function composeProfile(
   // accumulate stale tokens for servers that were removed.
   const mcpServers = fields.mcpServers ?? [];
   const baseTools = fields.tools.filter((t) => !t.startsWith("mcp__"));
-  const tools = [
-    ...baseTools,
-    ...mcpServers.map((s) => mcpAllowToken(s.name)),
-  ];
+  const tools = [...baseTools, ...mcpServers.map((s) => mcpAllowToken(s.name))];
 
   const claudeCode: Record<string, unknown> = {
     model: fields.model || "inherit",

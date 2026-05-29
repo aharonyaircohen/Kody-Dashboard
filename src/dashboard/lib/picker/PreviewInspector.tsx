@@ -155,7 +155,9 @@ export function PreviewInspector({
         : undefined;
       const { dataUrl, error } = await picker.captureScreenshot(clip);
       if (!dataUrl) {
-        toast.error(`Couldn't capture a screenshot: ${error ?? "unknown error"}`);
+        toast.error(
+          `Couldn't capture a screenshot: ${error ?? "unknown error"}`,
+        );
         return;
       }
       onAttachment({

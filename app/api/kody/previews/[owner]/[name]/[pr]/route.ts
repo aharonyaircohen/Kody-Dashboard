@@ -24,11 +24,7 @@ export const runtime = "nodejs";
 
 type Params = { params: Promise<{ owner: string; name: string; pr: string }> };
 
-async function resolveCfg(
-  req: NextRequest,
-  owner: string,
-  name: string,
-) {
+async function resolveCfg(req: NextRequest, owner: string, name: string) {
   const octokit = await getUserOctokit(req);
   if (!octokit) return null;
   return resolvePreviewConfigForOctokit({ octokit, owner, repo: name });
@@ -46,10 +42,7 @@ export async function GET(req: NextRequest, ctx: Params) {
 
   const cfg = await resolveCfg(req, owner, name);
   if (!cfg) {
-    return NextResponse.json(
-      { error: "fly_token_missing" },
-      { status: 503 },
-    );
+    return NextResponse.json({ error: "fly_token_missing" }, { status: 503 });
   }
 
   try {
@@ -79,10 +72,7 @@ export async function DELETE(req: NextRequest, ctx: Params) {
 
   const cfg = await resolveCfg(req, owner, name);
   if (!cfg) {
-    return NextResponse.json(
-      { error: "fly_token_missing" },
-      { status: 503 },
-    );
+    return NextResponse.json({ error: "fly_token_missing" }, { status: 503 });
   }
 
   try {

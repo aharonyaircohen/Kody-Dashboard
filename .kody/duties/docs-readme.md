@@ -59,23 +59,23 @@ The dedup and flagging key is the mapped doc path. Extend this table as docs
 are added; an area with no doc maps to nothing (handled by `docs-code`'s
 gap sweep instead, not here).
 
-| Changed path prefix                              | Doc                              |
-| ------------------------------------------------ | -------------------------------- |
-| `src/dashboard/lib/inbox/`, `src/dashboard/lib/cto/` | `docs/inbox.md`              |
-| `src/dashboard/lib/tasks/`, `app/api/kody/tasks/`    | `docs/tasks.md`              |
-| `src/dashboard/lib/runners/`, `src/dashboard/lib/health/` | `docs/runners.md`       |
-| `src/dashboard/lib/vibe/`, `src/dashboard/lib/voice/`, `src/dashboard/lib/picker/` | `docs/vibe-and-voice.md` |
-| `src/dashboard/lib/activity/`                    | `docs/activity.md`               |
-| `src/dashboard/lib/executables/`                 | `docs/executables.md`            |
-| `src/dashboard/lib/company/`                     | `docs/company.md`                |
-| `src/dashboard/lib/context/`                     | `docs/context.md`                |
-| `src/dashboard/lib/engine/`                      | `docs/engine-config.md`          |
-| `src/dashboard/lib/messages/`, `src/dashboard/lib/mentions/` | `docs/messages-and-mentions.md` |
-| `src/dashboard/lib/changelog/`                   | `docs/changelog.md`              |
-| `src/dashboard/lib/commands/`                    | `docs/commands.md`               |
-| `src/dashboard/lib/vault/`                       | `docs/secrets-vault.md`          |
-| `src/dashboard/lib/notifications/`, `src/dashboard/lib/push/` | `docs/notifications.md` |
-| `src/dashboard/lib/webhooks/`                    | `docs/webhooks.md`               |
+| Changed path prefix                                                                | Doc                             |
+| ---------------------------------------------------------------------------------- | ------------------------------- |
+| `src/dashboard/lib/inbox/`, `src/dashboard/lib/cto/`                               | `docs/inbox.md`                 |
+| `src/dashboard/lib/tasks/`, `app/api/kody/tasks/`                                  | `docs/tasks.md`                 |
+| `src/dashboard/lib/runners/`, `src/dashboard/lib/health/`                          | `docs/runners.md`               |
+| `src/dashboard/lib/vibe/`, `src/dashboard/lib/voice/`, `src/dashboard/lib/picker/` | `docs/vibe-and-voice.md`        |
+| `src/dashboard/lib/activity/`                                                      | `docs/activity.md`              |
+| `src/dashboard/lib/executables/`                                                   | `docs/executables.md`           |
+| `src/dashboard/lib/company/`                                                       | `docs/company.md`               |
+| `src/dashboard/lib/context/`                                                       | `docs/context.md`               |
+| `src/dashboard/lib/engine/`                                                        | `docs/engine-config.md`         |
+| `src/dashboard/lib/messages/`, `src/dashboard/lib/mentions/`                       | `docs/messages-and-mentions.md` |
+| `src/dashboard/lib/changelog/`                                                     | `docs/changelog.md`             |
+| `src/dashboard/lib/commands/`                                                      | `docs/commands.md`              |
+| `src/dashboard/lib/vault/`                                                         | `docs/secrets-vault.md`         |
+| `src/dashboard/lib/notifications/`, `src/dashboard/lib/push/`                      | `docs/notifications.md`         |
+| `src/dashboard/lib/webhooks/`                                                      | `docs/webhooks.md`              |
 
 ### Issue body template
 

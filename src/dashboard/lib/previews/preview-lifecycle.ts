@@ -83,7 +83,11 @@ async function loadVaultSecretsForBuild(
     return {};
   }
   try {
-    const { doc } = await readVault(new Octokit({ auth: bg.token }), owner, name);
+    const { doc } = await readVault(
+      new Octokit({ auth: bg.token }),
+      owner,
+      name,
+    );
     const out: Record<string, string> = {};
     for (const [k, entry] of Object.entries(doc.secrets)) {
       if (!entry?.value) continue;

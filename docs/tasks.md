@@ -5,7 +5,7 @@ the lane it lands in is decided by the **engine's own state**, not by the
 `kody:*` labels you see on the card. A task is a GitHub issue; the engine
 drives it through a pipeline and writes a canonical `kodyState` JSON comment
 onto the issue as it goes. The board reads that comment and projects the card
-into one of seven lanes. Labels and workflow-run statuses are *projections* of
+into one of seven lanes. Labels and workflow-run statuses are _projections_ of
 the same state that can drift — so they're only a fallback, used when no
 canonical state is available.
 
@@ -19,30 +19,30 @@ in `tests/unit/derive-column.spec.ts`.
 
 ## The pieces
 
-| Piece                  | What it is                                                                                                                                                                                  | Where                                                                                                       |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **Task**               | A GitHub issue. `id` is `<taskId>-<issue#>` when the title carries a `[YYMMDD-…]` task-id bracket, else just the issue number.                                                              | [`/api/kody/tasks`](../app/api/kody/tasks/route.ts) (GET list, POST create)                                 |
-| **`kodyState` comment** | The canonical engine state — a `<!-- kody:state:v1 -->`-bracketed `json` block edited in place on the issue. Holds `core.phase`, `core.status`, `prUrl`, `lastOutcome`, attempts.          | [`kody-state.ts`](../src/dashboard/lib/kody-state.ts)                                                       |
-| **Column derivation**  | Pure function that turns issue + workflow run + PR + `kodyState` + pipeline into one `ColumnId`. Order is load-bearing.                                                                     | [`derive-column.ts`](../src/dashboard/lib/tasks/derive-column.ts)                                           |
-| **`kody:*` labels**    | Lifecycle phase (`kody:building`, `kody:reviewing`, …) and flow (`kody-flow:feature\|bug\|spec\|chore`). Slow-changing projections; only consulted when `kodyState`/pipeline are absent.    | [`constants.ts`](../src/dashboard/lib/constants.ts) (`parseKodyPhase`, `parseKodyFlow`)                     |
-| **Board UI**           | The seven lanes, their icons/labels, and the per-card actions.                                                                                                                              | [`TaskList.tsx`](../src/dashboard/lib/components/TaskList.tsx), [`TaskDetail.tsx`](../src/dashboard/lib/components/TaskDetail.tsx) |
-| **Task actions**       | `rerun` / `execute` / `abort` / `close` / `reset` / `fix` / `approve-ui` / `approve-pr` / … — each posts an `@kody` command or mutates the issue.                                            | [`/api/kody/tasks/[taskId]/actions`](../app/api/kody/tasks/[taskId]/actions/route.ts)                       |
-| **Approve gate**       | Atomic approve → squash-merge → (only on success) delete branch + close issue.                                                                                                             | [`/api/kody/tasks/approve`](../app/api/kody/tasks/approve/route.ts)                                         |
+| Piece                   | What it is                                                                                                                                                                               | Where                                                                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**                | A GitHub issue. `id` is `<taskId>-<issue#>` when the title carries a `[YYMMDD-…]` task-id bracket, else just the issue number.                                                           | [`/api/kody/tasks`](../app/api/kody/tasks/route.ts) (GET list, POST create)                                                        |
+| **`kodyState` comment** | The canonical engine state — a `<!-- kody:state:v1 -->`-bracketed `json` block edited in place on the issue. Holds `core.phase`, `core.status`, `prUrl`, `lastOutcome`, attempts.        | [`kody-state.ts`](../src/dashboard/lib/kody-state.ts)                                                                              |
+| **Column derivation**   | Pure function that turns issue + workflow run + PR + `kodyState` + pipeline into one `ColumnId`. Order is load-bearing.                                                                  | [`derive-column.ts`](../src/dashboard/lib/tasks/derive-column.ts)                                                                  |
+| **`kody:*` labels**     | Lifecycle phase (`kody:building`, `kody:reviewing`, …) and flow (`kody-flow:feature\|bug\|spec\|chore`). Slow-changing projections; only consulted when `kodyState`/pipeline are absent. | [`constants.ts`](../src/dashboard/lib/constants.ts) (`parseKodyPhase`, `parseKodyFlow`)                                            |
+| **Board UI**            | The seven lanes, their icons/labels, and the per-card actions.                                                                                                                           | [`TaskList.tsx`](../src/dashboard/lib/components/TaskList.tsx), [`TaskDetail.tsx`](../src/dashboard/lib/components/TaskDetail.tsx) |
+| **Task actions**        | `rerun` / `execute` / `abort` / `close` / `reset` / `fix` / `approve-ui` / `approve-pr` / … — each posts an `@kody` command or mutates the issue.                                        | [`/api/kody/tasks/[taskId]/actions`](../app/api/kody/tasks/[taskId]/actions/route.ts)                                              |
+| **Approve gate**        | Atomic approve → squash-merge → (only on success) delete branch + close issue.                                                                                                           | [`/api/kody/tasks/approve`](../app/api/kody/tasks/approve/route.ts)                                                                |
 
 ## The seven lanes
 
 `ColumnId` is the full set of lanes
 ([types.ts](../src/dashboard/lib/types.ts), [constants.ts](../src/dashboard/lib/constants.ts)):
 
-| `ColumnId`     | Board label     | Meaning                                                              |
-| -------------- | --------------- | -------------------------------------------------------------------- |
-| `open`         | Backlog         | Untriaged / not started. The only lane where "Run Task" shows.       |
-| `building`     | Building        | Engine is actively working (research → plan → implement).            |
-| `review`       | In Review       | Work done, PR open and awaiting human review/merge.                  |
-| `gate-waiting` | Needs Approval  | Pipeline paused at a hard-stop / risk gate.                          |
-| `retrying`     | Retrying        | Mid-retry (label-driven fallback only).                              |
-| `failed`       | Failed          | Run failed/timed out. Card shows a truncated failure reason.         |
-| `done`         | Done            | Shipped (merged) or issue closed.                                    |
+| `ColumnId`     | Board label    | Meaning                                                        |
+| -------------- | -------------- | -------------------------------------------------------------- |
+| `open`         | Backlog        | Untriaged / not started. The only lane where "Run Task" shows. |
+| `building`     | Building       | Engine is actively working (research → plan → implement).      |
+| `review`       | In Review      | Work done, PR open and awaiting human review/merge.            |
+| `gate-waiting` | Needs Approval | Pipeline paused at a hard-stop / risk gate.                    |
+| `retrying`     | Retrying       | Mid-retry (label-driven fallback only).                        |
+| `failed`       | Failed         | Run failed/timed out. Card shows a truncated failure reason.   |
+| `done`         | Done           | Shipped (merged) or issue closed.                              |
 
 ## How a lane is decided
 
@@ -85,7 +85,7 @@ deriveTaskColumn(issue, workflowRun, associatedPR, kodyState, pipelineStatus)
 Two subtleties worth keeping in mind:
 
 - **`idle` is not "running."** A `status: running` + `phase: idle` state is a
-  *parked* task (classified but no working phase started, or a phase ended
+  _parked_ task (classified but no working phase started, or a phase ended
   without finalizing). Returning `building` for it makes backlog issues flap
   into "running" whenever that stale state is read, so derivation deliberately
   falls through. A genuinely live run is still caught by the active-run check.
@@ -130,18 +130,18 @@ the `kody:*` labels are the human-visible projection.
 
 This trips people up, so it's worth being precise:
 
-| State                          | Stored as                                                      | Read by                                                              |
-| ------------------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Per-task `kodyState`           | A **comment on the GitHub issue** (repo-global, not branch-scoped) | `fetchKodyState` → `fetchComments` → `findKodyStateInComments`      |
-| Goal/job file state, cursors   | Files on the **`kody-state` branch** (`STATE_BRANCH` constant) | `fetchGoalStateFromRepo` etc., always `ref: STATE_BRANCH`           |
-| Human config (`.md`, prompts)  | The **default branch**                                          | their own readers                                                   |
+| State                         | Stored as                                                          | Read by                                                        |
+| ----------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
+| Per-task `kodyState`          | A **comment on the GitHub issue** (repo-global, not branch-scoped) | `fetchKodyState` → `fetchComments` → `findKodyStateInComments` |
+| Goal/job file state, cursors  | Files on the **`kody-state` branch** (`STATE_BRANCH` constant)     | `fetchGoalStateFromRepo` etc., always `ref: STATE_BRANCH`      |
+| Human config (`.md`, prompts) | The **default branch**                                             | their own readers                                              |
 
 So the broad rule "all machine-written engine state goes to the `kody-state`
 branch, never the default branch" holds for **file-based** state — goal
 `state.json`, per-job cursors, activity. `STATE_BRANCH` is a hard-coded
 constant (`"kody-state"`), not an env var, and must match the engine's
 `STATE_BRANCH` ([state-branch.ts](../src/dashboard/lib/state-branch.ts)). The
-per-*task* `kodyState` the board uses for lane derivation is the exception: it
+per-_task_ `kodyState` the board uses for lane derivation is the exception: it
 rides as an **issue comment**, which GitHub stores at the repo level
 independent of any branch — so the board reads it via `fetchComments`, not by
 reading a file off `kody-state`. Both are "the engine writes it"; only the
@@ -150,8 +150,8 @@ file-based half lives on the branch.
 When multiple `kodyState` comments exist (a re-classify or self-dispatch retry
 can post a fresh one while the canonical one is edited in place),
 `findKodyStateInComments` picks the comment with the newest `updated_at` —
-*not* list order — because the engine bumps `updated_at` on every in-place edit
-and a later-*created* duplicate is usually the stale one. Picking by list
+_not_ list order — because the engine bumps `updated_at` on every in-place edit
+and a later-_created_ duplicate is usually the stale one. Picking by list
 position was the original cause of finished tasks flapping back to "running."
 
 ## Lifecycle & actions
@@ -187,8 +187,8 @@ Notes that matter:
 - **`approve` is atomic and gated.** It approves the review, then squash-merges;
   only if the merge actually succeeds does it delete the branch and close the
   issue. A blocked merge (failing CI, conflict) returns `409` and leaves branch
-  + issue intact — it never destroys work on a failed merge.
-  ([approve/route.ts](../app/api/kody/tasks/approve/route.ts))
+  - issue intact — it never destroys work on a failed merge.
+    ([approve/route.ts](../app/api/kody/tasks/approve/route.ts))
 - **`fix` requires an associated PR** — it posts `@kody fix` onto that PR
   (engine semantics: `fix` applies feedback to an existing PR branch). It also
   optimistically strips `kody:done`/`kody:failed` and adds `kody:fixing` so the
@@ -219,21 +219,21 @@ Never add `noCache: true` to "fix staleness"; lower the TTL, call
 
 ## File reference
 
-| File                                                                                  | Purpose                                                          |
-| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| [`tasks/derive-column.ts`](../src/dashboard/lib/tasks/derive-column.ts)               | Pure lane derivation — the priority order above. **Read first.** |
-| [`kody-state.ts`](../src/dashboard/lib/kody-state.ts)                                  | Parse the canonical `kodyState` comment; newest-wins selection.  |
-| [`state-branch.ts`](../src/dashboard/lib/state-branch.ts)                             | `STATE_BRANCH = "kody-state"` constant (file-based state).       |
-| [`constants.ts`](../src/dashboard/lib/constants.ts)                                   | `ColumnId`, `COLUMN_DEFS`, `parseKodyPhase`, `parseKodyFlow`.    |
-| [`types.ts`](../src/dashboard/lib/types.ts)                                           | `KodyTask`, `GitHubIssue`/`PR`/`WorkflowRun`, `ColumnId`.        |
-| [`/api/kody/tasks/route.ts`](../app/api/kody/tasks/route.ts)                          | GET list (derivation orchestration) + POST create.              |
+| File                                                                                           | Purpose                                                          |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [`tasks/derive-column.ts`](../src/dashboard/lib/tasks/derive-column.ts)                        | Pure lane derivation — the priority order above. **Read first.** |
+| [`kody-state.ts`](../src/dashboard/lib/kody-state.ts)                                          | Parse the canonical `kodyState` comment; newest-wins selection.  |
+| [`state-branch.ts`](../src/dashboard/lib/state-branch.ts)                                      | `STATE_BRANCH = "kody-state"` constant (file-based state).       |
+| [`constants.ts`](../src/dashboard/lib/constants.ts)                                            | `ColumnId`, `COLUMN_DEFS`, `parseKodyPhase`, `parseKodyFlow`.    |
+| [`types.ts`](../src/dashboard/lib/types.ts)                                                    | `KodyTask`, `GitHubIssue`/`PR`/`WorkflowRun`, `ColumnId`.        |
+| [`/api/kody/tasks/route.ts`](../app/api/kody/tasks/route.ts)                                   | GET list (derivation orchestration) + POST create.               |
 | [`/api/kody/tasks/[taskId]/actions/route.ts`](../app/api/kody/tasks/[taskId]/actions/route.ts) | Per-task actions (rerun/execute/abort/fix/approve-ui/…).         |
-| [`/api/kody/tasks/approve/route.ts`](../app/api/kody/tasks/approve/route.ts)          | Atomic approve → squash-merge → cleanup gate.                    |
-| [`/api/kody/tasks/closed/route.ts`](../app/api/kody/tasks/closed/route.ts)            | Lightweight closed-task list (no derivation), per goal label.    |
-| [`components/TaskList.tsx`](../src/dashboard/lib/components/TaskList.tsx)              | Lane icons/labels, card list.                                    |
-| [`components/TaskDetail.tsx`](../src/dashboard/lib/components/TaskDetail.tsx)          | Per-task detail + action buttons.                                |
-| [`components/TaskTypeBadge.tsx`](../src/dashboard/lib/components/TaskTypeBadge.tsx)    | Feature/Bug/Refactor/Spec type badge.                            |
-| `tests/unit/derive-column.spec.ts`                                                    | Regression suite for the derivation order.                       |
+| [`/api/kody/tasks/approve/route.ts`](../app/api/kody/tasks/approve/route.ts)                   | Atomic approve → squash-merge → cleanup gate.                    |
+| [`/api/kody/tasks/closed/route.ts`](../app/api/kody/tasks/closed/route.ts)                     | Lightweight closed-task list (no derivation), per goal label.    |
+| [`components/TaskList.tsx`](../src/dashboard/lib/components/TaskList.tsx)                      | Lane icons/labels, card list.                                    |
+| [`components/TaskDetail.tsx`](../src/dashboard/lib/components/TaskDetail.tsx)                  | Per-task detail + action buttons.                                |
+| [`components/TaskTypeBadge.tsx`](../src/dashboard/lib/components/TaskTypeBadge.tsx)            | Feature/Bug/Refactor/Spec type badge.                            |
+| `tests/unit/derive-column.spec.ts`                                                             | Regression suite for the derivation order.                       |
 
 ## FAQ
 
@@ -241,7 +241,7 @@ Never add `noCache: true` to "fix staleness"; lower the TTL, call
 
 Its `kodyState` comment still says `phase/status: running` (a stale state, e.g.
 a finalize step that never wrote `shipped`). Derivation reads that comment
-*before* labels, so the card is pinned and its preview suppressed. Fix the
+_before_ labels, so the card is pinned and its preview suppressed. Fix the
 engine's state comment (the finalize path that rewrites `kodyState`); editing
 `kody:*` labels won't move it.
 
@@ -260,7 +260,7 @@ chip.
 
 **Where does task state live — the `kody-state` branch or the issue?**
 
-Per-*task* state is an issue **comment** (repo-global, not branch-scoped).
+Per-_task_ state is an issue **comment** (repo-global, not branch-scoped).
 The `kody-state` branch holds **file-based** state — goal `state.json`,
 per-job cursors, activity. Both are engine-written; only the file-based half
 sits on the branch.
@@ -268,7 +268,7 @@ sits on the branch.
 **Why is the close/reset action so heavy?**
 
 `close` closes the PR, deletes the work branch, and closes the issue; `reset`
-does that *and* re-triggers the pipeline with a fresh `@kody`. Both are
+does that _and_ re-triggers the pipeline with a fresh `@kody`. Both are
 deliberate so a card doesn't leave a dangling branch/PR behind.
 
 **Does approving ever merge a PR with failing CI?**

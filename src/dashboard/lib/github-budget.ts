@@ -61,7 +61,8 @@ export function recordResponseHeaders(headers: Record<string, unknown>): void {
   const remainingRaw = headers["x-ratelimit-remaining"];
   const limitRaw = headers["x-ratelimit-limit"];
   const resetRaw = headers["x-ratelimit-reset"];
-  const remaining = typeof remainingRaw === "string" ? Number(remainingRaw) : NaN;
+  const remaining =
+    typeof remainingRaw === "string" ? Number(remainingRaw) : NaN;
   const limit = typeof limitRaw === "string" ? Number(limitRaw) : NaN;
   const resetSeconds = typeof resetRaw === "string" ? Number(resetRaw) : NaN;
   if (!Number.isFinite(remaining) || !Number.isFinite(limit)) return;

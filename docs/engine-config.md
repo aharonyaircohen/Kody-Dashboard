@@ -17,30 +17,30 @@ always targets the default branch.
 
 ## The pieces
 
-| Piece                     | What it is                                                                                                                               | Where                                                                                                                       |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **/config page**          | Repo-scoped engine config entry point. Renders the Operators card plus the four engine-config cards. AuthGuard-gated.                    | [`../app/(chat-rail)/config/page.tsx`](<../app/(chat-rail)/config/page.tsx>)                                                 |
-| **RepoConfigManager**     | Page shell. Composes `OperatorsCard` + `EngineConfigCards`. Distinct from /company, which is now only bundle import/export.              | [`../src/dashboard/lib/components/RepoConfigManager.tsx`](../src/dashboard/lib/components/RepoConfigManager.tsx)             |
-| **Operators card**        | Edits `github.operators` — the inbox routing list. Its own GET/PUT route, not the shared config patch.                                   | [`../src/dashboard/lib/components/OperatorsCard.tsx`](../src/dashboard/lib/components/OperatorsCard.tsx)                     |
-| **Engine config cards**   | Four cards — quality commands, access gate, default branch, comment aliases — sharing one `useEngineConfig` load and a partial-patch save. | [`../src/dashboard/lib/components/EngineConfigCards.tsx`](../src/dashboard/lib/components/EngineConfigCards.tsx)             |
-| **`config.ts`**           | Read/cache/merge-write of `kody.config.json`. Owns the merge-not-overwrite contract and the legacy-`model`-strip. Pure, server-side.    | [`../src/dashboard/lib/engine/config.ts`](../src/dashboard/lib/engine/config.ts)                                            |
-| **`useEngineConfig` hook**| Loads the editable slice once and exposes `save(patch)`; the server returns the merged result, which becomes new state.                  | [`../src/dashboard/lib/engine/useEngineConfig.ts`](../src/dashboard/lib/engine/useEngineConfig.ts)                          |
+| Piece                      | What it is                                                                                                                                 | Where                                                                                                            |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| **/config page**           | Repo-scoped engine config entry point. Renders the Operators card plus the four engine-config cards. AuthGuard-gated.                      | [`../app/(chat-rail)/config/page.tsx`](<../app/(chat-rail)/config/page.tsx>)                                     |
+| **RepoConfigManager**      | Page shell. Composes `OperatorsCard` + `EngineConfigCards`. Distinct from /company, which is now only bundle import/export.                | [`../src/dashboard/lib/components/RepoConfigManager.tsx`](../src/dashboard/lib/components/RepoConfigManager.tsx) |
+| **Operators card**         | Edits `github.operators` — the inbox routing list. Its own GET/PUT route, not the shared config patch.                                     | [`../src/dashboard/lib/components/OperatorsCard.tsx`](../src/dashboard/lib/components/OperatorsCard.tsx)         |
+| **Engine config cards**    | Four cards — quality commands, access gate, default branch, comment aliases — sharing one `useEngineConfig` load and a partial-patch save. | [`../src/dashboard/lib/components/EngineConfigCards.tsx`](../src/dashboard/lib/components/EngineConfigCards.tsx) |
+| **`config.ts`**            | Read/cache/merge-write of `kody.config.json`. Owns the merge-not-overwrite contract and the legacy-`model`-strip. Pure, server-side.       | [`../src/dashboard/lib/engine/config.ts`](../src/dashboard/lib/engine/config.ts)                                 |
+| **`useEngineConfig` hook** | Loads the editable slice once and exposes `save(patch)`; the server returns the merged result, which becomes new state.                    | [`../src/dashboard/lib/engine/useEngineConfig.ts`](../src/dashboard/lib/engine/useEngineConfig.ts)               |
 
 ## What lives in `kody.config.json`
 
 The engine reads a handful of top-level keys. The dashboard splits editing
 across three pages by concern — /config owns the repo-wide behavior fields:
 
-| Field                          | What it controls                                                                                                            | Edited on                              |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `github.operators`             | GitHub logins recommendation duties @-mention so their comment routes into the dashboard inbox. Empty = nobody is tagged.    | **/config** → Operators card           |
-| `quality.{typecheck,lint,format,testUnit}` | Commands the engine runs to verify the code it produces. Blank/absent = skip that check.                       | **/config** → Quality commands         |
-| `access.allowedAssociations`   | GitHub author associations allowed to trigger `@kody` (OWNER/MEMBER/…). Empty = engine default (team only).                  | **/config** → Access gate              |
-| `git.defaultBranch`            | Base branch new work branches off and targets. Blank = engine default (`main`).                                             | **/config** → Default branch           |
-| `aliases`                      | Word → subcommand map, e.g. `{ "build": "run" }` lets `@kody build` dispatch `run`.                                          | **/config** → Comment aliases          |
-| `agent.model`                  | The `provider/model` the engine runs. **The only key the engine reads for its model.**                                       | /models (synced on save)               |
-| `agent.perExecutable`          | Per-executable model override, e.g. `{ "research": "anthropic/claude-opus-4-7" }`.                                          | /models                                |
-| `defaultExecutable` / `defaultPrExecutable` | Executable for a bare `@kody` on an issue / PR (engine defaults: `classify` / `fix`).                          | /executables                           |
+| Field                                       | What it controls                                                                                                          | Edited on                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `github.operators`                          | GitHub logins recommendation duties @-mention so their comment routes into the dashboard inbox. Empty = nobody is tagged. | **/config** → Operators card   |
+| `quality.{typecheck,lint,format,testUnit}`  | Commands the engine runs to verify the code it produces. Blank/absent = skip that check.                                  | **/config** → Quality commands |
+| `access.allowedAssociations`                | GitHub author associations allowed to trigger `@kody` (OWNER/MEMBER/…). Empty = engine default (team only).               | **/config** → Access gate      |
+| `git.defaultBranch`                         | Base branch new work branches off and targets. Blank = engine default (`main`).                                           | **/config** → Default branch   |
+| `aliases`                                   | Word → subcommand map, e.g. `{ "build": "run" }` lets `@kody build` dispatch `run`.                                       | **/config** → Comment aliases  |
+| `agent.model`                               | The `provider/model` the engine runs. **The only key the engine reads for its model.**                                    | /models (synced on save)       |
+| `agent.perExecutable`                       | Per-executable model override, e.g. `{ "research": "anthropic/claude-opus-4-7" }`.                                        | /models                        |
+| `defaultExecutable` / `defaultPrExecutable` | Executable for a bare `@kody` on an issue / PR (engine defaults: `classify` / `fix`).                                     | /executables                   |
 
 ## The Operators card — inbox routing
 
@@ -139,18 +139,18 @@ saving /models writes `agent.model` (and `agent.perExecutable`).
 
 ## File reference
 
-| File                                                                                             | Purpose                                                            |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| [`../app/(chat-rail)/config/page.tsx`](<../app/(chat-rail)/config/page.tsx>)                      | /config page entry (AuthGuard + RepoConfigManager)                 |
-| [`../src/dashboard/lib/components/RepoConfigManager.tsx`](../src/dashboard/lib/components/RepoConfigManager.tsx) | Page shell composing the cards                          |
-| [`../src/dashboard/lib/components/OperatorsCard.tsx`](../src/dashboard/lib/components/OperatorsCard.tsx)         | `github.operators` editor                               |
-| [`../src/dashboard/lib/components/EngineConfigCards.tsx`](../src/dashboard/lib/components/EngineConfigCards.tsx) | Quality / access / branch / aliases cards               |
-| [`../src/dashboard/lib/engine/config.ts`](../src/dashboard/lib/engine/config.ts)                  | Read/cache/merge-write of `kody.config.json`; `engineModelSpec` consumers |
-| [`../src/dashboard/lib/engine/useEngineConfig.ts`](../src/dashboard/lib/engine/useEngineConfig.ts) | Hook: load slice + partial-patch save                             |
-| [`../app/api/kody/company/config/route.ts`](../app/api/kody/company/config/route.ts)              | GET/PATCH for quality, aliases, access, branch, perExecutable      |
-| [`../app/api/kody/company/operators/route.ts`](../app/api/kody/company/operators/route.ts)        | GET/PUT for `github.operators`                                     |
-| [`../app/api/kody/models/route.ts`](../app/api/kody/models/route.ts)                              | /models route; syncs `agent.model` on save                         |
-| [`../src/dashboard/lib/variables/models.ts`](../src/dashboard/lib/variables/models.ts)            | `engineModelSpec` / `pickEngineDefaultModel`                       |
+| File                                                                                                             | Purpose                                                                   |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| [`../app/(chat-rail)/config/page.tsx`](<../app/(chat-rail)/config/page.tsx>)                                     | /config page entry (AuthGuard + RepoConfigManager)                        |
+| [`../src/dashboard/lib/components/RepoConfigManager.tsx`](../src/dashboard/lib/components/RepoConfigManager.tsx) | Page shell composing the cards                                            |
+| [`../src/dashboard/lib/components/OperatorsCard.tsx`](../src/dashboard/lib/components/OperatorsCard.tsx)         | `github.operators` editor                                                 |
+| [`../src/dashboard/lib/components/EngineConfigCards.tsx`](../src/dashboard/lib/components/EngineConfigCards.tsx) | Quality / access / branch / aliases cards                                 |
+| [`../src/dashboard/lib/engine/config.ts`](../src/dashboard/lib/engine/config.ts)                                 | Read/cache/merge-write of `kody.config.json`; `engineModelSpec` consumers |
+| [`../src/dashboard/lib/engine/useEngineConfig.ts`](../src/dashboard/lib/engine/useEngineConfig.ts)               | Hook: load slice + partial-patch save                                     |
+| [`../app/api/kody/company/config/route.ts`](../app/api/kody/company/config/route.ts)                             | GET/PATCH for quality, aliases, access, branch, perExecutable             |
+| [`../app/api/kody/company/operators/route.ts`](../app/api/kody/company/operators/route.ts)                       | GET/PUT for `github.operators`                                            |
+| [`../app/api/kody/models/route.ts`](../app/api/kody/models/route.ts)                                             | /models route; syncs `agent.model` on save                                |
+| [`../src/dashboard/lib/variables/models.ts`](../src/dashboard/lib/variables/models.ts)                           | `engineModelSpec` / `pickEngineDefaultModel`                              |
 
 ## FAQ
 

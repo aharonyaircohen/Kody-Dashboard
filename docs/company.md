@@ -21,14 +21,14 @@ persona/scheduled-work split is new to you.
 
 ## The pieces
 
-| Piece                | What travels                                                                                                                            | Source on export                                                                  |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| **Staff**            | Each persona's slug, title, body, `disabled`. Schedule is always `null` and `staff` always `null` (staff don't run on their own).       | `.kody/staff/*.md` via `listStaffFiles()`                                          |
-| **Duties**           | Each duty's slug, title, body, `schedule` (`every:` cadence), `disabled`, and the `staff` slug it runs as.                               | `.kody/duties/*.md` via `listDutyFiles()`                                          |
-| **Commands**         | Repo-defined slash commands only — slug, description, argument hint, body. Built-ins ship with the dashboard, so they're never exported. | `.kody/commands/*.md` via `listRepoCommandFiles()` (filtered `source === "repo"`) |
-| **Executables**      | Each custom executable as a folder map: `profile.json` + `prompt.md` + any `*.sh` shell scripts + any `skills/<name>/SKILL.md`.          | `.kody/executables/<slug>/` via `listExecutableFiles()` / `readExecutableFile()`  |
-| **Instructions**     | The single repo behavioral overlay (tone/length/formatting), or `null` if the repo has none.                                            | `.kody/instructions.md` via `readInstructionsFile()`                              |
-| **Config** (policy)  | A repo-agnostic slice of `kody.config.json`: quality commands, comment aliases, the `@kody` access gate, default executables, per-executable model routing. | `kody.config.json` via `getEngineConfig()`                                         |
+| Piece               | What travels                                                                                                                                                | Source on export                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Staff**           | Each persona's slug, title, body, `disabled`. Schedule is always `null` and `staff` always `null` (staff don't run on their own).                           | `.kody/staff/*.md` via `listStaffFiles()`                                         |
+| **Duties**          | Each duty's slug, title, body, `schedule` (`every:` cadence), `disabled`, and the `staff` slug it runs as.                                                  | `.kody/duties/*.md` via `listDutyFiles()`                                         |
+| **Commands**        | Repo-defined slash commands only — slug, description, argument hint, body. Built-ins ship with the dashboard, so they're never exported.                    | `.kody/commands/*.md` via `listRepoCommandFiles()` (filtered `source === "repo"`) |
+| **Executables**     | Each custom executable as a folder map: `profile.json` + `prompt.md` + any `*.sh` shell scripts + any `skills/<name>/SKILL.md`.                             | `.kody/executables/<slug>/` via `listExecutableFiles()` / `readExecutableFile()`  |
+| **Instructions**    | The single repo behavioral overlay (tone/length/formatting), or `null` if the repo has none.                                                                | `.kody/instructions.md` via `readInstructionsFile()`                              |
+| **Config** (policy) | A repo-agnostic slice of `kody.config.json`: quality commands, comment aliases, the `@kody` access gate, default executables, per-executable model routing. | `kody.config.json` via `getEngineConfig()`                                        |
 
 What it **excludes**, by design: memory, the secrets vault, variables,
 dashboard/runtime config, goals, the inbox, notifications, and the
@@ -153,17 +153,17 @@ operators (a per-repo inbox-routing list, not company doctrine).
 
 ## File reference
 
-| File                                                                                                                | Purpose                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| [`src/dashboard/lib/company/types.ts`](../src/dashboard/lib/company/types.ts)                                       | Bundle shape, version, include/exclude doctrine, Zod `companyBundleSchema` (with legacy `prompts` fallback) |
-| [`src/dashboard/lib/company/export.ts`](../src/dashboard/lib/company/export.ts)                                     | `buildCompanyBundle()` — fans out the 6 reads, maps each to its repo-agnostic shape           |
-| [`src/dashboard/lib/company/import.ts`](../src/dashboard/lib/company/import.ts)                                      | `applyCompanyBundle()` — ordered writes, per-entry skip/overwrite, structured tally           |
-| [`app/api/kody/company/route.ts`](../app/api/kody/company/route.ts)                                                 | `GET` (export bundle), `POST` (import bundle)                                                  |
-| [`app/api/kody/company/operators/route.ts`](../app/api/kody/company/operators/route.ts)                             | `GET`/`PUT` the `github.operators` list                                                       |
-| [`app/api/kody/company/config/route.ts`](../app/api/kody/company/config/route.ts)                                   | `GET`/`PATCH` the dashboard-editable `kody.config.json` fields                                 |
-| [`src/dashboard/lib/components/CompanyManager.tsx`](../src/dashboard/lib/components/CompanyManager.tsx)              | The `/company` page UI — Export, Import, on-collision toggle, result tally                     |
-| [`app/(chat-rail)/company/page.tsx`](<../app/(chat-rail)/company/page.tsx>)                                         | `/company` route entry point                                                                  |
-| [`src/dashboard/lib/api.ts`](../src/dashboard/lib/api.ts)                                                           | `companyApi` client (`export`, `import`, `operators`, `config`)                               |
+| File                                                                                                    | Purpose                                                                                                     |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| [`src/dashboard/lib/company/types.ts`](../src/dashboard/lib/company/types.ts)                           | Bundle shape, version, include/exclude doctrine, Zod `companyBundleSchema` (with legacy `prompts` fallback) |
+| [`src/dashboard/lib/company/export.ts`](../src/dashboard/lib/company/export.ts)                         | `buildCompanyBundle()` — fans out the 6 reads, maps each to its repo-agnostic shape                         |
+| [`src/dashboard/lib/company/import.ts`](../src/dashboard/lib/company/import.ts)                         | `applyCompanyBundle()` — ordered writes, per-entry skip/overwrite, structured tally                         |
+| [`app/api/kody/company/route.ts`](../app/api/kody/company/route.ts)                                     | `GET` (export bundle), `POST` (import bundle)                                                               |
+| [`app/api/kody/company/operators/route.ts`](../app/api/kody/company/operators/route.ts)                 | `GET`/`PUT` the `github.operators` list                                                                     |
+| [`app/api/kody/company/config/route.ts`](../app/api/kody/company/config/route.ts)                       | `GET`/`PATCH` the dashboard-editable `kody.config.json` fields                                              |
+| [`src/dashboard/lib/components/CompanyManager.tsx`](../src/dashboard/lib/components/CompanyManager.tsx) | The `/company` page UI — Export, Import, on-collision toggle, result tally                                  |
+| [`app/(chat-rail)/company/page.tsx`](<../app/(chat-rail)/company/page.tsx>)                             | `/company` route entry point                                                                                |
+| [`src/dashboard/lib/api.ts`](../src/dashboard/lib/api.ts)                                               | `companyApi` client (`export`, `import`, `operators`, `config`)                                             |
 
 ## FAQ
 

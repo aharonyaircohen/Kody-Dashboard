@@ -75,7 +75,10 @@ const PatchSchema = z
       })
       .nullable()
       .optional(),
-    aliases: z.record(z.string().max(64), z.string().max(64)).nullable().optional(),
+    aliases: z
+      .record(z.string().max(64), z.string().max(64))
+      .nullable()
+      .optional(),
     allowedAssociations: z
       .array(z.enum(VALID_ASSOCIATIONS))
       .max(VALID_ASSOCIATIONS.length)
@@ -133,8 +136,13 @@ export async function PATCH(req: NextRequest) {
   if (!octokit)
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
-  const { quality, aliases, allowedAssociations, defaultBranch, perExecutable } =
-    parsed.data;
+  const {
+    quality,
+    aliases,
+    allowedAssociations,
+    defaultBranch,
+    perExecutable,
+  } = parsed.data;
 
   try {
     await writeConfigPatch(

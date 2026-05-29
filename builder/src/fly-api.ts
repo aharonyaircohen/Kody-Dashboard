@@ -20,21 +20,33 @@ function authHeader(token: string): HeadersInit {
 async function expectOk(res: Response, ctx: string): Promise<void> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`${ctx} failed: ${res.status} ${res.statusText} — ${text.slice(0, 400)}`);
+    throw new Error(
+      `${ctx} failed: ${res.status} ${res.statusText} — ${text.slice(0, 400)}`,
+    );
   }
 }
 
-export async function appExists(appName: string, token: string): Promise<boolean> {
-  const res = await fetch(`${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}`, {
-    headers: authHeader(token),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+export async function appExists(
+  appName: string,
+  token: string,
+): Promise<boolean> {
+  const res = await fetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}`,
+    {
+      headers: authHeader(token),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    },
+  );
   if (res.status === 404) return false;
   await expectOk(res, "appExists");
   return true;
 }
 
-export async function createApp(appName: string, orgSlug: string, token: string): Promise<void> {
+export async function createApp(
+  appName: string,
+  orgSlug: string,
+  token: string,
+): Promise<void> {
   const res = await fetch(`${FLY_MACHINES_BASE}/apps`, {
     method: "POST",
     headers: authHeader(token),
@@ -45,7 +57,10 @@ export async function createApp(appName: string, orgSlug: string, token: string)
   await expectOk(res, "createApp");
 }
 
-export async function allocateSharedIps(appName: string, token: string): Promise<void> {
+export async function allocateSharedIps(
+  appName: string,
+  token: string,
+): Promise<void> {
   const mutation = `
     mutation AllocateIps($appId: ID!) {
       v4: allocateIpAddress(input: { appId: $appId, type: shared_v4 }) { ipAddress { address } }
@@ -62,7 +77,8 @@ export async function allocateSharedIps(appName: string, token: string): Promise
   const data = (await res.json()) as { errors?: Array<{ message: string }> };
   if (data.errors?.length) {
     const msgs = data.errors.map((e) => e.message).join("; ");
-    if (!/already|exists/i.test(msgs)) throw new Error(`allocateSharedIps: ${msgs}`);
+    if (!/already|exists/i.test(msgs))
+      throw new Error(`allocateSharedIps: ${msgs}`);
   }
 }
 
@@ -70,24 +86,39 @@ export async function listMachines(
   appName: string,
   token: string,
 ): Promise<Array<{ id: string; state: string }>> {
-  const res = await fetch(`${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines`, {
-    headers: authHeader(token),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  const res = await fetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines`,
+    {
+      headers: authHeader(token),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    },
+  );
   if (res.status === 404) return [];
   await expectOk(res, "listMachines");
   const data = (await res.json()) as Array<{ id: string; state: string }>;
   return data.map((m) => ({ id: m.id, state: m.state }));
 }
 
-export async function destroyMachine(appName: string, machineId: string, token: string): Promise<void> {
+export async function destroyMachine(
+  appName: string,
+  machineId: string,
+  token: string,
+): Promise<void> {
   await fetch(
     `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/stop`,
-    { method: "POST", headers: authHeader(token), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
+    {
+      method: "POST",
+      headers: authHeader(token),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    },
   ).catch(() => undefined);
   const res = await fetch(
     `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}?force=true`,
-    { method: "DELETE", headers: authHeader(token), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
+    {
+      method: "DELETE",
+      headers: authHeader(token),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    },
   );
   if (res.status === 404) return;
   await expectOk(res, "destroyMachine");
@@ -163,7 +194,9 @@ export async function createPreviewMachine(
       return data.id;
     }
     const text = await res.text().catch(() => "");
-    lastErr = new Error(`createPreviewMachine ${res.status}: ${text.slice(0, 400)}`);
+    lastErr = new Error(
+      `createPreviewMachine ${res.status}: ${text.slice(0, 400)}`,
+    );
     if (!/MANIFEST_UNKNOWN|manifest unknown/i.test(text)) break;
     await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
   }

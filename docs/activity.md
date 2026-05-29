@@ -25,26 +25,26 @@ follow-up, not what a current page does — see [Attribution](#attribution-the-m
 
 ## The pieces
 
-| Piece                        | What it is                                                                                                                              | Where                                                                                                |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **Log** tab                  | Dashboard actions a verified human took (duty runs/edits, task actions, vault writes, staff/prompt/goal changes), newest-first.          | [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts) (`recordAudit`)   |
-| **Auto** tab                 | Company Activity — named, attributed engine actions (which staff ran which duty, why, and the outcome). Engine-authored.                 | [`../src/dashboard/lib/activity/company.ts`](../src/dashboard/lib/activity/company.ts)               |
-| **Runs** tab                 | kody.yml workflow-run health: queue depth, flood detector, median duration, plus the `@kody` action joined from each run's issue label.  | [`../src/dashboard/lib/activity/snapshot.ts`](../src/dashboard/lib/activity/snapshot.ts)             |
-| **Feed** tab                 | One row per chat/run **session**, grouped from the engine's per-session event files; expand for the raw event payloads.                  | [`../src/dashboard/lib/activity/feed.ts`](../src/dashboard/lib/activity/feed.ts)                      |
-| `recordAudit(req, spec)`     | The one call sites use to log a dashboard action. Resolves the **verified** actor from the request PAT, not the client-claimed login.    | [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts)                   |
-| `actionFromLabels`           | Pure map from a run's issue `kody:*` phase label → the `@kody` command behind it. **Changing those labels changes what Runs shows.**     | [`../src/dashboard/lib/activity/action.ts`](../src/dashboard/lib/activity/action.ts)                 |
+| Piece                    | What it is                                                                                                                              | Where                                                                                              |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| **Log** tab              | Dashboard actions a verified human took (duty runs/edits, task actions, vault writes, staff/prompt/goal changes), newest-first.         | [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts) (`recordAudit`) |
+| **Auto** tab             | Company Activity — named, attributed engine actions (which staff ran which duty, why, and the outcome). Engine-authored.                | [`../src/dashboard/lib/activity/company.ts`](../src/dashboard/lib/activity/company.ts)             |
+| **Runs** tab             | kody.yml workflow-run health: queue depth, flood detector, median duration, plus the `@kody` action joined from each run's issue label. | [`../src/dashboard/lib/activity/snapshot.ts`](../src/dashboard/lib/activity/snapshot.ts)           |
+| **Feed** tab             | One row per chat/run **session**, grouped from the engine's per-session event files; expand for the raw event payloads.                 | [`../src/dashboard/lib/activity/feed.ts`](../src/dashboard/lib/activity/feed.ts)                   |
+| `recordAudit(req, spec)` | The one call sites use to log a dashboard action. Resolves the **verified** actor from the request PAT, not the client-claimed login.   | [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts)                 |
+| `actionFromLabels`       | Pure map from a run's issue `kody:*` phase label → the `@kody` command behind it. **Changing those labels changes what Runs shows.**    | [`../src/dashboard/lib/activity/action.ts`](../src/dashboard/lib/activity/action.ts)               |
 
 ## The three sources (and where each lives)
 
 There is no engine→dashboard event bus. Each tab reaches into a different
 GitHub-stored artifact, all in the connected repo:
 
-| Source                    | Lives in                                                  | On branch         | Written by                                                                       | Read by                                                                  |
-| ------------------------- | --------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| **Dashboard audit log**   | `kody:audit-log` manifest issue body (a bounded JSON ring) | _(issue, no branch)_ | the dashboard, via `recordAudit`                                                 | `/api/kody/activity/log` (Log tab)                                       |
-| **Company activity**      | `.kody/activity/<date>.jsonl`                              | `kody-state`      | the **engine** (`appendCompanyActivity` in kody2)                                | `/api/kody/activity/autonomous` (Auto tab)                               |
-| **Per-session events**    | `.kody/events/<sessionId>.jsonl`                           | default branch ⚠️ | the **engine** (chat/run event stream)                                           | `/api/kody/activity/feed` (Feed tab)                                     |
-| **Workflow runs**         | GitHub Actions run history                                 | _(GitHub API)_    | GitHub (kody.yml dispatches)                                                      | `/api/kody/activity` (Runs tab)                                          |
+| Source                  | Lives in                                                   | On branch            | Written by                                        | Read by                                    |
+| ----------------------- | ---------------------------------------------------------- | -------------------- | ------------------------------------------------- | ------------------------------------------ |
+| **Dashboard audit log** | `kody:audit-log` manifest issue body (a bounded JSON ring) | _(issue, no branch)_ | the dashboard, via `recordAudit`                  | `/api/kody/activity/log` (Log tab)         |
+| **Company activity**    | `.kody/activity/<date>.jsonl`                              | `kody-state`         | the **engine** (`appendCompanyActivity` in kody2) | `/api/kody/activity/autonomous` (Auto tab) |
+| **Per-session events**  | `.kody/events/<sessionId>.jsonl`                           | default branch ⚠️    | the **engine** (chat/run event stream)            | `/api/kody/activity/feed` (Feed tab)       |
+| **Workflow runs**       | GitHub Actions run history                                 | _(GitHub API)_       | GitHub (kody.yml dispatches)                      | `/api/kody/activity` (Runs tab)            |
 
 > ⚠️ **Branch mismatch — flagged.** Company activity is read from the
 > `kody-state` branch (correct — that's where the engine commits state), but
@@ -163,12 +163,12 @@ time and raw record.
 The four tabs deliberately do **not** join into one timeline, because the
 attribution needed to do so honestly isn't fully there:
 
-| Source | Who-triggered-it is… | How reliable                                                                       |
-| ------ | -------------------- | ---------------------------------------------------------------------------------- |
-| Log    | the verified PAT login | **Strong** — resolved from the token, not spoofable.                              |
-| Auto   | the `staff` slug + `duty` | **Strong for the engine actor**, but it's the persona that ran, not the human who scheduled the duty. |
-| Runs   | guessed from `kody:*` labels | **Weak** — `null` whenever a run can't be matched to a labelled open issue. |
-| Feed   | the first message's author | **Weak** — user prompts often aren't logged, so initiator is frequently `null`. |
+| Source | Who-triggered-it is…         | How reliable                                                                                          |
+| ------ | ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Log    | the verified PAT login       | **Strong** — resolved from the token, not spoofable.                                                  |
+| Auto   | the `staff` slug + `duty`    | **Strong for the engine actor**, but it's the persona that ran, not the human who scheduled the duty. |
+| Runs   | guessed from `kody:*` labels | **Weak** — `null` whenever a run can't be matched to a labelled open issue.                           |
+| Feed   | the first message's author   | **Weak** — user prompts often aren't logged, so initiator is frequently `null`.                       |
 
 There is no shared correlation id across the three GitHub-stored sources. A
 true "this human approved X, which dispatched run Y, which emitted events Z"
@@ -207,25 +207,25 @@ GitHub is the broker for all four. The dashboard writes only the Log source
 
 ## File reference
 
-| File                                                                                                       | Purpose                                                                                  |
-| ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| [`../app/activity/page.tsx`](../app/activity/page.tsx)                                                      | Route entry — mounts `ActivityPage`.                                                     |
-| [`../src/dashboard/lib/components/ActivityPage.tsx`](../src/dashboard/lib/components/ActivityPage.tsx)      | The four-tab UI (Log / Auto / Runs / Feed) with filters + expandable rows.               |
-| [`../app/api/kody/activity/route.ts`](../app/api/kody/activity/route.ts)                                   | `GET /api/kody/activity` — Runs tab (workflow-run health + label join).                  |
-| [`../app/api/kody/activity/log/route.ts`](../app/api/kody/activity/log/route.ts)                           | `GET /api/kody/activity/log` — Log tab (durable + in-memory merge).                      |
-| [`../app/api/kody/activity/autonomous/route.ts`](../app/api/kody/activity/autonomous/route.ts)             | `GET /api/kody/activity/autonomous` — Auto tab (company activity).                       |
-| [`../app/api/kody/activity/feed/route.ts`](../app/api/kody/activity/feed/route.ts)                         | `GET /api/kody/activity/feed` — Feed tab (per-session events, on-demand).                |
-| [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts)                         | `recordAudit` — the durable, verified-actor write path.                                  |
-| [`../src/dashboard/lib/activity/action-log.ts`](../src/dashboard/lib/activity/action-log.ts)               | `AuditEvent` shape, the in-memory hot ring, and the legacy `recordAction` shim.          |
-| [`../src/dashboard/lib/activity/audit-store.ts`](../src/dashboard/lib/activity/audit-store.ts)             | Durable CAS ring in the `kody:audit-log` manifest issue body (cap 150).                  |
-| [`../src/dashboard/lib/activity/action.ts`](../src/dashboard/lib/activity/action.ts)                       | `actionFromLabels` / `mapRunActions` — `kody:*` label → `@kody` action; run→issue join.  |
-| [`../src/dashboard/lib/activity/categorize.ts`](../src/dashboard/lib/activity/categorize.ts)               | Coarse run category from trigger + title (the ceiling without a label join).             |
-| [`../src/dashboard/lib/activity/snapshot.ts`](../src/dashboard/lib/activity/snapshot.ts)                   | Pure fold of workflow runs → signals + flood/queue alert.                                |
-| [`../src/dashboard/lib/activity/types.ts`](../src/dashboard/lib/activity/types.ts)                         | Run/signal/alert shapes + flood/queue thresholds.                                        |
-| [`../src/dashboard/lib/activity/feed.ts`](../src/dashboard/lib/activity/feed.ts)                           | Pure fold of raw event lines → sessions.                                                 |
-| [`../src/dashboard/lib/activity/feed-source.ts`](../src/dashboard/lib/activity/feed-source.ts)             | Rate-limit-safe reader for `.kody/events/*.jsonl` (note the branch caveat).              |
-| [`../src/dashboard/lib/activity/company.ts`](../src/dashboard/lib/activity/company.ts)                     | Shape + JSONL parser for engine-authored `.kody/activity/*.jsonl`.                        |
-| [`../src/dashboard/lib/tasks/derive-column.ts`](../src/dashboard/lib/tasks/derive-column.ts)               | Consumes the same `kody:*` labels for board lanes — kept in lockstep with `action.ts`.   |
+| File                                                                                                   | Purpose                                                                                 |
+| ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| [`../app/activity/page.tsx`](../app/activity/page.tsx)                                                 | Route entry — mounts `ActivityPage`.                                                    |
+| [`../src/dashboard/lib/components/ActivityPage.tsx`](../src/dashboard/lib/components/ActivityPage.tsx) | The four-tab UI (Log / Auto / Runs / Feed) with filters + expandable rows.              |
+| [`../app/api/kody/activity/route.ts`](../app/api/kody/activity/route.ts)                               | `GET /api/kody/activity` — Runs tab (workflow-run health + label join).                 |
+| [`../app/api/kody/activity/log/route.ts`](../app/api/kody/activity/log/route.ts)                       | `GET /api/kody/activity/log` — Log tab (durable + in-memory merge).                     |
+| [`../app/api/kody/activity/autonomous/route.ts`](../app/api/kody/activity/autonomous/route.ts)         | `GET /api/kody/activity/autonomous` — Auto tab (company activity).                      |
+| [`../app/api/kody/activity/feed/route.ts`](../app/api/kody/activity/feed/route.ts)                     | `GET /api/kody/activity/feed` — Feed tab (per-session events, on-demand).               |
+| [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts)                     | `recordAudit` — the durable, verified-actor write path.                                 |
+| [`../src/dashboard/lib/activity/action-log.ts`](../src/dashboard/lib/activity/action-log.ts)           | `AuditEvent` shape, the in-memory hot ring, and the legacy `recordAction` shim.         |
+| [`../src/dashboard/lib/activity/audit-store.ts`](../src/dashboard/lib/activity/audit-store.ts)         | Durable CAS ring in the `kody:audit-log` manifest issue body (cap 150).                 |
+| [`../src/dashboard/lib/activity/action.ts`](../src/dashboard/lib/activity/action.ts)                   | `actionFromLabels` / `mapRunActions` — `kody:*` label → `@kody` action; run→issue join. |
+| [`../src/dashboard/lib/activity/categorize.ts`](../src/dashboard/lib/activity/categorize.ts)           | Coarse run category from trigger + title (the ceiling without a label join).            |
+| [`../src/dashboard/lib/activity/snapshot.ts`](../src/dashboard/lib/activity/snapshot.ts)               | Pure fold of workflow runs → signals + flood/queue alert.                               |
+| [`../src/dashboard/lib/activity/types.ts`](../src/dashboard/lib/activity/types.ts)                     | Run/signal/alert shapes + flood/queue thresholds.                                       |
+| [`../src/dashboard/lib/activity/feed.ts`](../src/dashboard/lib/activity/feed.ts)                       | Pure fold of raw event lines → sessions.                                                |
+| [`../src/dashboard/lib/activity/feed-source.ts`](../src/dashboard/lib/activity/feed-source.ts)         | Rate-limit-safe reader for `.kody/events/*.jsonl` (note the branch caveat).             |
+| [`../src/dashboard/lib/activity/company.ts`](../src/dashboard/lib/activity/company.ts)                 | Shape + JSONL parser for engine-authored `.kody/activity/*.jsonl`.                      |
+| [`../src/dashboard/lib/tasks/derive-column.ts`](../src/dashboard/lib/tasks/derive-column.ts)           | Consumes the same `kody:*` labels for board lanes — kept in lockstep with `action.ts`.  |
 
 ## FAQ
 
