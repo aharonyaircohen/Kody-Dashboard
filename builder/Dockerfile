@@ -12,6 +12,18 @@ RUN apk add --no-cache git ca-certificates curl bash skopeo \
     && cp /root/.fly/bin/flyctl /usr/local/bin/flyctl \
     && rm -rf /root/.fly
 
+# flyctl --remote-only still tries to parse DOCKER_HOST for the
+# "remote builder heartbeat" code path. The default unix:///var/run/...
+# triggers a Go URL parser bug ("missing hostname") and aborts the
+# build. Setting DOCKER_HOST to a valid TCP form short-circuits that
+# parser; flyctl never actually connects since --remote-only sends the
+# build to fly-builder-<org>.
+ENV DOCKER_HOST=tcp://127.0.0.1:2375
+
+# Pre-create an empty docker config so flyctl's credential lookup
+# doesn't fall through to host-discovery paths.
+RUN mkdir -p /root/.docker && echo '{}' > /root/.docker/config.json
+
 WORKDIR /app
 
 COPY package.json ./
