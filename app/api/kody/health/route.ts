@@ -28,6 +28,7 @@ import { getSecret } from "@dashboard/lib/vault/get-secret";
 import { buildHealthReport } from "@dashboard/lib/health/report";
 import { keyNameForModelSpec } from "@dashboard/lib/health/model-health";
 import type { RunLite } from "@dashboard/lib/health/runs-health";
+import { getBudget } from "@dashboard/lib/github-budget";
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -78,7 +79,10 @@ export async function GET(req: NextRequest) {
       dashboardUrlHint: process.env.NEXT_PUBLIC_SERVER_URL || undefined,
     });
 
-    return NextResponse.json(report);
+    // Surface the GitHub rate-limit budget snapshot fed by github-budget
+    // hooks. Read AFTER the workflow-run fetch above so it reflects fresh
+    // headers; null only on a cold instance that hasn't made a GH call yet.
+    return NextResponse.json({ ...report, budget: getBudget() });
   } catch (error: unknown) {
     return handleKodyApiError(error, "health");
   } finally {
