@@ -7,6 +7,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { throttling } from "@octokit/plugin-throttling";
 import { Octokit } from "@octokit/rest";
+import { revalidateTag } from "next/cache";
 import {
   GITHUB_OWNER,
   GITHUB_REPO,
@@ -17,6 +18,11 @@ import {
   TASK_ID_REGEX,
   ALL_STAGES,
 } from "./constants";
+import {
+  assertBudget,
+  methodKind,
+  recordResponseHeaders,
+} from "./github-budget";
 import { isProtectedBranch } from "./branches";
 import { STATE_BRANCH } from "./state-branch";
 import {
@@ -101,6 +107,27 @@ function invalidateCache(prefix: string): void {
 }
 
 /**
+ * Cross-instance invalidation via Next's Data Cache. Local instance already
+ * cleared its in-process Map above; this fans the same signal out to every
+ * other serverless instance so they don't keep serving stale data until TTL.
+ *
+ * Safe today: unknown tags are no-ops in Next. As reads migrate to
+ * `fetch(..., { next: { tags: ['gh:<tag>'] } })`, they automatically pick
+ * up cross-instance invalidation without touching this function again.
+ *
+ * Swallows errors — invalidation is best-effort; we never want a stale-data
+ * fix to throw and break the write that triggered it.
+ */
+function revalidateTagSafe(tag: string): void {
+  try {
+    revalidateTag(tag);
+  } catch {
+    // Outside a request scope (e.g. tests, scripts) revalidateTag throws.
+    // The in-process Map invalidation above is the authoritative path here.
+  }
+}
+
+/**
  * Targeted cache invalidation by category
  * Instead of clearing everything, only clear relevant caches
  */
@@ -108,6 +135,8 @@ export function invalidateTaskCache(): void {
   invalidateCache("issues:");
   invalidateCache("issue:");
   invalidateCache("workflows:");
+  revalidateTagSafe("gh:issues");
+  revalidateTagSafe("gh:workflows");
 }
 
 export function invalidatePRCache(): void {
@@ -115,18 +144,21 @@ export function invalidatePRCache(): void {
   invalidateCache("pr-");
   invalidateCache("open-prs:");
   invalidateCache("previews:");
+  revalidateTagSafe("gh:prs");
 }
 
 export function invalidateBoardCache(): void {
   invalidateCache("boards:");
   invalidateCache("labels:");
   invalidateCache("milestones:");
+  revalidateTagSafe("gh:boards");
 }
 
 export function invalidateBranchCache(): void {
   invalidateCache("branch:");
   invalidateCache("branches:");
   invalidateCache("refs:");
+  revalidateTagSafe("gh:branches");
 }
 
 /**
@@ -136,6 +168,7 @@ export function invalidateBranchCache(): void {
  */
 export function invalidatePRBehindCache(): void {
   invalidateCache("prbehind:");
+  revalidateTagSafe("gh:prbehind");
 }
 
 /**
@@ -154,8 +187,11 @@ export function invalidateIssueCache(issueNumber?: number): void {
     // conversation comments too. The PreviewModal comment list reads from
     // `pr-comments:` (separate prefix from `comments:`), so clear that too.
     invalidateCache("pr-comments:");
+    revalidateTagSafe(`gh:issue:${issueNumber}`);
+    revalidateTagSafe(`gh:comments:${issueNumber}`);
   }
   invalidateCache("issues:");
+  revalidateTagSafe("gh:issues");
 }
 
 /**
@@ -166,8 +202,10 @@ export function invalidateDutiesCache(slug?: string): void {
   if (typeof slug === "string" && slug.length > 0) {
     // Repo-scoped key shape: `duty:owner:repo:slug`. Wipe across repos.
     invalidateCache("duty:");
+    revalidateTagSafe(`gh:duty:${slug}`);
   }
   invalidateCache("duties:");
+  revalidateTagSafe("gh:duties");
 }
 
 /**
@@ -180,8 +218,10 @@ export function invalidateStaffCache(slug?: string): void {
   if (typeof slug === "string" && slug.length > 0) {
     // Repo-scoped key shape: `staff:owner:repo:slug`. Wipe across repos.
     invalidateCache("staff:");
+    revalidateTagSafe(`gh:staff:${slug}`);
   }
   invalidateCache("staff:");
+  revalidateTagSafe("gh:staff");
 }
 
 /**
@@ -194,8 +234,10 @@ export function invalidateCommandsCache(slug?: string): void {
   if (typeof slug === "string" && slug.length > 0) {
     // Repo-scoped key shape: `prompt:owner:repo:slug`. Wipe across repos.
     invalidateCache("prompt:");
+    revalidateTagSafe(`gh:prompt:${slug}`);
   }
   invalidateCache("prompts:");
+  revalidateTagSafe("gh:prompts");
 }
 
 /**
@@ -206,9 +248,11 @@ export function invalidateMemoryCache(id?: string): void {
   if (typeof id === "string" && id.length > 0) {
     // Repo-scoped key shape: `memory:owner:repo:id`. Wipe across repos.
     invalidateCache("memory:");
+    revalidateTagSafe(`gh:memory:${id}`);
   }
   invalidateCache("memory-index:");
   invalidateCache("memories:");
+  revalidateTagSafe("gh:memories");
 }
 
 /**
@@ -219,6 +263,28 @@ export function invalidateWorkflowCache(): void {
   invalidateCache("workflows:");
   invalidateCache("checks:");
   invalidateCache("runs:");
+  revalidateTagSafe("gh:workflows");
+}
+
+// ============ Budget circuit breaker ============
+//
+// Attach the same pre/post hooks to every Octokit instance so the budget
+// snapshot reflects ALL traffic and assertBudget runs before every call.
+// `hook.before` throws -> the request is never sent (saves the wall);
+// `hook.after` feeds the snapshot from response headers.
+
+function attachBudgetHooks(octokit: Octokit): void {
+  // Defensive: tests mock Octokit and may not expose `.hook`.
+  const hook = (octokit as { hook?: any }).hook;
+  if (!hook || typeof hook.before !== "function") return;
+  hook.before("request", (options: any) => {
+    assertBudget(methodKind(options?.method));
+  });
+  hook.after("request", (response: any) => {
+    if (response?.headers) {
+      recordResponseHeaders(response.headers as Record<string, unknown>);
+    }
+  });
 }
 
 // ============ Per-Request Repo Context ============
@@ -295,6 +361,7 @@ export function setGitHubContext(
       },
     },
   });
+  attachBudgetHooks(_octokit);
 }
 
 export function clearGitHubContext(): void {
@@ -355,6 +422,7 @@ export function getOctokit(): Octokit {
       },
     },
   });
+  attachBudgetHooks(octokitInstance);
 
   return octokitInstance as ThrottledOctokit;
 }
@@ -366,7 +434,7 @@ export function getOctokit(): Octokit {
  */
 export function createUserOctokit(token: string): Octokit {
   const MyOctokit = Octokit.plugin(throttling);
-  return new MyOctokit({
+  const instance = new MyOctokit({
     auth: token,
     throttle: {
       onRateLimit: (retryAfter, _options, _octokit) => {
@@ -387,6 +455,8 @@ export function createUserOctokit(token: string): Octokit {
       },
     },
   });
+  attachBudgetHooks(instance);
+  return instance;
 }
 
 // ============ Branch Discovery ============
