@@ -37,6 +37,36 @@ import {
 } from "./github-client";
 import { INTERNAL_ISSUE_LABEL } from "./constants";
 
+/**
+ * GitHub rejects issue bodies over 65,536 chars with a 422; a rejected PATCH
+ * then reads back unchanged and the CAS verify falsely reports "write conflict"
+ * → the manifest silently freezes. We keep the default budget well below the
+ * hard limit so preamble/fences/markers always fit. Each store can override.
+ *
+ * Past regression (inbox-feed): bloated past 65,536 → every append turned into
+ * a bogus retry storm. Fixed there by capping entries; this is the same guard
+ * promoted into the shared core so the other 4 stores can't repeat it.
+ */
+export const DEFAULT_MAX_BODY_BYTES = 60_000;
+
+/**
+ * Thrown when `serialize(beforeWrite(next))` exceeds the configured byte
+ * budget. Carries the actual size + budget so callers (and our duty-failure
+ * dispatch) can surface a useful error instead of pretending it's a conflict.
+ */
+export class ManifestBodyTooLargeError extends Error {
+  readonly name = "ManifestBodyTooLargeError";
+  constructor(
+    public readonly manifestName: string,
+    public readonly bytes: number,
+    public readonly maxBytes: number,
+  ) {
+    super(
+      `${manifestName} body is ${bytes} bytes, over the ${maxBytes}-byte budget. Refusing to write — GitHub would reject it at 65536 and the CAS loop would loop on a bogus conflict.`,
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-repo mutex (verbatim from the originals — chain onto the tail so the
 // next caller waits on us; we don't care about the previous result, only
@@ -115,6 +145,20 @@ export interface ManifestStoreConfig<M> {
   empty: () => M;
   /** No-op-skip / verify-after-write equality (per-entity strategy). */
   equals: (a: M, b: M) => boolean;
+  /**
+   * Per-store last-chance trim invoked right before write. Use it to drop
+   * oldest entries so the serialized body stays under `maxBodyBytes` for
+   * unbounded growth stores (push subs, cto-decisions log, …). Curated lists
+   * (goals, notification rules) can omit it — the byte guard will throw a
+   * clean `ManifestBodyTooLargeError` instead of silently looping.
+   */
+  beforeWrite?: (manifest: M) => M;
+  /**
+   * Hard byte ceiling on the serialized body. Default `DEFAULT_MAX_BODY_BYTES`.
+   * Override only if a store has a different headroom budget (e.g. inbox-feed
+   * uses 50,000 because its preamble is shorter and entries are fatter).
+   */
+  maxBodyBytes?: number;
 }
 
 export interface ManifestStore<M> {
@@ -145,6 +189,8 @@ export function createManifestStore<M>(
 ): ManifestStore<M> {
   const { label, title, name, parse, serialize, empty, equals } = config;
   const lockPrefix = config.lockPrefix ?? "";
+  const beforeWrite = config.beforeWrite ?? ((m: M) => m);
+  const maxBodyBytes = config.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
 
   async function pickIssueNumber(noCache: boolean): Promise<number | null> {
     const issues = await fetchIssues({
@@ -171,12 +217,26 @@ export function createManifestStore<M>(
     return parse(full?.body ?? "");
   }
 
+  /**
+   * Returns the safe-to-write manifest + its serialized body. Applies the
+   * per-store `beforeWrite` trim, then guards on `maxBodyBytes`. Throws
+   * `ManifestBodyTooLargeError` if the trim couldn't get under budget — the
+   * mutate loop catches and surfaces this instead of falsely retrying.
+   */
+  function prepareForWrite(next: M): { safe: M; body: string } {
+    const safe = beforeWrite(next);
+    const body = serialize(safe);
+    if (body.length > maxBodyBytes) {
+      throw new ManifestBodyTooLargeError(name, body.length, maxBodyBytes);
+    }
+    return { safe, body };
+  }
+
   async function write(
-    next: M,
+    body: string,
     existingNumber: number | null,
     userOctokit?: Octokit,
   ): Promise<number> {
-    const body = serialize(next);
     if (existingNumber !== null) {
       await updateIssue(existingNumber, { body }, userOctokit);
       return existingNumber;
@@ -210,11 +270,11 @@ export function createManifestStore<M>(
         }
 
         const written = mutation as { next: M; result: T };
-        const issueNumber = await write(
-          written.next,
-          ref.number,
-          options.userOctokit,
-        );
+        // prepareForWrite applies beforeWrite + byte-budget guard. A
+        // ManifestBodyTooLargeError surfaces immediately (no retry) — retrying
+        // wouldn't shrink the body, so looping is just wasted GitHub budget.
+        const { safe, body } = prepareForWrite(written.next);
+        const issueNumber = await write(body, ref.number, options.userOctokit);
         invalidateIssueCache(issueNumber);
 
         // Verify: re-read with noCache; if the body doesn't match what we
@@ -223,10 +283,10 @@ export function createManifestStore<M>(
         const verify = await fetchIssue(issueNumber, { noCache: true });
         const verifyManifest = parse(verify?.body ?? "");
 
-        if (equals(verifyManifest, written.next)) {
+        if (equals(verifyManifest, safe)) {
           return {
             result: written.result,
-            manifest: written.next,
+            manifest: safe,
             issueNumber,
           };
         }

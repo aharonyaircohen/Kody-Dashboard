@@ -22,7 +22,10 @@ vi.mock("@dashboard/lib/github-client", () => ({
   getRepo: vi.fn(() => "widgets"),
 }));
 
-import { createManifestStore } from "@dashboard/lib/manifest-store";
+import {
+  createManifestStore,
+  ManifestBodyTooLargeError,
+} from "@dashboard/lib/manifest-store";
 import { INTERNAL_ISSUE_LABEL } from "@dashboard/lib/constants";
 import {
   fetchIssues,
@@ -310,5 +313,112 @@ describe("manifest-store · fresh vs cached reads", () => {
 
     expect(a).toEqual({ number: null, manifest: { count: 0 } });
     expect(a.manifest).not.toBe(b.manifest); // distinct objects
+  });
+});
+
+// ── byte budget + beforeWrite trim ─────────────────────────────────────────
+// These are the safety nets for the four stores that don't (yet) cap their
+// own bodies: a buggy mutator can't silently push the manifest past GitHub's
+// 65 536-char issue-body limit and trigger an endless CAS "conflict" loop.
+
+describe("manifest-store · byte-budget guard", () => {
+  it("refuses to write when the serialized body exceeds maxBodyBytes", async () => {
+    wireSingleIssue({ existing: { number: 7, body: "COUNT=0" } });
+    // Force a tiny budget. The serializer emits "manifest body COUNT=N" — at
+    // N=999_999 the body is 23 chars; a 10-byte budget guarantees we trip the
+    // guard regardless of the count value the mutator picks.
+    const s = createManifestStore<Bag>({
+      label: LABEL,
+      title: "Test Manifest",
+      name: "test manifest",
+      parse: makeParse(),
+      serialize,
+      empty: () => ({ count: 0 }),
+      equals: (a, b) => a.count === b.count,
+      maxBodyBytes: 10,
+    });
+
+    await expect(
+      s.mutate(() => ({ next: { count: 1 }, result: "ok" })),
+    ).rejects.toBeInstanceOf(ManifestBodyTooLargeError);
+
+    // Crucially: the write was refused BEFORE hitting GitHub. No PATCH = no
+    // fake CAS retry storm = no budget burn on a doomed manifest.
+    expect(mUpdateIssue).not.toHaveBeenCalled();
+    expect(mCreateIssue).not.toHaveBeenCalled();
+  });
+
+  it("ManifestBodyTooLargeError carries the actual size + budget for diagnostics", async () => {
+    wireSingleIssue({ existing: { number: 7, body: "COUNT=0" } });
+    const s = createManifestStore<Bag>({
+      label: LABEL,
+      title: "Test Manifest",
+      name: "test manifest",
+      parse: makeParse(),
+      serialize,
+      empty: () => ({ count: 0 }),
+      equals: (a, b) => a.count === b.count,
+      maxBodyBytes: 10,
+    });
+
+    try {
+      await s.mutate(() => ({ next: { count: 42 }, result: 0 }));
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(ManifestBodyTooLargeError);
+      const e = err as ManifestBodyTooLargeError;
+      expect(e.maxBytes).toBe(10);
+      expect(e.bytes).toBeGreaterThan(10);
+      expect(e.manifestName).toBe("test manifest");
+    }
+  });
+});
+
+describe("manifest-store · beforeWrite trim", () => {
+  it("applies beforeWrite to the next manifest before the byte guard runs", async () => {
+    wireSingleIssue({ existing: { number: 7, body: "COUNT=0" } });
+    // beforeWrite clamps count to 5 — without it, count=999 serializes to a
+    // 25-byte body that exceeds the 18-byte budget. With it, body is 20 bytes
+    // ("manifest body COUNT=5") and fits.
+    const s = createManifestStore<Bag>({
+      label: LABEL,
+      title: "Test Manifest",
+      name: "test manifest",
+      parse: makeParse(),
+      serialize,
+      empty: () => ({ count: 0 }),
+      equals: (a, b) => a.count === b.count,
+      maxBodyBytes: 21,
+      beforeWrite: (m) => ({ count: Math.min(m.count, 5) }),
+    });
+
+    const out = await s.mutate(() => ({ next: { count: 999 }, result: "ok" }));
+
+    expect(mUpdateIssue).toHaveBeenCalledTimes(1);
+    // The outcome's `manifest` reflects the *post-trim* manifest, so callers
+    // can't accidentally believe their pre-trim value got persisted.
+    expect(out).toMatchObject({ result: "ok", manifest: { count: 5 } });
+  });
+
+  it("verify-after-write compares the post-trim manifest (no false conflict)", async () => {
+    // If verify compared the pre-trim manifest, this would loop forever:
+    // mutator picks count=999, beforeWrite clamps to 5, written body parses
+    // back to 5 — equals({count:999}, {count:5}) is false → bogus conflict.
+    wireSingleIssue({ existing: { number: 7, body: "COUNT=0" } });
+    const s = createManifestStore<Bag>({
+      label: LABEL,
+      title: "Test Manifest",
+      name: "test manifest",
+      parse: makeParse(),
+      serialize,
+      empty: () => ({ count: 0 }),
+      equals: (a, b) => a.count === b.count,
+      beforeWrite: (m) => ({ count: Math.min(m.count, 5) }),
+    });
+
+    await expect(
+      s.mutate(() => ({ next: { count: 999 }, result: 0 })),
+    ).resolves.toMatchObject({ result: 0 });
+    expect(mUpdateIssue).toHaveBeenCalledTimes(1);
   });
 });
