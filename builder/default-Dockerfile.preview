@@ -57,7 +57,10 @@ RUN --mount=type=cache,id=kp-next-cache,target=/app/.next/cache \
     if [ -f pnpm-lock.yaml ]; then pnpm exec next build; \
     else npx next build; \
     fi
-RUN if [ -f pnpm-lock.yaml ]; then pnpm prune --prod || true; fi
+# Keep dev dependencies — many apps (Payload CMS, Next.js with
+# instrumentation hooks, etc.) load modules at runtime that aren't
+# strictly "production" deps in their package.json. Pruning was a
+# size optimization but it broke A-Guy's runtime with MODULE_NOT_FOUND.
 
 FROM node:22-alpine AS runner
 WORKDIR /app
