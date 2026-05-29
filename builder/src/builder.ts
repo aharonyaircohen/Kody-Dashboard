@@ -34,6 +34,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { copyFile, mkdir, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -121,10 +122,9 @@ async function cloneRepo(
 function baseAppName(repo: string): string {
   const [owner, name] = repo.split("/");
   if (!owner || !name) throw new Error(`invalid repo "${repo}"`);
-  // Use the same SHA256 prefix scheme that preview-key.ts uses
-  // (imported manually here to keep builder CLI dep-free).
+  // Same SHA256 prefix scheme that preview-key.ts uses.
   const sha = (s: string) =>
-    require("node:crypto").createHash("sha256").update(s).digest("hex").slice(0, 6);
+    createHash("sha256").update(s).digest("hex").slice(0, 6);
   return `kp-${sha(owner)}-${sha(name)}-base`;
 }
 
