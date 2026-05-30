@@ -45,7 +45,7 @@ import { parseGoalMention, type GoalRef } from "../goal-mention";
 import { useElementPicker } from "../picker/useElementPicker";
 import { formatPageInfo } from "../picker/protocol";
 import { runPreviewAction } from "../picker/run-preview-action";
-import { formatMacrosCatalog, readMacros } from "../macros";
+import { formatMacrosCatalog, type Macro } from "../macros";
 import { SlashCommandMenu, filterCommands } from "./SlashCommandMenu";
 import {
   authHeaders,
@@ -346,17 +346,21 @@ export function KodyChat({
     try {
       const info = await previewPickerRef.current.collectPage(300);
       if (!info) return null;
-      // Append the saved-macros catalog so the model can offer to run
-      // them when the user mentions one by name ("run my Login macro").
-      // Read per-send so newly-saved macros are visible immediately.
-      const ownerForMacros = auth?.owner ?? "";
-      const repoForMacros = auth?.repo ?? "";
-      const macrosBlock =
-        ownerForMacros && repoForMacros
-          ? formatMacrosCatalog(readMacros(ownerForMacros, repoForMacros))
-          : null;
+      // Append the saved-macros catalog so the model can offer to run them
+      // when the user mentions one by name ("run my Login macro"). Macros
+      // now live in the repo (.kody/macros.json), so fetch per-send — newly
+      // saved macros are visible immediately, and it works across devices.
       const parts = [formatPageInfo(info)];
-      if (macrosBlock) parts.push(macrosBlock);
+      try {
+        const res = await fetch("/api/kody/macros", { headers: authHeaders() });
+        if (res.ok) {
+          const data = (await res.json()) as { macros?: Macro[] };
+          const macrosBlock = formatMacrosCatalog(data.macros ?? []);
+          if (macrosBlock) parts.push(macrosBlock);
+        }
+      } catch {
+        /* best-effort: macros catalog is optional context */
+      }
       return parts.join("\n\n");
     } catch {
       return null;
