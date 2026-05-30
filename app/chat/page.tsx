@@ -1,11 +1,13 @@
 /**
  * @fileType page
  * @domain kody
- * @pattern dashboard-page
- * @ai-summary Kody dashboard with chat panel pre-opened via URL /chat.
+ * @pattern chat-page
+ * @ai-summary Chat is the primary assistant view. The page itself renders
+ *   nothing — the single persistent KodyChat lives in ChatRailShell and is
+ *   shown full-pane when the route is /chat (so history/streaming survive
+ *   navigation). This page exists only to own the /chat route + its metadata.
  *   Force static for OG tags - social media crawlers need metadata without auth.
  */
-import { KodyDashboard } from "@dashboard/lib/components/KodyDashboard";
 import { buildKodyMetadata } from "../metadata";
 
 // Force static generation so OG tags are available without authentication
@@ -20,5 +22,7 @@ export const metadata = buildKodyMetadata({
 });
 
 export default async function KodyChatPage() {
-  return <KodyDashboard initialModal="chat" />;
+  // Chat is rendered by ChatRailShell (the persistent mount). This page pane
+  // is hidden on /chat, so it renders nothing.
+  return null;
 }

@@ -27,7 +27,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { MessageSquare, PanelLeft } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import {
   Sheet,
@@ -37,6 +37,7 @@ import {
   SheetTitle,
 } from "@dashboard/ui/sheet";
 import { KodyChat } from "./KodyChat";
+import { AppTopBar } from "./AppTopBar";
 import { Sidebar } from "./Sidebar";
 import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
@@ -152,30 +153,9 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     [goals],
   );
 
-  // Desktop chat rail sizing. `collapsed` shrinks the aside to zero width
-  // (KodyChat stays mounted — see file docstring — so streaming/scroll
-  // state survives) and surfaces a floating reopen button. `fullscreen`
-  // grows the aside to full width, pushing the page to 0 width. Persisted
-  // per-browser so the user's preference sticks across reloads.
-  const [railMode, setRailMode] = useState<
-    "collapsed" | "normal" | "fullscreen"
-  >("normal");
-  useEffect(() => {
-    const saved = localStorage.getItem("kody:rail-mode");
-    if (saved === "collapsed" || saved === "fullscreen" || saved === "normal") {
-      setRailMode(saved);
-    }
-  }, []);
-  const updateRailMode = useCallback(
-    (next: "collapsed" | "normal" | "fullscreen") => {
-      setRailMode(next);
-      localStorage.setItem("kody:rail-mode", next);
-    },
-    [],
-  );
-
-  // Drag-to-resize width (px) for the rail in `normal` mode. Clamped so
-  // the user can't drag it off-screen or thinner than the composer needs.
+  // Drag-to-resize width (px) for the chat side-panel on the Vibe route
+  // (chat sits beside the live preview there). Clamped so the user can't
+  // drag it off-screen or thinner than the composer needs.
   const RAIL_MIN = 320;
   const RAIL_MAX = 900;
   const [railWidth, setRailWidth] = useState(400);
@@ -287,12 +267,38 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     );
   }
 
-  // Vibe and the dashboard share one chat surface. The dropdown shows
-  // the same list of models in both places — Kody Live remains the
-  // default (it's the only backend that can actually edit code), but
-  // the user can pick any configured LLM model for chat-only turns.
+  // The single KodyChat is shown two ways and otherwise stays mounted-but-
+  // hidden so its history/streaming survive navigation:
+  //   • /chat  → full-width main pane (the primary assistant view)
+  //   • /vibe  → fixed-width side panel beside the live preview
+  //   • else   → hidden (page pane owns the screen; toggle returns to chat)
+  // Kody Live remains the default agent (only it can edit code); the model
+  // dropdown still lets the user pick any configured LLM for chat-only turns.
+  const isChatRoute = pathname === "/chat";
   const isVibeRoute = pathname?.startsWith("/vibe") ?? false;
+  const chatVisible = isChatRoute || isVibeRoute;
+  const pageVisible = !isChatRoute;
   const lockedAgentId = undefined;
+
+  const chatPane = auth ? (
+    <KodyChat
+      context={scope}
+      actorLogin={githubUser?.login}
+      lockedAgentId={lockedAgentId}
+      vibeMode={isVibeRoute}
+      onIssueCreated={dispatchIssueCreated}
+      knownGoals={goals}
+      onDirectToGoal={directToGoal}
+      composerInjection={composerInjection}
+      attachmentInjection={attachmentInjection}
+    />
+  ) : (
+    <div className="flex-1 flex items-center justify-center p-6">
+      <p className="text-xs text-muted-foreground text-center leading-relaxed">
+        Connect a repository to start chatting with Kody.
+      </p>
+    </div>
+  );
 
   return (
     <ChatRailContext.Provider value={api}>
@@ -300,149 +306,120 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
         <SettingsDrawerProvider>
           <CommandPalette />
           <div className="h-screen flex overflow-hidden bg-background text-foreground">
-            {/* Desktop chat rail — hidden below md. Width is driven by
-            railMode; collapsed keeps KodyChat mounted but zero-width so
-            streaming/scroll state survives the collapse. */}
-            <aside
-              className={cn(
-                "hidden md:flex flex-col shrink-0 border-r border-border bg-black/20",
-                !dragging && "transition-[width] duration-200",
-                railMode === "collapsed" && "w-0 overflow-hidden border-r-0",
-                railMode === "fullscreen" && "w-full",
-              )}
-              style={railMode === "normal" ? { width: railWidth } : undefined}
-              aria-label="Kody chat"
-            >
-              {auth ? (
-                <KodyChat
-                  context={scope}
-                  actorLogin={githubUser?.login}
-                  lockedAgentId={lockedAgentId}
-                  vibeMode={isVibeRoute}
-                  onIssueCreated={dispatchIssueCreated}
-                  knownGoals={goals}
-                  onDirectToGoal={directToGoal}
-                  onCollapseRail={() => updateRailMode("collapsed")}
-                  onToggleFullscreen={() =>
-                    updateRailMode(
-                      railMode === "fullscreen" ? "normal" : "fullscreen",
-                    )
-                  }
-                  railFullscreen={railMode === "fullscreen"}
-                  composerInjection={composerInjection}
-                  attachmentInjection={attachmentInjection}
-                />
-              ) : (
-                <div className="flex-1 flex items-center justify-center p-6">
-                  <p className="text-xs text-muted-foreground text-center leading-relaxed">
-                    Connect a repository to start chatting with Kody.
-                  </p>
-                </div>
-              )}
-            </aside>
-
-            {/* Drag-to-resize handle — desktop, normal mode only. Sits
-            on the seam between the chat rail and the nav sidebar. */}
-            {auth && railMode === "normal" && (
-              <div
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Resize chat"
-                onPointerDown={startResize}
-                onDoubleClick={() => {
-                  setRailWidth(400);
-                  localStorage.setItem("kody:rail-width", "400");
-                }}
-                className={cn(
-                  "hidden md:block shrink-0 w-1 cursor-col-resize select-none -ml-px",
-                  "hover:bg-emerald-500/40 active:bg-emerald-500/60",
-                  dragging ? "bg-emerald-500/60" : "bg-transparent",
-                )}
-                title="Drag to resize · double-click to reset"
-              />
-            )}
-
-            {/* Persistent primary-navigation rail — desktop only, sits
-            to the right of the chat. The SettingsDrawer remains mounted
-            for the mobile/header path; desktop kebab triggers removed. */}
+            {/* Left navigation rail — desktop only (mobile uses the
+            AppTopBar hamburger + MobileMenu sheet). */}
             <Sidebar />
 
-            {/* Page content. Pages own their own internal scroll. */}
-            <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
-              {children}
+            {/* Main column: global top strip (view toggle) + switchable
+            content pane. */}
+            <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
+              <AppTopBar />
+
+              <div className="flex-1 min-h-0 flex overflow-hidden">
+                {/* Chat pane. Full-width on /chat; a fixed-width side panel
+                on /vibe; kept mounted (hidden) elsewhere so chat state
+                persists across navigation. */}
+                <div
+                  className={cn(
+                    "flex flex-col min-h-0",
+                    !chatVisible && "hidden",
+                    isChatRoute && "flex-1",
+                    isVibeRoute &&
+                      "hidden md:flex shrink-0 border-r border-border bg-black/20",
+                  )}
+                  style={isVibeRoute ? { width: railWidth } : undefined}
+                  aria-label="Kody chat"
+                >
+                  {chatPane}
+                </div>
+
+                {/* Vibe-only drag handle between chat and the preview. */}
+                {auth && isVibeRoute && (
+                  <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize chat"
+                    onPointerDown={startResize}
+                    onDoubleClick={() => {
+                      setRailWidth(400);
+                      localStorage.setItem("kody:rail-width", "400");
+                    }}
+                    className={cn(
+                      "hidden md:block shrink-0 w-1 cursor-col-resize select-none -ml-px",
+                      "hover:bg-emerald-500/40 active:bg-emerald-500/60",
+                      dragging ? "bg-emerald-500/60" : "bg-transparent",
+                    )}
+                    title="Drag to resize · double-click to reset"
+                  />
+                )}
+
+                {/* Page content. Pages own their own internal scroll. */}
+                <div
+                  className={cn(
+                    "flex-1 min-w-0 h-full overflow-hidden flex flex-col",
+                    !pageVisible && "hidden",
+                  )}
+                >
+                  {children}
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Desktop reopen button — only shows when the rail is
-          collapsed (md and up). */}
-          {auth && railMode === "collapsed" && (
-            <Button
-              type="button"
-              size="icon"
-              onClick={() => updateRailMode("normal")}
-              className={cn(
-                "hidden md:flex fixed bottom-4 left-4 z-40 h-11 w-11 rounded-full shadow-lg",
-                "bg-emerald-600 hover:bg-emerald-700 text-white",
-              )}
-              aria-label="Open chat"
-              title="Open chat"
-            >
-              <PanelLeft className="w-5 h-5" />
-            </Button>
-          )}
+          {/* Mobile chat overlay — Vibe only. The preview owns the small
+          screen there, so chat opens as a sheet via this FAB. Every other
+          route reaches chat through the AppTopBar view toggle. */}
+          {isVibeRoute && (
+            <>
+              <Button
+                type="button"
+                size="icon"
+                onClick={openMobileChat}
+                className={cn(
+                  "md:hidden fixed bottom-4 right-4 z-40 h-12 w-12 rounded-full shadow-lg",
+                  "bg-emerald-600 hover:bg-emerald-700 text-white",
+                )}
+                aria-label="Open chat"
+              >
+                <MessageSquare className="w-5 h-5" />
+              </Button>
 
-          {/* Mobile chat FAB — only shows below md. Hidden on /messages
-              because it overlaps that page's own send button (and is
-              redundant: the user is already in a chat surface). */}
-          {pathname?.startsWith("/messages") ? null : (
-            <Button
-              type="button"
-              size="icon"
-              onClick={openMobileChat}
-              className={cn(
-                "md:hidden fixed bottom-4 right-4 z-40 h-12 w-12 rounded-full shadow-lg",
-                "bg-emerald-600 hover:bg-emerald-700 text-white",
-              )}
-              aria-label="Open chat"
-            >
-              <MessageSquare className="w-5 h-5" />
-            </Button>
-          )}
-
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetContent
-              side="right"
-              hideClose
-              className="w-full sm:max-w-md !p-0 !gap-0 shadow-none border-0 outline-none focus:outline-none focus-visible:outline-none flex flex-col"
-            >
-              <SheetHeader className="sr-only">
-                <SheetTitle>Chat</SheetTitle>
-                <SheetDescription>Kody assistant chat</SheetDescription>
-              </SheetHeader>
-              <div className="flex-1 min-h-0">
-                {mobileOpen && auth ? (
-                  <KodyChat
-                    context={scope}
-                    actorLogin={githubUser?.login}
-                    onClose={() => setMobileOpen(false)}
-                    lockedAgentId={lockedAgentId}
-                    vibeMode={isVibeRoute}
-                    onIssueCreated={dispatchIssueCreated}
-                    knownGoals={goals}
-                    onDirectToGoal={directToGoal}
-                    composerInjection={composerInjection}
-                    attachmentInjection={attachmentInjection}
-                  />
-                ) : mobileOpen ? (
-                  <div className="flex-1 flex items-center justify-center p-6">
-                    <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                      Connect a repository to start chatting with Kody.
-                    </p>
+              <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+                <SheetContent
+                  side="right"
+                  hideClose
+                  className="w-full sm:max-w-md !p-0 !gap-0 shadow-none border-0 outline-none focus:outline-none focus-visible:outline-none flex flex-col"
+                >
+                  <SheetHeader className="sr-only">
+                    <SheetTitle>Chat</SheetTitle>
+                    <SheetDescription>Kody assistant chat</SheetDescription>
+                  </SheetHeader>
+                  <div className="flex-1 min-h-0">
+                    {mobileOpen && auth ? (
+                      <KodyChat
+                        context={scope}
+                        actorLogin={githubUser?.login}
+                        onClose={() => setMobileOpen(false)}
+                        lockedAgentId={lockedAgentId}
+                        vibeMode={isVibeRoute}
+                        onIssueCreated={dispatchIssueCreated}
+                        knownGoals={goals}
+                        onDirectToGoal={directToGoal}
+                        composerInjection={composerInjection}
+                        attachmentInjection={attachmentInjection}
+                      />
+                    ) : mobileOpen ? (
+                      <div className="flex-1 flex items-center justify-center p-6">
+                        <p className="text-sm text-muted-foreground text-center leading-relaxed">
+                          Connect a repository to start chatting with Kody.
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-            </SheetContent>
-          </Sheet>
+                </SheetContent>
+              </Sheet>
+            </>
+          )}
         </SettingsDrawerProvider>
       </NotificationsProvider>
     </ChatRailContext.Provider>

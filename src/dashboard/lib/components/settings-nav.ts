@@ -49,15 +49,15 @@ export interface SettingsNavItem {
  * Shared so the Sidebar, CommandPalette (and eventually MobileMenu) render
  * one list instead of drifting copies.
  */
-/** Home/landing — rendered standalone at the very top of the rail, above
- *  the grouped "Workspace" surfaces. It's the overview you land on, not a
- *  work surface, so it sits apart from Duties/Staff/Reports. */
+/** Primary assistant view — rendered standalone at the very top of the rail,
+ *  above the grouped "Workspace" surfaces. Chat is the app's home; Tasks is
+ *  its sibling view (first Workspace entry). */
 export const HOME_NAV_ITEM: SettingsNavItem = {
-  href: "/",
-  label: "Dashboard",
-  icon: Home,
+  href: "/chat",
+  label: "Chat",
+  icon: MessageSquare,
   exact: true,
-  description: "Pipelines, tasks, and run health at a glance.",
+  description: "Chat with Kody — coding help, notes, and ideas.",
   tint: "text-emerald-300 bg-emerald-500/10",
 };
 
@@ -65,6 +65,14 @@ export const HOME_NAV_ITEM: SettingsNavItem = {
 export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
+  {
+    href: "/tasks",
+    label: "Tasks",
+    icon: Home,
+    exact: true,
+    description: "Pipelines, tasks, and run health at a glance.",
+    tint: "text-emerald-300 bg-emerald-500/10",
+  },
   {
     href: "/duties",
     label: "Duties",
