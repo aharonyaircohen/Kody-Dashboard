@@ -137,8 +137,16 @@ export function PreviewViewsBar({
                 key={view.id}
                 role="option"
                 aria-selected={selected}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelect(view);
+                    setMenuOpen(false);
+                  }
+                }}
                 className={cn(
-                  "group flex items-center gap-2 px-2 py-1.5 mx-1 rounded text-xs cursor-pointer",
+                  "group flex items-center gap-2 px-2 py-1.5 mx-1 rounded text-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500/40",
                   selected
                     ? "bg-emerald-500/15 text-emerald-300"
                     : "text-zinc-300 hover:bg-zinc-800",
