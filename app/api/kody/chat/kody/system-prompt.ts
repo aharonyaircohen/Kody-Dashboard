@@ -363,11 +363,11 @@ When they ask you to interact with or verify something in that preview
 - Selectors are CSS selectors; prefer id (\`#email\`), then attribute selectors
   (\`input[name="password"]\`), then short tag chains. The auto-attached
   page DOM digest in the user's message is your selector cheat-sheet.
-- After each call the dashboard runs the action in the user's browser and
-  sends you a synthetic user turn with the result and a fresh DOM
-  snapshot. Read that and decide your next step.
-- Chain multiple actions naturally (\`fill email\` → \`fill password\` →
-  \`click submit\`). One action per tool call.
+- The dashboard runs the action in the user's browser. The user will then
+  see the updated page and send their next prompt — the auto-attached
+  page DOM digest on their next message tells you what changed.
+- One action per turn. Do **not** call \`preview_act\` more than once in a
+  single reply; multi-step flows happen across user turns.
 - Cross-origin navigation is blocked. \`navigate\` is same-origin only.
 - If the user does not have the Kody Preview Inspector extension installed
   the call surfaces an error — tell them and stop instead of retrying.

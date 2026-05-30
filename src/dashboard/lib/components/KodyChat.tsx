@@ -402,18 +402,27 @@ export function KodyChat({
         return;
       }
       if (!previewPickerRef.current.available) {
-        const send = sendTextRef.current;
-        if (send) {
-          await send(
-            "[preview action ❌] Extension not installed — install the Kody Preview Inspector to run preview actions.",
-          );
-        }
+        toast.error(
+          "Preview action failed — install the Kody Preview Inspector extension.",
+        );
         return;
       }
       const result = await previewPickerRef.current.act(action);
-      const followUp = formatPreviewActResult(action, result);
-      const send = sendTextRef.current;
-      if (send) await send(followUp);
+      // No synthetic follow-up turn. Earlier we re-fed the result into chat
+      // as a user message; the model then auto-called preview_act again
+      // and looped, plus the bubble looked like the user had said it.
+      // Surface success/failure with a toast and let the user drive the
+      // next prompt. Multi-step flows therefore need one user turn per
+      // step for now — we can re-introduce chaining later via a proper
+      // client-tool round-trip (AI SDK onToolCall) that lives entirely
+      // inside the assistant's turn instead of a fake user turn.
+      if (result.ok) {
+        toast.success(`Preview: ${directive.reason}`);
+      } else {
+        toast.error(
+          `Preview action failed: ${result.error ?? "unknown error"}`,
+        );
+      }
     },
     [],
   );
