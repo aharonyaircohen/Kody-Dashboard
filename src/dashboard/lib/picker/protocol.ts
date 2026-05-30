@@ -74,6 +74,27 @@ export interface PreviewActResult {
   info?: PageInfo;
 }
 
+/**
+ * Compose the hook's timeout error. Selector-targeted ops have a specific
+ * "no frame matched" semantic because sub-frames stay silent on miss; other
+ * ops report a generic timeout. Exported so unit tests can verify the
+ * message shape without driving the hook.
+ */
+export function composeActTimeoutError(
+  action: PreviewAction,
+  timeoutMs: number,
+): string {
+  const hasSelector =
+    action.op === "click" ||
+    action.op === "fill" ||
+    (action.op === "scroll" && Boolean(action.selector));
+  if (hasSelector) {
+    const sel = "selector" in action ? action.selector ?? "" : "";
+    return `selector not found in any preview frame: ${sel}`;
+  }
+  return `timed out after ${timeoutMs}ms`;
+}
+
 /** Where the user is in the preview right now (URL + title + selection + DOM). */
 export interface PageInfo {
   url: string;

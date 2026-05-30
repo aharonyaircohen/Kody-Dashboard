@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   PICKER_EXT_SOURCE,
   PICKER_PAGE_SOURCE,
+  composeActTimeoutError,
   type LogEntry,
   type NetworkEntry,
   type PageInfo,
@@ -317,13 +318,19 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
   const act = useCallback(
     (
       action: PreviewAction,
-      timeoutMs: number = 5000,
+      timeoutMs?: number,
     ): Promise<PreviewActResult> =>
       new Promise((resolve) => {
         if (typeof window === "undefined") {
           resolve({ ok: false, error: "no window" });
           return;
         }
+        // Adaptive default: `wait` honors its own ms + a small grace window;
+        // everything else uses a tight 3s because sub-frames stay silent on
+        // selector misses and we want a fast "not found" instead of a long
+        // dangling action toast.
+        const effectiveTimeout =
+          timeoutMs ?? (action.op === "wait" ? (action.ms ?? 200) + 1000 : 3000);
         const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const handler = (event: MessageEvent) => {
           if (event.source !== window) return;
@@ -347,8 +354,11 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
         );
         const timer = setTimeout(() => {
           window.removeEventListener("message", handler);
-          resolve({ ok: false, error: `timed out after ${timeoutMs}ms` });
-        }, timeoutMs);
+          resolve({
+            ok: false,
+            error: composeActTimeoutError(action, effectiveTimeout),
+          });
+        }, effectiveTimeout);
       }),
     [],
   );

@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.3.4";
+  const VERSION = "0.3.5";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -207,6 +207,13 @@
           .catch(() => {});
       } else if (msg?.kind === "act") {
         void performAction(msg.payload).then(function (result) {
+          // Selector-targeted ops (click/fill/scroll-to) broadcast to every
+          // sub-frame in the tab. Only the frame that actually contains the
+          // element should reply — otherwise an unrelated iframe (Next.js
+          // dev overlay, nested embed) wins the race with "not found" and
+          // the action erroneously fails. Silent-on-miss; the dashboard
+          // hook times out if no frame matched.
+          if (!result.ok && result.error === "not found") return;
           chrome.runtime
             .sendMessage({
               kind: "act-result",
