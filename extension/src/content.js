@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.4.0";
+  const VERSION = "0.3.4";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
