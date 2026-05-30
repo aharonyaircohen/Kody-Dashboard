@@ -22,6 +22,7 @@
 import { Octokit } from "@octokit/rest";
 
 import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { logger } from "@dashboard/lib/logger";
 import {
   spawnPreviewBuilder,
@@ -94,33 +95,45 @@ async function loadVaultContextForBuild(
   if (!bg) {
     logger.warn(
       { owner, repo: name },
-      "preview: no background token for vault read; build will run with no secrets",
+      "preview: no background token for vault/config read; build will run with no secrets",
     );
     return fallback;
   }
+  const octokit = new Octokit({ auth: bg.token });
+
+  // Secrets come from .kody/secrets.enc (vault); the build-mode toggle
+  // lives in kody.config.json so it shows up next to other repo-wide
+  // config and isn't conflated with credentials.
+  let buildEnv: Record<string, string> = {};
   try {
-    const { doc } = await readVault(
-      new Octokit({ auth: bg.token }),
-      owner,
-      name,
-    );
-    const buildEnv: Record<string, string> = {};
+    const { doc } = await readVault(octokit, owner, name);
     for (const [k, entry] of Object.entries(doc.secrets)) {
       if (!entry?.value) continue;
       if (NEVER_PASS_TO_BUILD.has(k)) continue;
       buildEnv[k] = entry.value;
     }
-    const buildMode = parseBuildMode(
-      doc.secrets.KODY_PREVIEW_BUILD_MODE?.value,
-    );
-    return { buildEnv, buildMode };
   } catch (err) {
     logger.warn(
       { err, repo },
       "preview: vault read failed; build will run with no secrets",
     );
-    return fallback;
+    buildEnv = {};
   }
+
+  let buildMode: "dev" | "prod" = "dev";
+  try {
+    const { config } = await getEngineConfig(octokit, owner, name);
+    const raw = (config as { previews?: { buildMode?: string } })?.previews
+      ?.buildMode;
+    buildMode = parseBuildMode(raw);
+  } catch (err) {
+    logger.warn(
+      { err, repo },
+      "preview: engine config read failed; defaulting buildMode=dev",
+    );
+  }
+
+  return { buildEnv, buildMode };
 }
 
 export async function createPreview(
