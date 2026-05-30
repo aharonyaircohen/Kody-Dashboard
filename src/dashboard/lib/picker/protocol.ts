@@ -59,6 +59,21 @@ export interface PerfResource {
   bytes: number;
 }
 
+/** A chat-driven action the extension should perform inside the preview. */
+export type PreviewAction =
+  | { op: "click"; selector: string }
+  | { op: "fill"; selector: string; value: string }
+  | { op: "navigate"; url: string }
+  | { op: "scroll"; selector?: string; dy?: number }
+  | { op: "wait"; ms: number };
+
+/** Result of executing a PreviewAction. `info` is a fresh post-action snapshot. */
+export interface PreviewActResult {
+  ok: boolean;
+  error?: string;
+  info?: PageInfo;
+}
+
 /** Where the user is in the preview right now (URL + title + selection + DOM). */
 export interface PageInfo {
   url: string;
@@ -104,6 +119,7 @@ export type PickerPageMessage = {
     | "collect-network"
     | "collect-perf"
     | "collect-page"
+    | "act"
     | "record-start"
     | "record-stop"
     | "screenshot";
@@ -133,6 +149,14 @@ export type PickerExtMessage =
     }
   | { source: typeof PICKER_EXT_SOURCE; type: "perf"; report: PerfReport }
   | { source: typeof PICKER_EXT_SOURCE; type: "page"; info: PageInfo }
+  | {
+      source: typeof PICKER_EXT_SOURCE;
+      type: "act-result";
+      requestId: string;
+      ok: boolean;
+      error?: string;
+      info?: PageInfo;
+    }
   | {
       source: typeof PICKER_EXT_SOURCE;
       type: "recording";
@@ -182,6 +206,40 @@ export function formatPickedElement(el: PickedElement): string {
   }
   lines.push(`- URL: ${el.url}`);
   return lines.join("\n");
+}
+
+/** Short, human-readable label for a PreviewAction (used in chat results). */
+export function describePreviewAction(action: PreviewAction): string {
+  switch (action.op) {
+    case "click":
+      return `Click ${action.selector}`;
+    case "fill":
+      return `Fill ${action.selector}`;
+    case "navigate":
+      return `Navigate to ${action.url}`;
+    case "scroll":
+      return action.selector
+        ? `Scroll to ${action.selector}`
+        : `Scroll by ${action.dy ?? 0}px`;
+    case "wait":
+      return `Wait ${action.ms}ms`;
+  }
+}
+
+/**
+ * Render an action result as a chat-ready block. The follow-up post-action
+ * `info` snapshot lets the model see what changed (new URL, new DOM).
+ */
+export function formatPreviewActResult(
+  action: PreviewAction,
+  result: PreviewActResult,
+): string {
+  const label = describePreviewAction(action);
+  const head = result.ok
+    ? `[preview action ✅] ${label}`
+    : `[preview action ❌] ${label} — ${result.error ?? "unknown error"}`;
+  if (!result.info) return head;
+  return [head, "", formatPageInfo(result.info)].join("\n");
 }
 
 /** Render a page-context snapshot as a chat-ready block. */

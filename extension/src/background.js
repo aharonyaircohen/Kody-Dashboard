@@ -23,6 +23,7 @@ const BROADCAST_DOWN = new Set([
   "collect-network",
   "collect-perf",
   "collect-page",
+  "act",
   "record-start",
   "record-stop",
 ]);
@@ -33,6 +34,7 @@ const RELAY_UP = new Set([
   "counts",
   "perf",
   "page",
+  "act-result",
   "recording",
   "rec-count",
 ]);
@@ -42,8 +44,9 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   if (typeof tabId !== "number") return;
 
   if (BROADCAST_DOWN.has(msg?.kind)) {
-    // Send to all frames in the tab; the top-frame bridge ignores these.
-    chrome.tabs.sendMessage(tabId, { kind: msg.kind }).catch(() => {});
+    // Forward the whole message (including payload + requestId), not just
+    // the kind. Sub-frames execute and the top-frame bridge ignores it.
+    chrome.tabs.sendMessage(tabId, msg).catch(() => {});
     return;
   }
 

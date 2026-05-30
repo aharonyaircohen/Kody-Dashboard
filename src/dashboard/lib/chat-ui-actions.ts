@@ -10,6 +10,7 @@
 import type { AgentId } from "./agents";
 
 export const SWITCH_AGENT_DIRECTIVE = "switch_agent" as const;
+export const PREVIEW_ACT_DIRECTIVE = "preview_act" as const;
 
 /**
  * Voice is a modality, not an agent — every agent in the registry is a
@@ -40,6 +41,40 @@ export interface SwitchAgentDirective {
    * dispatched against the wrong sessionId.
    */
   autoKickoffIssueNumber?: number;
+}
+
+/**
+ * A chat-driven action against the preview frame. The server tool just emits
+ * this directive; the client (KodyChat) hands it to the Kody Preview
+ * Inspector extension via `useElementPicker.act()` and replies with a
+ * synthetic user message carrying the result so the model can chain steps.
+ */
+export interface PreviewActDirective {
+  action: typeof PREVIEW_ACT_DIRECTIVE;
+  /** Single-character op + selector + value, mirroring PreviewAction. */
+  op: "click" | "fill" | "navigate" | "scroll" | "wait";
+  selector?: string;
+  value?: string;
+  url?: string;
+  dy?: number;
+  ms?: number;
+  /** Short rationale shown to the user (e.g. "logging you in to verify"). */
+  reason: string;
+}
+
+export function isPreviewActDirective(
+  value: unknown,
+): value is PreviewActDirective {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  if (v.action !== PREVIEW_ACT_DIRECTIVE) return false;
+  const okOp =
+    v.op === "click" ||
+    v.op === "fill" ||
+    v.op === "navigate" ||
+    v.op === "scroll" ||
+    v.op === "wait";
+  return okOp && typeof v.reason === "string";
 }
 
 export function isSwitchAgentDirective(

@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.3.3";
+  const VERSION = "0.4.0";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -58,6 +58,7 @@
       "collect-network": { kind: "collect-network" },
       "collect-perf": { kind: "collect-perf" },
       "collect-page": { kind: "collect-page" },
+      act: { kind: "act" },
       "record-start": { kind: "record-start" },
       "record-stop": { kind: "record-stop" },
       screenshot: { kind: "capture-screenshot" },
@@ -74,7 +75,13 @@
       }
       const relay = PAGE_TO_BG[data.type];
       if (relay) {
-        chrome.runtime.sendMessage(relay).catch(() => {});
+        // Some relay kinds carry a payload (act carries the action spec +
+        // requestId). Pass `payload` and `requestId` through verbatim so
+        // the sub-frame can execute and reply via the matching id.
+        const out = { ...relay };
+        if (data.payload !== undefined) out.payload = data.payload;
+        if (data.requestId !== undefined) out.requestId = data.requestId;
+        chrome.runtime.sendMessage(out).catch(() => {});
         if (data.type === "arm") postToPage({ type: "armed" });
         if (data.type === "disarm") postToPage({ type: "disarmed" });
       }
@@ -104,6 +111,14 @@
         postToPage({ type: "rec-count", count: msg.count });
       } else if (msg?.kind === "page") {
         postToPage({ type: "page", info: msg.info });
+      } else if (msg?.kind === "act-result") {
+        postToPage({
+          type: "act-result",
+          requestId: msg.requestId,
+          ok: msg.ok,
+          error: msg.error,
+          info: msg.info,
+        });
       }
     });
   }
@@ -190,6 +205,18 @@
         chrome.runtime
           .sendMessage({ kind: "page", info: collectPageInfo() })
           .catch(() => {});
+      } else if (msg?.kind === "act") {
+        void performAction(msg.payload).then(function (result) {
+          chrome.runtime
+            .sendMessage({
+              kind: "act-result",
+              requestId: msg.requestId,
+              ok: result.ok,
+              error: result.error,
+              info: collectPageInfo(),
+            })
+            .catch(function () {});
+        });
       } else if (msg?.kind === "record-start") {
         startRecording();
       } else if (msg?.kind === "record-stop") {
@@ -304,6 +331,119 @@
       chrome.runtime
         .sendMessage({ kind: "rec-count", count: recSteps.length })
         .catch(() => {});
+    }
+
+    // -- chat-driven actions ---------------------------------------------------
+    // Executes a single action requested by chat. Returns { ok, error }.
+    // Always pairs with a follow-up `collectPageInfo()` snapshot in the
+    // reply so the model sees what changed.
+    function performAction(payload) {
+      return new Promise(function (resolve) {
+        try {
+          if (!payload || typeof payload.op !== "string") {
+            return resolve({ ok: false, error: "missing op" });
+          }
+          var op = payload.op;
+          if (op === "navigate") {
+            var href = String(payload.url || "");
+            if (!href) return resolve({ ok: false, error: "missing url" });
+            // Same-origin only (avoids hijacking the parent tab).
+            try {
+              var u = new URL(href, window.location.href);
+              if (u.origin !== window.location.origin) {
+                return resolve({
+                  ok: false,
+                  error: "cross-origin navigation blocked",
+                });
+              }
+              window.location.assign(u.href);
+              return resolve({ ok: true });
+            } catch (e) {
+              return resolve({ ok: false, error: "invalid url" });
+            }
+          }
+          if (op === "scroll") {
+            var selector = payload.selector;
+            if (selector) {
+              var target = safeQuery(selector);
+              if (!target) return resolve({ ok: false, error: "not found" });
+              target.scrollIntoView({ behavior: "smooth", block: "center" });
+              return resolve({ ok: true });
+            }
+            var dy = Number(payload.dy || 0);
+            window.scrollBy({ top: dy, behavior: "smooth" });
+            return resolve({ ok: true });
+          }
+          if (op === "wait") {
+            var ms = Math.min(Math.max(Number(payload.ms || 200), 0), 5000);
+            setTimeout(function () {
+              resolve({ ok: true });
+            }, ms);
+            return;
+          }
+          if (op === "click") {
+            var el = safeQuery(payload.selector);
+            if (!el) return resolve({ ok: false, error: "not found" });
+            if (!(el instanceof HTMLElement))
+              return resolve({ ok: false, error: "not clickable" });
+            try {
+              el.scrollIntoView({ block: "center" });
+            } catch (e) {
+              /* ignore */
+            }
+            el.click();
+            return resolve({ ok: true });
+          }
+          if (op === "fill") {
+            var inp = safeQuery(payload.selector);
+            if (!inp) return resolve({ ok: false, error: "not found" });
+            if (
+              !(
+                inp instanceof HTMLInputElement ||
+                inp instanceof HTMLTextAreaElement ||
+                inp instanceof HTMLSelectElement
+              )
+            ) {
+              // Try contenteditable as a fallback.
+              if (inp instanceof HTMLElement && inp.isContentEditable) {
+                inp.focus();
+                inp.textContent = String(payload.value || "");
+                inp.dispatchEvent(new Event("input", { bubbles: true }));
+                return resolve({ ok: true });
+              }
+              return resolve({ ok: false, error: "not a fillable field" });
+            }
+            // React/Vue controlled-input safe set: use the native setter.
+            var proto =
+              inp instanceof HTMLTextAreaElement
+                ? HTMLTextAreaElement.prototype
+                : inp instanceof HTMLSelectElement
+                ? HTMLSelectElement.prototype
+                : HTMLInputElement.prototype;
+            var setter = Object.getOwnPropertyDescriptor(proto, "value");
+            if (setter && setter.set) {
+              setter.set.call(inp, String(payload.value || ""));
+            } else {
+              inp.value = String(payload.value || "");
+            }
+            inp.dispatchEvent(new Event("input", { bubbles: true }));
+            inp.dispatchEvent(new Event("change", { bubbles: true }));
+            return resolve({ ok: true });
+          }
+          return resolve({ ok: false, error: "unknown op: " + op });
+        } catch (err) {
+          return resolve({ ok: false, error: String(err && err.message ? err.message : err) });
+        }
+      });
+    }
+
+    function safeQuery(selector) {
+      if (typeof selector !== "string" || !selector) return null;
+      try {
+        return document.querySelector(selector);
+      } catch {
+        return null;
+      }
     }
 
     // -- page context (URL + title + selection) -------------------------------

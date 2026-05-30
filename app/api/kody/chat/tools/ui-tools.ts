@@ -11,7 +11,9 @@ import { tool } from "ai";
 import { z } from "zod";
 import { AGENTS, type AgentId } from "@dashboard/lib/agents";
 import {
+  PREVIEW_ACT_DIRECTIVE,
   SWITCH_AGENT_DIRECTIVE,
+  type PreviewActDirective,
   type SwitchAgentDirective,
   type SwitchAgentTargetId,
 } from "@dashboard/lib/chat-ui-actions";
@@ -65,6 +67,73 @@ export const switchAgentTool = tool({
   },
 });
 
+export const previewActTool = tool({
+  description:
+    "Drive the preview iframe: click, fill, navigate, scroll, or wait. " +
+    "Use ONLY when the user asks you to interact with or verify something in " +
+    "the preview (e.g. \"log in\", \"click the Save button\", \"scroll to the footer\"). " +
+    "The action runs in the user's browser via the Kody Preview Inspector " +
+    "extension; if the extension isn't installed the call surfaces an error and you " +
+    "should tell the user. Each successful call returns a fresh DOM snapshot " +
+    "as a follow-up user turn so you can chain steps (e.g. fill email → fill " +
+    "password → click submit → read the next page).",
+  inputSchema: z.object({
+    op: z
+      .enum(["click", "fill", "navigate", "scroll", "wait"])
+      .describe("Which kind of action to run."),
+    selector: z
+      .string()
+      .optional()
+      .describe(
+        "CSS selector identifying the target element. Required for click/fill. " +
+          "Optional for scroll (when scrolling to an element rather than by dy).",
+      ),
+    value: z
+      .string()
+      .optional()
+      .describe("Value to set on a fill op. Ignored for other ops."),
+    url: z
+      .string()
+      .optional()
+      .describe(
+        "Same-origin URL to navigate to. Cross-origin navigation is blocked.",
+      ),
+    dy: z
+      .number()
+      .int()
+      .optional()
+      .describe("Pixels to scroll by (used when selector is not provided)."),
+    ms: z
+      .number()
+      .int()
+      .min(0)
+      .max(5000)
+      .optional()
+      .describe("Milliseconds to wait. Used by op=wait. Max 5000."),
+    reason: z
+      .string()
+      .min(1)
+      .max(200)
+      .describe(
+        "One short sentence explaining why you're running this action. " +
+          "Shown to the user as confirmation.",
+      ),
+  }),
+  execute: async (input): Promise<PreviewActDirective> => {
+    return {
+      action: PREVIEW_ACT_DIRECTIVE,
+      op: input.op,
+      selector: input.selector,
+      value: input.value,
+      url: input.url,
+      dy: input.dy,
+      ms: input.ms,
+      reason: input.reason,
+    };
+  },
+});
+
 export const uiTools = {
   switch_agent: switchAgentTool,
+  preview_act: previewActTool,
 };

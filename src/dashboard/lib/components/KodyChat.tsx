@@ -43,7 +43,11 @@ import {
 } from "../commands/useSlashCommands";
 import { parseGoalMention, type GoalRef } from "../goal-mention";
 import { useElementPicker } from "../picker/useElementPicker";
-import { formatPageInfo } from "../picker/protocol";
+import {
+  formatPageInfo,
+  formatPreviewActResult,
+  type PreviewAction,
+} from "../picker/protocol";
 import { SlashCommandMenu, filterCommands } from "./SlashCommandMenu";
 import {
   authHeaders,
@@ -121,7 +125,11 @@ import {
   saveDutyChatLocal,
   clearDutyChatLocal,
 } from "../duty-chat-local";
-import { isSwitchAgentDirective } from "@dashboard/lib/chat-ui-actions";
+import {
+  isPreviewActDirective,
+  isSwitchAgentDirective,
+  type PreviewActDirective,
+} from "@dashboard/lib/chat-ui-actions";
 
 export function KodyChat({
   context,
@@ -345,6 +353,71 @@ export function KodyChat({
       return null;
     }
   };
+  // Dispatcher for chat-driven preview actions. The server tool returns a
+  // directive; we translate it into a PreviewAction, hand it to the
+  // extension, and push the result back into the chat as a follow-up
+  // user turn so the model can chain steps. Held in a ref so we don't
+  // capture stale state in the stream's closure.
+  const runPreviewActionRef = useRef<
+    (directive: PreviewActDirective) => Promise<void>
+  >(async () => {});
+  type SendTextFn = (
+    messageContent: string,
+    currentAttachments?: Attachment[],
+    options?: { voiceMode?: boolean },
+  ) => Promise<string | null>;
+  const sendTextRef = useRef<SendTextFn | null>(null);
+  // Initialized lazily below — `sendText` is declared further down.
+  const runPreviewActionFromDirective = useCallback(
+    async (directive: PreviewActDirective) => {
+      const action: PreviewAction | null = (() => {
+        switch (directive.op) {
+          case "click":
+            if (!directive.selector) return null;
+            return { op: "click", selector: directive.selector };
+          case "fill":
+            if (!directive.selector) return null;
+            return {
+              op: "fill",
+              selector: directive.selector,
+              value: directive.value ?? "",
+            };
+          case "navigate":
+            if (!directive.url) return null;
+            return { op: "navigate", url: directive.url };
+          case "scroll":
+            return {
+              op: "scroll",
+              selector: directive.selector,
+              dy: directive.dy,
+            };
+          case "wait":
+            return { op: "wait", ms: directive.ms ?? 200 };
+          default:
+            return null;
+        }
+      })();
+      if (!action) {
+        toast.error("Preview action: malformed directive");
+        return;
+      }
+      if (!previewPickerRef.current.available) {
+        const send = sendTextRef.current;
+        if (send) {
+          await send(
+            "[preview action ❌] Extension not installed — install the Kody Preview Inspector to run preview actions.",
+          );
+        }
+        return;
+      }
+      const result = await previewPickerRef.current.act(action);
+      const followUp = formatPreviewActResult(action, result);
+      const send = sendTextRef.current;
+      if (send) await send(followUp);
+    },
+    [],
+  );
+  runPreviewActionRef.current = runPreviewActionFromDirective;
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY;
   const agentList = buildAgentList(
     brainConfigured,
@@ -2530,6 +2603,11 @@ export function KodyChat({
           // detection block in `tool-output-available` and the post-stream
           // handler that mirrors `pendingSwitchAgent`.
           let pendingCreatedIssue: number | null = null;
+          // Preview action directives from `preview_act`. Like the switch
+          // directive, applied AFTER the stream closes so the chain (run
+          // → snapshot → follow-up user turn) doesn't race the in-flight
+          // assistant render.
+          let pendingPreviewAct: ReturnType<typeof JSON.parse> | null = null;
 
           const composeContent = () =>
             (reasoningBuf ? `<think>${reasoningBuf}</think>\n\n` : "") +
@@ -2668,6 +2746,9 @@ export function KodyChat({
                   if (isSwitchAgentDirective(chunk.output)) {
                     // Defer the dispatch — see comment on pendingSwitchAgent.
                     pendingSwitchAgent = chunk.output;
+                  }
+                  if (isPreviewActDirective(chunk.output)) {
+                    pendingPreviewAct = chunk.output;
                   }
                   // Issue creation: one of the `create_*` / `report_bug`
                   // tools that returned `{ number: <positive int> }` is a
@@ -2819,6 +2900,18 @@ export function KodyChat({
                 issueNumber: target.autoKickoffIssueNumber ?? null,
               });
             }
+          }
+          // Preview action: hand the spec to the inspector extension, run
+          // it in the preview frame, then push the result back into the
+          // conversation as a synthetic user turn. The model sees that on
+          // its next turn and decides whether to keep going (multi-step
+          // flows) or finish.
+          if (
+            pendingPreviewAct &&
+            isPreviewActDirective(pendingPreviewAct)
+          ) {
+            const directive = pendingPreviewAct as PreviewActDirective;
+            void runPreviewActionFromDirective(directive);
           }
           // Planner mode: a Pass 2 turn typically creates one or more issues
           // via `create_task_for_goal`. We can't observe per-tool results
@@ -3231,6 +3324,11 @@ export function KodyChat({
       connectSSE,
     ],
   );
+  // Bind the deferred ref now that `sendText` exists. The preview-action
+  // dispatcher (declared above to keep stream-handler closure stable) uses
+  // this to push synthetic follow-up turns without forward-referencing
+  // sendText itself.
+  sendTextRef.current = sendText;
 
   // Planner auto-kickoff. The "Plan with chat" button is the user's consent
   // to start; landing them on a blank prompt and asking them to type "go" is

@@ -353,6 +353,25 @@ If a \`## Current task\` block is present below, the issue **already exists** �
 - **Too big for vibe.** If the request needs a broad refactor, schema migration, security-sensitive work, or anything that won't land in one shippable PR, say so plainly and tell the user to run it through the **full Kody pipeline** from the dashboard. Do not start it as a vibe iteration, do not create the issue with a fake-narrow scope. The user invokes the pipeline themselves; you don't post the comment.
 - **Pure question, no change.** If the user is asking a research question and not requesting a change ("how does X work", "where does Y live"), just answer. Don't force the create-issue step.
 
+### Preview interaction (\`preview_act\`)
+
+The user may be looking at a live preview iframe of the app while chatting.
+When they ask you to interact with or verify something in that preview
+("log in", "click Save", "fill the form", "scroll to the footer"), call
+\`preview_act\` to drive the page directly:
+
+- Selectors are CSS selectors; prefer id (\`#email\`), then attribute selectors
+  (\`input[name="password"]\`), then short tag chains. The auto-attached
+  page DOM digest in the user's message is your selector cheat-sheet.
+- After each call the dashboard runs the action in the user's browser and
+  sends you a synthetic user turn with the result and a fresh DOM
+  snapshot. Read that and decide your next step.
+- Chain multiple actions naturally (\`fill email\` → \`fill password\` →
+  \`click submit\`). One action per tool call.
+- Cross-origin navigation is blocked. \`navigate\` is same-origin only.
+- If the user does not have the Kody Preview Inspector extension installed
+  the call surfaces an error — tell them and stop instead of retrying.
+
 ### Runner availability (read before \`switch_agent\`)
 
 ${

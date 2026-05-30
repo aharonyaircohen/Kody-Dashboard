@@ -19,6 +19,8 @@ import {
   type PerfReport,
   type PickedElement,
   type PickerExtMessage,
+  type PreviewAction,
+  type PreviewActResult,
   type RecordedStep,
 } from "./protocol";
 
@@ -64,6 +66,12 @@ interface ElementPicker {
    * auto-attach where 1.5s is too long if no preview frame exists.
    */
   collectPage: (timeoutMs?: number) => Promise<PageInfo | null>;
+  /**
+   * Execute a chat-driven action (click/fill/navigate/scroll/wait) in the
+   * preview. Resolves with `{ok, info}` where `info` is a fresh post-action
+   * page snapshot the model can read.
+   */
+  act: (action: PreviewAction, timeoutMs?: number) => Promise<PreviewActResult>;
   /** True while recording a click-through into a test. */
   recording: boolean;
   /** Live count of recorded steps. */
@@ -306,6 +314,45 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
     [],
   );
 
+  const act = useCallback(
+    (
+      action: PreviewAction,
+      timeoutMs: number = 5000,
+    ): Promise<PreviewActResult> =>
+      new Promise((resolve) => {
+        if (typeof window === "undefined") {
+          resolve({ ok: false, error: "no window" });
+          return;
+        }
+        const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const handler = (event: MessageEvent) => {
+          if (event.source !== window) return;
+          const data = event.data as PickerExtMessage | undefined;
+          if (!data || data.source !== PICKER_EXT_SOURCE) return;
+          if (data.type !== "act-result") return;
+          if (data.requestId !== requestId) return;
+          window.removeEventListener("message", handler);
+          clearTimeout(timer);
+          resolve({ ok: data.ok, error: data.error, info: data.info });
+        };
+        window.addEventListener("message", handler);
+        window.postMessage(
+          {
+            source: PICKER_PAGE_SOURCE,
+            type: "act",
+            payload: action,
+            requestId,
+          },
+          window.location.origin,
+        );
+        const timer = setTimeout(() => {
+          window.removeEventListener("message", handler);
+          resolve({ ok: false, error: `timed out after ${timeoutMs}ms` });
+        }, timeoutMs);
+      }),
+    [],
+  );
+
   const startRecording = useCallback(() => {
     setRecStepCount(0);
     setRecording(true);
@@ -349,6 +396,7 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
     captureScreenshot,
     collectPerf,
     collectPage,
+    act,
     recording,
     recStepCount,
     startRecording,

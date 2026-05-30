@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Kody Preview Inspector",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Inspect a Kody preview: pick elements, and send console errors, failed requests, and screenshots into Kody chat as context.",
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "src/background.js" },
