@@ -1,11 +1,12 @@
 /**
  * @fileType page
  * @domain kody
- * @pattern dashboard-page
- * @ai-summary Main Kody dashboard page. Auth handled client-side via SessionExpiredError.
- *   Force static for OG tags - social media crawlers need metadata without auth.
+ * @pattern launcher-page
+ * @ai-summary Root launcher. Redirects to the user's last primary view
+ *   (chat or tasks) via PrimaryViewRedirect. Force static for OG tags —
+ *   social media crawlers need metadata without auth.
  */
-import { AuthGate } from "@dashboard/lib/components/AuthGate";
+import { PrimaryViewRedirect } from "@dashboard/lib/components/PrimaryViewRedirect";
 import { buildKodyMetadata } from "./metadata";
 
 // Force static generation so OG tags are available without authentication
@@ -20,6 +21,9 @@ export const metadata = buildKodyMetadata({
   path: "/",
 });
 
+// `/` is just a launcher: it bounces to the user's last view (chat or tasks),
+// stored per-device in localStorage. Switch the default by changing the
+// fallback in readPrimaryView (ViewToggle.tsx).
 export default async function KodyPage() {
-  return <AuthGate />;
+  return <PrimaryViewRedirect />;
 }
