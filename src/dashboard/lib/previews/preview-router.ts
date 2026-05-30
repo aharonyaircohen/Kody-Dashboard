@@ -92,11 +92,16 @@ async function dispatchWorkflowDispatch(
   workflowId: string,
   inputs: PreviewBuildWorkflowInputs,
 ): Promise<void> {
+  // `ref` must be a branch where the workflow file lives. We can't
+  // hardcode "main" — A-Guy's default is "dev", other consumers vary.
+  // Ask GitHub for the actual default branch (cheap, cached upstream).
+  const { data: repoMeta } = await octokit.repos.get({ owner, repo });
+  const ref = repoMeta.default_branch || "main";
   await octokit.actions.createWorkflowDispatch({
     owner,
     repo,
     workflow_id: workflowId,
-    ref: "main",
+    ref,
     inputs: { ...inputs },
   });
 }
