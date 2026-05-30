@@ -118,7 +118,21 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const { auth, loading } = useAuth();
   const { githubUser } = useGitHubIdentity();
   const [scope, setScope] = useState<ChatContext | null>(null);
+  // Mobile "chat open" — persisted per-device (same as the desktop expand
+  // state) so opening chat survives a reload / navigation, not just the
+  // in-memory session.
   const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => {
+    setMobileOpen(localStorage.getItem("kody:mobile-chat-open") === "1");
+  }, []);
+  const setMobileOpenPersist = useCallback((next: boolean) => {
+    setMobileOpen(next);
+    try {
+      localStorage.setItem("kody:mobile-chat-open", next ? "1" : "0");
+    } catch {
+      // localStorage unavailable (private mode) — non-fatal.
+    }
+  }, []);
 
   // Goals power the "direct chat to a goal by id" flow: a user types the
   // goal's `#<discussionNumber>` (or `goal:<n>`) in the composer and the
@@ -209,7 +223,10 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
 
-  const openMobileChat = useCallback(() => setMobileOpen(true), []);
+  const openMobileChat = useCallback(
+    () => setMobileOpenPersist(true),
+    [setMobileOpenPersist],
+  );
 
   // Ref, not state, so registering/unregistering doesn't re-render the
   // entire app tree under the rail. The KodyChat instance reads the
@@ -405,7 +422,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 <KodyChat
                   context={scope}
                   actorLogin={githubUser?.login}
-                  onClose={() => setMobileOpen(false)}
+                  onClose={() => setMobileOpenPersist(false)}
                   lockedAgentId={lockedAgentId}
                   vibeMode={isVibeRoute}
                   onIssueCreated={dispatchIssueCreated}
