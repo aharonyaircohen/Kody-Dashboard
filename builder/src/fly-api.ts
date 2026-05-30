@@ -146,10 +146,11 @@ export async function createPreviewMachine(
       env: input.env ?? {},
       auto_destroy: false,
       restart: { policy: "always" },
-      // 1 GB / 1 CPU is too small for a Payload CMS-class app at boot.
-      // Bumping to 2 CPU / 2 GB keeps idle cost low while letting the
-      // app actually start.
-      guest: { cpu_kind: "shared", cpus: 2, memory_mb: 2048 },
+      // Dev mode (`next dev`) runs webpack at request time, which is
+      // memory-hungry for heavy apps (A-Guy hung silently on 2 GB).
+      // 4 GB / 2 CPU is the floor that compiles A-Guy-class pages
+      // without OOM. Suspended state still costs ~$0.
+      guest: { cpu_kind: "shared", cpus: 2, memory_mb: 4096 },
       services: [
         {
           ports: [
