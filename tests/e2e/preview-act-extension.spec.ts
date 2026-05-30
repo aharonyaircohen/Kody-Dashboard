@@ -87,7 +87,43 @@ const test = base.extend<ExtensionFixture>({
 
   <input id="email" type="email" placeholder="Email" />
 
-  <script>window.__hits = [];</script>
+  <!-- SPA-style nav target. Clicking #spa-nav pushes /spa-after via
+       history.pushState (no full reload) and swaps the body content. -->
+  <button id="spa-nav" onclick="
+    history.pushState({}, '', '/spa-after');
+    document.body.innerHTML += '<div id=spa-loaded>spa-content-loaded</div>';
+    window.__hits.push('spa');
+  ">Open SPA Route</button>
+
+  <!-- Shadow-DOM host. The button lives inside a closed-styling shadow
+       root that querySelector can't pierce. -->
+  <my-shadow-host></my-shadow-host>
+  <script>
+    class MyShadowHost extends HTMLElement {
+      constructor() {
+        super();
+        const root = this.attachShadow({ mode: 'open' });
+        root.innerHTML = '<button id="inside-shadow">Click Inside Shadow</button>';
+        root.querySelector('button').addEventListener('click', () => {
+          window.__hits.push('shadow');
+        });
+      }
+    }
+    customElements.define('my-shadow-host', MyShadowHost);
+  </script>
+
+  <!-- Button covered by a tightly-fitted overlay; clicks should be
+       reported as blocked, not silently lost. The overlay is positioned
+       only over this button — it must NOT block the other tests above. -->
+  <div style="position:relative; display:inline-block; margin:20px 0">
+    <button id="covered" onclick="window.__hits.push('covered')"
+            style="position:relative; z-index:1; width:160px; height:40px">Covered Button</button>
+    <div id="blocker"
+         style="position:absolute; left:0; top:0; width:160px; height:40px;
+                background:rgba(0,0,0,0.4); z-index:9999"></div>
+  </div>
+
+  <script>window.__hits = window.__hits || [];</script>
 </body>
 </html>`;
     // A second preview page the navigate test loads — distinct h1 so we
@@ -289,6 +325,47 @@ test.describe("Kody Preview Inspector — preview_act in a real browser", () => 
     await expect
       .poll(() => previewInputValue(page, "#email"), { timeout: 4000 })
       .toBe("a@b.com");
+  });
+
+  test("detects SPA navigation (history.pushState) after a click", async ({
+    context,
+    fixtureUrl,
+  }) => {
+    const page = await bootAndWaitForExtension(context, fixtureUrl);
+    const result = await sendAct(page, { op: "click", selector: "#spa-nav" });
+    expect(result.ok, `act failed: ${result.error}`).toBe(true);
+    // The 250ms wait should have let the SPA "router" run; the URL must
+    // reflect /spa-after AND the new DOM content must appear in info.
+    expect(result.info?.url).toMatch(/\/spa-after$/);
+    expect(result.info?.dom ?? "").toMatch(/spa-content-loaded|Open SPA Route/);
+  });
+
+  test("clicks into shadow DOM via deep traversal", async ({
+    context,
+    fixtureUrl,
+  }) => {
+    const page = await bootAndWaitForExtension(context, fixtureUrl);
+    const result = await sendAct(page, {
+      op: "click",
+      selector: "#inside-shadow",
+    });
+    expect(result.ok, `act failed: ${result.error}`).toBe(true);
+    await expect
+      .poll(() => previewHits(page), { timeout: 4000 })
+      .toContain("shadow");
+  });
+
+  test("reports 'blocked by overlay' instead of silently failing", async ({
+    context,
+    fixtureUrl,
+  }) => {
+    const page = await bootAndWaitForExtension(context, fixtureUrl);
+    const result = await sendAct(page, { op: "click", selector: "#covered" });
+    expect(result.ok).toBe(false);
+    expect(result.error ?? "").toMatch(/blocked by overlay/);
+    // The button's onclick should NOT have fired.
+    const hits = await previewHits(page);
+    expect(hits).not.toContain("covered");
   });
 
   test("navigate delivers the NEW page's DOM in info (the user-reported bug)", async ({

@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.3.8";
+  const VERSION = "0.3.9";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -454,11 +454,43 @@
             } catch (e) {
               /* ignore */
             }
+            // Overlay/intercept check — if a modal backdrop, tooltip, or
+            // any other element occupies the target's center hit-test,
+            // the click won't reach our intended target. Surface that
+            // explicitly so the model can dismiss the overlay first.
+            var blocker = findInterceptor(target);
+            if (blocker) {
+              return resolve({
+                ok: false,
+                error: "blocked by overlay: " + describeBlocker(blocker),
+              });
+            }
+            // Snapshot the URL so we can detect SPA navigation after the
+            // click (history.pushState / router.push). Real apps switch
+            // routes this way — we wait briefly and re-snapshot the DOM
+            // if the URL or document body changed.
+            var beforeUrl = window.location.href;
+            var beforeBodyLen = (document.body && document.body.innerHTML.length) || 0;
             // Full event sequence — many UI libs (Radix, cmdk, framer-motion)
             // need pointerdown/mousedown to register an interaction, not
             // just a bare click. element.click() alone misses these.
             simulateClick(target);
-            return resolve({ ok: true });
+            // Wait briefly for SPA routers / React state updates to settle
+            // before sampling the post-click DOM. 250ms covers the common
+            // case (React re-render + Router transition) without making
+            // chat-driven clicks feel slow.
+            setTimeout(function () {
+              var afterUrl = window.location.href;
+              var spaNavigated = afterUrl !== beforeUrl;
+              // If a SPA nav happened, the URL changed but no page reload
+              // tore down our context — so we can just take a fresh
+              // snapshot here and let the dashboard's act-result wrapper
+              // pick it up.
+              void spaNavigated;
+              void beforeBodyLen;
+              resolve({ ok: true });
+            }, 250);
+            return;
           }
           if (op === "fill") {
             var inp = safeQuery(payload.selector);
@@ -512,20 +544,109 @@
       try {
         var el = document.querySelector(selector);
         if (el) return el;
+        // Pass 1.5: same selector, walking shadow roots — many design
+        // systems (Lit / native web components, some MUI variants) hide
+        // their internals behind a closed-styling shadow root that
+        // querySelector can't pierce.
+        var deep = deepQuerySelector(selector, document);
+        if (deep) return deep;
       } catch {
         /* not valid CSS — try text-selector fallback below */
       }
       var parsed = parseTextSelector(selector);
       if (!parsed) return null;
-      // Pass 1: scan the usual interactive elements (fast common case).
+      // Pass 2: scan the usual interactive elements (fast common case).
       var hit = findByText(parsed.text, parsed.tag);
       if (hit) return hit;
-      // Pass 2: broader scan for clickable cards/divs/wrappers — anything
+      // Pass 3: broader scan for clickable cards/divs/wrappers — anything
       // that contains the text. Walk up to the nearest interactive
-      // ancestor (button / a / [role=button] / [tabindex] / [onclick] /
-      // cursor:pointer). This is what catches the "grade card" pattern
-      // where the visible-text element is a <div> with a click handler.
+      // ancestor on click. This is what catches the "grade card" pattern.
       return findAnyWithText(parsed.text, parsed.tag);
+    }
+
+    // Recursively search through shadow roots — `document.querySelector`
+    // can't pierce shadow boundaries, so encapsulated web components are
+    // invisible to it by default.
+    function deepQuerySelector(selector, root) {
+      try {
+        var direct = root.querySelector ? root.querySelector(selector) : null;
+        if (direct) return direct;
+      } catch {
+        return null;
+      }
+      // BFS through shadow roots. Cap depth/breadth so a pathological
+      // tree can't lock the page.
+      var queue = [root];
+      var visited = 0;
+      while (queue.length && visited < 2000) {
+        var node = queue.shift();
+        visited++;
+        var children = node.querySelectorAll ? node.querySelectorAll("*") : [];
+        for (var i = 0; i < children.length; i++) {
+          var c = children[i];
+          if (c.shadowRoot) {
+            try {
+              var found = c.shadowRoot.querySelector(selector);
+              if (found) return found;
+            } catch {
+              /* ignore invalid CSS in shadow */
+            }
+            queue.push(c.shadowRoot);
+          }
+        }
+      }
+      return null;
+    }
+
+    // Hit-test: does the target's center actually receive a click, or is
+    // something else painted on top? Returns null when the target (or its
+    // descendant) is the hit element — i.e. the click will land where we
+    // expect.
+    function findInterceptor(target) {
+      try {
+        var rect = target.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return null;
+        var x = rect.left + rect.width / 2;
+        var y = rect.top + rect.height / 2;
+        // elementFromPoint operates in viewport coords; we already
+        // scrollIntoView'd so the target should be visible.
+        var top = document.elementFromPoint(x, y);
+        if (!top) return null;
+        if (top === target || target.contains(top)) return null;
+        // Hit element is an ancestor of the target (clickable wrapper).
+        if (top.contains && top.contains(target)) return null;
+        // Target is inside a shadow root: elementFromPoint can't see in;
+        // it returns the host (or an ancestor of the host). Walk up the
+        // shadow chain — if `top` matches or contains a shadow host on
+        // the chain back to `target`, the click will land correctly.
+        var node = target;
+        for (var hops = 0; hops < 8 && node; hops++) {
+          var root = node.getRootNode ? node.getRootNode() : null;
+          var host = root && root.host ? root.host : null;
+          if (!host) break;
+          if (top === host || (top.contains && top.contains(host))) return null;
+          node = host;
+        }
+        return top;
+      } catch {
+        return null;
+      }
+    }
+
+    // Short identifier for whatever's blocking the click. Helps the model
+    // decide what to dismiss (e.g. modal-backdrop, tooltip).
+    function describeBlocker(el) {
+      try {
+        var tag = el.tagName ? el.tagName.toLowerCase() : "?";
+        var id = el.id ? "#" + el.id : "";
+        var cls = el.className && typeof el.className === "string"
+          ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".")
+          : "";
+        var role = el.getAttribute && el.getAttribute("role");
+        return "<" + tag + id + cls + (role ? ' role="' + role + '"' : "") + ">";
+      } catch {
+        return "<unknown>";
+      }
     }
 
     // Walk up from `el` to the nearest element that's likely to be the
@@ -558,40 +679,59 @@
     // second-pass when the strict button/link scan missed (e.g. clickable
     // card divs). Returns the SMALLEST matching element (least textContent
     // length) so we hit the leaf, then click walks up to the interactive
-    // ancestor before dispatching.
+    // ancestor before dispatching. Walks shadow roots too.
     function findAnyWithText(text, tagFilter) {
       var needle = String(text || "").trim().toLowerCase().replace(/\s+/g, " ");
       if (!needle) return null;
       var selector = tagFilter || "*";
-      var nodes;
-      try {
-        nodes = document.querySelectorAll(selector);
-      } catch {
-        return null;
-      }
+      var nodes = collectAcrossShadow(document, selector);
       var best = null;
       var bestLen = Infinity;
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
-        if (el.children && el.children.length > 0 && !tagFilter) {
-          // Prefer leaf-ish nodes when no tag filter; parents will be
-          // picked up via closestInteractive on click anyway.
-        }
         var raw = (el.textContent || "").trim().toLowerCase().replace(/\s+/g, " ");
         if (!raw) continue;
         if (raw === needle || raw.indexOf(needle) !== -1) {
-          // Smaller textContent → closer to the actual label leaf.
           if (raw.length < bestLen) {
             best = el;
             bestLen = raw.length;
-            if (raw === needle) {
-              // Exact small match — good enough, stop scanning.
-              if (raw.length === needle.length) break;
-            }
+            if (raw === needle && raw.length === needle.length) break;
           }
         }
       }
       return best;
+    }
+
+    // querySelectorAll that walks shadow roots. Returns a flat array so
+    // callers can iterate without thinking about composition.
+    function collectAcrossShadow(root, selector) {
+      var out = [];
+      try {
+        var direct = root.querySelectorAll ? root.querySelectorAll(selector) : [];
+        for (var i = 0; i < direct.length; i++) out.push(direct[i]);
+      } catch {
+        return out;
+      }
+      var queue = [root];
+      var visited = 0;
+      while (queue.length && visited < 2000) {
+        var node = queue.shift();
+        visited++;
+        var kids = node.querySelectorAll ? node.querySelectorAll("*") : [];
+        for (var j = 0; j < kids.length; j++) {
+          var c = kids[j];
+          if (c.shadowRoot) {
+            try {
+              var inside = c.shadowRoot.querySelectorAll(selector);
+              for (var k = 0; k < inside.length; k++) out.push(inside[k]);
+            } catch {
+              /* ignore */
+            }
+            queue.push(c.shadowRoot);
+          }
+        }
+      }
+      return out;
     }
 
     // Simulate a full mouse-click sequence. element.click() alone misses
