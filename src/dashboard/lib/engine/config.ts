@@ -450,10 +450,6 @@ export interface ConfigPatch {
   defaultExecutable?: string | null;
   /** Bare-`@kody` PR default (`defaultPrExecutable`). */
   defaultPrExecutable?: string | null;
-  /** Per-repo preview build mode: "dev" runs `next dev` (~2 min cold,
-   *  per-page first-hit lag); "prod" runs `next build`+`next start`
-   *  for Vercel parity (~13 min cold). Stored under `previews.buildMode`. */
-  previewBuildMode?: "dev" | "prod" | null;
 }
 
 /**
@@ -547,20 +543,6 @@ export async function writeConfigPatch(
         const val = patch[key]?.trim();
         if (val) next[key] = val;
         else delete next[key];
-      }
-
-      if (patch.previewBuildMode !== undefined) {
-        const prevPreviews =
-          typeof existing.previews === "object" && existing.previews !== null
-            ? (existing.previews as Record<string, unknown>)
-            : {};
-        if (patch.previewBuildMode === "dev" || patch.previewBuildMode === "prod") {
-          next.previews = { ...prevPreviews, buildMode: patch.previewBuildMode };
-        } else {
-          const { buildMode: _drop, ...rest } = prevPreviews;
-          if (Object.keys(rest).length > 0) next.previews = rest;
-          else delete next.previews;
-        }
       }
 
       return next;
