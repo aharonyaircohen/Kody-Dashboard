@@ -84,6 +84,10 @@ interface IssueCommentPayload {
 }
 interface PullRequestPayload {
   action?: string;
+  /** Previous head SHA — present on `synchronize` actions (i.e. push to PR
+   *  branch). Used to ask GitHub which files changed since the last sync,
+   *  so engine-only pushes can skip the Fly build entirely. */
+  before?: string;
   pull_request?: {
     number?: number;
     merged?: boolean;
@@ -225,6 +229,11 @@ function dispatch(
             repoFullName: p.repository.full_name,
             prNumber: p.pull_request.number,
             ref: p.pull_request.head.sha,
+            // Only set on `synchronize` (push to PR branch). When
+            // present, the handler skips the build if the diff
+            // before..head is engine-only (.kody/** + CHANGELOG).
+            beforeSha:
+              p.action === "synchronize" && p.before ? p.before : undefined,
           }),
           `previews.create#${p.pull_request.number}`,
         );
