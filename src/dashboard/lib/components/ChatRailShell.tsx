@@ -11,8 +11,10 @@
  *   The rail is hidden while `useAuth().loading` is true or when no
  *   credentials are stored, since the chat itself needs a PAT to function.
  *   In that state the dashboard's AuthGuard renders the RepoManager
- *   empty-state in place of the page. Mobile mode swaps the desktop aside
- *   for a floating action button and a right-side Sheet.
+ *   empty-state in place of the page. On mobile the desktop aside is
+ *   replaced by a panel that opens below the top header (no backdrop), so
+ *   the header's hamburger stays reachable; it's opened from the header's
+ *   chat button.
  */
 "use client";
 
@@ -27,15 +29,6 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { MessageSquare } from "lucide-react";
-import { Button } from "@dashboard/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@dashboard/ui/sheet";
 import { KodyChat } from "./KodyChat";
 import { AppHeader } from "./AppHeader";
 import { Sidebar } from "./Sidebar";
@@ -401,59 +394,34 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
               </div>
           </div>
 
-          {/* Mobile chat overlay — every route except /chat (where chat is
-          already the full view) and /messages (its own chat surface). The
-          page owns the small screen, so chat opens as a sheet via this FAB. */}
-          {!isChatRoute && !pathname?.startsWith("/messages") && (
-            <>
-              <Button
-                type="button"
-                size="icon"
-                onClick={openMobileChat}
-                className={cn(
-                  "md:hidden fixed bottom-4 right-4 z-40 h-12 w-12 rounded-full shadow-lg",
-                  "bg-emerald-600 hover:bg-emerald-700 text-white",
-                )}
-                aria-label="Open chat"
-              >
-                <MessageSquare className="w-5 h-5" />
-              </Button>
-
-              <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-                <SheetContent
-                  side="right"
-                  hideClose
-                  className="w-full sm:max-w-md !p-0 !gap-0 shadow-none border-0 outline-none focus:outline-none focus-visible:outline-none flex flex-col"
-                >
-                  <SheetHeader className="sr-only">
-                    <SheetTitle>Chat</SheetTitle>
-                    <SheetDescription>Kody assistant chat</SheetDescription>
-                  </SheetHeader>
-                  <div className="flex-1 min-h-0">
-                    {mobileOpen && auth ? (
-                      <KodyChat
-                        context={scope}
-                        actorLogin={githubUser?.login}
-                        onClose={() => setMobileOpen(false)}
-                        lockedAgentId={lockedAgentId}
-                        vibeMode={isVibeRoute}
-                        onIssueCreated={dispatchIssueCreated}
-                        knownGoals={goals}
-                        onDirectToGoal={directToGoal}
-                        composerInjection={composerInjection}
-                        attachmentInjection={attachmentInjection}
-                      />
-                    ) : mobileOpen ? (
-                      <div className="flex-1 flex items-center justify-center p-6">
-                        <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                          Connect a repository to start chatting with Kody.
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </>
+          {/* Mobile chat — opens as a panel BELOW the top header (no backdrop)
+          so the header stays visible and its hamburger (nav + filters) is
+          still reachable while chatting. The rail is desktop-only; on mobile
+          chat is opened from the header's chat button. Not shown on /chat
+          (chat is the full view) or /messages (its own chat surface). */}
+          {mobileOpen && !isChatRoute && !pathname?.startsWith("/messages") && (
+            <div className="md:hidden fixed inset-x-0 bottom-0 top-14 z-30 flex flex-col bg-background border-t border-border">
+              {auth ? (
+                <KodyChat
+                  context={scope}
+                  actorLogin={githubUser?.login}
+                  onClose={() => setMobileOpen(false)}
+                  lockedAgentId={lockedAgentId}
+                  vibeMode={isVibeRoute}
+                  onIssueCreated={dispatchIssueCreated}
+                  knownGoals={goals}
+                  onDirectToGoal={directToGoal}
+                  composerInjection={composerInjection}
+                  attachmentInjection={attachmentInjection}
+                />
+              ) : (
+                <div className="flex-1 flex items-center justify-center p-6">
+                  <p className="text-sm text-muted-foreground text-center leading-relaxed">
+                    Connect a repository to start chatting with Kody.
+                  </p>
+                </div>
+              )}
+            </div>
           )}
         </SettingsDrawerProvider>
       </NotificationsProvider>
