@@ -32,11 +32,13 @@ import {
   formatPerf,
   formatPickedElement,
   formatPickedElementLabel,
-  formatPlaywrightTest,
   PICKER_DOWNLOAD_PATH,
   PICKER_DOCS_URL,
   PICKER_INSTALL_HINT,
+  type PreviewAction,
 } from "./protocol";
+import { recordedStepToAction } from "../macros";
+import { PreviewMacrosMenu } from "../components/PreviewMacrosMenu";
 
 export interface ComposerChip {
   id: string;
@@ -57,6 +59,9 @@ interface PreviewInspectorProps {
   onContext: (chip: ComposerChip) => void;
   /** Emit a chat image attachment (preview screenshot). */
   onAttachment: (attachment: AttachmentInjection) => void;
+  /** Repo identity for per-repo storage (saved macros, etc.). */
+  owner: string;
+  repo: string;
 }
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -75,9 +80,16 @@ export function PreviewInspector({
   previewRef,
   onContext,
   onAttachment,
+  owner,
+  repo,
 }: PreviewInspectorProps) {
   const [busy, setBusy] = useState<
     null | "logs" | "network" | "shot" | "perf" | "rec"
+  >(null);
+  // Hoisted above the "not installed" early-return below so hooks order
+  // stays stable per React's rules-of-hooks.
+  const [pendingMacroSteps, setPendingMacroSteps] = useState<
+    PreviewAction[] | null
   >(null);
   const [autoContext, setAutoContext] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
@@ -226,12 +238,17 @@ export function PreviewInspector({
       toast.info("No steps recorded");
       return;
     }
-    onContext({
-      id: newId(),
-      label: `Test · ${result.steps.length} step(s)`,
-      context: formatPlaywrightTest(result.steps, result.url),
-    });
-    toast.success("Added recorded test to chat");
+    // Translate the raw recorder steps into the replayable PreviewAction
+    // shape macros store and replay through preview_act.
+    const actions = result.steps
+      .map(recordedStepToAction)
+      .filter((a): a is PreviewAction => a !== null);
+    if (actions.length === 0) {
+      toast.info("No usable steps recorded");
+      return;
+    }
+    setPendingMacroSteps(actions);
+    toast.info(`Recorded ${actions.length} step(s) — name and save`);
   };
 
   // Three logical groups. Each renders inside a rounded pill with a tinted
@@ -287,8 +304,8 @@ export function PreviewInspector({
           onClick={toggleRecording}
           title={
             picker.recording
-              ? "Stop recording and add the test to chat"
-              : "Record a click-through, then turn it into a Playwright test"
+              ? "Stop recording and save as a macro"
+              : "Record a click-through, then save it as a replayable macro"
           }
           aria-pressed={picker.recording}
           className={cn(
@@ -307,6 +324,15 @@ export function PreviewInspector({
             <Circle className="w-3 h-3" />
           )}
         </button>
+        <PreviewMacrosMenu
+          owner={owner}
+          repo={repo}
+          pendingSteps={pendingMacroSteps}
+          onPendingHandled={() => setPendingMacroSteps(null)}
+          onContext={onContext}
+          act={picker.act}
+          pickerAvailable={picker.available}
+        />
       </div>
 
       {/* Group 2 — DIAGNOSTICS: passive observers of the preview. Counts

@@ -514,6 +514,8 @@ export function PreviewModal({
                         previewRef={previewRef}
                         onContext={setComposerInjection}
                         onAttachment={setAttachmentInjection}
+                        owner={ownerRepo.owner}
+                        repo={ownerRepo.repo}
                       />
                       <button
                         type="button"
