@@ -11,7 +11,7 @@
  */
 "use client";
 
-import { useState, type RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import { toast } from "sonner";
 import {
   Bug,
@@ -21,6 +21,7 @@ import {
   Circle,
   Square,
   MousePointerClick,
+  Globe,
   Puzzle,
 } from "lucide-react";
 import { cn } from "../utils";
@@ -65,6 +66,11 @@ const BTN_BASE =
 const BTN_IDLE =
   "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border-zinc-700";
 
+// Source of truth for the "auto-attach page context to every send" toggle.
+// Lives here (not in KodyChat) because the toggle UI is preview-only — chat
+// reads the persisted flag and silently injects the snapshot when on.
+const AUTO_CONTEXT_KEY = "kody:preview-auto-context";
+
 export function PreviewInspector({
   previewRef,
   onContext,
@@ -73,6 +79,22 @@ export function PreviewInspector({
   const [busy, setBusy] = useState<
     null | "logs" | "network" | "shot" | "perf" | "rec"
   >(null);
+  const [autoContext, setAutoContext] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const v = window.localStorage.getItem(AUTO_CONTEXT_KEY);
+      return v === null ? true : v === "1";
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(AUTO_CONTEXT_KEY, autoContext ? "1" : "0");
+    } catch {
+      /* ignore quota */
+    }
+  }, [autoContext]);
 
   const picker = useElementPicker({
     onSelect: (el) => {
@@ -298,6 +320,24 @@ export function PreviewInspector({
         className={cn(BTN_BASE, BTN_IDLE)}
       >
         <Gauge className={cn("w-3 h-3", busy === "perf" && "animate-pulse")} />
+      </button>
+      <button
+        type="button"
+        onClick={() => setAutoContext((v) => !v)}
+        aria-pressed={autoContext}
+        title={
+          autoContext
+            ? "Auto page context: ON — preview URL + DOM sent silently with every chat message"
+            : "Auto page context: OFF — click to send preview context with every chat message"
+        }
+        className={cn(
+          BTN_BASE,
+          autoContext
+            ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25"
+            : BTN_IDLE,
+        )}
+      >
+        <Globe className="w-3 h-3" />
       </button>
       <button
         type="button"
