@@ -16,13 +16,15 @@
 "use client";
 
 import { type ReactNode } from "react";
-import { Menu, RefreshCw } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Menu, MessageSquare, RefreshCw } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { NotificationCenter } from "../notifications/NotificationCenter";
 import { useNotifications } from "../notifications/NotificationsProvider";
 import { cn } from "../utils";
+import { useChatScope } from "./ChatRailShell";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { VibeToggle } from "./VibeToggle";
 
@@ -68,6 +70,8 @@ export function KodyHeader({
   showRefresh = true,
 }: KodyHeaderProps) {
   const { connectedRepo } = useGitHubIdentity();
+  const pathname = usePathname();
+  const { openMobileChat } = useChatScope();
   const {
     store: notificationStore,
     permission: notificationPermission,
@@ -125,8 +129,20 @@ export function KodyHeader({
         {trailingExtras}
       </div>
 
-      {/* Mobile cluster — page-specific extras (e.g. issue picker) + hamburger. */}
+      {/* Mobile cluster — chat opener (the rail is desktop-only) +
+          page-specific extras (e.g. issue picker) + hamburger. */}
       <div className="flex md:hidden items-center gap-1">
+        {pathname !== "/chat" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="Open chat"
+            title="Chat"
+            onClick={openMobileChat}
+          >
+            <MessageSquare className="w-5 h-5" />
+          </Button>
+        )}
         {mobileExtras}
         <Button
           variant="ghost"
