@@ -19,7 +19,9 @@
  * the repo's vault has no FLY_API_TOKEN, every handler returns silently.
  */
 
+import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
 import { logger } from "@dashboard/lib/logger";
+import { rebuildBaseImage } from "./base-rebuild";
 import { resolvePreviewConfigForRepo } from "./config";
 import { createPreview, destroyPreview } from "./preview-lifecycle";
 
@@ -72,6 +74,61 @@ export async function handlePrOpenedOrSynced(
       "previews.webhook: create failed (non-fatal)",
     );
   }
+}
+
+interface DefaultBranchPushEvent {
+  repoFullName: string;
+  /** Head SHA of the push (event.head_commit.id or after). */
+  ref: string;
+  /** Paths changed in the push, used to skip engine-only commits. */
+  changedPaths: string[];
+}
+
+/**
+ * Skip base rebuilds when the push only touches engine bookkeeping —
+ * matches the Vercel `ignoreCommand` policy on consumer repos so we
+ * don't rebuild the base image on every `.kody/**` state write.
+ */
+function isEngineOnlyPush(changedPaths: string[]): boolean {
+  if (changedPaths.length === 0) return false;
+  return changedPaths.every(
+    (p) => p.startsWith(".kody/") || p === "CHANGELOG.md",
+  );
+}
+
+export async function handleDefaultBranchPush(
+  event: DefaultBranchPushEvent,
+): Promise<void> {
+  const [owner, repo] = event.repoFullName.split("/") as [string, string];
+  if (!owner || !repo) {
+    logger.warn({ event }, "previews.webhook: invalid repo full name");
+    return;
+  }
+
+  if (isEngineOnlyPush(event.changedPaths)) {
+    logger.info(
+      { repo: event.repoFullName, ref: event.ref },
+      "previews.webhook: skipping base rebuild (engine-only push)",
+    );
+    return;
+  }
+
+  const cfg = await resolvePreviewConfigForRepo(owner, repo);
+  if (!cfg) {
+    // Repo isn't opted into previews (no FLY_API_TOKEN in vault). No-op.
+    return;
+  }
+
+  // Same background token policy as createPreview — App installation
+  // token preferred, vault GITHUB_TOKEN fallback.
+  const bg = await resolveBackgroundToken(owner, repo);
+
+  await rebuildBaseImage({
+    repo: event.repoFullName,
+    ref: event.ref,
+    cfg,
+    githubToken: bg?.token,
+  });
 }
 
 export async function handlePrClosed(event: PRWebhookEvent): Promise<void> {

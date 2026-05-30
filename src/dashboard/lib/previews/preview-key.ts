@@ -35,3 +35,22 @@ export function previewAppName(key: PreviewKey): string {
   }
   return `kp-${shortHash(owner)}-${shortHash(name)}-pr-${key.pr}`;
 }
+
+/**
+ * Compose the Fly app name for the per-repo BASE image:
+ * `kp-<ownerHash>-<repoHash>-base`.
+ *
+ * The base image holds the heavy install + build cache so per-PR
+ * builds can `FROM` it and skip dependency install. The builder
+ * detects this name shape (suffix `-base`) and mirrors the resulting
+ * image to GHCR so per-PR builds (which run under flyctl
+ * `--remote-only` and can't auth to the Fly registry) can inherit
+ * from it without any auth.
+ */
+export function basePreviewAppName(repo: string): string {
+  const [owner, name] = repo.split("/");
+  if (!owner || !name) {
+    throw new Error(`invalid repo "${repo}", expected "owner/name"`);
+  }
+  return `kp-${shortHash(owner)}-${shortHash(name)}-base`;
+}
