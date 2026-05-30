@@ -53,7 +53,17 @@ import {
   listMachines,
 } from "./fly-api.ts";
 
-const DEFAULT_DOCKERFILE = "/app/default-Dockerfile.preview";
+function defaultDockerfilePath(): string {
+  // PREVIEW_BUILD_MODE selects which bundled template to drop in when
+  // the consumer repo doesn't ship its own Dockerfile.preview. "dev"
+  // (the default) skips `next build` and runs `next dev` at runtime —
+  // PR-preview-time drops from ~13 min to ~2 min. "prod" matches the
+  // Vercel-style `next build` + `next start` flow for repos that need
+  // production parity in their previews.
+  const mode = (process.env.PREVIEW_BUILD_MODE ?? "dev").trim().toLowerCase();
+  if (mode === "prod") return "/app/default-Dockerfile.preview.prod";
+  return "/app/default-Dockerfile.preview.dev";
+}
 
 function required(name: string): string {
   const v = (process.env[name] ?? "").trim();
@@ -251,8 +261,9 @@ async function pushPreviewImage(
 ): Promise<void> {
   const dockerfilePath = resolve(cwd, "Dockerfile.preview");
   if (!(await exists(dockerfilePath))) {
-    await copyFile(DEFAULT_DOCKERFILE, dockerfilePath);
-    console.log("[builder] using bundled default Dockerfile.preview");
+    const src = defaultDockerfilePath();
+    await copyFile(src, dockerfilePath);
+    console.log(`[builder] using bundled default Dockerfile.preview (${src.split("/").pop()})`);
   } else {
     console.log("[builder] using repo Dockerfile.preview");
   }

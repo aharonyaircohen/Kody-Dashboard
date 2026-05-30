@@ -41,6 +41,8 @@ export interface SpawnBuilderInput {
   githubToken?: string;
   /** Build-time secrets baked into the image as .env.production.local. */
   buildEnv?: Record<string, string>;
+  /** "dev" or "prod" — picks bundled Dockerfile.preview variant. */
+  buildMode?: "dev" | "prod";
 }
 
 export interface SpawnBuilderResult {
@@ -78,6 +80,9 @@ export async function spawnPreviewBuilder(
         // Drops a typical PR build from ~13 min cold to ~3 min.
         ...(process.env.KODY_PREVIEW_GHCR_OWNER
           ? { MIRROR_TO_GHCR_OWNER: process.env.KODY_PREVIEW_GHCR_OWNER }
+          : {}),
+        ...(input.buildMode
+          ? { PREVIEW_BUILD_MODE: input.buildMode }
           : {}),
         // Build env passed as a single JSON blob so name collisions
         // with builder control vars are impossible.

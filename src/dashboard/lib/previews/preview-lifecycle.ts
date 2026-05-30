@@ -50,7 +50,17 @@ const NEVER_PASS_TO_BUILD = new Set([
   "FLY_ORG_SLUG",
   "FLY_DEFAULT_REGION",
   "KODY_MASTER_KEY",
+  // Preview-config knob; consumed by the dashboard before spawn, not
+  // by the build itself.
+  "KODY_PREVIEW_BUILD_MODE",
 ]);
+
+/** "dev" or "prod" — selects which bundled Dockerfile.preview the
+ *  builder uses. Defaults to "dev" (skips `next build`, ~2 min
+ *  cold previews). */
+function parseBuildMode(raw: string | undefined): "dev" | "prod" {
+  return raw?.toLowerCase().trim() === "prod" ? "prod" : "dev";
+}
 
 export interface CreatePreviewInput extends PreviewKey {
   ref: string;
@@ -69,18 +79,24 @@ export interface PreviewInfo {
   builderMachineId?: string;
 }
 
-async function loadVaultSecretsForBuild(
+interface VaultBuildContext {
+  buildEnv: Record<string, string>;
+  buildMode: "dev" | "prod";
+}
+
+async function loadVaultContextForBuild(
   repo: string,
-): Promise<Record<string, string>> {
+): Promise<VaultBuildContext> {
   const [owner, name] = repo.split("/") as [string, string];
-  if (!owner || !name) return {};
+  const fallback: VaultBuildContext = { buildEnv: {}, buildMode: "dev" };
+  if (!owner || !name) return fallback;
   const bg = await resolveBackgroundToken(owner, name);
   if (!bg) {
     logger.warn(
       { owner, repo: name },
       "preview: no background token for vault read; build will run with no secrets",
     );
-    return {};
+    return fallback;
   }
   try {
     const { doc } = await readVault(
@@ -88,19 +104,22 @@ async function loadVaultSecretsForBuild(
       owner,
       name,
     );
-    const out: Record<string, string> = {};
+    const buildEnv: Record<string, string> = {};
     for (const [k, entry] of Object.entries(doc.secrets)) {
       if (!entry?.value) continue;
       if (NEVER_PASS_TO_BUILD.has(k)) continue;
-      out[k] = entry.value;
+      buildEnv[k] = entry.value;
     }
-    return out;
+    const buildMode = parseBuildMode(
+      doc.secrets.KODY_PREVIEW_BUILD_MODE?.value,
+    );
+    return { buildEnv, buildMode };
   } catch (err) {
     logger.warn(
       { err, repo },
       "preview: vault read failed; build will run with no secrets",
     );
-    return {};
+    return fallback;
   }
 }
 
@@ -111,10 +130,11 @@ export async function createPreview(
   const key: PreviewKey = { repo: input.repo, pr: input.pr };
   const appName = previewAppName(key);
 
-  // Build-time secrets — read once from the target repo's vault and
-  // forward to the builder machine. Apps like Next.js read these as
-  // .env.production.local during `next build`.
-  const buildEnv = await loadVaultSecretsForBuild(input.repo);
+  // Build-time secrets + build mode — read once from the target repo's
+  // vault. Secrets are baked into .env.production.local during build.
+  // Build mode picks the bundled Dockerfile.preview variant ("dev"
+  // skips `next build`; "prod" matches Vercel's flow).
+  const { buildEnv, buildMode } = await loadVaultContextForBuild(input.repo);
 
   let spawned: SpawnBuilderResult;
   try {
@@ -129,6 +149,7 @@ export async function createPreview(
       flyRegion: cfg.defaultRegion,
       githubToken: input.githubToken,
       buildEnv,
+      buildMode,
     });
   } catch (err) {
     logger.error(
