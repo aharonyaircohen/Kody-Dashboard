@@ -19,6 +19,13 @@ import { logger } from "@dashboard/lib/logger";
 import { readVault } from "@dashboard/lib/vault/store";
 
 /**
+ * Empty fallback. Returned only when the vault is genuinely unreadable
+ * (no token, no `.kody/secrets.enc`, decrypt failure). When a token is
+ * passed in but the read fails, the caller decides whether to proceed.
+ */
+const EMPTY: VaultBuildContext = { buildEnv: {}, buildMode: "prod" };
+
+/**
  * Names always stripped before secrets get baked into a preview build.
  * Fly infra credentials (FLY_API_TOKEN, etc.) are server-side only and
  * must never leak into a user-facing image.
@@ -49,41 +56,73 @@ export interface VaultBuildContext {
   buildMode: "dev" | "prod";
 }
 
+/**
+ * Read the per-repo vault and return the build env + build mode.
+ *
+ * When `token` is supplied, it's used directly (no second background-token
+ * resolve). Callers that already resolved a background token at the
+ * webhook layer SHOULD pass it in — this both eliminates a redundant
+ * GitHub call and ensures the same token that worked for sibling
+ * vault reads is reused here.
+ *
+ * Distinguishes three failure modes via the loud `logger.error` paths so
+ * silent fall-throughs (empty env → broken build) stop being a mystery:
+ *
+ *   - no token available at all (vault + App both empty)
+ *   - vault read failed (404, decrypt error, network)
+ *   - vault read returned 0 secrets (real empty vault)
+ */
 export async function loadVaultContextForBuild(
   repo: string,
+  token?: string,
 ): Promise<VaultBuildContext> {
   const [owner, name] = repo.split("/") as [string, string];
-  const fallback: VaultBuildContext = { buildEnv: {}, buildMode: "prod" };
-  if (!owner || !name) return fallback;
-  const bg = await resolveBackgroundToken(owner, name);
-  if (!bg) {
-    logger.warn(
-      { owner, repo: name },
-      "preview: no background token for vault read; build will run with no secrets",
-    );
-    return fallback;
+  if (!owner || !name) {
+    logger.error({ repo }, "preview: invalid repo full name; cannot read vault");
+    return EMPTY;
   }
+
+  let resolvedToken = token;
+  if (!resolvedToken) {
+    const bg = await resolveBackgroundToken(owner, name);
+    if (!bg) {
+      logger.error(
+        { owner, repo: name },
+        "preview: no background token for vault read — build will run with no secrets",
+      );
+      return EMPTY;
+    }
+    resolvedToken = bg.token;
+  }
+
+  let doc;
   try {
-    const { doc } = await readVault(
-      new Octokit({ auth: bg.token }),
+    const result = await readVault(
+      new Octokit({ auth: resolvedToken }),
       owner,
       name,
     );
-    const buildEnv: Record<string, string> = {};
-    for (const [k, entry] of Object.entries(doc.secrets)) {
-      if (!entry?.value) continue;
-      if (NEVER_PASS_TO_BUILD.has(k)) continue;
-      buildEnv[k] = entry.value;
-    }
-    const buildMode = parseBuildMode(
-      doc.secrets.KODY_PREVIEW_BUILD_MODE?.value,
-    );
-    return { buildEnv, buildMode };
+    doc = result.doc;
   } catch (err) {
-    logger.warn(
-      { err, repo },
-      "preview: vault read failed; build will run with no secrets",
+    logger.error(
+      { err: err instanceof Error ? err.message : String(err), repo },
+      "preview: vault read FAILED — build will run with no secrets",
     );
-    return fallback;
+    return EMPTY;
   }
+
+  const buildEnv: Record<string, string> = {};
+  for (const [k, entry] of Object.entries(doc.secrets ?? {})) {
+    if (!entry?.value) continue;
+    if (NEVER_PASS_TO_BUILD.has(k)) continue;
+    buildEnv[k] = entry.value;
+  }
+  if (Object.keys(buildEnv).length === 0) {
+    logger.error(
+      { repo, totalSecrets: Object.keys(doc.secrets ?? {}).length },
+      "preview: vault has no buildable secrets — build will run with no secrets",
+    );
+  }
+  const buildMode = parseBuildMode(doc.secrets?.KODY_PREVIEW_BUILD_MODE?.value);
+  return { buildEnv, buildMode };
 }

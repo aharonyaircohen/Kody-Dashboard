@@ -64,8 +64,14 @@ export async function createPreview(
   // Build-time secrets + build mode — read once from the target repo's
   // vault. Secrets are baked into .env.production.local during build.
   // Build mode picks the bundled Dockerfile.preview variant ("dev"
-  // skips `next build`; "prod" matches Vercel's flow).
-  const { buildEnv, buildMode } = await loadVaultContextForBuild(input.repo);
+  // skips `next build`; "prod" matches Vercel's flow). `input.githubToken`
+  // (when set by the webhook handler) reuses the already-resolved
+  // background token — same token that resolved the Fly config —
+  // avoiding a second GitHub API call and a class of silent-empty bugs.
+  const { buildEnv, buildMode } = await loadVaultContextForBuild(
+    input.repo,
+    input.githubToken,
+  );
 
   let spawned: SpawnBuilderResult;
   try {

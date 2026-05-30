@@ -117,6 +117,10 @@ export async function handlePrOpenedOrSynced(
         repo: event.repoFullName,
         pr: event.prNumber,
         ref: event.ref,
+        // Reuse the already-resolved token (App preferred, vault fallback)
+        // so the downstream vault read uses the same auth that already
+        // worked for the Fly-config + compare-commits calls above.
+        githubToken: bg?.token,
       },
       cfg,
     );

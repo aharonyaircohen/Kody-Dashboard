@@ -67,7 +67,13 @@ export async function rebuildBaseImage(input: RebuildBaseInput): Promise<void> {
   }
 
   const appName = basePreviewAppName(input.repo);
-  const { buildEnv, buildMode } = await loadVaultContextForBuild(input.repo);
+  // Pass the already-resolved background token down so vault read uses
+  // the same auth the caller already verified — no second resolve, no
+  // mystery empty-env fallback.
+  const { buildEnv, buildMode } = await loadVaultContextForBuild(
+    input.repo,
+    input.githubToken,
+  );
 
   try {
     const spawned = await spawnPreviewBuilder({
