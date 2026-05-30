@@ -62,6 +62,19 @@ import { applyVibeToolPolicy } from "./vibe-tool-policy";
 import { fetchUrlTool } from "../tools/fetch-url";
 import { featureTools } from "../tools/feature-tools";
 import { uiTools } from "../tools/ui-tools";
+import { createCommandTools } from "../tools/commands-tools";
+import { createContextTools } from "../tools/context-tools";
+import { createInstructionsTools } from "../tools/instructions-tools";
+import { createVariableTools } from "../tools/variables-tools";
+import { createSecretTools } from "../tools/secrets-tools";
+import { createModelTools } from "../tools/models-tools";
+import { createReportTools } from "../tools/reports-tools";
+import { createWebhookTools } from "../tools/webhooks-tools";
+import { createNotificationTools } from "../tools/notifications-tools";
+import { createCompanyTools } from "../tools/company-tools";
+import { createInboxTools } from "../tools/inbox-tools";
+import { createStaffAdminTools } from "../tools/staff-admin-tools";
+import { createDutyAdminTools } from "../tools/duty-admin-tools";
 import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files";
 import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
@@ -567,6 +580,75 @@ export async function POST(req: NextRequest) {
       }),
       ...createKodyTools({ octokit, owner: repo.owner, repo: repo.repo }),
       ...createExecutableTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      // Dashboard-management tools: let chat manage every dashboard feature
+      // (config files, settings, infra) the same way the pages do. Reads use
+      // the module-level GitHub context set above; writes pass this octokit.
+      ...createCommandTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createContextTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createInstructionsTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createVariableTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createSecretTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createModelTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createReportTools({ owner: repo.owner, repo: repo.repo }),
+      ...createNotificationTools({ owner: repo.owner, repo: repo.repo }),
+      ...createCompanyTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createWebhookTools({
+        token: repo.token,
+        owner: repo.owner,
+        repo: repo.repo,
+      }),
+      ...createInboxTools({
+        token: repo.token,
+        owner: repo.owner,
+        repo: repo.repo,
+      }),
+      ...createStaffAdminTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createDutyAdminTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
