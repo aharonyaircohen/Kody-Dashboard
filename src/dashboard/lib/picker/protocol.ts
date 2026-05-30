@@ -59,6 +59,19 @@ export interface PerfResource {
   bytes: number;
 }
 
+/** Where the user is in the preview right now (URL + title + selection + DOM). */
+export interface PageInfo {
+  url: string;
+  title: string;
+  /** Highlighted text in the preview, capped to 500 chars. Empty when none. */
+  selection: string;
+  /**
+   * Compact outline of visible headings, buttons, links, inputs, landmarks —
+   * lets chat answer "what's on the page" without the full HTML. ~3KB cap.
+   */
+  dom: string;
+}
+
 /** A performance snapshot of the preview (page load timings + resources). */
 export interface PerfReport {
   url: string;
@@ -90,6 +103,7 @@ export type PickerPageMessage = {
     | "collect-logs"
     | "collect-network"
     | "collect-perf"
+    | "collect-page"
     | "record-start"
     | "record-stop"
     | "screenshot";
@@ -118,6 +132,7 @@ export type PickerExtMessage =
       network: number;
     }
   | { source: typeof PICKER_EXT_SOURCE; type: "perf"; report: PerfReport }
+  | { source: typeof PICKER_EXT_SOURCE; type: "page"; info: PageInfo }
   | {
       source: typeof PICKER_EXT_SOURCE;
       type: "recording";
@@ -166,6 +181,23 @@ export function formatPickedElement(el: PickedElement): string {
     lines.push(`- Attributes: \`${rendered}\``);
   }
   lines.push(`- URL: ${el.url}`);
+  return lines.join("\n");
+}
+
+/** Render a page-context snapshot as a chat-ready block. */
+export function formatPageInfo(info: PageInfo): string {
+  const lines = [
+    "I'm on this page in the preview — use it as context for what I'm asking about:",
+    `- URL: ${info.url}`,
+  ];
+  if (info.title) lines.push(`- Title: ${info.title}`);
+  if (info.selection) lines.push(`- Selected text: "${info.selection}"`);
+  if (info.dom) {
+    lines.push("- DOM outline (visible interactive + landmark elements):");
+    lines.push("```");
+    lines.push(info.dom);
+    lines.push("```");
+  }
   return lines.join("\n");
 }
 

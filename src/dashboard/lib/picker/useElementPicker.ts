@@ -15,6 +15,7 @@ import {
   PICKER_PAGE_SOURCE,
   type LogEntry,
   type NetworkEntry,
+  type PageInfo,
   type PerfReport,
   type PickedElement,
   type PickerExtMessage,
@@ -57,6 +58,12 @@ interface ElementPicker {
   captureScreenshot: (clip?: ScreenshotClip) => Promise<ScreenshotResult>;
   /** Snapshot the preview's load performance + slowest resources. */
   collectPerf: () => Promise<PerfReport | null>;
+  /**
+   * Read the preview's current page context (URL, title, selected text, DOM
+   * outline). `timeoutMs` lets callers bound the wait — useful for on-send
+   * auto-attach where 1.5s is too long if no preview frame exists.
+   */
+  collectPage: (timeoutMs?: number) => Promise<PageInfo | null>;
   /** True while recording a click-through into a test. */
   recording: boolean;
   /** Live count of recorded steps. */
@@ -73,6 +80,7 @@ type PageMessageType =
   | "collect-logs"
   | "collect-network"
   | "collect-perf"
+  | "collect-page"
   | "record-start"
   | "record-stop"
   | "screenshot";
@@ -273,6 +281,31 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
     [],
   );
 
+  // Picks the first reply from any sub-frame; preview is one frame so that's
+  // fine. If multiple frames replied we'd want the largest one, but no caller
+  // needs that today.
+  const collectPage = useCallback(
+    (timeoutMs: number = 1500): Promise<PageInfo | null> =>
+      new Promise((resolve) => {
+        const handler = (event: MessageEvent) => {
+          if (event.source !== window) return;
+          const data = event.data as PickerExtMessage | undefined;
+          if (!data || data.source !== PICKER_EXT_SOURCE) return;
+          if (data.type !== "page") return;
+          window.removeEventListener("message", handler);
+          clearTimeout(timer);
+          resolve(data.info);
+        };
+        window.addEventListener("message", handler);
+        postToExtension("collect-page");
+        const timer = setTimeout(() => {
+          window.removeEventListener("message", handler);
+          resolve(null);
+        }, timeoutMs);
+      }),
+    [],
+  );
+
   const startRecording = useCallback(() => {
     setRecStepCount(0);
     setRecording(true);
@@ -315,6 +348,7 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
     collectNetwork,
     captureScreenshot,
     collectPerf,
+    collectPage,
     recording,
     recStepCount,
     startRecording,

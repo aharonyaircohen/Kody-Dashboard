@@ -22,6 +22,7 @@ const BROADCAST_DOWN = new Set([
   "collect-logs",
   "collect-network",
   "collect-perf",
+  "collect-page",
   "record-start",
   "record-stop",
 ]);
@@ -31,6 +32,7 @@ const RELAY_UP = new Set([
   "network",
   "counts",
   "perf",
+  "page",
   "recording",
   "rec-count",
 ]);
