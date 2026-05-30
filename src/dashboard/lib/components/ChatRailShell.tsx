@@ -277,6 +277,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // dropdown still lets the user pick any configured LLM for chat-only turns.
   const isChatRoute = pathname === "/chat";
   const isVibeRoute = pathname?.startsWith("/vibe") ?? false;
+  const isTasksRoute = pathname === "/tasks";
   const lockedAgentId = undefined;
 
   const chatPane = auth ? (
@@ -308,11 +309,22 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             {/* One persistent app header (toggle + Vibe + repo title +
             notifications) spanning the full width, so it stays put across
             Chat and Tasks and never disappears — chat opens below it. Vibe
-            keeps its own header, so the shared one is suppressed there. */}
-            {!isVibeRoute && <AppHeader />}
+            keeps its own header, so the shared one is suppressed there.
+            The Tasks page draws its own header on mobile, so hide this one
+            there on small screens to avoid a duplicate bar (still the top
+            bar on md+). */}
+            {!isVibeRoute && (
+              <div className={cn(isTasksRoute && "hidden md:block")}>
+                <AppHeader />
+              </div>
+            )}
 
             <div className="flex-1 min-h-0 flex overflow-hidden">
-              {/* Chat rail — far left (original position), left of the nav.
+              {/* Nav sidebar — far left. Chat sits to its right, so the
+                order reads nav | chat | tasks. */}
+                <Sidebar />
+
+                {/* Chat rail — right of the nav sidebar.
                 Full-width on /chat; a fixed-width side rail on every other
                 route (tasks, vibe, settings…); hidden on mobile non-chat
                 (reached via the FAB below). Always mounted so chat
@@ -351,11 +363,6 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                     title="Drag to resize · double-click to reset"
                   />
                 )}
-
-                {/* Nav sidebar — between the chat rail and the page, so the
-                order reads chat | nav | tasks (the original chat-left
-                arrangement). */}
-                <Sidebar />
 
                 {/* Page content. Pages own their own internal scroll. Hidden
                 only on /chat, where chat is the full view. */}
