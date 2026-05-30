@@ -37,6 +37,7 @@ import {
   SheetTitle,
 } from "@dashboard/ui/sheet";
 import { KodyChat } from "./KodyChat";
+import { AppHeader } from "./AppHeader";
 import { Sidebar } from "./Sidebar";
 import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
@@ -308,10 +309,12 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             AppTopBar hamburger + MobileMenu sheet). */}
             <Sidebar />
 
-            {/* Main column: switchable content pane. The Chat | Tasks view
-            toggle lives in each view's own header (KodyChat / KodyHeader),
-            so there's no separate top strip. */}
+            {/* Main column: one persistent app header (toggle + Vibe + repo
+            title + notifications) that stays across Chat and Tasks, then the
+            switchable content pane below it. Vibe keeps its own header, so the
+            shared one is suppressed there. */}
             <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
+              {!isVibeRoute && <AppHeader />}
               <div className="flex-1 min-h-0 flex overflow-hidden">
                 {/* Chat pane. Full-width on /chat; a fixed-width side rail on
                 every other route (beside the page — tasks, vibe, settings…);

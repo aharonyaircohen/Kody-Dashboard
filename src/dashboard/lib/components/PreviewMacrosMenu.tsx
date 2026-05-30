@@ -7,21 +7,16 @@
  *   any saved macro via the inspector extension (preview_act through the
  *   picker hook), or send a macro to chat for the model to drive itself.
  *
- *   Per-repo localStorage (src/dashboard/lib/macros.ts).
+ *   Stored in the repo at `.kody/macros.json` via /api/kody/macros, so
+ *   macros sync across devices and the chat agent can manage them too.
  */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ListVideo, X, Play, Send, Trash2 } from "lucide-react";
-import {
-  addMacro,
-  formatMacroForChat,
-  readMacros,
-  removeMacro,
-  writeMacros,
-  type Macro,
-} from "../macros";
+import { formatMacroForChat, type Macro } from "../macros";
+import { useAuth, buildAuthHeaders } from "../auth-context";
 import type { PreviewAction, PreviewActResult } from "../picker/protocol";
 import { cn } from "../utils";
 
@@ -58,16 +53,37 @@ export function PreviewMacrosMenu({
   act,
   pickerAvailable,
 }: PreviewMacrosMenuProps) {
-  const [macros, setMacros] = useState<Macro[]>(() => readMacros(owner, repo));
+  const { auth } = useAuth();
+  const [macros, setMacros] = useState<Macro[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+  const [saving, setSaving] = useState(false);
   const [replayingId, setReplayingId] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    setMacros(readMacros(owner, repo));
-  }, [owner, repo]);
+    if (!owner || !repo) {
+      setMacros([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/kody/macros", {
+          headers: buildAuthHeaders(auth),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { macros?: Macro[] };
+        if (!cancelled && Array.isArray(data.macros)) setMacros(data.macros);
+      } catch {
+        /* best-effort load */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [owner, repo, auth]);
 
   // When a pending recording arrives, auto-open the menu so the save form
   // is visible — the user just stopped recording, the next move is to name it.
@@ -98,12 +114,7 @@ export function PreviewMacrosMenu({
     };
   }, [menuOpen]);
 
-  const persist = (next: Macro[]): void => {
-    setMacros(next);
-    writeMacros(owner, repo, next);
-  };
-
-  const handleSaveRecording = (): void => {
+  const handleSaveRecording = async (): Promise<void> => {
     if (!pendingSteps || pendingSteps.length === 0) return;
     const name = nameDraft.trim();
     if (!name) {
@@ -134,11 +145,31 @@ export function PreviewMacrosMenu({
         /* invalid URL — fall through to the raw steps */
       }
     }
-    const next = addMacro(macros, name, stepsWithStart, Date.now());
-    persist(next);
-    setNameDraft("");
-    onPendingHandled();
-    toast.success(`Saved macro "${name}"`);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/kody/macros", {
+        method: "POST",
+        headers: {
+          ...buildAuthHeaders(auth),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, steps: stepsWithStart }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        macros?: Macro[];
+        message?: string;
+      };
+      if (!res.ok) {
+        toast.error(data.message ?? "Failed to save macro");
+        return;
+      }
+      if (Array.isArray(data.macros)) setMacros(data.macros);
+      setNameDraft("");
+      onPendingHandled();
+      toast.success(`Saved macro "${name}"`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDiscardRecording = (): void => {
@@ -181,8 +212,25 @@ export function PreviewMacrosMenu({
     setMenuOpen(false);
   };
 
-  const handleRemove = (id: string): void => {
-    persist(removeMacro(macros, id));
+  const handleRemove = async (id: string): Promise<void> => {
+    const prev = macros;
+    setMacros((m) => m.filter((x) => x.id !== id)); // optimistic
+    try {
+      const res = await fetch(`/api/kody/macros?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: buildAuthHeaders(auth),
+      });
+      const data = (await res.json().catch(() => ({}))) as { macros?: Macro[] };
+      if (!res.ok) {
+        setMacros(prev); // rollback
+        toast.error("Failed to delete macro");
+        return;
+      }
+      if (Array.isArray(data.macros)) setMacros(data.macros);
+    } catch {
+      setMacros(prev);
+      toast.error("Failed to delete macro");
+    }
   };
 
   return (
@@ -221,7 +269,7 @@ export function PreviewMacrosMenu({
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                handleSaveRecording();
+                void handleSaveRecording();
               }}
               className="px-2 py-1.5 mx-1 mb-1 rounded bg-emerald-500/10 border border-emerald-500/30"
             >
@@ -240,10 +288,11 @@ export function PreviewMacrosMenu({
                 />
                 <button
                   type="submit"
-                  className="text-xs text-emerald-400 hover:text-emerald-300 px-1"
+                  disabled={saving}
+                  className="text-xs text-emerald-400 hover:text-emerald-300 px-1 disabled:opacity-50"
                   title="Save"
                 >
-                  Save
+                  {saving ? "Saving…" : "Save"}
                 </button>
                 <button
                   type="button"
@@ -300,7 +349,7 @@ export function PreviewMacrosMenu({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleRemove(macro.id)}
+                  onClick={() => void handleRemove(macro.id)}
                   title="Delete macro"
                   aria-label={`Delete ${macro.name}`}
                   className="text-zinc-500 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100"
