@@ -361,10 +361,15 @@ export function KodyChat({
   const runPreviewActionRef = useRef<
     (directive: PreviewActDirective) => Promise<void>
   >(async () => {});
+  // Depth counter for chained `preview_act` calls. The dashboard auto-feeds
+  // each post-action DOM snapshot back to the model as a hidden user turn so
+  // it can chain steps; this ref caps the chain so a runaway model can't
+  // loop forever. Reset on every real user send (sendMessage).
+  const previewActChainRef = useRef(0);
   type SendTextFn = (
     messageContent: string,
     currentAttachments?: Attachment[],
-    options?: { voiceMode?: boolean },
+    options?: { voiceMode?: boolean; hidden?: boolean },
   ) => Promise<string | null>;
   const sendTextRef = useRef<SendTextFn | null>(null);
   // Initialized lazily below — `sendText` is declared further down.
@@ -407,21 +412,39 @@ export function KodyChat({
         );
         return;
       }
+      // Cap auto-chained preview actions. Without a cap, a model that keeps
+      // emitting `preview_act` in every reply will trigger an unbounded
+      // chain — that's the original runaway-loop bug. Real user prompts
+      // reset the counter (see sendMessage). The cap is generous enough for
+      // typical login / form-fill flows (5–8 steps) but short enough to
+      // halt obvious runaways.
+      const MAX_AUTO_ACTIONS = 8;
+      if (previewActChainRef.current >= MAX_AUTO_ACTIONS) {
+        toast.error(
+          `Stopped after ${MAX_AUTO_ACTIONS} chained preview actions — ask me again to continue.`,
+        );
+        return;
+      }
+      previewActChainRef.current += 1;
       const result = await previewPickerRef.current.act(action);
-      // No synthetic follow-up turn. Earlier we re-fed the result into chat
-      // as a user message; the model then auto-called preview_act again
-      // and looped, plus the bubble looked like the user had said it.
-      // Surface success/failure with a toast and let the user drive the
-      // next prompt. Multi-step flows therefore need one user turn per
-      // step for now — we can re-introduce chaining later via a proper
-      // client-tool round-trip (AI SDK onToolCall) that lives entirely
-      // inside the assistant's turn instead of a fake user turn.
+      // Surface to the user with a non-blocking toast so they can see what
+      // the model just did in their browser without scrolling chat.
       if (result.ok) {
         toast.success(`Preview: ${directive.reason}`);
       } else {
         toast.error(
           `Preview action failed: ${result.error ?? "unknown error"}`,
         );
+      }
+      // Inject a HIDDEN user turn carrying the result + fresh DOM digest.
+      // Hidden means the chat UI skips it (no fake "user said this" bubble
+      // — the original bug); but it still rides the wire to the model so
+      // it can observe the new state and decide the next step. Pairing the
+      // post-action snapshot with the cap above gives controlled multi-step.
+      const followUp = formatPreviewActResult(action, result);
+      const send = sendTextRef.current;
+      if (send) {
+        await send(followUp, [], { hidden: true });
       }
     },
     [],
@@ -1931,7 +1954,7 @@ export function KodyChat({
     async (
       messageContent: string,
       currentAttachments: Attachment[] = [],
-      options: { voiceMode?: boolean } = {},
+      options: { voiceMode?: boolean; hidden?: boolean } = {},
     ): Promise<string | null> => {
       if (!messageContent.trim() && currentAttachments.length === 0)
         return null;
@@ -2017,6 +2040,10 @@ export function KodyChat({
           content: displayContent,
           timestamp,
           attachments: attachmentRefs.length > 0 ? attachmentRefs : undefined,
+          // Hidden synthetic turns (preview-act follow-ups) ride the wire so
+          // the model observes new state, but the renderer skips them — the
+          // user only sees their own prompts + assistant replies.
+          ...(options.hidden ? { hidden: true } : {}),
         },
       ]);
 
@@ -3693,6 +3720,8 @@ export function KodyChat({
   const sendMessage = async () => {
     if (!input.trim() && attachments.length === 0 && contextChips.length === 0)
       return;
+    // A real user prompt restarts the budget for chained preview actions.
+    previewActChainRef.current = 0;
     // Expand slash commands before send: `/review` or `/explain foo` →
     // the prompt body with $ARGUMENTS substituted. The model never sees
     // the slash form (every backend just gets normal text). Unknown
@@ -4601,7 +4630,8 @@ export function KodyChat({
           </div>
         )}
 
-        {messages.map((msg, i) => (
+        {messages.map((msg, i) =>
+          msg.hidden ? null : (
           <div
             key={i}
             data-role={msg.role}
@@ -4724,7 +4754,8 @@ export function KodyChat({
                 )}
             </div>
           </div>
-        ))}
+          ),
+        )}
 
         {/* Typing indicator shown before an assistant placeholder exists.
             Covers the Kody-engine first-byte window where the placeholder is

@@ -371,11 +371,15 @@ When they ask you to interact with or verify something in that preview
   4. short tag chains as a last resort.
   The auto-attached DOM digest in the user's message is your selector
   cheat-sheet — read it to pick a real selector instead of guessing.
-- The dashboard runs the action in the user's browser. The user will then
-  see the updated page and send their next prompt — the auto-attached
-  page DOM digest on their next message tells you what changed.
-- One action per turn. Do **not** call \`preview_act\` more than once in a
-  single reply; multi-step flows happen across user turns.
+- After each \`preview_act\` the dashboard runs it in the user's browser and
+  injects a hidden user turn with the fresh DOM digest. Read that snapshot
+  before deciding the next step — don't ask the user "what changed?"; you
+  already see it.
+- Multi-step flows (e.g. fill email → fill password → click submit) chain
+  naturally: one action per reply, observe the snapshot, then call the
+  next action. The dashboard caps the chain at 8 consecutive actions per
+  real user prompt; if you hit that cap, finish the reply and let the
+  user re-prompt.
 - Cross-origin navigation is blocked. \`navigate\` is same-origin only.
 - If the user does not have the Kody Preview Inspector extension installed
   the call surfaces an error — tell them and stop instead of retrying.

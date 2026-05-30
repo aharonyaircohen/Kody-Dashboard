@@ -37,6 +37,14 @@ export interface Message {
    * misconfig). Always paired with role: 'assistant'.
    */
   isError?: boolean;
+  /**
+   * Synthetic user turn the dashboard injects after a successful
+   * `preview_act` so the model sees the post-action DOM snapshot.
+   * Hidden in the UI (no bubble) but still sent on the wire so the
+   * model can chain steps. Distinct from `isError`: not an error,
+   * just not for the user's eyes.
+   */
+  hidden?: boolean;
 }
 
 /**
