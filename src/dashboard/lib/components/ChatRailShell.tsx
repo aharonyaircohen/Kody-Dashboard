@@ -266,17 +266,16 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     );
   }
 
-  // The single KodyChat is shown two ways and otherwise stays mounted-but-
-  // hidden so its history/streaming survive navigation:
+  // The single KodyChat is mounted once so history/streaming survive
+  // navigation. It renders two ways:
   //   • /chat  → full-width main pane (the primary assistant view)
-  //   • /vibe  → fixed-width side panel beside the live preview
-  //   • else   → hidden (page pane owns the screen; toggle returns to chat)
+  //   • else   → fixed-width side rail beside the page (tasks, vibe,
+  //              settings…); on mobile non-chat it hides and opens as a
+  //              sheet via the FAB below.
   // Kody Live remains the default agent (only it can edit code); the model
   // dropdown still lets the user pick any configured LLM for chat-only turns.
   const isChatRoute = pathname === "/chat";
   const isVibeRoute = pathname?.startsWith("/vibe") ?? false;
-  const chatVisible = isChatRoute || isVibeRoute;
-  const pageVisible = !isChatRoute;
   const lockedAgentId = undefined;
 
   const chatPane = auth ? (
@@ -314,25 +313,27 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             so there's no separate top strip. */}
             <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
               <div className="flex-1 min-h-0 flex overflow-hidden">
-                {/* Chat pane. Full-width on /chat; a fixed-width side panel
-                on /vibe; kept mounted (hidden) elsewhere so chat state
-                persists across navigation. */}
+                {/* Chat pane. Full-width on /chat; a fixed-width side rail on
+                every other route (beside the page — tasks, vibe, settings…);
+                hidden on mobile non-chat (reached via the FAB below). Always
+                mounted so chat history/streaming survive navigation. */}
                 <div
                   className={cn(
-                    "flex flex-col min-h-0",
-                    !chatVisible && "hidden",
-                    isChatRoute && "flex-1",
-                    isVibeRoute &&
-                      "hidden md:flex shrink-0 border-r border-border bg-black/20",
+                    "flex-col min-h-0 bg-black/20",
+                    isChatRoute
+                      ? "flex flex-1"
+                      : "hidden md:flex shrink-0 border-r border-border",
+                    !dragging && "transition-[width] duration-200",
                   )}
-                  style={isVibeRoute ? { width: railWidth } : undefined}
+                  style={!isChatRoute ? { width: railWidth } : undefined}
                   aria-label="Kody chat"
                 >
                   {chatPane}
                 </div>
 
-                {/* Vibe-only drag handle between chat and the preview. */}
-                {auth && isVibeRoute && (
+                {/* Drag handle between the chat rail and the page — desktop,
+                side-rail routes only (not when chat is the full view). */}
+                {auth && !isChatRoute && (
                   <div
                     role="separator"
                     aria-orientation="vertical"
@@ -351,11 +352,12 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                   />
                 )}
 
-                {/* Page content. Pages own their own internal scroll. */}
+                {/* Page content. Pages own their own internal scroll. Hidden
+                only on /chat, where chat is the full view. */}
                 <div
                   className={cn(
                     "flex-1 min-w-0 h-full overflow-hidden flex flex-col",
-                    !pageVisible && "hidden",
+                    isChatRoute && "hidden",
                   )}
                 >
                   {children}
@@ -364,10 +366,10 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          {/* Mobile chat overlay — Vibe only. The preview owns the small
-          screen there, so chat opens as a sheet via this FAB. Every other
-          route reaches chat through the AppTopBar view toggle. */}
-          {isVibeRoute && (
+          {/* Mobile chat overlay — every route except /chat (where chat is
+          already the full view) and /messages (its own chat surface). The
+          page owns the small screen, so chat opens as a sheet via this FAB. */}
+          {!isChatRoute && !pathname?.startsWith("/messages") && (
             <>
               <Button
                 type="button"

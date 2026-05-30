@@ -1632,21 +1632,6 @@ export function KodyDashboard({
         <MobileMenu
           open={showMobileMenu}
           onOpenChange={setShowMobileMenu}
-          workspacePrimary={
-            <button
-              type="button"
-              onClick={() => {
-                setShowMobileMenu(false);
-                handleOpenChat();
-              }}
-              className="flex items-center gap-3 h-12 w-full px-3 rounded-lg hover:bg-white/[0.04] transition-colors"
-            >
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/10">
-                <MessageSquare className="w-4 h-4 text-emerald-300" />
-              </span>
-              <span className="text-sm font-medium">Chat with Kody</span>
-            </button>
-          }
           extras={
             <>
               <div className="px-4 pt-4">

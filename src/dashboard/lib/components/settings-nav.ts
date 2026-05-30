@@ -49,9 +49,9 @@ export interface SettingsNavItem {
  * Shared so the Sidebar, CommandPalette (and eventually MobileMenu) render
  * one list instead of drifting copies.
  */
-/** Primary assistant view — rendered standalone at the very top of the rail,
- *  above the grouped "Workspace" surfaces. Chat is the app's home; Tasks is
- *  its sibling view (first Workspace entry). */
+/** Chat — the primary assistant view. NOT rendered in the nav lists (the
+ *  header ViewToggle switches Chat/Tasks); kept here only so navLabelForPath
+ *  can resolve "/chat" → "Chat" and as the canonical home href. */
 export const HOME_NAV_ITEM: SettingsNavItem = {
   href: "/chat",
   label: "Chat",
@@ -61,18 +61,21 @@ export const HOME_NAV_ITEM: SettingsNavItem = {
   tint: "text-emerald-300 bg-emerald-500/10",
 };
 
+/** Tasks view — sibling of Chat. Also NOT rendered in the nav lists (same
+ *  ViewToggle reason); kept only so navLabelForPath resolves "/tasks". */
+export const TASKS_NAV_ITEM: SettingsNavItem = {
+  href: "/tasks",
+  label: "Tasks",
+  icon: Home,
+  exact: true,
+  description: "Pipelines, tasks, and run health at a glance.",
+  tint: "text-emerald-300 bg-emerald-500/10",
+};
+
 /** Heading shown above the primary surfaces in the expanded sidebar rail. */
 export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
-  {
-    href: "/tasks",
-    label: "Tasks",
-    icon: Home,
-    exact: true,
-    description: "Pipelines, tasks, and run health at a glance.",
-    tint: "text-emerald-300 bg-emerald-500/10",
-  },
   {
     href: "/duties",
     label: "Duties",
@@ -258,6 +261,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
 /** Every nav item, flattened — home + primary + all section items. */
 const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
   HOME_NAV_ITEM,
+  TASKS_NAV_ITEM,
   ...PRIMARY_NAV_ITEMS,
   ...SETTINGS_NAV_SECTIONS.flatMap((section) => section.items),
 ];
