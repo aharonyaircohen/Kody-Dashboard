@@ -125,24 +125,6 @@ async function loadVaultContextForBuild(
     );
     return fallback;
   }
-<<<<<<< Updated upstream
-=======
-
-  let buildMode: "dev" | "prod" = "prod";
-  try {
-    const { config } = await getEngineConfig(octokit, owner, name);
-    const raw = (config as { previews?: { buildMode?: string } })?.previews
-      ?.buildMode;
-    buildMode = parseBuildMode(raw);
-  } catch (err) {
-    logger.warn(
-      { err, repo },
-      "preview: engine config read failed; defaulting buildMode=dev",
-    );
-  }
-
-  return { buildEnv, buildMode };
->>>>>>> Stashed changes
 }
 
 export async function createPreview(
