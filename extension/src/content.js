@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.3.9";
+  const VERSION = "0.4.0";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -1038,31 +1038,75 @@
       return /pass|secret|cvv|cvc|card|otp|ssn|token|\bpin\b/.test(hint);
     }
 
-    // Build a reasonably stable CSS selector by walking up to <body>,
-    // short-circuiting on the first ancestor that carries an id.
+    // Build the most stable selector we can — pure nth-of-type chains
+    // break on the smallest DOM change. Preference order:
+    //   1. id
+    //   2. data-testid / data-test / data-cy
+    //   3. aria-label
+    //   4. name attribute (form fields)
+    //   5. text-based pseudo for buttons / links (recognized by the
+    //      extension's safeQuery fallback)
+    //   6. last resort: tag + :nth-of-type chain
     function buildSelector(el) {
+      if (!el || el.nodeType !== 1) return "";
       if (el.id) return `#${cssEscape(el.id)}`;
+      const tag = el.tagName.toLowerCase();
+      const testId =
+        el.getAttribute("data-testid") ||
+        el.getAttribute("data-test") ||
+        el.getAttribute("data-cy");
+      if (testId) return `[data-testid="${cssEscapeAttr(testId)}"]`;
+      const aria = el.getAttribute("aria-label");
+      if (aria) return `${tag}[aria-label="${cssEscapeAttr(aria)}"]`;
+      const name = el.getAttribute("name");
+      if (name && (tag === "input" || tag === "textarea" || tag === "select")) {
+        return `${tag}[name="${cssEscapeAttr(name)}"]`;
+      }
+      // Text-based pseudo for buttons / links / submit inputs. Reuses the
+      // same recognition path the runtime click handler uses.
+      if (tag === "button" || tag === "a" || tag === "summary") {
+        const text = (el.textContent || "").trim().replace(/\s+/g, " ");
+        if (text && text.length <= 80) {
+          return `${tag}:has-text("${text.replace(/"/g, '\\"')}")`;
+        }
+      }
+      // Last resort — short positional chain anchored on the nearest
+      // ancestor with an id / testid / aria-label, capped at 4 hops so
+      // we don't bake in a 7-level fragile path.
       const parts = [];
       let node = el;
-      while (node && node.nodeType === 1 && node !== document.body) {
-        let part = node.tagName.toLowerCase();
-        if (node.id) {
-          parts.unshift(`#${cssEscape(node.id)}`);
-          break;
+      for (let hops = 0; hops < 4 && node && node !== document.body; hops++) {
+        const cur = node;
+        let part = cur.tagName.toLowerCase();
+        // Stop at an anchor ancestor and prefix with it.
+        if (cur.id) {
+          parts.unshift(`#${cssEscape(cur.id)}`);
+          return parts.join(" ");
         }
-        const parent = node.parentElement;
+        const ancestorTestId =
+          cur.getAttribute && cur.getAttribute("data-testid");
+        if (ancestorTestId && hops > 0) {
+          parts.unshift(`[data-testid="${cssEscapeAttr(ancestorTestId)}"]`);
+          return parts.join(" ");
+        }
+        const parent = cur.parentElement;
         if (parent) {
           const siblings = Array.from(parent.children).filter(
-            (c) => c.tagName === node.tagName,
+            (c) => c.tagName === cur.tagName,
           );
           if (siblings.length > 1) {
-            part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+            part += `:nth-of-type(${siblings.indexOf(cur) + 1})`;
           }
         }
         parts.unshift(part);
-        node = node.parentElement;
+        node = cur.parentElement;
       }
       return parts.join(" > ");
+    }
+
+    // Escape an attribute value for embedding inside a [attr="…"] selector.
+    function cssEscapeAttr(value) {
+      return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     }
 
     function cssEscape(value) {

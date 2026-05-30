@@ -91,6 +91,13 @@ export function PreviewInspector({
   const [pendingMacroSteps, setPendingMacroSteps] = useState<
     PreviewAction[] | null
   >(null);
+  // The URL the preview was on when the recording started. Replay needs
+  // this so the macro can navigate back to its starting page before
+  // running its steps — otherwise selectors recorded on /admin/users
+  // mysteriously "not found" when the user is sitting on /dashboard.
+  const [pendingMacroStartUrl, setPendingMacroStartUrl] = useState<
+    string | null
+  >(null);
   const [autoContext, setAutoContext] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     try {
@@ -248,6 +255,7 @@ export function PreviewInspector({
       return;
     }
     setPendingMacroSteps(actions);
+    setPendingMacroStartUrl(result.url || null);
     toast.info(`Recorded ${actions.length} step(s) — name and save`);
   };
 
@@ -328,7 +336,11 @@ export function PreviewInspector({
           owner={owner}
           repo={repo}
           pendingSteps={pendingMacroSteps}
-          onPendingHandled={() => setPendingMacroSteps(null)}
+          pendingStartUrl={pendingMacroStartUrl}
+          onPendingHandled={() => {
+            setPendingMacroSteps(null);
+            setPendingMacroStartUrl(null);
+          }}
           onContext={onContext}
           act={picker.act}
           pickerAvailable={picker.available}

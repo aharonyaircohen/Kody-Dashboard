@@ -30,6 +30,14 @@ interface PreviewMacrosMenuProps {
   repo: string;
   /** Newly-stopped recording awaiting a name. Cleared once handled. */
   pendingSteps: PreviewAction[] | null;
+  /**
+   * URL the preview was on when recording started. We prepend a navigate
+   * step to the saved macro using its path — so replay reliably lands
+   * on the recording's starting page before running the rest of the
+   * steps. Without this, a macro recorded on /admin/users fails when
+   * the user replays from /dashboard.
+   */
+  pendingStartUrl: string | null;
   onPendingHandled: () => void;
   /** Composer chip emitter — reused for "Send to chat". */
   onContext: (chip: { id: string; label: string; context: string }) => void;
@@ -44,6 +52,7 @@ export function PreviewMacrosMenu({
   owner,
   repo,
   pendingSteps,
+  pendingStartUrl,
   onPendingHandled,
   onContext,
   act,
@@ -101,7 +110,31 @@ export function PreviewMacrosMenu({
       toast.error("Give the macro a name first");
       return;
     }
-    const next = addMacro(macros, name, pendingSteps, Date.now());
+    // Prepend a same-origin navigate using the recording's starting
+    // URL so replay always lands on the right page first. Strip the
+    // origin — the extension blocks cross-origin navigate, and the
+    // path is what's actually meaningful across PR previews / envs.
+    let stepsWithStart: PreviewAction[] = pendingSteps;
+    if (pendingStartUrl) {
+      try {
+        const u = new URL(pendingStartUrl);
+        const path = `${u.pathname}${u.search}` || "/";
+        // Only prepend if the first recorded step isn't already a
+        // navigate to the same path (avoid duplicate nav).
+        const first = pendingSteps[0];
+        const alreadyNavigates =
+          first?.op === "navigate" && first.url === path;
+        if (!alreadyNavigates) {
+          stepsWithStart = [
+            { op: "navigate", url: path },
+            ...pendingSteps,
+          ];
+        }
+      } catch {
+        /* invalid URL — fall through to the raw steps */
+      }
+    }
+    const next = addMacro(macros, name, stepsWithStart, Date.now());
     persist(next);
     setNameDraft("");
     onPendingHandled();
