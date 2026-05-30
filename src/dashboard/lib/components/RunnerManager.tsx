@@ -104,18 +104,11 @@ function GroupHeader({
 export function RunnerManager() {
   const { auth, updateIntegrations } = useAuth();
 
-  // ─── Repo-wide: FLY_API_TOKEN probe + warm pool size + preview build mode ─
+  // ─── Repo-wide: FLY_API_TOKEN probe + warm pool size ────────────────────
   const [flyTokenConfigured, setFlyTokenConfigured] = useState(false);
   const [poolMin, setPoolMin] = useState("");
   const [poolMinSaved, setPoolMinSaved] = useState("");
   const [poolMinSaving, setPoolMinSaving] = useState(false);
-  const [previewBuildMode, setPreviewBuildMode] = useState<"dev" | "prod">(
-    "dev",
-  );
-  const [previewBuildModeSaved, setPreviewBuildModeSaved] = useState<
-    "dev" | "prod"
-  >("dev");
-  const [previewBuildModeSaving, setPreviewBuildModeSaving] = useState(false);
 
   // ─── Per-user: perf tier (VM size for THIS browser's runs) ──────────────
   const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT);
@@ -167,26 +160,10 @@ export function RunnerManager() {
     }
   }, []);
 
-  const loadPreviewBuildMode = useCallback(async () => {
-    const headers = vaultHeaders();
-    if (Object.keys(headers).length === 0) return;
-    try {
-      const res = await fetch("/api/kody/previews/config", { headers });
-      if (!res.ok) return;
-      const body = (await res.json()) as { buildMode?: "dev" | "prod" };
-      const mode = body.buildMode === "prod" ? "prod" : "dev";
-      setPreviewBuildMode(mode);
-      setPreviewBuildModeSaved(mode);
-    } catch {
-      /* ignore — fall through to default */
-    }
-  }, []);
-
   useEffect(() => {
     void probeFlyToken();
     void loadPoolMin();
-    void loadPreviewBuildMode();
-  }, [probeFlyToken, loadPoolMin, loadPreviewBuildMode]);
+  }, [probeFlyToken, loadPoolMin]);
 
   // Seed the per-user perf tier from auth (or on repo switch).
   useEffect(() => {
@@ -235,38 +212,6 @@ export function RunnerManager() {
       setPoolMinSaving(false);
     }
   }
-
-  async function savePreviewBuildMode() {
-    const headers = vaultHeaders();
-    if (Object.keys(headers).length === 0) {
-      toast.error("No repo context — sign in first.");
-      return;
-    }
-    setPreviewBuildModeSaving(true);
-    try {
-      const res = await fetch("/api/kody/previews/config", {
-        method: "PATCH",
-        headers: { ...headers, "content-type": "application/json" },
-        body: JSON.stringify({ buildMode: previewBuildMode }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        throw new Error(body.message ?? `Save failed (${res.status})`);
-      }
-      setPreviewBuildModeSaved(previewBuildMode);
-      toast.success(`Preview build mode set to ${previewBuildMode}`);
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to save build mode",
-      );
-    } finally {
-      setPreviewBuildModeSaving(false);
-    }
-  }
-
-  const previewBuildModeHasChanges = previewBuildMode !== previewBuildModeSaved;
 
   return (
     <PageShell
@@ -347,56 +292,6 @@ export function RunnerManager() {
                   disabled={!poolMinHasChanges || poolMinSaving}
                 >
                   {poolMinSaving ? "Saving…" : "Save"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Preview build mode (dev vs prod) */}
-          <Card className="border-white/[0.08] bg-white/[0.03]">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Rocket className="w-4 h-4 text-sky-400" />
-                <h2 className="text-sm font-semibold">Preview build mode</h2>
-              </div>
-              <p className="text-xs text-white/50">
-                <span className="text-white/80">dev</span> skips{" "}
-                <span className="font-mono">next build</span> entirely and
-                serves via <span className="font-mono">next dev</span> — cold
-                preview drops to ~2 min, first hit to each page lags 2–5s.{" "}
-                <span className="text-white/80">prod</span> runs{" "}
-                <span className="font-mono">next build</span> +{" "}
-                <span className="font-mono">next start</span> for Vercel
-                parity (~13 min cold). Stored in{" "}
-                <span className="font-mono">kody.config.json</span> under{" "}
-                <span className="font-mono">previews.buildMode</span>.
-              </p>
-              <div className="space-y-2">
-                <Label className="text-xs text-white/70">Mode</Label>
-                <Select
-                  value={previewBuildMode}
-                  onValueChange={(v) =>
-                    setPreviewBuildMode(v === "prod" ? "prod" : "dev")
-                  }
-                >
-                  <SelectTrigger className="w-48 bg-black/30 border-white/10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="dev">dev — fast previews</SelectItem>
-                    <SelectItem value="prod">prod — Vercel parity</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="pt-1">
-                <Button
-                  size="sm"
-                  onClick={savePreviewBuildMode}
-                  disabled={
-                    !previewBuildModeHasChanges || previewBuildModeSaving
-                  }
-                >
-                  {previewBuildModeSaving ? "Saving…" : "Save"}
                 </Button>
               </div>
             </CardContent>
