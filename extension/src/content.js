@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.3.7";
+  const VERSION = "0.3.8";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -173,6 +173,43 @@
     // Reset the dashboard badges for this (re)loaded frame.
     pushCounts();
 
+    // If a navigation was triggered by a previous `act` in this sub-frame
+    // (window.location.assign), the act-result with the NEW page's DOM
+    // must come from the new context (this one). Wait for the page to
+    // settle, then deliver the result and clear the pending marker.
+    (function deliverPendingNavigateResult() {
+      var pending = null;
+      try {
+        var raw = sessionStorage.getItem("__kody_pending_act");
+        if (!raw) return;
+        pending = JSON.parse(raw);
+        sessionStorage.removeItem("__kody_pending_act");
+      } catch (e) {
+        return;
+      }
+      if (!pending || !pending.requestId) return;
+      // Stale guard — if more than 10s elapsed something else went wrong.
+      if (Date.now() - (pending.ts || 0) > 10_000) return;
+      function deliver() {
+        chrome.runtime
+          .sendMessage({
+            kind: "act-result",
+            requestId: pending.requestId,
+            ok: true,
+            info: collectPageInfo(),
+          })
+          .catch(function () {});
+      }
+      if (document.readyState === "complete") {
+        // Give frameworks a tick to render before snapshotting.
+        setTimeout(deliver, 100);
+      } else {
+        window.addEventListener("load", function () {
+          setTimeout(deliver, 100);
+        });
+      }
+    })();
+
     // Receive buffered entries from the page main-world collector.
     window.addEventListener("message", (event) => {
       if (event.source !== window) return;
@@ -206,14 +243,28 @@
           .sendMessage({ kind: "page", info: collectPageInfo() })
           .catch(() => {});
       } else if (msg?.kind === "act") {
+        // Navigation ops tear down this JS context — we can't deliver a
+        // result with the new page's DOM from here. Stash the requestId
+        // in sessionStorage; the new page's content script (re-injected
+        // on document_idle) picks it up and emits a fresh act-result
+        // with the post-navigation DOM. Same for clicks/submits that
+        // trigger navigation (handled by a beforeunload listener below).
+        var op = msg.payload && msg.payload.op;
+        if (op === "navigate") {
+          try {
+            sessionStorage.setItem(
+              "__kody_pending_act",
+              JSON.stringify({ requestId: msg.requestId, ts: Date.now() }),
+            );
+          } catch (e) {
+            /* private mode etc — fall through to immediate result */
+          }
+        }
         void performAction(msg.payload).then(function (result) {
-          // Selector-targeted ops (click/fill/scroll-to) broadcast to every
-          // sub-frame in the tab. Only the frame that actually contains the
-          // element should reply — otherwise an unrelated iframe (Next.js
-          // dev overlay, nested embed) wins the race with "not found" and
-          // the action erroneously fails. Silent-on-miss; the dashboard
-          // hook times out if no frame matched.
           if (!result.ok && result.error === "not found") return;
+          // For navigate ops, the new page will deliver the result. Don't
+          // send a stale snapshot now.
+          if (op === "navigate" && result.ok) return;
           chrome.runtime
             .sendMessage({
               kind: "act-result",
