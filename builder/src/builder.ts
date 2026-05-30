@@ -55,14 +55,16 @@ import {
 
 function defaultDockerfilePath(): string {
   // PREVIEW_BUILD_MODE selects which bundled template to drop in when
-  // the consumer repo doesn't ship its own Dockerfile.preview. "dev"
-  // (the default) skips `next build` and runs `next dev` at runtime —
-  // PR-preview-time drops from ~13 min to ~2 min. "prod" matches the
-  // Vercel-style `next build` + `next start` flow for repos that need
-  // production parity in their previews.
-  const mode = (process.env.PREVIEW_BUILD_MODE ?? "dev").trim().toLowerCase();
-  if (mode === "prod") return "/app/default-Dockerfile.preview.prod";
-  return "/app/default-Dockerfile.preview.dev";
+  // the consumer repo doesn't ship its own Dockerfile.preview.
+  //
+  // Default is "prod" — Vercel-style `next build` + `next start`.
+  // Dev mode shifts the compile to first-request time on the small
+  // preview machine, which for heavy apps ends up SLOWER end-to-end
+  // than the build-time compile on Fly's beefier remote builder.
+  // Repos that benefit from dev mode opt in explicitly.
+  const mode = (process.env.PREVIEW_BUILD_MODE ?? "prod").trim().toLowerCase();
+  if (mode === "dev") return "/app/default-Dockerfile.preview.dev";
+  return "/app/default-Dockerfile.preview.prod";
 }
 
 function required(name: string): string {

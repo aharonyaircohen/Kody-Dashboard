@@ -56,10 +56,14 @@ const NEVER_PASS_TO_BUILD = new Set([
 ]);
 
 /** "dev" or "prod" — selects which bundled Dockerfile.preview the
- *  builder uses. Defaults to "dev" (skips `next build`, ~2 min
- *  cold previews). */
+ *  builder uses. Defaults to "prod" because dev mode shifts compile
+ *  work to first-request time on the small preview machine, which
+ *  for heavy apps (A-Guy: Payload + Sentry + Genkit) is much slower
+ *  end-to-end than the build-time compile on Fly's beefier remote
+ *  builder. Repos that genuinely benefit from dev mode opt in via
+ *  kody.config.json → previews.buildMode = "dev". */
 function parseBuildMode(raw: string | undefined): "dev" | "prod" {
-  return raw?.toLowerCase().trim() === "prod" ? "prod" : "dev";
+  return raw?.toLowerCase().trim() === "dev" ? "dev" : "prod";
 }
 
 export interface CreatePreviewInput extends PreviewKey {
@@ -88,7 +92,7 @@ async function loadVaultContextForBuild(
   repo: string,
 ): Promise<VaultBuildContext> {
   const [owner, name] = repo.split("/") as [string, string];
-  const fallback: VaultBuildContext = { buildEnv: {}, buildMode: "dev" };
+  const fallback: VaultBuildContext = { buildEnv: {}, buildMode: "prod" };
   if (!owner || !name) return fallback;
   const bg = await resolveBackgroundToken(owner, name);
   if (!bg) {
@@ -121,6 +125,24 @@ async function loadVaultContextForBuild(
     );
     return fallback;
   }
+<<<<<<< Updated upstream
+=======
+
+  let buildMode: "dev" | "prod" = "prod";
+  try {
+    const { config } = await getEngineConfig(octokit, owner, name);
+    const raw = (config as { previews?: { buildMode?: string } })?.previews
+      ?.buildMode;
+    buildMode = parseBuildMode(raw);
+  } catch (err) {
+    logger.warn(
+      { err, repo },
+      "preview: engine config read failed; defaulting buildMode=dev",
+    );
+  }
+
+  return { buildEnv, buildMode };
+>>>>>>> Stashed changes
 }
 
 export async function createPreview(
