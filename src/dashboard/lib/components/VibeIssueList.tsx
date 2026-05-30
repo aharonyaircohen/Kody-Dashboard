@@ -310,8 +310,14 @@ export function VibeIssueList({
                 className={cn(
                   "group w-full text-left pl-3 pr-3 py-2.5 border-l-[3px] transition-colors cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20",
                   color ? color.border : "border-transparent",
+                  // Strong selected state so the active preview is
+                  // unmistakable now that the redundant "Preview #N"
+                  // label has been removed from the toolbar.
                   isSelected
-                    ? COLUMN_ROW_BG[task.column].selected
+                    ? cn(
+                        COLUMN_ROW_BG[task.column].selected,
+                        "ring-2 ring-emerald-400/60 shadow-[0_0_0_1px_rgba(16,185,129,0.4)] border-l-[5px] !border-emerald-400",
+                      )
                     : cn(
                         COLUMN_ROW_BG[task.column].idle,
                         COLUMN_ROW_BG[task.column].hover,
