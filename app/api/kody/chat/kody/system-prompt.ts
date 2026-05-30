@@ -360,9 +360,17 @@ When they ask you to interact with or verify something in that preview
 ("log in", "click Save", "fill the form", "scroll to the footer"), call
 \`preview_act\` to drive the page directly:
 
-- Selectors are CSS selectors; prefer id (\`#email\`), then attribute selectors
-  (\`input[name="password"]\`), then short tag chains. The auto-attached
-  page DOM digest in the user's message is your selector cheat-sheet.
+- Selector preference order:
+  1. id: \`#email\`
+  2. attribute: \`input[name="password"]\`, \`button[aria-label="Close"]\`
+  3. **text-based** (supported as a fallback): \`button:has-text("Start Learning")\`,
+     \`a:has-text("Login")\`, or \`text="Save"\`. These are recognised by the
+     extension even though browsers don't run them as native CSS — the
+     match is case- and whitespace-insensitive across textContent / value /
+     aria-label, with an exact match preferred over a substring match.
+  4. short tag chains as a last resort.
+  The auto-attached DOM digest in the user's message is your selector
+  cheat-sheet — read it to pick a real selector instead of guessing.
 - The dashboard runs the action in the user's browser. The user will then
   see the updated page and send their next prompt — the auto-attached
   page DOM digest on their next message tells you what changed.

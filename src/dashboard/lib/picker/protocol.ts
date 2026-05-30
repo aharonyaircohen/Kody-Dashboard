@@ -75,6 +75,82 @@ export interface PreviewActResult {
 }
 
 /**
+ * Parses Playwright/Cypress-flavored text selectors that browsers can't run
+ * through `querySelector`. The extension uses this as a fallback when raw
+ * CSS fails, so the model can stay in its natural style (`button:has-text("X")`,
+ * `text="X"`) without us forcing it onto pure CSS. Returns null when the
+ * input isn't a recognised text selector.
+ *
+ * Exported (and unit-tested) here so the dashboard and extension don't drift.
+ * The extension content script ports the same regex/logic line-for-line.
+ */
+export function parseTextSelector(
+  selector: string,
+): { tag?: string; text: string } | null {
+  if (!selector) return null;
+  // :has-text("X") or tag:has-text('X')
+  const hasText = selector.match(/^([a-zA-Z][\w-]*)?:has-text\(["']([^"']+)["']\)$/);
+  if (hasText) {
+    const [, tag, text] = hasText;
+    return tag ? { tag, text } : { text };
+  }
+  // text="X", text='X', text=X
+  const textEq = selector.match(/^text=(?:["']([^"']+)["']|([^\s"']+))$/);
+  if (textEq) {
+    return { text: (textEq[1] ?? textEq[2] ?? "").trim() };
+  }
+  return null;
+}
+
+/**
+ * A candidate element described in plain data — `tag` + the three text
+ * surfaces we scan (textContent, value, aria-label). Used by `matchByText`
+ * so the matching logic can be unit-tested without a real DOM. The
+ * extension content script builds these on the fly from real Elements
+ * and feeds them to a port of the same logic.
+ */
+export interface TextSelectorCandidate {
+  tag: string;
+  textContent?: string;
+  value?: string;
+  ariaLabel?: string;
+}
+
+/**
+ * Pick the candidate whose visible text matches `text`. Case- and
+ * whitespace-insensitive. Exact match across any surface beats substring,
+ * so duplicates with similar labels still resolve to the user's target
+ * ("Save" wins over "Save and continue").
+ *
+ * `tagFilter` narrows the candidate set when the model wrote `tag:has-text(...)`.
+ */
+export function matchByText(
+  candidates: TextSelectorCandidate[],
+  text: string,
+  tagFilter?: string,
+): TextSelectorCandidate | null {
+  const normalize = (s: string): string =>
+    s.trim().toLowerCase().replace(/\s+/g, " ");
+  const needle = normalize(text || "");
+  if (!needle) return null;
+  const filterTag = tagFilter ? tagFilter.toLowerCase() : null;
+  let fallback: TextSelectorCandidate | null = null;
+  for (const c of candidates) {
+    if (filterTag && c.tag.toLowerCase() !== filterTag) continue;
+    // Check each surface independently — joining them with a space breaks
+    // exact-match detection when, e.g., an aria-label duplicates the
+    // textContent ("Save" + "Save" joined → "save save" ≠ "save").
+    const surfaces = [c.textContent, c.value, c.ariaLabel]
+      .map((s) => (s ? normalize(s) : ""))
+      .filter((s) => s.length > 0);
+    if (surfaces.length === 0) continue;
+    if (surfaces.some((s) => s === needle)) return c;
+    if (!fallback && surfaces.some((s) => s.includes(needle))) fallback = c;
+  }
+  return fallback;
+}
+
+/**
  * Compose the hook's timeout error. Selector-targeted ops have a specific
  * "no frame matched" semantic because sub-frames stay silent on miss; other
  * ops report a generic timeout. Exported so unit tests can verify the

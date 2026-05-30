@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.3.5";
+  const VERSION = "0.3.6";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -444,13 +444,91 @@
       });
     }
 
+    // Resolve a selector to an element. Tries raw CSS first; falls back to
+    // Playwright/Cypress-flavored text selectors so the model can write
+    // `button:has-text("Login")` or `text="Save"` without us forcing pure
+    // CSS. Returns null when neither path matches.
     function safeQuery(selector) {
       if (typeof selector !== "string" || !selector) return null;
       try {
-        return document.querySelector(selector);
+        var el = document.querySelector(selector);
+        if (el) return el;
+      } catch {
+        /* not valid CSS — try text-selector fallback below */
+      }
+      var parsed = parseTextSelector(selector);
+      if (!parsed) return null;
+      return findByText(parsed.text, parsed.tag);
+    }
+
+    // Keep this in sync with src/dashboard/lib/picker/protocol.ts:parseTextSelector
+    // — that one is unit-tested; this one runs in the page.
+    function parseTextSelector(selector) {
+      if (!selector) return null;
+      var hasText = selector.match(
+        /^([a-zA-Z][\w-]*)?:has-text\(["']([^"']+)["']\)$/,
+      );
+      if (hasText) {
+        var out = { text: hasText[2] };
+        if (hasText[1]) out.tag = hasText[1];
+        return out;
+      }
+      var textEq = selector.match(/^text=(?:["']([^"']+)["']|([^\s"']+))$/);
+      if (textEq) {
+        return { text: (textEq[1] || textEq[2] || "").trim() };
+      }
+      return null;
+    }
+
+    // Scan the typical interactive elements for one whose visible text matches.
+    // Mirrors matchByText in src/dashboard/lib/picker/protocol.ts (unit-tested).
+    // If you change the algorithm here, change it there too.
+    function findByText(text, tagFilter) {
+      var needle = String(text || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+      if (!needle) return null;
+      var selector = tagFilter
+        ? tagFilter
+        : "button, a, [role='button'], label, summary, input[type='submit'], input[type='button']";
+      var nodes;
+      try {
+        nodes = document.querySelectorAll(selector);
       } catch {
         return null;
       }
+      var fallback = null;
+      function norm(s) {
+        return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+      }
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        var ariaLabel =
+          el.getAttribute && el.getAttribute("aria-label")
+            ? el.getAttribute("aria-label")
+            : "";
+        // Check each surface independently so a duplicated aria-label
+        // doesn't break exact-match detection.
+        var surfaces = [el.textContent, el.value, ariaLabel]
+          .map(norm)
+          .filter(function (s) {
+            return s.length > 0;
+          });
+        if (surfaces.length === 0) continue;
+        var exact = false;
+        var anySubstring = false;
+        for (var j = 0; j < surfaces.length; j++) {
+          if (surfaces[j] === needle) {
+            exact = true;
+            break;
+          }
+          if (surfaces[j].indexOf(needle) !== -1) anySubstring = true;
+        }
+        if (exact) return el;
+        if (!fallback && anySubstring) fallback = el;
+      }
+      return fallback;
     }
 
     // -- page context (URL + title + selection) -------------------------------
