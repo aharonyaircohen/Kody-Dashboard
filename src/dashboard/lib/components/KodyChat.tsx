@@ -43,11 +43,8 @@ import {
 } from "../commands/useSlashCommands";
 import { parseGoalMention, type GoalRef } from "../goal-mention";
 import { useElementPicker } from "../picker/useElementPicker";
-import {
-  formatPageInfo,
-  formatPreviewActResult,
-  type PreviewAction,
-} from "../picker/protocol";
+import { formatPageInfo } from "../picker/protocol";
+import { runPreviewAction } from "../picker/run-preview-action";
 import { SlashCommandMenu, filterCommands } from "./SlashCommandMenu";
 import {
   authHeaders,
@@ -353,19 +350,12 @@ export function KodyChat({
       return null;
     }
   };
-  // Dispatcher for chat-driven preview actions. The server tool returns a
-  // directive; we translate it into a PreviewAction, hand it to the
-  // extension, and push the result back into the chat as a follow-up
-  // user turn so the model can chain steps. Held in a ref so we don't
-  // capture stale state in the stream's closure.
-  const runPreviewActionRef = useRef<
-    (directive: PreviewActDirective) => Promise<void>
-  >(async () => {});
   // Depth counter for chained `preview_act` calls. The dashboard auto-feeds
   // each post-action DOM snapshot back to the model as a hidden user turn so
   // it can chain steps; this ref caps the chain so a runaway model can't
   // loop forever. Reset on every real user send (sendMessage).
   const previewActChainRef = useRef(0);
+  const MAX_PREVIEW_ACT_CHAIN = 8;
   type SendTextFn = (
     messageContent: string,
     currentAttachments?: Attachment[],
@@ -375,81 +365,25 @@ export function KodyChat({
   // Initialized lazily below — `sendText` is declared further down.
   const runPreviewActionFromDirective = useCallback(
     async (directive: PreviewActDirective) => {
-      const action: PreviewAction | null = (() => {
-        switch (directive.op) {
-          case "click":
-            if (!directive.selector) return null;
-            return { op: "click", selector: directive.selector };
-          case "fill":
-            if (!directive.selector) return null;
-            return {
-              op: "fill",
-              selector: directive.selector,
-              value: directive.value ?? "",
-            };
-          case "navigate":
-            if (!directive.url) return null;
-            return { op: "navigate", url: directive.url };
-          case "scroll":
-            return {
-              op: "scroll",
-              selector: directive.selector,
-              dy: directive.dy,
-            };
-          case "wait":
-            return { op: "wait", ms: directive.ms ?? 200 };
-          default:
-            return null;
-        }
-      })();
-      if (!action) {
-        toast.error("Preview action: malformed directive");
-        return;
-      }
-      if (!previewPickerRef.current.available) {
-        toast.error(
-          "Preview action failed — install the Kody Preview Inspector extension.",
-        );
-        return;
-      }
-      // Cap auto-chained preview actions. Without a cap, a model that keeps
-      // emitting `preview_act` in every reply will trigger an unbounded
-      // chain — that's the original runaway-loop bug. Real user prompts
-      // reset the counter (see sendMessage). The cap is generous enough for
-      // typical login / form-fill flows (5–8 steps) but short enough to
-      // halt obvious runaways.
-      const MAX_AUTO_ACTIONS = 8;
-      if (previewActChainRef.current >= MAX_AUTO_ACTIONS) {
-        toast.error(
-          `Stopped after ${MAX_AUTO_ACTIONS} chained preview actions — ask me again to continue.`,
-        );
-        return;
-      }
-      previewActChainRef.current += 1;
-      const result = await previewPickerRef.current.act(action);
-      // Surface to the user with a non-blocking toast so they can see what
-      // the model just did in their browser without scrolling chat.
-      if (result.ok) {
-        toast.success(`Preview: ${directive.reason}`);
-      } else {
-        toast.error(
-          `Preview action failed: ${result.error ?? "unknown error"}`,
-        );
-      }
-      // Inject a HIDDEN user turn carrying the result + fresh DOM digest.
-      // Hidden means the chat UI skips it (no fake "user said this" bubble
-      // — the original bug); but it still rides the wire to the model so
-      // it can observe the new state and decide the next step. Pairing the
-      // post-action snapshot with the cap above gives controlled multi-step.
-      const followUp = formatPreviewActResult(action, result);
-      const send = sendTextRef.current;
-      if (send) {
-        await send(followUp, [], { hidden: true });
-      }
+      await runPreviewAction(directive, {
+        pickerAvailable: () => previewPickerRef.current.available,
+        act: (action) => previewPickerRef.current.act(action),
+        sendText: async (content, _atts, opts) => {
+          const send = sendTextRef.current;
+          if (!send) return null;
+          return send(content, [], opts);
+        },
+        toastSuccess: (m) => toast.success(m),
+        toastError: (m) => toast.error(m),
+        getChainDepth: () => previewActChainRef.current,
+        incrementChainDepth: () => {
+          previewActChainRef.current += 1;
+        },
+        maxAutoActions: MAX_PREVIEW_ACT_CHAIN,
+      });
     },
     [],
   );
-  runPreviewActionRef.current = runPreviewActionFromDirective;
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY;
   const agentList = buildAgentList(
     brainConfigured,
