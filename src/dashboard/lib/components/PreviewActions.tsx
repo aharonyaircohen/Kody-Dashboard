@@ -100,6 +100,30 @@ export function PreviewActions({
   const { data: ciData } = usePRCIStatus(pr?.number);
   const hasConflicts = ciData?.hasConflicts ?? false;
   const ciFailed = ciData?.ciStatus === "failure";
+
+  // Auto-merge once CI turns green on an already-approved PR. Declared before
+  // the `!pr` early return so hook order stays stable across renders.
+  const autoMergedRef = useRef(false);
+  useEffect(() => {
+    if (!pr) return;
+    if (!isUIApproved || !isPRApproved) return;
+    if (autoMergedRef.current || isMerging) return;
+    const mergeableNow =
+      (ciData?.mergeable ?? false) && !hasConflicts && !ciFailed;
+    if (!mergeableNow) return;
+    autoMergedRef.current = true;
+    void onMerge();
+  }, [
+    pr,
+    isUIApproved,
+    isPRApproved,
+    ciData?.mergeable,
+    hasConflicts,
+    ciFailed,
+    isMerging,
+    onMerge,
+  ]);
+
   if (!pr) return null;
 
   const handleCancelPR = async () => {
@@ -165,27 +189,6 @@ export function PreviewActions({
       setIsApproving(false);
     }
   };
-
-  // Auto-merge once CI turns green on an already-approved PR. Guards against
-  // re-firing if the merge is in flight or the task already moved on.
-  const autoMergedRef = useRef(false);
-  useEffect(() => {
-    if (!isUIApproved || !isPRApproved) return;
-    if (autoMergedRef.current || isMerging) return;
-    const mergeableNow =
-      (ciData?.mergeable ?? false) && !hasConflicts && !ciFailed;
-    if (!mergeableNow) return;
-    autoMergedRef.current = true;
-    void onMerge();
-  }, [
-    isUIApproved,
-    isPRApproved,
-    ciData?.mergeable,
-    hasConflicts,
-    ciFailed,
-    isMerging,
-    onMerge,
-  ]);
 
   const handleReportIssue = async (notes: string) => {
     try {
