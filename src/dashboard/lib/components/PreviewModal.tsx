@@ -29,6 +29,14 @@ import {
 } from "./PreviewIframe";
 import { cn, getPreviewBypassUrl } from "../utils";
 import { PreviewInspector } from "../picker/PreviewInspector";
+import { PreviewViewsBar } from "./PreviewViewsBar";
+import {
+  DEFAULT_PREVIEW_VIEWS,
+  joinPreviewUrl,
+  readPreviewViews,
+  type PreviewView,
+} from "../preview-views";
+import { useAuth } from "../auth-context";
 import {
   ArrowLeft,
   GitPullRequest,
@@ -137,7 +145,21 @@ export function PreviewModal({
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [commentCount, setCommentCount] = useState<number | null>(null);
-  const [previewView, setPreviewView] = useState<"web" | "admin">("web");
+  // User-managed preview views — replaces the hardcoded Web/Admin pair.
+  // Stored per-repo in localStorage; defaults seeded with Web/Admin so
+  // existing repos look identical until the user adds something new.
+  const { auth } = useAuth();
+  const ownerRepo = {
+    owner: auth?.owner ?? "",
+    repo: auth?.repo ?? "",
+  };
+  const initialViews =
+    ownerRepo.owner && ownerRepo.repo
+      ? readPreviewViews(ownerRepo.owner, ownerRepo.repo)
+      : DEFAULT_PREVIEW_VIEWS;
+  const [selectedView, setSelectedView] = useState<PreviewView>(
+    initialViews[0] ?? DEFAULT_PREVIEW_VIEWS[0]!,
+  );
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("desktop");
   const [previewKey, setPreviewKey] = useState(0); // Bump to force iframe remount/refresh
   const [commentsKey, setCommentsKey] = useState(0); // Used to force-refresh comment list
@@ -201,16 +223,11 @@ export function PreviewModal({
     }
   };
 
-  // Get preview URL based on current view (web or admin)
+  // Get preview URL based on current view — now driven by the
+  // user-configurable list (defaults: Web → /, Admin → /admin).
   const getPreviewUrl = () => {
     if (!effectivePreviewUrl) return null;
-    const baseUrl = effectivePreviewUrl;
-    if (previewView === "admin") {
-      // Ensure single slash between base URL and /admin
-      const normalized = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
-      return `${normalized}/admin`;
-    }
-    return baseUrl;
+    return joinPreviewUrl(effectivePreviewUrl, selectedView.path);
   };
 
   // Load tab data on demand
@@ -456,30 +473,12 @@ export function PreviewModal({
                 {/* Preview actions header */}
                 {effectivePreviewUrl && (
                   <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-zinc-800 bg-zinc-900/50">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setPreviewView("web")}
-                        className={cn(
-                          "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
-                          previewView === "web"
-                            ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
-                            : "text-zinc-400 hover:text-white hover:bg-zinc-800",
-                        )}
-                      >
-                        Web
-                      </button>
-                      <button
-                        onClick={() => setPreviewView("admin")}
-                        className={cn(
-                          "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
-                          previewView === "admin"
-                            ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
-                            : "text-zinc-400 hover:text-white hover:bg-zinc-800",
-                        )}
-                      >
-                        Admin
-                      </button>
-                    </div>
+                    <PreviewViewsBar
+                      owner={ownerRepo.owner}
+                      repo={ownerRepo.repo}
+                      selectedId={selectedView.id}
+                      onSelect={setSelectedView}
+                    />
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-0.5 rounded-md border border-zinc-700 bg-zinc-800/50 p-0.5">
                         {(
@@ -544,7 +543,7 @@ export function PreviewModal({
                     <PreviewIframe
                       src={getPreviewBypassUrl(getPreviewUrl()) || undefined}
                       title="Preview Deployment"
-                      reloadKey={`${previewView}-${previewKey}`}
+                      reloadKey={`${selectedView.id}-${previewKey}`}
                       maxWidthPx={DEVICE_WIDTHS[previewDevice]}
                     />
                   ) : (
