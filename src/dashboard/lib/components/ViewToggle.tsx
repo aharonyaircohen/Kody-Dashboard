@@ -2,11 +2,11 @@
  * @fileType component
  * @domain kody
  * @pattern view-toggle
- * @ai-summary Two-segment Chat | Tasks switch for the global top strip. Each
- *   segment is a Link, so switching is route-driven (back button + deep links
- *   work). The active segment is derived from the pathname. Clicking remembers
- *   the choice in localStorage so `/` lands the user back on their last view
- *   (see PrimaryViewRedirect). Modeled on VibeToggle's link-based pattern.
+ * @ai-summary Two-segment Chat | Tasks switch, icon-only. Each segment is a
+ *   Link, so switching is route-driven (back button + deep links work). The
+ *   active segment is derived from the pathname. Clicking remembers the choice
+ *   in localStorage so `/` lands the user back on their last view (see
+ *   PrimaryViewRedirect). Lives next to the Vibe button in each view's header.
  */
 "use client";
 
@@ -15,6 +15,7 @@ import { usePathname } from "next/navigation";
 import { LayoutGrid, MessageSquare, type LucideIcon } from "lucide-react";
 
 import { cn } from "@dashboard/lib/utils/ui";
+import { SimpleTooltip } from "./SimpleTooltip";
 
 export const PRIMARY_VIEW_KEY = "kody:primary-view";
 export type PrimaryView = "chat" | "tasks";
@@ -66,22 +67,23 @@ export function ViewToggle({ className }: { className?: string }) {
         const active =
           pathname === it.href || pathname.startsWith(`${it.href}/`);
         return (
-          <Link
-            key={it.view}
-            href={it.href}
-            role="tab"
-            aria-selected={active}
-            onClick={() => rememberPrimaryView(it.view)}
-            className={cn(
-              "inline-flex items-center gap-1.5 h-7 px-2.5 rounded text-xs font-medium transition-colors",
-              active
-                ? "bg-emerald-500/15 text-emerald-200"
-                : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
-            )}
-          >
-            <Icon className="w-3.5 h-3.5 shrink-0" />
-            {it.label}
-          </Link>
+          <SimpleTooltip key={it.view} content={it.label} side="bottom">
+            <Link
+              href={it.href}
+              role="tab"
+              aria-selected={active}
+              aria-label={it.label}
+              onClick={() => rememberPrimaryView(it.view)}
+              className={cn(
+                "inline-flex items-center justify-center h-7 w-8 rounded transition-colors",
+                active
+                  ? "bg-emerald-500/15 text-emerald-200"
+                  : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+              )}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+            </Link>
+          </SimpleTooltip>
         );
       })}
     </div>

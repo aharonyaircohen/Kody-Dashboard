@@ -34,7 +34,6 @@ import { InboxBadge } from "./InboxBadge";
 import { MessagesBadge } from "./MessagesBadge";
 import { ReportsBadge } from "./ReportsBadge";
 import {
-  HOME_NAV_ITEM,
   PRIMARY_NAV_ITEMS,
   PRIMARY_NAV_TITLE,
   SETTINGS_NAV_SECTIONS,
@@ -185,10 +184,8 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {/* Dashboard — the landing/overview, standalone above the grouped
-            work surfaces (it isn't a peer of Duties/Staff/Reports). */}
-        {renderLink(HOME_NAV_ITEM)}
-
+        {/* Chat & Tasks are not listed here — the header ViewToggle owns that
+            switch. The rail starts at the Workspace surfaces. */}
         <div className="space-y-1">
           {!collapsed && (
             <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">

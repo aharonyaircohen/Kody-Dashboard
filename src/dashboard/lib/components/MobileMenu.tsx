@@ -31,7 +31,6 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { cn } from "../utils";
 import { SimpleTooltip } from "./SimpleTooltip";
 import {
-  HOME_NAV_ITEM,
   PRIMARY_NAV_ITEMS,
   PRIMARY_NAV_TITLE,
   SETTINGS_NAV_SECTIONS,
@@ -69,7 +68,6 @@ export function MobileMenu({
   const vibeHint = onVibe ? "Back to list" : "Preview · Chat · Ship";
 
   const close = () => onOpenChange(false);
-  const HomeIcon = HOME_NAV_ITEM.icon;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -179,30 +177,6 @@ export function MobileMenu({
             {PRIMARY_NAV_TITLE}
           </div>
           {workspacePrimary}
-          <Link
-            href={HOME_NAV_ITEM.href}
-            onClick={close}
-            className="flex items-center gap-3 p-3 mt-2 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
-          >
-            <span
-              className={cn(
-                "inline-flex h-8 w-8 items-center justify-center rounded-md shrink-0",
-                HOME_NAV_ITEM.tint,
-              )}
-            >
-              <HomeIcon className="w-4 h-4" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-medium">
-                {HOME_NAV_ITEM.label}
-              </span>
-              {HOME_NAV_ITEM.description && (
-                <span className="block text-[11px] text-muted-foreground truncate">
-                  {HOME_NAV_ITEM.description}
-                </span>
-              )}
-            </span>
-          </Link>
           <div className="grid grid-cols-2 gap-2 mt-2">
             {PRIMARY_NAV_ITEMS.map((item) => {
               const Icon = item.icon;
