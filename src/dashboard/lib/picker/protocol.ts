@@ -88,10 +88,19 @@ export function parseTextSelector(
   selector: string,
 ): { tag?: string; text: string } | null {
   if (!selector) return null;
-  // :has-text("X") or tag:has-text('X')
-  const hasText = selector.match(/^([a-zA-Z][\w-]*)?:has-text\(["']([^"']+)["']\)$/);
-  if (hasText) {
-    const [, tag, text] = hasText;
+  // Supported Playwright/Cypress-style text pseudos. All flavors collapse
+  // to substring-match in our extension (we don't run regex inputs as
+  // RegExp because models often write Hebrew/RTL strings between the
+  // /…/ delimiters that aren't really regex). Pseudos accepted:
+  //   tag:has-text("X")    tag:text("X")    tag:text-is("X")    tag:text-matches("X")
+  //   :has-text("X")       :text("X")       :text-is("X")       :text-matches("X")
+  // The text capture uses `[^"']+` which is unicode-safe (covers Hebrew,
+  // Arabic, CJK, emoji — anything but the matching quote char).
+  const pseudo = selector.match(
+    /^([a-zA-Z][\w-]*)?:(?:has-text|text|text-is|text-matches)\(["']([^"']+)["']\)$/,
+  );
+  if (pseudo) {
+    const [, tag, text] = pseudo;
     return tag ? { tag, text } : { text };
   }
   // text="X", text='X', text=X

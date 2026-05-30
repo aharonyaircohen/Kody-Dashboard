@@ -363,11 +363,15 @@ When they ask you to interact with or verify something in that preview
 - Selector preference order:
   1. id: \`#email\`
   2. attribute: \`input[name="password"]\`, \`button[aria-label="Close"]\`
-  3. **text-based** (supported as a fallback): \`button:has-text("Start Learning")\`,
-     \`a:has-text("Login")\`, or \`text="Save"\`. These are recognised by the
-     extension even though browsers don't run them as native CSS — the
-     match is case- and whitespace-insensitive across textContent / value /
-     aria-label, with an exact match preferred over a substring match.
+  3. **text-based** (supported as a fallback). Accepted forms — all collapse
+     to a substring match, case- and whitespace-insensitive, unicode-safe
+     (Hebrew/CJK/emoji all work):
+     \`tag:has-text("X")\`, \`tag:text("X")\`, \`tag:text-is("X")\`,
+     \`tag:text-matches("X")\`, \`text="X"\`. If the strict
+     button/link/input scan misses, the extension falls back to scanning
+     ALL elements for visible text matching X, then walks up to the
+     nearest clickable ancestor — so clicking a card div by its label
+     ("Grade 9 - Basics") works even when the div has no role or button tag.
   4. short tag chains as a last resort.
   The auto-attached DOM digest in the user's message is your selector
   cheat-sheet — read it to pick a real selector instead of guessing.

@@ -50,4 +50,37 @@ describe("parseTextSelector", () => {
     expect(parseTextSelector('button:has-text("X") + span')).toBeNull();
     expect(parseTextSelector("text=")).toBeNull();
   });
+
+  it("recognises :text-matches — the second selector flavor from the bug log", () => {
+    // From the user's log: `h3:text-matches("כיתה ט - בסיס")` (Hebrew)
+    expect(parseTextSelector('h3:text-matches("כיתה ט - בסיס")')).toEqual({
+      tag: "h3",
+      text: "כיתה ט - בסיס",
+    });
+  });
+
+  it("recognises :text and :text-is shorthand pseudos", () => {
+    expect(parseTextSelector('div:text("Hello")')).toEqual({
+      tag: "div",
+      text: "Hello",
+    });
+    expect(parseTextSelector(':text-is("Exact")')).toEqual({
+      text: "Exact",
+    });
+  });
+
+  it("handles non-ASCII text in any pseudo (Hebrew, CJK, emoji)", () => {
+    expect(parseTextSelector('button:has-text("שלום")')).toEqual({
+      tag: "button",
+      text: "שלום",
+    });
+    expect(parseTextSelector('a:text("登录")')).toEqual({
+      tag: "a",
+      text: "登录",
+    });
+    expect(parseTextSelector('button:has-text("🚀 Launch")')).toEqual({
+      tag: "button",
+      text: "🚀 Launch",
+    });
+  });
 });
