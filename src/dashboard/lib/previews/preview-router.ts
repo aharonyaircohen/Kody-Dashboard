@@ -52,16 +52,15 @@ export interface RoutePreviewBuildOutcome {
 }
 
 /**
- * Workflow inputs the engine reads to run `preview-build`. Defined
- * here so a typo flows through to a compile error (and so we can
- * pin the exact contract the engine side reads from `ctx.args` /
- * env). Kept narrow: `pr` is the only INPUT the engine needs; ref
- * comes through GITHUB_SHA on the runner, secrets flow via repo
- * Secrets.
+ * Workflow inputs the existing kody.yml ALREADY declares. The engine's
+ * dispatch.ts binds `issue_number` to the resolved executable's
+ * primary numeric input — for the `preview-build` profile that's
+ * `pr`, so `ctx.args.pr` ends up = the PR number. Reusing the
+ * declared schema means no kody.yml edits in any consumer repo.
  */
 interface PreviewBuildWorkflowInputs {
   executable: "preview-build";
-  pr: string;
+  issue_number: string;
 }
 
 async function countQueuedRunsForRepo(
@@ -142,7 +141,7 @@ export async function routePreviewBuild(
     dispatchGitHub: () =>
       dispatchWorkflowDispatch(octokit, owner, repo, workflowId, {
         executable: "preview-build",
-        pr: String(input.prNumber),
+        issue_number: String(input.prNumber),
       }),
     runFly: async () => {
       // The Fly arm shape `dispatchRun` expects is `{ runner, machineId }` —
