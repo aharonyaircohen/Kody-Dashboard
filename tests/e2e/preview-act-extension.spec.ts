@@ -71,6 +71,7 @@ const test = base.extend<ExtensionFixture>({
 <html>
 <head><meta charset="utf-8"><title>preview</title></head>
 <body>
+  <h1>landing</h1>
   <button id="start" onclick="window.__hits.push('start')">Start Learning</button>
 
   <div class="card" data-id="hebrew" onclick="window.__hits.push('hebrew')"
@@ -89,6 +90,20 @@ const test = base.extend<ExtensionFixture>({
   <script>window.__hits = [];</script>
 </body>
 </html>`;
+    // A second preview page the navigate test loads — distinct h1 so we
+    // can confirm the snapshot truly reflects the NEW page, not the old.
+    const register = `<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>register</title></head>
+<body>
+  <h1>register</h1>
+  <form id="signup">
+    <input id="email" type="email" placeholder="Email" />
+    <input id="password" type="password" placeholder="Password" />
+    <button type="submit">Sign up</button>
+  </form>
+</body>
+</html>`;
     const parent = `<!doctype html>
 <html>
 <head><meta charset="utf-8"><title>parent</title></head>
@@ -99,7 +114,9 @@ const test = base.extend<ExtensionFixture>({
 </html>`;
     const server = http.createServer((req, res) => {
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.end(req.url === "/preview" ? preview : parent);
+      if (req.url === "/preview") return res.end(preview);
+      if (req.url === "/register") return res.end(register);
+      return res.end(parent);
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const port = (server.address() as AddressInfo).port;
@@ -111,13 +128,20 @@ const test = base.extend<ExtensionFixture>({
   },
 });
 
+interface ActResult {
+  ok: boolean;
+  error?: string;
+  info?: { url?: string; title?: string; dom?: string };
+}
+
 async function sendAct(
   page: import("@playwright/test").Page,
   payload: Record<string, unknown>,
-): Promise<{ ok: boolean; error?: string }> {
+  timeoutMs: number = 8000,
+): Promise<ActResult> {
   return page.evaluate(
-    ({ payload }) =>
-      new Promise<{ ok: boolean; error?: string }>((resolve) => {
+    ({ payload, timeoutMs }) =>
+      new Promise<ActResult>((resolve) => {
         const requestId = `${Date.now()}-${Math.random()
           .toString(36)
           .slice(2)}`;
@@ -130,12 +154,13 @@ async function sendAct(
                 requestId?: string;
                 ok?: boolean;
                 error?: string;
+                info?: ActResult["info"];
               };
           if (!d || d.source !== "kody-picker:ext") return;
           if (d.type !== "act-result") return;
           if (d.requestId !== requestId) return;
           window.removeEventListener("message", handler);
-          resolve({ ok: Boolean(d.ok), error: d.error });
+          resolve({ ok: Boolean(d.ok), error: d.error, info: d.info });
         };
         window.addEventListener("message", handler);
         window.postMessage(
@@ -149,10 +174,10 @@ async function sendAct(
         );
         setTimeout(() => {
           window.removeEventListener("message", handler);
-          resolve({ ok: false, error: "no act-result in 5s" });
-        }, 5000);
+          resolve({ ok: false, error: `no act-result in ${timeoutMs}ms` });
+        }, timeoutMs);
       }),
-    { payload },
+    { payload, timeoutMs },
   );
 }
 
@@ -264,5 +289,35 @@ test.describe("Kody Preview Inspector — preview_act in a real browser", () => 
     await expect
       .poll(() => previewInputValue(page, "#email"), { timeout: 4000 })
       .toBe("a@b.com");
+  });
+
+  test("navigate delivers the NEW page's DOM in info (the user-reported bug)", async ({
+    context,
+    fixtureUrl,
+  }) => {
+    const page = await bootAndWaitForExtension(context, fixtureUrl);
+    // Sanity: we start on the landing page.
+    expect(
+      await page.evaluate(() => {
+        const fr = document.querySelector("iframe") as HTMLIFrameElement | null;
+        return fr?.contentDocument?.querySelector("h1")?.textContent;
+      }),
+    ).toBe("landing");
+    const result = await sendAct(page, { op: "navigate", url: "/register" });
+    // The act-result for navigate must come from the NEW page (delivered
+    // via sessionStorage hand-off), not the OLD page. If `info.dom` still
+    // mentions the landing button or "landing" h1, the model would be
+    // acting blind — that's the original bug.
+    expect(result.ok, `act failed: ${result.error}`).toBe(true);
+    // The act-result's info must reflect the NEW page (URL + DOM).
+    expect(result.info?.url).toMatch(/\/register$/);
+    expect(result.info?.dom ?? "").toMatch(/Sign up/);
+    // And the iframe actually shows the new page.
+    expect(
+      await page.evaluate(() => {
+        const fr = document.querySelector("iframe") as HTMLIFrameElement | null;
+        return fr?.contentDocument?.querySelector("h1")?.textContent;
+      }),
+    ).toBe("register");
   });
 });

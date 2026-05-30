@@ -325,12 +325,20 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
           resolve({ ok: false, error: "no window" });
           return;
         }
-        // Adaptive default: `wait` honors its own ms + a small grace window;
-        // everything else uses a tight 3s because sub-frames stay silent on
-        // selector misses and we want a fast "not found" instead of a long
-        // dangling action toast.
+        // Adaptive default:
+        //   - wait: ms + 1s grace
+        //   - navigate: 8s — extension hands off via sessionStorage, the
+        //     new page's content script delivers the result after load
+        //     (we need to wait long enough for a real page load + render).
+        //   - everything else: 3s — sub-frames stay silent on selector
+        //     misses so a tight bound surfaces "not found" quickly.
         const effectiveTimeout =
-          timeoutMs ?? (action.op === "wait" ? (action.ms ?? 200) + 1000 : 3000);
+          timeoutMs ??
+          (action.op === "wait"
+            ? (action.ms ?? 200) + 1000
+            : action.op === "navigate"
+              ? 8000
+              : 3000);
         const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const handler = (event: MessageEvent) => {
           if (event.source !== window) return;
