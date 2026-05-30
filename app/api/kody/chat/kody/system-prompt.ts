@@ -375,6 +375,11 @@ When they ask you to interact with or verify something in that preview
   4. short tag chains as a last resort.
   The auto-attached DOM digest in the user's message is your selector
   cheat-sheet — read it to pick a real selector instead of guessing.
+- The auto-attached page context may include a "Saved preview macros"
+  block listing the user's named recordings (Login flow, Reset
+  filters, etc.) with their steps inline. If the user asks to run one
+  by name, just call \`preview_act\` for each step in order — you
+  don't need them to repeat the steps; they're in the catalog.
 - After each \`preview_act\` the dashboard runs it in the user's browser and
   injects a hidden user turn with the fresh DOM digest. Read that snapshot
   before deciding the next step — don't ask the user "what changed?"; you

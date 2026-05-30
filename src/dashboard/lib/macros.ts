@@ -114,6 +114,54 @@ export function removeMacro(macros: Macro[], id: string): Macro[] {
 }
 
 /**
+ * Render the saved-macros list as a compact catalog the chat can read in
+ * auto-context. The model sees what macros exist (names, step counts, and
+ * an inline step preview) so it can offer to run them when the user
+ * names one — e.g. user says "run my Login macro" → model issues
+ * preview_act for each step. Kept short (one line per macro + step
+ * preview) so it doesn't bloat every send.
+ */
+export function formatMacrosCatalog(macros: Macro[]): string | null {
+  if (macros.length === 0) return null;
+  const lines: string[] = [
+    "Saved preview macros (call preview_act for each step in order when the user asks to run one):",
+  ];
+  for (const macro of macros) {
+    lines.push(
+      `- ${macro.name} (${macro.steps.length} step${macro.steps.length === 1 ? "" : "s"})`,
+    );
+    macro.steps.slice(0, 8).forEach((step, i) => {
+      const n = i + 1;
+      switch (step.op) {
+        case "click":
+          lines.push(`  ${n}. click \`${step.selector}\``);
+          break;
+        case "fill":
+          lines.push(`  ${n}. fill \`${step.selector}\` = \`${step.value}\``);
+          break;
+        case "navigate":
+          lines.push(`  ${n}. navigate \`${step.url}\``);
+          break;
+        case "scroll":
+          lines.push(
+            step.selector
+              ? `  ${n}. scroll to \`${step.selector}\``
+              : `  ${n}. scroll ${step.dy ?? 0}px`,
+          );
+          break;
+        case "wait":
+          lines.push(`  ${n}. wait ${step.ms}ms`);
+          break;
+      }
+    });
+    if (macro.steps.length > 8) {
+      lines.push(`  … +${macro.steps.length - 8} more`);
+    }
+  }
+  return lines.join("\n");
+}
+
+/**
  * Render a macro as a chat-ready instruction block. The model reads this
  * and calls preview_act once per step — same dispatch path as a manual
  * "click X then fill Y" request, just typed up for it.

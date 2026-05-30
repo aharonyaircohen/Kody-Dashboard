@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   addMacro,
   formatMacroForChat,
+  formatMacrosCatalog,
   readMacros,
   recordedStepToAction,
   removeMacro,
@@ -131,6 +132,40 @@ describe("read/writeMacros (localStorage)", () => {
     ]);
     expect(readMacros("o", "a")[0]!.name).toBe("A");
     expect(readMacros("o", "b")[0]!.name).toBe("B");
+  });
+});
+
+describe("formatMacrosCatalog (auto-context entry)", () => {
+  it("returns null for empty list — chat context stays clean", () => {
+    expect(formatMacrosCatalog([])).toBeNull();
+  });
+  it("renders each macro's name, count, and inline steps", () => {
+    const out = formatMacrosCatalog([
+      {
+        id: "login",
+        name: "Login",
+        createdAt: 1,
+        steps: [
+          { op: "fill", selector: "#email", value: "a@b.com" },
+          { op: "click", selector: "#submit" },
+        ],
+      },
+    ])!;
+    expect(out).toContain("Login (2 steps)");
+    expect(out).toContain("1. fill `#email` = `a@b.com`");
+    expect(out).toContain("2. click `#submit`");
+    // Header instructs the model what to do with the catalog.
+    expect(out).toContain("preview_act");
+  });
+  it("truncates long step lists with a +N hint", () => {
+    const steps = Array.from({ length: 12 }, (_, i) => ({
+      op: "click" as const,
+      selector: `#btn-${i}`,
+    }));
+    const out = formatMacrosCatalog([
+      { id: "x", name: "Long", createdAt: 1, steps },
+    ])!;
+    expect(out).toContain("… +4 more");
   });
 });
 

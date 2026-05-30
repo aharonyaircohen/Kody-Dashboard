@@ -45,6 +45,7 @@ import { parseGoalMention, type GoalRef } from "../goal-mention";
 import { useElementPicker } from "../picker/useElementPicker";
 import { formatPageInfo } from "../picker/protocol";
 import { runPreviewAction } from "../picker/run-preview-action";
+import { formatMacrosCatalog, readMacros } from "../macros";
 import { SlashCommandMenu, filterCommands } from "./SlashCommandMenu";
 import {
   authHeaders,
@@ -345,7 +346,18 @@ export function KodyChat({
     try {
       const info = await previewPickerRef.current.collectPage(300);
       if (!info) return null;
-      return formatPageInfo(info);
+      // Append the saved-macros catalog so the model can offer to run
+      // them when the user mentions one by name ("run my Login macro").
+      // Read per-send so newly-saved macros are visible immediately.
+      const ownerForMacros = auth?.owner ?? "";
+      const repoForMacros = auth?.repo ?? "";
+      const macrosBlock =
+        ownerForMacros && repoForMacros
+          ? formatMacrosCatalog(readMacros(ownerForMacros, repoForMacros))
+          : null;
+      const parts = [formatPageInfo(info)];
+      if (macrosBlock) parts.push(macrosBlock);
+      return parts.join("\n\n");
     } catch {
       return null;
     }
