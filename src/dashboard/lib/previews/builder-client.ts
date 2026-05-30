@@ -30,9 +30,12 @@ const SPAWN_TIMEOUT_MS = 30_000;
 
 export interface SpawnBuilderInput {
   repo: string;
-  pr: number;
+  /** PR number for per-PR builds. Omit for base-image rebuilds. */
+  pr?: number;
   ref: string;
-  /** Per-PR Fly app name (same naming the builder will recreate inside). */
+  /** Per-PR Fly app name (same naming the builder will recreate inside).
+   *  For base-image rebuilds, pass the `-base` app name from
+   *  `basePreviewAppName(repo)`; the builder detects the suffix. */
   appName: string;
   imageTag?: string;
   flyToken: string;

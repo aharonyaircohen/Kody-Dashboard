@@ -47,6 +47,7 @@ import {
   handleReleasePublished,
 } from "@dashboard/lib/changelog/handlers";
 import {
+  handleDefaultBranchPush as handlePreviewDefaultBranchPush,
   handlePrClosed as handlePreviewPrClosed,
   handlePrOpenedOrSynced as handlePreviewPrOpenedOrSynced,
 } from "@dashboard/lib/previews/webhook";
@@ -94,6 +95,21 @@ interface PullRequestPayload {
 interface ReleasePayload {
   action?: string;
   release?: { tag_name?: string };
+}
+
+interface PushPayload {
+  ref?: string;
+  after?: string;
+  head_commit?: {
+    id?: string;
+    added?: string[];
+    modified?: string[];
+    removed?: string[];
+  };
+  repository?: {
+    full_name?: string;
+    default_branch?: string;
+  };
 }
 /**
  * Best-effort side effect: never block the webhook response on it, and never
@@ -254,12 +270,46 @@ function dispatch(
       invalidateWorkflowCache();
       return { handled: true, detail: event };
 
-    case "push":
-    case "create":
-    case "delete":
+    case "push": {
       invalidateBranchCache();
       // A push to base branch makes every open PR potentially behind; clear
       // the per-PR behind-by cache so the Preview Sync button updates.
+      invalidatePRBehindCache();
+      // Default-branch push → refresh the per-repo GHCR base image so
+      // future PR builds inherit fresh deps + build cache. Skipped at
+      // the handler level for engine-only pushes (.kody/** + CHANGELOG).
+      const p = payload as PushPayload;
+      const defaultBranch = p?.repository?.default_branch;
+      const ref = p?.ref;
+      const repoFullName = p?.repository?.full_name;
+      const head = p?.head_commit;
+      const sha = head?.id ?? p?.after;
+      if (
+        defaultBranch &&
+        ref === `refs/heads/${defaultBranch}` &&
+        repoFullName &&
+        sha
+      ) {
+        const changedPaths = [
+          ...(head?.added ?? []),
+          ...(head?.modified ?? []),
+          ...(head?.removed ?? []),
+        ];
+        fireAndForget(
+          handlePreviewDefaultBranchPush({
+            repoFullName,
+            ref: sha,
+            changedPaths,
+          }),
+          `previews.base-rebuild#${repoFullName}@${sha.slice(0, 7)}`,
+        );
+      }
+      return { handled: true, detail: event };
+    }
+
+    case "create":
+    case "delete":
+      invalidateBranchCache();
       invalidatePRBehindCache();
       return { handled: true, detail: event };
 
