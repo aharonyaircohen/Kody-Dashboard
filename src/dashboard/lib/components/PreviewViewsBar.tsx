@@ -11,7 +11,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Plus, X, ChevronDown, Check } from "lucide-react";
+import { Plus, X, ChevronDown, Check, Bookmark } from "lucide-react";
 import { cn } from "../utils";
 import {
   addPreviewView,
@@ -20,6 +20,7 @@ import {
   writePreviewViews,
   type PreviewView,
 } from "../preview-views";
+import { useElementPicker } from "../picker/useElementPicker";
 
 interface PreviewViewsBarProps {
   owner: string;
@@ -37,6 +38,21 @@ export function PreviewViewsBar({
   const [views, setViews] = useState<PreviewView[]>(() =>
     readPreviewViews(owner, repo),
   );
+  // Inspector extension gives us a way to read the iframe's CURRENT URL —
+  // crucial because the preview is usually cross-origin so we can't read
+  // iframe.contentWindow.location.href ourselves.
+  const picker = useElementPicker({ onSelect: () => {} });
+  const resolveCurrentPath = async (): Promise<string | null> => {
+    if (!picker.available) return null;
+    const info = await picker.collectPage(400);
+    if (!info?.url) return null;
+    try {
+      const u = new URL(info.url);
+      return `${u.pathname}${u.search}`;
+    } catch {
+      return null;
+    }
+  };
   const [menuOpen, setMenuOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
@@ -185,6 +201,25 @@ export function PreviewViewsBar({
           })}
 
           <div className="border-t border-zinc-800 mt-1 pt-1 px-1">
+            {/* Quick action: take the live preview URL via the inspector
+                extension and pre-fill the add form. Only shown when the
+                extension is installed (otherwise we can't read the URL
+                of a cross-origin preview iframe). */}
+            {picker.available && !addOpen && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const path = await resolveCurrentPath();
+                  setPathDraft(path ?? "/");
+                  setNameDraft("");
+                  setAddOpen(true);
+                }}
+                className="flex items-center gap-1.5 w-full px-2 py-1.5 text-xs text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 rounded"
+              >
+                <Bookmark className="w-3 h-3" />
+                Save current view
+              </button>
+            )}
             {addOpen ? (
               <form
                 onSubmit={(e) => {
