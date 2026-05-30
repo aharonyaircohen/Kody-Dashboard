@@ -27,7 +27,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { MessageSquare, PanelLeftOpen } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import {
   Sheet,
@@ -163,18 +163,18 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     const saved = Number(localStorage.getItem("kody:rail-width"));
     if (saved >= RAIL_MIN && saved <= RAIL_MAX) setRailWidth(saved);
   }, []);
-  // Collapse the chat side-rail to nothing (tasks/page full width). Toggled
-  // by the button inside the chat header (onCollapseRail) and a thin reopen
-  // tab on the page's left edge. Persisted per-device. Replaces the old
-  // Chat|Tasks route toggle — chat is now an on/off panel beside the page.
-  const [chatCollapsed, setChatCollapsed] = useState(false);
+  // Expand the chat side-rail to full width (page hidden) and back to a rail.
+  // Toggled by the expand/restore button inside the chat header. Persisted
+  // per-device. Replaces the old Chat|Tasks route toggle — chat is now an
+  // on/off expand panel beside the page.
+  const [railFullscreen, setRailFullscreen] = useState(false);
   useEffect(() => {
-    setChatCollapsed(localStorage.getItem("kody:chat-collapsed") === "1");
+    setRailFullscreen(localStorage.getItem("kody:chat-fullscreen") === "1");
   }, []);
-  const setChatCollapsedPersist = useCallback((next: boolean) => {
-    setChatCollapsed(next);
+  const setRailFullscreenPersist = useCallback((next: boolean) => {
+    setRailFullscreen(next);
     try {
-      localStorage.setItem("kody:chat-collapsed", next ? "1" : "0");
+      localStorage.setItem("kody:chat-fullscreen", next ? "1" : "0");
     } catch {
       // localStorage unavailable (private mode) — non-fatal.
     }
@@ -308,10 +308,14 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       onDirectToGoal={directToGoal}
       composerInjection={composerInjection}
       attachmentInjection={attachmentInjection}
-      // Only collapsible when it's a side rail (not the full-width /chat view).
-      onCollapseRail={
-        isChatRoute ? undefined : () => setChatCollapsedPersist(true)
+      // Expand/restore the rail to full width (not on the /chat full view,
+      // which is already full).
+      onToggleFullscreen={
+        isChatRoute
+          ? undefined
+          : () => setRailFullscreenPersist(!railFullscreen)
       }
+      railFullscreen={railFullscreen}
     />
   ) : (
     <div className="flex-1 flex items-center justify-center p-6">
@@ -339,24 +343,21 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 order reads nav | chat | tasks. */}
                 <Sidebar />
 
-                {/* Chat rail — right of the nav sidebar.
-                Full-width on /chat; a fixed-width side rail on every other
-                route (tasks, vibe, settings…); hidden on mobile non-chat
-                (reached via the FAB below) and when collapsed (reopen via
-                the edge tab). Kept mounted (display:none when collapsed) so
-                chat history/streaming survive navigation. */}
+                {/* Chat rail — right of the nav sidebar. A fixed-width side
+                rail by default; full-width when expanded (the chat header's
+                expand button) or on /chat. Hidden on mobile non-chat (reached
+                via the FAB below). Always mounted so chat history/streaming
+                survive navigation. */}
                 <div
                   className={cn(
                     "flex-col min-h-0 bg-black/20",
-                    isChatRoute
+                    isChatRoute || railFullscreen
                       ? "flex flex-1"
-                      : chatCollapsed
-                        ? "hidden"
-                        : "hidden md:flex shrink-0 border-r border-border",
+                      : "hidden md:flex shrink-0 border-r border-border",
                     !dragging && "transition-[width] duration-200",
                   )}
                   style={
-                    !isChatRoute && !chatCollapsed
+                    !isChatRoute && !railFullscreen
                       ? { width: railWidth }
                       : undefined
                   }
@@ -365,28 +366,10 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                   {chatPane}
                 </div>
 
-                {/* Reopen tab — thin button on the page's left edge, shown
-                only when the rail is collapsed (desktop side-rail routes). */}
-                {auth && !isChatRoute && chatCollapsed && (
-                  <button
-                    type="button"
-                    onClick={() => setChatCollapsedPersist(false)}
-                    aria-label="Open chat"
-                    title="Open chat"
-                    className={cn(
-                      "hidden md:flex shrink-0 items-center justify-center w-6 self-stretch",
-                      "border-r border-border bg-black/20 text-muted-foreground",
-                      "hover:text-foreground hover:bg-white/[0.04] transition-colors",
-                    )}
-                  >
-                    <PanelLeftOpen className="w-4 h-4" />
-                  </button>
-                )}
-
                 {/* Drag handle between the chat rail and the page — desktop,
                 side-rail routes only (not when chat is the full view or
-                collapsed). */}
-                {auth && !isChatRoute && !chatCollapsed && (
+                expanded). */}
+                {auth && !isChatRoute && !railFullscreen && (
                   <div
                     role="separator"
                     aria-orientation="vertical"
@@ -410,7 +393,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 <div
                   className={cn(
                     "flex-1 min-w-0 h-full overflow-hidden flex flex-col",
-                    isChatRoute && "hidden",
+                    (isChatRoute || railFullscreen) && "hidden",
                   )}
                 >
                   {children}
