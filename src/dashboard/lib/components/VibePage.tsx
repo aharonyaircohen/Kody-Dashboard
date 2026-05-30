@@ -595,6 +595,8 @@ export function VibePage() {
                     previewRef={previewRef}
                     onContext={setComposerInjection}
                     onAttachment={setAttachmentInjection}
+                    owner={ownerForViews}
+                    repo={repoForViews}
                   />
                   <button
                     type="button"
