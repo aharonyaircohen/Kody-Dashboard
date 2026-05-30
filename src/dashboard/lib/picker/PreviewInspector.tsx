@@ -21,7 +21,6 @@ import {
   Circle,
   Square,
   MousePointerClick,
-  FileText,
   Puzzle,
 } from "lucide-react";
 import { cn } from "../utils";
@@ -29,7 +28,6 @@ import { useElementPicker } from "./useElementPicker";
 import {
   formatLogs,
   formatNetwork,
-  formatPageInfo,
   formatPerf,
   formatPickedElement,
   formatPickedElementLabel,
@@ -73,7 +71,7 @@ export function PreviewInspector({
   onAttachment,
 }: PreviewInspectorProps) {
   const [busy, setBusy] = useState<
-    null | "logs" | "network" | "shot" | "perf" | "page" | "rec"
+    null | "logs" | "network" | "shot" | "perf" | "rec"
   >(null);
 
   const picker = useElementPicker({
@@ -195,34 +193,6 @@ export function PreviewInspector({
     }
   };
 
-  const sendPage = async () => {
-    setBusy("page");
-    try {
-      const info = await picker.collectPage();
-      if (!info) {
-        toast.error("Couldn't read the preview's page context");
-        return;
-      }
-      // Short chip label: hostname + path tail, or title fallback.
-      let label = info.title || info.url;
-      try {
-        const u = new URL(info.url);
-        label = `${u.hostname}${u.pathname}`;
-      } catch {
-        /* keep title/url fallback */
-      }
-      if (info.selection) label += " · selection";
-      onContext({
-        id: newId(),
-        label: `Page · ${label}`.slice(0, 80),
-        context: formatPageInfo(info),
-      });
-      toast.success("Added page context to chat");
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const toggleRecording = async () => {
     if (!picker.recording) {
       picker.startRecording();
@@ -328,18 +298,6 @@ export function PreviewInspector({
         className={cn(BTN_BASE, BTN_IDLE)}
       >
         <Gauge className={cn("w-3 h-3", busy === "perf" && "animate-pulse")} />
-      </button>
-      <button
-        type="button"
-        onClick={sendPage}
-        disabled={busy !== null}
-        title="Send the preview's current URL, title, and any selected text to chat"
-        aria-label="Send page context to chat"
-        className={cn(BTN_BASE, BTN_IDLE)}
-      >
-        <FileText
-          className={cn("w-3 h-3", busy === "page" && "animate-pulse")}
-        />
       </button>
       <button
         type="button"

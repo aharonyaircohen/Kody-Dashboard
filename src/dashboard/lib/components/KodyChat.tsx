@@ -311,22 +311,38 @@ export function KodyChat({
   // model keeps generating, tokens keep flowing into the assistant bubble,
   // and the user has no recourse. Mirrors the Brain backend's pattern.
   const kodyAbortRef = useRef<AbortController | null>(null);
-  // Preview-DOM auto-attach. When the user is in a surface that hosts a
-  // preview iframe (Vibe page, task with a preview), the Kody Preview
-  // Inspector extension can report the preview's URL/title/selection/DOM
-  // outline. We call it just-in-time on send with a short timeout so it
-  // never adds noticeable latency on pages without a preview.
-  const hasPreviewSurface =
-    vibeMode === true || context?.kind === "task";
+  // Preview-DOM auto-attach. The Kody Preview Inspector extension reports
+  // the preview frame's URL/title/selection/DOM outline. We call it
+  // just-in-time on send with a short timeout — on a tab with no preview
+  // iframe the call resolves null and adds no context. A user-facing
+  // toggle (persisted) lets the user disable auto-attach entirely.
   const previewPicker = useElementPicker({ onSelect: () => {} });
-  // Stable ref so send paths read the current `available` without binding.
   const previewPickerRef = useRef(previewPicker);
   previewPickerRef.current = previewPicker;
+  const AUTO_CONTEXT_KEY = "kody:preview-auto-context";
+  const [autoPageContext, setAutoPageContext] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const v = window.localStorage.getItem(AUTO_CONTEXT_KEY);
+      return v === null ? true : v === "1";
+    } catch {
+      return true;
+    }
+  });
+  const autoPageContextRef = useRef(autoPageContext);
+  autoPageContextRef.current = autoPageContext;
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(AUTO_CONTEXT_KEY, autoPageContext ? "1" : "0");
+    } catch {
+      /* ignore quota */
+    }
+  }, [autoPageContext]);
   const collectPreviewContextRef = useRef<() => Promise<string | null>>(
     async () => null,
   );
   collectPreviewContextRef.current = async () => {
-    if (!hasPreviewSurface) return null;
+    if (!autoPageContextRef.current) return null;
     if (!previewPickerRef.current.available) return null;
     try {
       const info = await previewPickerRef.current.collectPage(300);
@@ -4801,6 +4817,30 @@ export function KodyChat({
           >
             <Paperclip className="w-5 h-5" />
           </button>
+
+          {/* Auto-attach the preview's URL + DOM outline on every send.
+              Only rendered when the Kody Preview Inspector extension is
+              installed (picker.available); persists per-user via
+              localStorage. Default on. */}
+          {previewPicker.available && (
+            <button
+              type="button"
+              onClick={() => setAutoPageContext((v) => !v)}
+              aria-pressed={autoPageContext}
+              title={
+                autoPageContext
+                  ? "Auto page context: ON — preview URL + DOM sent with each message"
+                  : "Auto page context: OFF — click to send preview context with each message"
+              }
+              className={`p-2 rounded-md transition-colors ${
+                autoPageContext
+                  ? "text-emerald-400 hover:bg-muted"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              <Globe className="w-5 h-5" />
+            </button>
+          )}
 
           {/* Voice button — gated on `agent.supportsVoice`. Each agent
               declares whether its backend can honor the voice overlay
