@@ -10,16 +10,17 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
-import { readInboxManifest } from "@dashboard/lib/inbox/gist-store";
+import type { Octokit } from "@octokit/rest";
+import { readInbox } from "@dashboard/lib/inbox/gist-store";
 
 interface Ctx {
-  token: string;
+  octokit: Octokit;
   owner: string;
   repo: string;
 }
 
 export function createInboxTools(ctx: Ctx) {
-  const { token } = ctx;
+  const { octokit, owner, repo } = ctx;
   return {
     list_inbox: tool({
       description: `List the operator's inbox entries (mentions + CTO recommendations waiting for a decision). Returns each entry's title, source, author, url, and read state. Use to answer "what's in my inbox / what needs my attention".`,
@@ -28,7 +29,7 @@ export function createInboxTools(ctx: Ctx) {
       }),
       execute: async ({ unreadOnly }) => {
         try {
-          const { gistId, manifest } = await readInboxManifest(token);
+          const { gistId, manifest } = await readInbox(octokit, owner, repo);
           let entries = manifest.entries;
           if (unreadOnly) entries = entries.filter((e) => e.readAt == null);
           return {

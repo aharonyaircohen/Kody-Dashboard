@@ -34,7 +34,7 @@ const ChannelSchema = z.discriminatedUnion("type", [
     url: z.string().url(),
     jsonTemplate: z.string().optional(),
     bodyFormat: z.enum(["json", "form"]).optional(),
-    headers: z.record(z.string()).optional(),
+    headers: z.record(z.string(), z.string()).optional(),
   }),
   z.object({ type: z.literal("web-push") }),
 ]);
@@ -74,21 +74,29 @@ export function createNotificationTools(opts: { owner: string; repo: string }) {
       }),
       execute: async (input) => {
         try {
-          const result = await mutateNotificationsManifest((manifest) => {
-            const id = uniqueRuleId(slugifyRuleName(input.name), manifest.rules);
-            const rule: NotificationRule = {
-              id,
-              name: input.name,
-              enabled: input.enabled ?? true,
-              event: input.event,
-              channel: input.channel as NotificationChannel,
-              template: input.template,
-              createdAt: new Date().toISOString(),
-            };
-            return { next: { ...manifest, rules: [...manifest.rules, rule] }, result: rule };
-          });
-          const rule = "result" in result ? result.result : null;
-          return { ok: true, rule };
+          const outcome = await mutateNotificationsManifest<NotificationRule>(
+            (manifest) => {
+              const id = uniqueRuleId(
+                slugifyRuleName(input.name),
+                manifest.rules,
+              );
+              const rule: NotificationRule = {
+                id,
+                name: input.name,
+                enabled: input.enabled ?? true,
+                event: input.event,
+                channel: input.channel as NotificationChannel,
+                template: input.template,
+                createdAt: new Date().toISOString(),
+              };
+              return {
+                next: { ...manifest, rules: [...manifest.rules, rule] },
+                result: rule,
+              };
+            },
+          );
+          if ("kind" in outcome) return { error: "create_failed" };
+          return { ok: true, rule: outcome.result };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
         }
@@ -100,14 +108,19 @@ export function createNotificationTools(opts: { owner: string; repo: string }) {
       inputSchema: z.object({ id: z.string().min(1) }),
       execute: async ({ id }) => {
         try {
-          const result = await mutateNotificationsManifest((manifest) => {
-            const existed = manifest.rules.some((r) => r.id === id);
-            return {
-              next: { ...manifest, rules: manifest.rules.filter((r) => r.id !== id) },
-              result: existed,
-            };
-          });
-          const existed = "result" in result ? result.result : false;
+          const outcome = await mutateNotificationsManifest<boolean>(
+            (manifest) => {
+              const existed = manifest.rules.some((r) => r.id === id);
+              return {
+                next: {
+                  ...manifest,
+                  rules: manifest.rules.filter((r) => r.id !== id),
+                },
+                result: existed,
+              };
+            },
+          );
+          const existed = outcome.result;
           if (!existed) return { error: `rule "${id}" not found` };
           return { ok: true, action: "deleted", id };
         } catch (err) {

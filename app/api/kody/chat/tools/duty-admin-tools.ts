@@ -16,7 +16,7 @@ import {
   deleteDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
-import { dispatchJobTick } from "@dashboard/lib/control-issue";
+import { findOrCreateControlIssue } from "@dashboard/lib/control-issue";
 
 interface Ctx {
   octokit: Octokit;
@@ -91,11 +91,19 @@ export function createDutyAdminTools(ctx: Ctx) {
         try {
           const existing = await readDutyFile(slug);
           if (!existing) return { error: `duty "${slug}" not found` };
-          const result = await dispatchJobTick(octokit, owner, repo, {
-            slug,
-            force: true,
+          const issueNumber = await findOrCreateControlIssue(octokit, owner, repo);
+          const { data: comment } = await octokit.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: issueNumber,
+            body: `@kody job-tick --job ${slug} --force`,
           });
-          return { ok: true, ...result };
+          return {
+            ok: true,
+            issueNumber,
+            commentId: comment.id,
+            commentUrl: comment.html_url,
+          };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
         }

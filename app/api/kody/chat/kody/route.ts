@@ -638,7 +638,7 @@ export async function POST(req: NextRequest) {
         repo: repo.repo,
       }),
       ...createInboxTools({
-        token: repo.token,
+        octokit,
         owner: repo.owner,
         repo: repo.repo,
       }),
