@@ -28,7 +28,11 @@ WORKDIR /app
 
 COPY package.json ./
 COPY src ./src
+# Two bundled templates: PREVIEW_BUILD_MODE picks which to copy into
+# the cloned repo (defaults to "dev" — see src/builder.ts).
 COPY default-Dockerfile.preview ./default-Dockerfile.preview
+COPY default-Dockerfile.preview.dev ./default-Dockerfile.preview.dev
+COPY default-Dockerfile.preview.prod ./default-Dockerfile.preview.prod
 
 ENV NODE_ENV=production
 
