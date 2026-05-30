@@ -26,6 +26,15 @@ import { logger } from "@dashboard/lib/logger";
 import { rebuildBaseImage } from "./base-rebuild";
 import { resolvePreviewConfigForRepo } from "./config";
 import { createPreview, destroyPreview } from "./preview-lifecycle";
+import { routePreviewBuild } from "./preview-router";
+
+/**
+ * Feature flag — `1` (default) routes per-PR preview builds through
+ * the GitHub-base / Fly-fallback router; `0` keeps the legacy
+ * always-Fly path. Lets us roll back the new path without code
+ * changes if it misbehaves in production.
+ */
+const ROUTER_ENABLED = process.env.KODY_PREVIEW_ROUTER !== "0";
 
 interface PRWebhookEvent {
   repoFullName: string;
@@ -109,6 +118,32 @@ export async function handlePrOpenedOrSynced(
       );
       return;
     }
+  }
+
+  if (ROUTER_ENABLED) {
+    try {
+      const outcome = await routePreviewBuild({
+        repoFullName: event.repoFullName,
+        prNumber: event.prNumber,
+        ref: event.ref,
+      });
+      logger.info(
+        {
+          repo: event.repoFullName,
+          pr: event.prNumber,
+          runner: outcome.runner,
+          reason: outcome.reason,
+          url: outcome.flyUrl,
+        },
+        "previews.webhook: build routed",
+      );
+    } catch (err) {
+      logger.warn(
+        { err, repo: event.repoFullName, pr: event.prNumber },
+        "previews.webhook: router failed (non-fatal)",
+      );
+    }
+    return;
   }
 
   try {
