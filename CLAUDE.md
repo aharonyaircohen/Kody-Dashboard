@@ -207,6 +207,40 @@ events back to `/api/kody/events/ingest` (real-time), and commits them to
 `/api/kody/events/stream`). Token is verified via HMAC of sessionId with
 `KODY_MASTER_KEY` — no shared DB lookup.
 
+## PR previews on Fly Machines
+
+Per-PR preview hosting that replaces Vercel previews. **Production
+stays on Vercel** — only previews move to Fly.
+
+Architecture: dashboard webhook → spawns a one-shot **builder Fly
+Machine** (~1s API call, fire-and-forget) → the builder owns the
+entire pipeline (clone, `flyctl deploy --remote-only`, optional GHCR
+mirror, per-PR app + IPs + preview machine). Dashboard never polls;
+status checks query Fly's API directly via the deterministic per-PR
+app name.
+
+Preview Fly machines are configured `auto_stop_machines: "suspend"` +
+`auto_start_machines: true`, so they snapshot RAM to disk when idle
+(~$0) and wake in ~1–2s on next request. **Not warm-running, not
+cold-stopped — Fly's "suspend" state.**
+
+Consumer repos stay **zero-touch**: no Dockerfile, no workflow, no
+env vars. The builder ships two bundled templates
+(`default-Dockerfile.preview.prod` default; `.dev` opt-in via repo
+vault `KODY_PREVIEW_BUILD_MODE=dev`).
+
+Per-repo billing: every Fly call uses `FLY_API_TOKEN` from the target
+repo's vault. **Never** read it from `process.env` or a global config.
+
+- Lifecycle: [src/dashboard/lib/previews/preview-lifecycle.ts](src/dashboard/lib/previews/preview-lifecycle.ts)
+- Builder spawn: [src/dashboard/lib/previews/builder-client.ts](src/dashboard/lib/previews/builder-client.ts)
+- One-shot builder image: [builder/](builder/)
+- Full docs: [docs/previews.md](docs/previews.md)
+
+Open improvements (highest ROI first): auto-rebuild the per-repo GHCR
+base on `main` push (today it's manual → stale → PRs fall back to slow
+full installs); diff-aware skip-rebuild when no code changed.
+
 ## Deployment
 
 The production URL is whatever your Vercel project resolves to — set

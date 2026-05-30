@@ -44,7 +44,7 @@ Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where 
 - Duty scheduler — markdown-defined duties in `.kody/duties/`, ticked off as they run
 - Parallel task execution — each task is its own GitHub Actions workflow run
 - PR viewer with file diffs, CI status, and gate approvals
-- Live previews — per-task Fly.io preview environments
+- Live previews — per-PR Fly.io preview environments (see [docs/previews.md](./docs/previews.md))
 - Per-repo encrypted secrets vault (`.kody/secrets.enc`, AES-256-GCM)
 - Provider-agnostic chat — Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, or any OpenAI-compatible endpoint, configured in-app (Anthropic Messages or OpenAI Chat Completions protocols)
 - Multiple chat backends (direct via configured provider, external Brain, engine via GitHub Actions)
