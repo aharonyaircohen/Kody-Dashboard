@@ -109,6 +109,7 @@ import {
 } from "./ToolCallCard";
 import { MessageActions } from "./MessageActions";
 import { VibeRunButton } from "./VibeRunButton";
+import { ViewToggle } from "./ViewToggle";
 import {
   loadTaskChatLocal,
   saveTaskChatLocal,
