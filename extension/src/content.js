@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.3.6";
+  const VERSION = "0.3.7";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -393,12 +393,20 @@
             if (!el) return resolve({ ok: false, error: "not found" });
             if (!(el instanceof HTMLElement))
               return resolve({ ok: false, error: "not clickable" });
+            // The matched element is often a descendant (span inside a
+            // button, text node inside a clickable card). Walk up to the
+            // nearest interactive ancestor so the click reaches the real
+            // handler instead of dying on a non-listening child.
+            var target = closestInteractive(el);
             try {
-              el.scrollIntoView({ block: "center" });
+              target.scrollIntoView({ block: "center" });
             } catch (e) {
               /* ignore */
             }
-            el.click();
+            // Full event sequence — many UI libs (Radix, cmdk, framer-motion)
+            // need pointerdown/mousedown to register an interaction, not
+            // just a bare click. element.click() alone misses these.
+            simulateClick(target);
             return resolve({ ok: true });
           }
           if (op === "fill") {
@@ -458,19 +466,123 @@
       }
       var parsed = parseTextSelector(selector);
       if (!parsed) return null;
-      return findByText(parsed.text, parsed.tag);
+      // Pass 1: scan the usual interactive elements (fast common case).
+      var hit = findByText(parsed.text, parsed.tag);
+      if (hit) return hit;
+      // Pass 2: broader scan for clickable cards/divs/wrappers — anything
+      // that contains the text. Walk up to the nearest interactive
+      // ancestor (button / a / [role=button] / [tabindex] / [onclick] /
+      // cursor:pointer). This is what catches the "grade card" pattern
+      // where the visible-text element is a <div> with a click handler.
+      return findAnyWithText(parsed.text, parsed.tag);
+    }
+
+    // Walk up from `el` to the nearest element that's likely to be the
+    // real click target (a button, link, role=button, tabindex, [onclick],
+    // or anything with cursor:pointer). Falls back to the element itself.
+    function closestInteractive(el) {
+      if (!(el instanceof Element)) return el;
+      var INTERACTIVE_TAGS = { BUTTON: 1, A: 1, INPUT: 1, SELECT: 1, TEXTAREA: 1, SUMMARY: 1, LABEL: 1 };
+      var node = el;
+      var hops = 0;
+      while (node && hops < 8) {
+        if (INTERACTIVE_TAGS[node.tagName]) return node;
+        var role = node.getAttribute && node.getAttribute("role");
+        if (role === "button" || role === "link" || role === "tab" || role === "menuitem") return node;
+        if (node.getAttribute && node.getAttribute("tabindex") !== null) return node;
+        if (node.hasAttribute && node.hasAttribute("onclick")) return node;
+        try {
+          var cs = window.getComputedStyle(node);
+          if (cs && cs.cursor === "pointer") return node;
+        } catch (e) {
+          /* ignore */
+        }
+        node = node.parentElement;
+        hops++;
+      }
+      return el;
+    }
+
+    // Find any element on the page whose visible text matches. Used as a
+    // second-pass when the strict button/link scan missed (e.g. clickable
+    // card divs). Returns the SMALLEST matching element (least textContent
+    // length) so we hit the leaf, then click walks up to the interactive
+    // ancestor before dispatching.
+    function findAnyWithText(text, tagFilter) {
+      var needle = String(text || "").trim().toLowerCase().replace(/\s+/g, " ");
+      if (!needle) return null;
+      var selector = tagFilter || "*";
+      var nodes;
+      try {
+        nodes = document.querySelectorAll(selector);
+      } catch {
+        return null;
+      }
+      var best = null;
+      var bestLen = Infinity;
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.children && el.children.length > 0 && !tagFilter) {
+          // Prefer leaf-ish nodes when no tag filter; parents will be
+          // picked up via closestInteractive on click anyway.
+        }
+        var raw = (el.textContent || "").trim().toLowerCase().replace(/\s+/g, " ");
+        if (!raw) continue;
+        if (raw === needle || raw.indexOf(needle) !== -1) {
+          // Smaller textContent → closer to the actual label leaf.
+          if (raw.length < bestLen) {
+            best = el;
+            bestLen = raw.length;
+            if (raw === needle) {
+              // Exact small match — good enough, stop scanning.
+              if (raw.length === needle.length) break;
+            }
+          }
+        }
+      }
+      return best;
+    }
+
+    // Simulate a full mouse-click sequence. element.click() alone misses
+    // pointer-based handlers in libs like Radix / cmdk / framer-motion.
+    function simulateClick(el) {
+      try {
+        var rect = el.getBoundingClientRect();
+        var x = Math.round(rect.left + rect.width / 2);
+        var y = Math.round(rect.top + rect.height / 2);
+        var common = { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, view: window };
+        try {
+          el.dispatchEvent(new PointerEvent("pointerdown", common));
+        } catch (e) {
+          /* PointerEvent may be unsupported */
+        }
+        el.dispatchEvent(new MouseEvent("mousedown", common));
+        try {
+          el.dispatchEvent(new PointerEvent("pointerup", common));
+        } catch (e) {
+          /* ignore */
+        }
+        el.dispatchEvent(new MouseEvent("mouseup", common));
+        el.dispatchEvent(new MouseEvent("click", common));
+      } catch (e) {
+        try {
+          el.click();
+        } catch (e2) {
+          /* swallow */
+        }
+      }
     }
 
     // Keep this in sync with src/dashboard/lib/picker/protocol.ts:parseTextSelector
     // — that one is unit-tested; this one runs in the page.
     function parseTextSelector(selector) {
       if (!selector) return null;
-      var hasText = selector.match(
-        /^([a-zA-Z][\w-]*)?:has-text\(["']([^"']+)["']\)$/,
+      var pseudo = selector.match(
+        /^([a-zA-Z][\w-]*)?:(?:has-text|text|text-is|text-matches)\(["']([^"']+)["']\)$/,
       );
-      if (hasText) {
-        var out = { text: hasText[2] };
-        if (hasText[1]) out.tag = hasText[1];
+      if (pseudo) {
+        var out = { text: pseudo[2] };
+        if (pseudo[1]) out.tag = pseudo[1];
         return out;
       }
       var textEq = selector.match(/^text=(?:["']([^"']+)["']|([^\s"']+))$/);
