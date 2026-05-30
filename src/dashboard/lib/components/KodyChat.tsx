@@ -20,6 +20,7 @@ import {
   FileText,
   FileCode,
   MessageSquare,
+  Menu,
   History,
   Target,
   Loader2,
@@ -149,6 +150,9 @@ export function KodyChat({
   // Current route — drives the page-aware composer placeholder AND tells the
   // model which dashboard page the user is looking at ("what am I viewing?").
   const pathname = usePathname();
+  const isChatRoute = pathname === "/chat";
+  // Mobile nav for the full /chat view (which has no app header of its own).
+  const [showChatNav, setShowChatNav] = useState(false);
   const pageLabel = navLabelForPath(pathname);
   // Noun phrase passed to the backends. The client owns nav labels; each
   // route owns how it frames this (system section vs. user-turn prefix).
