@@ -75,6 +75,7 @@ import { createCompanyTools } from "../tools/company-tools";
 import { createInboxTools } from "../tools/inbox-tools";
 import { createStaffAdminTools } from "../tools/staff-admin-tools";
 import { createDutyAdminTools } from "../tools/duty-admin-tools";
+import { createMacroTools } from "../tools/macros-tools";
 import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files";
 import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
@@ -649,6 +650,12 @@ export async function POST(req: NextRequest) {
         actorLogin: body.actorLogin ?? null,
       }),
       ...createDutyAdminTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: body.actorLogin ?? null,
+      }),
+      ...createMacroTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,

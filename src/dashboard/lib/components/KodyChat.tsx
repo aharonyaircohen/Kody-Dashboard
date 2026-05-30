@@ -20,7 +20,6 @@ import {
   FileText,
   FileCode,
   MessageSquare,
-  Menu,
   History,
   Target,
   Loader2,
@@ -110,8 +109,6 @@ import {
 } from "./ToolCallCard";
 import { MessageActions } from "./MessageActions";
 import { VibeRunButton } from "./VibeRunButton";
-import { ViewToggle } from "./ViewToggle";
-import { MobileMenu } from "./MobileMenu";
 import {
   loadTaskChatLocal,
   saveTaskChatLocal,
@@ -150,9 +147,6 @@ export function KodyChat({
   // Current route — drives the page-aware composer placeholder AND tells the
   // model which dashboard page the user is looking at ("what am I viewing?").
   const pathname = usePathname();
-  const isChatRoute = pathname === "/chat";
-  // Mobile nav for the full /chat view (which has no app header of its own).
-  const [showChatNav, setShowChatNav] = useState(false);
   const pageLabel = navLabelForPath(pathname);
   // Noun phrase passed to the backends. The client owns nav labels; each
   // route owns how it frames this (system section vs. user-turn prefix).
@@ -4141,25 +4135,11 @@ export function KodyChat({
           isMuted={voiceMuted}
         />
       )}
-      {isChatRoute && (
-        <MobileMenu open={showChatNav} onOpenChange={setShowChatNav} />
-      )}
       {/* Header with context */}
       <div className="px-2 py-1.5 sm:px-4 sm:py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
         <div className="flex items-center justify-between">
           {/* Left: agent picker (locked label when parent forces an agent) */}
           <div className="relative flex items-center gap-2">
-            {isChatRoute && (
-              <button
-                type="button"
-                onClick={() => setShowChatNav(true)}
-                className="md:hidden p-1.5 -ml-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
-                aria-label="Open menu"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-            )}
-            {isChatRoute && <ViewToggle />}
             {(() => {
               // Header label/icon prefers the matched dropdown entry — that
               // way a user-managed model surfaces its own label (e.g.
