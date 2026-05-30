@@ -238,6 +238,86 @@ async function mirrorBaseToGhcr(
   }
 }
 
+/**
+ * Idempotently post a "preview ready" comment on the PR. Uses a hidden
+ * HTML marker to find an existing comment from a prior build and update
+ * it in place, mirroring the Vercel preview-comment UX. Failure is
+ * non-fatal — the preview itself is what users actually need.
+ */
+async function postPreviewComment(args: {
+  repo: string;
+  pr: number;
+  appName: string;
+  token: string;
+  ref: string;
+}): Promise<void> {
+  const MARKER = "<!-- kody-fly-preview -->";
+  const url = `https://${args.appName}.fly.dev`;
+  const body = [
+    MARKER,
+    `✅ **Preview ready:** ${url}`,
+    "",
+    `<sub>App: \`${args.appName}\` · Commit: \`${args.ref.slice(0, 7)}\` · Updated: ${new Date().toISOString()}</sub>`,
+  ].join("\n");
+
+  const apiBase = `https://api.github.com/repos/${args.repo}/issues/${args.pr}/comments`;
+  const headers = {
+    Authorization: `Bearer ${args.token}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "Content-Type": "application/json",
+  };
+
+  // Walk existing comments to find any prior preview comment by marker.
+  // PRs rarely exceed 30 comments for the kody bot path; one page is fine.
+  const listRes = await fetch(`${apiBase}?per_page=100`, {
+    headers,
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => null);
+  let existingId: number | null = null;
+  if (listRes && listRes.ok) {
+    const comments = (await listRes.json().catch(() => [])) as Array<{
+      id: number;
+      body?: string;
+    }>;
+    const hit = comments.find((c) => (c.body ?? "").includes(MARKER));
+    if (hit) existingId = hit.id;
+  }
+
+  if (existingId) {
+    const patchRes = await fetch(
+      `https://api.github.com/repos/${args.repo}/issues/comments/${existingId}`,
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ body }),
+        signal: AbortSignal.timeout(15_000),
+      },
+    ).catch(() => null);
+    if (patchRes && patchRes.ok) {
+      console.log(`[builder] updated PR comment #${existingId}`);
+      return;
+    }
+    console.warn(
+      `[builder] PATCH comment ${existingId} failed (${patchRes?.status ?? "?"})`,
+    );
+  }
+
+  const postRes = await fetch(apiBase, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ body }),
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => null);
+  if (postRes && postRes.ok) {
+    console.log(`[builder] posted preview comment on PR #${args.pr}`);
+    return;
+  }
+  console.warn(
+    `[builder] POST preview comment failed (${postRes?.status ?? "?"})`,
+  );
+}
+
 async function patchBaseImageInDockerfile(
   dockerfilePath: string,
   baseImage: string,
@@ -457,6 +537,26 @@ async function main() {
     console.log(
       `[builder] done — preview machine ${machineId} at https://${appName}.fly.dev`,
     );
+
+    // Post a preview-ready comment on the PR. Skipped on base rebuilds
+    // (no PR) and when no token / PR_NUMBER was supplied. Idempotent —
+    // updates a prior preview comment in place rather than spamming.
+    const prRaw = process.env.PR_NUMBER?.trim();
+    const prNumber = prRaw ? Number.parseInt(prRaw, 10) : NaN;
+    if (!isBaseBuild && githubToken && Number.isFinite(prNumber)) {
+      try {
+        await postPreviewComment({
+          repo,
+          pr: prNumber,
+          appName,
+          token: githubToken,
+          ref,
+        });
+      } catch (err) {
+        console.warn("[builder] postPreviewComment failed (non-fatal):", err);
+      }
+    }
+
     process.exit(0);
   } catch (err) {
     console.error("[builder] orchestration failed:", err);

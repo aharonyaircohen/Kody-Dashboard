@@ -78,6 +78,10 @@ export async function spawnPreviewBuilder(
         FLY_ORG_SLUG: input.flyOrgSlug,
         FLY_REGION: input.flyRegion,
         ...(input.githubToken ? { GITHUB_TOKEN: input.githubToken } : {}),
+        // When set, the builder posts (or updates) one idempotent
+        // comment on the PR with the preview URL. Omitted on base
+        // rebuilds — there's no PR to comment on.
+        ...(typeof input.pr === "number" ? { PR_NUMBER: String(input.pr) } : {}),
         // When set, the builder probes GHCR for a per-repo base image
         // (kp-<hash>-base:latest) and inherits from it via Docker FROM.
         // Drops a typical PR build from ~13 min cold to ~3 min.
