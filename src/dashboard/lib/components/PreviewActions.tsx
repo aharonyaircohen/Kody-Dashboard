@@ -6,10 +6,9 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { KodyTask } from "../types";
 import { Button } from "@dashboard/ui/button";
-import { MergeButton } from "./MergeButton";
 import { FixRequestDialog } from "./FixRequestDialog";
 import { ReportIssueDialog } from "./ReportIssueDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -135,10 +134,9 @@ export function PreviewActions({
 
   /**
    * Single-step approval: marks both the UI and PR approved server-side,
-   * then fires the merge if the PR is already mergeable (CI green, no
-   * conflicts). When CI is still pending the MergeButton stays visible so
-   * the user can click again once checks finish — no separate "Approve PR"
-   * gate, since we don't run a separate code-review pass right now.
+   * then fires the merge if the PR is already mergeable. If CI is still
+   * pending, the auto-merge effect below fires the merge as soon as
+   * checks turn green — no separate manual merge button needed.
    */
   const handleApprove = async () => {
     setIsApproving(true);
@@ -159,7 +157,7 @@ export function PreviewActions({
         toast.success("Approved — merging");
         await onMerge();
       } else {
-        toast.success("Approved — merge will run when CI passes");
+        toast.success("Approved — will merge when CI passes");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to approve");
@@ -167,6 +165,27 @@ export function PreviewActions({
       setIsApproving(false);
     }
   };
+
+  // Auto-merge once CI turns green on an already-approved PR. Guards against
+  // re-firing if the merge is in flight or the task already moved on.
+  const autoMergedRef = useRef(false);
+  useEffect(() => {
+    if (!isUIApproved || !isPRApproved) return;
+    if (autoMergedRef.current || isMerging) return;
+    const mergeableNow =
+      (ciData?.mergeable ?? false) && !hasConflicts && !ciFailed;
+    if (!mergeableNow) return;
+    autoMergedRef.current = true;
+    void onMerge();
+  }, [
+    isUIApproved,
+    isPRApproved,
+    ciData?.mergeable,
+    hasConflicts,
+    ciFailed,
+    isMerging,
+    onMerge,
+  ]);
 
   const handleReportIssue = async (notes: string) => {
     try {
@@ -257,19 +276,8 @@ export function PreviewActions({
             </Button>
           )}
 
-          {/* Merge — visible after Approve (which also sets pr-approved).
-              Kept as a manual fallback so the user can re-fire the merge if
-              CI was still pending at approval time. */}
-          {isUIApproved && isPRApproved && !hasConflicts && !ciFailed && (
-            <MergeButton
-              prNumber={pr.number}
-              prTitle={pr.title}
-              branchName={pr.head.ref}
-              isMerging={isMerging}
-              onMerge={onMerge}
-              labels={task.labels}
-            />
-          )}
+          {/* No manual Merge button — Approve auto-merges when CI is green,
+              and the auto-merge effect handles the CI-pending case. */}
         </div>
 
         {/* Divider */}
