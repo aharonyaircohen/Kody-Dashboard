@@ -234,136 +234,176 @@ export function PreviewInspector({
     toast.success("Added recorded test to chat");
   };
 
+  // Three logical groups. Each renders inside a rounded pill with a tinted
+  // ring so the user reads the toolbar by purpose, not by individual icon.
+  // Order: Capture → Diagnostics → Settings.
+  const groupClass =
+    "inline-flex items-center gap-0.5 p-0.5 rounded-md border bg-zinc-900/50";
+
   return (
     <>
-      <button
-        type="button"
-        onClick={picker.toggle}
-        title={
-          picker.armed
-            ? "Click an element in the preview (Esc to cancel)"
-            : "Pick an element from the preview into chat"
-        }
-        aria-label={picker.armed ? "Picking element" : "Pick element"}
-        aria-pressed={picker.armed}
-        className={cn(
-          BTN_BASE,
-          picker.armed
-            ? "bg-blue-500/20 text-blue-300 border-blue-500/40"
-            : BTN_IDLE,
-        )}
+      {/* Group 1 — CAPTURE: things that send something to chat. Blue tint. */}
+      <div
+        className={cn(groupClass, "border-blue-500/20")}
+        role="group"
+        aria-label="Capture into chat"
       >
-        <MousePointerClick className="w-3 h-3" />
-      </button>
-      <button
-        type="button"
-        onClick={sendLogs}
-        disabled={busy !== null}
-        title={
-          picker.logCount > 0
-            ? `Send ${picker.logCount} console error(s) to chat`
-            : "No console errors captured yet"
-        }
-        aria-label="Send console errors to chat"
-        className={cn(
-          BTN_BASE,
-          picker.logCount > 0
-            ? "bg-red-500/15 text-red-300 border-red-500/40 hover:bg-red-500/25"
-            : cn(BTN_IDLE, "opacity-60"),
-        )}
+        <button
+          type="button"
+          onClick={picker.toggle}
+          title={
+            picker.armed
+              ? "Click an element in the preview (Esc to cancel)"
+              : "Pick an element from the preview into chat"
+          }
+          aria-label={picker.armed ? "Picking element" : "Pick element"}
+          aria-pressed={picker.armed}
+          className={cn(
+            BTN_BASE,
+            picker.armed
+              ? "bg-blue-500/25 text-blue-200 border-blue-400/60"
+              : "text-blue-300/80 hover:text-blue-200 hover:bg-blue-500/15 border-transparent",
+          )}
+        >
+          <MousePointerClick className="w-3 h-3" />
+        </button>
+        <button
+          type="button"
+          onClick={sendScreenshot}
+          disabled={busy !== null}
+          title="Screenshot the preview into chat"
+          aria-label="Screenshot the preview into chat"
+          className={cn(
+            BTN_BASE,
+            "text-blue-300/80 hover:text-blue-200 hover:bg-blue-500/15 border-transparent",
+          )}
+        >
+          <Camera
+            className={cn("w-3 h-3", busy === "shot" && "animate-pulse")}
+          />
+        </button>
+        <button
+          type="button"
+          onClick={toggleRecording}
+          title={
+            picker.recording
+              ? "Stop recording and add the test to chat"
+              : "Record a click-through, then turn it into a Playwright test"
+          }
+          aria-pressed={picker.recording}
+          className={cn(
+            BTN_BASE,
+            picker.recording
+              ? "bg-red-500/20 text-red-300 border-red-500/50"
+              : "text-blue-300/80 hover:text-blue-200 hover:bg-blue-500/15 border-transparent",
+          )}
+        >
+          {picker.recording ? (
+            <>
+              <Square className="w-3 h-3 fill-current" />
+              <span className="tabular-nums">{picker.recStepCount}</span>
+            </>
+          ) : (
+            <Circle className="w-3 h-3" />
+          )}
+        </button>
+      </div>
+
+      {/* Group 2 — DIAGNOSTICS: passive observers of the preview. Counts
+          go red/amber when there's something to look at, otherwise dim. */}
+      <div
+        className={cn(groupClass, "border-amber-500/20")}
+        role="group"
+        aria-label="Diagnostics"
       >
-        <Bug className={cn("w-3 h-3", busy === "logs" && "animate-pulse")} />
-        {picker.logCount > 0 && (
-          <span className="tabular-nums">{picker.logCount}</span>
-        )}
-      </button>
-      <button
-        type="button"
-        onClick={sendNetwork}
-        disabled={busy !== null}
-        title={
-          picker.networkCount > 0
-            ? `Send ${picker.networkCount} failed request(s) to chat`
-            : "No failed requests captured yet"
-        }
-        aria-label="Send failed requests to chat"
-        className={cn(
-          BTN_BASE,
-          picker.networkCount > 0
-            ? "bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25"
-            : cn(BTN_IDLE, "opacity-60"),
-        )}
+        <button
+          type="button"
+          onClick={sendLogs}
+          disabled={busy !== null}
+          title={
+            picker.logCount > 0
+              ? `Send ${picker.logCount} console error(s) to chat`
+              : "No console errors captured yet"
+          }
+          aria-label="Send console errors to chat"
+          className={cn(
+            BTN_BASE,
+            picker.logCount > 0
+              ? "bg-red-500/15 text-red-300 border-red-500/40 hover:bg-red-500/25"
+              : "text-amber-300/60 hover:text-amber-200 hover:bg-amber-500/10 border-transparent",
+          )}
+        >
+          <Bug className={cn("w-3 h-3", busy === "logs" && "animate-pulse")} />
+          {picker.logCount > 0 && (
+            <span className="tabular-nums">{picker.logCount}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={sendNetwork}
+          disabled={busy !== null}
+          title={
+            picker.networkCount > 0
+              ? `Send ${picker.networkCount} failed request(s) to chat`
+              : "No failed requests captured yet"
+          }
+          aria-label="Send failed requests to chat"
+          className={cn(
+            BTN_BASE,
+            picker.networkCount > 0
+              ? "bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25"
+              : "text-amber-300/60 hover:text-amber-200 hover:bg-amber-500/10 border-transparent",
+          )}
+        >
+          <Activity
+            className={cn("w-3 h-3", busy === "network" && "animate-pulse")}
+          />
+          {picker.networkCount > 0 && (
+            <span className="tabular-nums">{picker.networkCount}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={sendPerf}
+          disabled={busy !== null}
+          title="Measure the preview's load speed and what's dragging it"
+          aria-label="Send a performance snapshot to chat"
+          className={cn(
+            BTN_BASE,
+            "text-amber-300/60 hover:text-amber-200 hover:bg-amber-500/10 border-transparent",
+          )}
+        >
+          <Gauge
+            className={cn("w-3 h-3", busy === "perf" && "animate-pulse")}
+          />
+        </button>
+      </div>
+
+      {/* Group 3 — SETTINGS: per-chat context behaviour. Emerald = active. */}
+      <div
+        className={cn(groupClass, "border-emerald-500/20")}
+        role="group"
+        aria-label="Inspector settings"
       >
-        <Activity
-          className={cn("w-3 h-3", busy === "network" && "animate-pulse")}
-        />
-        {picker.networkCount > 0 && (
-          <span className="tabular-nums">{picker.networkCount}</span>
-        )}
-      </button>
-      <button
-        type="button"
-        onClick={sendScreenshot}
-        disabled={busy !== null}
-        title="Screenshot the preview into chat"
-        aria-label="Screenshot the preview into chat"
-        className={cn(BTN_BASE, BTN_IDLE)}
-      >
-        <Camera className={cn("w-3 h-3", busy === "shot" && "animate-pulse")} />
-      </button>
-      <button
-        type="button"
-        onClick={sendPerf}
-        disabled={busy !== null}
-        title="Measure the preview's load speed and what's dragging it"
-        aria-label="Send a performance snapshot to chat"
-        className={cn(BTN_BASE, BTN_IDLE)}
-      >
-        <Gauge className={cn("w-3 h-3", busy === "perf" && "animate-pulse")} />
-      </button>
-      <button
-        type="button"
-        onClick={() => setAutoContext((v) => !v)}
-        aria-pressed={autoContext}
-        title={
-          autoContext
-            ? "Auto page context: ON — preview URL + DOM sent silently with every chat message"
-            : "Auto page context: OFF — click to send preview context with every chat message"
-        }
-        className={cn(
-          BTN_BASE,
-          autoContext
-            ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25"
-            : BTN_IDLE,
-        )}
-      >
-        <Globe className="w-3 h-3" />
-      </button>
-      <button
-        type="button"
-        onClick={toggleRecording}
-        title={
-          picker.recording
-            ? "Stop recording and add the test to chat"
-            : "Record a click-through, then turn it into a Playwright test"
-        }
-        aria-pressed={picker.recording}
-        className={cn(
-          BTN_BASE,
-          picker.recording
-            ? "bg-red-500/20 text-red-300 border-red-500/50"
-            : BTN_IDLE,
-        )}
-      >
-        {picker.recording ? (
-          <>
-            <Square className="w-3 h-3 fill-current" />
-            Stop · {picker.recStepCount}
-          </>
-        ) : (
-          <Circle className="w-3 h-3" />
-        )}
-      </button>
+        <button
+          type="button"
+          onClick={() => setAutoContext((v) => !v)}
+          aria-pressed={autoContext}
+          title={
+            autoContext
+              ? "Auto page context: ON — preview URL + DOM sent silently with every chat message"
+              : "Auto page context: OFF — click to send preview context with every chat message"
+          }
+          className={cn(
+            BTN_BASE,
+            autoContext
+              ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/50"
+              : "text-emerald-300/60 hover:text-emerald-200 hover:bg-emerald-500/10 border-transparent",
+          )}
+        >
+          <Globe className="w-3 h-3" />
+        </button>
+      </div>
     </>
   );
 }
