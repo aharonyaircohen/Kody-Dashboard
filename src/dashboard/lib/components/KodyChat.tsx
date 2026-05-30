@@ -42,6 +42,8 @@ import {
   expandSlashCommand,
 } from "../commands/useSlashCommands";
 import { parseGoalMention, type GoalRef } from "../goal-mention";
+import { useElementPicker } from "../picker/useElementPicker";
+import { formatPageInfo } from "../picker/protocol";
 import { SlashCommandMenu, filterCommands } from "./SlashCommandMenu";
 import {
   authHeaders,
@@ -309,6 +311,31 @@ export function KodyChat({
   // model keeps generating, tokens keep flowing into the assistant bubble,
   // and the user has no recourse. Mirrors the Brain backend's pattern.
   const kodyAbortRef = useRef<AbortController | null>(null);
+  // Preview-DOM auto-attach. When the user is in a surface that hosts a
+  // preview iframe (Vibe page, task with a preview), the Kody Preview
+  // Inspector extension can report the preview's URL/title/selection/DOM
+  // outline. We call it just-in-time on send with a short timeout so it
+  // never adds noticeable latency on pages without a preview.
+  const hasPreviewSurface =
+    vibeMode === true || context?.kind === "task";
+  const previewPicker = useElementPicker({ onSelect: () => {} });
+  // Stable ref so send paths read the current `available` without binding.
+  const previewPickerRef = useRef(previewPicker);
+  previewPickerRef.current = previewPicker;
+  const collectPreviewContextRef = useRef<() => Promise<string | null>>(
+    async () => null,
+  );
+  collectPreviewContextRef.current = async () => {
+    if (!hasPreviewSurface) return null;
+    if (!previewPickerRef.current.available) return null;
+    try {
+      const info = await previewPickerRef.current.collectPage(300);
+      if (!info) return null;
+      return formatPageInfo(info);
+    } catch {
+      return null;
+    }
+  };
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY;
   const agentList = buildAgentList(
     brainConfigured,
@@ -3636,7 +3663,15 @@ export function KodyChat({
     // outgoing message, so the model sees the element details even though the
     // composer only showed compact pills.
     const currentChips = [...contextChips];
-    const userMessage = [baseMessage, ...currentChips.map((c) => c.context)]
+    // Best-effort preview-DOM auto-attach (returns null on non-preview pages
+    // or when the extension isn't installed). Short 300ms timeout keeps send
+    // latency unchanged when no preview is present.
+    const previewContext = await collectPreviewContextRef.current();
+    const userMessage = [
+      baseMessage,
+      ...currentChips.map((c) => c.context),
+      ...(previewContext ? [previewContext] : []),
+    ]
       .filter((s) => s.trim())
       .join("\n\n");
     setInput("");

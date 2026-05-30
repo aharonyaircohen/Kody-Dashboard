@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.3.1";
+  const VERSION = "0.3.3";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -57,6 +57,7 @@
       "collect-logs": { kind: "collect-logs" },
       "collect-network": { kind: "collect-network" },
       "collect-perf": { kind: "collect-perf" },
+      "collect-page": { kind: "collect-page" },
       "record-start": { kind: "record-start" },
       "record-stop": { kind: "record-stop" },
       screenshot: { kind: "capture-screenshot" },
@@ -101,6 +102,8 @@
         postToPage({ type: "recording", steps: msg.steps, url: msg.url });
       } else if (msg?.kind === "rec-count") {
         postToPage({ type: "rec-count", count: msg.count });
+      } else if (msg?.kind === "page") {
+        postToPage({ type: "page", info: msg.info });
       }
     });
   }
@@ -182,6 +185,10 @@
       } else if (msg?.kind === "collect-perf") {
         chrome.runtime
           .sendMessage({ kind: "perf", report: computePerf() })
+          .catch(() => {});
+      } else if (msg?.kind === "collect-page") {
+        chrome.runtime
+          .sendMessage({ kind: "page", info: collectPageInfo() })
           .catch(() => {});
       } else if (msg?.kind === "record-start") {
         startRecording();
@@ -297,6 +304,99 @@
       chrome.runtime
         .sendMessage({ kind: "rec-count", count: recSteps.length })
         .catch(() => {});
+    }
+
+    // -- page context (URL + title + selection) -------------------------------
+    // Tiny snapshot of where the user is and what they highlighted. Selection
+    // is capped + trimmed so a stray "Select All" doesn't blow up the prompt.
+    function collectPageInfo() {
+      var selection = "";
+      try {
+        var s = window.getSelection();
+        if (s && s.toString) {
+          selection = s.toString().trim().replace(/\s+/g, " ").slice(0, 500);
+        }
+      } catch {
+        /* ignore */
+      }
+      return {
+        url: window.location.href,
+        title: (document.title || "").trim().slice(0, 200),
+        selection,
+        dom: collectDomDigest(),
+      };
+    }
+
+    // Compact outline of interactive + heading + landmark elements with text.
+    // Lets chat answer "what's on this page" / "is there a Save button" without
+    // shipping the full HTML. Skips hidden nodes, caps total bytes.
+    function collectDomDigest() {
+      var root = document.body;
+      if (!root) return "";
+      var KEEP = {
+        h1: 1, h2: 1, h3: 1, h4: 1,
+        button: 1, a: 1, input: 1, textarea: 1, select: 1, label: 1,
+        nav: 1, main: 1, header: 1, footer: 1, section: 1, article: 1,
+        form: 1, summary: 1,
+      };
+      var SKIP = { script: 1, style: 1, svg: 1, noscript: 1 };
+      var out = [];
+      var BUDGET = 3000;
+      var bytes = 0;
+
+      function isVisible(el) {
+        try {
+          var r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) return false;
+          var cs = window.getComputedStyle(el);
+          if (cs.display === "none" || cs.visibility === "hidden") return false;
+          return true;
+        } catch {
+          return true;
+        }
+      }
+      function describeEl(el) {
+        var tag = el.tagName.toLowerCase();
+        var id = el.id ? "#" + el.id : "";
+        var role = el.getAttribute("role");
+        var text = (el.textContent || "")
+          .trim()
+          .replace(/\s+/g, " ")
+          .slice(0, 120);
+        var extra = "";
+        if (tag === "a") {
+          var href = el.getAttribute("href") || "";
+          extra = ' href="' + href.slice(0, 80) + '"';
+        } else if (tag === "input" || tag === "textarea" || tag === "select") {
+          var type = el.getAttribute("type") || tag;
+          var ph =
+            el.getAttribute("placeholder") ||
+            el.getAttribute("aria-label") ||
+            el.getAttribute("name") ||
+            "";
+          extra =
+            ' type="' + type + '"' + (ph ? ' label="' + ph.slice(0, 60) + '"' : "");
+          text = "";
+        }
+        if (role) extra += ' role="' + role + '"';
+        return "<" + tag + id + extra + ">" + (text ? " " + text : "");
+      }
+      function walk(el, depth) {
+        if (bytes >= BUDGET) return;
+        if (!(el instanceof Element)) return;
+        var tag = el.tagName.toLowerCase();
+        if (SKIP[tag]) return;
+        if (!isVisible(el)) return;
+        if (KEEP[tag]) {
+          var line = "  ".repeat(Math.min(depth, 6)) + describeEl(el);
+          out.push(line);
+          bytes += line.length + 1;
+        }
+        var kids = el.children;
+        for (var i = 0; i < kids.length; i++) walk(kids[i], depth + 1);
+      }
+      walk(root, 0);
+      return out.join("\n").slice(0, BUDGET);
     }
 
     // -- performance snapshot --------------------------------------------------
