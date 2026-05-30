@@ -36,6 +36,13 @@ import {
 import { cn, getPreviewBypassUrl } from "../utils";
 import { useChatScope } from "./ChatRailShell";
 import { PreviewInspector } from "../picker/PreviewInspector";
+import { PreviewViewsBar } from "./PreviewViewsBar";
+import {
+  DEFAULT_PREVIEW_VIEWS,
+  joinPreviewUrl,
+  readPreviewViews,
+  type PreviewView,
+} from "../preview-views";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useKodyTasks } from "../hooks";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
@@ -216,8 +223,16 @@ export function VibePage() {
   }, [detailIssueNumber, setDetailIssueNumber]);
   // Bump to force iframe remount on Refresh — same trick as PreviewModal.
   const [iframeKey, setIframeKey] = useState(0);
-  // Same Web/Admin split as PreviewModal so vibe iterations can target /admin.
-  const [previewView, setPreviewView] = useState<"web" | "admin">("web");
+  // User-managed preview views (Web / Admin / custom). Per-repo localStorage.
+  const ownerForViews = getStoredAuth()?.owner ?? "";
+  const repoForViews = getStoredAuth()?.repo ?? "";
+  const initialViews =
+    ownerForViews && repoForViews
+      ? readPreviewViews(ownerForViews, repoForViews)
+      : DEFAULT_PREVIEW_VIEWS;
+  const [selectedView, setSelectedView] = useState<PreviewView>(
+    initialViews[0] ?? DEFAULT_PREVIEW_VIEWS[0]!,
+  );
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("desktop");
   // Mobile-only: the issue list lives in a Sheet so the preview can own
   // the screen. On desktop the Sheet stays closed; the aside renders.
@@ -440,17 +455,12 @@ export function VibePage() {
     );
   const fallbackPreviewUrl = !selectedTask ? defaultPreviewUrl : null;
   const baseUrl = activePreviewUrl ?? fallbackPreviewUrl;
-  // Append /admin when the user picks the Admin view — same logic as
-  // PreviewModal.getPreviewUrl. Strip any trailing slash so we don't
-  // end up with `//admin`.
+  // Compose the iframe URL from the active view's path (Web → /,
+  // Admin → /admin, or whatever the user added).
   const previewUrl = useMemo(() => {
     if (!baseUrl) return null;
-    if (previewView === "admin") {
-      const normalized = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
-      return `${normalized}/admin`;
-    }
-    return baseUrl;
-  }, [baseUrl, previewView]);
+    return joinPreviewUrl(baseUrl, selectedView.path);
+  }, [baseUrl, selectedView.path]);
   const bypassedUrl = useMemo(
     () => getPreviewBypassUrl(previewUrl),
     [previewUrl],
@@ -556,40 +566,12 @@ export function VibePage() {
                 )}
               </div>
               {baseUrl && (
-                <div
-                  className="flex items-center gap-1"
-                  role="tablist"
-                  aria-label="Preview view"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setPreviewView("web")}
-                    role="tab"
-                    aria-selected={previewView === "web"}
-                    className={cn(
-                      "px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
-                      previewView === "web"
-                        ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
-                        : "text-zinc-400 hover:text-white hover:bg-zinc-800 border border-transparent",
-                    )}
-                  >
-                    Web
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewView("admin")}
-                    role="tab"
-                    aria-selected={previewView === "admin"}
-                    className={cn(
-                      "px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
-                      previewView === "admin"
-                        ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
-                        : "text-zinc-400 hover:text-white hover:bg-zinc-800 border border-transparent",
-                    )}
-                  >
-                    Admin
-                  </button>
-                </div>
+                <PreviewViewsBar
+                  owner={ownerForViews}
+                  repo={repoForViews}
+                  selectedId={selectedView.id}
+                  onSelect={setSelectedView}
+                />
               )}
             </div>
             <div className="flex items-center gap-2">
