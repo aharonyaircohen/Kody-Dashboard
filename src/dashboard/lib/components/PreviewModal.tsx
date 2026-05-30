@@ -520,19 +520,19 @@ export function PreviewModal({
                         onClick={() => setPreviewKey((k) => k + 1)}
                         title="Refresh preview"
                         aria-label="Refresh preview"
-                        className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
+                        className="inline-flex items-center text-xs font-medium p-1.5 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
                       >
                         <RefreshCw className="w-3 h-3" />
-                        Refresh
                       </button>
                       <a
                         href={getPreviewBypassUrl(getPreviewUrl()) || undefined}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/20 transition-colors"
+                        title="Open preview in new tab"
+                        aria-label="Open preview in new tab"
+                        className="inline-flex items-center text-xs font-medium p-1.5 rounded-md bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/20 transition-colors"
                       >
                         <ExternalLink className="w-3 h-3" />
-                        Open
                       </a>
                     </div>
                   </div>

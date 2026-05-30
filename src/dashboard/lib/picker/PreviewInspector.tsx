@@ -244,6 +244,7 @@ export function PreviewInspector({
             ? "Click an element in the preview (Esc to cancel)"
             : "Pick an element from the preview into chat"
         }
+        aria-label={picker.armed ? "Picking element" : "Pick element"}
         aria-pressed={picker.armed}
         className={cn(
           BTN_BASE,
@@ -253,7 +254,6 @@ export function PreviewInspector({
         )}
       >
         <MousePointerClick className="w-3 h-3" />
-        {picker.armed ? "Picking…" : "Pick element"}
       </button>
       <button
         type="button"
