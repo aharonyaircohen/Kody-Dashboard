@@ -553,18 +553,6 @@ export function VibePage() {
           {/* Preview toolbar */}
           <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/[0.06] bg-black/20">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="text-xs text-zinc-400 truncate">
-                {selectedTask ? (
-                  <>
-                    Preview •{" "}
-                    <span className="text-zinc-300">
-                      #{selectedTask.issueNumber}
-                    </span>
-                  </>
-                ) : (
-                  <>Default preview</>
-                )}
-              </div>
               {baseUrl && (
                 <PreviewViewsBar
                   owner={ownerForViews}
