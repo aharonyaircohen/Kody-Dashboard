@@ -11,7 +11,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Plus, X, ChevronDown, Check, Bookmark } from "lucide-react";
+import { Plus, X, ChevronDown, Check, Bookmark, Link as LinkIcon } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "../utils";
 import {
   addPreviewView,
@@ -201,24 +202,47 @@ export function PreviewViewsBar({
           })}
 
           <div className="border-t border-zinc-800 mt-1 pt-1 px-1">
-            {/* Quick action: take the live preview URL via the inspector
-                extension and pre-fill the add form. Only shown when the
-                extension is installed (otherwise we can't read the URL
-                of a cross-origin preview iframe). */}
+            {/* Quick actions backed by the inspector extension. Need it
+                because the preview is usually cross-origin and we can't
+                read iframe.contentWindow.location from the dashboard. */}
             {picker.available && !addOpen && (
-              <button
-                type="button"
-                onClick={async () => {
-                  const path = await resolveCurrentPath();
-                  setPathDraft(path ?? "/");
-                  setNameDraft("");
-                  setAddOpen(true);
-                }}
-                className="flex items-center gap-1.5 w-full px-2 py-1.5 text-xs text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 rounded"
-              >
-                <Bookmark className="w-3 h-3" />
-                Save current view
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const path = await resolveCurrentPath();
+                    setPathDraft(path ?? "/");
+                    setNameDraft("");
+                    setAddOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 w-full px-2 py-1.5 text-xs text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 rounded"
+                >
+                  <Bookmark className="w-3 h-3" />
+                  Save current view
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const info = await picker.collectPage(400);
+                    const url = info?.url;
+                    if (!url) {
+                      toast.error("Couldn't read the preview URL");
+                      return;
+                    }
+                    try {
+                      await navigator.clipboard.writeText(url);
+                      toast.success("Copied preview URL");
+                    } catch {
+                      toast.error("Clipboard blocked — couldn't copy");
+                    }
+                    setMenuOpen(false);
+                  }}
+                  className="flex items-center gap-1.5 w-full px-2 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 rounded"
+                >
+                  <LinkIcon className="w-3 h-3" />
+                  Copy current URL
+                </button>
+              </>
             )}
             {addOpen ? (
               <form
