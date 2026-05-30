@@ -306,18 +306,12 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
         <SettingsDrawerProvider>
           <CommandPalette />
           <div className="h-screen flex flex-col overflow-hidden bg-background text-foreground">
-            {/* One persistent app header (toggle + Vibe + repo title +
-            notifications) spanning the full width, so it stays put across
-            Chat and Tasks and never disappears — chat opens below it. Vibe
-            keeps its own header, so the shared one is suppressed there.
-            The Tasks page draws its own header on mobile, so hide this one
-            there on small screens to avoid a duplicate bar (still the top
-            bar on md+). */}
-            {!isVibeRoute && (
-              <div className={cn(isTasksRoute && "hidden md:block")}>
-                <AppHeader />
-              </div>
-            )}
+            {/* Shared app header (toggle + Vibe + repo title + notifications).
+            The Tasks page draws its own full-featured header (identity +
+            filters + overflow), so the shared one is hidden entirely on
+            /tasks to avoid a duplicate bar. Vibe keeps its own header too.
+            Shown everywhere else (incl. /chat, where chat is the full view). */}
+            {!isVibeRoute && !isTasksRoute && <AppHeader />}
 
             <div className="flex-1 min-h-0 flex overflow-hidden">
               {/* Nav sidebar — far left. Chat sits to its right, so the
