@@ -1888,6 +1888,15 @@ export function KodyChat({
       // are rendered separately from `attachments`. No base64 in the text.
       const displayContent = messageContent;
 
+      // Preview page context is appended INVISIBLY: the model sees it on the
+      // wire, but the chat UI still shows the user's clean message. Without
+      // this split the message bubble would balloon with the DOM outline on
+      // every send (the prior behavior the user pushed back on).
+      const previewContext = await collectPreviewContextRef.current();
+      const wireContent = previewContext
+        ? `${messageContent}\n\n${previewContext}`
+        : messageContent;
+
       // Build the prior-conversation transcript for the Kody backend. It
       // gets the cleaned-up text only; older attachments are referenced by
       // ref count only (not re-uploaded) — Kody's stateless route only
@@ -2094,7 +2103,7 @@ export function KodyChat({
                     }
                   : {
                       chatId: brainChatId,
-                      message: messageContent,
+                      message: wireContent,
                       // Brain has no ambient-context slot either; the route
                       // prefixes this onto the forwarded user message.
                       ...(currentPageRef.current
@@ -2405,8 +2414,8 @@ export function KodyChat({
         const userTurnContent: unknown =
           currentAttachments.length > 0
             ? [
-                ...(messageContent.trim()
-                  ? [{ type: "text" as const, text: messageContent }]
+                ...(wireContent.trim()
+                  ? [{ type: "text" as const, text: wireContent }]
                   : []),
                 ...currentAttachments.map((a) =>
                   a.mimeType.startsWith("image/")
@@ -2423,7 +2432,7 @@ export function KodyChat({
                       },
                 ),
               ]
-            : messageContent;
+            : wireContent;
 
         const kodyMessages = [
           ...priorMessages.map((m) => ({ role: m.role, content: m.content })),
@@ -2995,8 +3004,8 @@ export function KodyChat({
                     return `[Image: ${a.name} (${sizeStr})]\n${a.data}`;
                   return `[File: ${a.name} (${a.mimeType}, ${sizeStr})]\n${a.data}`;
                 })
-                .join("\n\n") + (messageContent ? `\n\n${messageContent}` : "")
-            : messageContent;
+                .join("\n\n") + (wireContent ? `\n\n${wireContent}` : "")
+            : wireContent;
 
         const liveTaskContext =
           vibeMode && context?.kind === "task"
@@ -3136,8 +3145,8 @@ export function KodyChat({
                 }
                 return `[File: ${a.name} (${a.mimeType}, ${sizeStr})]\n${a.data}`;
               })
-              .join("\n\n") + (messageContent ? `\n\n${messageContent}` : "")
-          : messageContent;
+              .join("\n\n") + (wireContent ? `\n\n${wireContent}` : "")
+          : wireContent;
 
       const engineMessages = [
         ...priorMessages,
@@ -3679,15 +3688,7 @@ export function KodyChat({
     // outgoing message, so the model sees the element details even though the
     // composer only showed compact pills.
     const currentChips = [...contextChips];
-    // Best-effort preview-DOM auto-attach (returns null on non-preview pages
-    // or when the extension isn't installed). Short 300ms timeout keeps send
-    // latency unchanged when no preview is present.
-    const previewContext = await collectPreviewContextRef.current();
-    const userMessage = [
-      baseMessage,
-      ...currentChips.map((c) => c.context),
-      ...(previewContext ? [previewContext] : []),
-    ]
+    const userMessage = [baseMessage, ...currentChips.map((c) => c.context)]
       .filter((s) => s.trim())
       .join("\n\n");
     setInput("");
