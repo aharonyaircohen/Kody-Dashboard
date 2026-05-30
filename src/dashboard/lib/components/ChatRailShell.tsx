@@ -304,22 +304,19 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       <NotificationsProvider>
         <SettingsDrawerProvider>
           <CommandPalette />
-          <div className="h-screen flex overflow-hidden bg-background text-foreground">
-            {/* Left navigation rail — desktop only (mobile uses the
-            AppTopBar hamburger + MobileMenu sheet). */}
-            <Sidebar />
+          <div className="h-screen flex flex-col overflow-hidden bg-background text-foreground">
+            {/* One persistent app header (toggle + Vibe + repo title +
+            notifications) spanning the full width, so it stays put across
+            Chat and Tasks and never disappears — chat opens below it. Vibe
+            keeps its own header, so the shared one is suppressed there. */}
+            {!isVibeRoute && <AppHeader />}
 
-            {/* Main column: one persistent app header (toggle + Vibe + repo
-            title + notifications) that stays across Chat and Tasks, then the
-            switchable content pane below it. Vibe keeps its own header, so the
-            shared one is suppressed there. */}
-            <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
-              {!isVibeRoute && <AppHeader />}
-              <div className="flex-1 min-h-0 flex overflow-hidden">
-                {/* Chat pane. Full-width on /chat; a fixed-width side rail on
-                every other route (beside the page — tasks, vibe, settings…);
-                hidden on mobile non-chat (reached via the FAB below). Always
-                mounted so chat history/streaming survive navigation. */}
+            <div className="flex-1 min-h-0 flex overflow-hidden">
+              {/* Chat rail — far left (original position), left of the nav.
+                Full-width on /chat; a fixed-width side rail on every other
+                route (tasks, vibe, settings…); hidden on mobile non-chat
+                (reached via the FAB below). Always mounted so chat
+                history/streaming survive navigation. */}
                 <div
                   className={cn(
                     "flex-col min-h-0 bg-black/20",
@@ -355,6 +352,11 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                   />
                 )}
 
+                {/* Nav sidebar — between the chat rail and the page, so the
+                order reads chat | nav | tasks (the original chat-left
+                arrangement). */}
+                <Sidebar />
+
                 {/* Page content. Pages own their own internal scroll. Hidden
                 only on /chat, where chat is the full view. */}
                 <div
@@ -366,7 +368,6 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                   {children}
                 </div>
               </div>
-            </div>
           </div>
 
           {/* Mobile chat overlay — every route except /chat (where chat is

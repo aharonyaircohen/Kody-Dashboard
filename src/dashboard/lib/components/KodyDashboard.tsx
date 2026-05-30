@@ -102,6 +102,7 @@ import { RepoManager } from "./RepoManager";
 import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { VibeToggle } from "./VibeToggle";
+import { KodyHeader } from "./KodyHeader";
 import { HeaderOverflowMenu } from "./HeaderOverflowMenu";
 import { MobileMenu } from "./MobileMenu";
 import { PRIORITY_LEVELS, PRIORITY_META } from "../constants";
@@ -1329,12 +1330,29 @@ export function KodyDashboard({
             />
           ) : (
             <>
-              {/* Task-specific toolbar (filters + actions). The persistent app
-                  header — repo title, Chat|Tasks toggle, Vibe, notifications —
-                  lives in the shell (AppHeader), so it stays put when switching
-                  to Chat. */}
-              <div className="flex items-center gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06]">
-                <div className="hidden md:flex items-center gap-2 flex-1 min-w-0">
+              <KodyHeader
+                onOpenMobileMenu={() => setShowMobileMenu(true)}
+                onRefresh={() => {
+                  refetch();
+                  queryClient.invalidateQueries({
+                    queryKey: goalQueryKeys.list,
+                  });
+                }}
+                isFetching={isFetching}
+                showRefresh={false}
+                trailingExtras={
+                  <HeaderOverflowMenu
+                    onReportBug={handleOpenKodyBug}
+                    onRefresh={() => {
+                      refetch();
+                      queryClient.invalidateQueries({
+                        queryKey: goalQueryKeys.list,
+                      });
+                    }}
+                    isFetching={isFetching}
+                  />
+                }
+                filterBar={
                   <FilterBar
                     ref={filterBarRef}
                     viewMode={viewMode}
@@ -1362,28 +1380,8 @@ export function KodyDashboard({
                     sortDirection={sortDirection}
                     onSortDirectionChange={setSortDirection}
                   />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="md:hidden"
-                  onClick={() => setShowMobileMenu(true)}
-                >
-                  Filters
-                </Button>
-                <div className="ml-auto">
-                  <HeaderOverflowMenu
-                    onReportBug={handleOpenKodyBug}
-                    onRefresh={() => {
-                      refetch();
-                      queryClient.invalidateQueries({
-                        queryKey: goalQueryKeys.list,
-                      });
-                    }}
-                    isFetching={isFetching}
-                  />
-                </div>
-              </div>
+                }
+              />
 
               {/* Error banner (rate limit / generic errors — dismissible, stale data still shown) */}
               {errorBannerMessage && (

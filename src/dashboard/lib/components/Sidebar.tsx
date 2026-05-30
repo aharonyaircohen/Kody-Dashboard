@@ -148,7 +148,7 @@ export function Sidebar() {
     <aside
       className={cn(
         "hidden md:flex flex-col shrink-0 border-r border-white/[0.06] bg-black/30",
-        "h-screen sticky top-0 z-30 transition-[width] duration-150 ease-out",
+        "h-full z-30 transition-[width] duration-150 ease-out",
         width,
       )}
       aria-label="Primary navigation"
