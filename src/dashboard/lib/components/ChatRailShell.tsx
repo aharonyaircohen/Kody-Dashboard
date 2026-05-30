@@ -27,7 +27,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, PanelLeftOpen } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import {
   Sheet,
@@ -163,6 +163,23 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     const saved = Number(localStorage.getItem("kody:rail-width"));
     if (saved >= RAIL_MIN && saved <= RAIL_MAX) setRailWidth(saved);
   }, []);
+  // Collapse the chat side-rail to nothing (tasks/page full width). Toggled
+  // by the button inside the chat header (onCollapseRail) and a thin reopen
+  // tab on the page's left edge. Persisted per-device. Replaces the old
+  // Chat|Tasks route toggle — chat is now an on/off panel beside the page.
+  const [chatCollapsed, setChatCollapsed] = useState(false);
+  useEffect(() => {
+    setChatCollapsed(localStorage.getItem("kody:chat-collapsed") === "1");
+  }, []);
+  const setChatCollapsedPersist = useCallback((next: boolean) => {
+    setChatCollapsed(next);
+    try {
+      localStorage.setItem("kody:chat-collapsed", next ? "1" : "0");
+    } catch {
+      // localStorage unavailable (private mode) — non-fatal.
+    }
+  }, []);
+
   const [dragging, setDragging] = useState(false);
   const startResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
@@ -291,6 +308,10 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       onDirectToGoal={directToGoal}
       composerInjection={composerInjection}
       attachmentInjection={attachmentInjection}
+      // Only collapsible when it's a side rail (not the full-width /chat view).
+      onCollapseRail={
+        isChatRoute ? undefined : () => setChatCollapsedPersist(true)
+      }
     />
   ) : (
     <div className="flex-1 flex items-center justify-center p-6">
@@ -321,25 +342,51 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 {/* Chat rail — right of the nav sidebar.
                 Full-width on /chat; a fixed-width side rail on every other
                 route (tasks, vibe, settings…); hidden on mobile non-chat
-                (reached via the FAB below). Always mounted so chat
-                history/streaming survive navigation. */}
+                (reached via the FAB below) and when collapsed (reopen via
+                the edge tab). Kept mounted (display:none when collapsed) so
+                chat history/streaming survive navigation. */}
                 <div
                   className={cn(
                     "flex-col min-h-0 bg-black/20",
                     isChatRoute
                       ? "flex flex-1"
-                      : "hidden md:flex shrink-0 border-r border-border",
+                      : chatCollapsed
+                        ? "hidden"
+                        : "hidden md:flex shrink-0 border-r border-border",
                     !dragging && "transition-[width] duration-200",
                   )}
-                  style={!isChatRoute ? { width: railWidth } : undefined}
+                  style={
+                    !isChatRoute && !chatCollapsed
+                      ? { width: railWidth }
+                      : undefined
+                  }
                   aria-label="Kody chat"
                 >
                   {chatPane}
                 </div>
 
+                {/* Reopen tab — thin button on the page's left edge, shown
+                only when the rail is collapsed (desktop side-rail routes). */}
+                {auth && !isChatRoute && chatCollapsed && (
+                  <button
+                    type="button"
+                    onClick={() => setChatCollapsedPersist(false)}
+                    aria-label="Open chat"
+                    title="Open chat"
+                    className={cn(
+                      "hidden md:flex shrink-0 items-center justify-center w-6 self-stretch",
+                      "border-r border-border bg-black/20 text-muted-foreground",
+                      "hover:text-foreground hover:bg-white/[0.04] transition-colors",
+                    )}
+                  >
+                    <PanelLeftOpen className="w-4 h-4" />
+                  </button>
+                )}
+
                 {/* Drag handle between the chat rail and the page — desktop,
-                side-rail routes only (not when chat is the full view). */}
-                {auth && !isChatRoute && (
+                side-rail routes only (not when chat is the full view or
+                collapsed). */}
+                {auth && !isChatRoute && !chatCollapsed && (
                   <div
                     role="separator"
                     aria-orientation="vertical"

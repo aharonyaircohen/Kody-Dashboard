@@ -25,7 +25,6 @@ import { useNotifications } from "../notifications/NotificationsProvider";
 import { cn } from "../utils";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { VibeToggle } from "./VibeToggle";
-import { ViewToggle } from "./ViewToggle";
 
 interface KodyHeaderProps {
   /** Opens the page-specific mobile menu (host renders the Sheet). */
@@ -84,7 +83,6 @@ export function KodyHeader({
             {connectedRepo?.split("/").pop() || "Kody Operations"}
           </h1>
         </div>
-        <ViewToggle />
         <VibeToggle className="hidden sm:inline-flex" />
       </div>
 
