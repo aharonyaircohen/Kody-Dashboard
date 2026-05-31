@@ -302,7 +302,18 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // dropdown still lets the user pick any configured LLM for chat-only turns.
   const isChatRoute = pathname === "/chat";
   const isVibeRoute = pathname?.startsWith("/vibe") ?? false;
-  const isTasksRoute = pathname === "/tasks";
+  // Routes whose page renders its OWN in-pane header (KodyDashboard on the
+  // tasks list, new-task / report-bug modals, and issue detail at /<number>;
+  // plus Vibe). The shared AppHeader must NOT render on these or two headers
+  // stack. KodyDashboard mounts on all of: /tasks, /new, /report-kody-bug,
+  // and /<issueNumber>(/…) — see app/.
+  const path = pathname ?? "";
+  const pageOwnsHeader =
+    isVibeRoute ||
+    path === "/tasks" ||
+    path === "/new" ||
+    path === "/report-kody-bug" ||
+    /^\/\d+(?:\/|$)/.test(path);
   const lockedAgentId = undefined;
 
   const chatPane = auth ? (
@@ -393,7 +404,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                     isChatRoute && "hidden",
                   )}
                 >
-                  {!isVibeRoute && !isTasksRoute && <AppHeader />}
+                  {!pageOwnsHeader && <AppHeader />}
                   <div className="flex-1 min-h-0 flex flex-col">{children}</div>
                 </div>
               </div>
