@@ -10,30 +10,49 @@
 
 import { createHash } from "node:crypto";
 
-export interface PreviewKey {
+/** A preview tied to a pull request — auto-built and torn down on PR events. */
+export interface PrPreviewKey {
   /** owner/name */
   repo: string;
   pr: number;
 }
+
+/** A preview tied to a bare branch — created and destroyed manually. */
+export interface BranchPreviewKey {
+  /** owner/name */
+  repo: string;
+  branch: string;
+}
+
+/**
+ * Either kind of preview. Discriminated by the presence of `pr` vs `branch`,
+ * so `previewAppName` (and any consumer) can narrow with `"pr" in key`.
+ */
+export type PreviewKey = PrPreviewKey | BranchPreviewKey;
 
 function shortHash(s: string): string {
   return createHash("sha256").update(s).digest("hex").slice(0, 6);
 }
 
 /**
- * Compose the Fly app name: `kp-<ownerHash>-<repoHash>-pr-<n>`.
+ * Compose the Fly app name:
+ *   PR     → `kp-<ownerHash>-<repoHash>-pr-<n>`
+ *   branch → `kp-<ownerHash>-<repoHash>-br-<branchHash>`
  *
  * The `kp-` prefix namespaces all kody-previews apps in the Fly org so
  * the warm pool, ops dashboards, and ad-hoc cleanups can match on it.
- * Hashes (vs raw names) keep us under Fly's 30-char limit and don't
- * leak owner names into hostnames.
+ * Hashes (vs raw names) keep us under Fly's 30-char limit, don't leak
+ * owner names into hostnames, and make any branch name safe to encode.
  */
 export function previewAppName(key: PreviewKey): string {
   const [owner, name] = key.repo.split("/");
   if (!owner || !name) {
     throw new Error(`invalid repo "${key.repo}", expected "owner/name"`);
   }
-  return `kp-${shortHash(owner)}-${shortHash(name)}-pr-${key.pr}`;
+  const prefix = `kp-${shortHash(owner)}-${shortHash(name)}`;
+  return "pr" in key
+    ? `${prefix}-pr-${key.pr}`
+    : `${prefix}-br-${shortHash(key.branch)}`;
 }
 
 /**

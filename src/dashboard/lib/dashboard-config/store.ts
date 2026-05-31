@@ -34,6 +34,13 @@ export interface DashboardConfig {
    * this and stays driven solely by the repo's `FLY_API_TOKEN`.
    */
   brainFlyChatEnabled?: boolean;
+  /**
+   * Branch names with a live, manually-created Fly preview (e.g. `dev`).
+   * Unlike PR previews there's no PR-close webhook to tear these down, so
+   * we record what was created here — that list IS the leak-visibility
+   * surface the `/runner` Branch previews card renders and destroys from.
+   */
+  branchPreviews?: string[];
 }
 
 interface CacheEntry {
@@ -176,4 +183,45 @@ export function invalidateDashboardConfigCache(
   repo: string,
 ): void {
   CACHE.delete(cacheKey(owner, repo));
+}
+
+/**
+ * Add or remove a branch from `branchPreviews`, reading the freshest doc
+ * first so concurrent create/destroy calls don't clobber each other.
+ * Idempotent: adding a known branch or removing an unknown one is a no-op
+ * write-wise but still safe. Returns the resulting list.
+ */
+export async function setBranchPreview(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string,
+  present: boolean,
+): Promise<string[]> {
+  const { doc, sha } = await readDashboardConfig(octokit, owner, repo, {
+    force: true,
+  });
+  const current = doc.branchPreviews ?? [];
+  const has = current.includes(branch);
+  if (present === has) return current; // nothing to change
+  const nextList = present
+    ? [...current, branch]
+    : current.filter((b) => b !== branch);
+  const next: DashboardConfig = {
+    ...doc,
+    version: 1,
+    branchPreviews: nextList.length > 0 ? nextList : undefined,
+  };
+  await writeDashboardConfig(
+    octokit,
+    owner,
+    repo,
+    next,
+    sha,
+    present
+      ? `chore(dashboard): track branch preview ${branch}`
+      : `chore(dashboard): drop branch preview ${branch}`,
+  );
+  invalidateDashboardConfigCache(owner, repo);
+  return nextList;
 }
