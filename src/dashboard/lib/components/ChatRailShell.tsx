@@ -335,13 +335,6 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
         <SettingsDrawerProvider>
           <CommandPalette />
           <div className="h-screen flex flex-col overflow-hidden bg-background text-foreground">
-            {/* Shared app header (toggle + Vibe + repo title + notifications).
-            The Tasks page draws its own full-featured header (identity +
-            filters + overflow), so the shared one is hidden entirely on
-            /tasks to avoid a duplicate bar. Vibe keeps its own header too.
-            Shown everywhere else (incl. /chat, where chat is the full view). */}
-            {!isVibeRoute && !isTasksRoute && <AppHeader />}
-
             <div className="flex-1 min-h-0 flex overflow-hidden">
               {/* Nav sidebar — far left. Chat sits to its right, so the
                 order reads nav | chat | tasks. */}
@@ -387,15 +380,21 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                   />
                 )}
 
-                {/* Page content. Pages own their own internal scroll. Hidden
-                only on /chat, where chat is the full view. */}
+                {/* Page content. One shared header sits at the TOP OF THE
+                PANE on every route — Tasks and Vibe render their own header
+                inside their page; all other routes get AppHeader here — so the
+                bar is consistent across pages instead of full-width on some and
+                in-pane on others. Pages own their internal scroll (children
+                wrapper is flex-1 below the header). Hidden on /chat, the full
+                chat view. */}
                 <div
                   className={cn(
                     "flex-1 min-w-0 h-full overflow-hidden flex flex-col",
                     isChatRoute && "hidden",
                   )}
                 >
-                  {children}
+                  {!isVibeRoute && !isTasksRoute && <AppHeader />}
+                  <div className="flex-1 min-h-0 flex flex-col">{children}</div>
                 </div>
               </div>
           </div>
