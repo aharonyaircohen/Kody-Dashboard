@@ -37,11 +37,11 @@ import {
 } from "@dashboard/lib/previews/preview-key";
 import { loadVaultContextForBuild } from "@dashboard/lib/previews/vault-build-context";
 
-export interface CreatePreviewInput extends PreviewKey {
+export type CreatePreviewInput = PreviewKey & {
   ref: string;
   imageTag?: string;
   githubToken?: string;
-}
+};
 
 export interface PreviewInfo {
   key: PreviewKey;
@@ -58,7 +58,10 @@ export async function createPreview(
   input: CreatePreviewInput,
   cfg: FlyPreviewConfig,
 ): Promise<PreviewInfo> {
-  const key: PreviewKey = { repo: input.repo, pr: input.pr };
+  const key: PreviewKey =
+    "pr" in input
+      ? { repo: input.repo, pr: input.pr }
+      : { repo: input.repo, branch: input.branch };
   const appName = previewAppName(key);
 
   // Build-time secrets + build mode — read once from the target repo's
@@ -77,7 +80,9 @@ export async function createPreview(
   try {
     spawned = await spawnPreviewBuilder({
       repo: input.repo,
-      pr: input.pr,
+      // PR builds get a PR_NUMBER (the builder comments the URL on the PR);
+      // branch builds omit it — there's no PR to comment on.
+      ...("pr" in input ? { pr: input.pr } : {}),
       ref: input.ref,
       appName,
       imageTag: input.imageTag,
@@ -90,7 +95,7 @@ export async function createPreview(
     });
   } catch (err) {
     logger.error(
-      { err, repo: input.repo, pr: input.pr, ref: input.ref },
+      { err, repo: input.repo, appName, ref: input.ref },
       "preview: builder spawn failed",
     );
     throw err;

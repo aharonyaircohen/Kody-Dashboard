@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@dashboard/ui/select";
 import { BrainFlyCard } from "./BrainFlyCard";
+import { BranchPreviewCard } from "./BranchPreviewCard";
 import { LitellmFlyCard } from "./LitellmFlyCard";
 import { PageShell } from "./PageShell";
 import { useAuth, type FlyPerfTier } from "../auth-context";
@@ -305,6 +306,12 @@ export function RunnerManager() {
 
           {/* Brain on Fly toggle */}
           <BrainFlyCard
+            headers={vaultHeaders()}
+            flyTokenConfigured={flyTokenConfigured}
+          />
+
+          {/* Manual branch previews (PR-less, e.g. dev) */}
+          <BranchPreviewCard
             headers={vaultHeaders()}
             flyTokenConfigured={flyTokenConfigured}
           />
