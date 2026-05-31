@@ -237,6 +237,13 @@ repo's vault. **Never** read it from `process.env` or a global config.
 - One-shot builder image: [builder/](builder/)
 - Full docs: [docs/previews.md](docs/previews.md)
 
+On the **GitHub Actions** build path, the per-PR `docker build` can run
+on a **Namespace.so remote builder** (~2.4–2.7× faster, persistent
+cache) instead of the runner's local docker. Opt-in per repo: add
+`NSC_TENANT_ID` to the repo's vault (missing → builds on GitHub).
+Auth is GitHub OIDC federation (fail-open to local docker). See the
+"Namespace remote builders" section in [docs/previews.md](docs/previews.md).
+
 Open improvements (highest ROI first): auto-rebuild the per-repo GHCR
 base on `main` push (today it's manual → stale → PRs fall back to slow
 full installs); diff-aware skip-rebuild when no code changed.

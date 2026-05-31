@@ -97,6 +97,78 @@ Set `KODY_PREVIEW_GHCR_OWNER=<your-gh-username>` on the dashboard
 Effect: PRs that don't change `package.json` go from ~13 min cold to
 ~3–4 min.
 
+## Namespace remote builders (faster GitHub-path builds)
+
+On the **GitHub Actions** build path (`runPreviewBuild` in the engine,
+dispatched as `executable=preview-build`), the per-PR `docker build` can
+run on a **Namespace.so remote builder** instead of the GitHub runner's
+own docker daemon. Namespace gives more build CPU **and a persistent
+cache that survives across runs** — a fresh GitHub runner has neither.
+
+Measured on a real app (A-Guy), build step only:
+
+| | GitHub runner | Namespace |
+| --- | --- | --- |
+| cold | ~7 min | ~4½ min |
+| warm cache | ~7 min (never caches) | **~2½ min** |
+
+→ **~2.4–2.7× faster**, and the gap widens as the cache warms.
+
+### Enabling it — per repo, one switch
+
+Add **`NSC_TENANT_ID`** (your Namespace tenant id, e.g.
+`tenant_xxxxxxxx`) to the repo's **Kody vault** (`.kody/secrets.enc`,
+via the `/secrets` page). That's it:
+
+- **`NSC_TENANT_ID` present** → builds on Namespace.
+- **`NSC_TENANT_ID` missing** → builds on the GitHub runner (default).
+
+No kody.yml edit needed — the default template already grants
+`id-token: write` (required for OIDC). It's **fail-open**: if Namespace
+setup fails for any reason (outage, auth, missing trust), the build
+silently falls back to the local docker build, so a preview is always
+produced.
+
+### Auth = OIDC federation (no static token)
+
+Namespace is authenticated by **GitHub's OIDC identity**, not a stored
+token (a static `nsc token create` token is *forbidden* from holding
+build permissions). The workflow's `id-token: write` lets GitHub mint an
+OIDC JWT; the engine exchanges it via `nsc auth exchange-oidc-token`.
+
+For that exchange to be accepted, the Namespace tenant must **trust the
+repo's GitHub OIDC issuer** — a one-time, operator-side step per GitHub
+owner (covers every repo under it, so consumers stay zero-touch):
+
+```bash
+nsc auth trust-relationships add \
+  --issuer "https://token.actions.githubusercontent.com" \
+  --subject-match "repo:<owner>/*" \
+  --audience "https://namespace.so" \
+  --grant '{"resource_type":"*","resource_id":"*","actions":["*"]}'
+```
+
+> ⚠️ **Security:** the grant above is a full wildcard — any workflow in
+> those repos can act as the tenant. It's the only grant that currently
+> satisfies `nsc docker buildx setup` (`builder`/`compute`/`instance`
+> scoped grants all get `VMService/GetProfile` PermissionDenied). Narrow
+> it once Namespace support names the exact permission. The audience is
+> arbitrary but must match on both sides (trust `--audience` + the
+> engine's `getIDToken` audience).
+
+### Scope + fallback
+
+This only accelerates the **GitHub Actions** path. It can't help when
+that path is unavailable — when the GitHub queue is full the router
+offloads to the **Fly one-shot builder** (above), which has no GitHub
+identity and so doesn't use Namespace. Build path precedence:
+
+**Namespace** (if `NSC_TENANT_ID` set) → **GitHub local docker** (on
+failure / unset) → **Fly builder** (if GitHub Actions is full/degraded).
+
+- Engine code: `kody2/src/scripts/previewBuildNamespace.ts` (+ the build
+  branch in `runPreviewBuild.ts`).
+
 ## Build mode (dev vs prod)
 
 | Mode  | Image                            | First request        | Use case                                   |
