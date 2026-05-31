@@ -54,4 +54,15 @@ export default [
       "jsx-a11y/label-has-associated-control": "off",
     },
   },
+  {
+    // Playwright e2e specs are not React. Its fixture API names callbacks
+    // `use` (`await use(ctx)`), which the react-hooks plugin mistakes for
+    // React's `use()` hook and flags as a rules-of-hooks violation. Turn the
+    // rule off here — there are no React hooks in these files to protect.
+    name: "playwright-e2e",
+    files: ["tests/e2e/**/*.ts"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+    },
+  },
 ];
