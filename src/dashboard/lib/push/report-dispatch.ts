@@ -24,13 +24,22 @@
  *   webhook delivery.
  */
 import "server-only";
-import { setGitHubContext, clearGitHubContext } from "../github-client";
+import type { Octokit } from "@octokit/rest";
+import {
+  setGitHubContext,
+  clearGitHubContext,
+  getOctokit,
+} from "../github-client";
 import { resolveBackgroundToken } from "../auth/background-token";
 import { readPushManifest } from "../push-server";
 import { deliverPush, ensureVapid } from "../notifications/channels/push-core";
 import { logger } from "../logger";
 
 const REPORTS_PATH_PREFIX = ".kody/reports/";
+
+/** All-zero SHA GitHub sends as `before` when a branch is created — there's no
+ *  prior commit to diff against, so a report touched in such a push is new. */
+const ZERO_SHA = "0000000000000000000000000000000000000000";
 
 interface PushCommit {
   added?: unknown;
@@ -125,6 +134,81 @@ function buildPayload(slug: string, repoFullName: string): string {
 }
 
 /**
+ * Drop lines that change every tick without the report's meaning changing.
+ * The engine stamps `_Last updated: <ISO>_` into every report on every rerun,
+ * so a re-save with no real change still differs by exactly this one line
+ * (this is ~68% of report pushes — e.g. job-gap-scan re-proposing the same
+ * duty hourly). Stripping it before comparison is what separates "genuinely
+ * new/updated report" from "same report, fresh timestamp". Matches the line
+ * however it's wrapped in markdown emphasis (`_..._`, `*..*`, blockquote).
+ * Exported for tests.
+ */
+export function stripVolatileLines(markdown: string): string {
+  return markdown
+    .split("\n")
+    .filter((line) => !/^\s*[*_>\s]*last updated:/i.test(line))
+    .join("\n")
+    .trim();
+}
+
+/** Fetch a report's raw markdown at a specific commit, or null if it didn't
+ *  exist there (404) or isn't a readable file. Throws on other errors so the
+ *  caller can fail open. */
+async function fetchReportAtRef(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  slug: string,
+  ref: string,
+): Promise<string | null> {
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: `${REPORTS_PATH_PREFIX}${slug}.md`,
+      ref,
+    });
+    if (Array.isArray(data) || !("content" in data) || !data.content) {
+      return null;
+    }
+    return Buffer.from(data.content, "base64").toString("utf-8");
+  } catch (err) {
+    if ((err as { status?: number })?.status === 404) return null;
+    throw err;
+  }
+}
+
+/**
+ * True when the report's content meaningfully changed across this push —
+ * i.e. it differs once the volatile `_Last updated:` line is ignored. A newly
+ * added report (no prior version) counts as changed. Fails OPEN (returns true)
+ * on any unexpected read error, so a transient GitHub hiccup never silently
+ * drops a push for a report that really did change.
+ */
+async function reportContentChanged(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  slug: string,
+  beforeSha: string,
+  afterSha: string,
+): Promise<boolean> {
+  // Branch-create / no resolvable parent → treat as a brand-new report.
+  if (!beforeSha || beforeSha === ZERO_SHA || !afterSha) return true;
+  try {
+    const [before, after] = await Promise.all([
+      fetchReportAtRef(octokit, owner, repo, slug, beforeSha),
+      fetchReportAtRef(octokit, owner, repo, slug, afterSha),
+    ]);
+    if (before === null) return true; // newly added → real new report
+    if (after === null) return false; // deleted/unreadable → nothing to notify
+    return stripVolatileLines(before) !== stripVolatileLines(after);
+  } catch {
+    return true; // fail open — never drop a genuine report on a read error
+  }
+}
+
+/**
  * Entry point — call from the webhook receiver on every event. Returns
  * early for anything that isn't a default-branch push touching
  * `.kody/reports/<slug>.md`, so it's a cheap noop on the hot
@@ -149,6 +233,9 @@ export async function dispatchReportPushes(
     const [owner, repo] = repoFullName.split("/");
     if (!owner || !repo) return;
 
+    const beforeSha = typeof payload.before === "string" ? payload.before : "";
+    const afterSha = typeof payload.after === "string" ? payload.after : "";
+
     // Unauthenticated webhook → App installation token (preferred) or vault
     // GITHUB_TOKEN fallback, same as the other server-side dispatchers.
     const bg = await resolveBackgroundToken(owner, repo);
@@ -170,48 +257,80 @@ export async function dispatchReportPushes(
     }
 
     setGitHubContext(owner, repo, token);
-    let subscriptions;
     try {
+      // Suppress the timestamp-only churn: keep only reports whose body
+      // actually changed (ignoring the volatile `_Last updated:` line). This
+      // is the whole point of the fix — re-saves that bump only the timestamp
+      // (the bulk of report pushes) no longer fire a banner.
+      const octokit = getOctokit();
+      const changed: string[] = [];
+      for (const slug of slugs) {
+        if (
+          await reportContentChanged(
+            octokit,
+            owner,
+            repo,
+            slug,
+            beforeSha,
+            afterSha,
+          )
+        ) {
+          changed.push(slug);
+        }
+      }
+      if (changed.length === 0) {
+        logger.info(
+          {
+            event: "report_push_skipped_no_content_change",
+            repo: repoFullName,
+            candidates: slugs.length,
+          },
+          `Report push skipped: ${slugs.length} report(s) re-saved with only a timestamp change`,
+        );
+        return;
+      }
+
       const ref = await readPushManifest();
-      subscriptions = ref.manifest.subscriptions;
+      const subscriptions = ref.manifest.subscriptions;
+      if (subscriptions.length === 0) {
+        logger.info(
+          { event: "report_push_no_subscribers", repo: repoFullName },
+          "Report committed but no push subscribers on this repo",
+        );
+        return;
+      }
+
+      // One delivery pass per affected report so each lands as its own banner
+      // (different `tag`s). Each pass shares the same prune-on-expiry path.
+      let totalSent = 0;
+      let totalPruned = 0;
+      for (const slug of changed) {
+        const payloadFor = () => buildPayload(slug, repoFullName);
+        const result = await deliverPush({
+          subscriptions,
+          payload: payloadFor,
+          github: { owner, repo, token },
+          logLabel: "report_push",
+        });
+        totalSent += result.sent;
+        totalPruned += result.pruned;
+      }
+
+      logger.info(
+        {
+          event: "report_push_delivered",
+          repo: repoFullName,
+          reports: changed.length,
+          skipped: slugs.length - changed.length,
+          subscribers: subscriptions.length,
+          sent: totalSent,
+          pruned: totalPruned,
+        },
+        `Report push fan-out: ${changed.length} report(s) × ${subscriptions.length} sub(s) → ${totalSent} sent`,
+      );
     } finally {
       clearGitHubContext();
     }
-    if (subscriptions.length === 0) {
-      logger.info(
-        { event: "report_push_no_subscribers", repo: repoFullName },
-        "Report committed but no push subscribers on this repo",
-      );
-      return;
-    }
-
-    // One delivery pass per affected report so each lands as its own banner
-    // (different `tag`s). Each pass shares the same prune-on-expiry path.
-    let totalSent = 0;
-    let totalPruned = 0;
-    for (const slug of slugs) {
-      const payloadFor = () => buildPayload(slug, repoFullName);
-      const result = await deliverPush({
-        subscriptions,
-        payload: payloadFor,
-        github: { owner, repo, token },
-        logLabel: "report_push",
-      });
-      totalSent += result.sent;
-      totalPruned += result.pruned;
-    }
-
-    logger.info(
-      {
-        event: "report_push_delivered",
-        repo: repoFullName,
-        reports: slugs.length,
-        subscribers: subscriptions.length,
-        sent: totalSent,
-        pruned: totalPruned,
-      },
-      `Report push fan-out: ${slugs.length} report(s) × ${subscriptions.length} sub(s) → ${totalSent} sent`,
-    );
   } catch (err) {
     logger.error(
       {
