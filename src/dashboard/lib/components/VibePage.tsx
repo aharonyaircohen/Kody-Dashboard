@@ -10,20 +10,11 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  ExternalLink,
-  ListChecks,
-  Loader2,
-  Monitor,
-  RefreshCw,
-  Smartphone,
-  Sparkles,
-  Tablet,
-} from "lucide-react";
+import { ListChecks, Loader2 } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
 import {
@@ -33,25 +24,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@dashboard/ui/sheet";
-import { cn, getPreviewBypassUrl } from "../utils";
 import { useChatScope } from "./ChatRailShell";
-import { PreviewInspector } from "../picker/PreviewInspector";
-import { PreviewViewsBar } from "./PreviewViewsBar";
-import {
-  DEFAULT_PREVIEW_VIEWS,
-  joinPreviewUrl,
-  readPreviewViews,
-  type PreviewView,
-} from "../preview-views";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useKodyTasks } from "../hooks";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
+import { PreviewPane } from "./PreviewPane";
 import {
-  PreviewIframe,
-  DEVICE_WIDTHS,
-  type PreviewDevice,
-} from "./PreviewIframe";
-import { tasksApi, getStoredAuth, redirectToLogin } from "../api";
+  fetchDashboardConfig,
+  saveDashboardConfig,
+} from "../dashboard-config/client";
+import { tasksApi, getStoredAuth } from "../api";
 import { RateLimitError, NoTokenError, SessionExpiredError } from "../api";
 import type { KodyTask } from "../types";
 
@@ -63,10 +45,6 @@ import { KodyHeader } from "./KodyHeader";
 import { MobileMenu } from "./MobileMenu";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { TaskDetail } from "./TaskDetail";
-
-interface DashboardConfigResponse {
-  config: { version: 1; defaultPreviewUrl?: string };
-}
 
 // Optimistic pins for just-created issues, kept at MODULE scope (not a
 // component ref) so they survive a VibePage remount. Navigating to
@@ -95,47 +73,6 @@ function optimisticPinKeys(): number[] {
   return Array.from(optimisticTaskPins.keys());
 }
 
-async function fetchDashboardConfig(): Promise<DashboardConfigResponse> {
-  const auth = getStoredAuth();
-  if (!auth) throw new NoTokenError("No auth");
-  const res = await fetch("/api/kody/dashboard-config", {
-    headers: {
-      "x-kody-token": auth.token,
-      "x-kody-owner": auth.owner,
-      "x-kody-repo": auth.repo,
-    },
-  });
-  if (res.status === 401) {
-    redirectToLogin();
-    throw new SessionExpiredError("Session expired");
-  }
-  if (!res.ok) throw new Error(`Failed to load config (${res.status})`);
-  return (await res.json()) as DashboardConfigResponse;
-}
-
-async function saveDashboardConfig(
-  defaultPreviewUrl: string,
-  actorLogin?: string,
-): Promise<DashboardConfigResponse> {
-  const auth = getStoredAuth();
-  if (!auth) throw new NoTokenError("No auth");
-  const res = await fetch("/api/kody/dashboard-config", {
-    method: "PUT",
-    headers: {
-      "content-type": "application/json",
-      "x-kody-token": auth.token,
-      "x-kody-owner": auth.owner,
-      "x-kody-repo": auth.repo,
-    },
-    body: JSON.stringify({ defaultPreviewUrl, actorLogin }),
-  });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "Save failed");
-    throw new Error(msg);
-  }
-  return (await res.json()) as DashboardConfigResponse;
-}
-
 export function VibePage() {
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
@@ -145,10 +82,6 @@ export function VibePage() {
     setComposerInjection,
     setAttachmentInjection,
   } = useChatScope();
-
-  // Preview inspector (element picker + console/network/screenshot). The Vibe
-  // chat is the rail, not a child here, so results route through useChatScope.
-  const previewRef = useRef<HTMLDivElement>(null);
 
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
@@ -221,19 +154,9 @@ export function VibePage() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [detailIssueNumber, setDetailIssueNumber]);
-  // Bump to force iframe remount on Refresh — same trick as PreviewModal.
-  const [iframeKey, setIframeKey] = useState(0);
-  // User-managed preview views (Web / Admin / custom). Per-repo localStorage.
+  // Repo identity for the preview pane's per-repo views + inspector storage.
   const ownerForViews = getStoredAuth()?.owner ?? "";
   const repoForViews = getStoredAuth()?.repo ?? "";
-  const initialViews =
-    ownerForViews && repoForViews
-      ? readPreviewViews(ownerForViews, repoForViews)
-      : DEFAULT_PREVIEW_VIEWS;
-  const [selectedView, setSelectedView] = useState<PreviewView>(
-    initialViews[0] ?? DEFAULT_PREVIEW_VIEWS[0]!,
-  );
-  const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("desktop");
   // Mobile-only: the issue list lives in a Sheet so the preview can own
   // the screen. On desktop the Sheet stays closed; the aside renders.
   const [mobileIssuesOpen, setMobileIssuesOpen] = useState(false);
@@ -387,7 +310,11 @@ export function VibePage() {
   const defaultPreviewUrl = configQuery.data?.config.defaultPreviewUrl ?? "";
 
   const saveConfigMutation = useMutation({
-    mutationFn: (url: string) => saveDashboardConfig(url, githubUser?.login),
+    mutationFn: (url: string) =>
+      saveDashboardConfig({
+        defaultPreviewUrl: url,
+        actorLogin: githubUser?.login,
+      }),
     onSuccess: (data) => {
       queryClient.setQueryData(["kody-dashboard-config"], data);
       toast.success("Default preview saved");
@@ -455,16 +382,6 @@ export function VibePage() {
     );
   const fallbackPreviewUrl = !selectedTask ? defaultPreviewUrl : null;
   const baseUrl = activePreviewUrl ?? fallbackPreviewUrl;
-  // Compose the iframe URL from the active view's path (Web → /,
-  // Admin → /admin, or whatever the user added).
-  const previewUrl = useMemo(() => {
-    if (!baseUrl) return null;
-    return joinPreviewUrl(baseUrl, selectedView.path);
-  }, [baseUrl, selectedView.path]);
-  const bypassedUrl = useMemo(
-    () => getPreviewBypassUrl(previewUrl),
-    [previewUrl],
-  );
 
   // Show the default-preview editor only on the empty pane and only when
   // there's no URL yet — otherwise it'd compete with the iframe.
@@ -550,126 +467,39 @@ export function VibePage() {
 
         {/* Preview pane — relative for the detail overlay below */}
         <section className="relative flex-1 min-w-0 flex flex-col">
-          {/* Preview toolbar */}
-          <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/[0.06] bg-black/20">
-            <div className="flex items-center gap-3 min-w-0">
-              {baseUrl && (
-                <PreviewViewsBar
-                  owner={ownerForViews}
-                  repo={repoForViews}
-                  selectedId={selectedView.id}
-                  onSelect={setSelectedView}
-                />
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {previewUrl && (
-                <>
-                  <div className="flex items-center gap-0.5 rounded-md border border-zinc-700 bg-zinc-800/50 p-0.5">
-                    {(
-                      [
-                        { id: "mobile", icon: Smartphone, label: "Mobile" },
-                        { id: "tablet", icon: Tablet, label: "Tablet" },
-                        { id: "desktop", icon: Monitor, label: "Desktop" },
-                      ] as const
-                    ).map(({ id, icon: Icon, label }) => (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => setPreviewDevice(id)}
-                        title={label}
-                        aria-label={`${label} viewport`}
-                        aria-pressed={previewDevice === id}
-                        className={cn(
-                          "inline-flex items-center justify-center rounded p-1.5 transition-colors",
-                          previewDevice === id
-                            ? "bg-zinc-700 text-white"
-                            : "text-zinc-400 hover:text-white hover:bg-zinc-700/50",
-                        )}
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                      </button>
-                    ))}
-                  </div>
-                  <PreviewInspector
-                    previewRef={previewRef}
-                    onContext={setComposerInjection}
-                    onAttachment={setAttachmentInjection}
-                    owner={ownerForViews}
-                    repo={repoForViews}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setIframeKey((k) => k + 1)}
-                    title="Refresh preview"
-                    aria-label="Refresh preview"
-                    className="inline-flex items-center text-xs font-medium p-1.5 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                  </button>
-                  <a
-                    href={bypassedUrl ?? undefined}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Open preview in new tab"
-                    aria-label="Open preview in new tab"
-                    className="inline-flex items-center text-xs font-medium p-1.5 rounded-md bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/20 transition-colors"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Iframe / empty states */}
-          <div
-            ref={previewRef}
-            className={cn(
-              "flex-1 min-h-0",
-              previewUrl ? "bg-white" : "bg-zinc-950",
-            )}
-          >
-            {previewUrl ? (
-              <PreviewIframe
-                src={bypassedUrl ?? undefined}
-                title="Preview deployment"
-                reloadKey={`${previewUrl}-${iframeKey}`}
-                maxWidthPx={DEVICE_WIDTHS[previewDevice]}
-              />
-            ) : showDefaultPreviewEditor ? (
-              <div className="h-full flex items-center justify-center p-6">
-                {configQuery.isLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
-                ) : (
-                  <VibeDefaultPreviewField
-                    value={defaultPreviewUrl}
-                    onSave={async (url) => {
-                      await saveConfigMutation.mutateAsync(url);
-                    }}
-                    isSaving={saveConfigMutation.isPending}
-                  />
-                )}
-              </div>
-            ) : previewResolving ? (
-              <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
-                <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
-                <p className="text-sm text-zinc-300">Loading preview…</p>
-                <p className="text-xs text-zinc-500 max-w-md">
-                  Fetching this PR&apos;s Vercel preview. It&apos;ll appear here
-                  as soon as the build is ready.
-                </p>
-              </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
-                <p className="text-sm text-zinc-300">No preview yet</p>
-                <p className="text-xs text-zinc-500 max-w-md">
-                  Once a PR is opened for this issue, its Vercel preview will
-                  appear here. Use the chat to start.
-                </p>
-              </div>
-            )}
-          </div>
+          <PreviewPane
+            baseUrl={baseUrl}
+            isResolving={previewResolving}
+            owner={ownerForViews}
+            repo={repoForViews}
+            onComposerInjection={setComposerInjection}
+            onAttachmentInjection={setAttachmentInjection}
+            emptyState={
+              showDefaultPreviewEditor ? (
+                <div className="h-full flex items-center justify-center p-6">
+                  {configQuery.isLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+                  ) : (
+                    <VibeDefaultPreviewField
+                      value={defaultPreviewUrl}
+                      onSave={async (url) => {
+                        await saveConfigMutation.mutateAsync(url);
+                      }}
+                      isSaving={saveConfigMutation.isPending}
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
+                  <p className="text-sm text-zinc-300">No preview yet</p>
+                  <p className="text-xs text-zinc-500 max-w-md">
+                    Once a PR is opened for this issue, its Vercel preview will
+                    appear here. Use the chat to start.
+                  </p>
+                </div>
+              )
+            }
+          />
 
           {/* Approve / merge bar — only when a task with a PR is selected. */}
           {selectedTask?.associatedPR && (

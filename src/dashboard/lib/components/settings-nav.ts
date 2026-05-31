@@ -22,6 +22,7 @@ import {
   KeyRound,
   Layers,
   MessageSquare,
+  MonitorPlay,
   Rocket,
   ScrollText,
   Settings as SettingsIcon,
@@ -97,6 +98,15 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     icon: Users,
     description: "Personas that execute your duties.",
     tint: "text-violet-300 bg-violet-500/10",
+  },
+  {
+    href: "/preview",
+    label: "Preview",
+    icon: MonitorPlay,
+    exact: true,
+    description:
+      "Live preview of any environment — Production, Staging, Dev — with views, device sizes, and element-pick into chat.",
+    tint: "text-sky-300 bg-sky-500/10",
   },
   {
     href: "/messages",
