@@ -31,7 +31,10 @@ import {
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import { buildAgentList, type ChatModelEntry } from "../chat/agent-entries";
-import { readDefaultChatEntry } from "../chat/default-entry";
+import {
+  readDefaultChatEntry,
+  writeDefaultChatEntry,
+} from "../chat/default-entry";
 import { getStoredAuth, getStoredBrainConfig, getStoredFlyPerf } from "../api";
 import { useAuth } from "../auth-context";
 import { toast } from "sonner";
@@ -301,9 +304,9 @@ export function KodyChat({
   // Brain-Fly, or `kody:<modelId>`), a per-user preference persisted in
   // localStorage (repo-scoped). Read synchronously on mount. Separate from a
   // model's own `default` flag, which governs server-side gateway resolution.
-  // Read-only here: the default is now chosen in Settings → "Default chat"
-  // and written to the same repo-scoped localStorage key. The chat picker
-  // only consumes it (apply-on-load below); it no longer sets it.
+  // Read on mount here; written by BOTH the chat picker (on pick, below) and
+  // Settings → "Default chat" — same repo-scoped key — so whichever you use,
+  // your choice loads again on refresh.
   const [defaultChatEntryKey] = useState<string | null>(() =>
     readDefaultChatEntry(),
   );
@@ -4216,6 +4219,10 @@ export function KodyChat({
                         onClick={() => {
                           setSelectedAgentId(a.agentId);
                           setSelectedModelId(a.modelId);
+                          // Persist the pick so it loads again on refresh —
+                          // same per-user, repo-scoped store as Settings →
+                          // "Default chat". The picker is now the default.
+                          writeDefaultChatEntry(a.key);
                           setAgentMenuOpen(false);
                         }}
                         className={`w-full text-left px-3 py-2 hover:bg-accent text-sm flex items-start gap-2 ${
