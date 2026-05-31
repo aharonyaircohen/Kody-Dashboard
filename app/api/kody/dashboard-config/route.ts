@@ -23,6 +23,12 @@ import {
 } from "@dashboard/lib/dashboard-config/store";
 import { logger } from "@dashboard/lib/logger";
 
+const PreviewEnvironmentSchema = z.object({
+  id: z.string().min(1).max(64),
+  label: z.string().min(1).max(48),
+  url: z.string().url({ message: "Must be a valid URL" }).max(2048),
+});
+
 const UpsertSchema = z.object({
   defaultPreviewUrl: z
     .string()
@@ -30,6 +36,7 @@ const UpsertSchema = z.object({
     .max(2048)
     .optional()
     .or(z.literal("")),
+  namedPreviews: z.array(PreviewEnvironmentSchema).max(20).optional(),
   brainFlyChatEnabled: z.boolean().optional(),
   actorLogin: z.string().optional(),
 });
@@ -112,6 +119,11 @@ export async function PUT(req: NextRequest) {
       const trimmed = parsed.data.defaultPreviewUrl?.trim();
       next.defaultPreviewUrl = trimmed ? trimmed : undefined;
       commitMessage = `chore(dashboard): set default preview URL`;
+    }
+    if ("namedPreviews" in bodyKeys) {
+      const list = parsed.data.namedPreviews ?? [];
+      next.namedPreviews = list.length > 0 ? list : undefined;
+      commitMessage = `chore(dashboard): update preview environments`;
     }
     if ("brainFlyChatEnabled" in bodyKeys) {
       next.brainFlyChatEnabled = parsed.data.brainFlyChatEnabled === true;

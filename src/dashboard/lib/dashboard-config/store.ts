@@ -10,13 +10,24 @@
 
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@dashboard/lib/logger";
+import type { PreviewEnvironment } from "@dashboard/lib/preview-environments";
 
 export const DASHBOARD_CONFIG_PATH = ".kody/dashboard.json";
 
 export interface DashboardConfig {
   version: 1;
-  /** URL shown in the Vibe page preview pane when no issue is selected. */
+  /**
+   * Legacy single preview URL — shown in the Vibe pane when no issue is
+   * selected. Superseded by `namedPreviews` (migrated on read), kept so
+   * existing repos and the Vibe fallback keep working.
+   */
   defaultPreviewUrl?: string;
+  /**
+   * Named preview environments (Production / Staging / Dev …) surfaced on the
+   * standalone `/preview` page. Each is a base URL; the Web/Admin "views" are
+   * paths under whichever environment is selected.
+   */
+  namedPreviews?: PreviewEnvironment[];
   /**
    * Whether the "Kody Brain (Fly)" row is offered in the chat picker.
    * Per-repo, default `false` — Fly task *execution* is independent of
