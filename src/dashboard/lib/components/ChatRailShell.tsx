@@ -28,7 +28,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { KodyChat } from "./KodyChat";
 import { AppHeader } from "./AppHeader";
 import { Sidebar } from "./Sidebar";
@@ -170,22 +170,20 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     const saved = Number(localStorage.getItem("kody:rail-width"));
     if (saved >= RAIL_MIN && saved <= RAIL_MAX) setRailWidth(saved);
   }, []);
-  // Expand the chat side-rail to full width (page hidden) and back to a rail.
-  // Toggled by the expand/restore button inside the chat header. Persisted
-  // per-device. Replaces the old Chat|Tasks route toggle — chat is now an
-  // on/off expand panel beside the page.
-  const [railFullscreen, setRailFullscreen] = useState(false);
-  useEffect(() => {
-    setRailFullscreen(localStorage.getItem("kody:chat-fullscreen") === "1");
-  }, []);
-  const setRailFullscreenPersist = useCallback((next: boolean) => {
-    setRailFullscreen(next);
-    try {
-      localStorage.setItem("kody:chat-fullscreen", next ? "1" : "0");
-    } catch {
-      // localStorage unavailable (private mode) — non-fatal.
+  // "Expanded chat" is the /chat route — a real page, not a cross-page
+  // overlay. The expand button navigates to /chat; restore returns to the
+  // page you expanded from (so browsing away from /chat just shows that
+  // page — chat never hovers over it). Remembered in a ref for the session.
+  const router = useRouter();
+  const preExpandRouteRef = useRef("/tasks");
+  const toggleExpandedChat = useCallback(() => {
+    if (pathname === "/chat") {
+      router.push(preExpandRouteRef.current || "/tasks");
+    } else {
+      preExpandRouteRef.current = pathname || "/tasks";
+      router.push("/chat");
     }
-  }, []);
+  }, [pathname, router]);
 
   const [dragging, setDragging] = useState(false);
   const startResize = useCallback((e: React.PointerEvent) => {
@@ -318,14 +316,10 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       onDirectToGoal={directToGoal}
       composerInjection={composerInjection}
       attachmentInjection={attachmentInjection}
-      // Expand/restore the rail to full width (not on the /chat full view,
-      // which is already full).
-      onToggleFullscreen={
-        isChatRoute
-          ? undefined
-          : () => setRailFullscreenPersist(!railFullscreen)
-      }
-      railFullscreen={railFullscreen}
+      // Expand = navigate to the /chat page; restore = back to the previous
+      // page. On /chat the button reads as "restore" (railFullscreen).
+      onToggleFullscreen={toggleExpandedChat}
+      railFullscreen={isChatRoute}
     />
   ) : (
     <div className="flex-1 flex items-center justify-center p-6">
@@ -361,25 +355,20 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 <div
                   className={cn(
                     "flex-col min-h-0 bg-black/20",
-                    isChatRoute || railFullscreen
+                    isChatRoute
                       ? "flex flex-1"
                       : "hidden md:flex shrink-0 border-r border-border",
                     !dragging && "transition-[width] duration-200",
                   )}
-                  style={
-                    !isChatRoute && !railFullscreen
-                      ? { width: railWidth }
-                      : undefined
-                  }
+                  style={!isChatRoute ? { width: railWidth } : undefined}
                   aria-label="Kody chat"
                 >
                   {chatPane}
                 </div>
 
                 {/* Drag handle between the chat rail and the page — desktop,
-                side-rail routes only (not when chat is the full view or
-                expanded). */}
-                {auth && !isChatRoute && !railFullscreen && (
+                side-rail routes only (not when chat is the full /chat view). */}
+                {auth && !isChatRoute && (
                   <div
                     role="separator"
                     aria-orientation="vertical"
@@ -403,7 +392,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 <div
                   className={cn(
                     "flex-1 min-w-0 h-full overflow-hidden flex flex-col",
-                    (isChatRoute || railFullscreen) && "hidden",
+                    isChatRoute && "hidden",
                   )}
                 >
                   {children}
