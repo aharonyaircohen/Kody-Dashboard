@@ -1,42 +1,36 @@
 /**
  * @fileType api-endpoint
  * @domain kody
- * @pattern cto-trust-management
- * @ai-summary GET/POST /api/kody/cto/trust — the read + management surface for
- *   the staff trust ledger (`kody:cto-decisions`), powering the /trust page.
+ * @pattern duty-trust-management
+ * @ai-summary GET/POST /api/kody/cto/trust — read + management surface for the
+ *   duty-keyed trust ledger, stored as a JSON file on the `kody-state` branch
+ *   (`.kody/state/trust.json`), NOT an issue. Powers the /trust page.
  *
- *   GET  → the full per-staff trust stats (`staff[slug][action]`) plus the
- *          recent decision log. Cached read (ETag/304) per CLAUDE.md rate rule.
- *   POST → an operator override of one action's autonomy:
- *            { staff, action, op: "reset" | "graduate" | "degrade" }
- *          Applies the matching pure transform from `trust-ops` through the
- *          CAS mutator, records an audit entry, and returns the new stats.
+ *   GET  → the full per-duty trust stats (`duties[slug][action]`) + recent log.
+ *   POST → an operator override of one duty's action autonomy:
+ *            { duty, action, op: "reset" | "graduate" | "degrade" }
+ *          Applies the matching pure transform from `trust-state` through the
+ *          file CAS mutator, records an audit entry, returns the new stats.
  *
- *   Unlike `/cto/decision`, this NEVER posts an `@kody` command — it only
- *   rewrites trust state. Graduating an action is what lets the engine stop
- *   asking; degrading is the manual kill switch.
+ *   This never posts an `@kody` command — it only rewrites trust state.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   requireKodyAuth,
   verifyActorLogin,
-  getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import {
-  mutateCtoDecisions,
-  readCtoDecisions,
-} from "@dashboard/lib/cto/decisions-server";
-import { applyTrustOp, TRUST_OPS } from "@dashboard/lib/cto/trust-ops";
+import { readTrust, mutateTrust } from "@dashboard/lib/cto/trust-store";
+import { applyTrustOp, TRUST_OPS } from "@dashboard/lib/cto/trust-state";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 const bodySchema = z.object({
-  staff: z
+  duty: z
     .string()
     .min(1)
     .max(40)
@@ -50,7 +44,7 @@ const bodySchema = z.object({
   actorLogin: z.string().optional(),
 });
 
-/** GET — full trust stats + recent log for the /trust page. */
+/** GET — full duty trust stats + recent log for the /trust page. */
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -61,8 +55,8 @@ export async function GET(req: NextRequest) {
   }
   setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
   try {
-    const manifest = await readCtoDecisions();
-    return NextResponse.json({ staff: manifest.staff, log: manifest.log });
+    const manifest = await readTrust();
+    return NextResponse.json({ duties: manifest.duties, log: manifest.log });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "read failed";
     return NextResponse.json(
@@ -74,7 +68,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** POST — apply one trust override (reset / graduate / degrade). */
+/** POST — apply one trust override (reset / graduate / degrade) to a duty. */
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -99,41 +93,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "bad_json" }, { status: 400 });
     }
 
-    const { staff, action, op, actorLogin } = payload;
+    const { duty, action, op, actorLogin } = payload;
 
     if (actorLogin) {
       const actorResult = await verifyActorLogin(req, actorLogin);
       if (actorResult instanceof NextResponse) return actorResult;
     }
 
-    // Writing the ledger issue requires a signed-in token — same gate as
-    // editing a duty. Falls through to the request context token otherwise.
-    const userOctokit = (await getUserOctokit(req)) ?? undefined;
-
-    const { manifest } = await mutateCtoDecisions(
-      (current) => ({
-        next: applyTrustOp(current, op, staff, action),
-        result: null,
-      }),
-      { userOctokit },
+    const manifest = await mutateTrust((current) =>
+      applyTrustOp(current, op, duty, action),
     );
 
-    // No explicit cache bust needed: the CAS mutator re-reads the ledger issue
-    // with `noCache` as its write-verify step, so the in-process cache already
-    // holds the new state for the next GET (CLAUDE.md rate-limit rule 5).
     recordAudit(req, {
       action: `trust.${op}`,
-      resource: `${staff}:${action}`,
-      staff,
-      detail: `${op} trust for ${staff} · ${action}`,
+      resource: `${duty}:${action}`,
+      duty,
+      detail: `${op} trust for ${duty} · ${action}`,
     });
 
     return NextResponse.json({
       ok: true,
-      staff,
+      duty,
       action,
       op,
-      stats: manifest.staff[staff]?.[action] ?? null,
+      stats: manifest.duties[duty]?.[action] ?? null,
     });
   } catch (err: unknown) {
     const message =

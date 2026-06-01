@@ -3,16 +3,16 @@
  * @fileType component
  * @domain kody
  * @pattern trust-manager
- * @ai-summary The /trust page body. Renders the staff trust ledger grouped by
- *   staff persona: each action shows its mode (Ask / Auto), approval +
- *   rejection tallies, and progress toward graduation, with operator overrides
- *   — Graduate (force Auto now), De-graduate (kill switch back to Ask), and
- *   Reset (wipe the action's trust). A compact recent-decision log sits at the
- *   bottom. All state + mutations come from `useTrust`.
+ * @ai-summary The /trust page body. Renders the duty-keyed trust ledger grouped
+ *   by duty: each action shows its mode (Ask / Auto), approval + rejection
+ *   tallies, and progress toward graduation, with operator overrides — Graduate
+ *   (force Auto now), De-graduate (kill switch back to Ask), and Reset (wipe the
+ *   action's trust). A compact recent-decision log sits at the bottom. All state
+ *   + mutations come from `useTrust`.
  *
- *   Why this exists: Phase 1 only *recorded* trust; there was no surface to see
- *   how close a duty's staff is to acting on its own, or to grant/revoke that
- *   autonomy by hand. This is that surface.
+ *   Trust is keyed per DUTY (not persona), so sibling duties of one persona earn
+ *   autonomy independently — that's why the rows are duties, with the persona
+ *   shown as a subtitle.
  */
 import { useMemo } from "react";
 import {
@@ -26,9 +26,9 @@ import {
 import { Badge } from "@dashboard/ui/badge";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@dashboard/ui/card";
-import { CTO_GRADUATION_THRESHOLD } from "../cto/decisions";
+import { TRUST_GRADUATION_THRESHOLD } from "../cto/trust-state";
 import { useTrust } from "../cto/useTrust";
-import type { TrustActionView, TrustStaffView } from "../cto/trust-ops";
+import type { TrustActionView, TrustDutyView } from "../cto/trust-state";
 
 function ProgressBar({ value }: { value: number }) {
   const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
@@ -43,12 +43,12 @@ function ProgressBar({ value }: { value: number }) {
 }
 
 function ActionRow({
-  staff,
+  duty,
   action,
   busy,
   onOp,
 }: {
-  staff: string;
+  duty: string;
   action: TrustActionView;
   busy: boolean;
   onOp: (op: "reset" | "graduate" | "degrade") => void;
@@ -80,7 +80,7 @@ function ActionRow({
           <span className="shrink-0 text-body-xs tabular-nums text-muted-foreground">
             {isAuto
               ? "graduated"
-              : `${action.consecutiveApprovals}/${CTO_GRADUATION_THRESHOLD}`}
+              : `${action.consecutiveApprovals}/${TRUST_GRADUATION_THRESHOLD}`}
           </span>
         </div>
       </div>
@@ -111,11 +111,11 @@ function ActionRow({
           variant="ghost"
           size="sm"
           disabled={busy}
-          title={`Reset trust for ${staff} · ${action.action}`}
+          title={`Reset trust for ${duty} · ${action.action}`}
           onClick={() => {
             if (
               window.confirm(
-                `Reset all trust for "${staff} · ${action.action}"? This wipes its approvals, rejections, and streak.`,
+                `Reset all trust for "${duty} · ${action.action}"? This wipes its approvals, rejections, and streak.`,
               )
             ) {
               onOp("reset");
@@ -129,12 +129,12 @@ function ActionRow({
   );
 }
 
-function StaffCard({
+function DutyCard({
   group,
   busy,
   onOp,
 }: {
-  group: TrustStaffView;
+  group: TrustDutyView;
   busy: boolean;
   onOp: (action: string, op: "reset" | "graduate" | "degrade") => void;
 }) {
@@ -143,40 +143,35 @@ function StaffCard({
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle className="text-body-base text-white/90">
-            {group.staff}
+            {group.duty}
           </CardTitle>
+          {group.staff && (
+            <span className="text-body-xs text-muted-foreground">
+              runs as{" "}
+              <code className="rounded bg-white/[0.06] px-1 py-0.5 text-white/70">
+                {group.staff}
+              </code>
+            </span>
+          )}
           {group.hasAuto && (
             <Badge variant="default" className="gap-1">
               <ShieldCheck className="h-3 w-3" />
               autonomous
             </Badge>
           )}
-          {group.duties.length > 0 && (
-            <span className="text-body-xs text-muted-foreground">
-              runs:{" "}
-              {group.duties.map((d) => (
-                <code
-                  key={d}
-                  className="mx-0.5 rounded bg-white/[0.06] px-1 py-0.5 text-white/70"
-                >
-                  {d}
-                </code>
-              ))}
-            </span>
-          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
         {group.actions.length === 0 ? (
           <p className="text-body-sm text-muted-foreground">
-            No recommendations decided yet — this staff earns trust as you
-            approve its recommendations in the inbox.
+            No recommendations decided yet — this duty earns trust as you approve
+            its recommendations in the inbox.
           </p>
         ) : (
           group.actions.map((a) => (
             <ActionRow
               key={a.action}
-              staff={group.staff}
+              duty={group.duty}
               action={a}
               busy={busy}
               onOp={(op) => onOp(a.action, op)}
@@ -188,11 +183,7 @@ function StaffCard({
   );
 }
 
-function RecentLog({
-  log,
-}: {
-  log: ReturnType<typeof useTrust>["log"];
-}) {
+function RecentLog({ log }: { log: ReturnType<typeof useTrust>["log"] }) {
   const recent = useMemo(() => [...log].slice(-15).reverse(), [log]);
   if (recent.length === 0) return null;
   return (
@@ -220,7 +211,7 @@ function RecentLog({
               >
                 {e.decision}
               </Badge>
-              <code className="text-white/70">{e.staff}</code>
+              <code className="text-white/70">{e.duty}</code>
               <span>·</span>
               <code className="text-white/70">{e.action}</code>
               <span>·</span>
@@ -248,11 +239,11 @@ export function TrustManager() {
             Trust
           </h1>
           <p className="text-body-sm text-muted-foreground">
-            Every staff member starts in <strong>Ask</strong> mode and must get
-            your approval before each action. After{" "}
-            {CTO_GRADUATION_THRESHOLD} clean approvals of the same action it
-            graduates to <strong>Auto</strong> and acts on its own; one reject
-            sends it back to Ask. Override any of that here.
+            Every duty starts in <strong>Ask</strong> mode and needs your
+            approval before each action. After {TRUST_GRADUATION_THRESHOLD} clean
+            approvals of the same action it graduates to <strong>Auto</strong>{" "}
+            and the engine runs it on its own; one reject sends it back to Ask.
+            Override any of that here.
           </p>
         </header>
 
@@ -269,19 +260,19 @@ export function TrustManager() {
         ) : groups.length === 0 ? (
           <Card className="border-white/[0.08] bg-white/[0.02]">
             <CardContent className="p-6 text-center text-body-sm text-muted-foreground">
-              No trust recorded yet. As you approve staff recommendations in the
-              inbox, each staff member&apos;s actions appear here with their
-              progress toward acting on their own.
+              No trust recorded yet. As you approve duty recommendations in the
+              inbox, each duty&apos;s actions appear here with their progress
+              toward running on their own.
             </CardContent>
           </Card>
         ) : (
           groups.map((g) => (
-            <StaffCard
-              key={g.staff}
+            <DutyCard
+              key={g.duty}
               group={g}
               busy={isMutating}
               onOp={(action, op) =>
-                void setTrust({ staff: g.staff, action, op })
+                void setTrust({ duty: g.duty, action, op })
               }
             />
           ))

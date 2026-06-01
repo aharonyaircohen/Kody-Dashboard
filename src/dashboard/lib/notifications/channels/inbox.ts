@@ -19,6 +19,7 @@ import {
   parseCtoAction,
   parseCtoCommand,
   parseCtoStaff,
+  parseCtoDuty,
 } from "../../cto/recommendation";
 import { readCtoDecisions } from "../../cto/decisions-server";
 import { latestCtoDecisions } from "../../cto/decisions";
@@ -52,6 +53,7 @@ export async function deliverInbox(
   const ctoAction = parseCtoAction(ev.body ?? "");
   const ctoCommand = parseCtoCommand(ev.body ?? "");
   const ctoStaff = parseCtoStaff(ev.body ?? "");
+  const ctoDuty = parseCtoDuty(ev.body ?? "");
   const entries: InboxFeedEntry[] = recipients.map((login) => ({
     id: feedEntryId(login, url),
     login,
@@ -66,6 +68,7 @@ export async function deliverInbox(
     ...(ctoAction ? { ctoAction } : {}),
     ...(ctoCommand ? { ctoCommand } : {}),
     ...(ctoStaff ? { ctoStaff } : {}),
+    ...(ctoDuty ? { ctoDuty } : {}),
   }));
 
   setGitHubContext(ctx.owner, ctx.repo, ctx.token);

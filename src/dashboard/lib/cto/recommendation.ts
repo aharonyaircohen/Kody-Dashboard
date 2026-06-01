@@ -113,6 +113,18 @@ export function parseCtoStaff(rawBody: string): string | null {
   return m ? m[1].toLowerCase() : null;
 }
 
+/**
+ * Read the emitting DUTY slug from a rec's `<!-- kody-duty: <slug> -->` line —
+ * the engine stamps this (code, not the LLM) so trust can be keyed per duty,
+ * not just per persona. Sibling duties of one persona (e.g. `qa-sweep` vs
+ * `qa-verify`, both `qa`) thus earn autonomy independently. Returns null on
+ * legacy recs that predate the line; callers fall back to the persona slug.
+ */
+export function parseCtoDuty(rawBody: string): string | null {
+  const m = rawBody.match(/<!--\s*kody-duty:\s*([a-z0-9][a-z0-9-]*)\s*-->/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
 export function isDispatchable(action: CtoAction): boolean {
   return action in FALLBACK_COMMAND;
 }
@@ -125,6 +137,11 @@ export function dispatchCommand(action: CtoAction): string | null {
 export interface CtoRecommendation {
   /** Slug of the staff member that emitted the rec (legacy → "cto"). */
   staff: string;
+  /**
+   * Slug of the DUTY that emitted the rec — the trust key. Falls back to the
+   * persona slug for legacy recs the engine hasn't stamped with `kody-duty`.
+   */
+  duty: string;
   taskNumber: number;
   action: CtoAction;
   /** The exact `@kody …` command Approve will post, or null if none. */
@@ -288,9 +305,14 @@ export function detectCtoRecommendation(
   // slug line) default to the CTO so their trust keeps accruing under `cto`.
   const staff = entry.ctoStaff ?? DEFAULT_STAFF_SLUG;
 
+  // Duty slug is the trust key. The engine stamps `kody-duty` on every rec;
+  // recs that predate it fall back to the persona slug so trust still records
+  // somewhere coherent (per-persona) until the engine ships the stamp.
+  const duty = entry.ctoDuty ?? staff;
+
   // `merge` is dashboard-executed (no `@kody` command) but still actionable —
   // Approve squash-merges the PR. Other actions are dispatchable iff they
   // resolved to a command to post.
   const dispatchable = isDashboardAction(action) || command !== null;
-  return { staff, taskNumber, action, command, dispatchable };
+  return { staff, duty, taskNumber, action, command, dispatchable };
 }

@@ -73,6 +73,13 @@ export interface InboxEntry {
    * + backpressure per staff. Absent on legacy entries (default to "cto").
    */
   ctoStaff?: string;
+  /**
+   * Slug of the DUTY that emitted the recommendation, parsed from the raw
+   * body's `kody-duty` line at write time. The trust key — scopes autonomy
+   * per duty, not just per persona. Absent on legacy entries (the client
+   * falls back to the persona slug).
+   */
+  ctoDuty?: string;
 }
 
 export interface InboxManifest {
