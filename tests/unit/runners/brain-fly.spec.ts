@@ -14,9 +14,11 @@ import {
   allocateIpsIfMissing,
   brainAppName,
   brainStatus,
+  DEFAULT_IMAGE,
   destroyBrain,
   flyFetch,
   provisionBrain,
+  sameImageRepoTag,
 } from "@dashboard/lib/runners/brain-fly";
 
 const TOKEN = "fly-test-token";
@@ -449,6 +451,156 @@ describe("provisionBrain", () => {
     expect(svc.autostart).toBe(true);
     const portNums = svc.ports.map((p) => p.port).sort((a, b) => a - b);
     expect(portNums).toEqual([80, 443]);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// sameImageRepoTag: digest-insensitive image comparison
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("sameImageRepoTag", () => {
+  it("matches identical repo:tag refs", () => {
+    expect(
+      sameImageRepoTag(
+        "ghcr.io/o/kody-brain:latest",
+        "ghcr.io/o/kody-brain:latest",
+      ),
+    ).toBe(true);
+  });
+
+  it("ignores the @sha256 digest Fly appends to a resolved tag", () => {
+    expect(
+      sameImageRepoTag(
+        "ghcr.io/o/kody-brain:latest@sha256:abc123",
+        "ghcr.io/o/kody-brain:latest",
+      ),
+    ).toBe(true);
+  });
+
+  it("detects a genuine registry change (fly → ghcr)", () => {
+    expect(
+      sameImageRepoTag(
+        "registry.fly.io/kody-brain:latest@sha256:old",
+        "ghcr.io/o/kody-brain:latest",
+      ),
+    ).toBe(false);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// provisionBrain: image-ref healing (the registry.fly.io → GHCR migration bug)
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("provisionBrain image-ref healing", () => {
+  it("creates new machines on the public GHCR DEFAULT_IMAGE", async () => {
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
+        return { json: { name: "kody-brain-alice" } };
+      if (call.method === "GET" && call.url.endsWith("/machines"))
+        return { json: [] };
+      if (call.method === "POST" && call.url.endsWith("/machines"))
+        return { json: { id: "m", state: "starting", region: "fra" } };
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+    await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh",
+      apiKeyOverride: "k",
+    });
+    const create = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/machines"),
+    )!;
+    const image = (create.body as { config: { image: string } }).config.image;
+    expect(image).toBe(DEFAULT_IMAGE);
+    expect(image.startsWith("ghcr.io/")).toBe(true);
+  });
+
+  it("recreates a machine pinned to the stale registry.fly.io image", async () => {
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
+        return { json: { name: "kody-brain-alice" } };
+      if (call.method === "GET" && call.url.endsWith("/machines"))
+        return {
+          json: [
+            {
+              id: "m-stale",
+              state: "suspended",
+              region: "fra",
+              config: {
+                image: "registry.fly.io/kody-brain:latest@sha256:dead",
+                env: { BRAIN_API_KEY: "old-key" },
+              },
+            },
+          ],
+        };
+      if (
+        call.method === "DELETE" &&
+        call.url.includes("/machines/m-stale")
+      )
+        return { status: 200, json: { ok: true } };
+      if (call.method === "POST" && call.url.endsWith("/machines"))
+        return { json: { id: "m-fresh", state: "starting", region: "fra" } };
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+
+    const out = await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh",
+    });
+
+    // stale machine destroyed (force) + a fresh one created on GHCR
+    const del = calls.find(
+      (c) => c.method === "DELETE" && c.url.includes("/machines/m-stale"),
+    )!;
+    expect(del.url).toContain("force=true");
+    const create = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/machines"),
+    )!;
+    expect((create.body as { config: { image: string } }).config.image).toBe(
+      DEFAULT_IMAGE,
+    );
+    expect(out.machineId).toBe("m-fresh");
+    // existing BRAIN_API_KEY is preserved across the recreate
+    expect(out.apiKey).toBe("old-key");
+    expect(
+      (create.body as { config: { env: Record<string, string> } }).config.env
+        .BRAIN_API_KEY,
+    ).toBe("old-key");
+  });
+
+  it("reuses (does NOT recreate) when the image already matches, digest aside", async () => {
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
+        return { json: { name: "kody-brain-alice" } };
+      if (call.method === "GET" && call.url.endsWith("/machines"))
+        return {
+          json: [
+            {
+              id: "m-good",
+              state: "started",
+              region: "fra",
+              config: {
+                image: `${DEFAULT_IMAGE}@sha256:fresh`,
+                env: { BRAIN_API_KEY: "live-key" },
+              },
+            },
+          ],
+        };
+      if (call.method === "DELETE" || call.method === "POST")
+        throw new Error(`must not mutate on a matching image: ${call.url}`);
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+
+    const out = await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh",
+    });
+    expect(out.machineId).toBe("m-good");
+    expect(out.apiKey).toBe("live-key");
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false);
   });
 });
 

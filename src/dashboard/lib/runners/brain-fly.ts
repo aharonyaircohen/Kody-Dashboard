@@ -38,7 +38,7 @@ const FLY_API_BASE = "https://api.machines.dev/v1";
 // GHCR tag is pullable by any Fly account. Published from the engine repo
 // (kody-engine: runner/Dockerfile.brain) via `pnpm brain:publish`; the
 // image is engine-only, so consumer repos stay zero-touch.
-const DEFAULT_IMAGE =
+export const DEFAULT_IMAGE =
   process.env.FLY_BRAIN_IMAGE ?? "ghcr.io/aharonyaircohen/kody-brain:latest";
 const DEFAULT_REGION = process.env.FLY_REGION ?? "fra";
 const ORGANIZATION = process.env.FLY_BRAIN_ORG ?? "personal";
@@ -195,6 +195,24 @@ export function brainAppName(account: string): string {
 
 function generateApiKey(): string {
   return randomBytes(32).toString("hex");
+}
+
+/**
+ * Compare two Fly image refs by repository+tag, ignoring the `@sha256:...`
+ * digest Fly appends when it resolves a moving tag like `:latest`. A
+ * freshly-created machine reports `ghcr.io/...:latest@sha256:abc`, so a
+ * naive string compare against the configured `ghcr.io/...:latest` would
+ * never match — and provisionBrain would destroy+recreate the machine on
+ * EVERY call (an infinite churn loop). Stripping the digest makes the
+ * comparison stable while still catching a genuine ref change (e.g. the
+ * `registry.fly.io/...` → `ghcr.io/...` migration).
+ */
+export function sameImageRepoTag(a: string, b: string): boolean {
+  const repoTag = (ref: string): string => {
+    const at = ref.indexOf("@");
+    return at === -1 ? ref : ref.slice(0, at);
+  };
+  return repoTag(a) === repoTag(b);
 }
 
 function brainAppUrl(app: string): string {
@@ -387,6 +405,25 @@ async function findExistingMachine(
 }
 
 /**
+ * Destroy a single machine (not the whole app). `force=true` skips the
+ * graceful drain and works on suspended/stopped machines. Used to replace
+ * a machine that's pinned to a stale image ref. Soft-ignores a 404 so a
+ * concurrent teardown doesn't throw.
+ */
+async function destroyMachine(
+  flyToken: string,
+  appName: string,
+  machineId: string,
+): Promise<void> {
+  await flyFetch<unknown>(
+    `/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(
+      machineId,
+    )}?force=true`,
+    { method: "DELETE", token: flyToken, allow404: true },
+  );
+}
+
+/**
  * Create a new persistent brain machine in the given app.
  *
  * - `auto_destroy: false` — the machine is NOT one-shot.
@@ -482,6 +519,40 @@ export async function provisionBrain(
 
   const existing = await findExistingMachine(input.flyToken, app);
   if (existing) {
+    const existingImage = existing.config?.image ?? "";
+    // Heal machines pinned to a stale image ref. A machine created before
+    // an image-ref change (the `registry.fly.io/...` → public
+    // `ghcr.io/...` migration) is frozen on the old, now-unreachable ref
+    // and never boots — chat against it 500s forever because reuse keeps
+    // serving the dead machine. Recreate it on the current image instead.
+    // We preserve its BRAIN_API_KEY so any key the dashboard already
+    // handed a caller stays valid. Guard on `existingImage` being set so a
+    // machine that doesn't report an image falls through to plain reuse.
+    if (existingImage && !sameImageRepoTag(existingImage, DEFAULT_IMAGE)) {
+      logger.info(
+        {
+          app,
+          machineId: existing.id,
+          from: existingImage,
+          to: DEFAULT_IMAGE,
+        },
+        "brain-fly: recreating machine — image ref changed",
+      );
+      await destroyMachine(input.flyToken, app, existing.id);
+      const apiKey =
+        existing.config?.env?.BRAIN_API_KEY ||
+        input.apiKeyOverride ||
+        generateApiKey();
+      const machine = await createMachine(input.flyToken, app, input, apiKey);
+      return {
+        app,
+        url,
+        apiKey,
+        machineId: machine.id,
+        region: machine.region ?? DEFAULT_REGION,
+      };
+    }
+
     const existingKey = existing.config?.env?.BRAIN_API_KEY ?? "";
     if (!existingKey) {
       throw new Error(
