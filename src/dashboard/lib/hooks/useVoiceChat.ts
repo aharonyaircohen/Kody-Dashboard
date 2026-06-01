@@ -16,6 +16,8 @@ const STOP_WORDS =
 export interface UseVoiceChatOptions {
   onSendMessage: (text: string) => void;
   lang?: string;
+  /** Piper voice id to speak English replies with (see voice/voices.ts). */
+  voiceId?: string;
 }
 export interface UseVoiceChatReturn {
   state: VoiceChatState;
@@ -40,7 +42,7 @@ export interface UseVoiceChatReturn {
 }
 
 export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
-  const { onSendMessage, lang = "en-US" } = options;
+  const { onSendMessage, lang = "en-US", voiceId } = options;
   const [state, setState] = useState<VoiceChatState>("idle");
   const [turnCount, setTurnCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
   }, []);
 
   const tts = useKodyTTSPiper({
+    voiceId,
     onEnd: () => {
       if (stateRef.current === "speaking" && !pausedRef.current) {
         setS("listening");

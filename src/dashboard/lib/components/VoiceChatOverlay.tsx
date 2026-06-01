@@ -17,6 +17,9 @@ interface VoiceChatOverlayProps {
   error: string | null;
   ttsEngine: "pending" | "piper" | "browser";
   ttsError: string | null;
+  voiceId: string;
+  voices: Array<{ id: string; label: string }>;
+  onSelectVoice: (id: string) => void;
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   agentName: string;
   onStop: () => void;
@@ -48,6 +51,9 @@ export function VoiceChatOverlay({
   error,
   ttsEngine,
   ttsError,
+  voiceId,
+  voices,
+  onSelectVoice,
   messages,
   agentName,
   onStop,
@@ -135,6 +141,27 @@ export function VoiceChatOverlay({
       <div className="px-4 py-3 border-b text-center shrink-0">
         <h2 className="text-sm font-semibold">🎤 Voice Chat</h2>
         <p className="text-xs text-muted-foreground">with {agentName}</p>
+        {/* Voice picker. stopPropagation so opening/changing it doesn't
+            trip the overlay's tap-to-interrupt handler. Switching downloads
+            the chosen Piper model on first use (English replies only). */}
+        <div
+          className="mt-1.5 flex items-center justify-center gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Volume2 className="w-3 h-3 text-muted-foreground" />
+          <select
+            value={voiceId}
+            onChange={(e) => onSelectVoice(e.target.value)}
+            className="text-xs bg-muted text-foreground rounded px-1.5 py-0.5 border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+            aria-label="Select voice"
+          >
+            {voices.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Recent conversation — scrollable middle section */}

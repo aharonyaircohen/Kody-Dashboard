@@ -99,6 +99,12 @@ import { SimpleTooltip } from "./SimpleTooltip";
 import { useRemoteStatus } from "../hooks/useRemoteStatus";
 import { useVoiceChat } from "../hooks/useVoiceChat";
 import { extractSentences } from "@dashboard/lib/speech-helpers";
+import {
+  PIPER_VOICES,
+  DEFAULT_VOICE_ID,
+  loadVoicePreference,
+  saveVoicePreference,
+} from "@dashboard/lib/voice/voices";
 import { VoiceButton } from "./VoiceButton";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
 import { useChatSessions } from "../hooks/useChatSessions";
@@ -674,6 +680,16 @@ export function KodyChat({
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false);
+  // Per-user Piper voice choice. Starts at the default to keep SSR/first
+  // render deterministic, then hydrates from localStorage after mount.
+  const [voiceId, setVoiceId] = useState<string>(DEFAULT_VOICE_ID);
+  useEffect(() => {
+    setVoiceId(loadVoicePreference());
+  }, []);
+  const handleSelectVoice = useCallback((id: string) => {
+    setVoiceId(id);
+    saveVoicePreference(id);
+  }, []);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -3874,7 +3890,7 @@ export function KodyChat({
     [sendText],
   );
 
-  const voiceChat = useVoiceChat({ onSendMessage: handleVoiceSend });
+  const voiceChat = useVoiceChat({ onSendMessage: handleVoiceSend, voiceId });
   const voiceChatRef = useRef(voiceChat);
   useEffect(() => {
     voiceChatRef.current = voiceChat;
@@ -4177,6 +4193,9 @@ export function KodyChat({
           error={voiceChat.error}
           ttsEngine={voiceChat.ttsEngine}
           ttsError={voiceChat.ttsError}
+          voiceId={voiceId}
+          voices={PIPER_VOICES}
+          onSelectVoice={handleSelectVoice}
           messages={messages}
           agentName={currentAgent.name}
           onStop={() => {

@@ -25,6 +25,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { stripMarkdown, detectLanguage } from "@dashboard/lib/speech-helpers";
+import { DEFAULT_VOICE_ID } from "@dashboard/lib/voice/voices";
 import { useKodyTTS, type UseKodyTTSReturn } from "./useKodyTTS";
 
 export interface UseKodyTTSPiperReturn extends UseKodyTTSReturn {
@@ -39,8 +40,6 @@ export interface UseKodyTTSPiperOptions {
   onError?: () => void;
   voiceId?: string; // Piper voice id; defaults to en_US-hfc_female-medium
 }
-
-const DEFAULT_VOICE = "en_US-hfc_female-medium";
 
 // A few samples of 8-bit silence as a WAV data URI. Played once from the
 // mic-tap gesture to "unlock" the reusable <audio> element, so the real
@@ -108,7 +107,7 @@ const WASM_PATHS = {
 export function useKodyTTSPiper(
   options: UseKodyTTSPiperOptions = {},
 ): UseKodyTTSPiperReturn {
-  const { onEnd, onError, voiceId = DEFAULT_VOICE } = options;
+  const { onEnd, onError, voiceId = DEFAULT_VOICE_ID } = options;
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [piperReady, setPiperReady] = useState(false);
   const [failed, setFailed] = useState(false); // Piper bailed → browser voice
@@ -151,10 +150,17 @@ export function useKodyTTSPiper(
     isSpeaking: browserSpeaking,
   } = browserTTS;
 
-  // Lazy-init Piper session on mount (browser only)
+  // Lazy-init Piper session on mount, and re-init whenever the voice
+  // changes. Reset readiness/failure first so a voice switch is a clean
+  // retry (English speech falls back to the browser voice only during the
+  // ~model-load gap, then the new Piper voice takes over).
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
+    setPiperReady(false);
+    setFailed(false);
+    setEngineError(null);
+    fallbackRef.current = false;
     (async () => {
       try {
         const mod = await import("@mintplex-labs/piper-tts-web");
