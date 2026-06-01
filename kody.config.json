@@ -18,5 +18,19 @@
   },
   "jobs": {
     "stateBackend": "local-file"
-  }
+  },
+  "executables": {
+    "default": "run"
+  },
+  "access": {
+    "allowedAssociations": [
+      "OWNER",
+      "COLLABORATOR",
+      "CONTRIBUTOR",
+      "FIRST_TIME_CONTRIBUTOR",
+      "MEMBER"
+    ]
+  },
+  "defaultExecutable": "classify",
+  "defaultPrExecutable": "fix"
 }
