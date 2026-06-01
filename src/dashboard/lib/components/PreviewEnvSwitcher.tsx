@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   Check,
+  Clock,
   Loader2,
   Pencil,
   Plus,
@@ -22,11 +23,26 @@ import {
 } from "lucide-react";
 import { cn } from "../utils";
 import {
+  daysUntilExpiry,
   removeEnvironment,
   updateEnvironment,
   type PreviewEnvironment,
 } from "../preview-environments";
 import { PreviewEnvForm } from "./PreviewEnvForm";
+
+/** Compact expiry chip text + tone for an uploaded preview. */
+function expiryChip(
+  expiresAt: number,
+  now: number,
+): { text: string; className: string } {
+  const days = daysUntilExpiry(expiresAt, now);
+  if (days <= 0)
+    return { text: "expired", className: "text-rose-400/80" };
+  if (days === 1) return { text: "1d left", className: "text-amber-400/80" };
+  if (days <= 2)
+    return { text: `${days}d left`, className: "text-amber-400/80" };
+  return { text: `${days}d left`, className: "text-zinc-500" };
+}
 
 interface PreviewEnvSwitcherProps {
   environments: PreviewEnvironment[];
@@ -40,6 +56,8 @@ interface PreviewEnvSwitcherProps {
   onUpload: (file: File) => Promise<void>;
   /** Destroy the Fly app behind an uploaded environment, if it has one. */
   onRemoveStatic?: (staticId: string) => Promise<void>;
+  /** Push an uploaded environment's expiry out by another TTL. */
+  onExtend?: (id: string) => Promise<void>;
   isSaving: boolean;
 }
 
@@ -51,14 +69,17 @@ export function PreviewEnvSwitcher({
   onAdd,
   onUpload,
   onRemoveStatic,
+  onExtend,
   isSaving,
 }: PreviewEnvSwitcherProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [extendingId, setExtendingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const now = Date.now();
 
   const active =
     environments.find((e) => e.id === selectedId) ?? environments[0] ?? null;
@@ -125,6 +146,16 @@ export function PreviewEnvSwitcher({
     }
   };
 
+  const handleExtend = async (id: string): Promise<void> => {
+    if (!onExtend) return;
+    setExtendingId(id);
+    try {
+      await onExtend(id);
+    } finally {
+      setExtendingId(null);
+    }
+  };
+
   return (
     <div ref={rootRef} className="relative inline-flex">
       <button
@@ -185,14 +216,40 @@ export function PreviewEnvSwitcher({
                     )}
                   />
                   <span className="min-w-0">
-                    <span className="block text-xs font-medium text-zinc-200 truncate">
-                      {env.label}
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-200">
+                      <span className="truncate">{env.label}</span>
+                      {typeof env.expiresAt === "number" && (
+                        <span
+                          className={cn(
+                            "shrink-0 text-[10px] font-normal",
+                            expiryChip(env.expiresAt, now).className,
+                          )}
+                        >
+                          {expiryChip(env.expiresAt, now).text}
+                        </span>
+                      )}
                     </span>
                     <span className="block text-[11px] text-zinc-500 truncate">
                       {env.url}
                     </span>
                   </span>
                 </button>
+                {env.staticId && onExtend && (
+                  <button
+                    type="button"
+                    onClick={() => handleExtend(env.id)}
+                    disabled={extendingId === env.id}
+                    title="Extend 7 days"
+                    aria-label={`Extend ${env.label} by 7 days`}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-emerald-300 hover:bg-zinc-700 transition"
+                  >
+                    {extendingId === env.id ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Clock className="w-3 h-3" />
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setEditingId(env.id)}

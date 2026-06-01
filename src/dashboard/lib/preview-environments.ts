@@ -24,10 +24,43 @@ export interface PreviewEnvironment {
    * plain URL environment has no `staticId` and nothing to tear down.
    */
   staticId?: string;
+  /**
+   * Absolute expiry (ms epoch) for uploaded previews. Past this, the
+   * workspace reaps it on load (destroys the Fly app + drops it). Plain URL
+   * environments never set this — they don't expire.
+   */
+  expiresAt?: number;
 }
 
 const ID_RAND_LEN = 4;
 const MAX_LABEL = 48;
+
+/** Uploaded static previews live this long before auto-expiry (7 days). */
+export const STATIC_PREVIEW_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Whole days until expiry (ceil). Negative once expired. */
+export function daysUntilExpiry(expiresAt: number, now: number): number {
+  return Math.ceil((expiresAt - now) / (24 * 60 * 60 * 1000));
+}
+
+/** Uploaded environments whose expiry has passed — the reap set. */
+export function expiredUploads(
+  list: PreviewEnvironment[],
+  now: number,
+): PreviewEnvironment[] {
+  return list.filter(
+    (e) => e.staticId && typeof e.expiresAt === "number" && e.expiresAt <= now,
+  );
+}
+
+/** Set a new absolute expiry on one environment (immutable). */
+export function setEnvExpiry(
+  list: PreviewEnvironment[],
+  id: string,
+  expiresAt: number,
+): PreviewEnvironment[] {
+  return list.map((e) => (e.id === id ? { ...e, expiresAt } : e));
+}
 
 /** Slug + short random suffix so labels can repeat without id collisions. */
 export function makeEnvId(label: string): string {
@@ -102,20 +135,29 @@ export function addEnvironment(
 
 /**
  * Append an uploaded-file environment, tagged with its `staticId` so removal
- * can also destroy the Fly preview. Same validation as `addEnvironment`.
+ * can also destroy the Fly preview and `expiresAt` so it auto-reaps. Same
+ * validation as `addEnvironment`. `expiresAt` is passed in (callers stamp the
+ * clock) to keep this pure + testable.
  */
 export function addUploadedEnvironment(
   list: PreviewEnvironment[],
   label: string,
   url: string,
   staticId: string,
+  expiresAt: number,
 ): PreviewEnvironment[] {
   const cleanLabel = label.trim().slice(0, MAX_LABEL);
   const cleanUrl = normalizeEnvUrl(url);
   if (!cleanLabel || !cleanUrl || !staticId) return list;
   return [
     ...list,
-    { id: makeEnvId(cleanLabel), label: cleanLabel, url: cleanUrl, staticId },
+    {
+      id: makeEnvId(cleanLabel),
+      label: cleanLabel,
+      url: cleanUrl,
+      staticId,
+      expiresAt,
+    },
   ];
 }
 

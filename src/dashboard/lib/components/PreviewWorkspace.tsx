@@ -24,7 +24,10 @@ import { PreviewEnvForm } from "./PreviewEnvForm";
 import {
   addEnvironment,
   addUploadedEnvironment,
+  expiredUploads,
   resolveEnvironments,
+  setEnvExpiry,
+  STATIC_PREVIEW_TTL_MS,
   type PreviewEnvironment,
 } from "../preview-environments";
 import {
@@ -129,7 +132,8 @@ export function PreviewWorkspace() {
 
   // Upload a file → boot a Fly static preview → add it as an environment and
   // select it. The environment carries the staticId so removal tears the Fly
-  // app down (see removeStatic + PreviewEnvSwitcher.handleRemove).
+  // app down (see removeStatic + PreviewEnvSwitcher.handleRemove), and an
+  // expiresAt so it auto-reaps after the TTL even if nobody deletes it.
   const uploadFile = async (file: File): Promise<void> => {
     try {
       const res = await uploadStaticPreview(file);
@@ -138,6 +142,7 @@ export function PreviewWorkspace() {
         res.name,
         res.url,
         res.id,
+        Date.now() + STATIC_PREVIEW_TTL_MS,
       );
       await persist(next);
       const created = next[next.length - 1];
@@ -158,6 +163,36 @@ export function PreviewWorkspace() {
       );
     }
   };
+
+  // Push an uploaded preview's expiry out by another full TTL from now.
+  const extendEnv = async (id: string): Promise<void> => {
+    const next = setEnvExpiry(environments, id, Date.now() + STATIC_PREVIEW_TTL_MS);
+    await persist(next);
+    toast.success("Extended — 7 more days");
+  };
+
+  // Lazy reaper: on load, destroy + drop any uploaded preview past its expiry.
+  // No cron needed — cleanup happens whenever someone opens /preview. Runs
+  // once per mount (guarded) so it doesn't loop on the persist-driven refetch.
+  const reapedRef = useRef(false);
+  useEffect(() => {
+    if (configQuery.isLoading || reapedRef.current) return;
+    const expired = expiredUploads(environments, Date.now());
+    if (expired.length === 0) return;
+    reapedRef.current = true;
+    void (async () => {
+      await Promise.allSettled(
+        expired.map((e) =>
+          e.staticId ? destroyStaticPreview(e.staticId) : Promise.resolve(),
+        ),
+      );
+      const expiredIds = new Set(expired.map((e) => e.id));
+      await persist(environments.filter((e) => !expiredIds.has(e.id)));
+    })();
+    // persist updates the cache → environments changes, but reapedRef stops a
+    // re-run; depend on the loading flag + list so we fire once data is in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configQuery.isLoading, environments]);
 
   const emptyUploadRef = useRef<HTMLInputElement | null>(null);
 
@@ -180,6 +215,7 @@ export function PreviewWorkspace() {
               onAdd={addFirst}
               onUpload={uploadFile}
               onRemoveStatic={removeStatic}
+              onExtend={extendEnv}
               isSaving={saveMutation.isPending}
             />
           ) : null

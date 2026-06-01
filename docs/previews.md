@@ -212,7 +212,12 @@ iframe like any other. Removing that environment also destroys its Fly app.
   redirecting `index.html`.
 - Single source of truth is the environment list in `.kody/dashboard.json`
   (`namedPreviews`); the uploaded entry carries a `staticId` so removal can
-  tear the Fly app down. No separate ledger.
+  tear the Fly app down, plus an `expiresAt`. No separate ledger.
+- **Expiry: 7 days.** The dropdown shows days-left per upload and a Clock
+  button to extend by another 7. There's no cron — the workspace reaps
+  expired uploads (destroys the Fly app + drops the entry) on `/preview`
+  load. Deleting the entry tears it down immediately; expiry is the
+  backstop for ones nobody deletes.
 - Per-repo billing as usual (the repo's vault `FLY_API_TOKEN`).
 - Single file only, ≤ 5 MB (it's inlined into the machine config). For a
   multi-file site, use a branch preview.
