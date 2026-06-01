@@ -1,0 +1,18 @@
+{
+  "taskId": "31",
+  "taskType": "pr",
+  "target": "PR #31",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Merge conflicts resolved by taking origin/main side in all three files (trust-state refactor supersedes PR's staff-keyed architecture)",
+  "prUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/31",
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/TrustManager.tsx",
+    "src/dashboard/lib/cto/useTrust.ts",
+    "tests/unit/cto-trust-ops.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/merge-pr31.jsonl",
+  "startedAt": "2026-06-01T22:05:00.000Z",
+  "finishedAt": "2026-06-01T22:06:00.000Z"
+}

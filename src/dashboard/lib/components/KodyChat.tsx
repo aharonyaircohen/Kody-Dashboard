@@ -3871,18 +3871,22 @@ export function KodyChat({
         if (consumed > 0) spokenPtr += consumed;
         for (const s of sentences) voiceChatRef.current?.speakChunk(s);
       };
-      const response = await sendText(transcript, [], {
-        voiceMode: true,
-        onVoiceDelta: flushSentences,
-      });
-      // Flush the trailing partial (a final sentence without terminal
-      // punctuation), then mark the reply complete so TTS hands back to
-      // listening once it has finished speaking.
-      if (response) {
-        const tail = response.slice(spokenPtr).trim();
-        if (tail) voiceChatRef.current?.speakChunk(tail);
+      try {
+        const response = await sendText(transcript, [], {
+          voiceMode: true,
+          onVoiceDelta: flushSentences,
+        });
+        // Flush the trailing partial (a final sentence without terminal
+        // punctuation).
+        if (response) {
+          const tail = response.slice(spokenPtr).trim();
+          if (tail) voiceChatRef.current?.speakChunk(tail);
+        }
+      } finally {
+        // Always mark the reply complete — even on error/throw — so TTS
+        // hands back to listening and the mic never strands "off".
+        voiceChatRef.current?.endResponse();
       }
-      voiceChatRef.current?.endResponse();
     },
     [sendText],
   );

@@ -1,0 +1,10 @@
+[
+  {
+    "type": "lesson",
+    "name": "trust-ops-renamed-to-trust-state",
+    "hook": "trust-ops.ts was refactored into trust-state.ts in a later commit",
+    "body": "The CTO trust architecture was refactored from a staff-keyed to a duty-keyed model. The file `trust-ops.ts` was merged into `trust-state.ts`. When merging PRs based on older commits, check if import targets still exist in the current codebase.",
+    "why": "PR #31 was based on ce8fca0 which introduced trust-ops.ts, but origin/main later consolidated everything into trust-state.ts. The test file's imports from trust-ops would have caused runtime failures.",
+    "confidence": 0.95
+  }
+]

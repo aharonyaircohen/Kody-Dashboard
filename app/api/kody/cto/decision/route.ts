@@ -46,6 +46,8 @@ import {
   mutateCtoDecisions,
   readCtoDecisions,
 } from "@dashboard/lib/cto/decisions-server";
+import { mutateTrust } from "@dashboard/lib/cto/trust-store";
+import { applyTrustDecision } from "@dashboard/lib/cto/trust-state";
 import {
   applyDecision,
   latestCtoDecisions,
@@ -73,6 +75,16 @@ const bodySchema = z.object({
     .max(40)
     .regex(/^[a-z0-9][a-z0-9-]*$/i)
     .default(DEFAULT_STAFF_SLUG),
+  /**
+   * Slug of the DUTY whose rec this verdict decides — the trust key. Absent on
+   * legacy clients; the server falls back to the persona slug so trust still
+   * records coherently until the engine stamps `kody-duty` on every rec.
+   */
+  duty: z
+    .string()
+    .max(40)
+    .regex(/^[a-z0-9][a-z0-9-]*$/i)
+    .optional(),
   actorLogin: z.string().optional(),
   /**
    * The exact `@kody …` command to post on approve, as parsed from the
@@ -185,6 +197,25 @@ export async function POST(req: NextRequest) {
       }),
       { userOctokit },
     );
+
+    // Record the verdict in the duty-keyed trust ledger (kody-state file) too —
+    // the new source of truth for the /trust page and the engine's gate. Keyed
+    // by duty (falls back to persona). Best-effort: a failure here must not
+    // undo an approve that already dispatched.
+    const duty = payload.duty ?? staff;
+    try {
+      await mutateTrust((current) =>
+        applyTrustDecision(current, {
+          duty,
+          action,
+          decision,
+          taskNumber,
+          ...(actorLogin ? { by: actorLogin } : {}),
+        }),
+      );
+    } catch (trustErr) {
+      console.error("[cto/decision] trust ledger write failed", trustErr);
+    }
 
     return NextResponse.json({
       ok: true,

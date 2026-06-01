@@ -1601,6 +1601,8 @@ export const ctoApi = {
   decide: async (input: {
     /** Emitting staff slug; scopes the trust ledger per staff (default "cto"). */
     staff?: string;
+    /** Emitting duty slug — the trust key (falls back to staff server-side). */
+    duty?: string;
     taskNumber: number;
     action?: import("./cto/recommendation").CtoAction;
     decision: "approve" | "reject" | "dismiss";
@@ -1648,11 +1650,11 @@ export const ctoApi = {
   },
 
   /**
-   * Full per-staff trust stats + recent decision log, for the /trust page.
-   * `staff[<slug>][<action>]` is the same nested shape the ledger persists.
+   * Full per-DUTY trust stats + recent decision log, for the /trust page.
+   * `duties[<slug>][<action>]` is the nested shape the kody-state ledger holds.
    */
   trust: async (): Promise<{
-    staff: Record<
+    duties: Record<
       string,
       Record<
         string,
@@ -1664,7 +1666,7 @@ export const ctoApi = {
         }
       >
     >;
-    log: import("./cto/decisions").CtoDecisionLogEntry[];
+    log: import("./cto/trust-state").TrustDecisionLogEntry[];
   }> => {
     const res = await fetch(`${API_BASE}/cto/trust`, {
       headers: buildHeaders(),
@@ -1673,20 +1675,20 @@ export const ctoApi = {
   },
 
   /**
-   * Apply one operator override to an action's autonomy:
+   * Apply one operator override to a duty's action autonomy:
    * `reset` (wipe), `graduate` (force auto now), `degrade` (force ask).
    * Never posts an `@kody` command — it only rewrites trust state.
    */
   setTrust: async (input: {
-    staff: string;
+    duty: string;
     action: string;
-    op: import("./cto/trust-ops").TrustOp;
+    op: import("./cto/trust-state").TrustOp;
     actorLogin?: string;
   }): Promise<{
     ok: true;
-    staff: string;
+    duty: string;
     action: string;
-    op: import("./cto/trust-ops").TrustOp;
+    op: import("./cto/trust-state").TrustOp;
     stats: {
       approvals: number;
       rejections: number;
