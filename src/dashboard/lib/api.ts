@@ -1646,6 +1646,61 @@ export const ctoApi = {
     });
     return handleResponse(res);
   },
+
+  /**
+   * Full per-staff trust stats + recent decision log, for the /trust page.
+   * `staff[<slug>][<action>]` is the same nested shape the ledger persists.
+   */
+  trust: async (): Promise<{
+    staff: Record<
+      string,
+      Record<
+        string,
+        {
+          approvals: number;
+          rejections: number;
+          consecutiveApprovals: number;
+          mode: "ask" | "auto";
+        }
+      >
+    >;
+    log: import("./cto/decisions").CtoDecisionLogEntry[];
+  }> => {
+    const res = await fetch(`${API_BASE}/cto/trust`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  /**
+   * Apply one operator override to an action's autonomy:
+   * `reset` (wipe), `graduate` (force auto now), `degrade` (force ask).
+   * Never posts an `@kody` command — it only rewrites trust state.
+   */
+  setTrust: async (input: {
+    staff: string;
+    action: string;
+    op: import("./cto/trust-ops").TrustOp;
+    actorLogin?: string;
+  }): Promise<{
+    ok: true;
+    staff: string;
+    action: string;
+    op: import("./cto/trust-ops").TrustOp;
+    stats: {
+      approvals: number;
+      rejections: number;
+      consecutiveApprovals: number;
+      mode: "ask" | "auto";
+    } | null;
+  }> => {
+    const res = await fetch(`${API_BASE}/cto/trust`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(input),
+    });
+    return handleResponse(res);
+  },
 };
 
 // ============ Activity API ============

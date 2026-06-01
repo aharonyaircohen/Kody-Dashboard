@@ -26,6 +26,7 @@ import {
   Rocket,
   ScrollText,
   Settings as SettingsIcon,
+  ShieldCheck,
   Settings2,
   SlidersHorizontal,
   Sparkles,
@@ -98,6 +99,15 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     icon: Users,
     description: "Personas that execute your duties.",
     tint: "text-violet-300 bg-violet-500/10",
+  },
+  {
+    href: "/trust",
+    label: "Trust",
+    icon: ShieldCheck,
+    exact: true,
+    description:
+      "How close each staff member is to acting on its own — grant or revoke autonomy per action.",
+    tint: "text-emerald-300 bg-emerald-500/10",
   },
   {
     href: "/preview",
