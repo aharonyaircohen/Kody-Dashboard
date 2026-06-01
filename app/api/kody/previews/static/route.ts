@@ -55,11 +55,67 @@ function isHtmlName(name: string): boolean {
   return /\.html?$/i.test(name);
 }
 
-/** Tiny landing page that forwards to a non-HTML upload (PDF, image, …),
- *  served with its correct content-type by the static server. */
+function isPdfName(name: string): boolean {
+  return /\.pdf$/i.test(name);
+}
+
+/** Tiny landing page that forwards to a non-HTML upload (image, …), served
+ *  with its correct content-type by the static server. Images render fine in
+ *  the (sandboxed) preview iframe; only PDFs need the viewer below. */
 function redirectIndexHtml(fileName: string): string {
   const url = `./${encodeURI(fileName)}`;
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=${url}"><title>${fileName}</title></head><body style="font-family:system-ui;background:#0b0b0b;color:#eee;padding:2rem"><a style="color:#7cc4ff" href="${url}">Open ${fileName}</a></body></html>`;
+}
+
+/** PDF.js pinned via CDN — renders PDFs to <canvas>, which works inside the
+ *  dashboard's sandboxed preview iframe where the browser's native PDF plugin
+ *  is blocked (a redirect to the raw .pdf just shows blank there). */
+const PDFJS_VERSION = "3.11.174";
+
+function pdfViewerHtml(fileName: string): string {
+  const src = `./${encodeURI(fileName)}`;
+  const lib = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.js`;
+  const worker = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${fileName}</title>
+<style>
+  html,body{margin:0;height:100%;background:#525659}
+  #pages{padding:12px 0}
+  canvas{display:block;margin:0 auto 12px;max-width:100%;box-shadow:0 1px 6px rgba(0,0,0,.5)}
+  #msg{color:#eee;font-family:system-ui,sans-serif;padding:1.5rem;text-align:center}
+  #msg a{color:#7cc4ff}
+</style></head>
+<body>
+<div id="pages"></div>
+<div id="msg">Loading ${fileName}…</div>
+<script src="${lib}"></script>
+<script>
+(function(){
+  var msg=document.getElementById('msg'), pages=document.getElementById('pages');
+  if(!window.pdfjsLib){msg.innerHTML='<a href="${src}">Open ${fileName}</a>';return;}
+  pdfjsLib.GlobalWorkerOptions.workerSrc='${worker}';
+  pdfjsLib.getDocument('${src}').promise.then(function(pdf){
+    msg.style.display='none';
+    var n=1;
+    (function next(){
+      if(n>pdf.numPages)return;
+      pdf.getPage(n).then(function(page){
+        var vp=page.getViewport({scale:1.5});
+        var c=document.createElement('canvas');
+        c.width=vp.width;c.height=vp.height;
+        pages.appendChild(c);
+        return page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise
+          .then(function(){n++;next();});
+      });
+    })();
+  }).catch(function(){
+    msg.innerHTML='Could not render this PDF. <a href="${src}">Open it directly</a>.';
+  });
+})();
+</script>
+</body></html>`;
 }
 
 export async function POST(req: NextRequest) {
@@ -117,20 +173,24 @@ export async function POST(req: NextRequest) {
   const originalName = (file.name || "upload.html").trim();
   const safeName = sanitizeName(originalName);
 
-  // HTML → serve as the index itself. Anything else → keep its name (so the
-  // static server sends the right content-type) and add a redirecting index.
-  const files: StaticPreviewFile[] = isHtmlName(safeName)
-    ? [{ path: "index.html", contentBase64: raw.toString("base64") }]
-    : [
-        { path: safeName, contentBase64: raw.toString("base64") },
-        {
-          path: "index.html",
-          contentBase64: Buffer.from(
-            redirectIndexHtml(safeName),
-            "utf8",
-          ).toString("base64"),
-        },
-      ];
+  // HTML → serve as the index itself. PDF → an index that renders it with
+  // PDF.js (the sandboxed preview iframe blocks the native PDF plugin).
+  // Anything else (images, …) → serve under its name + a redirecting index.
+  let files: StaticPreviewFile[];
+  if (isHtmlName(safeName)) {
+    files = [{ path: "index.html", contentBase64: raw.toString("base64") }];
+  } else {
+    const indexHtml = isPdfName(safeName)
+      ? pdfViewerHtml(safeName)
+      : redirectIndexHtml(safeName);
+    files = [
+      { path: safeName, contentBase64: raw.toString("base64") },
+      {
+        path: "index.html",
+        contentBase64: Buffer.from(indexHtml, "utf8").toString("base64"),
+      },
+    ];
+  }
 
   const staticId = randomUUID().slice(0, 8);
 

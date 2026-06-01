@@ -207,9 +207,11 @@ Where it lives: the **`/preview` page environment switcher**. Next to
 becomes a selectable preview environment (its live Fly URL), shown in the
 iframe like any other. Removing that environment also destroys its Fly app.
 
-- HTML uploads are served as the site index. Any other type is served
-  under its own name (so the right content-type is sent) with a tiny
-  redirecting `index.html`.
+- HTML uploads are served as the site index. PDFs get a generated
+  PDF.js viewer index (the dashboard's preview iframe is sandboxed, which
+  blocks the browser's native PDF plugin — a raw `.pdf` would render
+  blank). Any other type (images, …) is served under its own name with a
+  tiny redirecting `index.html`.
 - Single source of truth is the environment list in `.kody/dashboard.json`
   (`namedPreviews`); the uploaded entry carries a `staticId` so removal can
   tear the Fly app down, plus an `expiresAt`. No separate ledger.
