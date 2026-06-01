@@ -29,6 +29,10 @@ export interface UseVoiceChatReturn {
   error: string | null;
   isSupported: boolean;
   onResponseComplete: (text: string) => void;
+  /** Streaming: speak one sentence as the reply arrives. */
+  speakChunk: (sentence: string) => void;
+  /** Streaming: signal the reply is complete (hand back to listening once drained). */
+  endResponse: () => void;
   /** Which voice is actually playing: natural (Piper), basic (browser), or starting up. */
   ttsEngine: "pending" | "piper" | "browser";
   /** Reason the natural voice fell back, surfaced for on-device debugging. */
@@ -44,6 +48,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
   const sendRef = useRef(onSendMessage);
   const retryRef = useRef(0);
   const pausedRef = useRef(false);
+  const spokeThisTurnRef = useRef(false); // did this reply enqueue any speech?
 
   useEffect(() => {
     sendRef.current = onSendMessage;
@@ -80,6 +85,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         return;
       }
       retryRef.current = 0;
+      spokeThisTurnRef.current = false;
       setS("processing");
       sendRef.current(t);
     },
@@ -171,14 +177,48 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     stt.start();
   }, [tts, setS, stt]);
 
+  // Streaming: speak one sentence as the reply arrives. The first chunk of
+  // a turn flips processing → speaking (and counts the turn); later chunks
+  // just queue behind it so audio plays back-to-back.
+  const speakChunk = useCallback(
+    (sentence: string) => {
+      if (pausedRef.current) return;
+      const s = sentence.trim();
+      if (!s) return;
+      if (stateRef.current === "processing") {
+        setTurnCount((p) => p + 1);
+        setS("speaking");
+      } else if (stateRef.current !== "speaking") {
+        return; // not in a speakable state (idle/listening) — drop
+      }
+      spokeThisTurnRef.current = true;
+      tts.enqueue(s);
+    },
+    [setS, tts],
+  );
+
+  // Streaming: the reply is complete. Tell TTS to hand back once drained.
+  // If the model produced nothing speakable, resume listening directly.
+  const endResponse = useCallback(() => {
+    tts.finish();
+    if (!spokeThisTurnRef.current && stateRef.current === "processing") {
+      if (!pausedRef.current) {
+        setS("listening");
+        sttStartRef.current();
+      } else {
+        setS("idle");
+      }
+    }
+  }, [setS, tts]);
+
+  // Back-compat one-shot: speak a whole reply at once (non-streaming callers).
   const onResponseComplete = useCallback(
     (text: string) => {
       if (stateRef.current !== "processing") return;
-      setTurnCount((p) => p + 1);
-      setS("speaking");
-      tts.speak(text);
+      speakChunk(text);
+      endResponse();
     },
-    [setS, tts],
+    [speakChunk, endResponse],
   );
 
   useEffect(
@@ -202,6 +242,8 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     error,
     isSupported,
     onResponseComplete,
+    speakChunk,
+    endResponse,
     ttsEngine: tts.engine ?? "pending",
     ttsError: tts.engineError ?? null,
   };

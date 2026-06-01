@@ -10,7 +10,15 @@
  * (no server cost). On first use the voice model (~20MB) downloads into
  * Origin Private File System and is cached for subsequent calls.
  *
- * Fallback to `useKodyTTS` (browser speechSynthesis) is automatic when:
+ * Streaming queue: instead of waiting for a whole reply, the voice loop
+ * `enqueue()`s sentences as the model streams them and calls `finish()`
+ * when the reply ends. A single worker synthesizes + plays segments
+ * back-to-back through one reused (unlocked) <audio> element, and fires
+ * `onEnd` only once the queue has drained AND the stream is finished — so
+ * the conversation hands back to listening at the right moment. `speak()`
+ * is kept as a single-shot convenience (enqueue + finish).
+ *
+ * Fallback to browser speechSynthesis is automatic when:
  *   - Language is not English (Piper voice list doesn't ship Hebrew)
  *   - WASM init fails (older mobile browsers / locked-down PWAs)
  *   - Model download / inference throws
@@ -19,6 +27,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { stripMarkdown, detectLanguage } from "@dashboard/lib/speech-helpers";
 import { useKodyTTS, type UseKodyTTSReturn } from "./useKodyTTS";
 
+export interface UseKodyTTSPiperReturn extends UseKodyTTSReturn {
+  /** Queue one sentence/segment for speaking; starts playback if idle. */
+  enqueue: (text: string) => void;
+  /** Signal the streamed reply is complete; `onEnd` fires once drained. */
+  finish: () => void;
+}
+
 export interface UseKodyTTSPiperOptions {
   onEnd?: () => void;
   onError?: () => void;
@@ -26,19 +41,6 @@ export interface UseKodyTTSPiperOptions {
 }
 
 const DEFAULT_VOICE = "en_US-hfc_female-medium";
-
-// Turn a swallowed Piper failure into a short line the user can read on a
-// phone (the console isn't visible there). Calls out the most common cause —
-// the natural voice's threaded WASM needs SharedArrayBuffer, which only
-// exists on a cross-origin-isolated page.
-function describePiperError(err: unknown): string {
-  const msg = err instanceof Error ? err.message : String(err);
-  if (/SharedArrayBuffer|cross-?origin|crossOriginIsolated|isolate/i.test(msg))
-    return "Natural voice needs cross-origin isolation (SharedArrayBuffer unavailable).";
-  if (/wasm|WebAssembly|compile|instantiate/i.test(msg))
-    return `Natural-voice engine failed to load: ${msg.slice(0, 120)}`;
-  return `Natural voice unavailable: ${msg.slice(0, 140)}`;
-}
 
 // A few samples of 8-bit silence as a WAV data URI. Played once from the
 // mic-tap gesture to "unlock" the reusable <audio> element, so the real
@@ -74,6 +76,19 @@ function silentWavDataUri(): string {
   return _silentWav;
 }
 
+// Turn a swallowed Piper failure into a short line the user can read on a
+// phone (the console isn't visible there). Calls out the most common cause —
+// the natural voice's threaded WASM needs SharedArrayBuffer, which only
+// exists on a cross-origin-isolated page.
+function describePiperError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/SharedArrayBuffer|cross-?origin|crossOriginIsolated|isolate/i.test(msg))
+    return "Natural voice needs cross-origin isolation (SharedArrayBuffer unavailable).";
+  if (/wasm|WebAssembly|compile|instantiate/i.test(msg))
+    return `Natural-voice engine failed to load: ${msg.slice(0, 120)}`;
+  return `Natural voice unavailable: ${msg.slice(0, 140)}`;
+}
+
 // The onnxWasm version MUST match the `onnxruntime-web` JS that piper
 // imports (resolved transitively via @mintplex-labs/piper-tts-web). A
 // mismatch loads WASM with a different ABI than the JS expects and throws
@@ -92,13 +107,14 @@ const WASM_PATHS = {
 
 export function useKodyTTSPiper(
   options: UseKodyTTSPiperOptions = {},
-): UseKodyTTSReturn {
+): UseKodyTTSPiperReturn {
   const { onEnd, onError, voiceId = DEFAULT_VOICE } = options;
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [piperReady, setPiperReady] = useState(false);
   const [failed, setFailed] = useState(false); // Piper bailed → browser voice
   const [engineError, setEngineError] = useState<string | null>(null);
-  // One persistent <audio> element, reused for every reply. Reusing the
+
+  // One persistent <audio> element, reused for every segment. Reusing the
   // *same* element that we unlocked during the mic tap is what lets later
   // (async-fired) playback through — a fresh `new Audio()` per reply would
   // not inherit that unlock on iOS.
@@ -106,6 +122,7 @@ export function useKodyTTSPiper(
   const urlRef = useRef<string | null>(null); // current object URL, for cleanup
   const sessionRef = useRef<unknown>(null); // lazy import of TtsSession
   const fallbackRef = useRef(false);
+  const piperReadyRef = useRef(false);
   const onEndRef = useRef(onEnd);
   const onErrorRef = useRef(onError);
   useEffect(() => {
@@ -114,9 +131,25 @@ export function useKodyTTSPiper(
   useEffect(() => {
     onErrorRef.current = onError;
   }, [onError]);
+  useEffect(() => {
+    piperReadyRef.current = piperReady;
+  }, [piperReady]);
 
-  // Browser TTS as fallback path
+  // Streaming queue state.
+  const queueRef = useRef<string[]>([]);
+  const doneRef = useRef(false); // stream finished → drain then fire onEnd
+  const runningRef = useRef(false); // worker active
+  const genRef = useRef(0); // bumped on cancel to abandon a stale worker
+
+  // Browser TTS as fallback path.
   const browserTTS = useKodyTTS({ onEnd, onError });
+  const {
+    speakAsync: browserSpeakAsync,
+    cancel: browserCancel,
+    unlock: browserUnlock,
+    isSupported: browserSupported,
+    isSpeaking: browserSpeaking,
+  } = browserTTS;
 
   // Lazy-init Piper session on mount (browser only)
   useEffect(() => {
@@ -162,21 +195,123 @@ export function useKodyTTSPiper(
     }
   }, []);
 
+  // Speak one segment, resolving when it finishes (or errors). Picks the
+  // natural Piper voice for English when ready, else the browser fallback.
+  const speakOne = useCallback(
+    async (text: string): Promise<void> => {
+      const clean = stripMarkdown(text);
+      if (!clean) return;
+      const lang = detectLanguage(clean);
+      if (lang !== "en" || fallbackRef.current || !piperReadyRef.current) {
+        await browserSpeakAsync(text);
+        return;
+      }
+      try {
+        const session = sessionRef.current as {
+          predict: (t: string) => Promise<Blob>;
+        };
+        const wav = await session.predict(clean);
+        const audio = getAudioEl();
+        if (!audio) {
+          await browserSpeakAsync(text);
+          return;
+        }
+        const url = URL.createObjectURL(wav);
+        revokeUrl();
+        urlRef.current = url;
+        await new Promise<void>((resolve) => {
+          let settled = false;
+          const done = () => {
+            if (settled) return;
+            settled = true;
+            revokeUrl();
+            resolve();
+          };
+          audio.onended = done;
+          audio.onerror = done;
+          audio.src = url;
+          audio.play().catch(() => done());
+        });
+      } catch (err) {
+        console.warn("[useKodyTTSPiper] predict failed, falling back", err);
+        fallbackRef.current = true;
+        setFailed(true);
+        setEngineError(describePiperError(err));
+        await browserSpeakAsync(text);
+      }
+    },
+    [browserSpeakAsync, getAudioEl, revokeUrl],
+  );
+
+  // Drain the queue one segment at a time. A new worker is only started when
+  // one isn't already running (enqueue kicks it). Bails if `cancel` bumped
+  // the generation mid-flight. Fires `onEnd` once empty AND the stream ended.
+  const runWorker = useCallback(async () => {
+    if (runningRef.current) return;
+    const myGen = genRef.current;
+    runningRef.current = true;
+    setIsSpeaking(true);
+    while (queueRef.current.length > 0 && genRef.current === myGen) {
+      const next = queueRef.current.shift();
+      if (next === undefined) break;
+      await speakOne(next);
+    }
+    if (genRef.current !== myGen) return; // cancelled — cancel() reset state
+    runningRef.current = false;
+    setIsSpeaking(false);
+    if (doneRef.current && queueRef.current.length === 0) {
+      onEndRef.current?.();
+    }
+  }, [speakOne]);
+
+  const enqueue = useCallback(
+    (text: string) => {
+      if (!stripMarkdown(text)) return;
+      queueRef.current.push(text);
+      if (!runningRef.current) void runWorker();
+    },
+    [runWorker],
+  );
+
+  const finish = useCallback(() => {
+    doneRef.current = true;
+    // Nothing queued and nothing playing → drain already happened; hand back.
+    if (!runningRef.current && queueRef.current.length === 0) {
+      onEndRef.current?.();
+    }
+  }, []);
+
   const cancel = useCallback(() => {
+    genRef.current++; // abandon any in-flight worker
+    queueRef.current = [];
+    doneRef.current = false;
+    runningRef.current = false;
     if (audioRef.current) {
       audioRef.current.pause();
-      // Keep the element around (reused + still unlocked); just drop the src.
       audioRef.current.removeAttribute("src");
       audioRef.current.load();
     }
     revokeUrl();
+    browserCancel();
+    if (typeof window !== "undefined" && window.speechSynthesis)
+      window.speechSynthesis.cancel();
     setIsSpeaking(false);
-    browserTTS.cancel();
-  }, [browserTTS, revokeUrl]);
+  }, [browserCancel, revokeUrl]);
+
+  // Single-shot convenience: speak one blob of text start to finish.
+  const speak = useCallback(
+    (text: string) => {
+      cancel();
+      genRef.current++; // fresh generation after the cancel above
+      enqueue(text);
+      finish();
+    },
+    [cancel, enqueue, finish],
+  );
 
   const unlock = useCallback(() => {
     // Prime the speechSynthesis fallback too (no-op if unsupported).
-    browserTTS.unlock();
+    browserUnlock();
     const el = getAudioEl();
     if (!el) return;
     try {
@@ -193,66 +328,7 @@ export function useKodyTTSPiper(
     } catch {
       // Never let priming break starting the conversation.
     }
-  }, [browserTTS, getAudioEl]);
-
-  const speak = useCallback(
-    (text: string) => {
-      const clean = stripMarkdown(text);
-      if (!clean) {
-        onEndRef.current?.();
-        return;
-      }
-      // Hebrew (or anything non-English) → browser TTS, which already
-      // picks the right system voice via `utt.lang`.
-      const lang = detectLanguage(clean);
-      if (lang !== "en" || fallbackRef.current || !piperReady) {
-        browserTTS.speak(text);
-        return;
-      }
-      cancel();
-      setIsSpeaking(true);
-      (async () => {
-        try {
-          const session = sessionRef.current as {
-            predict: (t: string) => Promise<Blob>;
-          };
-          const wav = await session.predict(clean);
-          const audio = getAudioEl();
-          if (!audio) {
-            // No element (SSR / unsupported) — hand off to the fallback.
-            fallbackRef.current = true;
-            setIsSpeaking(false);
-            browserTTS.speak(text);
-            return;
-          }
-          const url = URL.createObjectURL(wav);
-          revokeUrl();
-          urlRef.current = url;
-          audio.onended = () => {
-            revokeUrl();
-            setIsSpeaking(false);
-            onEndRef.current?.();
-          };
-          audio.onerror = () => {
-            revokeUrl();
-            setIsSpeaking(false);
-            onErrorRef.current?.();
-            onEndRef.current?.();
-          };
-          audio.src = url;
-          await audio.play();
-        } catch (err) {
-          console.warn("[useKodyTTSPiper] predict failed, falling back", err);
-          fallbackRef.current = true;
-          setFailed(true);
-          setEngineError(describePiperError(err));
-          setIsSpeaking(false);
-          browserTTS.speak(text);
-        }
-      })();
-    },
-    [piperReady, cancel, browserTTS, getAudioEl, revokeUrl],
-  );
+  }, [browserUnlock, getAudioEl]);
 
   useEffect(
     () => () => {
@@ -269,8 +345,8 @@ export function useKodyTTSPiper(
   );
 
   // Supported whenever either Piper or the browser TTS will work
-  const isSupported = piperReady || browserTTS.isSupported;
-  const speakingNow = isSpeaking || browserTTS.isSpeaking;
+  const isSupported = piperReady || browserSupported;
+  const speakingNow = isSpeaking || browserSpeaking;
   const engine: "pending" | "piper" | "browser" = failed
     ? "browser"
     : piperReady
@@ -279,6 +355,9 @@ export function useKodyTTSPiper(
 
   return {
     speak,
+    speakAsync: speakOne,
+    enqueue,
+    finish,
     cancel,
     unlock,
     isSpeaking: speakingNow,
