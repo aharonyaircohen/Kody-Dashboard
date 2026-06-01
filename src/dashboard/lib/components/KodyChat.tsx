@@ -98,6 +98,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { useRemoteStatus } from "../hooks/useRemoteStatus";
 import { useVoiceChat } from "../hooks/useVoiceChat";
+import { extractSentences } from "@dashboard/lib/speech-helpers";
 import { VoiceButton } from "./VoiceButton";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
 import { useChatSessions } from "../hooks/useChatSessions";
@@ -378,7 +379,14 @@ export function KodyChat({
   type SendTextFn = (
     messageContent: string,
     currentAttachments?: Attachment[],
-    options?: { voiceMode?: boolean; hidden?: boolean },
+    options?: {
+      voiceMode?: boolean;
+      hidden?: boolean;
+      // Voice streaming: called as the reply grows, with the full spoken
+      // text so far (reasoning/<think> stripped). Lets the caller speak
+      // sentence-by-sentence instead of waiting for the whole reply.
+      onVoiceDelta?: (spokenSoFar: string) => void;
+    },
   ) => Promise<string | null>;
   const sendTextRef = useRef<SendTextFn | null>(null);
   // Initialized lazily below — `sendText` is declared further down.
@@ -1907,10 +1915,25 @@ export function KodyChat({
     async (
       messageContent: string,
       currentAttachments: Attachment[] = [],
-      options: { voiceMode?: boolean; hidden?: boolean } = {},
+      options: {
+        voiceMode?: boolean;
+        hidden?: boolean;
+        onVoiceDelta?: (spokenSoFar: string) => void;
+      } = {},
     ): Promise<string | null> => {
       if (!messageContent.trim() && currentAttachments.length === 0)
         return null;
+
+      // Voice streaming: emit the spoken-so-far text (think tags stripped)
+      // on each delta so the voice loop can speak completed sentences while
+      // the rest of the reply is still generating. No-op outside voice mode.
+      const emitVoiceDelta =
+        options.voiceMode && options.onVoiceDelta
+          ? (full: string) =>
+              options.onVoiceDelta!(
+                full.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim(),
+              )
+          : null;
 
       // Voice mode is a MODALITY. It does NOT swap agents — the user's
       // dropdown choice still drives the brain and tools. The server
@@ -2230,6 +2253,7 @@ export function KodyChat({
                   typeof parsed.content === "string"
                 ) {
                   latestAssistantText = parsed.content;
+                  emitVoiceDelta?.(latestAssistantText);
                 }
                 setMessages((prev) => {
                   const copy = [...prev];
@@ -2645,6 +2669,7 @@ export function KodyChat({
                   | { type: string };
                 if (chunk.type === "text-delta" && "delta" in chunk) {
                   textBuf += chunk.delta;
+                  emitVoiceDelta?.(textBuf);
                 } else if (
                   chunk.type === "reasoning-delta" &&
                   "delta" in chunk
@@ -3821,8 +3846,30 @@ export function KodyChat({
       // Voice is a modality, not an agent. We keep the user's selected
       // agent and just flip the voiceMode flag — the server appends the
       // voice overlay onto that agent's system prompt.
-      const response = await sendText(transcript, [], { voiceMode: true });
-      if (response) voiceChatRef.current?.onResponseComplete(response);
+      //
+      // Stream the reply into TTS sentence-by-sentence so it starts
+      // speaking ~1 sentence in, instead of waiting for the whole answer.
+      // `spokenPtr` tracks how much of the cumulative spoken text we've
+      // already queued; each delta yields any newly-completed sentences.
+      let spokenPtr = 0;
+      const flushSentences = (full: string) => {
+        if (full.length < spokenPtr) return; // safety: never go backwards
+        const { sentences, consumed } = extractSentences(full.slice(spokenPtr));
+        if (consumed > 0) spokenPtr += consumed;
+        for (const s of sentences) voiceChatRef.current?.speakChunk(s);
+      };
+      const response = await sendText(transcript, [], {
+        voiceMode: true,
+        onVoiceDelta: flushSentences,
+      });
+      // Flush the trailing partial (a final sentence without terminal
+      // punctuation), then mark the reply complete so TTS hands back to
+      // listening once it has finished speaking.
+      if (response) {
+        const tail = response.slice(spokenPtr).trim();
+        if (tail) voiceChatRef.current?.speakChunk(tail);
+      }
+      voiceChatRef.current?.endResponse();
     },
     [sendText],
   );

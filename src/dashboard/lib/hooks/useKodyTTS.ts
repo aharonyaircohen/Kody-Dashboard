@@ -14,6 +14,13 @@ export interface UseKodyTTSOptions {
 }
 export interface UseKodyTTSReturn {
   speak: (text: string) => void;
+  /**
+   * Like `speak`, but returns a promise that resolves when this one
+   * utterance finishes (or errors). Used by the streaming TTS queue to
+   * play fallback segments back-to-back without relying on the hook-level
+   * `onEnd` callback (which the queue owns).
+   */
+  speakAsync: (text: string) => Promise<void>;
   cancel: () => void;
   /**
    * Prime the audio output inside a user gesture (the mic tap). Browsers
@@ -110,6 +117,37 @@ export function useKodyTTS(options: UseKodyTTSOptions = {}): UseKodyTTSReturn {
     [cancel],
   );
 
+  const speakAsync = useCallback(
+    (text: string): Promise<void> =>
+      new Promise((resolve) => {
+        if (typeof window === "undefined" || !window.speechSynthesis) {
+          resolve();
+          return;
+        }
+        const clean = stripMarkdown(text);
+        if (!clean) {
+          resolve();
+          return;
+        }
+        const utt = new SpeechSynthesisUtterance(clean);
+        utt.lang = detectLanguage(clean);
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          if (uttRef.current === utt) uttRef.current = null;
+          setIsSpeaking(false);
+          resolve();
+        };
+        utt.onend = finish;
+        utt.onerror = finish;
+        uttRef.current = utt;
+        setIsSpeaking(true);
+        window.speechSynthesis.speak(utt);
+      }),
+    [],
+  );
+
   useEffect(
     () => () => {
       if (typeof window !== "undefined" && window.speechSynthesis)
@@ -120,6 +158,7 @@ export function useKodyTTS(options: UseKodyTTSOptions = {}): UseKodyTTSReturn {
 
   return {
     speak,
+    speakAsync,
     cancel,
     unlock,
     isSpeaking,
