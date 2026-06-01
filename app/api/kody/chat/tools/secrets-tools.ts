@@ -39,7 +39,10 @@ export function createSecretTools(ctx: Ctx) {
       inputSchema: z.object({}),
       execute: async () => {
         if (!isVaultConfigured())
-          return { error: "vault_not_configured", message: "KODY_MASTER_KEY is not set on the server." };
+          return {
+            error: "vault_not_configured",
+            message: "KODY_MASTER_KEY is not set on the server.",
+          };
         try {
           const { doc } = await readVault(octokit, owner, repo);
           return { secrets: listSecretMetadata(doc) };
@@ -52,14 +55,24 @@ export function createSecretTools(ctx: Ctx) {
     set_secret: tool({
       description: `Create or overwrite a secret value in ${repoRef}'s encrypted vault (AES-256-GCM, committed to .kody/secrets.enc). Use for API keys, tokens, etc. Names are UPPER_SNAKE_CASE. The value is write-only — it cannot be read back through chat. Confirm the value with the user before calling.`,
       inputSchema: z.object({
-        name: z.string().regex(NAME_RE, "UPPER_SNAKE_CASE, start with a letter, ≤128 chars"),
-        value: z.string().min(1).max(64 * 1024),
+        name: z
+          .string()
+          .regex(NAME_RE, "UPPER_SNAKE_CASE, start with a letter, ≤128 chars"),
+        value: z
+          .string()
+          .min(1)
+          .max(64 * 1024),
       }),
       execute: async ({ name, value }) => {
         if (!isVaultConfigured())
-          return { error: "vault_not_configured", message: "KODY_MASTER_KEY is not set on the server." };
+          return {
+            error: "vault_not_configured",
+            message: "KODY_MASTER_KEY is not set on the server.",
+          };
         try {
-          const { doc, sha } = await readVault(octokit, owner, repo, { force: true });
+          const { doc, sha } = await readVault(octokit, owner, repo, {
+            force: true,
+          });
           const next: VaultDocument = {
             ...doc,
             secrets: {
@@ -71,7 +84,14 @@ export function createSecretTools(ctx: Ctx) {
               },
             },
           };
-          await writeVault(octokit, owner, repo, next, sha, `chore(vault): upsert ${name}`);
+          await writeVault(
+            octokit,
+            owner,
+            repo,
+            next,
+            sha,
+            `chore(vault): upsert ${name}`,
+          );
           invalidateVaultCache(owner, repo);
           return { ok: true, name, secrets: listSecretMetadata(next) };
         } catch (err) {

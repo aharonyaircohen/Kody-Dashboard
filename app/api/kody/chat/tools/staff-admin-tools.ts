@@ -36,7 +36,9 @@ export function createStaffAdminTools(ctx: Ctx) {
       execute: async () => {
         try {
           const staff = await listStaffFiles();
-          return { staff: staff.map((s) => ({ slug: s.slug, title: s.title })) };
+          return {
+            staff: staff.map((s) => ({ slug: s.slug, title: s.title })),
+          };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
         }

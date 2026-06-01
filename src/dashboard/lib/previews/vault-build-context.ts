@@ -78,7 +78,10 @@ export async function loadVaultContextForBuild(
 ): Promise<VaultBuildContext> {
   const [owner, name] = repo.split("/") as [string, string];
   if (!owner || !name) {
-    logger.error({ repo }, "preview: invalid repo full name; cannot read vault");
+    logger.error(
+      { repo },
+      "preview: invalid repo full name; cannot read vault",
+    );
     return EMPTY;
   }
 

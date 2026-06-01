@@ -2936,10 +2936,7 @@ export function KodyChat({
           // conversation as a synthetic user turn. The model sees that on
           // its next turn and decides whether to keep going (multi-step
           // flows) or finish.
-          if (
-            pendingPreviewAct &&
-            isPreviewActDirective(pendingPreviewAct)
-          ) {
+          if (pendingPreviewAct && isPreviewActDirective(pendingPreviewAct)) {
             const directive = pendingPreviewAct as PreviewActDirective;
             void runPreviewActionFromDirective(directive);
           }
@@ -4657,128 +4654,128 @@ export function KodyChat({
 
         {messages.map((msg, i) =>
           msg.hidden ? null : (
-          <div
-            key={i}
-            data-role={msg.role}
-            className={`group flex ${msg.role === "user" ? "justify-end" : "justify-start"} relative`}
-          >
             <div
-              dir="auto"
-              className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
-                msg.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted"
-              }`}
+              key={i}
+              data-role={msg.role}
+              className={`group flex ${msg.role === "user" ? "justify-end" : "justify-start"} relative`}
             >
-              {/* Message Actions */}
-              <MessageActions
-                role={msg.role}
-                content={msg.content}
-                isLast={i === messages.length - 1}
-                isLoading={!!msg.isLoading}
-                hasToolCalls={!!msg.toolCalls && msg.toolCalls.length > 0}
-                onCopy={() => msg.content}
-                onRetry={
-                  msg.role === "assistant" && i === messages.length - 1
-                    ? () => {
-                        // Walk back to the last user message. Drop both that
-                        // user turn AND the failed assistant reply — sendText
-                        // pushes a fresh user bubble, so trimming both keeps
-                        // the transcript intact (no duplicate user msg).
-                        let userIdx = -1;
-                        for (let j = i - 1; j >= 0; j--) {
-                          if (messages[j].role === "user") {
-                            userIdx = j;
-                            break;
-                          }
-                        }
-                        if (userIdx < 0) return;
-                        const lastUserContent = messages[userIdx].content;
-                        setMessages((prev) => prev.slice(0, userIdx));
-                        void sendText(lastUserContent, []);
-                      }
-                    : undefined
-                }
-                onEdit={
+              <div
+                dir="auto"
+                className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
                   msg.role === "user"
-                    ? (content) => {
-                        // Drop the edited user msg + everything after it,
-                        // then resubmit. sendText repushes the user bubble
-                        // with the new content, so we don't keep the old one.
-                        setMessages((prev) => prev.slice(0, i));
-                        void sendText(content, []);
-                      }
-                    : undefined
-                }
-                onDelete={() => {
-                  setMessages((prev) => prev.filter((_, idx) => idx !== i));
-                }}
-              />
-
-              {msg.role === "assistant" ? (
-                <>
-                  {msg.toolCalls && msg.toolCalls.length > 0 && (
-                    <ThinkingPanel
-                      toolCalls={msg.toolCalls}
-                      isStreaming={!!msg.isLoading}
-                      persistKey={
-                        sessionHook.activeSession?.id && !msg.isLoading
-                          ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
-                          : undefined
-                      }
-                    />
-                  )}
-                  {(() => {
-                    const { reasoning, answer } = parseReasoning(msg.content);
-                    const isActive = loading && i === messages.length - 1;
-                    const hasAnswer = answer.trim().length > 0;
-                    return (
-                      <>
-                        {reasoning && (
-                          <ReasoningPanel
-                            content={reasoning}
-                            isStreaming={!!msg.isLoading}
-                            persistKey={
-                              sessionHook.activeSession?.id && !msg.isLoading
-                                ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
-                                : undefined
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted"
+                }`}
+              >
+                {/* Message Actions */}
+                <MessageActions
+                  role={msg.role}
+                  content={msg.content}
+                  isLast={i === messages.length - 1}
+                  isLoading={!!msg.isLoading}
+                  hasToolCalls={!!msg.toolCalls && msg.toolCalls.length > 0}
+                  onCopy={() => msg.content}
+                  onRetry={
+                    msg.role === "assistant" && i === messages.length - 1
+                      ? () => {
+                          // Walk back to the last user message. Drop both that
+                          // user turn AND the failed assistant reply — sendText
+                          // pushes a fresh user bubble, so trimming both keeps
+                          // the transcript intact (no duplicate user msg).
+                          let userIdx = -1;
+                          for (let j = i - 1; j >= 0; j--) {
+                            if (messages[j].role === "user") {
+                              userIdx = j;
+                              break;
                             }
-                          />
-                        )}
-                        {hasAnswer && (
-                          <div className="prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words">
-                            <ReactMarkdown>{answer}</ReactMarkdown>
-                          </div>
-                        )}
-                        {/* Never a blank bubble: while the turn is in flight and
+                          }
+                          if (userIdx < 0) return;
+                          const lastUserContent = messages[userIdx].content;
+                          setMessages((prev) => prev.slice(0, userIdx));
+                          void sendText(lastUserContent, []);
+                        }
+                      : undefined
+                  }
+                  onEdit={
+                    msg.role === "user"
+                      ? (content) => {
+                          // Drop the edited user msg + everything after it,
+                          // then resubmit. sendText repushes the user bubble
+                          // with the new content, so we don't keep the old one.
+                          setMessages((prev) => prev.slice(0, i));
+                          void sendText(content, []);
+                        }
+                      : undefined
+                  }
+                  onDelete={() => {
+                    setMessages((prev) => prev.filter((_, idx) => idx !== i));
+                  }}
+                />
+
+                {msg.role === "assistant" ? (
+                  <>
+                    {msg.toolCalls && msg.toolCalls.length > 0 && (
+                      <ThinkingPanel
+                        toolCalls={msg.toolCalls}
+                        isStreaming={!!msg.isLoading}
+                        persistKey={
+                          sessionHook.activeSession?.id && !msg.isLoading
+                            ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
+                            : undefined
+                        }
+                      />
+                    )}
+                    {(() => {
+                      const { reasoning, answer } = parseReasoning(msg.content);
+                      const isActive = loading && i === messages.length - 1;
+                      const hasAnswer = answer.trim().length > 0;
+                      return (
+                        <>
+                          {reasoning && (
+                            <ReasoningPanel
+                              content={reasoning}
+                              isStreaming={!!msg.isLoading}
+                              persistKey={
+                                sessionHook.activeSession?.id && !msg.isLoading
+                                  ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
+                                  : undefined
+                              }
+                            />
+                          )}
+                          {hasAnswer && (
+                            <div className="prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words">
+                              <ReactMarkdown>{answer}</ReactMarkdown>
+                            </div>
+                          )}
+                          {/* Never a blank bubble: while the turn is in flight and
                             no visible answer text has arrived yet, show the
                             thinking indicator. Covers the reasoning-only /
                             tool-call phase where content is just <think> blocks. */}
-                        {isActive && !hasAnswer && (
-                          <TypingIndicator label={currentAgent.name} />
-                        )}
-                      </>
-                    );
-                  })()}
-                </>
-              ) : (
-                <>
-                  {msg.attachments && msg.attachments.length > 0 && (
-                    <MessageAttachments attachments={msg.attachments} />
-                  )}
-                  {msg.content}
-                </>
-              )}
-              {loading &&
-                i === messages.length - 1 &&
-                msg.role === "assistant" &&
-                parseReasoning(msg.content).answer.trim() && (
-                  <span className="inline-block ml-2 animate-pulse text-primary">
-                    ●
-                  </span>
+                          {isActive && !hasAnswer && (
+                            <TypingIndicator label={currentAgent.name} />
+                          )}
+                        </>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <>
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <MessageAttachments attachments={msg.attachments} />
+                    )}
+                    {msg.content}
+                  </>
                 )}
+                {loading &&
+                  i === messages.length - 1 &&
+                  msg.role === "assistant" &&
+                  parseReasoning(msg.content).answer.trim() && (
+                    <span className="inline-block ml-2 animate-pulse text-primary">
+                      ●
+                    </span>
+                  )}
+              </div>
             </div>
-          </div>
           ),
         )}
 

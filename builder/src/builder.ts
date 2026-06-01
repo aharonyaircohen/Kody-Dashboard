@@ -345,7 +345,9 @@ async function pushPreviewImage(
   if (!(await exists(dockerfilePath))) {
     const src = defaultDockerfilePath();
     await copyFile(src, dockerfilePath);
-    console.log(`[builder] using bundled default Dockerfile.preview (${src.split("/").pop()})`);
+    console.log(
+      `[builder] using bundled default Dockerfile.preview (${src.split("/").pop()})`,
+    );
   } else {
     console.log("[builder] using repo Dockerfile.preview");
   }

@@ -37,9 +37,7 @@ function storageKey(owner: string, repo: string): string {
  * other is what we re-issue) but the recorder lacks ms / dy / wait
  * fields so we keep this translation explicit.
  */
-export function recordedStepToAction(
-  step: RecordedStep,
-): PreviewAction | null {
+export function recordedStepToAction(step: RecordedStep): PreviewAction | null {
   if (step.type === "click") {
     if (!step.selector) return null;
     return { op: "click", selector: step.selector };
@@ -103,10 +101,7 @@ export function addMacro(
   const id = `${trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Math.random()
     .toString(36)
     .slice(2, 6)}`;
-  return [
-    { id, name: trimmedName, createdAt: now, steps },
-    ...macros,
-  ];
+  return [{ id, name: trimmedName, createdAt: now, steps }, ...macros];
 }
 
 export function removeMacro(macros: Macro[], id: string): Macro[] {
@@ -179,9 +174,7 @@ export function formatMacroForChat(macro: Macro): string {
         lines.push(`${n}. click \`${step.selector}\``);
         break;
       case "fill":
-        lines.push(
-          `${n}. fill \`${step.selector}\` with \`${step.value}\``,
-        );
+        lines.push(`${n}. fill \`${step.selector}\` with \`${step.value}\``);
         break;
       case "navigate":
         lines.push(`${n}. navigate to \`${step.url}\``);

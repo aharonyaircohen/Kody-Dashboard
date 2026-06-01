@@ -15,6 +15,7 @@ import {
   Building2,
   Cpu,
   FileText,
+  FolderTree,
   Github,
   History,
   Home,
@@ -78,6 +79,15 @@ export const TASKS_NAV_ITEM: SettingsNavItem = {
 export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
+  {
+    href: "/files",
+    label: "Files",
+    icon: FolderTree,
+    exact: true,
+    description:
+      "Browse, edit, and manage repository files with Monaco Editor.",
+    tint: "text-amber-300 bg-amber-500/10",
+  },
   {
     href: "/duties",
     label: "Duties",

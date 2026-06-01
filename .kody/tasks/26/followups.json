@@ -1,0 +1,14 @@
+[
+  {
+    "title": "New File / New Folder buttons in FilesManager toolbar are stubs",
+    "body": "handleStartEdit() in FilesManager.tsx has toast.info('Creating file… (not yet implemented)'). Wire these to actual createFile and createDirectory calls via the write API.",
+    "rationale": "User-facing feature is incomplete — the context menu already implements create/new properly, but the toolbar buttons are not wired.",
+    "priority": "medium"
+  },
+  {
+    "title": "Split view in FileEditor is implemented but panel layout is manual div-based",
+    "body": "The split view (viewMode === 'split') uses two side-by-side divs. Consider using react-resizable-panels (Group/Panel/Separator) for actual resizable panels, but note the package exports 'Group'/'Panel'/'Separator' not 'PanelGroup'/'Panel'/'PanelResizeHandle'.",
+    "rationale": "The UI already has the split view rendered as two divs; react-resizable-panels was installed but the actual split view doesn't use it yet.",
+    "priority": "low"
+  }
+]
