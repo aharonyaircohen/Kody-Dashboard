@@ -39,7 +39,6 @@ import {
 import { BrainFlyCard } from "./BrainFlyCard";
 import { BranchPreviewCard } from "./BranchPreviewCard";
 import { LitellmFlyCard } from "./LitellmFlyCard";
-import { StaticPreviewCard } from "./StaticPreviewCard";
 import { PageShell } from "./PageShell";
 import { useAuth, type FlyPerfTier } from "../auth-context";
 import { getStoredAuth } from "../api";
@@ -313,12 +312,6 @@ export function RunnerManager() {
 
           {/* Manual branch previews (PR-less, e.g. dev) */}
           <BranchPreviewCard
-            headers={vaultHeaders()}
-            flyTokenConfigured={flyTokenConfigured}
-          />
-
-          {/* Upload-and-serve static file previews (no build) */}
-          <StaticPreviewCard
             headers={vaultHeaders()}
             flyTokenConfigured={flyTokenConfigured}
           />

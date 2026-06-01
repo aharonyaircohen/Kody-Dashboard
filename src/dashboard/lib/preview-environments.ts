@@ -18,6 +18,12 @@ export interface PreviewEnvironment {
   label: string;
   /** Base URL of the environment. Views (Web/Admin) are paths under this. */
   url: string;
+  /**
+   * Set only for environments created by uploading a file (served on a Fly
+   * static preview, no build). Lets removal also destroy the Fly app — a
+   * plain URL environment has no `staticId` and nothing to tear down.
+   */
+  staticId?: string;
 }
 
 const ID_RAND_LEN = 4;
@@ -92,6 +98,25 @@ export function addEnvironment(
   const cleanUrl = normalizeEnvUrl(url);
   if (!cleanLabel || !cleanUrl) return list;
   return [...list, { id: makeEnvId(cleanLabel), label: cleanLabel, url: cleanUrl }];
+}
+
+/**
+ * Append an uploaded-file environment, tagged with its `staticId` so removal
+ * can also destroy the Fly preview. Same validation as `addEnvironment`.
+ */
+export function addUploadedEnvironment(
+  list: PreviewEnvironment[],
+  label: string,
+  url: string,
+  staticId: string,
+): PreviewEnvironment[] {
+  const cleanLabel = label.trim().slice(0, MAX_LABEL);
+  const cleanUrl = normalizeEnvUrl(url);
+  if (!cleanLabel || !cleanUrl || !staticId) return list;
+  return [
+    ...list,
+    { id: makeEnvId(cleanLabel), label: cleanLabel, url: cleanUrl, staticId },
+  ];
 }
 
 /** Patch one environment's label / url. Invalid fields are ignored, not cleared. */

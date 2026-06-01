@@ -9,16 +9,15 @@
  * `static-preview.ts`), so it's live in seconds.
  *
  *   POST   /api/kody/previews/static  (multipart form, field `file`) —
- *          upload a file, boot a preview, return its URL. Records the
- *          upload so the list below can show + destroy it.
- *   GET    /api/kody/previews/static  — every tracked static preview for the
- *          connected repo, each enriched with live Fly state.
- *   DELETE /api/kody/previews/static  { id } — destroy the Fly app and stop
- *          tracking. Idempotent.
+ *          upload a file, boot a preview, return `{ id, url }`. The caller
+ *          (Preview workspace) records it as a named environment, which is
+ *          the single source of truth — no separate ledger here.
+ *   DELETE /api/kody/previews/static  { id } — destroy the Fly app for an
+ *          uploaded preview. Idempotent.
  *
- * Repo comes from the connected-repo auth context (per-repo Fly infra,
- * surfaced on `/runner`), not the body. Fly billing uses that repo's own
- * vault `FLY_API_TOKEN` via `resolvePreviewConfigForOctokit`.
+ * Repo comes from the connected-repo auth context (per-repo Fly infra), not
+ * the body. Fly billing uses that repo's own vault `FLY_API_TOKEN` via
+ * `resolvePreviewConfigForOctokit`.
  */
 
 import { randomUUID } from "node:crypto";
@@ -30,16 +29,9 @@ import {
   getUserOctokit,
   requireKodyAuth,
 } from "@dashboard/lib/auth";
-import {
-  readDashboardConfig,
-  setStaticPreview,
-} from "@dashboard/lib/dashboard-config/store";
 import { logger } from "@dashboard/lib/logger";
 import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
-import {
-  destroyPreview,
-  getPreview,
-} from "@dashboard/lib/previews/preview-lifecycle";
+import { destroyPreview } from "@dashboard/lib/previews/preview-lifecycle";
 import {
   createStaticPreview,
   type StaticPreviewFile,
@@ -147,16 +139,10 @@ export async function POST(req: NextRequest) {
       { repo: `${auth.owner}/${auth.repo}`, staticId, files },
       cfg,
     );
-    await setStaticPreview(
-      octokit,
-      auth.owner,
-      auth.repo,
-      { id: staticId, name: originalName },
-      true,
+    return NextResponse.json(
+      { id: staticId, name: originalName, url: info.url, state: info.state },
+      { status: 201 },
     );
-    return NextResponse.json({ id: staticId, name: originalName, ...info }, {
-      status: 201,
-    });
   } catch (err) {
     logger.error({ err, staticId }, "static-preview: create failed");
     return NextResponse.json(
@@ -164,62 +150,6 @@ export async function POST(req: NextRequest) {
       { status: 500 },
     );
   }
-}
-
-export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
-  }
-
-  const octokit = await getUserOctokit(req);
-  if (!octokit) {
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
-  }
-
-  const cfg = await resolvePreviewConfigForOctokit({
-    octokit,
-    owner: auth.owner,
-    repo: auth.repo,
-  });
-  // No Fly token → no previews possible; report an empty, non-error list so
-  // the card can render its empty state instead of an error toast.
-  if (!cfg) {
-    return NextResponse.json({ previews: [], flyConfigured: false });
-  }
-
-  const { doc } = await readDashboardConfig(octokit, auth.owner, auth.repo);
-  const entries = doc.staticPreviews ?? [];
-  const repo = `${auth.owner}/${auth.repo}`;
-
-  const previews = await Promise.all(
-    entries.map(async (entry) => {
-      try {
-        const info = await getPreview({ repo, staticId: entry.id }, cfg);
-        return info
-          ? { id: entry.id, name: entry.name, ...info }
-          : {
-              id: entry.id,
-              name: entry.name,
-              state: "pending" as const,
-              url: null,
-            };
-      } catch (err) {
-        logger.warn({ err, id: entry.id }, "static-preview: status failed");
-        return {
-          id: entry.id,
-          name: entry.name,
-          state: "unknown" as const,
-          url: null,
-        };
-      }
-    }),
-  );
-
-  return NextResponse.json({ previews, flyConfigured: true });
 }
 
 export async function DELETE(req: NextRequest) {
@@ -263,13 +193,6 @@ export async function DELETE(req: NextRequest) {
     await destroyPreview(
       { repo: `${auth.owner}/${auth.repo}`, staticId: id },
       cfg,
-    );
-    await setStaticPreview(
-      octokit,
-      auth.owner,
-      auth.repo,
-      { id, name: "" },
-      false,
     );
     return NextResponse.json({ ok: true });
   } catch (err) {

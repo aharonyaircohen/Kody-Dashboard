@@ -202,22 +202,27 @@ clones + builds an image, the dashboard boots a stock static-server image
 via Fly's `config.files` (base64 `raw_value`). The only Fly calls are
 `createApp → allocateSharedIps → createMachine`.
 
+Where it lives: the **`/preview` page environment switcher**. Next to
+"Add environment" there's an **Upload file** action — the uploaded file
+becomes a selectable preview environment (its live Fly URL), shown in the
+iframe like any other. Removing that environment also destroys its Fly app.
+
 - HTML uploads are served as the site index. Any other type is served
   under its own name (so the right content-type is sent) with a tiny
   redirecting `index.html`.
-- Like branch previews, nothing auto-tears these down — they're tracked
-  in `.kody/dashboard.json` (`staticPreviews`) and listed/destroyed from
-  the `/runner` **Upload a file** card.
+- Single source of truth is the environment list in `.kody/dashboard.json`
+  (`namedPreviews`); the uploaded entry carries a `staticId` so removal can
+  tear the Fly app down. No separate ledger.
 - Per-repo billing as usual (the repo's vault `FLY_API_TOKEN`).
 - Single file only, ≤ 5 MB (it's inlined into the machine config). For a
   multi-file site, use a branch preview.
 
 | Where                          | What                                                  |
 | ------------------------------ | ----------------------------------------------------- |
-| `POST /api/kody/previews/static`   | Multipart upload (field `file`) → boots a preview |
-| `GET /api/kody/previews/static`    | Tracked static previews + live Fly state          |
-| `DELETE /api/kody/previews/static` | `{ id }` — destroy + untrack (idempotent)         |
+| `POST /api/kody/previews/static`   | Multipart upload (field `file`) → boots a preview, returns `{ id, url }` |
+| `DELETE /api/kody/previews/static` | `{ id }` — destroy the Fly app (idempotent)       |
 | `src/dashboard/lib/previews/static-preview.ts` | Builder-less create path        |
+| `/preview` switcher "Upload file" | UI entry point (PreviewEnvSwitcher)                |
 
 Image/web-root/port overridable via `KODY_PREVIEW_STATIC_IMAGE`,
 `KODY_PREVIEW_STATIC_WEB_ROOT`, `KODY_PREVIEW_STATIC_PORT`.
@@ -230,7 +235,7 @@ Image/web-root/port overridable via `KODY_PREVIEW_STATIC_IMAGE`,
 | `GET /api/kody/previews/:o/:r/:pr` | Live status from Fly (state, machine id, region) |
 | `DELETE /api/kody/previews/:o/:r/:pr` | Manual destroy (idempotent)                      |
 | `app/api/webhooks/github/route.ts` | Auto-create on `pull_request.opened`/`synchronize`/`reopened`; destroy on `closed` |
-| `/runner` "Upload a file" card | Upload-and-serve static previews (see above)          |
+| `/preview` switcher "Upload file" | Upload-and-serve static previews (see above)       |
 
 ## Code map
 

@@ -11,10 +11,10 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, MonitorPlay } from "lucide-react";
+import { Loader2, MonitorPlay, Upload } from "lucide-react";
 
 import { useChatScope } from "./ChatRailShell";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
@@ -23,9 +23,14 @@ import { PreviewEnvSwitcher } from "./PreviewEnvSwitcher";
 import { PreviewEnvForm } from "./PreviewEnvForm";
 import {
   addEnvironment,
+  addUploadedEnvironment,
   resolveEnvironments,
   type PreviewEnvironment,
 } from "../preview-environments";
+import {
+  destroyStaticPreview,
+  uploadStaticPreview,
+} from "../previews/static-preview-client";
 import {
   fetchDashboardConfig,
   saveDashboardConfig,
@@ -122,6 +127,40 @@ export function PreviewWorkspace() {
     if (created) selectEnv(created);
   };
 
+  // Upload a file → boot a Fly static preview → add it as an environment and
+  // select it. The environment carries the staticId so removal tears the Fly
+  // app down (see removeStatic + PreviewEnvSwitcher.handleRemove).
+  const uploadFile = async (file: File): Promise<void> => {
+    try {
+      const res = await uploadStaticPreview(file);
+      const next = addUploadedEnvironment(
+        environments,
+        res.name,
+        res.url,
+        res.id,
+      );
+      await persist(next);
+      const created = next[next.length - 1];
+      if (created) selectEnv(created);
+      toast.success(`Serving "${res.name}" — ready in a few seconds`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+      throw err;
+    }
+  };
+
+  const removeStatic = async (staticId: string): Promise<void> => {
+    try {
+      await destroyStaticPreview(staticId);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to destroy preview",
+      );
+    }
+  };
+
+  const emptyUploadRef = useRef<HTMLInputElement | null>(null);
+
   return (
     <section className="relative flex-1 min-w-0 min-h-0 flex flex-col">
       <PreviewPane
@@ -138,6 +177,9 @@ export function PreviewWorkspace() {
               selectedId={selectedEnv?.id ?? null}
               onSelect={selectEnv}
               onSave={persist}
+              onAdd={addFirst}
+              onUpload={uploadFile}
+              onRemoveStatic={removeStatic}
               isSaving={saveMutation.isPending}
             />
           ) : null
@@ -169,6 +211,29 @@ export function PreviewWorkspace() {
                   isSaving={saveMutation.isPending}
                   onSubmit={addFirst}
                 />
+                <div className="flex items-center gap-2 text-[11px] text-zinc-600">
+                  <span className="h-px flex-1 bg-zinc-800" />
+                  or
+                  <span className="h-px flex-1 bg-zinc-800" />
+                </div>
+                <input
+                  ref={emptyUploadRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void uploadFile(f);
+                    if (emptyUploadRef.current) emptyUploadRef.current.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => emptyUploadRef.current?.click()}
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/40 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-800 transition"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  Upload a file (HTML, PDF, image…)
+                </button>
               </div>
             </div>
           )

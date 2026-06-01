@@ -41,19 +41,6 @@ export interface DashboardConfig {
    * surface the `/runner` Branch previews card renders and destroys from.
    */
   branchPreviews?: string[];
-  /**
-   * Uploaded static-file previews (HTML/PDF/image served from a stock
-   * image, no build). Like branch previews these never auto-tear-down, so
-   * this list is the leak-visibility + destroy surface on `/runner`.
-   */
-  staticPreviews?: StaticPreviewEntry[];
-}
-
-/** One tracked static-file preview. `id` keys the Fly app; `name` is the
- *  original upload filename, shown in the UI. */
-export interface StaticPreviewEntry {
-  id: string;
-  name: string;
 }
 
 interface CacheEntry {
@@ -234,45 +221,6 @@ export async function setBranchPreview(
     present
       ? `chore(dashboard): track branch preview ${branch}`
       : `chore(dashboard): drop branch preview ${branch}`,
-  );
-  invalidateDashboardConfigCache(owner, repo);
-  return nextList;
-}
-
-/**
- * Add or remove a static-file preview from `staticPreviews`. Mirrors
- * `setBranchPreview` (fresh read → CAS write → invalidate), keyed by `id`.
- */
-export async function setStaticPreview(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  entry: StaticPreviewEntry,
-  present: boolean,
-): Promise<StaticPreviewEntry[]> {
-  const { doc, sha } = await readDashboardConfig(octokit, owner, repo, {
-    force: true,
-  });
-  const current = doc.staticPreviews ?? [];
-  const has = current.some((e) => e.id === entry.id);
-  if (present === has) return current; // nothing to change
-  const nextList = present
-    ? [...current, entry]
-    : current.filter((e) => e.id !== entry.id);
-  const next: DashboardConfig = {
-    ...doc,
-    version: 1,
-    staticPreviews: nextList.length > 0 ? nextList : undefined,
-  };
-  await writeDashboardConfig(
-    octokit,
-    owner,
-    repo,
-    next,
-    sha,
-    present
-      ? `chore(dashboard): track static preview ${entry.id}`
-      : `chore(dashboard): drop static preview ${entry.id}`,
   );
   invalidateDashboardConfigCache(owner, repo);
   return nextList;

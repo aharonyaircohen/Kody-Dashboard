@@ -11,10 +11,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Check, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  Check,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { cn } from "../utils";
 import {
-  addEnvironment,
   removeEnvironment,
   updateEnvironment,
   type PreviewEnvironment,
@@ -27,6 +34,12 @@ interface PreviewEnvSwitcherProps {
   onSelect: (env: PreviewEnvironment) => void;
   /** Persist the next list (parent PUTs `.kody/dashboard.json`). */
   onSave: (next: PreviewEnvironment[]) => Promise<void>;
+  /** Add an environment with label + url (parent persists + selects). */
+  onAdd: (label: string, url: string) => Promise<void>;
+  /** Upload a file → boot a static preview → add it as an environment. */
+  onUpload: (file: File) => Promise<void>;
+  /** Destroy the Fly app behind an uploaded environment, if it has one. */
+  onRemoveStatic?: (staticId: string) => Promise<void>;
   isSaving: boolean;
 }
 
@@ -35,11 +48,16 @@ export function PreviewEnvSwitcher({
   selectedId,
   onSelect,
   onSave,
+  onAdd,
+  onUpload,
+  onRemoveStatic,
   isSaving,
 }: PreviewEnvSwitcherProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   const active =
@@ -71,10 +89,7 @@ export function PreviewEnvSwitcher({
   }, [menuOpen]);
 
   const handleAdd = async (label: string, url: string): Promise<void> => {
-    const next = addEnvironment(environments, label, url);
-    await onSave(next);
-    const created = next[next.length - 1];
-    if (created) onSelect(created);
+    await onAdd(label, url);
     setAddOpen(false);
   };
 
@@ -88,10 +103,26 @@ export function PreviewEnvSwitcher({
   };
 
   const handleRemove = async (id: string): Promise<void> => {
+    const removed = environments.find((e) => e.id === id);
     const next = removeEnvironment(environments, id);
     await onSave(next);
     // If we removed the active one, fall back to the first remaining.
     if (id === active?.id && next[0]) onSelect(next[0]);
+    // Uploaded environments own a Fly app — tear it down too (best-effort).
+    if (removed?.staticId && onRemoveStatic) {
+      await onRemoveStatic(removed.staticId);
+    }
+  };
+
+  const handleUpload = async (file: File): Promise<void> => {
+    setUploading(true);
+    try {
+      await onUpload(file);
+      setMenuOpen(false);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   return (
@@ -193,14 +224,39 @@ export function PreviewEnvSwitcher({
               />
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => setAddOpen(true)}
-              className="mt-1 w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70 border-t border-zinc-800"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add environment
-            </button>
+            <div className="mt-1 flex items-stretch border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add environment
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleUpload(f);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                title="Upload a file (HTML, PDF, image…) — served live, no build"
+                className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70 border-l border-zinc-800 disabled:opacity-60"
+              >
+                {uploading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Upload className="w-3.5 h-3.5" />
+                )}
+                {uploading ? "Uploading…" : "Upload file"}
+              </button>
+            </div>
           )}
         </div>
       )}

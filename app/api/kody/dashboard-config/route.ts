@@ -27,6 +27,9 @@ const PreviewEnvironmentSchema = z.object({
   id: z.string().min(1).max(64),
   label: z.string().min(1).max(48),
   url: z.string().url({ message: "Must be a valid URL" }).max(2048),
+  // Present only for uploaded-file environments — keys the Fly static
+  // preview so removal can also tear it down.
+  staticId: z.string().min(1).max(64).optional(),
 });
 
 const UpsertSchema = z.object({
