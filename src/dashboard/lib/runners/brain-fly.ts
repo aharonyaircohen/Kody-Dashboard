@@ -30,8 +30,16 @@ import { logger } from "@dashboard/lib/logger";
 
 const FLY_API_BASE = "https://api.machines.dev/v1";
 
+// Public GHCR image, NOT registry.fly.io. Each per-user Brain machine runs
+// on the CONSUMER's own Fly account (their vault FLY_API_TOKEN), and a
+// `registry.fly.io/...` ref is scoped to a single Fly account's private
+// registry — the consumer account can't pull it, which is the
+// "unsupported image: registry.fly.io/kody-brain:latest" 400. A public
+// GHCR tag is pullable by any Fly account. Published from the engine repo
+// (kody-engine: runner/Dockerfile.brain) via `pnpm brain:publish`; the
+// image is engine-only, so consumer repos stay zero-touch.
 const DEFAULT_IMAGE =
-  process.env.FLY_BRAIN_IMAGE ?? "registry.fly.io/kody-brain:latest";
+  process.env.FLY_BRAIN_IMAGE ?? "ghcr.io/aharonyaircohen/kody-brain:latest";
 const DEFAULT_REGION = process.env.FLY_REGION ?? "fra";
 const ORGANIZATION = process.env.FLY_BRAIN_ORG ?? "personal";
 
