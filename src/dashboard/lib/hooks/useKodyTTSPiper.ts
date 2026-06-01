@@ -165,6 +165,13 @@ export function useKodyTTSPiper(
       try {
         const mod = await import("@mintplex-labs/piper-tts-web");
         if (cancelled) return;
+        // The library keeps ONE TtsSession singleton and, when reused, only
+        // swaps the `voiceId` field — it never re-runs init(), so the model
+        // stays the first voice's. That makes a voice switch a silent no-op
+        // (predict keeps using the original model). Drop the singleton so
+        // create() builds a fresh session that init()s the SELECTED voice's
+        // model (downloaded once, then cached in OPFS — fast on re-select).
+        mod.TtsSession._instance = null;
         const session = await mod.TtsSession.create({
           voiceId,
           wasmPaths: WASM_PATHS,
