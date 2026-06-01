@@ -29,6 +29,10 @@ export interface UseVoiceChatReturn {
   error: string | null;
   isSupported: boolean;
   onResponseComplete: (text: string) => void;
+  /** Which voice is actually playing: natural (Piper), basic (browser), or starting up. */
+  ttsEngine: "pending" | "piper" | "browser";
+  /** Reason the natural voice fell back, surfaced for on-device debugging. */
+  ttsError: string | null;
 }
 
 export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
@@ -198,5 +202,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     error,
     isSupported,
     onResponseComplete,
+    ttsEngine: tts.engine ?? "pending",
+    ttsError: tts.engineError ?? null,
   };
 }

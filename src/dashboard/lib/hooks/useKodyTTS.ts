@@ -25,6 +25,14 @@ export interface UseKodyTTSReturn {
   unlock: () => void;
   isSpeaking: boolean;
   isSupported: boolean;
+  /**
+   * Which engine is actually producing speech: the natural Piper voice,
+   * the basic browser voice, or still initializing. Used by the voice UI
+   * to tell the user (and us) when the natural voice silently fell back.
+   */
+  engine?: "pending" | "piper" | "browser";
+  /** Human-readable reason Piper bailed to the browser voice, if any. */
+  engineError?: string | null;
 }
 
 export function useKodyTTS(options: UseKodyTTSOptions = {}): UseKodyTTSReturn {
@@ -110,5 +118,13 @@ export function useKodyTTS(options: UseKodyTTSOptions = {}): UseKodyTTSReturn {
     [],
   );
 
-  return { speak, cancel, unlock, isSpeaking, isSupported };
+  return {
+    speak,
+    cancel,
+    unlock,
+    isSpeaking,
+    isSupported,
+    engine: "browser",
+    engineError: null,
+  };
 }
