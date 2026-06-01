@@ -4128,6 +4128,8 @@ export function KodyChat({
           currentTranscript={voiceChat.currentTranscript}
           turnCount={voiceChat.turnCount}
           error={voiceChat.error}
+          ttsEngine={voiceChat.ttsEngine}
+          ttsError={voiceChat.ttsError}
           messages={messages}
           agentName={currentAgent.name}
           onStop={() => {

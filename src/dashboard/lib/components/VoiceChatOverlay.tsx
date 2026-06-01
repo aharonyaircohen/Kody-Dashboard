@@ -15,6 +15,8 @@ interface VoiceChatOverlayProps {
   currentTranscript: string;
   turnCount: number;
   error: string | null;
+  ttsEngine: "pending" | "piper" | "browser";
+  ttsError: string | null;
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   agentName: string;
   onStop: () => void;
@@ -44,6 +46,8 @@ export function VoiceChatOverlay({
   currentTranscript,
   turnCount,
   error,
+  ttsEngine,
+  ttsError,
   messages,
   agentName,
   onStop,
@@ -266,6 +270,26 @@ export function VoiceChatOverlay({
 
       {/* Footer */}
       <div className="px-3 pb-2 text-center shrink-0">
+        {/* Voice-engine status: tells the user (and us) whether the natural
+            Piper voice is live or it silently fell back to the basic browser
+            voice — and why. The reason is otherwise only in the console,
+            which is invisible on a phone. */}
+        <p className="text-[10px] mb-0.5">
+          {ttsEngine === "piper" && (
+            <span className="text-green-500">🟢 Natural voice</span>
+          )}
+          {ttsEngine === "pending" && (
+            <span className="text-muted-foreground">Loading natural voice…</span>
+          )}
+          {ttsEngine === "browser" && (
+            <span className="text-amber-500">🟡 Basic voice</span>
+          )}
+        </p>
+        {ttsEngine === "browser" && ttsError && (
+          <p className="text-[10px] text-amber-500/80 mb-0.5 px-2 break-words">
+            {ttsError}
+          </p>
+        )}
         <p className="text-[10px] text-muted-foreground">
           Turn {turnCount} · {formatElapsed(elapsed)} ·{" "}
           <kbd className="px-0.5 py-px bg-muted rounded text-[9px]">Esc</kbd> to

@@ -27,6 +27,19 @@ export interface UseKodyTTSPiperOptions {
 
 const DEFAULT_VOICE = "en_US-hfc_female-medium";
 
+// Turn a swallowed Piper failure into a short line the user can read on a
+// phone (the console isn't visible there). Calls out the most common cause —
+// the natural voice's threaded WASM needs SharedArrayBuffer, which only
+// exists on a cross-origin-isolated page.
+function describePiperError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/SharedArrayBuffer|cross-?origin|crossOriginIsolated|isolate/i.test(msg))
+    return "Natural voice needs cross-origin isolation (SharedArrayBuffer unavailable).";
+  if (/wasm|WebAssembly|compile|instantiate/i.test(msg))
+    return `Natural-voice engine failed to load: ${msg.slice(0, 120)}`;
+  return `Natural voice unavailable: ${msg.slice(0, 140)}`;
+}
+
 // A few samples of 8-bit silence as a WAV data URI. Played once from the
 // mic-tap gesture to "unlock" the reusable <audio> element, so the real
 // reply (which plays after an async gap) isn't blocked by the browser's
@@ -80,6 +93,8 @@ export function useKodyTTSPiper(
   const { onEnd, onError, voiceId = DEFAULT_VOICE } = options;
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [piperReady, setPiperReady] = useState(false);
+  const [failed, setFailed] = useState(false); // Piper bailed → browser voice
+  const [engineError, setEngineError] = useState<string | null>(null);
   // One persistent <audio> element, reused for every reply. Reusing the
   // *same* element that we unlocked during the mic tap is what lets later
   // (async-fired) playback through — a fresh `new Audio()` per reply would
@@ -119,6 +134,10 @@ export function useKodyTTSPiper(
         // Init failed — keep using browser TTS fallback
         console.warn("[useKodyTTSPiper] init failed, falling back", err);
         fallbackRef.current = true;
+        if (!cancelled) {
+          setFailed(true);
+          setEngineError(describePiperError(err));
+        }
       }
     })();
     return () => {
@@ -222,6 +241,8 @@ export function useKodyTTSPiper(
         } catch (err) {
           console.warn("[useKodyTTSPiper] predict failed, falling back", err);
           fallbackRef.current = true;
+          setFailed(true);
+          setEngineError(describePiperError(err));
           setIsSpeaking(false);
           browserTTS.speak(text);
         }
@@ -247,6 +268,19 @@ export function useKodyTTSPiper(
   // Supported whenever either Piper or the browser TTS will work
   const isSupported = piperReady || browserTTS.isSupported;
   const speakingNow = isSpeaking || browserTTS.isSpeaking;
+  const engine: "pending" | "piper" | "browser" = failed
+    ? "browser"
+    : piperReady
+      ? "piper"
+      : "pending";
 
-  return { speak, cancel, unlock, isSpeaking: speakingNow, isSupported };
+  return {
+    speak,
+    cancel,
+    unlock,
+    isSpeaking: speakingNow,
+    isSupported,
+    engine,
+    engineError,
+  };
 }
