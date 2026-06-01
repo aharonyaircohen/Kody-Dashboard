@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "title": "resumeConversation should re-acquire wake lock",
+    "body": "After pauseConversation releases the wake lock, calling resumeConversation does not re-acquire it. The user is resuming the voice conversation, so the screen should be kept on again. Add `await acquireWakeLock()` to resumeConversation in useVoiceChat.ts.",
+    "rationale": "Users who pause then resume a voice conversation may find the screen dims again, disrupting the experience.",
+    "priority": "low"
+  },
+  {
+    "title": "interruptConversation does not re-acquire wake lock",
+    "body": "interruptConversation releases the wake lock (correct per issue scope) but does not re-acquire it. Since the conversation continues after an interrupt, the screen may dim mid-conversation. Consider re-acquiring after the interrupt flow stabilizes.",
+    "rationale": "Users who interrupt AI speech to speak themselves may lose wake lock protection despite being in an active conversation.",
+    "priority": "low"
+  }
+]
