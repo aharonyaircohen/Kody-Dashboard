@@ -74,13 +74,16 @@ function silentWavDataUri(): string {
   return _silentWav;
 }
 
-// The library's default `ONNX_BASE` points at cdnjs's onnxruntime-web 1.18.0,
-// which doesn't ship the `.mjs` loader Piper now needs (404). Pin to 1.19.2
-// on jsDelivr — verified to host both the .mjs and the .wasm. The piper
-// phonemizer WASM default is fine, but spelled out for clarity / future
-// self-hosting.
+// The onnxWasm version MUST match the `onnxruntime-web` JS that piper
+// imports (resolved transitively via @mintplex-labs/piper-tts-web). A
+// mismatch loads WASM with a different ABI than the JS expects and throws
+// "r.getValue is not a function" at runtime → silent fallback to the basic
+// browser voice. The library's own default points at cdnjs 1.18.0 (wrong +
+// missing the `.mjs` loader), so we override here. Currently locked to
+// onnxruntime-web@1.26.0 — bump this in lockstep whenever that dep changes
+// (check `node_modules/.pnpm/onnxruntime-web@*`).
 const WASM_PATHS = {
-  onnxWasm: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/",
+  onnxWasm: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0/dist/",
   piperData:
     "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.data",
   piperWasm:
