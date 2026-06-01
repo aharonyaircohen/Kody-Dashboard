@@ -105,7 +105,10 @@ export async function writeMacrosFile(
 }
 
 function newId(name: string): string {
-  const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const base = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-");
   return `${base || "macro"}-${Math.random().toString(36).slice(2, 6)}`;
 }
 

@@ -133,13 +133,9 @@ export function PreviewMacrosMenu({
         // Only prepend if the first recorded step isn't already a
         // navigate to the same path (avoid duplicate nav).
         const first = pendingSteps[0];
-        const alreadyNavigates =
-          first?.op === "navigate" && first.url === path;
+        const alreadyNavigates = first?.op === "navigate" && first.url === path;
         if (!alreadyNavigates) {
-          stepsWithStart = [
-            { op: "navigate", url: path },
-            ...pendingSteps,
-          ];
+          stepsWithStart = [{ op: "navigate", url: path }, ...pendingSteps];
         }
       } catch {
         /* invalid URL — fall through to the raw steps */
@@ -308,8 +304,8 @@ export function PreviewMacrosMenu({
 
           {macros.length === 0 && !pendingSteps && (
             <div className="px-3 py-3 text-xs text-zinc-500 text-center">
-              No macros yet. Click <Circle /> Record, click through the
-              preview, then save.
+              No macros yet. Click <Circle /> Record, click through the preview,
+              then save.
             </div>
           )}
 
@@ -336,7 +332,9 @@ export function PreviewMacrosMenu({
                   aria-label={`Replay ${macro.name}`}
                   className="text-emerald-300 hover:text-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed p-1"
                 >
-                  <Play className={cn("w-3 h-3", replaying && "animate-pulse")} />
+                  <Play
+                    className={cn("w-3 h-3", replaying && "animate-pulse")}
+                  />
                 </button>
                 <button
                   type="button"

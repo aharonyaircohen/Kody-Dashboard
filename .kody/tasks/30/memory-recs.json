@@ -1,0 +1,18 @@
+[
+  {
+    "type": "lesson",
+    "name": "files-api-design",
+    "hook": "Files browser API design follows GitHub API patterns",
+    "body": "The files API uses GitHub's repos.getContent and related endpoints directly, mirroring the existing pattern in other API routes like branches/route.ts and prs/files/route.ts. The auth pattern (requireKodyAuth, getRequestAuth, setGitHubContext) is consistent across all API routes.\n\nWhy: Ensures consistency with existing codebase patterns and proper rate-limit handling via the shared github-client.\nHow to apply: When adding new API routes that interact with GitHub, always use getOctokit(), setGitHubContext(), and clearGitHubContext() in a try/finally pattern.",
+    "why": "Following existing patterns ensures proper auth, rate-limit handling, and makes the codebase maintainable",
+    "confidence": 0.9
+  },
+  {
+    "type": "lesson",
+    "name": "files-context-hooks",
+    "hook": "React context for complex component state management",
+    "body": "The FilesContext provides centralized state management for the file browser, similar to how other parts of the dashboard use context providers (e.g., auth-context.tsx, useGoals hook pattern).\n\nWhy: Complex state with multiple interacting components (FileTree, FileViewer, FileEditor, FileSearch, FileDiffViewer) benefits from centralized state management.\nHow to apply: Use useCallback for state setters to maintain referential equality and prevent unnecessary re-renders.",
+    "why": "Centralized state management prevents prop drilling and ensures components stay in sync",
+    "confidence": 0.8
+  }
+]

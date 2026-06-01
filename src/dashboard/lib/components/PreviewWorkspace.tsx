@@ -38,7 +38,12 @@ import {
   fetchDashboardConfig,
   saveDashboardConfig,
 } from "../dashboard-config/client";
-import { getStoredAuth, RateLimitError, NoTokenError, SessionExpiredError } from "../api";
+import {
+  getStoredAuth,
+  RateLimitError,
+  NoTokenError,
+  SessionExpiredError,
+} from "../api";
 
 function selectionKey(owner: string, repo: string): string {
   return `kody.previewEnv.${owner}/${repo}`;
@@ -166,7 +171,11 @@ export function PreviewWorkspace() {
 
   // Push an uploaded preview's expiry out by another full TTL from now.
   const extendEnv = async (id: string): Promise<void> => {
-    const next = setEnvExpiry(environments, id, Date.now() + STATIC_PREVIEW_TTL_MS);
+    const next = setEnvExpiry(
+      environments,
+      id,
+      Date.now() + STATIC_PREVIEW_TTL_MS,
+    );
     await persist(next);
     toast.success("Extended — 7 more days");
   };
@@ -237,8 +246,8 @@ export function PreviewWorkspace() {
                   </h2>
                   <p className="text-xs text-zinc-500">
                     Point Kody at a running deployment — Production, Staging,
-                    Dev, or any URL. Add more later from the switcher. Stored per
-                    repo at{" "}
+                    Dev, or any URL. Add more later from the switcher. Stored
+                    per repo at{" "}
                     <code className="text-zinc-400">.kody/dashboard.json</code>.
                   </p>
                 </div>
@@ -259,7 +268,8 @@ export function PreviewWorkspace() {
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (f) void uploadFile(f);
-                    if (emptyUploadRef.current) emptyUploadRef.current.value = "";
+                    if (emptyUploadRef.current)
+                      emptyUploadRef.current.value = "";
                   }}
                 />
                 <button

@@ -164,8 +164,8 @@ function DutyCard({
       <CardContent className="space-y-2">
         {group.actions.length === 0 ? (
           <p className="text-body-sm text-muted-foreground">
-            No recommendations decided yet — this duty earns trust as you approve
-            its recommendations in the inbox.
+            No recommendations decided yet — this duty earns trust as you
+            approve its recommendations in the inbox.
           </p>
         ) : (
           group.actions.map((a) => (
@@ -240,10 +240,10 @@ export function TrustManager() {
           </h1>
           <p className="text-body-sm text-muted-foreground">
             Every duty starts in <strong>Ask</strong> mode and needs your
-            approval before each action. After {TRUST_GRADUATION_THRESHOLD} clean
-            approvals of the same action it graduates to <strong>Auto</strong>{" "}
-            and the engine runs it on its own; one reject sends it back to Ask.
-            Override any of that here.
+            approval before each action. After {TRUST_GRADUATION_THRESHOLD}{" "}
+            clean approvals of the same action it graduates to{" "}
+            <strong>Auto</strong> and the engine runs it on its own; one reject
+            sends it back to Ask. Override any of that here.
           </p>
         </header>
 
@@ -271,9 +271,7 @@ export function TrustManager() {
               key={g.duty}
               group={g}
               busy={isMutating}
-              onOp={(action, op) =>
-                void setTrust({ duty: g.duty, action, op })
-              }
+              onOp={(action, op) => void setTrust({ duty: g.duty, action, op })}
             />
           ))
         )}

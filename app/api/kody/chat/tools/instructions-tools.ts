@@ -54,7 +54,11 @@ export function createInstructionsTools(ctx: Ctx) {
             sha: existing?.sha,
             message: `chore(instructions): update${by}`,
           });
-          return { ok: true, action: existing ? "updated" : "created", htmlUrl: file.htmlUrl };
+          return {
+            ok: true,
+            action: existing ? "updated" : "created",
+            htmlUrl: file.htmlUrl,
+          };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
         }

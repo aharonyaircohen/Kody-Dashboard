@@ -15,6 +15,7 @@ import {
   Building2,
   Cpu,
   FileText,
+  Files,
   Github,
   History,
   Home,
@@ -117,6 +118,14 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     description:
       "Live preview of any environment — Production, Staging, Dev — with views, device sizes, and element-pick into chat.",
     tint: "text-sky-300 bg-sky-500/10",
+  },
+  {
+    href: "/files",
+    label: "Files",
+    icon: Files,
+    exact: true,
+    description: "Browse, search, and edit repository files.",
+    tint: "text-orange-300 bg-orange-500/10",
   },
   {
     href: "/messages",

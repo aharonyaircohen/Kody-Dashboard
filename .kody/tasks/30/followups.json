@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Add file write support (PUT/DELETE) for non-file-manager use",
+    "body": "The PUT and DELETE handlers in app/api/kody/files/route.ts are implemented but the FilesManager currently only uses them from within the FileEditor. These could be exposed as standalone API endpoints for direct file operations from other parts of the dashboard.",
+    "rationale": "Completeness of the file operations API",
+    "priority": "low"
+  },
+  {
+    "title": "Add drag-and-drop file reordering in FileTree",
+    "body": "The UploadZone component supports uploading files, but the FileTree doesn't support drag-and-drop reordering or moving files between directories. This would enhance the UX for file organization.",
+    "rationale": "Enhanced file management UX",
+    "priority": "low"
+  },
+  {
+    "title": "Implement file watching/live updates",
+    "body": "The files browser fetches data on demand but doesn't have real-time updates when files change. Adding webhook-based cache invalidation (similar to existing webhook handlers) would keep the view fresh.",
+    "rationale": "Real-time file updates like other dashboard features",
+    "priority": "medium"
+  }
+]
