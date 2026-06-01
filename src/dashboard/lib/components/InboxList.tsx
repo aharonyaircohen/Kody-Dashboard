@@ -9,7 +9,7 @@
  *   marks the entry read. Top toolbar exposes mark-all-read, refresh, and
  *   a one-click jump to settings if the PAT is missing the `gist` scope.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -94,6 +94,76 @@ const SOURCE_LABEL: Record<InboxSource, string> = {
   subscribed: "subscribed thread",
   other: "activity",
 };
+
+/** Short noun labels for the source filter chips (vs SOURCE_LABEL's verbs). */
+const SOURCE_CHIP: Record<InboxSource, string> = {
+  mention: "Mentions",
+  team_mention: "Team mentions",
+  review_requested: "Review requests",
+  assigned: "Assigned",
+  comment: "Comments",
+  subscribed: "Subscribed",
+  other: "Other",
+};
+
+/** Human labels for the GitHub thread types we surface in the inbox. */
+const TYPE_LABEL: Record<string, string> = {
+  Issue: "Issues",
+  PullRequest: "PRs",
+  Discussion: "Discussions",
+  Commit: "Commits",
+  Release: "Releases",
+};
+/** Stable display order for the type chips; unknown types fall to the end. */
+const TYPE_ORDER = ["Issue", "PullRequest", "Discussion", "Commit", "Release"];
+
+type SourceFilter = InboxSource | "all";
+
+/**
+ * Combined predicate for the inbox list: search query AND each active filter
+ * must pass. `ctoOnly` keeps only CTO recommendation entries (detected the
+ * same way the row renders them, so legacy recs without `ctoAction` count).
+ */
+function matchesFilters(
+  entry: InboxEntry,
+  q: string,
+  source: SourceFilter,
+  type: string,
+  ctoOnly: boolean,
+): boolean {
+  if (!matchesQuery(entry, q)) return false;
+  if (source !== "all" && entry.source !== source) return false;
+  if (type !== "all" && entry.threadType !== type) return false;
+  if (ctoOnly && !detectCtoRecommendation(entry)) return false;
+  return true;
+}
+
+/** Pill-style toggle used across the inbox filter bar. */
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "rounded-full border px-2.5 py-1 text-xs transition",
+        active
+          ? "border-amber-400/40 bg-amber-400/10 text-amber-100"
+          : "border-white/10 bg-white/[0.02] text-white/50 hover:border-white/20 hover:text-white/80",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
 
 function relativeTime(iso: string): string {
   const t = new Date(iso).getTime();
@@ -400,6 +470,9 @@ export function InboxList() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activeEntry, setActiveEntry] = useState<InboxEntry | null>(null);
   const [query, setQuery] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [ctoOnly, setCtoOnly] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const totalCount = unread.length + read.length;
 
@@ -416,14 +489,52 @@ export function InboxList() {
   const connectedRepo = auth ? `${auth.owner}/${auth.repo}` : undefined;
 
   const trimmedQuery = query.trim();
+  const filtersActive = sourceFilter !== "all" || typeFilter !== "all" || ctoOnly;
   const filteredUnread = useMemo(
-    () => unread.filter((e) => matchesQuery(e, trimmedQuery)),
-    [unread, trimmedQuery],
+    () =>
+      unread.filter((e) =>
+        matchesFilters(e, trimmedQuery, sourceFilter, typeFilter, ctoOnly),
+      ),
+    [unread, trimmedQuery, sourceFilter, typeFilter, ctoOnly],
   );
   const filteredRead = useMemo(
-    () => read.filter((e) => matchesQuery(e, trimmedQuery)),
-    [read, trimmedQuery],
+    () =>
+      read.filter((e) =>
+        matchesFilters(e, trimmedQuery, sourceFilter, typeFilter, ctoOnly),
+      ),
+    [read, trimmedQuery, sourceFilter, typeFilter, ctoOnly],
   );
+
+  // Build the chip options from what's actually in the inbox so we never show
+  // a filter that would match nothing. Derived from the unfiltered union so
+  // chips stay stable while a filter is active.
+  const allEntries = useMemo(() => [...unread, ...read], [unread, read]);
+  const availableTypes = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of allEntries) if (e.threadType) set.add(e.threadType);
+    return [...set].sort((a, b) => {
+      const ia = TYPE_ORDER.indexOf(a);
+      const ib = TYPE_ORDER.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+  }, [allEntries]);
+  const availableSources = useMemo(() => {
+    const set = new Set<InboxSource>();
+    for (const e of allEntries) set.add(e.source);
+    return [...set];
+  }, [allEntries]);
+  const hasCto = useMemo(
+    () => allEntries.some((e) => detectCtoRecommendation(e)),
+    [allEntries],
+  );
+  const showFilterBar =
+    availableTypes.length > 1 || availableSources.length > 1 || hasCto;
+
+  const clearFilters = () => {
+    setSourceFilter("all");
+    setTypeFilter("all");
+    setCtoOnly(false);
+  };
 
   // Shareable deep link: `/inbox?thread=<Type>:<number>` opens the thread
   // panel for that issue/PR/discussion in the *viewer's* connected repo.
@@ -631,13 +742,82 @@ export function InboxList() {
         />
       </div>
 
+      {showFilterBar && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          {availableTypes.length > 1 && (
+            <>
+              <span className="mr-0.5 text-[10px] uppercase tracking-wide text-white/30">
+                Type
+              </span>
+              <FilterChip
+                active={typeFilter === "all"}
+                onClick={() => setTypeFilter("all")}
+              >
+                All
+              </FilterChip>
+              {availableTypes.map((t) => (
+                <FilterChip
+                  key={t}
+                  active={typeFilter === t}
+                  onClick={() => setTypeFilter(typeFilter === t ? "all" : t)}
+                >
+                  {TYPE_LABEL[t] ?? t}
+                </FilterChip>
+              ))}
+            </>
+          )}
+
+          {availableSources.length > 1 && (
+            <>
+              <span className="ml-1 mr-0.5 text-[10px] uppercase tracking-wide text-white/30">
+                Source
+              </span>
+              <FilterChip
+                active={sourceFilter === "all"}
+                onClick={() => setSourceFilter("all")}
+              >
+                All
+              </FilterChip>
+              {availableSources.map((s) => (
+                <FilterChip
+                  key={s}
+                  active={sourceFilter === s}
+                  onClick={() =>
+                    setSourceFilter(sourceFilter === s ? "all" : s)
+                  }
+                >
+                  {SOURCE_CHIP[s]}
+                </FilterChip>
+              ))}
+            </>
+          )}
+
+          {hasCto && (
+            <FilterChip active={ctoOnly} onClick={() => setCtoOnly((v) => !v)}>
+              Recommendations
+            </FilterChip>
+          )}
+
+          {filtersActive && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="ml-1 inline-flex items-center gap-1 text-xs text-white/40 hover:text-white/70"
+            >
+              <X className="h-3 w-3" />
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       <Section
         title={`Unread (${filteredUnread.length})`}
         empty={
           isLoading
             ? "Loading…"
-            : trimmedQuery
-              ? `No unread matches for “${trimmedQuery}”.`
+            : trimmedQuery || filtersActive
+              ? "No unread matches your filters."
               : "Nothing unread. New @mentions land here automatically."
         }
         entries={filteredUnread}
