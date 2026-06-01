@@ -69,6 +69,7 @@ vi.mock("@dashboard/lib/cto/recommendation", () => ({
   parseCtoAction: () => undefined,
   parseCtoCommand: () => undefined,
   parseCtoStaff: () => undefined,
+  parseCtoDuty: () => null,
 }));
 vi.mock("@dashboard/lib/cto/decisions-server", () => ({
   readCtoDecisions: vi.fn().mockResolvedValue([]),
