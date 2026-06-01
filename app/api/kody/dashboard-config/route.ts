@@ -30,6 +30,8 @@ const PreviewEnvironmentSchema = z.object({
   // Present only for uploaded-file environments — keys the Fly static
   // preview so removal can also tear it down.
   staticId: z.string().min(1).max(64).optional(),
+  // Absolute expiry (ms epoch) for uploaded previews; reaped past this.
+  expiresAt: z.number().int().nonnegative().optional(),
 });
 
 const UpsertSchema = z.object({
