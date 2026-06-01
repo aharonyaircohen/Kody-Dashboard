@@ -119,13 +119,16 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
       setError("Voice chat is not supported in this browser");
       return;
     }
+    // Runs inside the mic-tap gesture → unlock audio now so the first
+    // (async) reply isn't silently blocked by the browser autoplay policy.
+    tts.unlock();
     setError(null);
     setTurnCount(0);
     retryRef.current = 0;
     pausedRef.current = false;
     setS("listening");
     stt.start();
-  }, [isSupported, setS, stt]);
+  }, [isSupported, setS, stt, tts]);
 
   const stopConversation = useCallback(() => {
     stt.stop();
@@ -143,14 +146,17 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
 
   const resumeConversation = useCallback(() => {
     if (!isSupported) return;
+    tts.unlock(); // re-prime; resume is also a user gesture
     pausedRef.current = false;
     setError(null);
     setS("listening");
     stt.start();
-  }, [isSupported, setS, stt]);
+  }, [isSupported, setS, stt, tts]);
 
   // NEW: Allow interrupting AI while it's speaking to start listening
   const interruptConversation = useCallback(() => {
+    // Interrupt is a user gesture too — keep the audio unlock fresh.
+    tts.unlock();
     // Cancel TTS if speaking
     tts.cancel();
     // Reset retry state

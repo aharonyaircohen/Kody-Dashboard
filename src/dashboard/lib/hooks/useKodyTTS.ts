@@ -15,6 +15,14 @@ export interface UseKodyTTSOptions {
 export interface UseKodyTTSReturn {
   speak: (text: string) => void;
   cancel: () => void;
+  /**
+   * Prime the audio output inside a user gesture (the mic tap). Browsers
+   * only let a page make sound that's tied to a tap; voice replies play a
+   * moment later (after the AI answers), so without this priming call they
+   * are silently blocked — especially in a freshly-installed PWA. Call this
+   * synchronously from the tap handler.
+   */
+  unlock: () => void;
   isSpeaking: boolean;
   isSupported: boolean;
 }
@@ -46,6 +54,20 @@ export function useKodyTTS(options: UseKodyTTSOptions = {}): UseKodyTTSReturn {
       window.speechSynthesis.cancel();
     uttRef.current = null;
     setIsSpeaking(false);
+  }, []);
+
+  const unlock = useCallback(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    try {
+      // Speaking a near-empty, silent utterance from inside the tap grants
+      // speechSynthesis the user-activation it needs for later, async-fired
+      // replies (iOS Safari requires this; Chrome treats it as engagement).
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+    } catch {
+      // Best-effort priming — never let it break starting the conversation.
+    }
   }, []);
 
   const speak = useCallback(
@@ -88,5 +110,5 @@ export function useKodyTTS(options: UseKodyTTSOptions = {}): UseKodyTTSReturn {
     [],
   );
 
-  return { speak, cancel, isSpeaking, isSupported };
+  return { speak, cancel, unlock, isSpeaking, isSupported };
 }
