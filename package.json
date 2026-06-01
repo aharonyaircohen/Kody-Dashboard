@@ -1,6 +1,6 @@
 {
   "name": "kody-dashboard",
-  "version": "0.1.949",
+  "version": "0.1.950",
   "private": true,
   "license": "MIT",
   "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",

@@ -32,12 +32,20 @@ import {
   listMachines,
 } from "@dashboard/lib/previews/fly-previews";
 import {
+  type BranchPreviewKey,
   type PreviewKey,
+  type PrPreviewKey,
   previewAppName,
 } from "@dashboard/lib/previews/preview-key";
 import { loadVaultContextForBuild } from "@dashboard/lib/previews/vault-build-context";
 
-export type CreatePreviewInput = PreviewKey & {
+/**
+ * The builder path only handles git-backed previews (PR or branch) — it
+ * clones a ref and runs a real `docker build`. Static-file previews skip
+ * the builder entirely (see `static-preview.ts`), so they're intentionally
+ * excluded from this input type.
+ */
+export type CreatePreviewInput = (PrPreviewKey | BranchPreviewKey) & {
   ref: string;
   imageTag?: string;
   githubToken?: string;

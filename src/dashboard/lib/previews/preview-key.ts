@@ -25,10 +25,24 @@ export interface BranchPreviewKey {
 }
 
 /**
- * Either kind of preview. Discriminated by the presence of `pr` vs `branch`,
- * so `previewAppName` (and any consumer) can narrow with `"pr" in key`.
+ * A preview serving a single uploaded static file (HTML, PDF, image…).
+ * Has no git ref — it's booted from a stock static-server image with the
+ * file injected via Fly's machine `files` config, so there's no build and
+ * nothing to tear down on a PR/branch event. Created + destroyed manually.
  */
-export type PreviewKey = PrPreviewKey | BranchPreviewKey;
+export interface StaticPreviewKey {
+  /** owner/name — scopes the Fly app to the repo's own vault token. */
+  repo: string;
+  /** Opaque id for this upload (no git ref involved). */
+  staticId: string;
+}
+
+/**
+ * Any kind of preview. Discriminated by the presence of `pr` / `branch` /
+ * `staticId`, so `previewAppName` (and any consumer) can narrow with
+ * `"pr" in key` etc.
+ */
+export type PreviewKey = PrPreviewKey | BranchPreviewKey | StaticPreviewKey;
 
 function shortHash(s: string): string {
   return createHash("sha256").update(s).digest("hex").slice(0, 6);
@@ -38,6 +52,7 @@ function shortHash(s: string): string {
  * Compose the Fly app name:
  *   PR     → `kp-<ownerHash>-<repoHash>-pr-<n>`
  *   branch → `kp-<ownerHash>-<repoHash>-br-<branchHash>`
+ *   static → `kp-<ownerHash>-<repoHash>-st-<idHash>`
  *
  * The `kp-` prefix namespaces all kody-previews apps in the Fly org so
  * the warm pool, ops dashboards, and ad-hoc cleanups can match on it.
@@ -50,9 +65,9 @@ export function previewAppName(key: PreviewKey): string {
     throw new Error(`invalid repo "${key.repo}", expected "owner/name"`);
   }
   const prefix = `kp-${shortHash(owner)}-${shortHash(name)}`;
-  return "pr" in key
-    ? `${prefix}-pr-${key.pr}`
-    : `${prefix}-br-${shortHash(key.branch)}`;
+  if ("pr" in key) return `${prefix}-pr-${key.pr}`;
+  if ("branch" in key) return `${prefix}-br-${shortHash(key.branch)}`;
+  return `${prefix}-st-${shortHash(key.staticId)}`;
 }
 
 /**

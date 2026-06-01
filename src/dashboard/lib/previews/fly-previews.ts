@@ -35,6 +35,12 @@ export interface CreatePreviewMachineInput {
   memoryMb?: number;
   cpus?: number;
   cpuKind?: "shared" | "performance";
+  /**
+   * Files written into the machine's filesystem at boot via Fly's
+   * `config.files` (base64 `raw_value`). Lets us serve uploaded static
+   * content from a stock image with no Docker build — see `static-preview.ts`.
+   */
+  files?: Array<{ guestPath: string; contentBase64: string }>;
 }
 
 export interface MachineInfo {
@@ -175,6 +181,14 @@ export async function createMachine(
       env: input.env ?? {},
       auto_destroy: false,
       restart: { policy: "always" },
+      ...(input.files && input.files.length > 0
+        ? {
+            files: input.files.map((f) => ({
+              guest_path: f.guestPath,
+              raw_value: f.contentBase64,
+            })),
+          }
+        : {}),
       guest: {
         cpu_kind: input.cpuKind ?? "shared",
         cpus: input.cpus ?? 1,

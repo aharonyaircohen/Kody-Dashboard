@@ -190,6 +190,38 @@ compile to a small preview machine and is slower end-to-end.
 - **Preview Fly Machine**: shared-cpu-2x / 4 GB — needed for Next.js
   runtime memory headroom. Suspends when idle (≈$0).
 
+## Static-file previews (upload-and-serve, no build)
+
+A third preview kind, alongside PR and branch previews: upload a single
+static file (HTML, PDF, image…) and host it as a live URL. **No builder,
+no Docker build, no repo** — ready in seconds.
+
+How it differs from the builder path: instead of spawning a builder that
+clones + builds an image, the dashboard boots a stock static-server image
+(`nginx:alpine`) and injects the uploaded file straight into the machine
+via Fly's `config.files` (base64 `raw_value`). The only Fly calls are
+`createApp → allocateSharedIps → createMachine`.
+
+- HTML uploads are served as the site index. Any other type is served
+  under its own name (so the right content-type is sent) with a tiny
+  redirecting `index.html`.
+- Like branch previews, nothing auto-tears these down — they're tracked
+  in `.kody/dashboard.json` (`staticPreviews`) and listed/destroyed from
+  the `/runner` **Upload a file** card.
+- Per-repo billing as usual (the repo's vault `FLY_API_TOKEN`).
+- Single file only, ≤ 5 MB (it's inlined into the machine config). For a
+  multi-file site, use a branch preview.
+
+| Where                          | What                                                  |
+| ------------------------------ | ----------------------------------------------------- |
+| `POST /api/kody/previews/static`   | Multipart upload (field `file`) → boots a preview |
+| `GET /api/kody/previews/static`    | Tracked static previews + live Fly state          |
+| `DELETE /api/kody/previews/static` | `{ id }` — destroy + untrack (idempotent)         |
+| `src/dashboard/lib/previews/static-preview.ts` | Builder-less create path        |
+
+Image/web-root/port overridable via `KODY_PREVIEW_STATIC_IMAGE`,
+`KODY_PREVIEW_STATIC_WEB_ROOT`, `KODY_PREVIEW_STATIC_PORT`.
+
 ## Dashboard surfaces
 
 | Where                          | What                                                  |
@@ -198,6 +230,7 @@ compile to a small preview machine and is slower end-to-end.
 | `GET /api/kody/previews/:o/:r/:pr` | Live status from Fly (state, machine id, region) |
 | `DELETE /api/kody/previews/:o/:r/:pr` | Manual destroy (idempotent)                      |
 | `app/api/webhooks/github/route.ts` | Auto-create on `pull_request.opened`/`synchronize`/`reopened`; destroy on `closed` |
+| `/runner` "Upload a file" card | Upload-and-serve static previews (see above)          |
 
 ## Code map
 
@@ -236,6 +269,9 @@ needed.
 | `KODY_PREVIEW_BUILDER_IMAGE`   | No       | Override builder image (default: `registry.fly.io/kody-preview-builder:latest`) |
 | `KODY_PREVIEW_BUILDER_HOST_APP`| No       | Fly app that hosts builder machines (default: `kody-preview-builder`) |
 | `KODY_PREVIEW_GHCR_OWNER`      | No       | Enables GHCR base inheritance speed-up                    |
+| `KODY_PREVIEW_STATIC_IMAGE`    | No       | Static-preview server image (default: `nginx:alpine`)     |
+| `KODY_PREVIEW_STATIC_WEB_ROOT` | No       | Static-preview web root (default: `/usr/share/nginx/html`)|
+| `KODY_PREVIEW_STATIC_PORT`     | No       | Static-preview internal port (default: `80`)              |
 
 Per-repo vault keys:
 
