@@ -13,7 +13,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Inbox — Kody Operations Dashboard",
+  title: "Inbox",
   description:
     "Durable list of GitHub @mentions and review requests for the active repo, backed by a private gist on your account.",
   path: "/inbox",

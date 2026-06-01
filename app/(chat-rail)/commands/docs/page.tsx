@@ -17,7 +17,7 @@ export const dynamic = "force-static";
 export const revalidate = false;
 
 export const metadata = buildKodyMetadata({
-  title: "Commands docs — Kody Operations Dashboard",
+  title: "Commands docs",
   description:
     "How slash commands work, how to store them in your repo, and how the built-ins behave.",
   path: "/commands/docs",

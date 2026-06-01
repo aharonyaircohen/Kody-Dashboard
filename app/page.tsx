@@ -7,19 +7,14 @@
  *   social media crawlers need metadata without auth.
  */
 import { PrimaryViewRedirect } from "@dashboard/lib/components/PrimaryViewRedirect";
-import { buildKodyMetadata } from "./metadata";
 
 // Force static generation so OG tags are available without authentication
 export const dynamic = "force-static";
 export const revalidate = false;
 export const fetchCache = "force-cache";
 
-export const metadata = buildKodyMetadata({
-  title: "Kody Operations Dashboard",
-  description:
-    "Monitor and manage AI coding agent tasks, pipelines, and deployments",
-  path: "/",
-});
+// Root page uses the layout default title "Kody Operations Dashboard" (no template applied)
+// The description and other metadata are inherited from the layout as well.
 
 // `/` is just a launcher: it bounces to the user's last view (chat or tasks),
 // stored per-device in localStorage. Switch the default by changing the

@@ -489,7 +489,8 @@ export function InboxList() {
   const connectedRepo = auth ? `${auth.owner}/${auth.repo}` : undefined;
 
   const trimmedQuery = query.trim();
-  const filtersActive = sourceFilter !== "all" || typeFilter !== "all" || ctoOnly;
+  const filtersActive =
+    sourceFilter !== "all" || typeFilter !== "all" || ctoOnly;
   const filteredUnread = useMemo(
     () =>
       unread.filter((e) =>

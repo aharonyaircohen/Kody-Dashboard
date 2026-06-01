@@ -11,7 +11,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Plus, X, ChevronDown, Check, Bookmark, Link as LinkIcon } from "lucide-react";
+import {
+  Plus,
+  X,
+  ChevronDown,
+  Check,
+  Bookmark,
+  Link as LinkIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "../utils";
 import {
@@ -101,8 +108,7 @@ export function PreviewViewsBar({
     if (addOpen) nameInputRef.current?.focus();
   }, [addOpen]);
 
-  const active =
-    views.find((v) => v.id === selectedId) ?? views[0] ?? null;
+  const active = views.find((v) => v.id === selectedId) ?? views[0] ?? null;
 
   const persist = (next: PreviewView[]): void => {
     setViews(next);

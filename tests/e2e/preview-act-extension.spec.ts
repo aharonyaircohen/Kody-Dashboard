@@ -154,7 +154,9 @@ const test = base.extend<ExtensionFixture>({
       if (req.url === "/register") return res.end(register);
       return res.end(parent);
     });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
     const port = (server.address() as AddressInfo).port;
     await use(`http://127.0.0.1:${port}/`);
     // Force-close any keep-alive sockets first; otherwise server.close()
@@ -279,9 +281,9 @@ test.describe("Kody Preview Inspector — preview_act in a real browser", () => 
       op: "click",
       selector: 'button:has-text("Start Learning")',
     });
-    await expect.poll(() => previewHits(page), { timeout: 4000 }).toContain(
-      "start",
-    );
+    await expect
+      .poll(() => previewHits(page), { timeout: 4000 })
+      .toContain("start");
   });
 
   test("clicks a card <div> by its Hebrew <h3> child via :text-matches", async ({
@@ -313,7 +315,11 @@ test.describe("Kody Preview Inspector — preview_act in a real browser", () => 
     // Either card may match — both contain "Grade 9 - Basics" as visible text.
     await expect
       .poll(() => previewHits(page), { timeout: 4000 })
-      .toEqual(expect.arrayContaining([expect.stringMatching(/^(grade-card|hebrew)$/)]));
+      .toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/^(grade-card|hebrew)$/),
+        ]),
+      );
   });
 
   test("fills an <input> via #id (React controlled-input safe setter)", async ({

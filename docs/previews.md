@@ -38,13 +38,13 @@ immediately with the deterministic URL. Status checks (`GET
 
 ### Components
 
-| Component             | Lives in                            | Lifetime          |
-| --------------------- | ----------------------------------- | ----------------- |
-| Lifecycle / webhooks  | `src/dashboard/lib/previews/`       | Dashboard runtime |
-| Builder image         | `builder/`                          | One-shot per PR   |
-| Per-PR preview app    | Fly (auto-created)                  | Until PR closed   |
-| Per-repo base image   | GHCR (optional)                     | Until manually rebuilt |
-| Org remote builder    | `fly-builder-<org>` (Fly auto-created) | Always-on |
+| Component            | Lives in                               | Lifetime               |
+| -------------------- | -------------------------------------- | ---------------------- |
+| Lifecycle / webhooks | `src/dashboard/lib/previews/`          | Dashboard runtime      |
+| Builder image        | `builder/`                             | One-shot per PR        |
+| Per-PR preview app   | Fly (auto-created)                     | Until PR closed        |
+| Per-repo base image  | GHCR (optional)                        | Until manually rebuilt |
+| Org remote builder   | `fly-builder-<org>` (Fly auto-created) | Always-on              |
 
 ### Consumer repos = zero-touch
 
@@ -107,9 +107,9 @@ cache that survives across runs** — a fresh GitHub runner has neither.
 
 Measured on a real app (A-Guy), build step only:
 
-| | GitHub runner | Namespace |
-| --- | --- | --- |
-| cold | ~7 min | ~4½ min |
+|            | GitHub runner         | Namespace   |
+| ---------- | --------------------- | ----------- |
+| cold       | ~7 min                | ~4½ min     |
 | warm cache | ~7 min (never caches) | **~2½ min** |
 
 → **~2.4–2.7× faster**, and the gap widens as the cache warms.
@@ -132,7 +132,7 @@ produced.
 ### Auth = OIDC federation (no static token)
 
 Namespace is authenticated by **GitHub's OIDC identity**, not a stored
-token (a static `nsc token create` token is *forbidden* from holding
+token (a static `nsc token create` token is _forbidden_ from holding
 build permissions). The workflow's `id-token: write` lets GitHub mint an
 OIDC JWT; the engine exchanges it via `nsc auth exchange-oidc-token`.
 
@@ -171,10 +171,10 @@ failure / unset) → **Fly builder** (if GitHub Actions is full/degraded).
 
 ## Build mode (dev vs prod)
 
-| Mode  | Image                            | First request        | Use case                                   |
-| ----- | -------------------------------- | -------------------- | ------------------------------------------ |
-| `prod` (default) | `default-Dockerfile.preview.prod` | Instant — already built | Most repos (matches Vercel) |
-| `dev` | `default-Dockerfile.preview.dev`  | Slow — compiles in-machine | Tiny repos where build time > compile time |
+| Mode             | Image                             | First request              | Use case                                   |
+| ---------------- | --------------------------------- | -------------------------- | ------------------------------------------ |
+| `prod` (default) | `default-Dockerfile.preview.prod` | Instant — already built    | Most repos (matches Vercel)                |
+| `dev`            | `default-Dockerfile.preview.dev`  | Slow — compiles in-machine | Tiny repos where build time > compile time |
 
 Toggle per repo by adding `KODY_PREVIEW_BUILD_MODE=dev` to the repo's
 vault. The dashboard reads it once at spawn time and passes
@@ -224,25 +224,25 @@ iframe like any other. Removing that environment also destroys its Fly app.
 - Single file only, ≤ 5 MB (it's inlined into the machine config). For a
   multi-file site, use a branch preview.
 
-| Where                          | What                                                  |
-| ------------------------------ | ----------------------------------------------------- |
-| `POST /api/kody/previews/static`   | Multipart upload (field `file`) → boots a preview, returns `{ id, url }` |
-| `DELETE /api/kody/previews/static` | `{ id }` — destroy the Fly app (idempotent)       |
-| `src/dashboard/lib/previews/static-preview.ts` | Builder-less create path        |
-| `/preview` switcher "Upload file" | UI entry point (PreviewEnvSwitcher)                |
+| Where                                          | What                                                                     |
+| ---------------------------------------------- | ------------------------------------------------------------------------ |
+| `POST /api/kody/previews/static`               | Multipart upload (field `file`) → boots a preview, returns `{ id, url }` |
+| `DELETE /api/kody/previews/static`             | `{ id }` — destroy the Fly app (idempotent)                              |
+| `src/dashboard/lib/previews/static-preview.ts` | Builder-less create path                                                 |
+| `/preview` switcher "Upload file"              | UI entry point (PreviewEnvSwitcher)                                      |
 
 Image/web-root/port overridable via `KODY_PREVIEW_STATIC_IMAGE`,
 `KODY_PREVIEW_STATIC_WEB_ROOT`, `KODY_PREVIEW_STATIC_PORT`.
 
 ## Dashboard surfaces
 
-| Where                          | What                                                  |
-| ------------------------------ | ----------------------------------------------------- |
-| Task card "Preview" link       | Falls back to the deterministic Fly URL when Vercel hasn't published one yet |
-| `GET /api/kody/previews/:o/:r/:pr` | Live status from Fly (state, machine id, region) |
-| `DELETE /api/kody/previews/:o/:r/:pr` | Manual destroy (idempotent)                      |
-| `app/api/webhooks/github/route.ts` | Auto-create on `pull_request.opened`/`synchronize`/`reopened`; destroy on `closed` |
-| `/preview` switcher "Upload file" | Upload-and-serve static previews (see above)       |
+| Where                                 | What                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------------------- |
+| Task card "Preview" link              | Falls back to the deterministic Fly URL when Vercel hasn't published one yet       |
+| `GET /api/kody/previews/:o/:r/:pr`    | Live status from Fly (state, machine id, region)                                   |
+| `DELETE /api/kody/previews/:o/:r/:pr` | Manual destroy (idempotent)                                                        |
+| `app/api/webhooks/github/route.ts`    | Auto-create on `pull_request.opened`/`synchronize`/`reopened`; destroy on `closed` |
+| `/preview` switcher "Upload file"     | Upload-and-serve static previews (see above)                                       |
 
 ## Code map
 
@@ -276,24 +276,24 @@ needed.
 
 ## Env vars (dashboard)
 
-| Variable                       | Required | Purpose                                                   |
-| ------------------------------ | -------- | --------------------------------------------------------- |
-| `KODY_PREVIEW_BUILDER_IMAGE`   | No       | Override builder image (default: `registry.fly.io/kody-preview-builder:latest`) |
-| `KODY_PREVIEW_BUILDER_HOST_APP`| No       | Fly app that hosts builder machines (default: `kody-preview-builder`) |
-| `KODY_PREVIEW_GHCR_OWNER`      | No       | Enables GHCR base inheritance speed-up                    |
-| `KODY_PREVIEW_STATIC_IMAGE`    | No       | Static-preview server image (default: `nginx:alpine`)     |
-| `KODY_PREVIEW_STATIC_WEB_ROOT` | No       | Static-preview web root (default: `/usr/share/nginx/html`)|
-| `KODY_PREVIEW_STATIC_PORT`     | No       | Static-preview internal port (default: `80`)              |
+| Variable                        | Required | Purpose                                                                         |
+| ------------------------------- | -------- | ------------------------------------------------------------------------------- |
+| `KODY_PREVIEW_BUILDER_IMAGE`    | No       | Override builder image (default: `registry.fly.io/kody-preview-builder:latest`) |
+| `KODY_PREVIEW_BUILDER_HOST_APP` | No       | Fly app that hosts builder machines (default: `kody-preview-builder`)           |
+| `KODY_PREVIEW_GHCR_OWNER`       | No       | Enables GHCR base inheritance speed-up                                          |
+| `KODY_PREVIEW_STATIC_IMAGE`     | No       | Static-preview server image (default: `nginx:alpine`)                           |
+| `KODY_PREVIEW_STATIC_WEB_ROOT`  | No       | Static-preview web root (default: `/usr/share/nginx/html`)                      |
+| `KODY_PREVIEW_STATIC_PORT`      | No       | Static-preview internal port (default: `80`)                                    |
 
 Per-repo vault keys:
 
-| Key                        | Required | Purpose                                                |
-| -------------------------- | -------- | ------------------------------------------------------ |
-| `FLY_API_TOKEN`            | Yes      | Bills previews to this repo's Fly account              |
-| `FLY_ORG_SLUG`             | Yes      | Fly org for the per-PR app                             |
-| `FLY_DEFAULT_REGION`       | No       | Region hint (default: `iad`)                           |
-| `KODY_PREVIEW_BUILD_MODE`  | No       | `dev` to opt into in-machine `next dev`                |
-| *(other secrets)*          | No       | Forwarded to the build as `.env.production.local`      |
+| Key                       | Required | Purpose                                           |
+| ------------------------- | -------- | ------------------------------------------------- |
+| `FLY_API_TOKEN`           | Yes      | Bills previews to this repo's Fly account         |
+| `FLY_ORG_SLUG`            | Yes      | Fly org for the per-PR app                        |
+| `FLY_DEFAULT_REGION`      | No       | Region hint (default: `iad`)                      |
+| `KODY_PREVIEW_BUILD_MODE` | No       | `dev` to opt into in-machine `next dev`           |
+| _(other secrets)_         | No       | Forwarded to the build as `.env.production.local` |
 
 The `NEVER_PASS_TO_BUILD` set in `preview-lifecycle.ts` filters
 infra-only keys (Fly token, master key, build-mode knob) so they don't

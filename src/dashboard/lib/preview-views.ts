@@ -53,10 +53,7 @@ export function joinPreviewUrl(baseUrl: string, path: string): string {
 }
 
 /** Read the stored list (or seed with defaults if none yet). SSR-safe. */
-export function readPreviewViews(
-  owner: string,
-  repo: string,
-): PreviewView[] {
+export function readPreviewViews(owner: string, repo: string): PreviewView[] {
   if (typeof window === "undefined") return DEFAULT_PREVIEW_VIEWS;
   try {
     const raw = window.localStorage.getItem(storageKey(owner, repo));
@@ -87,10 +84,7 @@ export function writePreviewViews(
 ): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(
-      storageKey(owner, repo),
-      JSON.stringify(views),
-    );
+    window.localStorage.setItem(storageKey(owner, repo), JSON.stringify(views));
   } catch {
     /* quota / private mode — silently drop */
   }

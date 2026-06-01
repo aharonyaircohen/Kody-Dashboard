@@ -124,12 +124,8 @@ describe("read/writeMacros (localStorage)", () => {
     expect(readMacros("o", "r")).toHaveLength(1);
   });
   it("scopes per-repo", () => {
-    writeMacros("o", "a", [
-      { id: "1", name: "A", createdAt: 1, steps: [] },
-    ]);
-    writeMacros("o", "b", [
-      { id: "2", name: "B", createdAt: 1, steps: [] },
-    ]);
+    writeMacros("o", "a", [{ id: "1", name: "A", createdAt: 1, steps: [] }]);
+    writeMacros("o", "b", [{ id: "2", name: "B", createdAt: 1, steps: [] }]);
     expect(readMacros("o", "a")[0]!.name).toBe("A");
     expect(readMacros("o", "b")[0]!.name).toBe("B");
   });

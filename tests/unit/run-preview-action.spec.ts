@@ -43,7 +43,12 @@ function makeDeps(
   pickerAvailable: boolean = true,
   actResult: PreviewActResult = {
     ok: true,
-    info: { url: "https://x/register", title: "register", selection: "", dom: "<h1>register</h1>\n<button>Sign up</button>" },
+    info: {
+      url: "https://x/register",
+      title: "register",
+      selection: "",
+      dom: "<h1>register</h1>\n<button>Sign up</button>",
+    },
   },
 ): RunPreviewActionDeps & {
   spies: {
@@ -165,7 +170,9 @@ describe("runPreviewAction — chat → action → hidden follow-up", () => {
     // Hidden follow-up still sent — the model needs to see the error to
     // pick a better selector next turn.
     expect(deps.spies.sendText).toHaveBeenCalledOnce();
-    expect(deps.spies.sendText.mock.calls[0]![0]).toContain("[preview action ❌]");
+    expect(deps.spies.sendText.mock.calls[0]![0]).toContain(
+      "[preview action ❌]",
+    );
     expect(deps.spies.sendText.mock.calls[0]![0]).toContain("#missing");
   });
 
@@ -202,14 +209,8 @@ describe("runPreviewAction — chat → action → hidden follow-up", () => {
 
   it("increments chain depth on each dispatch so the cap actually fires", async () => {
     const deps = makeDeps();
-    await runPreviewAction(
-      directive({ op: "click", selector: "#a" }),
-      deps,
-    );
-    await runPreviewAction(
-      directive({ op: "click", selector: "#b" }),
-      deps,
-    );
+    await runPreviewAction(directive({ op: "click", selector: "#a" }), deps);
+    await runPreviewAction(directive({ op: "click", selector: "#b" }), deps);
     expect(deps.chainDepth.value).toBe(2);
     expect(deps.spies.act).toHaveBeenCalledTimes(2);
   });

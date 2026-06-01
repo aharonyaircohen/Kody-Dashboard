@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   ),
   title: {
     default: "Kody Operations Dashboard",
-    template: "%s | Kody Operations",
+    template: "%s | Kody Operations Dashboard",
   },
   // PWA: lets iOS Safari treat the site as installable. Combined with
   // `apple-touch-icon` below, "Add to Home Screen" produces a real PWA icon

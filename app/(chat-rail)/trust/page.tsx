@@ -15,7 +15,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Trust — Kody Operations Dashboard",
+  title: "Trust",
   description:
     "See how close each staff member is to acting on its own, and grant or revoke that autonomy per action.",
   path: "/trust",

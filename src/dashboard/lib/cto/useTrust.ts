@@ -24,11 +24,7 @@ import {
   type CtoDecisionLogEntry,
   type CtoDecisionsManifest,
 } from "./decisions";
-import {
-  summarizeTrust,
-  type TrustOp,
-  type TrustStaffView,
-} from "./trust-ops";
+import { summarizeTrust, type TrustOp, type TrustStaffView } from "./trust-ops";
 
 export const trustQueryKey = (owner?: string, repo?: string) =>
   ["cto-trust", owner ?? "", repo ?? ""] as const;

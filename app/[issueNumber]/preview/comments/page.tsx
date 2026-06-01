@@ -30,7 +30,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { issueNumber } = await params;
   const parsed = parseInt(issueNumber, 10);
-  if (isNaN(parsed)) return { title: "Kody Operations Dashboard" };
+  if (isNaN(parsed))
+    return { title: { absolute: "Kody Operations Dashboard" } };
   return buildTaskMetadata(parsed, {
     suffix: "Comments",
     path: `/${parsed}/preview/comments`,
