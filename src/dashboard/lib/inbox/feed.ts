@@ -72,6 +72,8 @@ export interface InboxFeedEntry {
   ctoCommand?: string;
   /** Emitting staff slug from the raw body's `kody-staff` line (recs only). */
   ctoStaff?: string;
+  /** Emitting duty slug from the raw body's `kody-duty` line — the trust key. */
+  ctoDuty?: string;
 }
 
 export interface InboxFeedManifest {

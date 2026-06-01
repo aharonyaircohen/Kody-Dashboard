@@ -601,6 +601,7 @@ export function InboxList() {
     try {
       const res = await kodyApi.cto.decide({
         staff: rec.staff,
+        duty: rec.duty,
         taskNumber: rec.taskNumber,
         action: rec.action,
         ...(rec.command ? { command: rec.command } : {}),
