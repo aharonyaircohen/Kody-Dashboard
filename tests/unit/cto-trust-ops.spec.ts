@@ -53,7 +53,11 @@ describe("graduateAction", () => {
   });
 
   it("creates the action block when the staff/action is brand new", () => {
-    const after = graduateAction(EMPTY_CTO_DECISIONS_MANIFEST, "coo", "execute");
+    const after = graduateAction(
+      EMPTY_CTO_DECISIONS_MANIFEST,
+      "coo",
+      "execute",
+    );
     expect(after.staff.coo.execute.mode).toBe("auto");
     expect(after.staff.coo.execute.consecutiveApprovals).toBe(
       CTO_GRADUATION_THRESHOLD,
@@ -107,7 +111,8 @@ describe("applyTrustOp dispatch", () => {
       "auto",
     );
     expect(
-      applyTrustOp(base, "reset", "qa", "fix").staff.qa.fix.consecutiveApprovals,
+      applyTrustOp(base, "reset", "qa", "fix").staff.qa.fix
+        .consecutiveApprovals,
     ).toBe(0);
     expect(applyTrustOp(base, "degrade", "qa", "fix").staff.qa.fix.mode).toBe(
       "ask",

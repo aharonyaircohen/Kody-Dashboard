@@ -46,7 +46,9 @@ export function createModelTools(ctx: Ctx) {
   const by = actorLogin ? ` (via chat by @${actorLogin})` : "";
 
   async function persist(models: ChatModel[]) {
-    const { doc, sha } = await readVariables(octokit, owner, repo, { force: true });
+    const { doc, sha } = await readVariables(octokit, owner, repo, {
+      force: true,
+    });
     const next: VariablesDocument = {
       ...doc,
       variables: {
@@ -58,7 +60,14 @@ export function createModelTools(ctx: Ctx) {
         },
       },
     };
-    await writeVariables(octokit, owner, repo, next, sha, `chore(models): update LLM_MODELS${by}`);
+    await writeVariables(
+      octokit,
+      owner,
+      repo,
+      next,
+      sha,
+      `chore(models): update LLM_MODELS${by}`,
+    );
     invalidateVariablesCache(owner, repo);
   }
 
@@ -92,14 +101,20 @@ export function createModelTools(ctx: Ctx) {
       }),
       execute: async ({ id, scope }) => {
         try {
-          const { doc } = await readVariables(octokit, owner, repo, { force: true });
+          const { doc } = await readVariables(octokit, owner, repo, {
+            force: true,
+          });
           const models = loadModels(doc);
           if (!models.some((m) => m.id === id))
             return { error: `model "${id}" not found` };
           const next = models.map((m) => ({
             ...m,
-            ...(scope === "chat" || scope === "both" ? { default: m.id === id } : {}),
-            ...(scope === "engine" || scope === "both" ? { engineDefault: m.id === id } : {}),
+            ...(scope === "chat" || scope === "both"
+              ? { default: m.id === id }
+              : {}),
+            ...(scope === "engine" || scope === "both"
+              ? { engineDefault: m.id === id }
+              : {}),
           }));
           await persist(next);
           return { ok: true, id, scope };
@@ -114,11 +129,15 @@ export function createModelTools(ctx: Ctx) {
       inputSchema: z.object({ id: z.string().min(1), enabled: z.boolean() }),
       execute: async ({ id, enabled }) => {
         try {
-          const { doc } = await readVariables(octokit, owner, repo, { force: true });
+          const { doc } = await readVariables(octokit, owner, repo, {
+            force: true,
+          });
           const models = loadModels(doc);
           if (!models.some((m) => m.id === id))
             return { error: `model "${id}" not found` };
-          await persist(models.map((m) => (m.id === id ? { ...m, enabled } : m)));
+          await persist(
+            models.map((m) => (m.id === id ? { ...m, enabled } : m)),
+          );
           return { ok: true, id, enabled };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

@@ -38,7 +38,11 @@ interface BranchPreview {
 }
 
 interface ListResponse {
-  previews?: Array<{ branch: string; state?: PreviewState; url?: string | null }>;
+  previews?: Array<{
+    branch: string;
+    state?: PreviewState;
+    url?: string | null;
+  }>;
 }
 
 function pillClasses(state: PreviewState): string {
@@ -130,7 +134,7 @@ export function BranchPreviewCard({
         const msg =
           body.error === "branch_not_found"
             ? `Branch "${name}" not found`
-            : body.message ?? body.error ?? `Failed (${res.status})`;
+            : (body.message ?? body.error ?? `Failed (${res.status})`);
         throw new Error(msg);
       }
       setBranch("");
@@ -154,7 +158,9 @@ export function BranchPreviewCard({
         body: JSON.stringify({ branch: name }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
         throw new Error(body.message ?? `Failed (${res.status})`);
       }
       toast.success(`Destroyed preview for "${name}"`);

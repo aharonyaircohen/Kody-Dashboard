@@ -1,0 +1,14 @@
+{
+  "taskId": "25",
+  "taskType": "issue",
+  "target": "25-keep-screen-always-on-during-voice-mode",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Implemented Wake Lock API in useVoiceChat.ts following issue spec exactly",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": ["src/dashboard/lib/hooks/useVoiceChat.ts"],
+  "sessionLog": ".kody/sessions/25.jsonl",
+  "startedAt": "2026-06-01T17:59:00Z",
+  "finishedAt": "2026-06-01T18:00:00Z"
+}

@@ -49,12 +49,17 @@ export function createVariableTools(ctx: Ctx) {
       inputSchema: z.object({
         name: z
           .string()
-          .regex(/^[A-Za-z][A-Za-z0-9_]{0,127}$/, "letters/digits/underscores; start with a letter"),
+          .regex(
+            /^[A-Za-z][A-Za-z0-9_]{0,127}$/,
+            "letters/digits/underscores; start with a letter",
+          ),
         value: z.string(),
       }),
       execute: async ({ name, value }) => {
         if (RESERVED.has(name))
-          return { error: `"${name}" is reserved — manage it via the models tools.` };
+          return {
+            error: `"${name}" is reserved — manage it via the models tools.`,
+          };
         try {
           await updateVariables(
             octokit,
@@ -85,10 +90,13 @@ export function createVariableTools(ctx: Ctx) {
       inputSchema: z.object({ name: z.string().min(1) }),
       execute: async ({ name }) => {
         if (RESERVED.has(name))
-          return { error: `"${name}" is reserved — manage it via the models tools.` };
+          return {
+            error: `"${name}" is reserved — manage it via the models tools.`,
+          };
         try {
           const { doc } = await readVariables(octokit, owner, repo);
-          if (!doc.variables[name]) return { error: `variable "${name}" not found` };
+          if (!doc.variables[name])
+            return { error: `variable "${name}" not found` };
           await updateVariables(
             octokit,
             owner,

@@ -36,7 +36,10 @@ import {
   DEVICE_WIDTHS,
   type PreviewDevice,
 } from "./PreviewIframe";
-import type { ComposerChip, AttachmentInjection } from "../picker/PreviewInspector";
+import type {
+  ComposerChip,
+  AttachmentInjection,
+} from "../picker/PreviewInspector";
 
 interface PreviewPaneProps {
   /** Resolved base URL for the active preview, or null when there's nothing to show. */
@@ -189,11 +192,11 @@ export function PreviewPane({
             </p>
           </div>
         ) : (
-          emptyState ?? (
+          (emptyState ?? (
             <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
               <p className="text-sm text-zinc-300">No preview to show</p>
             </div>
-          )
+          ))
         )}
       </div>
     </>

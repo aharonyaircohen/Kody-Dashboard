@@ -188,11 +188,7 @@ function StaffCard({
   );
 }
 
-function RecentLog({
-  log,
-}: {
-  log: ReturnType<typeof useTrust>["log"];
-}) {
+function RecentLog({ log }: { log: ReturnType<typeof useTrust>["log"] }) {
   const recent = useMemo(() => [...log].slice(-15).reverse(), [log]);
   if (recent.length === 0) return null;
   return (
@@ -249,10 +245,10 @@ export function TrustManager() {
           </h1>
           <p className="text-body-sm text-muted-foreground">
             Every staff member starts in <strong>Ask</strong> mode and must get
-            your approval before each action. After{" "}
-            {CTO_GRADUATION_THRESHOLD} clean approvals of the same action it
-            graduates to <strong>Auto</strong> and acts on its own; one reject
-            sends it back to Ask. Override any of that here.
+            your approval before each action. After {CTO_GRADUATION_THRESHOLD}{" "}
+            clean approvals of the same action it graduates to{" "}
+            <strong>Auto</strong> and acts on its own; one reject sends it back
+            to Ask. Override any of that here.
           </p>
         </header>
 

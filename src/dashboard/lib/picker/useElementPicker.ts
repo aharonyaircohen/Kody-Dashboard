@@ -316,10 +316,7 @@ export function useElementPicker(opts: UseElementPickerOptions): ElementPicker {
   );
 
   const act = useCallback(
-    (
-      action: PreviewAction,
-      timeoutMs?: number,
-    ): Promise<PreviewActResult> =>
+    (action: PreviewAction, timeoutMs?: number): Promise<PreviewActResult> =>
       new Promise((resolve) => {
         if (typeof window === "undefined") {
           resolve({ ok: false, error: "no window" });
