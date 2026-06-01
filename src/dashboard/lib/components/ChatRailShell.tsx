@@ -305,13 +305,17 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // Routes whose page renders its OWN in-pane header (KodyDashboard on the
   // tasks list, new-task / report-bug modals, and issue detail at /<number>;
   // plus Vibe). The shared AppHeader must NOT render on these or two headers
-  // stack. KodyDashboard mounts on all of: /tasks, /new, /report-kody-bug,
-  // and /<issueNumber>(/…) — see app/.
+  // stack. KodyDashboard mounts on all of: /tasks, /new, /bug,
+  // /report-kody-bug, and /<issueNumber>(/…) — see app/. Note /bug and /new
+  // are also reached mid-session via KodyDashboard's history.pushState when a
+  // modal opens, so they must be listed even though no route file navigates
+  // here directly.
   const path = pathname ?? "";
   const pageOwnsHeader =
     isVibeRoute ||
     path === "/tasks" ||
     path === "/new" ||
+    path === "/bug" ||
     path === "/report-kody-bug" ||
     /^\/\d+(?:\/|$)/.test(path);
   const lockedAgentId = undefined;
