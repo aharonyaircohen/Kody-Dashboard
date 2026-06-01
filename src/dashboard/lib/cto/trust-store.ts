@@ -65,15 +65,17 @@ async function fetchContent(useEtag: boolean): Promise<ContentResult | null> {
       path: TRUST_FILE_PATH,
       ref: STATE_BRANCH,
       headers:
-        useEtag && cached?.etag
-          ? { "If-None-Match": cached.etag }
-          : undefined,
+        useEtag && cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
     const etag = (res.headers as Record<string, string | undefined>)?.etag;
     if (!Array.isArray(res.data) && "content" in res.data && res.data.content) {
       const raw = Buffer.from(res.data.content, "base64").toString("utf-8");
       const manifest = parseTrustManifest(raw);
-      cache.set(key, { data: manifest, expires: Date.now() + CACHE_TTL_MS, etag });
+      cache.set(key, {
+        data: manifest,
+        expires: Date.now() + CACHE_TTL_MS,
+        etag,
+      });
       return { manifest, sha: res.data.sha, etag };
     }
     return { manifest: structuredClone(EMPTY_TRUST_MANIFEST) };
@@ -117,7 +119,9 @@ export async function mutateTrust(
   for (let attempt = 0; attempt < MAX_CAS_RETRIES; attempt++) {
     // Always read fresh (no ETag) before a write so the SHA is current.
     const current = await fetchContent(false);
-    const next = mutator(current?.manifest ?? structuredClone(EMPTY_TRUST_MANIFEST));
+    const next = mutator(
+      current?.manifest ?? structuredClone(EMPTY_TRUST_MANIFEST),
+    );
     const body = serializeTrustManifest(next);
     try {
       const octokit = getOctokit();

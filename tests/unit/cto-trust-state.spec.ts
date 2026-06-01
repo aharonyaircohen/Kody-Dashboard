@@ -107,7 +107,11 @@ describe("parse/serialize", () => {
 
 describe("summarizeTrust", () => {
   it("groups by duty and attaches the persona it runs as", () => {
-    const m = graduateAction(approvals("qa-sweep", "fix", 1), "qa-sweep", "fix");
+    const m = graduateAction(
+      approvals("qa-sweep", "fix", 1),
+      "qa-sweep",
+      "fix",
+    );
     const views = summarizeTrust(m, [
       { slug: "qa-sweep", staff: "qa" },
       { slug: "docs-readme", staff: "tech-writer" },

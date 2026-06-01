@@ -13,7 +13,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Variables — Kody Operations Dashboard",
+  title: "Variables",
   description:
     "Manage non-sensitive config stored in .kody/variables.json. For secrets use /secrets.",
   path: "/variables",

@@ -14,7 +14,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Report Bug — Kody Operations Dashboard",
+  title: "Report Bug",
   description: "Report a bug for the Kody AI build agent",
   path: "/bug",
 });

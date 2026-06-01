@@ -13,10 +13,7 @@ import {
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
 
-function uploaded(
-  id: string,
-  expiresAt: number,
-): PreviewEnvironment {
+function uploaded(id: string, expiresAt: number): PreviewEnvironment {
   return {
     id,
     label: id,

@@ -36,8 +36,7 @@ function expiryChip(
   now: number,
 ): { text: string; className: string } {
   const days = daysUntilExpiry(expiresAt, now);
-  if (days <= 0)
-    return { text: "expired", className: "text-rose-400/80" };
+  if (days <= 0) return { text: "expired", className: "text-rose-400/80" };
   if (days === 1) return { text: "1d left", className: "text-amber-400/80" };
   if (days <= 2)
     return { text: `${days}d left`, className: "text-amber-400/80" };
@@ -89,7 +88,8 @@ export function PreviewEnvSwitcher({
     if (!menuOpen) return;
     const onDocClick = (e: MouseEvent) => {
       if (!rootRef.current) return;
-      if (e.target instanceof Node && rootRef.current.contains(e.target)) return;
+      if (e.target instanceof Node && rootRef.current.contains(e.target))
+        return;
       setMenuOpen(false);
       setAddOpen(false);
       setEditingId(null);
@@ -182,7 +182,10 @@ export function PreviewEnvSwitcher({
             const selected = env.id === active?.id;
             if (editingId === env.id) {
               return (
-                <div key={env.id} className="px-3 py-2 border-b border-zinc-800">
+                <div
+                  key={env.id}
+                  className="px-3 py-2 border-b border-zinc-800"
+                >
                   <PreviewEnvForm
                     initialLabel={env.label}
                     initialUrl={env.url}

@@ -71,7 +71,7 @@ export const previewActTool = tool({
   description:
     "Drive the preview iframe: click, fill, navigate, scroll, or wait. " +
     "Use ONLY when the user asks you to interact with or verify something in " +
-    "the preview (e.g. \"log in\", \"click the Save button\", \"scroll to the footer\"). " +
+    'the preview (e.g. "log in", "click the Save button", "scroll to the footer"). ' +
     "The action runs in the user's browser via the Kody Preview Inspector " +
     "extension; if the extension isn't installed the call surfaces an error and you " +
     "should tell the user. Each successful call returns a fresh DOM snapshot " +

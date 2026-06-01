@@ -65,7 +65,7 @@ export async function buildTaskMetadata(
 
     if (!issue) {
       return buildKodyMetadata({
-        title: `Task #${issueNumber} — ${SITE_NAME}`,
+        title: `Task #${issueNumber}`,
         description: `Task #${issueNumber} not found`,
         path,
       });
@@ -106,7 +106,7 @@ export async function buildTaskMetadata(
   } catch {
     // If GitHub API fails, return basic metadata (don't block page render)
     return buildKodyMetadata({
-      title: `Task #${issueNumber}${suffix ? ` — ${suffix}` : ""} — ${SITE_NAME}`,
+      title: `Task #${issueNumber}${suffix ? ` — ${suffix}` : ""}`,
       description: `View task #${issueNumber} on the Kody Operations Dashboard`,
       path,
     });

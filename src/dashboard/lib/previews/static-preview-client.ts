@@ -45,7 +45,9 @@ export async function uploadStaticPreview(
       error?: string;
       message?: string;
     };
-    throw new Error(body.message ?? body.error ?? `Upload failed (${res.status})`);
+    throw new Error(
+      body.message ?? body.error ?? `Upload failed (${res.status})`,
+    );
   }
   return (await res.json()) as UploadedStaticPreview;
 }

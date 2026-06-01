@@ -174,7 +174,7 @@ export function composeActTimeoutError(
     action.op === "fill" ||
     (action.op === "scroll" && Boolean(action.selector));
   if (hasSelector) {
-    const sel = "selector" in action ? action.selector ?? "" : "";
+    const sel = "selector" in action ? (action.selector ?? "") : "";
     return `selector not found in any preview frame: ${sel}`;
   }
   return `timed out after ${timeoutMs}ms`;

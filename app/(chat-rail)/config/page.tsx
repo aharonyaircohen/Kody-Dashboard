@@ -16,7 +16,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Config — Kody Operations Dashboard",
+  title: "Config",
   description:
     "Repo-wide engine config: operators, quality commands, access gate, default branch, aliases.",
   path: "/config",

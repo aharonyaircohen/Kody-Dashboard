@@ -14,7 +14,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Repositories — Kody Operations Dashboard",
+  title: "Repositories",
   description:
     "Manage the GitHub repositories connected to the Kody dashboard. Each repo carries its own PAT and can be set as the current view.",
   path: "/repos",

@@ -29,7 +29,8 @@ export function createWebhookTools(ctx: Ctx) {
         if (!base)
           return {
             error: "no_server_url",
-            message: "NEXT_PUBLIC_SERVER_URL is not set on the server, so the webhook target URL is unknown.",
+            message:
+              "NEXT_PUBLIC_SERVER_URL is not set on the server, so the webhook target URL is unknown.",
           };
         try {
           const result = await ensureWebhook({
