@@ -76,7 +76,6 @@ jobs:
         id: deploy
         run: |
           OUTPUT=$(vercel deploy --token=${{ secrets.VERCEL_TOKEN }} 2>&1)
-          echo "output=$OUTPUT" >> $GITHUB_OUTPUT
           echo "$OUTPUT"
           # Extract URL — Vercel prints "https://<project>-<hash>.vercel.app"
           URL=$(echo "$OUTPUT" | grep -E "https://[^ ]+\.vercel\.app" | tail -1)
