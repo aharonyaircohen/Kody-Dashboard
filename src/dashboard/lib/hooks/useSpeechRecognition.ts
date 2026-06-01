@@ -48,6 +48,7 @@ export function useSpeechRecognition(
   const restartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasSpeechRef = useRef(false);
   const continuousRestartRef = useRef(false);
+  const startRetriedRef = useRef(false); // guard: retry a failed start once
 
   useEffect(() => {
     onResultRef.current = onResult;
@@ -106,6 +107,17 @@ export function useSpeechRecognition(
     hasSpeechRef.current = false;
     continuousRestartRef.current = true;
 
+    // Restart recognition shortly. Used to (a) keep the mic alive through
+    // silence and (b) recover from the start()/teardown race. Replaces any
+    // pending restart so timers never stack.
+    const scheduleRestart = (delay: number) => {
+      if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
+      restartTimeoutRef.current = setTimeout(() => {
+        restartTimeoutRef.current = null;
+        if (continuousRestartRef.current) start();
+      }, delay);
+    };
+
     const rec = new Ctor();
     rec.lang = lang;
     rec.continuous = false;
@@ -114,6 +126,7 @@ export function useSpeechRecognition(
 
     rec.onstart = () => {
       setIsListening(true);
+      startRetriedRef.current = false; // a clean start clears the retry guard
       // Clear any pending restart when starting fresh
       if (restartTimeoutRef.current) {
         clearTimeout(restartTimeoutRef.current);
@@ -171,19 +184,16 @@ export function useSpeechRecognition(
     };
     rec.onerror = (ev: any) => {
       if (ev.error === "no-speech" || ev.error === "aborted") {
-        // Auto-restart on no-speech if we've had speech (allows continuous listening)
-        if (hasSpeechRef.current && continuousRestartRef.current) {
-          hasSpeechRef.current = false;
-          setIsListening(false);
-          // Brief delay then restart
-          restartTimeoutRef.current = setTimeout(() => {
-            if (continuousRestartRef.current) {
-              start();
-            }
-          }, 300);
-          return;
-        }
         setIsListening(false);
+        // Keep the mic alive through silence. Chrome's no-speech timeout
+        // (and the abort from our own silence-driven stop) would otherwise
+        // kill recognition for good — so a pause before speaking, or right
+        // after, leaves the next words unrecorded. Restart whenever we're
+        // still meant to be listening, regardless of prior speech.
+        if (continuousRestartRef.current) {
+          hasSpeechRef.current = false;
+          scheduleRestart(300);
+        }
         return;
       }
       const msg =
@@ -199,15 +209,11 @@ export function useSpeechRecognition(
       setIsListening(false);
       recRef.current = null;
 
-      // Auto-restart if we had speech and continuous mode is enabled
-      if (hasSpeechRef.current && continuousRestartRef.current) {
+      // Keep the mic alive while we're meant to be listening. Skip if a
+      // restart is already queued (e.g. from onerror) so we don't double-fire.
+      if (continuousRestartRef.current && !restartTimeoutRef.current) {
         hasSpeechRef.current = false;
-        // Brief delay to avoid rapid restarts
-        restartTimeoutRef.current = setTimeout(() => {
-          if (continuousRestartRef.current) {
-            start();
-          }
-        }, 200);
+        scheduleRestart(200);
       }
     };
 
@@ -215,6 +221,16 @@ export function useSpeechRecognition(
     try {
       rec.start();
     } catch (err) {
+      // Chrome throws if the previous recognition hasn't released the mic
+      // yet (rapid stop→start). Retry once before surfacing a hard error —
+      // otherwise the mic is stranded "off" while the UI still says listening.
+      if (continuousRestartRef.current && !startRetriedRef.current) {
+        startRetriedRef.current = true;
+        recRef.current = null;
+        scheduleRestart(300);
+        return;
+      }
+      startRetriedRef.current = false;
       const msg =
         err instanceof Error
           ? err.message

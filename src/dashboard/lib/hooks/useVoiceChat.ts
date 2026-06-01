@@ -90,6 +90,10 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
       retryRef.current = 0;
       spokeThisTurnRef.current = false;
       setS("processing");
+      // Mic off while the AI thinks + speaks — avoids it hearing the reply
+      // and racing the restart. The TTS onEnd / endResponse handoff turns
+      // it back on for the next turn.
+      sttStopRef.current();
       sendRef.current(t);
     },
     [setS, tts],
