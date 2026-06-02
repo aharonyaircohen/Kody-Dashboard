@@ -380,7 +380,7 @@ function getOverflowActions(
       pendingLabel: "Closing…",
       onClick: () => taskActions.closePR(),
       pendingKey: "close-pr",
-      confirmMessage: `Close PR #${task.associatedPR.number}? This will NOT delete the branch.`,
+      confirmMessage: `Close PR #${task.associatedPR.number}? This will also delete the branch.`,
     });
   }
 
