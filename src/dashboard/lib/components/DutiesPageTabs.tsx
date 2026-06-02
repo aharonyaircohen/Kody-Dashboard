@@ -17,7 +17,6 @@ import { Button } from "@dashboard/ui/button";
 import { cn } from "@dashboard/lib/utils/ui";
 import { DutyControl } from "./DutyControl";
 import { ReportsView } from "./ReportsView";
-import { VibeToggle } from "./VibeToggle";
 import { SimpleTooltip } from "./SimpleTooltip";
 
 type Tab = "duties" | "reports";
@@ -100,9 +99,6 @@ export function DutiesPageTabs() {
               );
             })}
           </div>
-        </div>
-        <div className="flex items-center gap-2 pb-2">
-          <VibeToggle className="hidden sm:inline-flex" />
         </div>
       </div>
 

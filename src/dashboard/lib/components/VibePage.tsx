@@ -390,7 +390,7 @@ export function VibePage() {
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header — mirrors the Dashboard so navigation feels like a view
-          toggle. The VibeToggle in the header reflects "on" via pathname. */}
+          switch. Vibe is reached from the rail's "Views" group. */}
       <KodyHeader
         onOpenMobileMenu={() => setShowMobileMenu(true)}
         onRefresh={() => {
