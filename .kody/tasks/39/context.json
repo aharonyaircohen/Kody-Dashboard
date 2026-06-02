@@ -1,0 +1,17 @@
+{
+  "taskId": "39",
+  "taskType": "pr",
+  "target": "25-keep-screen-always-on-during-voice-mode",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "CI was failing due to two pre-existing issues: (1) TS2556 error in tests/int/close-pr-action.int.spec.ts introduced by d545491 on main, and (2) Prettier format drift in .kody/reports/ceo-performance-review.md from 715b319. The vercel deploy exit-1 was environmental and already fixed by 65eb0fb which removed deploy-preview job.",
+  "prUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/39",
+  "runUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/actions/runs/26825164641",
+  "filesTouched": [
+    "tests/int/close-pr-action.int.spec.ts",
+    ".kody/reports/ceo-performance-review.md"
+  ],
+  "sessionLog": ".kody/sessions/f32ec928-8dab-4ce8-a32c-03e15c19ca26.jsonl",
+  "startedAt": "2026-06-02T18:02:00Z",
+  "finishedAt": "2026-06-02T18:08:00Z"
+}
