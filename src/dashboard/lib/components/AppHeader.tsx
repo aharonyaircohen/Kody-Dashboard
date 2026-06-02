@@ -4,11 +4,12 @@
  * @pattern app-header
  * @ai-summary The single persistent top header, rendered once by ChatRailShell
  *   at the top of the main content column (right of the nav sidebar). It stays
- *   put across Chat and Tasks — the view switches below it, the header never
- *   disappears. Reuses KodyHeader for the shared chrome (repo title, the
- *   Chat|Tasks ViewToggle, Vibe toggle, notifications, mobile hamburger) with
- *   no page-specific filter/refresh bits — pages render those as their own
- *   toolbar below this header. Not shown on /vibe, which keeps its own header.
+ *   put across views — the view switches below it, the header never
+ *   disappears. Reuses KodyHeader for the shared chrome (repo title,
+ *   notifications, mobile hamburger) with no page-specific filter/refresh
+ *   bits — pages render those as their own toolbar below this header. View
+ *   navigation (Dashboard / Tasks / Vibe) lives in the rail's "Views" group.
+ *   Not shown on /vibe, which keeps its own header.
  */
 "use client";
 

@@ -16,8 +16,7 @@
 
 import { type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Github, LogOut, Sparkles } from "lucide-react";
+import { Github, LogOut } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import {
@@ -33,6 +32,8 @@ import { SimpleTooltip } from "./SimpleTooltip";
 import {
   PRIMARY_NAV_ITEMS,
   PRIMARY_NAV_TITLE,
+  PRIMARY_VIEW_ITEMS,
+  PRIMARY_VIEW_TITLE,
   SETTINGS_NAV_SECTIONS,
 } from "./settings-nav";
 import { InboxBadge } from "./InboxBadge";
@@ -59,13 +60,7 @@ export function MobileMenu({
   extras,
   bottomCta,
 }: MobileMenuProps) {
-  const pathname = usePathname() ?? "/";
   const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
-
-  const onVibe = pathname.startsWith("/vibe");
-  const vibeHref = onVibe ? "/" : "/vibe";
-  const vibeLabel = onVibe ? "Turn off Vibe" : "Turn on Vibe";
-  const vibeHint = onVibe ? "Back to list" : "Preview · Chat · Ship";
 
   const close = () => onOpenChange(false);
 
@@ -129,43 +124,35 @@ export function MobileMenu({
           </div>
         )}
 
-        {/* Vibe toggle — state-aware. */}
+        {/* Views — Dashboard / Tasks / Vibe. The primary view switch, shared
+            with the desktop rail (PRIMARY_VIEW_ITEMS) so the two can't drift. */}
         <div className="px-4 pt-3">
-          <Link
-            href={vibeHref}
-            role="switch"
-            aria-checked={onVibe}
-            onClick={close}
-            className={cn(
-              "flex items-center gap-3 h-12 px-4 rounded-xl border transition-colors",
-              onVibe
-                ? "border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-100 hover:bg-fuchsia-500/20"
-                : "border-fuchsia-400/30 bg-gradient-to-r from-fuchsia-500/10 to-pink-500/5 text-fuchsia-100 hover:from-fuchsia-500/15 hover:to-pink-500/10",
-            )}
-          >
-            <span
-              className={cn(
-                "inline-flex h-7 w-7 items-center justify-center rounded-md",
-                onVibe ? "bg-fuchsia-500/30" : "bg-fuchsia-500/20",
-              )}
-            >
-              <Sparkles
-                className={cn(
-                  "w-4 h-4",
-                  onVibe ? "text-fuchsia-200" : "text-fuchsia-300",
-                )}
-              />
-            </span>
-            <span className="text-sm font-medium flex-1">{vibeLabel}</span>
-            <span
-              className={cn(
-                "text-[11px]",
-                onVibe ? "text-fuchsia-200/70" : "text-fuchsia-300/70",
-              )}
-            >
-              {vibeHint}
-            </span>
-          </Link>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-2 px-1">
+            {PRIMARY_VIEW_TITLE}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {PRIMARY_VIEW_ITEMS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={close}
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors text-center"
+                >
+                  <span
+                    className={cn(
+                      "inline-flex h-8 w-8 items-center justify-center rounded-md",
+                      item.tint,
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                  </span>
+                  <span className="text-sm font-medium">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
 
         {/* Workspace — page-specific primary action + the shared primary nav

@@ -4,9 +4,8 @@
  * @pattern dashboard-header
  * @ai-summary Top action bar shared by the Dashboard and Vibe pages.
  *   Mirrors the dashboard layout so navigating between the two surfaces
- *   feels like a view toggle, not a route change. The only visual delta
- *   between the two pages is the VibeToggle, which reflects the current
- *   route via usePathname.
+ *   feels like a view switch, not a route change. Navigation between views
+ *   (Dashboard / Tasks / Vibe) lives in the rail's "Views" group, not here.
  *
  *   Page-specific state (notifications, branch cleanup dialog, refetch,
  *   publish callback) is passed in as props so each host owns its own
@@ -26,7 +25,6 @@ import { useNotifications } from "../notifications/NotificationsProvider";
 import { cn } from "../utils";
 import { useChatScope } from "./ChatRailShell";
 import { SimpleTooltip } from "./SimpleTooltip";
-import { VibeToggle } from "./VibeToggle";
 
 interface KodyHeaderProps {
   /** Opens the page-specific mobile menu (host renders the Sheet). */
@@ -87,7 +85,6 @@ export function KodyHeader({
             {connectedRepo?.split("/").pop() || "Kody Operations"}
           </h1>
         </div>
-        <VibeToggle className="hidden sm:inline-flex" />
       </div>
 
       {/* Desktop controls — data tools (search/filter) sit here, separated from
