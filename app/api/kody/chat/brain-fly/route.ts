@@ -159,8 +159,23 @@ export async function POST(req: NextRequest) {
 
   // First turn only: pull the dashboard's curated Context for the chat
   // audience. Cached 60s in-process; `null` when the repo has none.
-  const dashboardContext =
-    !isResume && body.includeContext ? await loadContextForPrompt() : null;
+  //
+  // Best-effort: this is the ONLY first-turn-only step here, and it reaches
+  // GitHub via server-side creds. If it throws (e.g. a misconfigured server
+  // token/owner/repo in this environment), it must NOT take down the whole
+  // chat — that would 500 the first message while every later message (which
+  // omits includeContext) succeeds. Degrade to no-context instead.
+  let dashboardContext: string | null = null;
+  if (!isResume && body.includeContext) {
+    try {
+      dashboardContext = await loadContextForPrompt();
+    } catch (err) {
+      logger.warn(
+        { err, owner: ctx.context.owner },
+        "chat/brain-fly: dashboard Context load failed — proceeding without it",
+      );
+    }
+  }
 
   return streamBrainChat({
     brainUrl: provisioned.url,
