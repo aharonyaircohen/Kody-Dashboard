@@ -7,8 +7,9 @@
  *   (brain, vercelBypassSecret) via useAuth().updateIntegrations. ALL Fly
  *   config (including the per-user perf tier) now lives on /runner so it isn't
  *   split across two pages — see [[feedback_settings_per_user_only]]. Other
- *   per-REPO config is surfaced as links: secrets vault on /secrets, GitHub
- *   PATs on /repos, chat models/prompts on /models and /prompts.
+ *   per-REPO config is surfaced as links: secrets vault on /secrets, chat
+ *   models/prompts on /models and /prompts. (Repo connections + PATs moved to
+ *   the header repo switcher — no standalone page.)
  */
 "use client";
 
@@ -19,7 +20,6 @@ import {
   Bot,
   Brain,
   Cpu,
-  Github,
   KeyRound,
   Link2,
   LogOut,
@@ -275,16 +275,6 @@ export function SettingsManager() {
                   <Link href="/commands">
                     <Bot className="w-4 h-4" />
                     Slash commands
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="justify-start gap-2 bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
-                >
-                  <Link href="/repos">
-                    <Github className="w-4 h-4" />
-                    Repositories
                   </Link>
                 </Button>
                 <Button
