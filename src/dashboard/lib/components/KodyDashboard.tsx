@@ -1177,7 +1177,7 @@ export function KodyDashboard({
     <div className="flex-1 flex items-center justify-center">{content}</div>
   );
 
-  // Session expired — only possible when using OAuth sessions (token-only mode shouldn't reach here)
+  // Session expired — can happen in both OAuth and token-only mode
   if (isSessionExpired) {
     return renderErrorTakeover(
       <div className="text-center max-w-md p-6">
@@ -1186,8 +1186,7 @@ export function KodyDashboard({
           Authentication Error
         </h2>
         <p className="text-muted-foreground mb-4">
-          Your session is invalid. Ensure <code>GITHUB_TOKEN</code> is set in
-          your environment variables.
+          {error?.message ?? "Your session is invalid."}
         </p>
         <div className="flex flex-col items-center gap-2">
           <Button onClick={() => refetch()}>Retry</Button>
