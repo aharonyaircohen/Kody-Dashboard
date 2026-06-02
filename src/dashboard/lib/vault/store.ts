@@ -78,7 +78,9 @@ async function fetchRaw(
       // that GitHub requires to overwrite it. Preserve it so the next write
       // doesn't get rejected with "sha wasn't supplied".
       const sha =
-        !Array.isArray(data) && data.type === "file" ? (data.sha ?? null) : null;
+        !Array.isArray(data) && data.type === "file"
+          ? (data.sha ?? null)
+          : null;
       return { doc: emptyDoc(), sha };
     }
     const buf = Buffer.from(

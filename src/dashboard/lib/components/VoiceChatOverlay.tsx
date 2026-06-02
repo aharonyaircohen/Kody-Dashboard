@@ -306,7 +306,9 @@ export function VoiceChatOverlay({
             <span className="text-green-500">🟢 Natural voice</span>
           )}
           {ttsEngine === "pending" && (
-            <span className="text-muted-foreground">Loading natural voice…</span>
+            <span className="text-muted-foreground">
+              Loading natural voice…
+            </span>
           )}
           {ttsEngine === "browser" && (
             <span className="text-amber-500">🟡 Basic voice</span>

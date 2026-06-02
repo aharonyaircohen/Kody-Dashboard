@@ -7,6 +7,7 @@ transition logic lives entirely in profile.json's postflight entries.
 <!-- kody:output-format (managed — edit above this line only) -->
 
 # Final message format (required)
+
 Your FINAL message MUST be exactly this block, with nothing before it:
 
 DONE

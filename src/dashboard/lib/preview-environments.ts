@@ -69,7 +69,9 @@ export function makeEnvId(label: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  const rand = Math.random().toString(36).slice(2, 2 + ID_RAND_LEN);
+  const rand = Math.random()
+    .toString(36)
+    .slice(2, 2 + ID_RAND_LEN);
   return `${slug || "env"}-${rand}`;
 }
 
@@ -115,7 +117,11 @@ export function resolveEnvironments(
   const legacy = config?.defaultPreviewUrl?.trim();
   if (legacy) {
     return [
-      { id: "default", label: "Default", url: normalizeEnvUrl(legacy) ?? legacy },
+      {
+        id: "default",
+        label: "Default",
+        url: normalizeEnvUrl(legacy) ?? legacy,
+      },
     ];
   }
   return [];
@@ -130,7 +136,10 @@ export function addEnvironment(
   const cleanLabel = label.trim().slice(0, MAX_LABEL);
   const cleanUrl = normalizeEnvUrl(url);
   if (!cleanLabel || !cleanUrl) return list;
-  return [...list, { id: makeEnvId(cleanLabel), label: cleanLabel, url: cleanUrl }];
+  return [
+    ...list,
+    { id: makeEnvId(cleanLabel), label: cleanLabel, url: cleanUrl },
+  ];
 }
 
 /**
@@ -173,7 +182,8 @@ export function updateEnvironment(
       patch.label !== undefined
         ? patch.label.trim().slice(0, MAX_LABEL) || e.label
         : e.label;
-    const url = patch.url !== undefined ? normalizeEnvUrl(patch.url) ?? e.url : e.url;
+    const url =
+      patch.url !== undefined ? (normalizeEnvUrl(patch.url) ?? e.url) : e.url;
     return { ...e, label, url };
   });
 }

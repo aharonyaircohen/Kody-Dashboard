@@ -37,11 +37,12 @@ If `browser_navigate` errors out (timeout, DNS, connection refused, navigation a
 {{qaAuthBlock}}
 
 {{#linkedFinding}}
+
 # What this PR must deliver
 
 This PR is meant to deliver the issue below — a **bug fix** or a **feature**. **Judge your verdict against whether the issue's goal is actually met in the running app — NOT merely whether the diff is internally correct.** Exercise the relevant flow on the preview:
 
-- **If it's a bug** (Steps / Expected / Actual): reproduce the Steps and check the reported **Actual** is gone. If the symptom still reproduces, the verdict is **FAIL** — *even if the code change looks correct and the remaining cause is a separate env/config issue*. "Done" means the user no longer sees the bug, not that the author's narrow change landed.
+- **If it's a bug** (Steps / Expected / Actual): reproduce the Steps and check the reported **Actual** is gone. If the symptom still reproduces, the verdict is **FAIL** — _even if the code change looks correct and the remaining cause is a separate env/config issue_. "Done" means the user no longer sees the bug, not that the author's narrow change landed.
 - **If it's a feature** (described behavior / acceptance criteria): exercise the new behavior and check it actually works as described. If the described capability is missing, broken, or only partially present, the verdict is **FAIL** (or CONCERNS for partial).
 - Either way, verdict **PASS** only if you confirmed the goal is met in the browser; **CONCERNS** if you genuinely could not reach/exercise it.
 
@@ -50,6 +51,7 @@ This PR is meant to deliver the issue below — a **bug fix** or a **feature**. 
 ```
 
 {{/linkedFinding}}
+
 # Diff
 
 ```diff
@@ -74,8 +76,7 @@ This PR is meant to deliver the issue below — a **bug fix** or a **feature**. 
 
    Include a `playwright.config.ts` at `.kody/ui-review/playwright.config.ts` only if you need custom config; otherwise rely on defaults (headless chromium).
 
-   **UI-state checklist.** Browsing the happy path is not enough. For each UI surface the PR changes, verify the following states *if they're plausibly reachable*; explicitly note in "Gaps" any state you couldn't reach:
-
+   **UI-state checklist.** Browsing the happy path is not enough. For each UI surface the PR changes, verify the following states _if they're plausibly reachable_; explicitly note in "Gaps" any state you couldn't reach:
    - **Loading.** What does the page look like before data resolves? Are there skeletons / spinners / placeholders? Does the layout shift on data arrival?
    - **Empty.** What does it look like with zero items (no rows, no results, no notifications)? Is there an empty-state message, or is the screen confusingly blank?
    - **Error.** What does it look like when a request fails? Force a failure if you can (network throttle, invalid input, broken nav). Is the error visible and actionable?
@@ -129,13 +130,14 @@ _UI review by kody — browsed {{previewUrl}}_
 - No commits. No `git` / `gh` invocations. No edits to files outside `.kody/ui-review/`.
 - Verdict **FAIL** for clear visual regressions, broken flows, or correctness/accessibility issues that block merge. **Also FAIL when the PR claims to fix a specific user-visible symptom (named in the PR body or linked issue) and that symptom is STILL present in the browser** — report against the user-visible outcome, not just whether the diff is technically correct. A fix whose code path is right but whose reported symptom still reproduces is a FAIL.
 - Verdict **CONCERNS** for clarity/polish/edge-case gaps that shouldn't block — **and whenever you could NOT confirm a UI-affecting change in the browser** (couldn't reach the page, couldn't log in, couldn't trigger the state). Do not upgrade an unverified change to PASS on the strength of reading the diff: a reviewer must not bless what it did not see. List every such gap explicitly.
-- Verdict **PASS** only when you **confirmed in the browser** that the PR's changed behavior works as intended and nothing obvious is broken. PASS is a statement that you *saw it work*, not that the code looks correct.
+- Verdict **PASS** only when you **confirmed in the browser** that the PR's changed behavior works as intended and nothing obvious is broken. PASS is a statement that you _saw it work_, not that the code looks correct.
 - If the preview URL is unreachable, the verdict is **CONCERNS** (not PASS) with the "Gaps" section calling out that nothing could be browser-verified; reserve FAIL for problems you can still prove from the diff alone.
 - Be specific: every finding gets a route + screenshot reference, or a file:line reference. No generic advice.
 
 <!-- kody:output-format (managed — edit above this line only) -->
 
 # Final message format (required)
+
 Your FINAL message MUST be exactly this block, with nothing before it:
 
 DONE

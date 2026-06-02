@@ -13,7 +13,7 @@ Report destination: {{#args.goal}}existing kody goal `{{args.goal}}` (each findi
 
 # How to browse
 
-You have the **Playwright MCP** tools (`mcp__playwright__browser_navigate`, `mcp__playwright__browser_snapshot`, `mcp__playwright__browser_click`, `mcp__playwright__browser_type`, `mcp__playwright__browser_take_screenshot`, etc.). These return structured accessibility snapshots — prefer them over raw screenshots when you need to reason about the DOM. Reach for screenshots when something *looks* wrong rather than *is* wrong.
+You have the **Playwright MCP** tools (`mcp__playwright__browser_navigate`, `mcp__playwright__browser_snapshot`, `mcp__playwright__browser_click`, `mcp__playwright__browser_type`, `mcp__playwright__browser_take_screenshot`, etc.). These return structured accessibility snapshots — prefer them over raw screenshots when you need to reason about the DOM. Reach for screenshots when something _looks_ wrong rather than _is_ wrong.
 
 Before anything else, navigate to the base URL:
 
@@ -59,7 +59,7 @@ If that errors (timeout, DNS, connection refused), the app is unreachable. STOP 
 
 # Required output format
 
-```
+````
 ## Verdict: PASS | CONCERNS | FAIL
 
 _QA by kody — browsed `{{previewUrl}}`{{#args.scope}} (focus: {{args.scope}}){{/args.scope}}_
@@ -101,8 +101,10 @@ _QA by kody — browsed `{{previewUrl}}`{{#args.scope}} (focus: {{args.scope}}){
     }
   ]
 }
-```
+````
+
 -->
+
 ```
 
 # Required: structured findings block
@@ -144,3 +146,4 @@ PR_SUMMARY:
 <your complete answer to the issue — this text is posted verbatim as a comment>
 
 If you cannot answer, output a single line instead: FAILED: <reason>
+```

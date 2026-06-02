@@ -353,65 +353,65 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             <div className="flex-1 min-h-0 flex overflow-hidden">
               {/* Nav sidebar — far left. Chat sits to its right, so the
                 order reads nav | chat | tasks. */}
-                <Sidebar />
+              <Sidebar />
 
-                {/* Chat rail — right of the nav sidebar. A fixed-width side
+              {/* Chat rail — right of the nav sidebar. A fixed-width side
                 rail by default; full-width when expanded (the chat header's
                 expand button) or on /chat. Hidden on mobile non-chat (reached
                 via the FAB below). Always mounted so chat history/streaming
                 survive navigation. */}
-                <div
-                  className={cn(
-                    "flex-col min-h-0 bg-black/20",
-                    isChatRoute
-                      ? "flex flex-1"
-                      : "hidden md:flex shrink-0 border-r border-border",
-                    !dragging && "transition-[width] duration-200",
-                  )}
-                  style={!isChatRoute ? { width: railWidth } : undefined}
-                  aria-label="Kody chat"
-                >
-                  {chatPane}
-                </div>
-
-                {/* Drag handle between the chat rail and the page — desktop,
-                side-rail routes only (not when chat is the full /chat view). */}
-                {auth && !isChatRoute && (
-                  <div
-                    role="separator"
-                    aria-orientation="vertical"
-                    aria-label="Resize chat"
-                    onPointerDown={startResize}
-                    onDoubleClick={() => {
-                      setRailWidth(400);
-                      localStorage.setItem("kody:rail-width", "400");
-                    }}
-                    className={cn(
-                      "hidden md:block shrink-0 w-1 cursor-col-resize select-none -ml-px",
-                      "hover:bg-emerald-500/40 active:bg-emerald-500/60",
-                      dragging ? "bg-emerald-500/60" : "bg-transparent",
-                    )}
-                    title="Drag to resize · double-click to reset"
-                  />
+              <div
+                className={cn(
+                  "flex-col min-h-0 bg-black/20",
+                  isChatRoute
+                    ? "flex flex-1"
+                    : "hidden md:flex shrink-0 border-r border-border",
+                  !dragging && "transition-[width] duration-200",
                 )}
+                style={!isChatRoute ? { width: railWidth } : undefined}
+                aria-label="Kody chat"
+              >
+                {chatPane}
+              </div>
 
-                {/* Page content. One shared header sits at the TOP OF THE
+              {/* Drag handle between the chat rail and the page — desktop,
+                side-rail routes only (not when chat is the full /chat view). */}
+              {auth && !isChatRoute && (
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize chat"
+                  onPointerDown={startResize}
+                  onDoubleClick={() => {
+                    setRailWidth(400);
+                    localStorage.setItem("kody:rail-width", "400");
+                  }}
+                  className={cn(
+                    "hidden md:block shrink-0 w-1 cursor-col-resize select-none -ml-px",
+                    "hover:bg-emerald-500/40 active:bg-emerald-500/60",
+                    dragging ? "bg-emerald-500/60" : "bg-transparent",
+                  )}
+                  title="Drag to resize · double-click to reset"
+                />
+              )}
+
+              {/* Page content. One shared header sits at the TOP OF THE
                 PANE on every route — Tasks and Vibe render their own header
                 inside their page; all other routes get AppHeader here — so the
                 bar is consistent across pages instead of full-width on some and
                 in-pane on others. Pages own their internal scroll (children
                 wrapper is flex-1 below the header). Hidden on /chat, the full
                 chat view. */}
-                <div
-                  className={cn(
-                    "flex-1 min-w-0 h-full overflow-hidden flex flex-col",
-                    isChatRoute && "hidden",
-                  )}
-                >
-                  {!pageOwnsHeader && <AppHeader />}
-                  <div className="flex-1 min-h-0 flex flex-col">{children}</div>
-                </div>
+              <div
+                className={cn(
+                  "flex-1 min-w-0 h-full overflow-hidden flex flex-col",
+                  isChatRoute && "hidden",
+                )}
+              >
+                {!pageOwnsHeader && <AppHeader />}
+                <div className="flex-1 min-h-0 flex flex-col">{children}</div>
               </div>
+            </div>
           </div>
 
           {/* Mobile chat — opens as a panel BELOW the top header (no backdrop)

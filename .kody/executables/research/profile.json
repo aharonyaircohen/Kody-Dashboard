@@ -26,14 +26,10 @@
       "mcp__playwright",
       "mcp__codegraph"
     ],
-    "hooks": [
-      "block-write"
-    ],
+    "hooks": ["block-write"],
     "skills": [],
     "commands": [],
-    "subagents": [
-      "research-scout"
-    ],
+    "subagents": ["research-scout"],
     "plugins": [],
     "mcpServers": [
       {
@@ -49,10 +45,7 @@
       {
         "name": "codegraph",
         "command": "codegraph",
-        "args": [
-          "serve",
-          "--mcp"
-        ]
+        "args": ["serve", "--mcp"]
       }
     ]
   },
@@ -122,10 +115,7 @@
     ]
   },
   "output": {
-    "actionTypes": [
-      "RESEARCH_COMPLETED",
-      "RESEARCH_FAILED"
-    ],
+    "actionTypes": ["RESEARCH_COMPLETED", "RESEARCH_FAILED"],
     "artifacts": [
       {
         "name": "research",

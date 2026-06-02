@@ -77,7 +77,10 @@ function withStats(
   return { ...manifest, duties: { ...manifest.duties, [duty]: stats } };
 }
 
-export function statsFor(manifest: TrustManifest, duty: string): TrustDutyStats {
+export function statsFor(
+  manifest: TrustManifest,
+  duty: string,
+): TrustDutyStats {
   return manifest.duties[duty] ?? freshStats();
 }
 
@@ -136,7 +139,10 @@ export const TRUST_OPS = ["reset", "graduate", "degrade"] as const;
 export type TrustOp = (typeof TRUST_OPS)[number];
 
 /** Wipe a duty's trust back to zero / "ask". */
-export function resetDuty(manifest: TrustManifest, duty: string): TrustManifest {
+export function resetDuty(
+  manifest: TrustManifest,
+  duty: string,
+): TrustManifest {
   return withStats(manifest, duty, freshStats());
 }
 
@@ -163,7 +169,11 @@ export function degradeDuty(
   duty: string,
 ): TrustManifest {
   const prev = statsFor(manifest, duty);
-  return withStats(manifest, duty, { ...prev, mode: "ask", consecutiveApprovals: 0 });
+  return withStats(manifest, duty, {
+    ...prev,
+    mode: "ask",
+    consecutiveApprovals: 0,
+  });
 }
 
 export function applyTrustOp(

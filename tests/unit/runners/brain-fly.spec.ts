@@ -534,10 +534,7 @@ describe("provisionBrain image-ref healing", () => {
             },
           ],
         };
-      if (
-        call.method === "DELETE" &&
-        call.url.includes("/machines/m-stale")
-      )
+      if (call.method === "DELETE" && call.url.includes("/machines/m-stale"))
         return { status: 200, json: { ok: true } };
       if (call.method === "POST" && call.url.endsWith("/machines"))
         return { json: { id: "m-fresh", state: "starting", region: "fra" } };

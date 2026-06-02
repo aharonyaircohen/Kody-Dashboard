@@ -15,6 +15,7 @@ If the issue contains zero URLs, write "## External references\n\nNone." and mov
 ---
 
 # Repo
+
 - {{repoOwner}}/{{repoName}}, default branch: {{defaultBranch}}
 
 # Issue #{{issue.number}}: {{issue.title}}
@@ -27,9 +28,10 @@ Recent comments (most recent first, truncated):
 {{conventionsBlock}}
 
 # Prior art (closed/merged PRs flagged in earlier research, if any)
+
 {{priorArt}}
 
-If a prior-art block is present above, scan the diffs and review comments — those are previously-attempted solutions to this same issue. Surface the *outcome* (what landed, what was rejected, what's still open) under "Repo context"; this is part of what an implementer needs to know. Do NOT re-recommend an approach the diffs show was already tried and abandoned.
+If a prior-art block is present above, scan the diffs and review comments — those are previously-attempted solutions to this same issue. Surface the _outcome_ (what landed, what was rejected, what's still open) under "Repo context"; this is part of what an implementer needs to know. Do NOT re-recommend an approach the diffs show was already tried and abandoned.
 
 ---
 
@@ -121,6 +123,7 @@ If no prior `## Research for issue` comment exists in the thread, produce
 the full first-pass structure below.
 
 # Rules
+
 - Read-only. Do NOT modify any file.
 - Do NOT run git or gh commands.
 - Do NOT propose an implementation plan — that's the planner's job.
@@ -128,15 +131,18 @@ the full first-pass structure below.
 - If the issue is empty or incomprehensible, output `FAILED: <why>` instead.
 
 ## Map the code first (codegraph)
+
 Before exploring with grep/Read, use the codegraph tools to locate symbols and trace call paths — they're faster and more precise:
+
 - `codegraph_search <name>` — find a symbol
 - `codegraph_callees` / `codegraph_callers` — see what a function calls or who calls it
 - `codegraph_trace <from> <to>` — the call path between two symbols
-Use grep only for things codegraph can't answer (strings, comments, config).
+  Use grep only for things codegraph can't answer (strings, comments, config).
 
 <!-- kody:output-format (managed — edit above this line only) -->
 
 # Final message format (required)
+
 Your FINAL message MUST be exactly this block, with nothing before it:
 
 DONE

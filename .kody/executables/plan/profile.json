@@ -20,14 +20,7 @@
     "cacheable": true,
     "enableVerifyTool": false,
     "verifyAttempts": 4,
-    "tools": [
-      "Read",
-      "Grep",
-      "Glob",
-      "Bash",
-      "Agent",
-      "mcp__codegraph"
-    ],
+    "tools": ["Read", "Grep", "Glob", "Bash", "Agent", "mcp__codegraph"],
     "hooks": [],
     "skills": [],
     "commands": [],
@@ -37,10 +30,7 @@
       {
         "name": "codegraph",
         "command": "codegraph",
-        "args": [
-          "serve",
-          "--mcp"
-        ]
+        "args": ["serve", "--mcp"]
       }
     ]
   },

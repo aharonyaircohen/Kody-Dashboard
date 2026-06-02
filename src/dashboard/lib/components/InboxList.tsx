@@ -203,7 +203,11 @@ function matchesFilters(
 function inboxCategory(entry: InboxEntry): ServerNotificationType | null {
   if (entry.category) return entry.category;
   const url = entry.url ?? "";
-  if (/#(issuecomment|discussioncomment|pullrequestreview|discussion_r)/i.test(url))
+  if (
+    /#(issuecomment|discussioncomment|pullrequestreview|discussion_r)/i.test(
+      url,
+    )
+  )
     return "chat-response";
   switch (entry.threadType) {
     case "Issue":
@@ -650,7 +654,8 @@ export function InboxList() {
   const connectedRepo = auth ? `${auth.owner}/${auth.repo}` : undefined;
 
   const trimmedQuery = query.trim();
-  const filtersActive = sourceFilter !== "all" || typeFilter !== "all" || ctoOnly;
+  const filtersActive =
+    sourceFilter !== "all" || typeFilter !== "all" || ctoOnly;
   const filteredUnread = useMemo(
     () =>
       unread.filter((e) =>
