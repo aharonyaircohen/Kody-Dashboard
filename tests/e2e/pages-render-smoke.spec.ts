@@ -39,7 +39,6 @@ const ROUTES = [
   "/notifications",
   "/commands",
   "/reports",
-  "/repos",
   "/runner",
   "/scenario",
   "/secrets",

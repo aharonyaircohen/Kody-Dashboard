@@ -11,8 +11,6 @@
  */
 
 import { z } from "zod";
-import type { NextRequest } from "next/server";
-import { getVariable } from "./get-variable";
 
 export const VAR_LLM_MODELS = "LLM_MODELS";
 
@@ -128,19 +126,6 @@ export const ChatModelSchema = z.object({
 export const ChatModelsSchema = z.array(ChatModelSchema);
 
 export type ChatModel = z.infer<typeof ChatModelSchema>;
-
-export async function loadChatModels(req: NextRequest): Promise<ChatModel[]> {
-  const raw = await getVariable(VAR_LLM_MODELS, { req });
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    const result = ChatModelsSchema.safeParse(parsed);
-    if (!result.success) return [];
-    return result.data;
-  } catch {
-    return [];
-  }
-}
 
 export function pickModelById(
   models: ChatModel[],
