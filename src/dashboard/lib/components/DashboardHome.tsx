@@ -3,11 +3,13 @@
  * @domain kody
  * @pattern dashboard-overview
  * @ai-summary The operations overview rendered at `/` (the "Dashboard" view).
- *   A read-only landing: task counts by lane, quick links to the primary
- *   surfaces, and the most recently updated tasks. `/` used to redirect to
- *   /tasks; it now lands here, with Tasks/Vibe one click away in the rail.
- *   Pulls from the same hooks the rest of the dashboard uses, so nothing
- *   here adds new GitHub polling — it rides existing caches.
+ *   An at-a-glance control panel built top-to-bottom around "what needs me,
+ *   what's broken": an attention row (inbox approvals + failures), a task
+ *   pulse, duties health, latest reports, and engine health. Every section
+ *   rides a hook the rest of the dashboard already polls, so it adds no new
+ *   GitHub load — it just composes existing caches into one screen. `/` used
+ *   to redirect to /tasks; it now lands here, with Tasks/Vibe one click away
+ *   in the rail's "Views" group.
  */
 "use client";
 
@@ -15,7 +17,10 @@ import Link from "next/link";
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
+  FileText,
+  GitBranch,
   Hammer,
   Inbox,
   Layers,
@@ -28,20 +33,29 @@ import {
 import { Card } from "@dashboard/ui/card";
 import { useKodyTasks } from "../hooks";
 import { useDuties } from "../hooks/useDuties";
-import { useStaff } from "../hooks/useStaff";
+import { useReports } from "../hooks/useReports";
+import { useDefaultBranchCI } from "../hooks/useDefaultBranchCI";
+import { useHealth } from "../hooks/useHealth";
+import { useInbox } from "../inbox/useInbox";
 import { cn } from "../utils";
 import type { ColumnId, KodyTask } from "../types";
+import type { HealthLevel } from "../health/types";
 
-/** Lane → label + color, for the count tiles and the recent-task chips. */
-const COLUMN_META: Record<ColumnId, { label: string; tint: string }> = {
-  open: { label: "Backlog", tint: "text-zinc-300 bg-white/[0.06]" },
-  building: { label: "Building", tint: "text-amber-300 bg-amber-500/10" },
-  review: { label: "In review", tint: "text-sky-300 bg-sky-500/10" },
-  failed: { label: "Failed", tint: "text-rose-300 bg-rose-500/10" },
-  "gate-waiting": { label: "Gate", tint: "text-violet-300 bg-violet-500/10" },
-  retrying: { label: "Retrying", tint: "text-amber-300 bg-amber-500/10" },
-  done: { label: "Done", tint: "text-emerald-300 bg-emerald-500/10" },
-};
+// ── helpers ───────────────────────────────────────────────────────────────
+
+/** Compact "3m ago" / "2h ago" / "5d ago" from an ISO timestamp. */
+function timeAgo(iso?: string | null): string {
+  if (!iso) return "";
+  const ms = Date.now() - Date.parse(iso);
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}
 
 const ACTIVE_COLUMNS: readonly ColumnId[] = [
   "building",
@@ -53,15 +67,53 @@ function countBy(tasks: KodyTask[], cols: readonly ColumnId[]): number {
   return tasks.filter((t) => cols.includes(t.column)).length;
 }
 
-interface StatTileProps {
+const LEVEL_TINT: Record<HealthLevel, string> = {
+  ok: "text-emerald-300 bg-emerald-500/10",
+  degraded: "text-amber-300 bg-amber-500/10",
+  down: "text-rose-300 bg-rose-500/10",
+};
+
+// ── small building blocks ───────────────────────────────────────────────────
+
+function SectionHeader({
+  title,
+  href,
+  cta = "View all",
+}: {
+  title: string;
+  href?: string;
+  cta?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+        {title}
+      </h2>
+      {href && (
+        <Link
+          href={href}
+          className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+        >
+          {cta} <ArrowRight className="w-3 h-3" />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function StatTile({
+  icon: Icon,
+  label,
+  value,
+  tint,
+  href,
+}: {
   icon: LucideIcon;
   label: string;
   value: number | string;
   tint: string;
   href: string;
-}
-
-function StatTile({ icon: Icon, label, value, tint, href }: StatTileProps) {
+}) {
   return (
     <Link href={href} className="block">
       <Card className="p-4 hover:bg-white/[0.04] transition-colors h-full">
@@ -88,15 +140,19 @@ function StatTile({ icon: Icon, label, value, tint, href }: StatTileProps) {
   );
 }
 
-interface QuickLinkProps {
+function QuickLink({
+  icon: Icon,
+  label,
+  description,
+  href,
+  tint,
+}: {
   icon: LucideIcon;
   label: string;
   description: string;
   href: string;
   tint: string;
-}
-
-function QuickLink({ icon: Icon, label, description, href, tint }: QuickLinkProps) {
+}) {
   return (
     <Link href={href} className="block">
       <Card className="p-4 hover:bg-white/[0.04] transition-colors h-full">
@@ -117,68 +173,407 @@ function QuickLink({ icon: Icon, label, description, href, tint }: QuickLinkProp
   );
 }
 
+/** A calm "nothing to do" state inside an attention card. */
+function AllClear({ message }: { message: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+      <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
+      {message}
+    </div>
+  );
+}
+
+// ── attention cards ─────────────────────────────────────────────────────────
+
+/** "Needs you" — unread inbox entries, with CTO approvals surfaced first. */
+function NeedsYouCard() {
+  const { unread, unreadCount, isLoading } = useInbox();
+  const top = [...unread]
+    .sort((a, b) => Date.parse(b.sentAt) - Date.parse(a.sentAt))
+    .slice(0, 5);
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex h-8 w-8 items-center justify-center rounded-md",
+              unreadCount > 0
+                ? "text-amber-300 bg-amber-500/10"
+                : "text-emerald-300 bg-emerald-500/10",
+            )}
+          >
+            <Inbox className="w-4 h-4" />
+          </span>
+          <div>
+            <div className="text-sm font-medium">Needs you</div>
+            <div className="text-xs text-muted-foreground">
+              {isLoading
+                ? "Loading…"
+                : `${unreadCount} awaiting your decision`}
+            </div>
+          </div>
+        </div>
+        <Link
+          href="/inbox"
+          className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+        >
+          Inbox <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      {!isLoading && unreadCount === 0 ? (
+        <AllClear message="You're all caught up." />
+      ) : (
+        <div className="space-y-1">
+          {top.map((e) => {
+            const badge = e.ctoAction ?? e.source.replace(/_/g, " ");
+            return (
+              <Link
+                key={e.id}
+                href="/inbox"
+                className="flex items-start gap-2 px-2 py-2 -mx-2 rounded-md hover:bg-white/[0.04] transition-colors"
+              >
+                <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 shrink-0 mt-0.5">
+                  {badge}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm truncate">{e.title}</div>
+                  {e.snippet && (
+                    <div className="text-xs text-muted-foreground truncate">
+                      {e.snippet}
+                    </div>
+                  )}
+                </div>
+                <span className="text-[11px] text-muted-foreground shrink-0 mt-0.5">
+                  {timeAgo(e.sentAt)}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** "Failing now" — main-branch CI + failed tasks (with reason). */
+function FailingCard({
+  tasks,
+  tasksLoading,
+}: {
+  tasks: KodyTask[];
+  tasksLoading: boolean;
+}) {
+  const { data: ci } = useDefaultBranchCI();
+  const ciRed = ci?.state === "failure";
+  const failed = tasks.filter((t) => t.column === "failed").slice(0, 5);
+  const nothingWrong = !ciRed && failed.length === 0;
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex h-8 w-8 items-center justify-center rounded-md",
+              nothingWrong
+                ? "text-emerald-300 bg-emerald-500/10"
+                : "text-rose-300 bg-rose-500/10",
+            )}
+          >
+            <AlertTriangle className="w-4 h-4" />
+          </span>
+          <div>
+            <div className="text-sm font-medium">Failing</div>
+            <div className="text-xs text-muted-foreground">
+              CI &amp; failed tasks
+            </div>
+          </div>
+        </div>
+        <Link
+          href="/tasks"
+          className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+        >
+          Tasks <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      {tasksLoading ? (
+        <p className="text-sm text-muted-foreground py-2">Loading…</p>
+      ) : nothingWrong ? (
+        <AllClear message="Nothing failing right now." />
+      ) : (
+        <div className="space-y-1">
+          {ciRed && ci?.latestRun && (
+            <a
+              href={ci.latestRun.html_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-2 py-2 -mx-2 rounded-md hover:bg-white/[0.04] transition-colors"
+            >
+              <GitBranch className="w-3.5 h-3.5 text-rose-300 shrink-0" />
+              <span className="text-sm flex-1 truncate">
+                {ci.branch} CI red
+                <span className="text-muted-foreground">
+                  {" "}
+                  — {ci.latestRun.name}
+                </span>
+              </span>
+              <span className="text-[11px] text-muted-foreground shrink-0">
+                {timeAgo(ci.latestRun.updated_at)}
+              </span>
+            </a>
+          )}
+          {failed.map((t) => (
+            <Link
+              key={t.id}
+              href={`/${t.issueNumber}`}
+              className="flex items-start gap-2 px-2 py-2 -mx-2 rounded-md hover:bg-white/[0.04] transition-colors"
+            >
+              <span className="text-xs text-muted-foreground tabular-nums shrink-0 w-10 mt-0.5">
+                #{t.issueNumber}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm truncate">{t.title}</div>
+                {t.failureReason && (
+                  <div className="text-xs text-rose-300/80 truncate">
+                    {t.failureReason}
+                  </div>
+                )}
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ── lower sections ──────────────────────────────────────────────────────────
+
+function DutiesHealth() {
+  const { data, isLoading } = useDuties();
+  const duties = data ?? [];
+  const enabled = duties.filter((d) => !d.disabled);
+  const failing = enabled.filter((d) => d.lastOutcome === "failed");
+
+  return (
+    <section>
+      <SectionHeader title="Duties health" href="/duties" cta="Duties" />
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading duties…</p>
+      ) : duties.length === 0 ? (
+        <Card className="p-4 text-sm text-muted-foreground">No duties yet.</Card>
+      ) : (
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-4 text-sm">
+            <span className="text-muted-foreground">
+              <span className="text-foreground font-medium tabular-nums">
+                {enabled.length}
+              </span>{" "}
+              active
+            </span>
+            <span className="text-muted-foreground">
+              <span
+                className={cn(
+                  "font-medium tabular-nums",
+                  failing.length > 0 ? "text-rose-300" : "text-foreground",
+                )}
+              >
+                {failing.length}
+              </span>{" "}
+              failing
+            </span>
+          </div>
+          {failing.length > 0 && (
+            <div className="space-y-1 border-t border-white/[0.06] pt-2">
+              {failing.slice(0, 5).map((d) => (
+                <Link
+                  key={d.slug}
+                  href="/duties"
+                  className="flex items-center gap-2 px-2 py-1.5 -mx-2 rounded-md hover:bg-white/[0.04] transition-colors"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-300 shrink-0" />
+                  <span className="text-sm flex-1 truncate">{d.title}</span>
+                  {d.staff && (
+                    <span className="text-[11px] text-muted-foreground shrink-0">
+                      {d.staff}
+                    </span>
+                  )}
+                  <span className="text-[11px] text-muted-foreground shrink-0">
+                    {timeAgo(d.lastTickAt)}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+    </section>
+  );
+}
+
+function LatestReports() {
+  const { data, isLoading } = useReports();
+  const reports = [...(data ?? [])]
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    .slice(0, 4);
+
+  return (
+    <section>
+      <SectionHeader
+        title="Latest reports"
+        href="/duties?tab=reports"
+        cta="Reports"
+      />
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading reports…</p>
+      ) : reports.length === 0 ? (
+        <Card className="p-4 text-sm text-muted-foreground">
+          No reports yet — duty runs write them here.
+        </Card>
+      ) : (
+        <Card className="divide-y divide-white/[0.04] overflow-hidden">
+          {reports.map((r) => (
+            <Link
+              key={r.slug}
+              href="/duties?tab=reports"
+              className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors"
+            >
+              <FileText className="w-4 h-4 text-sky-300 shrink-0" />
+              <span className="text-sm flex-1 truncate">{r.title}</span>
+              <span className="text-[11px] text-muted-foreground shrink-0">
+                {timeAgo(r.updatedAt)}
+              </span>
+            </Link>
+          ))}
+        </Card>
+      )}
+    </section>
+  );
+}
+
+function EngineHealth() {
+  const { data, isLoading } = useHealth();
+  const level = data?.level ?? "ok";
+  const problems = (data?.signals ?? []).filter((s) => s.level !== "ok");
+
+  return (
+    <section>
+      <SectionHeader title="Engine health" href="/activity" cta="Activity" />
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex h-8 w-8 items-center justify-center rounded-md",
+              LEVEL_TINT[level],
+            )}
+          >
+            <Activity className="w-4 h-4" />
+          </span>
+          <div className="text-sm">
+            {isLoading
+              ? "Checking…"
+              : level === "ok"
+                ? "All systems healthy."
+                : level === "degraded"
+                  ? "Degraded — runs work but are at risk."
+                  : "Down — runs are blocked."}
+          </div>
+        </div>
+        {problems.length > 0 && (
+          <div className="space-y-1 border-t border-white/[0.06] pt-2">
+            {problems.map((s) => (
+              <div
+                key={s.id}
+                className="flex items-start gap-2 px-2 py-1.5 -mx-2"
+              >
+                <span
+                  className={cn(
+                    "text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 mt-0.5",
+                    LEVEL_TINT[s.level],
+                  )}
+                >
+                  {s.label}
+                </span>
+                <span className="text-xs text-muted-foreground flex-1">
+                  {s.detail}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </section>
+  );
+}
+
+// ── page ─────────────────────────────────────────────────────────────────────
+
 export function DashboardHome() {
   // refetchInterval "idle" — this is a read-only landing, not the live board,
   // so it polls slowly and leans on the shared task cache.
-  const { data: tasks, isLoading } = useKodyTasks({ refetchInterval: "idle" });
-  const { data: duties } = useDuties();
-  const { data: staff } = useStaff();
-
+  const { data: tasks, isLoading: tasksLoading } = useKodyTasks({
+    refetchInterval: "idle",
+  });
   const all = tasks ?? [];
-  const active = countBy(all, ACTIVE_COLUMNS);
-  const review = countBy(all, ["review"]);
-  const failed = countBy(all, ["failed"]);
-  const backlog = countBy(all, ["open"]);
-
-  const recent = [...all]
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-    .slice(0, 6);
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="mx-auto max-w-5xl px-4 md:px-6 py-6 space-y-8">
-        {/* Lane counts — each links into the Tasks board. */}
+        {/* Attention — the two things that might need action right now. */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 mb-3">
-            Tasks
-          </h2>
+          <SectionHeader title="Needs attention" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <NeedsYouCard />
+            <FailingCard tasks={all} tasksLoading={tasksLoading} />
+          </div>
+        </section>
+
+        {/* Task pulse. */}
+        <section>
+          <SectionHeader title="Tasks" href="/tasks" cta="Board" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatTile
               icon={Hammer}
               label="Active"
-              value={isLoading ? "—" : active}
-              tint={COLUMN_META.building.tint}
+              value={tasksLoading ? "—" : countBy(all, ACTIVE_COLUMNS)}
+              tint="text-amber-300 bg-amber-500/10"
               href="/tasks"
             />
             <StatTile
               icon={Activity}
               label="In review"
-              value={isLoading ? "—" : review}
-              tint={COLUMN_META.review.tint}
-              href="/tasks"
-            />
-            <StatTile
-              icon={AlertTriangle}
-              label="Failed"
-              value={isLoading ? "—" : failed}
-              tint={COLUMN_META.failed.tint}
+              value={tasksLoading ? "—" : countBy(all, ["review"])}
+              tint="text-sky-300 bg-sky-500/10"
               href="/tasks"
             />
             <StatTile
               icon={Inbox}
               label="Backlog"
-              value={isLoading ? "—" : backlog}
-              tint={COLUMN_META.open.tint}
+              value={tasksLoading ? "—" : countBy(all, ["open"])}
+              tint="text-zinc-300 bg-white/[0.06]"
+              href="/tasks"
+            />
+            <StatTile
+              icon={CheckCircle2}
+              label="Done"
+              value={tasksLoading ? "—" : countBy(all, ["done"])}
+              tint="text-emerald-300 bg-emerald-500/10"
               href="/tasks"
             />
           </div>
         </section>
 
-        {/* Quick links — the surfaces a user jumps to from the overview. */}
+        <DutiesHealth />
+        <LatestReports />
+        <EngineHealth />
+
+        {/* Jump to — the primary surfaces. */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 mb-3">
-            Jump to
-          </h2>
+          <SectionHeader title="Jump to" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <QuickLink
               icon={LayoutGrid}
@@ -196,70 +591,19 @@ export function DashboardHome() {
             />
             <QuickLink
               icon={Layers}
-              label={`Duties${duties ? ` · ${duties.length}` : ""}`}
+              label="Duties"
               description="Recurring work your staff runs."
               href="/duties"
               tint="text-amber-300 bg-amber-500/10"
             />
             <QuickLink
               icon={Users}
-              label={`Staff${staff ? ` · ${staff.length}` : ""}`}
+              label="Staff"
               description="Personas that execute your duties."
               href="/staff"
               tint="text-violet-300 bg-violet-500/10"
             />
           </div>
-        </section>
-
-        {/* Recently updated tasks. */}
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
-              Recent activity
-            </h2>
-            <Link
-              href="/tasks"
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              View all →
-            </Link>
-          </div>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading tasks…</p>
-          ) : recent.length === 0 ? (
-            <Card className="p-6 text-center">
-              <CheckCircle2 className="w-5 h-5 text-emerald-300 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">
-                No tasks yet. Start one from the Tasks board or chat with Kody.
-              </p>
-            </Card>
-          ) : (
-            <Card className="divide-y divide-white/[0.04] overflow-hidden">
-              {recent.map((t) => {
-                const meta = COLUMN_META[t.column];
-                return (
-                  <Link
-                    key={t.id}
-                    href={`/${t.issueNumber}`}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors"
-                  >
-                    <span className="text-xs text-muted-foreground tabular-nums shrink-0 w-12">
-                      #{t.issueNumber}
-                    </span>
-                    <span className="text-sm flex-1 truncate">{t.title}</span>
-                    <span
-                      className={cn(
-                        "text-[11px] px-2 py-0.5 rounded-full shrink-0",
-                        meta.tint,
-                      )}
-                    >
-                      {meta.label}
-                    </span>
-                  </Link>
-                );
-              })}
-            </Card>
-          )}
         </section>
       </div>
     </div>
