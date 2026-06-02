@@ -8,7 +8,7 @@
  */
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Copy, Loader2, FileQuestion } from "lucide-react";
 import { toast } from "sonner";
@@ -77,9 +77,9 @@ export function FileViewer({
   }, [octokit, owner, repo, path]);
 
   // Load on mount or path change
-  useState(() => {
+  useEffect(() => {
     loadContent();
-  });
+  }, [loadContent]);
 
   const handleCopy = () => {
     if (content) {

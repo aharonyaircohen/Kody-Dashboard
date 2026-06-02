@@ -7,7 +7,7 @@
  */
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -56,7 +56,7 @@ export function FileDiffViewer({
   const [loadingContent, setLoadingContent] = useState(false);
 
   // Load commit history
-  useState(() => {
+  useEffect(() => {
     if (!octokit) return;
     const load = async () => {
       try {
@@ -76,7 +76,7 @@ export function FileDiffViewer({
       }
     };
     load();
-  });
+  }, [octokit, owner, repo, path]);
 
   // Load content for selected commits
   const loadDiffContent = useCallback(async () => {
@@ -97,9 +97,9 @@ export function FileDiffViewer({
   }, [octokit, owner, repo, path, leftCommit, rightCommit]);
 
   // Load diff when commits change
-  useState(() => {
+  useEffect(() => {
     loadDiffContent();
-  });
+  }, [loadDiffContent]);
 
   const handleCopyDiff = () => {
     const diff = `--- a/${path}\n+++ b/${path}\n${rightContent}`;

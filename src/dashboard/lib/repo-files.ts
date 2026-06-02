@@ -117,9 +117,7 @@ export async function readFile(
 
     const encoding = data.encoding === "base64" ? "base64" : "utf-8";
     const content =
-      encoding === "base64"
-        ? Buffer.from(data.content ?? "", "base64").toString("utf-8")
-        : (data.content ?? "");
+      encoding === "base64" ? atob(data.content ?? "") : (data.content ?? "");
 
     return {
       path: data.path ?? path,
@@ -151,7 +149,7 @@ export async function writeFile(
     repo,
     path,
     message,
-    content: Buffer.from(content, "utf-8").toString("base64"),
+    content: btoa(content),
     ...(sha ? { sha } : {}),
   });
 
@@ -265,7 +263,12 @@ export async function uploadFile(
   message: string,
 ): Promise<{ sha: string; commitSha: string }> {
   const arrayBuffer = await blob.arrayBuffer();
-  const base64 = Buffer.from(arrayBuffer).toString("base64");
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
 
   const res = await octokit.rest.repos.createOrUpdateFileContents({
     owner,
