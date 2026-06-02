@@ -1,21 +1,19 @@
 # Kody Performance Review
 _Cadence: weekly — delivery of owned responsibilities, not subjective quality._
 
-No staff produced measurable output this week; the system shows no operational history since last review.
+Zero of three active duties produced observable output this week; four of seven staff are idle with no active duties assigned.
 
 | Staff | Owned duties | Delivery | Consistency | Signal | Grade |
 |-------|-------------|----------|-------------|--------|-------|
-| ceo | 1 (1 active) | Unclear | Unclear | No state files, no runs | unclear |
+| ceo | 1 (0 active) | — | — | — | idle |
 | coo | 3 (0 active) | — | — | — | idle |
-| cto | 4 (1 active) | Unclear | Unclear | No state files, no runs | unclear |
+| cto | 4 (1 active) | None | No runs | No signal | unclear |
 | kody | 11 (0 active) | — | — | — | idle |
-| qa | 3 (1 active) | Unclear | Unclear | No state files, no runs | unclear |
-| tech-writer | 2 (2 active) | Unclear | Unclear | No state files, no runs | unclear |
+| qa | 3 (1 active) | None | No runs | No signal | unclear |
+| tech-writer | 2 (2 active) | None | No runs | No signal | unclear |
 | ux-designer | 1 (0 active) | — | — | — | idle |
 
-- **ceo — unclear:** ceo-performance-review ran last week but produced no state file; no  directory exists to host one. Cannot assess whether cadence is being met.
-- **cto — unclear:** dev-ci-health is active but no state file at . Cannot assess.
-- **qa — unclear:** qa-verify is active but no state file at . Cannot assess.
-- **tech-writer — unclear:** docs-code and docs-readme are both active but no state files at  or . Cannot assess.
-
-- Changes since last week: no change — all unclear/idle grades unchanged from prior week.
+- **cto — unclear:** dev-ci-health (every 15m) has never recorded a run; no state file, no commits, no output. Cannot assess.
+- **qa — unclear:** qa-verify (every 30m) has never recorded a run; no state file, no commits, no output. Cannot assess.
+- **tech-writer — unclear:** docs-code (every 1d) and docs-readme (every 1d) were enabled 2026-06-02 but no runs recorded; no state files, no output. Cannot assess.
+- **Changes since last week:** none — this is the first recorded tick.
