@@ -1,0 +1,4 @@
+# Kody's own configuration and task files - not application code
+.kody/
+.kody-engine/
+.kody-lean/
