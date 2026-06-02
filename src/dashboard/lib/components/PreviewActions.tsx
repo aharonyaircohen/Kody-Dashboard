@@ -130,7 +130,7 @@ export function PreviewActions({
     setIsCancelling(true);
     try {
       await tasksApi.closePR(task.issueNumber, actorLogin);
-      toast.success("PR closed");
+      toast.success("PR closed and branch deleted");
       onCancelPR();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to close PR");
@@ -367,7 +367,7 @@ export function PreviewActions({
       <ConfirmDialog
         open={showCancelConfirm}
         title="Close PR"
-        description="Close this PR? The branch will remain but the PR will be closed."
+        description="Close this PR? This will also delete the branch."
         confirmLabel="Close PR"
         variant="destructive"
         onConfirm={handleCancelPR}
