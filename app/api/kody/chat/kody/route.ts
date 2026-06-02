@@ -38,6 +38,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
 import { resolveChatModel } from "../resolve-model";
+import { supportsVision } from "@dashboard/lib/chat/vision-support";
 import {
   buildSystemPrompt,
   type GoalContext,
@@ -245,6 +246,44 @@ function trimToRecent(messages: ModelMessage[]): ModelMessage[] {
   return firstUserIdx <= 0 ? trimmed : trimmed.slice(firstUserIdx);
 }
 
+/** Rebuild a `data:` URL from raw base64 + media type for inlining. */
+function toDataUrl(data: string, mediaType?: string): string {
+  if (!mediaType || data.startsWith("data:")) return data;
+  return `data:${mediaType};base64,${data}`;
+}
+
+/**
+ * Collapse multimodal user turns into plain text for a text-only model.
+ * A model with no vision (e.g. MiniMax) either rejects an image part or
+ * silently drops it; inlining the image data URL into the text keeps the
+ * attachment on the one channel every model reads. Vision models skip this
+ * and keep real image parts. Assistant/system turns are already strings.
+ */
+function inlineImagePartsForTextModel(
+  messages: ModelMessage[],
+): ModelMessage[] {
+  return messages.map((m) => {
+    if (typeof m.content === "string" || !Array.isArray(m.content)) return m;
+    const text = m.content
+      .map((p) => {
+        if (p.type === "text") return p.text;
+        if (p.type === "image") {
+          const img = typeof p.image === "string" ? p.image : "";
+          return img ? `[Image]\n${toDataUrl(img, p.mediaType)}` : "";
+        }
+        if (p.type === "file") {
+          const data = typeof p.data === "string" ? p.data : "";
+          const label = p.filename ? `[File: ${p.filename}]` : "[File]";
+          return data ? `${label}\n${toDataUrl(data, p.mediaType)}` : "";
+        }
+        return "";
+      })
+      .filter((t) => t !== "")
+      .join("\n\n");
+    return { ...m, content: text } as ModelMessage;
+  });
+}
+
 function normalizeMessages(raw: IncomingMessage[]): ModelMessage[] {
   const out: ModelMessage[] = [];
   for (const m of raw) {
@@ -402,6 +441,14 @@ export async function POST(req: NextRequest) {
   if ("error" in resolution) return resolution.error;
   const { model, resolvedModel, apiKey } = resolution;
   const modelId = resolvedModel.id;
+  // Only vision-capable models get real image parts. For text-only models
+  // (looked up from LiteLLM's supports_vision data) inline the image as text
+  // so the attachment still rides along instead of being dropped/rejected.
+  const modelIsVision =
+    supportsVision(resolvedModel.id) || supportsVision(resolvedModel.modelName);
+  const modelMessages = modelIsVision
+    ? messages
+    : inlineImagePartsForTextModel(messages);
   const repo = getRequestAuth(req);
   const goalPlannerActive = body.goalPlanner === true && !!body.goal;
 
@@ -750,7 +797,7 @@ export async function POST(req: NextRequest) {
     const result = streamText({
       model,
       system: systemPrompt,
-      messages,
+      messages: modelMessages,
       tools,
       // Allow up to 10 tool-calling rounds so the model can run a real
       // research loop (search → read → blame → commits → re-search) in
