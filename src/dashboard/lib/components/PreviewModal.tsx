@@ -204,7 +204,7 @@ export function PreviewModal({
   // immediately on open instead of waiting for the background tasks poll
   // (which only finds links among the 100 most-recent deployments).
   const { url: effectivePreviewUrl, isResolving: previewResolving } =
-    usePreviewUrl(pr?.head?.sha, task.previewUrl ?? null);
+    usePreviewUrl(pr?.head?.sha, pr?.number, task.previewUrl ?? null);
 
   // Callback to refresh comment list after adding a comment
   const handleCommentAdded = () => {
@@ -797,7 +797,9 @@ export function PreviewModal({
           {/* CI failure banner — only renders when ciStatus === 'failure' (and no conflicts) */}
           <CIFailureBanner prNumber={pr.number} />
 
-          {/* Branch-behind banner — soft warning, only when no conflicts and CI not failing */}
+          {/* Branch-behind banner — soft warning whenever the branch is behind
+              and there's no conflict; stacks under the CI-failure banner since a
+              stale branch is often the cause, and sync is the fix. */}
           <BranchBehindBanner prNumber={pr.number} />
 
           {/* Action bar */}

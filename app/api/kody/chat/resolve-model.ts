@@ -15,8 +15,8 @@ import type { LanguageModel } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
+import { loadChatModels } from "@dashboard/lib/variables/load-chat-models";
 import {
-  loadChatModels,
   pickModelById,
   pickDefaultModel,
   type ChatModel,

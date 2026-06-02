@@ -16,12 +16,12 @@ import {
   Cpu,
   FileText,
   FolderOpen,
-  Github,
   History,
   Home,
   Inbox,
   KeyRound,
   Layers,
+  LayoutGrid,
   MessageSquare,
   MonitorPlay,
   Rocket,
@@ -74,6 +74,41 @@ export const TASKS_NAV_ITEM: SettingsNavItem = {
   description: "Pipelines, tasks, and run health at a glance.",
   tint: "text-emerald-300 bg-emerald-500/10",
 };
+
+/** Dashboard — the operations overview at `/`. Rendered in the nav's "Views"
+ *  group; `/` no longer redirects, it lands here. */
+export const DASHBOARD_NAV_ITEM: SettingsNavItem = {
+  href: "/",
+  label: "Dashboard",
+  icon: Home,
+  exact: true,
+  description: "Overview of tasks, runs, and activity at a glance.",
+  tint: "text-emerald-300 bg-emerald-500/10",
+};
+
+/** Vibe — chat-driven preview. Now a first-class nav entry (it used to be a
+ *  header on/off toggle). */
+export const VIBE_NAV_ITEM: SettingsNavItem = {
+  href: "/vibe",
+  label: "Vibe",
+  icon: Sparkles,
+  description: "Chat-driven preview — approve and ship.",
+  tint: "text-fuchsia-300 bg-fuchsia-500/10",
+};
+
+/**
+ * Primary view switch (Dashboard / Tasks / Vibe), rendered at the very top of
+ * the sidebar rail and mobile menu. Replaces the old header ViewToggle +
+ * VibeToggle — navigation now lives entirely in the nav. Shared so the desktop
+ * Sidebar and MobileMenu can't drift.
+ */
+export const PRIMARY_VIEW_TITLE = "Views" as const;
+
+export const PRIMARY_VIEW_ITEMS: readonly SettingsNavItem[] = [
+  DASHBOARD_NAV_ITEM,
+  { ...TASKS_NAV_ITEM, icon: LayoutGrid },
+  VIBE_NAV_ITEM,
+];
 
 /** Heading shown above the primary surfaces in the expanded sidebar rail. */
 export const PRIMARY_NAV_TITLE = "Workspace" as const;
@@ -237,13 +272,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description: "Non-secret config shared across runs.",
         tint: "text-indigo-300 bg-indigo-500/10",
       },
-      {
-        href: "/repos",
-        label: "Repositories",
-        icon: Github,
-        description: "Connected GitHub repos and tokens.",
-        tint: "text-zinc-300 bg-white/[0.08]",
-      },
     ],
   },
   {
@@ -289,7 +317,9 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
 /** Every nav item, flattened — home + primary + all section items. */
 const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
   HOME_NAV_ITEM,
+  DASHBOARD_NAV_ITEM,
   TASKS_NAV_ITEM,
+  VIBE_NAV_ITEM,
   ...PRIMARY_NAV_ITEMS,
   ...SETTINGS_NAV_SECTIONS.flatMap((section) => section.items),
 ];

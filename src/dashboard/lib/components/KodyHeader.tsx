@@ -4,9 +4,8 @@
  * @pattern dashboard-header
  * @ai-summary Top action bar shared by the Dashboard and Vibe pages.
  *   Mirrors the dashboard layout so navigating between the two surfaces
- *   feels like a view toggle, not a route change. The only visual delta
- *   between the two pages is the VibeToggle, which reflects the current
- *   route via usePathname.
+ *   feels like a view switch, not a route change. Navigation between views
+ *   (Dashboard / Tasks / Vibe) lives in the rail's "Views" group, not here.
  *
  *   Page-specific state (notifications, branch cleanup dialog, refetch,
  *   publish callback) is passed in as props so each host owns its own
@@ -20,13 +19,12 @@ import { usePathname } from "next/navigation";
 import { Menu, MessageSquare, RefreshCw } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
-import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { NotificationCenter } from "../notifications/NotificationCenter";
 import { useNotifications } from "../notifications/NotificationsProvider";
 import { cn } from "../utils";
 import { useChatScope } from "./ChatRailShell";
+import { RepoSwitcher } from "./RepoSwitcher";
 import { SimpleTooltip } from "./SimpleTooltip";
-import { VibeToggle } from "./VibeToggle";
 
 interface KodyHeaderProps {
   /** Opens the page-specific mobile menu (host renders the Sheet). */
@@ -69,7 +67,6 @@ export function KodyHeader({
   filterBar,
   showRefresh = true,
 }: KodyHeaderProps) {
-  const { connectedRepo } = useGitHubIdentity();
   const pathname = usePathname();
   const { openMobileChat } = useChatScope();
   const {
@@ -83,11 +80,8 @@ export function KodyHeader({
     <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/20">
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex items-baseline gap-2 min-w-0">
-          <h1 className="text-lg md:text-xl font-semibold text-foreground truncate">
-            {connectedRepo?.split("/").pop() || "Kody Operations"}
-          </h1>
+          <RepoSwitcher />
         </div>
-        <VibeToggle className="hidden sm:inline-flex" />
       </div>
 
       {/* Desktop controls — data tools (search/filter) sit here, separated from

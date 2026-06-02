@@ -1,12 +1,15 @@
 /**
  * @fileType page
  * @domain kody
- * @pattern launcher-page
- * @ai-summary Root launcher. Redirects to the user's last primary view
- *   (chat or tasks) via PrimaryViewRedirect. Force static for OG tags —
- *   social media crawlers need metadata without auth.
+ * @pattern dashboard-page
+ * @ai-summary Root dashboard. `/` renders the operations overview
+ *   (DashboardHome) — task counts, quick links, and recent activity. It used
+ *   to redirect to /tasks; now it's a real landing, with Tasks/Vibe one click
+ *   away in the rail's "Views" group. Force static for OG tags — social
+ *   crawlers need metadata without auth; AuthGuard gates the live content.
  */
-import { PrimaryViewRedirect } from "@dashboard/lib/components/PrimaryViewRedirect";
+import { AuthGuard } from "@dashboard/lib/auth-guard";
+import { DashboardHome } from "@dashboard/lib/components/DashboardHome";
 import { buildKodyMetadata } from "./metadata";
 
 // Force static generation so OG tags are available without authentication
@@ -21,9 +24,10 @@ export const metadata = buildKodyMetadata({
   path: "/",
 });
 
-// `/` is just a launcher: it bounces to the user's last view (chat or tasks),
-// stored per-device in localStorage. Switch the default by changing the
-// fallback in readPrimaryView (ViewToggle.tsx).
-export default async function KodyPage() {
-  return <PrimaryViewRedirect />;
+export default function KodyPage() {
+  return (
+    <AuthGuard>
+      <DashboardHome />
+    </AuthGuard>
+  );
 }

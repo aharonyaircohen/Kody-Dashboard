@@ -301,26 +301,68 @@ function attachBudgetHooks(octokit: Octokit): void {
 
 // ============ Per-Request Repo Context ============
 //
-// The dashboard supports per-user repos (user logs in with their own GitHub token
-// and a target repo). These variables hold the current request's repo context.
-// In Vercel serverless (Fluid Compute), each request is processed sequentially,
-// so this module-level state is safe as long as routes clear it after use.
+// The dashboard supports per-user repos (user logs in with their own GitHub
+// token and a target repo). Each request carries its own owner/repo/octokit.
+//
+// This MUST be request-scoped, not a module-level variable. Vercel Fluid
+// Compute runs multiple requests concurrently inside one warm instance, so a
+// shared variable lets one request's clearGitHubContext() null out another
+// request's in-flight Octokit — which surfaces as the flapping
+// "GitHub token is not configured" error when several dashboard panels poll at
+// once. AsyncLocalStorage gives each request an isolated store that survives
+// across awaits and cannot bleed into a concurrent request.
 
-let _owner: string = GITHUB_OWNER;
-let _repo: string = GITHUB_REPO;
-let _octokit: Octokit | null = null;
+interface GitHubContext {
+  owner: string;
+  repo: string;
+  octokit: Octokit | null;
+}
+
+// Lazy AsyncLocalStorage — keeps the `async_hooks` Node builtin out of client
+// bundles. github-client.ts is transitively imported by client components
+// (TaskDetail, ModelsManager, …) for its types/helpers; a *static* import of
+// `node:async_hooks` made those browser bundles fail to compile
+// (UnhandledSchemeError). Acquired lazily on first use so webpack never has to
+// resolve the builtin for the client target. Server-side this is the real
+// store; client-side webpack stubs `async_hooks`, the constructor throws, and
+// the request-context paths (which the client never reaches) become no-ops.
+// Mirrors the lazy `require("next/cache")` in revalidateTagSafe above.
+type GitHubContextStore = {
+  getStore(): GitHubContext | undefined;
+  enterWith(ctx: GitHubContext): void;
+};
+
+let requestContextSingleton: GitHubContextStore | null | undefined;
+
+function requestContext(): GitHubContextStore | null {
+  if (requestContextSingleton !== undefined) return requestContextSingleton;
+  try {
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { AsyncLocalStorage } =
+      require("async_hooks") as typeof import("node:async_hooks");
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    requestContextSingleton = new AsyncLocalStorage<GitHubContext>();
+  } catch {
+    requestContextSingleton = null;
+  }
+  return requestContextSingleton;
+}
 
 export function getOwner(): string {
-  return _owner;
+  return requestContext()?.getStore()?.owner ?? GITHUB_OWNER;
 }
 
 export function getRepo(): string {
-  return _repo;
+  return requestContext()?.getStore()?.repo ?? GITHUB_REPO;
 }
 
 /**
  * Set the repo context for the current request.
- * API routes MUST call this before any github-client calls and clearRepoContext() after.
+ * API routes MUST call this before any github-client calls and
+ * clearGitHubContext() in a finally.
+ *
+ * Scoped to the current request's async execution via
+ * AsyncLocalStorage.enterWith — concurrent requests never share it.
  *
  * @param owner - GitHub repo owner (e.g. "aharonyaircohen")
  * @param repo  - GitHub repo name (e.g. "Kody-ADE-Engine")
@@ -331,9 +373,6 @@ export function setGitHubContext(
   repo: string,
   token?: string,
 ): void {
-  _owner = owner;
-  _repo = repo;
-
   const authToken =
     token ??
     process.env.KODY_BOT_TOKEN ??
@@ -347,7 +386,7 @@ export function setGitHubContext(
   }
 
   const MyOctokit = Octokit.plugin(throttling);
-  _octokit = new MyOctokit({
+  const octokit = new MyOctokit({
     auth: authToken,
     throttle: {
       onRateLimit: (retryAfter, _options, _octokit) => {
@@ -373,13 +412,19 @@ export function setGitHubContext(
       },
     },
   });
-  attachBudgetHooks(_octokit);
+  attachBudgetHooks(octokit);
+
+  requestContext()?.enterWith({ owner, repo, octokit });
 }
 
 export function clearGitHubContext(): void {
-  _owner = getOwner();
-  _repo = getRepo();
-  _octokit = null;
+  // Drop this request's Octokit so it can be GC'd. Scoped to the current async
+  // context, so it can never clear a concurrent request's context.
+  requestContext()?.enterWith({
+    owner: GITHUB_OWNER,
+    repo: GITHUB_REPO,
+    octokit: null,
+  });
 }
 
 // ============ Octokit Singleton ============
@@ -390,7 +435,8 @@ type ThrottledOctokit = Octokit & ReturnType<typeof throttling>;
 
 export function getOctokit(): Octokit {
   // Use the per-request context Octokit when set (via setGitHubContext)
-  if (_octokit) return _octokit as ThrottledOctokit;
+  const ctxOctokit = requestContext()?.getStore()?.octokit;
+  if (ctxOctokit) return ctxOctokit as ThrottledOctokit;
   if (octokitInstance) return octokitInstance as ThrottledOctokit;
 
   // Prefer KODY_BOT_TOKEN if set (for bot attribution), otherwise fall back to GITHUB_TOKEN / GH_PAT

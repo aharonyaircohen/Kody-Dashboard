@@ -36,6 +36,8 @@ import { ReportsBadge } from "./ReportsBadge";
 import {
   PRIMARY_NAV_ITEMS,
   PRIMARY_NAV_TITLE,
+  PRIMARY_VIEW_ITEMS,
+  PRIMARY_VIEW_TITLE,
   SETTINGS_NAV_SECTIONS,
   type SettingsNavItem,
 } from "./settings-nav";
@@ -184,8 +186,17 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {/* Chat & Tasks are not listed here — the header ViewToggle owns that
-            switch. The rail starts at the Workspace surfaces. */}
+        {/* Primary view switch — Dashboard / Tasks / Vibe. These used to live in
+            the header (ViewToggle + VibeToggle); the rail now owns navigation. */}
+        <div className="space-y-1">
+          {!collapsed && (
+            <p className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+              {PRIMARY_VIEW_TITLE}
+            </p>
+          )}
+          {PRIMARY_VIEW_ITEMS.map((item) => renderLink(item))}
+        </div>
+
         <div className="space-y-1">
           {!collapsed && (
             <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">

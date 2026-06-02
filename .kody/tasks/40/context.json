@@ -1,14 +1,14 @@
 {
   "taskId": "40",
   "taskType": "pr",
-  "target": "40",
+  "target": "PR #26 / 40 (26-files-fully-featured-file-browser-and-editor-at-fi)",
   "outcome": "success",
   "exitCode": 0,
-  "reason": "TypeScript error in test spread args fixed with Parameters<typeof fn> rest type.",
+  "reason": "Single symmetric conflict in settings-nav.ts import block — kept FolderOpen (used in file), dropped unused Github",
   "prUrl": null,
-  "runUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/actions/runs/26826292966",
-  "filesTouched": ["tests/int/close-pr-action.int.spec.ts"],
+  "runUrl": null,
+  "filesTouched": ["src/dashboard/lib/components/settings-nav.ts"],
   "sessionLog": null,
   "startedAt": "2026-06-02T14:26:00.000Z",
-  "finishedAt": "2026-06-02T15:00:00.000Z"
+  "finishedAt": "2026-06-02T15:01:00.000Z"
 }
