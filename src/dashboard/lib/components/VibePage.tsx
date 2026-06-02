@@ -378,6 +378,7 @@ export function VibePage() {
   const { url: activePreviewUrl, isResolving: previewResolving } =
     usePreviewUrl(
       selectedTask?.associatedPR?.head?.sha,
+      selectedTask?.associatedPR?.number,
       selectedTask?.previewUrl ?? null,
     );
   const fallbackPreviewUrl = !selectedTask ? defaultPreviewUrl : null;

@@ -204,7 +204,7 @@ export function PreviewModal({
   // immediately on open instead of waiting for the background tasks poll
   // (which only finds links among the 100 most-recent deployments).
   const { url: effectivePreviewUrl, isResolving: previewResolving } =
-    usePreviewUrl(pr?.head?.sha, task.previewUrl ?? null);
+    usePreviewUrl(pr?.head?.sha, pr?.number, task.previewUrl ?? null);
 
   // Callback to refresh comment list after adding a comment
   const handleCommentAdded = () => {
