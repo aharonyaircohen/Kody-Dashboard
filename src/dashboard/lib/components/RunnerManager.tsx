@@ -40,6 +40,7 @@ import { BrainFlyCard } from "./BrainFlyCard";
 import { BranchPreviewCard } from "./BranchPreviewCard";
 import { LitellmFlyCard } from "./LitellmFlyCard";
 import { PageShell } from "./PageShell";
+import { VaultLockedBanner } from "./VaultLockedBanner";
 import { useAuth, type FlyPerfTier } from "../auth-context";
 import { getStoredAuth } from "../api";
 
@@ -222,6 +223,10 @@ export function RunnerManager() {
       subtitle="Fly.io runner configuration"
     >
       <div className="space-y-6">
+        {/* If the vault can't be read, the FLY_API_TOKEN probe below reports
+            "not configured" for the wrong reason — surface the real failure. */}
+        <VaultLockedBanner feature="Fly runners and previews stay off until the vault can be read." />
+
         {/* ═══ Repo-wide ════════════════════════════════════════════════ */}
         <section className="space-y-3">
           <GroupHeader
