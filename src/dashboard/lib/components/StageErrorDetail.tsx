@@ -39,7 +39,7 @@ export function StageErrorDetail({
   useEffect(() => {
     if (!expanded || !runId || checkRuns.length > 0) return;
     setLoading(true);
-    fetch(`/api/kody/pipeline/${runId}/check-runs`, {
+    fetch(`/api/kody/check-runs/${runId}`, {
       headers: buildAuthHeaders(auth),
     })
       .then((res) => (res.ok ? res.json() : { checkRuns: [] }))
