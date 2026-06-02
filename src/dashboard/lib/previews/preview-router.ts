@@ -3,18 +3,21 @@
  * @domain previews
  * @pattern dispatch-router
  *
- * Pick where a per-PR preview build runs:
+ * Pick where a per-PR preview build runs. Previews PREFER Fly:
  *
- *   - GitHub Actions (kody.yml, executable=preview-build) when GH is
- *     healthy and not back-logged. Builds run in parallel on free GHA
- *     runners.
- *   - Fly Machines (existing builder image) when GH is degraded,
- *     queue-full, or the dispatch call itself fails.
+ *   - Fly Machines (the prebuilt builder image) whenever the repo has a
+ *     Fly token. The builder clones + `flyctl deploy`s directly, so it
+ *     never runs the `npx kody-engine@latest` download the GitHub path
+ *     does on every build — that download was crashing ~half of preview
+ *     builds with transient ECONNRESET and leaving no app (so the
+ *     `*.fly.dev` hostname never resolved).
+ *   - GitHub Actions (kody.yml, executable=preview-build) only as the
+ *     fallback — when the repo has no Fly token, or the Fly arm errors.
  *
- * Reuses the existing dispatchRun orchestrator (runners/runner-dispatch)
- * so the decision shape, fail-over semantics, and health probe are
- * shared with the engine-runner routing — one source of truth for
- * "GitHub base, Fly fallback".
+ * NOTE: this inverts the engine-runner policy on purpose. Engine *jobs*
+ * stay GitHub-first via dispatchRun ("GitHub base, Fly fallback"); only
+ * previews prefer Fly, because the Fly builder is the reliable,
+ * download-free path for them.
  */
 
 import { Octokit } from "@octokit/rest";
@@ -24,11 +27,7 @@ import { logger } from "@dashboard/lib/logger";
 import { createPreview } from "@dashboard/lib/previews/preview-lifecycle";
 import { previewAppName } from "@dashboard/lib/previews/preview-key";
 import { resolvePreviewConfigForRepo } from "@dashboard/lib/previews/config";
-import {
-  checkGitHubActionsHealth,
-  type GitHubActionsHealth,
-} from "@dashboard/lib/runners/github-health";
-import { dispatchRun } from "@dashboard/lib/runners/runner-dispatch";
+import type { GitHubActionsHealth } from "@dashboard/lib/runners/github-health";
 
 /** Default workflow file the consumer's kody-engine workflow lives at. */
 const DEFAULT_WORKFLOW = process.env.KODY_CHAT_WORKFLOW_ID ?? "kody.yml";
@@ -61,28 +60,6 @@ export interface RoutePreviewBuildOutcome {
 interface PreviewBuildWorkflowInputs {
   executable: "preview-build";
   issue_number: string;
-}
-
-async function countQueuedRunsForRepo(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<number> {
-  try {
-    const { data } = await octokit.actions.listWorkflowRunsForRepo({
-      owner,
-      repo,
-      status: "queued",
-      per_page: 100,
-    });
-    return data.total_count ?? data.workflow_runs?.length ?? 0;
-  } catch (err) {
-    logger.warn(
-      { err, owner, repo },
-      "previews.router: queued-runs count failed (treated as 0)",
-    );
-    return 0;
-  }
 }
 
 async function dispatchWorkflowDispatch(
@@ -134,24 +111,13 @@ export async function routePreviewBuild(
   }
   const octokit = new Octokit({ auth: bg.token });
   const cfg = await resolvePreviewConfigForRepo(owner, repo);
-  const flyAvailable = cfg !== null;
   const workflowId = opts.workflowId ?? DEFAULT_WORKFLOW;
 
-  const outcome = await dispatchRun({
-    checkHealth: () =>
-      checkGitHubActionsHealth({
-        countQueuedRuns: () => countQueuedRunsForRepo(octokit, owner, repo),
-      }),
-    flyAvailable,
-    dispatchGitHub: () =>
-      dispatchWorkflowDispatch(octokit, owner, repo, workflowId, {
-        executable: "preview-build",
-        issue_number: String(input.prNumber),
-      }),
-    runFly: async () => {
-      // The Fly arm shape `dispatchRun` expects is `{ runner, machineId }` —
-      // preview-lifecycle returns a richer object. Adapt at the boundary.
-      if (!cfg) throw new Error("fly fallback selected but no Fly config");
+  // Fly preferred: when the repo has a Fly token, build on the prebuilt
+  // builder image — the reliable, download-free path. Only fall back to
+  // GitHub Actions when there's no Fly token, or the Fly arm itself errors.
+  if (cfg) {
+    try {
       const info = await createPreview(
         {
           repo: input.repoFullName,
@@ -161,37 +127,47 @@ export async function routePreviewBuild(
         },
         cfg,
       );
+      const appName = previewAppName({
+        repo: input.repoFullName,
+        pr: input.prNumber,
+      });
+      logger.info(
+        {
+          repo: input.repoFullName,
+          pr: input.prNumber,
+          runner: "fly",
+          builderMachineId: info.builderMachineId,
+        },
+        "previews.router: build dispatched (fly preferred)",
+      );
       return {
-        runner: "fly" as const,
-        machineId: info.builderMachineId ?? "",
+        runner: "fly",
+        reason: "fly preferred (repo has Fly token)",
+        flyAppName: appName,
+        flyUrl: `https://${appName}.fly.dev`,
       };
-    },
-  });
-
-  logger.info(
-    {
-      repo: input.repoFullName,
-      pr: input.prNumber,
-      runner: outcome.runner,
-      reason: outcome.reason,
-      fellBackOnError: outcome.fellBackOnError ?? false,
-    },
-    "previews.router: build dispatched",
-  );
-
-  if (outcome.runner === "fly") {
-    const appName = previewAppName({
-      repo: input.repoFullName,
-      pr: input.prNumber,
-    });
-    return {
-      runner: "fly",
-      reason: outcome.reason,
-      flyAppName: appName,
-      flyUrl: `https://${appName}.fly.dev`,
-    };
+    } catch (err) {
+      logger.warn(
+        { err, repo: input.repoFullName, pr: input.prNumber },
+        "previews.router: fly arm failed → falling back to GitHub Actions",
+      );
+    }
   }
-  return { runner: "github", reason: outcome.reason };
+
+  // No Fly token (or the Fly arm threw) → GitHub Actions runs kody.yml's
+  // preview-build executable.
+  await dispatchWorkflowDispatch(octokit, owner, repo, workflowId, {
+    executable: "preview-build",
+    issue_number: String(input.prNumber),
+  });
+  logger.info(
+    { repo: input.repoFullName, pr: input.prNumber, runner: "github" },
+    "previews.router: build dispatched (github fallback)",
+  );
+  return {
+    runner: "github",
+    reason: cfg ? "fly failed → github fallback" : "no Fly token → github",
+  };
 }
 
 /** Re-exported so consumers don't need to thread through both modules. */
