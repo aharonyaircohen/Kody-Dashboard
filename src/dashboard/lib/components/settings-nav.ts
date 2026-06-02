@@ -20,7 +20,6 @@ import {
   Inbox,
   KeyRound,
   Layers,
-  LayoutDashboard,
   LayoutGrid,
   MessageSquare,
   MonitorPlay,
@@ -80,7 +79,7 @@ export const TASKS_NAV_ITEM: SettingsNavItem = {
 export const DASHBOARD_NAV_ITEM: SettingsNavItem = {
   href: "/",
   label: "Dashboard",
-  icon: LayoutDashboard,
+  icon: Home,
   exact: true,
   description: "Overview of tasks, runs, and activity at a glance.",
   tint: "text-emerald-300 bg-emerald-500/10",
