@@ -56,16 +56,10 @@
     "finalize": true
   },
   "scripts": {
-    "preflight": [
-      { "script": "fixCiFlow" }
-    ],
+    "preflight": [{ "script": "fixCiFlow" }],
     "postflight": []
   },
   "output": {
-    "actionTypes": [
-      "FIX_CI_COMPLETED",
-      "FIX_CI_FAILED",
-      "AGENT_NOT_RUN"
-    ]
+    "actionTypes": ["FIX_CI_COMPLETED", "FIX_CI_FAILED", "AGENT_NOT_RUN"]
   }
 }

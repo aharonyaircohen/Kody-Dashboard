@@ -45,6 +45,7 @@ interface FeedEntry {
   ctoCommand?: string;
   ctoStaff?: string;
   ctoDuty?: string;
+  category?: InboxEntry["category"];
 }
 
 function readCursor(owner: string, repo: string): string | null {
@@ -104,6 +105,7 @@ async function runOnce(opts: {
     ...(f.ctoCommand ? { ctoCommand: f.ctoCommand } : {}),
     ...(f.ctoStaff ? { ctoStaff: f.ctoStaff } : {}),
     ...(f.ctoDuty ? { ctoDuty: f.ctoDuty } : {}),
+    ...(f.category ? { category: f.category } : {}),
   }));
 
   try {

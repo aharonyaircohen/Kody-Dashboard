@@ -339,11 +339,24 @@ export async function POST(
           );
         }
         await closePR(pr.number, userOctokit ?? undefined);
+
+        // Delete branch if exists (GitHub has no "delete PR" — closing the
+        // PR + deleting its branch is the closest thing).
+        const branchName = await findTaskBranch(taskId);
+        let branchDeleted = false;
+        if (branchName && !isProtectedBranch(branchName)) {
+          await deleteBranch(branchName, userOctokit ?? undefined);
+          branchDeleted = true;
+        }
+
         invalidateTaskCache();
         invalidatePRCache();
+        invalidateBranchCache();
         return NextResponse.json({
           success: true,
-          message: `PR #${pr.number} closed`,
+          message: branchDeleted
+            ? `PR #${pr.number} closed and branch deleted`
+            : `PR #${pr.number} closed`,
         });
       }
 

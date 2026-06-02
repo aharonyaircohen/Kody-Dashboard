@@ -35,11 +35,6 @@ const bodySchema = z.object({
     .min(1)
     .max(40)
     .regex(/^[a-z0-9][a-z0-9-]*$/i),
-  action: z
-    .string()
-    .min(1)
-    .max(40)
-    .regex(/^[a-z0-9][a-z0-9-]*$/i),
   op: z.enum(TRUST_OPS),
   actorLogin: z.string().optional(),
 });
@@ -93,7 +88,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "bad_json" }, { status: 400 });
     }
 
-    const { duty, action, op, actorLogin } = payload;
+    const { duty, op, actorLogin } = payload;
 
     if (actorLogin) {
       const actorResult = await verifyActorLogin(req, actorLogin);
@@ -101,22 +96,21 @@ export async function POST(req: NextRequest) {
     }
 
     const manifest = await mutateTrust((current) =>
-      applyTrustOp(current, op, duty, action),
+      applyTrustOp(current, op, duty),
     );
 
     recordAudit(req, {
       action: `trust.${op}`,
-      resource: `${duty}:${action}`,
+      resource: duty,
       duty,
-      detail: `${op} trust for ${duty} · ${action}`,
+      detail: `${op} trust for ${duty}`,
     });
 
     return NextResponse.json({
       ok: true,
       duty,
-      action,
       op,
-      stats: manifest.duties[duty]?.[action] ?? null,
+      stats: manifest.duties[duty] ?? null,
     });
   } catch (err: unknown) {
     const message =

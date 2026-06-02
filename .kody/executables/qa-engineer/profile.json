@@ -64,7 +64,13 @@
       {
         "name": "playwright",
         "command": "npx",
-        "args": ["-y", "--package=@playwright/mcp@latest", "--", "playwright-mcp", "--headless"]
+        "args": [
+          "-y",
+          "--package=@playwright/mcp@latest",
+          "--",
+          "playwright-mcp",
+          "--headless"
+        ]
       }
     ]
   },
@@ -93,8 +99,6 @@
       { "script": "warmupMcp" },
       { "script": "composePrompt" }
     ],
-    "postflight": [
-      { "script": "createQaGoal" }
-    ]
+    "postflight": [{ "script": "createQaGoal" }]
   }
 }

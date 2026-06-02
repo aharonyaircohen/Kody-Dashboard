@@ -25,7 +25,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Brain, Loader2, Pause, Play, Power, RefreshCw } from "lucide-react";
+import {
+  Brain,
+  Copy,
+  Loader2,
+  Pause,
+  Play,
+  Power,
+  RefreshCw,
+} from "lucide-react";
 
 import { Checkbox } from "@dashboard/ui/checkbox";
 
@@ -334,8 +342,20 @@ export function BrainFlyCard({
             </label>
           )}
           {app && (
-            <div className="text-[11px] text-white/40 font-mono break-all">
-              {app}.fly.dev
+            <div className="flex items-center gap-1.5 text-[11px] text-white/40 font-mono break-all">
+              <span>https://{app}.fly.dev</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-5 px-1.5 shrink-0"
+                title="Copy Brain URL"
+                onClick={() => {
+                  navigator.clipboard.writeText(`https://${app}.fly.dev`);
+                  toast.success("Brain URL copied");
+                }}
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
             </div>
           )}
           <div className="flex items-center gap-2 pt-1 flex-wrap">

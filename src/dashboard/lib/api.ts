@@ -1651,20 +1651,17 @@ export const ctoApi = {
 
   /**
    * Full per-DUTY trust stats + recent decision log, for the /trust page.
-   * `duties[<slug>][<action>]` is the nested shape the kody-state ledger holds.
+   * `duties[<slug>]` holds one whole-duty stats block (no action dimension).
    */
   trust: async (): Promise<{
     duties: Record<
       string,
-      Record<
-        string,
-        {
-          approvals: number;
-          rejections: number;
-          consecutiveApprovals: number;
-          mode: "ask" | "auto";
-        }
-      >
+      {
+        approvals: number;
+        rejections: number;
+        consecutiveApprovals: number;
+        mode: "ask" | "auto";
+      }
     >;
     log: import("./cto/trust-state").TrustDecisionLogEntry[];
   }> => {
@@ -1675,19 +1672,17 @@ export const ctoApi = {
   },
 
   /**
-   * Apply one operator override to a duty's action autonomy:
+   * Apply one operator override to a duty's autonomy (whole duty):
    * `reset` (wipe), `graduate` (force auto now), `degrade` (force ask).
    * Never posts an `@kody` command — it only rewrites trust state.
    */
   setTrust: async (input: {
     duty: string;
-    action: string;
     op: import("./cto/trust-state").TrustOp;
     actorLogin?: string;
   }): Promise<{
     ok: true;
     duty: string;
-    action: string;
     op: import("./cto/trust-state").TrustOp;
     stats: {
       approvals: number;

@@ -9,7 +9,7 @@ staff: qa
 
 Re-check **fix and feature PRs against their own preview** before they merge,
 then route the result to the inbox for a one-tap merge. A change is only truly
-delivered when the *changed screen actually works* — a reported bug is gone, or
+delivered when the _changed screen actually works_ — a reported bug is gone, or
 a requested feature works as described — not when the author's self-written test
 goes green. This duty:
 

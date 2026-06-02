@@ -7,11 +7,33 @@
  * model and default executable.
  */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
   installEngine,
   type InstallEngineInput,
 } from "@dashboard/lib/engine/install";
+
+// installEngine fetches the canonical kody.yml from unpkg. A unit test must
+// never hit the network, so stub global.fetch to return a valid template —
+// otherwise every test dies in fetchTemplate (404 / offline) before the
+// install logic under test even runs.
+const MOCK_TEMPLATE = "# Kody engine workflow\nname: kody\non:\n  workflow_dispatch:\n";
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => MOCK_TEMPLATE,
+    }),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Mock helpers

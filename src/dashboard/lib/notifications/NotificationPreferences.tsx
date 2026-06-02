@@ -14,6 +14,7 @@ import { NOTIFICATION_META, type NotificationType } from "./types";
 import { playNotificationSound } from "./sounds";
 import { PushToggle } from "@dashboard/lib/push/PushToggle";
 import { getStoredAuth } from "../api";
+import { syncMutedTypes } from "./sync-prefs";
 
 interface NotificationPreferencesProps {
   store: UseNotificationStoreReturn;
@@ -85,20 +86,7 @@ export function NotificationPreferences({
     const prev = prevDisabledTypesRef.current;
     if (prev === prefs.disabledTypes) return;
     prevDisabledTypesRef.current = prefs.disabledTypes;
-    const auth = getStoredAuth();
-    if (!auth) return;
-    void fetch("/api/notifications/preferences", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-kody-token": auth.token,
-        "x-kody-owner": auth.owner,
-        "x-kody-repo": auth.repo,
-      },
-      body: JSON.stringify({ mutedTypes: prefs.disabledTypes }),
-    }).catch(() => {
-      /* best-effort */
-    });
+    syncMutedTypes(prefs.disabledTypes);
   }, [prefs.disabledTypes]);
 
   return (

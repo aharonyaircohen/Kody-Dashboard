@@ -43,7 +43,12 @@
       {
         "name": "playwright",
         "command": "npx",
-        "args": ["-y", "--package=@playwright/mcp@latest", "--", "playwright-mcp"]
+        "args": [
+          "-y",
+          "--package=@playwright/mcp@latest",
+          "--",
+          "playwright-mcp"
+        ]
       }
     ]
   },
@@ -57,17 +62,21 @@
       },
       "verify": "ls \"$HOME/.cache/ms-playwright\" 2>/dev/null | grep -q '^chromium'",
       "usage": "Use `npx playwright test <file>` to run a Playwright spec. Write ad-hoc specs under `.kody/ui-review/*.spec.ts`. If `npx playwright test` errors with `Cannot find package '@playwright/test'`, install it once with `npm install -D @playwright/test` (or the repo's package-manager equivalent) before retrying — the `playwright` browser binaries are already set up by preflight, but the per-repo test framework may not be. Prefer `page.goto(process.env.UI_REVIEW_BASE_URL)` — the base URL is injected as `UI_REVIEW_BASE_URL` at run time. Capture screenshots with `await page.screenshot({ path: '.kody/ui-review/<name>.png' })` and reference those paths in your final review.",
-      "allowedUses": [
-        "test",
-        "--version"
-      ]
+      "allowedUses": ["test", "--version"]
     }
   ],
   "inputArtifacts": [],
   "outputArtifacts": [],
   "scripts": {
     "preflight": [
-      { "script": "setLifecycleLabel", "with": { "label": "kody:reviewing-ui", "color": "d93f0b", "description": "kody: UI-reviewing a PR" } },
+      {
+        "script": "setLifecycleLabel",
+        "with": {
+          "label": "kody:reviewing-ui",
+          "color": "d93f0b",
+          "description": "kody: UI-reviewing a PR"
+        }
+      },
       { "script": "reviewFlow" },
       { "script": "loadLinkedFinding" },
       { "script": "loadTaskState" },
