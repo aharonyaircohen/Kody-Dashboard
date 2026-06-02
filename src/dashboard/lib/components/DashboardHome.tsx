@@ -20,8 +20,6 @@ import {
   ArrowRight,
   CheckCircle2,
   FileText,
-  GitBranch,
-  Hammer,
   Inbox,
   type LucideIcon,
 } from "lucide-react";
@@ -53,12 +51,6 @@ function timeAgo(iso?: string | null): string {
   if (h < 24) return `${h}h ago`;
   return `${Math.round(h / 24)}d ago`;
 }
-
-const ACTIVE_COLUMNS: readonly ColumnId[] = [
-  "building",
-  "retrying",
-  "gate-waiting",
-];
 
 function countBy(tasks: KodyTask[], cols: readonly ColumnId[]): number {
   return tasks.filter((t) => cols.includes(t.column)).length;
@@ -137,143 +129,73 @@ function StatTile({
   );
 }
 
-/** A calm "nothing to do" state inside an attention card. */
-function AllClear({ message }: { message: string }) {
-  return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-      <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
-      {message}
-    </div>
+// ── attention strip ──────────────────────────────────────────────────────────
+
+function chipClass(tone: "rose" | "amber"): string {
+  return cn(
+    "inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors",
+    tone === "rose"
+      ? "bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
+      : "bg-amber-500/10 text-amber-300 hover:bg-amber-500/20",
   );
 }
 
-// ── attention cards ─────────────────────────────────────────────────────────
-
-/** "Needs you" — unread inbox entries, with CTO approvals surfaced first. */
-function NeedsYouCard() {
-  const { unreadCount, isLoading } = useInbox();
-
-  return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "inline-flex h-8 w-8 items-center justify-center rounded-md",
-              unreadCount > 0
-                ? "text-amber-300 bg-amber-500/10"
-                : "text-emerald-300 bg-emerald-500/10",
-            )}
-          >
-            <Inbox className="w-4 h-4" />
-          </span>
-          <div>
-            <div className="text-sm font-medium">Needs you</div>
-            <div className="text-xs text-muted-foreground">
-              {isLoading
-                ? "Loading…"
-                : `${unreadCount} awaiting your decision`}
-            </div>
-          </div>
-        </div>
-        <Link
-          href="/inbox"
-          className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-        >
-          Inbox <ArrowRight className="w-3 h-3" />
-        </Link>
-      </div>
-    </Card>
-  );
-}
-
-/** "Failing now" — main-branch CI + failed tasks (with reason). */
-function FailingCard({
+/**
+ * One compact alert row. Replaces the old two-up "Needs you" + "Failing" cards:
+ * a chip per live problem (red CI, failed tasks, inbox items awaiting you),
+ * rendered only when non-zero. When there's nothing, a calm "all clear" line.
+ * The detail lives one click away on /tasks and /inbox — this is just the alarm.
+ */
+function AlertStrip({
   tasks,
   tasksLoading,
 }: {
   tasks: KodyTask[];
   tasksLoading: boolean;
 }) {
+  const { unreadCount } = useInbox();
   const { data: ci } = useDefaultBranchCI();
   const ciRed = ci?.state === "failure";
-  const failed = tasks.filter((t) => t.column === "failed").slice(0, 5);
-  const nothingWrong = !ciRed && failed.length === 0;
+  const failed = tasks.filter((t) => t.column === "failed").length;
+  const hasAlerts = ciRed || failed > 0 || unreadCount > 0;
 
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "inline-flex h-8 w-8 items-center justify-center rounded-md",
-              nothingWrong
-                ? "text-emerald-300 bg-emerald-500/10"
-                : "text-rose-300 bg-rose-500/10",
-            )}
-          >
-            <AlertTriangle className="w-4 h-4" />
-          </span>
-          <div>
-            <div className="text-sm font-medium">Failing</div>
-            <div className="text-xs text-muted-foreground">
-              CI &amp; failed tasks
-            </div>
-          </div>
+    <Card className="px-4 py-3">
+      {tasksLoading && !hasAlerts ? (
+        <div className="text-sm text-muted-foreground">Checking…</div>
+      ) : !hasAlerts ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
+          All clear — nothing needs you.
         </div>
-        <Link
-          href="/tasks"
-          className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-        >
-          Tasks <ArrowRight className="w-3 h-3" />
-        </Link>
-      </div>
-
-      {tasksLoading ? (
-        <p className="text-sm text-muted-foreground py-2">Loading…</p>
-      ) : nothingWrong ? (
-        <AllClear message="Nothing failing right now." />
       ) : (
-        <div className="space-y-1">
-          {ciRed && ci?.latestRun && (
-            <a
-              href={ci.latestRun.html_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-2 py-2 -mx-2 rounded-md hover:bg-white/[0.04] transition-colors"
-            >
-              <GitBranch className="w-3.5 h-3.5 text-rose-300 shrink-0" />
-              <span className="text-sm flex-1 truncate">
-                {ci.branch} CI red
-                <span className="text-muted-foreground">
-                  {" "}
-                  — {ci.latestRun.name}
-                </span>
-              </span>
-              <span className="text-[11px] text-muted-foreground shrink-0">
-                {timeAgo(ci.latestRun.updated_at)}
-              </span>
-            </a>
-          )}
-          {failed.map((t) => (
-            <Link
-              key={t.id}
-              href={`/${t.issueNumber}`}
-              className="flex items-start gap-2 px-2 py-2 -mx-2 rounded-md hover:bg-white/[0.04] transition-colors"
-            >
-              <span className="text-xs text-muted-foreground tabular-nums shrink-0 w-10 mt-0.5">
-                #{t.issueNumber}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm truncate">{t.title}</div>
-                {t.failureReason && (
-                  <div className="text-xs text-rose-300/80 truncate">
-                    {t.failureReason}
-                  </div>
-                )}
-              </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-300 shrink-0" />
+          {ciRed &&
+            (ci?.latestRun?.html_url ? (
+              <a
+                href={ci.latestRun.html_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={chipClass("rose")}
+              >
+                {ci.branch ?? "main"} CI red
+              </a>
+            ) : (
+              <Link href="/tasks" className={chipClass("rose")}>
+                {ci?.branch ?? "main"} CI red
+              </Link>
+            ))}
+          {failed > 0 && (
+            <Link href="/tasks" className={chipClass("rose")}>
+              {failed} failed
             </Link>
-          ))}
+          )}
+          {unreadCount > 0 && (
+            <Link href="/inbox" className={chipClass("amber")}>
+              <Inbox className="w-3 h-3" /> {unreadCount} need you
+            </Link>
+          )}
         </div>
       )}
     </Card>
@@ -458,31 +380,20 @@ export function DashboardHome() {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="mx-auto max-w-5xl px-4 md:px-6 py-6 space-y-10">
-        {/* 0 — What's in motion this minute, with a freshness stamp. */}
+        {/* 0 — Alarm first: only the things that need you, as compact chips. */}
+        <AlertStrip tasks={all} tasksLoading={tasksLoading} />
+
+        {/* 1 — What's in motion this minute, with a freshness stamp. */}
         <HappeningNow
           tasks={all}
           tasksLoading={tasksLoading}
           updatedAt={dataUpdatedAt}
         />
 
-        {/* 1 — Statistics: the task pulse at a glance. */}
+        {/* 2 — Context numbers Happening-now doesn't already show. */}
         <section>
           <SectionHeader title="At a glance" href="/tasks" cta="Open board" />
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatTile
-              icon={Hammer}
-              label="Active"
-              value={tasksLoading ? "—" : countBy(all, ACTIVE_COLUMNS)}
-              tint="text-amber-300 bg-amber-500/10"
-              href="/tasks"
-            />
-            <StatTile
-              icon={Activity}
-              label="In review"
-              value={tasksLoading ? "—" : countBy(all, ["review"])}
-              tint="text-sky-300 bg-sky-500/10"
-              href="/tasks"
-            />
+          <div className="grid grid-cols-2 gap-3">
             <StatTile
               icon={Inbox}
               label="Backlog"
@@ -497,15 +408,6 @@ export function DashboardHome() {
               tint="text-emerald-300 bg-emerald-500/10"
               href="/tasks"
             />
-          </div>
-        </section>
-
-        {/* 2 — Attention: the two things that might need action right now. */}
-        <section>
-          <SectionHeader title="Needs attention" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <NeedsYouCard />
-            <FailingCard tasks={all} tasksLoading={tasksLoading} />
           </div>
         </section>
 
