@@ -14,6 +14,8 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
+  Bell,
+  BellOff,
   Check,
   CheckCheck,
   ExternalLink,
@@ -43,6 +45,10 @@ import {
   type CtoAction,
 } from "../cto/recommendation";
 import { useCtoDecisions } from "../cto/useCtoDecisions";
+import { useNotificationStore } from "../notifications/useNotificationStore";
+import { NOTIFICATION_META } from "../notifications/types";
+import { syncMutedTypes } from "../notifications/sync-prefs";
+import type { ServerNotificationType } from "../notifications/prefs-store";
 import type { InboxEntry, InboxSource } from "../inbox/types";
 import {
   INBOX_THREAD_PARAM,
@@ -232,6 +238,11 @@ interface RowProps {
   onOpen: () => void;
   onToggleRead: () => void;
   onDelete: () => void;
+  /** Whether this entry's notification category is currently muted. */
+  muted: boolean;
+  /** Toggle the mute state of this entry's category. Absent when the entry
+   *  carries no mute-able category (legacy entries). */
+  onToggleMute?: () => void;
   onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
   verdictFor: (
     staff: string,
@@ -247,11 +258,16 @@ function Row({
   onOpen,
   onToggleRead,
   onDelete,
+  muted,
+  onToggleMute,
   onCtoDecision,
   verdictFor,
 }: RowProps) {
   const unread = entry.readAt === null;
   const [copied, setCopied] = useState(false);
+  const categoryLabel = entry.category
+    ? NOTIFICATION_META[entry.category].label
+    : "";
 
   // Shareable link for this row: the in-dashboard deep link when the thread
   // can render inline (Issue/PR/Discussion in the connected repo), else the
@@ -393,6 +409,29 @@ function Row({
           >
             <CheckCheck className="w-3.5 h-3.5" />
           </button>
+          {onToggleMute && (
+            <button
+              type="button"
+              onClick={onToggleMute}
+              title={
+                muted
+                  ? `Unmute “${categoryLabel}” notifications`
+                  : `Mute “${categoryLabel}” notifications — stop these from landing in your inbox`
+              }
+              className={cn(
+                "p-1 rounded hover:bg-white/[0.06]",
+                muted
+                  ? "text-amber-300 hover:text-amber-200"
+                  : "text-white/50 hover:text-white",
+              )}
+            >
+              {muted ? (
+                <Bell className="w-3.5 h-3.5" />
+              ) : (
+                <BellOff className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={onDelete}
@@ -524,6 +563,45 @@ export function InboxList() {
     remove,
   } = useInbox();
   const { verdictFor, invalidate: invalidateCtoDecisions } = useCtoDecisions();
+  const { prefs: notifPrefs, updatePrefs: updateNotifPrefs } =
+    useNotificationStore();
+  // Latest muted list, kept in a ref so the toast "Undo" callback (created at
+  // mute time) always reads the current state instead of a stale closure.
+  const mutedRef = useRef(notifPrefs.disabledTypes);
+  useEffect(() => {
+    mutedRef.current = notifPrefs.disabledTypes;
+  }, [notifPrefs.disabledTypes]);
+
+  const setCategoryMuted = (
+    category: ServerNotificationType,
+    shouldMute: boolean,
+  ) => {
+    const current = mutedRef.current;
+    const has = current.includes(category);
+    if (has === shouldMute) return; // already in the desired state
+    const next = shouldMute
+      ? [...current, category]
+      : current.filter((t) => t !== category);
+    mutedRef.current = next;
+    updateNotifPrefs({ disabledTypes: next }); // local cache + UI
+    syncMutedTypes(next); // server prefs → webhook spine drops future entries
+    const label = NOTIFICATION_META[category].label;
+    if (shouldMute) {
+      toast.success(`Muted “${label}” notifications`, {
+        description:
+          "These won't land in your inbox. Manage anytime in Notification Settings.",
+        action: {
+          label: "Undo",
+          onClick: () => setCategoryMuted(category, false),
+        },
+      });
+    } else {
+      toast(`Unmuted “${label}” notifications`);
+    }
+  };
+  const toggleCategoryMute = (category: ServerNotificationType) =>
+    setCategoryMuted(category, !mutedRef.current.includes(category));
+
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activeEntry, setActiveEntry] = useState<InboxEntry | null>(null);
   const [query, setQuery] = useState("");
@@ -884,6 +962,8 @@ export function InboxList() {
         onOpen={openEntry}
         onToggleRead={(id) => void markRead(id)}
         onDelete={(id) => void remove(id)}
+        isMuted={(c) => notifPrefs.disabledTypes.includes(c)}
+        onToggleMute={toggleCategoryMute}
         onCtoDecision={handleCtoDecision}
         verdictFor={verdictFor}
         readSection={false}
@@ -900,6 +980,8 @@ export function InboxList() {
             onOpen={openEntry}
             onToggleRead={(id) => void markUnread(id)}
             onDelete={(id) => void remove(id)}
+            isMuted={(c) => notifPrefs.disabledTypes.includes(c)}
+            onToggleMute={toggleCategoryMute}
             onCtoDecision={handleCtoDecision}
             verdictFor={verdictFor}
             readSection
@@ -1078,6 +1160,8 @@ interface SectionProps {
   onOpen: (entry: InboxEntry) => void;
   onToggleRead: (id: string) => void;
   onDelete: (id: string) => void;
+  isMuted: (category: ServerNotificationType) => boolean;
+  onToggleMute: (category: ServerNotificationType) => void;
   onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
   verdictFor: (
     staff: string,
@@ -1097,6 +1181,8 @@ function Section({
   onOpen,
   onToggleRead,
   onDelete,
+  isMuted,
+  onToggleMute,
   onCtoDecision,
   verdictFor,
   readSection,
@@ -1126,6 +1212,12 @@ function Section({
                     onOpen={() => onOpen(e)}
                     onToggleRead={() => onToggleRead(e.id)}
                     onDelete={() => onDelete(e.id)}
+                    muted={e.category ? isMuted(e.category) : false}
+                    onToggleMute={
+                      e.category
+                        ? () => onToggleMute(e.category!)
+                        : undefined
+                    }
                     onCtoDecision={onCtoDecision}
                     verdictFor={verdictFor}
                   />

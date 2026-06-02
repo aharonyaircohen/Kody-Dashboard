@@ -21,6 +21,8 @@
  *   Cap: the manifest stores the last `INBOX_MAX_ENTRIES` entries. Older
  *   ones drop off — this is an inbox, not an archive.
  */
+import type { ServerNotificationType } from "../notifications/prefs-store";
+
 export const INBOX_GIST_DESCRIPTION_PREFIX = "kody-inbox:";
 export const INBOX_GIST_FILE = "inbox.json";
 export const INBOX_MAX_ENTRIES = 200;
@@ -80,6 +82,13 @@ export interface InboxEntry {
    * falls back to the persona slug).
    */
   ctoDuty?: string;
+  /**
+   * Server-classified notification category (`chat-response`, `task-assigned`,
+   * …), carried through from the feed. Lets the inbox row offer "Mute this
+   * type", which adds the category to the user's notification prefs so future
+   * entries of that kind never land. Absent on legacy entries.
+   */
+  category?: ServerNotificationType;
 }
 
 export interface InboxManifest {

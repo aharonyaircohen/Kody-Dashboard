@@ -26,6 +26,7 @@ import { latestCtoDecisions } from "../../cto/decisions";
 import { applyCtoBackpressure } from "../../cto/backpressure";
 import { dashboardChannelUrl } from "../../thread-link";
 import { logger } from "../../logger";
+import { classifyNotificationType } from "../notification-types";
 import type { SourceEvent } from "../source-event";
 
 /**
@@ -54,6 +55,9 @@ export async function deliverInbox(
   const ctoCommand = parseCtoCommand(ev.body ?? "");
   const ctoStaff = parseCtoStaff(ev.body ?? "");
   const ctoDuty = parseCtoDuty(ev.body ?? "");
+  // Same classifier the mute filter keys on — stamp it on the entry so the
+  // inbox row can offer a one-click "Mute this type" for the right category.
+  const category = classifyNotificationType(ev);
   const entries: InboxFeedEntry[] = recipients.map((login) => ({
     id: feedEntryId(login, url),
     login,
@@ -69,6 +73,7 @@ export async function deliverInbox(
     ...(ctoCommand ? { ctoCommand } : {}),
     ...(ctoStaff ? { ctoStaff } : {}),
     ...(ctoDuty ? { ctoDuty } : {}),
+    ...(category ? { category } : {}),
   }));
 
   setGitHubContext(ctx.owner, ctx.repo, ctx.token);

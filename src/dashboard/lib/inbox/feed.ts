@@ -21,6 +21,7 @@
  *   archive).
  */
 import type { InboxSource } from "./types";
+import type { ServerNotificationType } from "../notifications/prefs-store";
 
 export const INBOX_FEED_LABEL = "kody:inbox-feed";
 export const INBOX_FEED_START = "<!-- kody-inbox-feed-start -->";
@@ -74,6 +75,13 @@ export interface InboxFeedEntry {
   ctoStaff?: string;
   /** Emitting duty slug from the raw body's `kody-duty` line — the trust key. */
   ctoDuty?: string;
+  /**
+   * Server-classified notification category for this entry (`chat-response`,
+   * `task-assigned`, …), computed from the source event at write time. Drives
+   * the inbox row's "Mute this type" action. Absent when the event maps to no
+   * mute-able type, or on entries written before this field existed.
+   */
+  category?: ServerNotificationType;
 }
 
 export interface InboxFeedManifest {
