@@ -3,7 +3,10 @@
  * @domain kody
  * @pattern branch-behind-banner
  * @ai-summary Soft warning when a PR's head branch is behind its base.
- * Non-blocking (unlike Conflict / CI Failure) — surfaces a one-click @kody sync.
+ * Non-blocking (unlike Conflict) — surfaces a one-click @kody sync. Still shown
+ * alongside a failing-CI banner: a stale branch is often *why* CI is red, so the
+ * sync offer must stay visible. Only a merge conflict suppresses it (sync can't
+ * cleanly merge then).
  */
 "use client";
 
@@ -26,11 +29,12 @@ export function BranchBehindBanner({ prNumber }: BranchBehindBannerProps) {
   const { githubUser } = useGitHubIdentity();
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Conflict / CI-failure banners take priority — they're hard blockers.
-  // Behind-by is only worth surfacing once those are clear.
+  // A merge conflict is the only hard blocker for sync — @kody sync can't
+  // cleanly merge base in then, so let the Conflict banner own that case.
+  // A failing CI does NOT hide this: the branch being behind is frequently the
+  // cause of the failure, so show the sync offer next to the CI-failure banner.
   if (!behindBy || behindBy <= 0) return null;
   if (ciData?.hasConflicts) return null;
-  if (ciData?.ciStatus === "failure") return null;
 
   const handleSync = async () => {
     setIsSyncing(true);

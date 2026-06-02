@@ -797,7 +797,9 @@ export function PreviewModal({
           {/* CI failure banner — only renders when ciStatus === 'failure' (and no conflicts) */}
           <CIFailureBanner prNumber={pr.number} />
 
-          {/* Branch-behind banner — soft warning, only when no conflicts and CI not failing */}
+          {/* Branch-behind banner — soft warning whenever the branch is behind
+              and there's no conflict; stacks under the CI-failure banner since a
+              stale branch is often the cause, and sync is the fix. */}
           <BranchBehindBanner prNumber={pr.number} />
 
           {/* Action bar */}
