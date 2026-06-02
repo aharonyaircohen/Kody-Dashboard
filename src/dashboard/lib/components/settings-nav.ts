@@ -15,6 +15,7 @@ import {
   Building2,
   Cpu,
   FileText,
+  FolderOpen,
   Github,
   History,
   Home,
@@ -267,6 +268,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "General",
     items: [
+      {
+        href: "/files",
+        label: "Files",
+        icon: FolderOpen,
+        description: "Browse and edit files in your repository.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
       {
         href: "/settings",
         label: "Settings",
