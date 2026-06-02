@@ -13,7 +13,7 @@ One of seven staff delivered this week; three staff are idle with no active duti
 | tech-writer | 2 (2 active) | None | No runs | No signal | weak |
 | ux-designer | 1 (0 active) | — | — | — | idle |
 
-- **cto — unclear:** dev-ci-health (every 15m) has never recorded a run; no state file, no commits, no output. Cannot assess.
+- **cto — unclear:** dev-ci-health (every 15m) has never recorded a state file or produced output. Cannot assess delivery.
 - **qa — weak:** qa-verify (every 30m) was enabled pre-2026-06-01; zero state commits or output in the review window. **Effect:** zero PR previews verified before merge.
 - **tech-writer — weak:** docs-code and docs-readme (every 1d) were enabled pre-2026-06-01; zero state commits or output. **Effect:** documentation drift and code-header gaps go unchecked.
-- Changes since last week: none — this is the first recorded tick with grades.
+- Changes since last week: none — grades unchanged from prior review.
