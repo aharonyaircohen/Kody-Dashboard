@@ -470,7 +470,8 @@
             // routes this way — we wait briefly and re-snapshot the DOM
             // if the URL or document body changed.
             var beforeUrl = window.location.href;
-            var beforeBodyLen = (document.body && document.body.innerHTML.length) || 0;
+            var beforeBodyLen =
+              (document.body && document.body.innerHTML.length) || 0;
             // Full event sequence — many UI libs (Radix, cmdk, framer-motion)
             // need pointerdown/mousedown to register an interaction, not
             // just a bare click. element.click() alone misses these.
@@ -516,8 +517,8 @@
               inp instanceof HTMLTextAreaElement
                 ? HTMLTextAreaElement.prototype
                 : inp instanceof HTMLSelectElement
-                ? HTMLSelectElement.prototype
-                : HTMLInputElement.prototype;
+                  ? HTMLSelectElement.prototype
+                  : HTMLInputElement.prototype;
             var setter = Object.getOwnPropertyDescriptor(proto, "value");
             if (setter && setter.set) {
               setter.set.call(inp, String(payload.value || ""));
@@ -530,7 +531,10 @@
           }
           return resolve({ ok: false, error: "unknown op: " + op });
         } catch (err) {
-          return resolve({ ok: false, error: String(err && err.message ? err.message : err) });
+          return resolve({
+            ok: false,
+            error: String(err && err.message ? err.message : err),
+          });
         }
       });
     }
@@ -639,11 +643,14 @@
       try {
         var tag = el.tagName ? el.tagName.toLowerCase() : "?";
         var id = el.id ? "#" + el.id : "";
-        var cls = el.className && typeof el.className === "string"
-          ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".")
-          : "";
+        var cls =
+          el.className && typeof el.className === "string"
+            ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".")
+            : "";
         var role = el.getAttribute && el.getAttribute("role");
-        return "<" + tag + id + cls + (role ? ' role="' + role + '"' : "") + ">";
+        return (
+          "<" + tag + id + cls + (role ? ' role="' + role + '"' : "") + ">"
+        );
       } catch {
         return "<unknown>";
       }
@@ -654,14 +661,29 @@
     // or anything with cursor:pointer). Falls back to the element itself.
     function closestInteractive(el) {
       if (!(el instanceof Element)) return el;
-      var INTERACTIVE_TAGS = { BUTTON: 1, A: 1, INPUT: 1, SELECT: 1, TEXTAREA: 1, SUMMARY: 1, LABEL: 1 };
+      var INTERACTIVE_TAGS = {
+        BUTTON: 1,
+        A: 1,
+        INPUT: 1,
+        SELECT: 1,
+        TEXTAREA: 1,
+        SUMMARY: 1,
+        LABEL: 1,
+      };
       var node = el;
       var hops = 0;
       while (node && hops < 8) {
         if (INTERACTIVE_TAGS[node.tagName]) return node;
         var role = node.getAttribute && node.getAttribute("role");
-        if (role === "button" || role === "link" || role === "tab" || role === "menuitem") return node;
-        if (node.getAttribute && node.getAttribute("tabindex") !== null) return node;
+        if (
+          role === "button" ||
+          role === "link" ||
+          role === "tab" ||
+          role === "menuitem"
+        )
+          return node;
+        if (node.getAttribute && node.getAttribute("tabindex") !== null)
+          return node;
         if (node.hasAttribute && node.hasAttribute("onclick")) return node;
         try {
           var cs = window.getComputedStyle(node);
@@ -681,7 +703,10 @@
     // length) so we hit the leaf, then click walks up to the interactive
     // ancestor before dispatching. Walks shadow roots too.
     function findAnyWithText(text, tagFilter) {
-      var needle = String(text || "").trim().toLowerCase().replace(/\s+/g, " ");
+      var needle = String(text || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
       if (!needle) return null;
       var selector = tagFilter || "*";
       var nodes = collectAcrossShadow(document, selector);
@@ -689,7 +714,10 @@
       var bestLen = Infinity;
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
-        var raw = (el.textContent || "").trim().toLowerCase().replace(/\s+/g, " ");
+        var raw = (el.textContent || "")
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, " ");
         if (!raw) continue;
         if (raw === needle || raw.indexOf(needle) !== -1) {
           if (raw.length < bestLen) {
@@ -707,7 +735,9 @@
     function collectAcrossShadow(root, selector) {
       var out = [];
       try {
-        var direct = root.querySelectorAll ? root.querySelectorAll(selector) : [];
+        var direct = root.querySelectorAll
+          ? root.querySelectorAll(selector)
+          : [];
         for (var i = 0; i < direct.length; i++) out.push(direct[i]);
       } catch {
         return out;
@@ -741,7 +771,14 @@
         var rect = el.getBoundingClientRect();
         var x = Math.round(rect.left + rect.width / 2);
         var y = Math.round(rect.top + rect.height / 2);
-        var common = { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, view: window };
+        var common = {
+          bubbles: true,
+          cancelable: true,
+          clientX: x,
+          clientY: y,
+          button: 0,
+          view: window,
+        };
         try {
           el.dispatchEvent(new PointerEvent("pointerdown", common));
         } catch (e) {
@@ -803,7 +840,10 @@
       }
       var fallback = null;
       function norm(s) {
-        return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+        return String(s || "")
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, " ");
       }
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
@@ -862,10 +902,24 @@
       var root = document.body;
       if (!root) return "";
       var KEEP = {
-        h1: 1, h2: 1, h3: 1, h4: 1,
-        button: 1, a: 1, input: 1, textarea: 1, select: 1, label: 1,
-        nav: 1, main: 1, header: 1, footer: 1, section: 1, article: 1,
-        form: 1, summary: 1,
+        h1: 1,
+        h2: 1,
+        h3: 1,
+        h4: 1,
+        button: 1,
+        a: 1,
+        input: 1,
+        textarea: 1,
+        select: 1,
+        label: 1,
+        nav: 1,
+        main: 1,
+        header: 1,
+        footer: 1,
+        section: 1,
+        article: 1,
+        form: 1,
+        summary: 1,
       };
       var SKIP = { script: 1, style: 1, svg: 1, noscript: 1 };
       var out = [];
@@ -903,7 +957,10 @@
             el.getAttribute("name") ||
             "";
           extra =
-            ' type="' + type + '"' + (ph ? ' label="' + ph.slice(0, 60) + '"' : "");
+            ' type="' +
+            type +
+            '"' +
+            (ph ? ' label="' + ph.slice(0, 60) + '"' : "");
           text = "";
         }
         if (role) extra += ' role="' + role + '"';

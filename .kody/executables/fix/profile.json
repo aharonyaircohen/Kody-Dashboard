@@ -47,7 +47,12 @@
       {
         "name": "playwright",
         "command": "npx",
-        "args": ["-y", "--package=@playwright/mcp@latest", "--", "playwright-mcp"]
+        "args": [
+          "-y",
+          "--package=@playwright/mcp@latest",
+          "--",
+          "playwright-mcp"
+        ]
       }
     ]
   },
@@ -74,18 +79,10 @@
     "finalize": true
   },
   "scripts": {
-    "preflight": [
-      { "script": "fixFlow" }
-    ],
-    "postflight": [
-      { "script": "requireFeedbackActions" }
-    ]
+    "preflight": [{ "script": "fixFlow" }],
+    "postflight": [{ "script": "requireFeedbackActions" }]
   },
   "output": {
-    "actionTypes": [
-      "FIX_COMPLETED",
-      "FIX_FAILED",
-      "AGENT_NOT_RUN"
-    ]
+    "actionTypes": ["FIX_COMPLETED", "FIX_FAILED", "AGENT_NOT_RUN"]
   }
 }

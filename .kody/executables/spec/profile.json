@@ -49,27 +49,51 @@
       { "script": "skipAgent" }
     ],
     "postflight": [
-      { "script": "startFlow", "with": { "entry": "research", "target": "issue" } },
+      {
+        "script": "startFlow",
+        "with": { "entry": "research", "target": "issue" }
+      },
 
-      { "script": "dispatch", "with": { "next": "plan", "target": "issue" },
-        "runWhen": { "data.taskState.core.lastOutcome.type": "RESEARCH_COMPLETED" } },
+      {
+        "script": "dispatch",
+        "with": { "next": "plan", "target": "issue" },
+        "runWhen": {
+          "data.taskState.core.lastOutcome.type": "RESEARCH_COMPLETED"
+        }
+      },
 
-      { "script": "finishFlow",
-        "with": { "reason": "spec-ready", "label": "kody:done", "color": "0e8a16", "description": "kody: spec/plan artifact ready" },
-        "runWhen": { "data.taskState.core.lastOutcome.type": "PLAN_COMPLETED" } },
+      {
+        "script": "finishFlow",
+        "with": {
+          "reason": "spec-ready",
+          "label": "kody:done",
+          "color": "0e8a16",
+          "description": "kody: spec/plan artifact ready"
+        },
+        "runWhen": { "data.taskState.core.lastOutcome.type": "PLAN_COMPLETED" }
+      },
 
-      { "script": "finishFlow",
-        "with": { "reason": "aborted", "label": "kody:failed", "color": "e11d21", "description": "kody: flow failed" },
-        "runWhen": { "data.taskState.core.lastOutcome.type": ["RESEARCH_FAILED", "PLAN_FAILED", "AGENT_NOT_RUN"] } },
+      {
+        "script": "finishFlow",
+        "with": {
+          "reason": "aborted",
+          "label": "kody:failed",
+          "color": "e11d21",
+          "description": "kody: flow failed"
+        },
+        "runWhen": {
+          "data.taskState.core.lastOutcome.type": [
+            "RESEARCH_FAILED",
+            "PLAN_FAILED",
+            "AGENT_NOT_RUN"
+          ]
+        }
+      },
 
       { "script": "persistFlowState" }
     ]
   },
   "output": {
-    "actionTypes": [
-      "FLOW_STARTED",
-      "FLOW_COMPLETED",
-      "FLOW_ABORTED"
-    ]
+    "actionTypes": ["FLOW_STARTED", "FLOW_COMPLETED", "FLOW_ABORTED"]
   }
 }

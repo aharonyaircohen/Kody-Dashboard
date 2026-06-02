@@ -91,7 +91,11 @@ export function createDutyAdminTools(ctx: Ctx) {
         try {
           const existing = await readDutyFile(slug);
           if (!existing) return { error: `duty "${slug}" not found` };
-          const issueNumber = await findOrCreateControlIssue(octokit, owner, repo);
+          const issueNumber = await findOrCreateControlIssue(
+            octokit,
+            owner,
+            repo,
+          );
           const { data: comment } = await octokit.rest.issues.createComment({
             owner,
             repo,

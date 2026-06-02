@@ -37,9 +37,7 @@
       "mcp__kody-verify",
       "mcp__codegraph"
     ],
-    "hooks": [
-      "block-git"
-    ],
+    "hooks": ["block-git"],
     "skills": [],
     "commands": [],
     "subagents": [],
@@ -48,10 +46,7 @@
       {
         "name": "codegraph",
         "command": "codegraph",
-        "args": [
-          "serve",
-          "--mcp"
-        ]
+        "args": ["serve", "--mcp"]
       }
     ]
   },
@@ -82,10 +77,6 @@
     "postflight": []
   },
   "output": {
-    "actionTypes": [
-      "FEATURE_COMPLETED",
-      "FEATURE_FAILED",
-      "AGENT_NOT_RUN"
-    ]
+    "actionTypes": ["FEATURE_COMPLETED", "FEATURE_FAILED", "AGENT_NOT_RUN"]
   }
 }

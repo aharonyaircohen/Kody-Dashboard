@@ -37,12 +37,8 @@
       "mcp__kody-verify",
       "mcp__codegraph"
     ],
-    "hooks": [
-      "block-git"
-    ],
-    "skills": [
-      "systematic-debugging"
-    ],
+    "hooks": ["block-git"],
+    "skills": ["systematic-debugging"],
     "commands": [],
     "subagents": [],
     "plugins": [],
@@ -50,10 +46,7 @@
       {
         "name": "codegraph",
         "command": "codegraph",
-        "args": [
-          "serve",
-          "--mcp"
-        ]
+        "args": ["serve", "--mcp"]
       }
     ]
   },
@@ -84,10 +77,6 @@
     "postflight": []
   },
   "output": {
-    "actionTypes": [
-      "BUG_COMPLETED",
-      "BUG_FAILED",
-      "AGENT_NOT_RUN"
-    ]
+    "actionTypes": ["BUG_COMPLETED", "BUG_FAILED", "AGENT_NOT_RUN"]
   }
 }

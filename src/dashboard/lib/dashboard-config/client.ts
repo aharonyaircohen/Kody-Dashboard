@@ -72,6 +72,9 @@ export async function saveDashboardConfig(
   }
   // PUT returns { ok, config }; normalise to the GET { config } shape so
   // callers can drop the result straight into the query cache.
-  const data = (await res.json()) as { ok?: boolean; config: DashboardConfigDoc };
+  const data = (await res.json()) as {
+    ok?: boolean;
+    config: DashboardConfigDoc;
+  };
   return { config: data.config };
 }

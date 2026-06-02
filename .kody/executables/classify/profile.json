@@ -25,10 +25,7 @@
     "maxThinkingTokens": null,
     "systemPromptAppend": null,
     "cacheable": true,
-    "tools": [
-      "Read",
-      "Bash"
-    ],
+    "tools": ["Read", "Bash"],
     "hooks": [],
     "skills": [],
     "commands": [],

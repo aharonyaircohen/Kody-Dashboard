@@ -29,7 +29,11 @@ import {
 function approvals(duty: string, n: number): TrustManifest {
   let m: TrustManifest = structuredClone(EMPTY_TRUST_MANIFEST);
   for (let i = 0; i < n; i++) {
-    m = applyTrustDecision(m, { duty, decision: "approve", taskNumber: 100 + i });
+    m = applyTrustDecision(m, {
+      duty,
+      decision: "approve",
+      taskNumber: 100 + i,
+    });
   }
   return m;
 }
@@ -113,7 +117,9 @@ describe("summarizeTrust", () => {
   });
 
   it("computes remaining + progress toward the threshold", () => {
-    const [qa] = summarizeTrust(approvals("qa", 4), [{ slug: "qa", staff: "qa" }]);
+    const [qa] = summarizeTrust(approvals("qa", 4), [
+      { slug: "qa", staff: "qa" },
+    ]);
     expect(qa.remaining).toBe(TRUST_GRADUATION_THRESHOLD - 4);
     expect(qa.progress).toBeCloseTo(4 / TRUST_GRADUATION_THRESHOLD);
   });
