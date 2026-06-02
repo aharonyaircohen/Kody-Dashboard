@@ -158,7 +158,7 @@ function parseFileData(
 // enabled and 20+ tool schemas), and older messages rarely change the
 // next answer. The user-visible chat keeps its full transcript — only
 // the request to the model is trimmed.
-const MAX_HISTORY_MESSAGES = 16;
+const MAX_HISTORY_MESSAGES = 50;
 
 // Stream tracing uses console.* (not the pino `logger`) on purpose: pino
 // buffers writes asynchronously, and Vercel functions can be killed or
