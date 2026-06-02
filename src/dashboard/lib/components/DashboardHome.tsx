@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 
 import { Card } from "@dashboard/ui/card";
+import { HappeningNow } from "./HappeningNow";
 import { useKodyTasks } from "../hooks";
 import { useDuties } from "../hooks/useDuties";
 import { useReports } from "../hooks/useReports";
@@ -476,17 +477,30 @@ function EngineHealth() {
 // ── page ─────────────────────────────────────────────────────────────────────
 
 export function DashboardHome() {
-  // refetchInterval "idle" — this is a read-only landing, not the live board,
-  // so it polls slowly and leans on the shared task cache.
-  const { data: tasks, isLoading: tasksLoading } = useKodyTasks({
-    refetchInterval: "idle",
+  // refetchInterval "auto" — the "Happening now" panel needs to feel live, so
+  // we poll at the board cadence (30s) while work is in flight and back off to
+  // idle (60s) when nothing is running. Still one shared task query — no extra
+  // GitHub load — and never below the 15s rate-limit floor.
+  const {
+    data: tasks,
+    isLoading: tasksLoading,
+    dataUpdatedAt,
+  } = useKodyTasks({
+    refetchInterval: "auto",
   });
   const all = tasks ?? [];
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="mx-auto max-w-5xl px-4 md:px-6 py-6 space-y-10">
-        {/* 1 — Statistics on top: the task pulse at a glance. */}
+        {/* 0 — What's in motion this minute, with a freshness stamp. */}
+        <HappeningNow
+          tasks={all}
+          tasksLoading={tasksLoading}
+          updatedAt={dataUpdatedAt}
+        />
+
+        {/* 1 — Statistics: the task pulse at a glance. */}
         <section>
           <SectionHeader title="At a glance" href="/tasks" cta="Open board" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
