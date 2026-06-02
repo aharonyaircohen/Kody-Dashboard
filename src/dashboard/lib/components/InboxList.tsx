@@ -190,6 +190,33 @@ function matchesFilters(
   return true;
 }
 
+/**
+ * Notification category this entry can be muted under. New entries carry it
+ * stamped at write time; for older entries (written before the field existed)
+ * we infer it so the row's "Mute this type" still works:
+ *   - a comment/review deep-link (url has a `#…comment`/`#…review` anchor) is
+ *     the dominant inbox case → `chat-response`
+ *   - a bare thread link maps by thread type (issue opened → `task-assigned`,
+ *     PR opened → `pr-ready`, discussion → `chat-response`)
+ * Returns null when nothing sensible maps (no mute button shown).
+ */
+function inboxCategory(entry: InboxEntry): ServerNotificationType | null {
+  if (entry.category) return entry.category;
+  const url = entry.url ?? "";
+  if (/#(issuecomment|discussioncomment|pullrequestreview|discussion_r)/i.test(url))
+    return "chat-response";
+  switch (entry.threadType) {
+    case "Issue":
+      return "task-assigned";
+    case "PullRequest":
+      return "pr-ready";
+    case "Discussion":
+      return "chat-response";
+    default:
+      return null;
+  }
+}
+
 /** Pill-style toggle used across the inbox filter bar. */
 function FilterChip({
   active,
@@ -238,11 +265,10 @@ interface RowProps {
   onOpen: () => void;
   onToggleRead: () => void;
   onDelete: () => void;
-  /** Whether this entry's notification category is currently muted. */
-  muted: boolean;
-  /** Toggle the mute state of this entry's category. Absent when the entry
-   *  carries no mute-able category (legacy entries). */
-  onToggleMute?: () => void;
+  /** Is this notification category currently muted? */
+  isMuted: (category: ServerNotificationType) => boolean;
+  /** Toggle the mute state of a notification category. */
+  onToggleMute: (category: ServerNotificationType) => void;
   onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
   verdictFor: (
     staff: string,
@@ -258,16 +284,16 @@ function Row({
   onOpen,
   onToggleRead,
   onDelete,
-  muted,
+  isMuted,
   onToggleMute,
   onCtoDecision,
   verdictFor,
 }: RowProps) {
   const unread = entry.readAt === null;
   const [copied, setCopied] = useState(false);
-  const categoryLabel = entry.category
-    ? NOTIFICATION_META[entry.category].label
-    : "";
+  const category = inboxCategory(entry);
+  const muted = category ? isMuted(category) : false;
+  const categoryLabel = category ? NOTIFICATION_META[category].label : "";
 
   // Shareable link for this row: the in-dashboard deep link when the thread
   // can render inline (Issue/PR/Discussion in the connected repo), else the
@@ -409,10 +435,10 @@ function Row({
           >
             <CheckCheck className="w-3.5 h-3.5" />
           </button>
-          {onToggleMute && (
+          {category && (
             <button
               type="button"
-              onClick={onToggleMute}
+              onClick={() => onToggleMute(category)}
               title={
                 muted
                   ? `Unmute “${categoryLabel}” notifications`
@@ -1212,12 +1238,8 @@ function Section({
                     onOpen={() => onOpen(e)}
                     onToggleRead={() => onToggleRead(e.id)}
                     onDelete={() => onDelete(e.id)}
-                    muted={e.category ? isMuted(e.category) : false}
-                    onToggleMute={
-                      e.category
-                        ? () => onToggleMute(e.category!)
-                        : undefined
-                    }
+                    isMuted={isMuted}
+                    onToggleMute={onToggleMute}
                     onCtoDecision={onCtoDecision}
                     verdictFor={verdictFor}
                   />
