@@ -1,12 +1,14 @@
 /**
- * Tests for the duty-keyed trust ledger (`trust-state.ts`) — the from-scratch
- * replacement for the persona-keyed issue manifest. Contracts:
- *   - trust is keyed per DUTY, so sibling duties of one persona are independent;
+ * Tests for the duty-keyed trust ledger (`trust-state.ts`). Trust is whole-duty
+ * (one mode + streak per duty slug, no action dimension). Contracts:
+ *   - sibling duties of one persona stay independent;
  *   - approve bumps the streak and graduates at the threshold; reject zeroes +
  *     de-graduates; dismiss is neutral;
- *   - operator overrides (reset/graduate/degrade) are pure + immutable;
- *   - parse/serialize round-trips plain JSON (no issue-body sentinels);
- *   - summarizeTrust groups by duty and attaches the persona it runs as.
+ *   - operator overrides (reset/graduate/degrade) are pure + immutable and work
+ *     from scratch (graduate a duty with no history);
+ *   - parse/serialize round-trips plain JSON;
+ *   - summarizeTrust emits one row per roster duty (so its toggle is always
+ *     present) even with zero history.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -14,91 +16,83 @@ import {
   TRUST_GRADUATION_THRESHOLD,
   applyTrustDecision,
   applyTrustOp,
-  degradeAction,
-  graduateAction,
+  degradeDuty,
+  graduateDuty,
   isGraduated,
   parseTrustManifest,
-  resetAction,
+  resetDuty,
   serializeTrustManifest,
   summarizeTrust,
   type TrustManifest,
 } from "@dashboard/lib/cto/trust-state";
 
-function approvals(duty: string, action: string, n: number): TrustManifest {
+function approvals(duty: string, n: number): TrustManifest {
   let m: TrustManifest = structuredClone(EMPTY_TRUST_MANIFEST);
   for (let i = 0; i < n; i++) {
-    m = applyTrustDecision(m, {
-      duty,
-      action,
-      decision: "approve",
-      taskNumber: 100 + i,
-    });
+    m = applyTrustDecision(m, { duty, decision: "approve", taskNumber: 100 + i });
   }
   return m;
 }
 
-describe("applyTrustDecision — per-duty keying", () => {
+describe("applyTrustDecision — whole-duty keying", () => {
   it("keeps sibling duties of the same persona independent", () => {
-    // qa-sweep earns trust; qa-verify must NOT inherit it.
-    const m = approvals("qa-sweep", "fix", 10);
-    expect(isGraduated(m, "qa-sweep", "fix")).toBe(true);
-    expect(isGraduated(m, "qa-verify", "fix")).toBe(false);
+    const m = approvals("qa-sweep", 10);
+    expect(isGraduated(m, "qa-sweep")).toBe(true);
+    expect(isGraduated(m, "qa-verify")).toBe(false);
   });
 
   it("graduates at the threshold and de-graduates on a reject", () => {
-    const m = approvals("qa", "fix", TRUST_GRADUATION_THRESHOLD);
-    expect(m.duties.qa.fix.mode).toBe("auto");
+    const m = approvals("qa", TRUST_GRADUATION_THRESHOLD);
+    expect(m.duties.qa.mode).toBe("auto");
     const after = applyTrustDecision(m, {
       duty: "qa",
-      action: "fix",
       decision: "reject",
       taskNumber: 999,
     });
-    expect(after.duties.qa.fix.mode).toBe("ask");
-    expect(after.duties.qa.fix.consecutiveApprovals).toBe(0);
+    expect(after.duties.qa.mode).toBe("ask");
+    expect(after.duties.qa.consecutiveApprovals).toBe(0);
   });
 
-  it("dismiss is neutral (logs, no stat change)", () => {
-    const m = approvals("qa", "fix", 3);
+  it("dismiss is neutral (logs, no stat change) and keeps the action for display", () => {
+    const m = approvals("qa", 3);
     const after = applyTrustDecision(m, {
       duty: "qa",
-      action: "fix",
       decision: "dismiss",
       taskNumber: 7,
+      action: "fix",
     });
-    expect(after.duties.qa.fix.consecutiveApprovals).toBe(3);
-    expect(after.log.length).toBe(m.log.length + 1);
+    expect(after.duties.qa.consecutiveApprovals).toBe(3);
+    expect(after.log.at(-1)?.action).toBe("fix");
   });
 });
 
 describe("operator overrides", () => {
-  it("graduate forces auto + lifts streak; degrade resets to ask; reset wipes", () => {
-    const base = approvals("qa", "fix", 2);
-    const grad = graduateAction(base, "qa", "fix");
-    expect(grad.duties.qa.fix.mode).toBe("auto");
-    expect(grad.duties.qa.fix.consecutiveApprovals).toBe(
+  it("graduate forces auto from scratch (no prior history)", () => {
+    const after = graduateDuty(EMPTY_TRUST_MANIFEST, "qa-sweep");
+    expect(after.duties["qa-sweep"].mode).toBe("auto");
+    expect(after.duties["qa-sweep"].consecutiveApprovals).toBe(
       TRUST_GRADUATION_THRESHOLD,
     );
-    expect(degradeAction(grad, "qa", "fix").duties.qa.fix.mode).toBe("ask");
-    expect(resetAction(grad, "qa", "fix").duties.qa.fix).toEqual({
+  });
+
+  it("degrade resets to ask; reset wipes; input never mutated", () => {
+    const grad = graduateDuty(approvals("qa", 2), "qa");
+    expect(degradeDuty(grad, "qa").duties.qa.mode).toBe("ask");
+    expect(resetDuty(grad, "qa").duties.qa).toEqual({
       approvals: 0,
       rejections: 0,
       consecutiveApprovals: 0,
       mode: "ask",
     });
-  });
-
-  it("does not mutate the input and routes via applyTrustOp", () => {
-    const base = approvals("qa", "fix", 2);
-    const snap = structuredClone(base);
-    applyTrustOp(base, "graduate", "qa", "fix");
-    expect(base).toEqual(snap);
+    const snap = structuredClone(grad);
+    applyTrustOp(grad, "degrade", "qa");
+    expect(grad).toEqual(snap);
   });
 });
 
 describe("parse/serialize", () => {
   it("round-trips a manifest and tolerates junk", () => {
-    const m = graduateAction(approvals("qa", "fix", 1), "qa", "fix");
+    const m = graduateDuty(approvals("qa", 1), "qa");
     expect(parseTrustManifest(serializeTrustManifest(m))).toEqual(m);
     expect(parseTrustManifest("not json")).toEqual(EMPTY_TRUST_MANIFEST);
     expect(parseTrustManifest(null)).toEqual(EMPTY_TRUST_MANIFEST);
@@ -106,24 +100,21 @@ describe("parse/serialize", () => {
 });
 
 describe("summarizeTrust", () => {
-  it("groups by duty and attaches the persona it runs as", () => {
-    const m = graduateAction(approvals("qa-sweep", "fix", 1), "qa-sweep", "fix");
-    const views = summarizeTrust(m, [
+  it("emits a row for every roster duty even with no history (toggle always present)", () => {
+    const views = summarizeTrust(EMPTY_TRUST_MANIFEST, [
       { slug: "qa-sweep", staff: "qa" },
       { slug: "docs-readme", staff: "tech-writer" },
     ]);
+    expect(views).toHaveLength(2);
     const sweep = views.find((v) => v.duty === "qa-sweep")!;
     expect(sweep.staff).toBe("qa");
-    expect(sweep.hasAuto).toBe(true);
-    // A roster duty with no trust still appears (empty actions).
-    const docs = views.find((v) => v.duty === "docs-readme")!;
-    expect(docs.actions).toHaveLength(0);
+    expect(sweep.mode).toBe("ask");
+    expect(sweep.hasHistory).toBe(false);
   });
 
   it("computes remaining + progress toward the threshold", () => {
-    const [qa] = summarizeTrust(approvals("qa", "fix", 4), []);
-    const fix = qa.actions.find((a) => a.action === "fix")!;
-    expect(fix.remaining).toBe(TRUST_GRADUATION_THRESHOLD - 4);
-    expect(fix.progress).toBeCloseTo(4 / TRUST_GRADUATION_THRESHOLD);
+    const [qa] = summarizeTrust(approvals("qa", 4), [{ slug: "qa", staff: "qa" }]);
+    expect(qa.remaining).toBe(TRUST_GRADUATION_THRESHOLD - 4);
+    expect(qa.progress).toBeCloseTo(4 / TRUST_GRADUATION_THRESHOLD);
   });
 });

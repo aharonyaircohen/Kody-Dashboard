@@ -38,12 +38,8 @@ export interface UseTrustResult {
   log: TrustDecisionLogEntry[];
   isLoading: boolean;
   error: Error | null;
-  /** Apply one trust override; resolves once the ledger write lands. */
-  setTrust: (input: {
-    duty: string;
-    action: string;
-    op: TrustOp;
-  }) => Promise<void>;
+  /** Apply one whole-duty trust override; resolves once the write lands. */
+  setTrust: (input: { duty: string; op: TrustOp }) => Promise<void>;
   /** True while a `setTrust` mutation is in flight. */
   isMutating: boolean;
 }
@@ -72,7 +68,7 @@ export function useTrust(): UseTrustResult {
   });
 
   const mutation = useMutation({
-    mutationFn: (input: { duty: string; action: string; op: TrustOp }) =>
+    mutationFn: (input: { duty: string; op: TrustOp }) =>
       kodyApi.cto.setTrust({
         ...input,
         ...(auth?.user?.login ? { actorLogin: auth.user.login } : {}),
