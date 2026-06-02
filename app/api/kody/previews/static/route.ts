@@ -59,6 +59,17 @@ function isPdfName(name: string): boolean {
   return /\.pdf$/i.test(name);
 }
 
+/** Content sniffs — fallback when the filename has no/with a misleading
+ *  extension. The browser-supplied MIME is checked first by the caller. */
+function looksLikePdf(buf: Buffer): boolean {
+  return buf.length >= 5 && buf.subarray(0, 5).toString("latin1") === "%PDF-";
+}
+
+function looksLikeHtml(buf: Buffer): boolean {
+  const head = buf.subarray(0, 512).toString("utf8").trim().toLowerCase();
+  return /^<(!doctype html|html[\s>]|head[\s>]|body[\s>])/.test(head);
+}
+
 /** Tiny landing page that forwards to a non-HTML upload (image, …), served
  *  with its correct content-type by the static server. Images render fine in
  *  the (sandboxed) preview iframe; only PDFs need the viewer below. */
@@ -172,23 +183,39 @@ export async function POST(req: NextRequest) {
 
   const originalName = (file.name || "upload.html").trim();
   const safeName = sanitizeName(originalName);
+  const mime = (file.type || "").toLowerCase();
+
+  // Decide the type from three signals: filename extension, the browser's
+  // MIME, then the file's own bytes (magic number / leading markup). PDF wins
+  // ties (a file can't be both). This way an extension-less PDF or HTML still
+  // previews correctly.
+  const asB64 = (s: string) => Buffer.from(s, "utf8").toString("base64");
+  const isPdf =
+    isPdfName(safeName) || mime === "application/pdf" || looksLikePdf(raw);
+  const isHtml =
+    !isPdf &&
+    (isHtmlName(safeName) ||
+      mime.startsWith("text/html") ||
+      looksLikeHtml(raw));
 
   // HTML → serve as the index itself. PDF → an index that renders it with
   // PDF.js (the sandboxed preview iframe blocks the native PDF plugin).
   // Anything else (images, …) → serve under its name + a redirecting index.
   let files: StaticPreviewFile[];
-  if (isHtmlName(safeName)) {
+  if (isHtml) {
     files = [{ path: "index.html", contentBase64: raw.toString("base64") }];
+  } else if (isPdf) {
+    // Ensure a .pdf name so the "open directly" link gets the right
+    // content-type (PDF.js itself sniffs bytes, so it doesn't care).
+    const pdfName = isPdfName(safeName) ? safeName : `${safeName}.pdf`;
+    files = [
+      { path: pdfName, contentBase64: raw.toString("base64") },
+      { path: "index.html", contentBase64: asB64(pdfViewerHtml(pdfName)) },
+    ];
   } else {
-    const indexHtml = isPdfName(safeName)
-      ? pdfViewerHtml(safeName)
-      : redirectIndexHtml(safeName);
     files = [
       { path: safeName, contentBase64: raw.toString("base64") },
-      {
-        path: "index.html",
-        contentBase64: Buffer.from(indexHtml, "utf8").toString("base64"),
-      },
+      { path: "index.html", contentBase64: asB64(redirectIndexHtml(safeName)) },
     ];
   }
 
