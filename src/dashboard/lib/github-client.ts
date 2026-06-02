@@ -5,7 +5,6 @@
  * @ai-summary GitHub API client with caching and manual rate limit handling
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { AsyncLocalStorage } from "node:async_hooks";
 import { throttling } from "@octokit/plugin-throttling";
 import { Octokit } from "@octokit/rest";
 import {
@@ -319,14 +318,42 @@ interface GitHubContext {
   octokit: Octokit | null;
 }
 
-const requestContext = new AsyncLocalStorage<GitHubContext>();
+// Lazy AsyncLocalStorage — keeps the `async_hooks` Node builtin out of client
+// bundles. github-client.ts is transitively imported by client components
+// (TaskDetail, ModelsManager, …) for its types/helpers; a *static* import of
+// `node:async_hooks` made those browser bundles fail to compile
+// (UnhandledSchemeError). Acquired lazily on first use so webpack never has to
+// resolve the builtin for the client target. Server-side this is the real
+// store; client-side webpack stubs `async_hooks`, the constructor throws, and
+// the request-context paths (which the client never reaches) become no-ops.
+// Mirrors the lazy `require("next/cache")` in revalidateTagSafe above.
+type GitHubContextStore = {
+  getStore(): GitHubContext | undefined;
+  enterWith(ctx: GitHubContext): void;
+};
+
+let requestContextSingleton: GitHubContextStore | null | undefined;
+
+function requestContext(): GitHubContextStore | null {
+  if (requestContextSingleton !== undefined) return requestContextSingleton;
+  try {
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { AsyncLocalStorage } =
+      require("async_hooks") as typeof import("node:async_hooks");
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    requestContextSingleton = new AsyncLocalStorage<GitHubContext>();
+  } catch {
+    requestContextSingleton = null;
+  }
+  return requestContextSingleton;
+}
 
 export function getOwner(): string {
-  return requestContext.getStore()?.owner ?? GITHUB_OWNER;
+  return requestContext()?.getStore()?.owner ?? GITHUB_OWNER;
 }
 
 export function getRepo(): string {
-  return requestContext.getStore()?.repo ?? GITHUB_REPO;
+  return requestContext()?.getStore()?.repo ?? GITHUB_REPO;
 }
 
 /**
@@ -387,13 +414,13 @@ export function setGitHubContext(
   });
   attachBudgetHooks(octokit);
 
-  requestContext.enterWith({ owner, repo, octokit });
+  requestContext()?.enterWith({ owner, repo, octokit });
 }
 
 export function clearGitHubContext(): void {
   // Drop this request's Octokit so it can be GC'd. Scoped to the current async
   // context, so it can never clear a concurrent request's context.
-  requestContext.enterWith({
+  requestContext()?.enterWith({
     owner: GITHUB_OWNER,
     repo: GITHUB_REPO,
     octokit: null,
@@ -408,7 +435,7 @@ type ThrottledOctokit = Octokit & ReturnType<typeof throttling>;
 
 export function getOctokit(): Octokit {
   // Use the per-request context Octokit when set (via setGitHubContext)
-  const ctxOctokit = requestContext.getStore()?.octokit;
+  const ctxOctokit = requestContext()?.getStore()?.octokit;
   if (ctxOctokit) return ctxOctokit as ThrottledOctokit;
   if (octokitInstance) return octokitInstance as ThrottledOctokit;
 
