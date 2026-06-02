@@ -2175,11 +2175,13 @@ export function KodyChat({
         // The proxy waits server-side (waitForBrainHealth), but a cold boot can
         // still hand back a 504 (health not ready in one request) or a 500
         // (function timeout) before the machine answers. Rather than surface
-        // that as a chat error, hold the message and retry the *initial* send
-        // until the machine answers — the turn never started, so resending is
-        // safe (no double reply). 502 is deliberately excluded: this route only
-        // 502s when provisionBrain fails (e.g. a 403 from a wrong Fly token),
-        // which is a misconfig that must surface now, not after 30s of retries.
+        // that as a chat error, hold the message and retry on these transient
+        // statuses — both before the turn starts (resend the message) and
+        // after (resume from lastSeq, which is idempotent), so a hiccup on a
+        // mid-turn reconnect doesn't fail an otherwise-running reply. 502 is
+        // deliberately excluded: this route only 502s when provisionBrain
+        // fails (e.g. a 403 from a wrong Fly token), a misconfig that must
+        // surface now, not after retries.
         const MAX_COLD_START_RETRIES = 10;
         const COLD_START_RETRY_MS = 3000;
         const COLD_START_STATUSES = new Set([500, 503, 504]);
@@ -2247,12 +2249,16 @@ export function KodyChat({
               signal: abort.signal,
             });
             if (!res.ok || !res.body) {
-              // Still warming up? Wait and retry the initial send rather than
-              // failing the message — only while no turn has started yet, and
-              // only for statuses that signal "not ready" (a cold boot or a
-              // function timeout), not a hard misconfig like 400/401.
+              // Wait and retry rather than failing the message — for statuses
+              // that signal "not ready / transient" (a cold boot or a function
+              // timeout), not a hard misconfig like 400/401. This covers BOTH
+              // phases: before the turn starts the loop resends the message;
+              // after it starts (messageDelivered) the loop re-attaches with
+              // resumeSince, which is idempotent — so a transient 500 on a
+              // mid-turn reconnect (only long first turns need one) resumes the
+              // same running reply instead of surfacing the error. The retry
+              // budget bounds it so a genuinely broken turn still surfaces.
               if (
-                !messageDelivered &&
                 !abort.signal.aborted &&
                 COLD_START_STATUSES.has(res.status) &&
                 coldStartRetries < MAX_COLD_START_RETRIES
