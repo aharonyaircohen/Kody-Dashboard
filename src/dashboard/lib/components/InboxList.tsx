@@ -114,8 +114,54 @@ const TYPE_LABEL: Record<string, string> = {
   Commit: "Commits",
   Release: "Releases",
 };
+/** Singular labels for the per-row subline (vs TYPE_LABEL's plurals). */
+const TYPE_SINGULAR: Record<string, string> = {
+  Issue: "Issue",
+  PullRequest: "PR",
+  Discussion: "Discussion",
+  Commit: "Commit",
+  Release: "Release",
+};
 /** Stable display order for the type chips; unknown types fall to the end. */
 const TYPE_ORDER = ["Issue", "PullRequest", "Discussion", "Commit", "Release"];
+
+/** Coarse "when" bucket for the date headers, computed from local midnight. */
+function dateBucket(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "Older";
+  const now = new Date();
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
+  const day = 86_400_000;
+  if (t >= startOfToday) return "Today";
+  if (t >= startOfToday - day) return "Yesterday";
+  if (t >= startOfToday - 6 * day) return "Earlier this week";
+  return "Older";
+}
+const BUCKET_ORDER = ["Today", "Yesterday", "Earlier this week", "Older"];
+
+/**
+ * Split a (newest-first) entry list into date buckets, preserving order within
+ * each bucket and dropping empty ones.
+ */
+function groupByDate(
+  entries: InboxEntry[],
+): { label: string; entries: InboxEntry[] }[] {
+  const map = new Map<string, InboxEntry[]>();
+  for (const e of entries) {
+    const b = dateBucket(e.sentAt);
+    const arr = map.get(b);
+    if (arr) arr.push(e);
+    else map.set(b, [e]);
+  }
+  return BUCKET_ORDER.filter((b) => map.has(b)).map((label) => ({
+    label,
+    entries: map.get(label)!,
+  }));
+}
 
 type SourceFilter = InboxSource | "all";
 
@@ -271,16 +317,32 @@ function Row({
           onClick={onOpen}
           className="flex-1 min-w-0 text-left"
         >
+          {/* Title leads so the list scans as a column of subjects; who/what
+              and the thread type drop to a muted subline below. */}
           <div className="flex items-baseline justify-between gap-2">
-            <div className="text-base font-medium truncate">
-              <span className="text-white/90">{author}</span>
-              <span className="text-white/50"> {label}</span>
-              {entry.title && (
-                <span className="text-white/70"> · {entry.title}</span>
+            <h3
+              className={cn(
+                "min-w-0 truncate text-[15px]",
+                unread
+                  ? "font-semibold text-white/90"
+                  : "font-medium text-white/70",
               )}
-            </div>
+            >
+              {entry.title || `${author} ${label}`}
+            </h3>
             <span className="text-[10px] text-white/40 shrink-0">
               {relativeTime(entry.sentAt)}
+            </span>
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/45 min-w-0">
+            <span className="text-white/60 shrink-0">{author}</span>
+            <span className="truncate">{label}</span>
+            <span aria-hidden className="shrink-0">
+              ·
+            </span>
+            <span className="shrink-0">
+              {TYPE_SINGULAR[entry.threadType] ?? entry.threadType}
+              {shareTarget ? ` #${shareTarget.number}` : ""}
             </span>
           </div>
           {(() => {
@@ -291,16 +353,11 @@ function Row({
               ? ctoCleanSnippet(entry.snippet)
               : entry.snippet;
             return preview ? (
-              <p className="mt-1 text-sm text-white/60 line-clamp-2">
+              <p className="mt-1 text-sm text-white/55 line-clamp-2">
                 {preview}
               </p>
             ) : null;
           })()}
-          <div className="mt-1.5 flex items-center gap-2 text-[10px] text-white/40">
-            <span className="truncate">{entry.repoFullName}</span>
-            <span>·</span>
-            <span className="truncate">{entry.threadType}</span>
-          </div>
         </button>
         <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
@@ -1054,20 +1111,29 @@ function Section({
           <p className="text-xs text-white/40 italic">{empty}</p>
         ) : null
       ) : (
-        <ul className={cn("space-y-2", readSection && "opacity-80")}>
-          {entries.map((e) => (
-            <Row
-              key={e.id}
-              entry={e}
-              connectedRepo={connectedRepo}
-              onOpen={() => onOpen(e)}
-              onToggleRead={() => onToggleRead(e.id)}
-              onDelete={() => onDelete(e.id)}
-              onCtoDecision={onCtoDecision}
-              verdictFor={verdictFor}
-            />
+        <div className={cn("space-y-4", readSection && "opacity-80")}>
+          {groupByDate(entries).map((group) => (
+            <div key={group.label}>
+              <h3 className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-white/30">
+                {group.label}
+              </h3>
+              <ul className="space-y-2">
+                {group.entries.map((e) => (
+                  <Row
+                    key={e.id}
+                    entry={e}
+                    connectedRepo={connectedRepo}
+                    onOpen={() => onOpen(e)}
+                    onToggleRead={() => onToggleRead(e.id)}
+                    onDelete={() => onDelete(e.id)}
+                    onCtoDecision={onCtoDecision}
+                    verdictFor={verdictFor}
+                  />
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
       {busyId && (
         <span className="sr-only" role="status">
