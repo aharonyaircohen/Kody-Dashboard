@@ -12,7 +12,7 @@ import type { CheckRunResult } from "../types";
 import { Button } from "@dashboard/ui/button";
 import { Badge } from "@dashboard/ui/badge";
 import { ExternalLink, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
-import { fetchCheckRunsForRun } from "../github-client";
+import { useAuth, buildAuthHeaders } from "../auth-context";
 
 interface StageErrorDetailProps {
   stageName: string;
@@ -32,17 +32,23 @@ export function StageErrorDetail({
     `stage-error:${runId ?? "none"}`,
     false,
   );
+  const { auth } = useAuth();
   const [checkRuns, setCheckRuns] = useState<CheckRunResult[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (expanded && runId && checkRuns.length === 0) {
-      setLoading(true);
-      fetchCheckRunsForRun(runId)
-        .then(setCheckRuns)
-        .finally(() => setLoading(false));
-    }
-  }, [expanded, runId, checkRuns.length]);
+    if (!expanded || !runId || checkRuns.length > 0) return;
+    setLoading(true);
+    fetch(`/api/kody/pipeline/${runId}/check-runs`, {
+      headers: buildAuthHeaders(auth),
+    })
+      .then((res) => (res.ok ? res.json() : { checkRuns: [] }))
+      .then((data: { checkRuns?: CheckRunResult[] }) =>
+        setCheckRuns(data.checkRuns ?? []),
+      )
+      .catch(() => setCheckRuns([]))
+      .finally(() => setLoading(false));
+  }, [expanded, runId, checkRuns.length, auth]);
 
   const failedChecks = checkRuns.filter((c) => c.conclusion === "failure");
   const passedChecks = checkRuns.filter((c) => c.conclusion === "success");

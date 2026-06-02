@@ -23,10 +23,6 @@ import {
   GitBranch,
   Hammer,
   Inbox,
-  Layers,
-  LayoutGrid,
-  Sparkles,
-  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -134,39 +130,6 @@ function StatTile({
               {label}
             </div>
           </div>
-        </div>
-      </Card>
-    </Link>
-  );
-}
-
-function QuickLink({
-  icon: Icon,
-  label,
-  description,
-  href,
-  tint,
-}: {
-  icon: LucideIcon;
-  label: string;
-  description: string;
-  href: string;
-  tint: string;
-}) {
-  return (
-    <Link href={href} className="block">
-      <Card className="p-4 hover:bg-white/[0.04] transition-colors h-full">
-        <span
-          className={cn(
-            "inline-flex h-8 w-8 items-center justify-center rounded-md mb-3",
-            tint,
-          )}
-        >
-          <Icon className="w-4 h-4" />
-        </span>
-        <div className="text-sm font-medium">{label}</div>
-        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-          {description}
         </div>
       </Card>
     </Link>
@@ -522,19 +485,10 @@ export function DashboardHome() {
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="mx-auto max-w-5xl px-4 md:px-6 py-6 space-y-8">
-        {/* Attention — the two things that might need action right now. */}
+      <div className="mx-auto max-w-5xl px-4 md:px-6 py-6 space-y-10">
+        {/* 1 — Statistics on top: the task pulse at a glance. */}
         <section>
-          <SectionHeader title="Needs attention" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <NeedsYouCard />
-            <FailingCard tasks={all} tasksLoading={tasksLoading} />
-          </div>
-        </section>
-
-        {/* Task pulse. */}
-        <section>
-          <SectionHeader title="Tasks" href="/tasks" cta="Board" />
+          <SectionHeader title="At a glance" href="/tasks" cta="Open board" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatTile
               icon={Hammer}
@@ -567,44 +521,23 @@ export function DashboardHome() {
           </div>
         </section>
 
-        <DutiesHealth />
-        <LatestReports />
-        <EngineHealth />
-
-        {/* Jump to — the primary surfaces. */}
+        {/* 2 — Attention: the two things that might need action right now. */}
         <section>
-          <SectionHeader title="Jump to" />
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <QuickLink
-              icon={LayoutGrid}
-              label="Tasks"
-              description="Pipelines, tasks, and run health."
-              href="/tasks"
-              tint="text-emerald-300 bg-emerald-500/10"
-            />
-            <QuickLink
-              icon={Sparkles}
-              label="Vibe"
-              description="Chat-driven preview — approve and ship."
-              href="/vibe"
-              tint="text-fuchsia-300 bg-fuchsia-500/10"
-            />
-            <QuickLink
-              icon={Layers}
-              label="Duties"
-              description="Recurring work your staff runs."
-              href="/duties"
-              tint="text-amber-300 bg-amber-500/10"
-            />
-            <QuickLink
-              icon={Users}
-              label="Staff"
-              description="Personas that execute your duties."
-              href="/staff"
-              tint="text-violet-300 bg-violet-500/10"
-            />
+          <SectionHeader title="Needs attention" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <NeedsYouCard />
+            <FailingCard tasks={all} tasksLoading={tasksLoading} />
           </div>
         </section>
+
+        {/* 3 — Supporting detail, two-up so it reads as a tidy grid rather
+              than one long stacked column. Engine health spans both below. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-10">
+          <DutiesHealth />
+          <LatestReports />
+        </div>
+
+        <EngineHealth />
       </div>
     </div>
   );
