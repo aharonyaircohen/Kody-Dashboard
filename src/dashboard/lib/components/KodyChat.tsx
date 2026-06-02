@@ -2170,6 +2170,23 @@ export function KodyChat({
         // Brain replays the gap then live-tails. Bounded so a pathologically
         // stuck turn can't loop forever.
         const MAX_RECONNECTS = 60;
+        // Cold-start gate. The first turn against a suspended/new Brain machine
+        // must wait for Fly to boot it (~100s) plus the per-chat repo clone.
+        // The proxy waits server-side (waitForBrainHealth), but a cold boot can
+        // still hand back a 504 (health not ready in one request) or a 500
+        // (function timeout) before the machine answers. Rather than surface
+        // that as a chat error, hold the message and retry the *initial* send
+        // until the machine answers — the turn never started, so resending is
+        // safe (no double reply). 502 is deliberately excluded: this route only
+        // 502s when provisionBrain fails (e.g. a 403 from a wrong Fly token),
+        // which is a misconfig that must surface now, not after 30s of retries.
+        const MAX_COLD_START_RETRIES = 10;
+        const COLD_START_RETRY_MS = 3000;
+        const COLD_START_STATUSES = new Set([500, 503, 504]);
+        let coldStartRetries = 0;
+        // Until the Brain has accepted the message and started a turn, a retry
+        // must RESEND the message; once it has, a retry RESUMES from lastSeq.
+        let messageDelivered = false;
         let latestAssistantText = "";
         let lastSeq = 0;
         try {
@@ -2180,7 +2197,7 @@ export function KodyChat({
           } = { outcome: "exhausted" };
 
           for (let attempt = 0; attempt <= MAX_RECONNECTS; attempt++) {
-            const isReconnect = attempt > 0;
+            const isReconnect = messageDelivered;
             const res = await fetch(brainEndpoint, {
               method: "POST",
               headers: {
@@ -2230,11 +2247,29 @@ export function KodyChat({
               signal: abort.signal,
             });
             if (!res.ok || !res.body) {
+              // Still warming up? Wait and retry the initial send rather than
+              // failing the message — only while no turn has started yet, and
+              // only for statuses that signal "not ready" (a cold boot or a
+              // function timeout), not a hard misconfig like 400/401.
+              if (
+                !messageDelivered &&
+                !abort.signal.aborted &&
+                COLD_START_STATUSES.has(res.status) &&
+                coldStartRetries < MAX_COLD_START_RETRIES
+              ) {
+                coldStartRetries++;
+                await res.body?.cancel().catch(() => {});
+                await new Promise((r) => setTimeout(r, COLD_START_RETRY_MS));
+                continue;
+              }
               const errorData = await res
                 .json()
                 .catch(() => ({ error: `HTTP ${res.status}` }));
               throw new Error(errorData.error || `HTTP ${res.status}`);
             }
+            // Message accepted; the Brain turn is running. Further loop
+            // iterations re-attach (resume) instead of resending.
+            messageDelivered = true;
 
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
