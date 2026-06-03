@@ -31,6 +31,8 @@ interface MachineActivity {
   machineId: string;
   feature: string;
   label: string;
+  firstSeen: number;
+  lastSeen: number;
   spanMs: number;
   runningMs: number;
   uptime: number;
@@ -57,6 +59,17 @@ function humanDuration(ms: number): string {
   if (d > 0) return `${d}d ${h}h`;
   if (h > 0) return `${h}h ${mm}m`;
   return `${mm}m`;
+}
+
+/** ms epoch → "Jun 2, 14:30" (local). "—" for missing/zero. */
+function dateLabel(ms: number): string {
+  if (!ms) return "—";
+  return new Date(ms).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function sizeLabel(size: MachineActivity["size"]): string {
@@ -126,8 +139,8 @@ export function FlyActivityTab({
       <div className="flex items-center gap-3">
         <p className="text-xs text-white/50">
           Computed from snapshots on the{" "}
-          <span className="font-mono">kody-state</span> branch. Opening this tab
-          records one — history fills in over time.
+          <span className="font-mono">kody-state</span> branch (last 14 days).
+          Opening this tab records one — history fills in over time.
           {snapshots !== null ? ` ${snapshots} snapshots so far.` : ""}
         </p>
         <Button
@@ -169,6 +182,9 @@ export function FlyActivityTab({
                   <th className="text-left font-medium p-3">Machine</th>
                   <th className="text-left font-medium p-3">Size</th>
                   <th className="text-left font-medium p-3">State</th>
+                  <th className="text-left font-medium p-3">First seen</th>
+                  <th className="text-left font-medium p-3">Last seen</th>
+                  <th className="text-right font-medium p-3">Seen for</th>
                   <th className="text-right font-medium p-3">Working time</th>
                   <th className="text-right font-medium p-3">Uptime</th>
                   <th className="text-right font-medium p-3">Suspends</th>
@@ -191,6 +207,15 @@ export function FlyActivityTab({
                     <td className={`p-3 ${stateColor(r.lastState)}`}>
                       {r.lastState}
                     </td>
+                    <td className="p-3 text-white/60 whitespace-nowrap">
+                      {dateLabel(r.firstSeen)}
+                    </td>
+                    <td className="p-3 text-white/60 whitespace-nowrap">
+                      {dateLabel(r.lastSeen)}
+                    </td>
+                    <td className="p-3 text-right text-white/60">
+                      {humanDuration(r.spanMs)}
+                    </td>
                     <td className="p-3 text-right text-white/70">
                       {humanDuration(r.runningMs)}
                     </td>
@@ -208,8 +233,8 @@ export function FlyActivityTab({
               </tbody>
               <tfoot>
                 <tr className="text-white/50">
-                  <td className="p-3" colSpan={6}>
-                    Estimated total (observed window)
+                  <td className="p-3" colSpan={9}>
+                    Estimated total (observed window, up to 14 days)
                   </td>
                   <td className="p-3 text-right font-mono text-white/80">
                     ${totalCost.toFixed(2)}
