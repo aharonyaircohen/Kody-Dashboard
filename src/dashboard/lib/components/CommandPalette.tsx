@@ -73,15 +73,6 @@ export function CommandPalette() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  // Programmatic open — lets the sidebar search bar (or any other surface)
-  // raise the palette without prop-drilling its open state.
-  useEffect(() => {
-    const onOpen = () => setOpen(true);
-    document.addEventListener("kody:open-command-palette", onOpen);
-    return () =>
-      document.removeEventListener("kody:open-command-palette", onOpen);
-  }, []);
-
   // Reset transient state every time the palette opens.
   useEffect(() => {
     if (open) {
