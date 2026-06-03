@@ -240,8 +240,8 @@ export function RunnerManager() {
         <Tabs defaultValue="config">
           <TabsList>
             <TabsTrigger value="config">Configuration</TabsTrigger>
-            <TabsTrigger value="machines">Machines (live)</TabsTrigger>
-            <TabsTrigger value="activity">Activity (history)</TabsTrigger>
+            <TabsTrigger value="machines">live machines</TabsTrigger>
+            <TabsTrigger value="activity">history</TabsTrigger>
           </TabsList>
 
           {/* ═══ Machines: what's running, act on it ════════════════════ */}
