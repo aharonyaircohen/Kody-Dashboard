@@ -233,10 +233,10 @@ export function RunnerManager() {
         {/* Two tabs keep the (potentially long) live-machine list from burying
             the settings: Machines = what's running + inline actions;
             Configuration = the per-feature knobs. */}
-        <Tabs defaultValue="machines">
+        <Tabs defaultValue="config">
           <TabsList>
-            <TabsTrigger value="machines">Machines</TabsTrigger>
             <TabsTrigger value="config">Configuration</TabsTrigger>
+            <TabsTrigger value="machines">Machines</TabsTrigger>
           </TabsList>
 
           {/* ═══ Machines: what's running, act on it ════════════════════ */}
