@@ -1,14 +1,12 @@
 /**
  * @fileType page
  * @domain kody
- * @pattern redirect
- * @ai-summary Reports moved under the Duties page (as the "Duty Reports" tab).
- *   This route forwards old links to `/duties?tab=reports`.
+ * @pattern reports-page
+ * @ai-summary Reports has its own page (the Duties page no longer has tabs).
+ *   Renders the standalone ReportsView.
  */
-import { redirect } from "next/navigation";
+import { ReportsView } from "@dashboard/lib/components/ReportsView";
 
-export const dynamic = "force-static";
-
-export default function ReportsRedirect() {
-  redirect("/duties?tab=reports");
+export default function ReportsPage() {
+  return <ReportsView />;
 }

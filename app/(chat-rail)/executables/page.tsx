@@ -9,5 +9,5 @@
 import { redirect } from "next/navigation";
 
 export default function ExecutablesPage() {
-  redirect("/duties?tab=pipeline");
+  redirect("/duties");
 }

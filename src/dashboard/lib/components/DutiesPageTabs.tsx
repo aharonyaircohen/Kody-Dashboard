@@ -2,17 +2,15 @@
  * @fileType component
  * @domain kody
  * @pattern duties-page
- * @ai-summary The Duties page: a single flat list of every duty — no tabs.
- *   There is one duty concept now (a folder at `.kody/duties/<slug>/` with a
- *   profile + staff); scheduled and on-demand duties live in the same list.
- *   Reports have their own route (`/reports`). ExecutablesManager owns its
- *   page chrome (PageShell: back arrow, title, actions), so this is a thin
- *   pass-through kept for the stable `/duties` import.
+ * @ai-summary The Duties page: the legacy functional duty manager (DutyControl)
+ *   — one list with schedule, enable/disable, run, edit, health. No tabs.
+ *   Reports have their own route (`/reports`). Kept as a thin pass-through for
+ *   the stable `/duties` import.
  */
 "use client";
 
-import { ExecutablesManager } from "./ExecutablesManager";
+import { DutyControl } from "./DutyControl";
 
 export function DutiesPageTabs() {
-  return <ExecutablesManager />;
+  return <DutyControl />;
 }
