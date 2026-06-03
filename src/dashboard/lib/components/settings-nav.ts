@@ -121,7 +121,7 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     tint: "text-amber-300 bg-amber-500/10",
   },
   {
-    href: "/duties?tab=reports",
+    href: "/reports",
     label: "Reports",
     icon: FileText,
     description: "Outputs from duty runs.",
@@ -308,7 +308,7 @@ const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
   ...SETTINGS_NAV_SECTIONS.flatMap((section) => section.items),
 ];
 
-/** Strip a query string off an href so "/duties?tab=reports" → "/duties". */
+/** Strip a query string off an href so "/reports" → "/duties". */
 function navPath(href: string): string {
   const q = href.indexOf("?");
   return q === -1 ? href : href.slice(0, q);

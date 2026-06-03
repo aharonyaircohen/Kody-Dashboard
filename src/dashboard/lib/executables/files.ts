@@ -69,6 +69,8 @@ export interface ExecutableSummary {
   legacy: boolean;
   /** True for a legacy markdown duty (`.kody/duties/<slug>.md`) — being migrated to a folder. */
   markdown?: boolean;
+  /** Recurrence cadence from profile.every (scheduled folder-duty), or null. */
+  every?: string | null;
 }
 
 export interface ExecutableDetail extends ExecutableSummary {
@@ -198,6 +200,10 @@ async function listFolderDutiesInDir(
       // No per-duty fetchLastCommitDate here: it's one listCommits call PER duty,
       // which drains the shared GitHub token on every list render (see
       // CLAUDE.md rate-limit rules). The detail view shows the commit date.
+      const every =
+        profile && typeof profile.every === "string" && profile.every.trim()
+          ? profile.every.trim()
+          : null;
       return {
         slug,
         describe,
@@ -207,6 +213,7 @@ async function listFolderDutiesInDir(
         staff,
         dir,
         legacy: dir === LEGACY_EXECUTABLES_DIR,
+        every,
       };
     }),
   );

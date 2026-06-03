@@ -26,6 +26,7 @@ import {
   writeDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
+import { listExecutableFiles } from "@dashboard/lib/executables";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(req: NextRequest) {
@@ -37,7 +38,37 @@ export async function GET(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
-    const duties = await listDutyFiles();
+    // One list: markdown duties + folder-duties (`.kody/duties/<slug>/`). A duty
+    // created via the folder editor is a folder-duty, so it must appear here too.
+    // Folder wins on slug clash. Folder-duties map onto the duty row shape
+    // (`folder: true` so the UI routes edit to the folder editor).
+    const [mdDuties, folderDuties] = await Promise.all([
+      listDutyFiles(),
+      listExecutableFiles().catch(() => []),
+    ]);
+    const mdSlugs = new Set(mdDuties.map((d) => d.slug));
+    const folderRows = folderDuties
+      .filter((f) => !mdSlugs.has(f.slug))
+      .map((f) => ({
+        slug: f.slug,
+        title: f.describe || f.slug,
+        body: "",
+        sha: "",
+        updatedAt: f.updatedAt ?? "",
+        lastTickAt: null,
+        nextEligibleAt: null,
+        lastOutcome: null,
+        lastDurationMs: null,
+        schedule: (f.every ?? null) as unknown,
+        disabled: false,
+        staff: f.staff ?? null,
+        mentions: [] as string[],
+        htmlUrl: f.htmlUrl,
+        folder: true,
+      }));
+    const duties = [...mdDuties, ...folderRows].sort((a, b) =>
+      a.slug.localeCompare(b.slug),
+    );
     return NextResponse.json({ duties });
   } catch (error: any) {
     console.error("[Duties] Error fetching duties:", error);

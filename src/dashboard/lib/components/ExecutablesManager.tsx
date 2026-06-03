@@ -331,6 +331,7 @@ function ExecutableEditorPageInner({ slug }: { slug: string | null }) {
       icon={Boxes}
       iconClassName="text-amber-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
+      backHref="/duties"
     >
       <ExecutableEditor
         slug={slug}

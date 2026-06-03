@@ -876,6 +876,12 @@ export interface Duty {
   mentions: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
+  /**
+   * True when this row is a folder-duty (`.kody/duties/<slug>/profile.json`)
+   * rather than a markdown duty. The list routes its edit to the full folder
+   * editor (`/executables/<slug>`) instead of the markdown dialog.
+   */
+  folder?: boolean;
 }
 
 export const dutiesApi = {

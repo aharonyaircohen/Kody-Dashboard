@@ -191,9 +191,7 @@ function NeedsYouCard() {
           <div>
             <div className="text-sm font-medium">Needs you</div>
             <div className="text-xs text-muted-foreground">
-              {isLoading
-                ? "Loading…"
-                : `${unreadCount} awaiting your decision`}
+              {isLoading ? "Loading…" : `${unreadCount} awaiting your decision`}
             </div>
           </div>
         </div>
@@ -339,7 +337,9 @@ function DutiesHealth() {
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading duties…</p>
       ) : duties.length === 0 ? (
-        <Card className="p-4 text-sm text-muted-foreground">No duties yet.</Card>
+        <Card className="p-4 text-sm text-muted-foreground">
+          No duties yet.
+        </Card>
       ) : (
         <Card className="p-4 space-y-3">
           <div className="flex items-center gap-4 text-sm">
@@ -399,7 +399,7 @@ function LatestReports() {
     <section>
       <SectionHeader
         title="Latest reports"
-        href="/duties?tab=reports"
+        href="/reports"
         cta="Reports"
       />
       {isLoading ? (
@@ -413,7 +413,7 @@ function LatestReports() {
           {reports.map((r) => (
             <Link
               key={r.slug}
-              href="/duties?tab=reports"
+              href="/reports"
               className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors"
             >
               <FileText className="w-4 h-4 text-sky-300 shrink-0" />
