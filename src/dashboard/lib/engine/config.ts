@@ -113,7 +113,10 @@ export const DEFAULT_FLY_PREVIEWS: ResolvedFlyPreviews = {
   memoryMb: 4096,
   idleSuspend: true,
   healthCheck: false,
-  ttlDays: 0,
+  // Auto-delete previews 14 days after creation by default — keeps stale PR
+  // previews from piling up forever. A repo can override (higher = keep
+  // longer; the UI caps at 365).
+  ttlDays: 14,
 };
 
 /** Merge a repo's `fly.previews` over the defaults. Pure — no I/O. */

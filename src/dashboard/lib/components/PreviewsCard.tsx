@@ -248,7 +248,7 @@ export function PreviewsCard({
               <Input
                 id="prev-ttl"
                 type="number"
-                min={0}
+                min={1}
                 max={365}
                 step={1}
                 value={form.ttlDays}
@@ -256,7 +256,8 @@ export function PreviewsCard({
                 className="bg-black/30 border-white/10 w-32"
               />
               <p className="text-[11px] text-white/35">
-                Auto-destroy previews older than this. 0 = keep forever.
+                Auto-destroy previews older than this. Default 14 days; raise it
+                to keep them longer (max 365).
               </p>
             </div>
 
