@@ -97,6 +97,10 @@ interface ExecutableSummary {
   landing: ExecutableLanding;
   updatedAt: string;
   htmlUrl: string;
+  /** Staff member this duty runs as, or null. */
+  staff?: string | null;
+  /** True when still under the legacy `.kody/executables/` dir. */
+  legacy?: boolean;
 }
 interface ExecutableDetail extends ExecutableSummary {
   prompt: string;
@@ -312,16 +316,16 @@ function ExecutableEditorPageInner({ slug }: { slug: string | null }) {
     mutationFn: (payload: SavePayload) => saveApi(headers, payload, actorLogin),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
-      toast.success("Executable saved");
+      toast.success("Duty saved");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to save"),
   });
 
-  const back = () => router.push("/executables");
+  const back = () => router.push("/duties?tab=pipeline");
 
   return (
     <PageShell
-      title={slug ? `Edit @kody ${slug}` : "New executable"}
+      title={slug ? `Edit @kody ${slug}` : "New duty"}
       icon={Boxes}
       iconClassName="text-amber-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
@@ -363,7 +367,7 @@ function ExecutablesManagerInner() {
     mutationFn: (slug: string) => deleteApi(headers, slug),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
-      toast.success("Executable deleted");
+      toast.success("Duty deleted");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to delete"),
   });
@@ -403,7 +407,7 @@ function ExecutablesManagerInner() {
 
   return (
     <PageShell
-      title="Executables"
+      title="Pipeline duties"
       icon={Boxes}
       iconClassName="text-amber-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
@@ -411,7 +415,7 @@ function ExecutablesManagerInner() {
         <Button asChild size="sm" className="gap-1">
           <Link href="/executables/new">
             <Plus className="w-4 h-4" />
-            New executable
+            New duty
           </Link>
         </Button>
       }
@@ -419,7 +423,7 @@ function ExecutablesManagerInner() {
       <div className="space-y-3">
         {isLoading && (
           <p className="text-sm text-white/50 flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading executables…
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading duties…
           </p>
         )}
 
@@ -427,7 +431,7 @@ function ExecutablesManagerInner() {
           <Card className="border-rose-500/30 bg-rose-950/20">
             <CardContent className="p-4 text-sm">
               <p className="text-rose-300 font-medium">
-                Couldn&apos;t load executables
+                Couldn&apos;t load duties
               </p>
               <p className="text-rose-200/70 mt-1">
                 {error instanceof Error ? error.message : "Unknown error"}
@@ -448,15 +452,15 @@ function ExecutablesManagerInner() {
           <Card className="border-white/[0.08] bg-white/[0.02]">
             <CardContent className="p-6 text-center space-y-3">
               <Sparkles className="w-8 h-8 text-white/30 mx-auto" />
-              <p className="text-sm text-white/70">No executables yet.</p>
+              <p className="text-sm text-white/70">No pipeline duties yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                An executable is a custom{" "}
+                A pipeline duty is a staffed{" "}
                 <code className="text-white/55">@kody &lt;slug&gt;</code> action
                 stored at{" "}
                 <code className="text-white/55">
-                  .kody/executables/&lt;slug&gt;/
+                  .kody/duties/&lt;slug&gt;/
                 </code>{" "}
-                in this repo. The engine runs it before its built-ins.
+                in this repo. The engine runs it as its staff member.
               </p>
             </CardContent>
           </Card>
@@ -466,8 +470,8 @@ function ExecutablesManagerInner() {
           <ListSearch
             value={search}
             onChange={setSearch}
-            placeholder="Search executables…"
-            ariaLabel="Search executables"
+            placeholder="Search duties…"
+            ariaLabel="Search duties"
             accent="teal"
           />
         )}
@@ -488,6 +492,16 @@ function ExecutablesManagerInner() {
                         <span className="text-[10px] uppercase tracking-wide bg-white/[0.06] text-white/50 px-1.5 py-0.5 rounded">
                           {e.landing === "pr" ? "opens PR" : "comments"}
                         </span>
+                        {e.staff && (
+                          <span className="text-[10px] uppercase tracking-wide bg-emerald-500/15 text-emerald-300/90 px-1.5 py-0.5 rounded">
+                            runs as {e.staff}
+                          </span>
+                        )}
+                        {e.legacy && (
+                          <span className="text-[10px] uppercase tracking-wide bg-orange-500/15 text-orange-300/90 px-1.5 py-0.5 rounded">
+                            legacy
+                          </span>
+                        )}
                         {isIssueDefault && (
                           <span className="text-[10px] uppercase tracking-wide bg-amber-500/15 text-amber-300/90 px-1.5 py-0.5 rounded">
                             issue default
@@ -598,7 +612,7 @@ function ExecutablesManagerInner() {
       <ConfirmDialog
         open={deleting !== null}
         title={`Delete @kody ${deleting}?`}
-        description="The whole .kody/executables/<slug>/ folder is removed from the repo."
+        description="The whole duty folder is removed from the repo."
         confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
         onConfirm={() => {

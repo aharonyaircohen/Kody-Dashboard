@@ -16,18 +16,22 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import { cn } from "@dashboard/lib/utils/ui";
 import { DutyControl } from "./DutyControl";
+import { ExecutablesManager } from "./ExecutablesManager";
 import { ReportsView } from "./ReportsView";
 import { SimpleTooltip } from "./SimpleTooltip";
 
-type Tab = "duties" | "reports";
+type Tab = "duties" | "pipeline" | "reports";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "duties", label: "Duties" },
-  { id: "reports", label: "Duty Reports" },
+  { id: "duties", label: "Scheduled" },
+  { id: "pipeline", label: "Pipeline" },
+  { id: "reports", label: "Reports" },
 ];
 
 function parseTab(value: string | null | undefined): Tab {
-  return value === "reports" ? "reports" : "duties";
+  if (value === "reports") return "reports";
+  if (value === "pipeline") return "pipeline";
+  return "duties";
 }
 
 export function DutiesPageTabs() {
@@ -109,6 +113,8 @@ export function DutiesPageTabs() {
       >
         {active === "duties" ? (
           <DutyControl embedded />
+        ) : active === "pipeline" ? (
+          <ExecutablesManager />
         ) : (
           <ReportsView embedded />
         )}

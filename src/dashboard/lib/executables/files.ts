@@ -27,7 +27,17 @@ import {
 
 export { isValidSlug } from "./profile";
 
-const EXECUTABLES_DIR = ".kody/executables";
+/**
+ * Folder-duties live at `.kody/duties/<slug>/`. During the executable→duty
+ * migration we still READ legacy folders at `.kody/executables/<slug>/` so a
+ * not-yet-migrated repo's duties still show; all WRITES go to `.kody/duties/`.
+ * Each summary/detail carries the `dir` it was found in so edits/links target
+ * the right place.
+ */
+const DUTIES_DIR = ".kody/duties";
+const LEGACY_EXECUTABLES_DIR = ".kody/executables";
+/** Read order: duty home first, legacy second (duty wins on slug conflict). */
+const FOLDER_DIRS = [DUTIES_DIR, LEGACY_EXECUTABLES_DIR] as const;
 
 export interface ExecutableSkill {
   /** Skill folder name under `skills/`. */
@@ -49,6 +59,12 @@ export interface ExecutableSummary {
   landing: ExecutableLanding;
   updatedAt: string;
   htmlUrl: string;
+  /** Staff member this duty runs as (profile.staff), or null. */
+  staff: string | null;
+  /** The folder dir this was found in (`.kody/duties` or legacy `.kody/executables`). */
+  dir: string;
+  /** True when still under the legacy `.kody/executables/` dir (pre-migration). */
+  legacy: boolean;
 }
 
 export interface ExecutableDetail extends ExecutableSummary {
@@ -72,9 +88,9 @@ async function getDefaultBranch(octokit: Octokit): Promise<string> {
   return data.default_branch;
 }
 
-function buildHtmlUrl(slug: string, branch: string | null): string {
+function buildHtmlUrl(slug: string, branch: string | null, dir: string): string {
   const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/tree/${ref}/${EXECUTABLES_DIR}/${slug}`;
+  return `https://github.com/${getOwner()}/${getRepo()}/tree/${ref}/${dir}/${slug}`;
 }
 
 async function fetchLastCommitDate(
@@ -133,31 +149,33 @@ async function readFileText(
  * List every executable folder under `.kody/executables/` that contains a
  * `profile.json`. Returns `[]` when the directory does not exist.
  */
-export async function listExecutableFiles(): Promise<ExecutableSummary[]> {
-  const octokit = getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
-
-  let dirs: Array<{ name: string; type: string }> = [];
+/** List folder-duty summaries under a single dir. `[]` if the dir is absent. */
+async function listFolderDutiesInDir(
+  octokit: Octokit,
+  dir: string,
+  branch: string | null,
+): Promise<ExecutableSummary[]> {
+  let entries: Array<{ name: string; type: string }> = [];
   try {
     const { data } = await octokit.repos.getContent({
       owner: getOwner(),
       repo: getRepo(),
-      path: EXECUTABLES_DIR,
+      path: dir,
     });
     if (!Array.isArray(data)) return [];
-    dirs = data as Array<{ name: string; type: string }>;
+    entries = data as Array<{ name: string; type: string }>;
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return [];
     throw error;
   }
 
-  const slugs = dirs
+  const slugs = entries
     .filter((e) => e.type === "dir" && isValidSlug(e.name))
     .map((e) => e.name);
 
   const summaries = await Promise.all(
     slugs.map(async (slug): Promise<ExecutableSummary | null> => {
-      const profilePath = `${EXECUTABLES_DIR}/${slug}/profile.json`;
+      const profilePath = `${dir}/${slug}/profile.json`;
       const raw = await readFileText(octokit, profilePath).catch(() => null);
       if (raw === null) return null; // folder without a profile.json — skip
       const profile = parseProfileJson(raw);
@@ -165,20 +183,48 @@ export async function listExecutableFiles(): Promise<ExecutableSummary[]> {
         profile && typeof profile.describe === "string" ? profile.describe : "";
       const landing: ExecutableLanding =
         profile?.lifecycle === "pr-branch" ? "pr" : "comment";
+      const staff =
+        profile && typeof profile.staff === "string" && profile.staff.trim()
+          ? profile.staff.trim()
+          : null;
       const updatedAt = await fetchLastCommitDate(octokit, profilePath);
       return {
         slug,
         describe,
         landing,
         updatedAt,
-        htmlUrl: buildHtmlUrl(slug, branch),
+        htmlUrl: buildHtmlUrl(slug, branch, dir),
+        staff,
+        dir,
+        legacy: dir === LEGACY_EXECUTABLES_DIR,
       };
     }),
   );
 
-  return summaries
-    .filter((s): s is ExecutableSummary => s !== null)
-    .sort((a, b) => a.slug.localeCompare(b.slug));
+  return summaries.filter((s): s is ExecutableSummary => s !== null);
+}
+
+/**
+ * List every folder-duty across the duty home (`.kody/duties/`) and the legacy
+ * executables dir (`.kody/executables/`). On slug conflict the duty home wins,
+ * so a migrated duty shadows its legacy copy.
+ */
+export async function listExecutableFiles(): Promise<ExecutableSummary[]> {
+  const octokit = getOctokit();
+  const branch = await getDefaultBranch(octokit).catch(() => null);
+
+  const perDir = await Promise.all(
+    FOLDER_DIRS.map((dir) => listFolderDutiesInDir(octokit, dir, branch)),
+  );
+
+  const bySlug = new Map<string, ExecutableSummary>();
+  for (const summaries of perDir) {
+    for (const s of summaries) {
+      if (!bySlug.has(s.slug)) bySlug.set(s.slug, s); // first (duty home) wins
+    }
+  }
+
+  return [...bySlug.values()].sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
 /** Read a single executable folder into the full editable detail. */
@@ -189,12 +235,27 @@ export async function readExecutableFile(
   if (!isValidSlug(slug)) return null;
   const octokit = octokitOverride ?? getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);
-  const base = `${EXECUTABLES_DIR}/${slug}`;
 
-  const profileRaw = await readFileText(octokit, `${base}/profile.json`);
-  if (profileRaw === null) return null;
+  // Resolve which dir holds this slug: duty home first, legacy second.
+  let dir: string | null = null;
+  let profileRaw: string | null = null;
+  for (const candidate of FOLDER_DIRS) {
+    const raw = await readFileText(octokit, `${candidate}/${slug}/profile.json`);
+    if (raw !== null) {
+      dir = candidate;
+      profileRaw = raw;
+      break;
+    }
+  }
+  if (dir === null || profileRaw === null) return null;
+  const base = `${dir}/${slug}`;
+
   const profile = parseProfileJson(profileRaw);
   if (!profile) return null;
+  const staff =
+    typeof profile.staff === "string" && profile.staff.trim()
+      ? profile.staff.trim()
+      : null;
 
   // The stored prompt.md ends with the managed output-format contract;
   // strip it so the editor shows only the user-authored part.
@@ -237,7 +298,10 @@ export async function readExecutableFile(
     describe: fields.describe,
     landing: fields.landing,
     updatedAt: await fetchLastCommitDate(octokit, `${base}/profile.json`),
-    htmlUrl: buildHtmlUrl(slug, branch),
+    htmlUrl: buildHtmlUrl(slug, branch, dir),
+    staff,
+    dir,
+    legacy: dir === LEGACY_EXECUTABLES_DIR,
     prompt,
     model: fields.model,
     permissionMode: fields.permissionMode,
@@ -395,7 +459,10 @@ export async function writeExecutableFile(
   const profileJson =
     opts.profileJsonOverride ?? serializeProfile(composeProfile(syncedFields));
 
-  const base = `${EXECUTABLES_DIR}/${fields.slug}`;
+  // Edit a duty where it already lives (so editing a legacy executable updates
+  // it in place); new duties are created under the duty home `.kody/duties/`.
+  const existingDir = await resolveExistingFolderDir(opts.octokit, fields.slug);
+  const base = `${existingDir ?? DUTIES_DIR}/${fields.slug}`;
   const changes: TreeChange[] = [
     { path: `${base}/profile.json`, content: profileJson },
     {
@@ -430,7 +497,7 @@ export async function writeExecutableFile(
   await commitChanges(
     opts.octokit,
     changes,
-    `${opts.isUpdate ? "chore" : "feat"}(executables): ${verb} ${fields.slug}`,
+    `${opts.isUpdate ? "chore" : "feat"}(duty): ${verb} ${fields.slug}`,
   );
 
   const refreshed = await readExecutableFile(fields.slug, opts.octokit);
@@ -452,7 +519,7 @@ export async function deleteExecutableFile(
   }
   const existing = await readExecutableFile(slug, octokit);
   if (!existing) return;
-  const base = `${EXECUTABLES_DIR}/${slug}`;
+  const base = `${existing.dir}/${slug}`;
   const changes: TreeChange[] = [
     { path: `${base}/profile.json`, content: null },
     { path: `${base}/prompt.md`, content: null },
@@ -461,7 +528,21 @@ export async function deleteExecutableFile(
     changes.push({ path: `${base}/${s.name}`, content: null });
   for (const s of existing.skills)
     changes.push({ path: `${base}/skills/${s.name}/SKILL.md`, content: null });
-  await commitChanges(octokit, changes, `chore(executables): remove ${slug}`);
+  await commitChanges(octokit, changes, `chore(duty): remove ${slug}`);
+}
+
+/** Find which folder dir (duty home or legacy) currently holds `slug`, or null. */
+async function resolveExistingFolderDir(
+  octokit: Octokit,
+  slug: string,
+): Promise<string | null> {
+  for (const dir of FOLDER_DIRS) {
+    const raw = await readFileText(octokit, `${dir}/${slug}/profile.json`).catch(
+      () => null,
+    );
+    if (raw !== null) return dir;
+  }
+  return null;
 }
 
 function ensureTrailingNewline(text: string): string {
