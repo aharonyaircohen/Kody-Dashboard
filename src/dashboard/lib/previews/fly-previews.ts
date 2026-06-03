@@ -202,8 +202,12 @@ export async function createMachine(
           ],
           protocol: "tcp",
           internal_port: internalPort,
-          auto_stop_machines: "suspend",
-          auto_start_machines: true,
+          // Machines API field names are `autostop`/`autostart` — the
+          // fly.toml names (`auto_stop_machines`/`auto_start_machines`) are
+          // silently dropped, leaving the machine running 24/7 + unable to
+          // auto-wake. (Same bug bit the per-PR builder path.)
+          autostop: "suspend",
+          autostart: true,
           min_machines_running: 0,
         },
       ],

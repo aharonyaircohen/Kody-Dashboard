@@ -159,19 +159,22 @@ export async function createPreviewMachine(
           ],
           protocol: "tcp",
           internal_port: internalPort,
-          auto_stop_machines: "suspend",
-          auto_start_machines: true,
+          // The Fly *Machines API* names these `autostop`/`autostart`.
+          // The fly.toml names (`auto_stop_machines`/`auto_start_machines`)
+          // are SILENTLY DROPPED here — which is why every preview ran 24/7
+          // (no autostop) and won't wake once stopped (no autostart).
+          autostop: "suspend",
+          autostart: true,
           min_machines_running: 0,
         },
       ],
       // NO machine-level `checks` here on purpose. A periodic HTTP check
       // (we had GET / every 15s) issues a request to the machine forever,
-      // so Fly never sees it as idle and `auto_stop_machines: "suspend"`
-      // can never fire — every open-PR preview then runs 24/7 at 4 GB.
-      // Previews don't need health gating: the Fly proxy routes on demand
-      // and `auto_start_machines` wakes a suspended machine on the next
-      // real request. A broken preview returns 5xx, which is acceptable
-      // for a throwaway PR env. (Prod runs on Vercel, not here.)
+      // so Fly never sees it as idle and `autostop: "suspend"` can never
+      // fire. Previews don't need health gating: the Fly proxy routes on
+      // demand and `autostart` wakes a suspended machine on the next real
+      // request. A broken preview returns 5xx, acceptable for a throwaway
+      // PR env. (Prod runs on Vercel, not here.)
     },
   };
   // Retry on MANIFEST_UNKNOWN — Fly's registry is eventually consistent
