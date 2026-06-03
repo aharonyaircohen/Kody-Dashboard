@@ -1,0 +1,19 @@
+{
+  "taskId": "43",
+  "taskType": "issue",
+  "target": "43-doc-coverage-gap-srcdashboardlibnotificationschann",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added @ai-summary headers to 4 channel adapters (slack, discord, generic, telegram) matching the existing 7/11 doc coverage",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/notifications/channels/slack.ts",
+    "src/dashboard/lib/notifications/channels/discord.ts",
+    "src/dashboard/lib/notifications/channels/generic.ts",
+    "src/dashboard/lib/notifications/channels/telegram.ts"
+  ],
+  "sessionLog": ".kody/sessions/-home-runner-work-Kody-Dashboard-Kody-Dashboard.jsonl",
+  "startedAt": "2026-06-03T00:00:00.000Z",
+  "finishedAt": "2026-06-03T00:00:00.000Z"
+}

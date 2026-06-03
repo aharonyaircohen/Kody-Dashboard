@@ -1,6 +1,11 @@
 /**
- * Slack incoming webhook adapter. POST JSON `{ text }` to the URL Slack
- * generated when "Add New Webhook to Workspace" was clicked.
+ * @fileType utility
+ * @domain kody
+ * @pattern slack-channel-adapter
+ * @ai-summary Slack incoming webhook adapter. POSTs `{ text }` to the
+ *   per-workspace webhook URL. Trivial and stateless — no fan-out, no
+ *   subscription manifest. Throws on non-2xx so the dispatcher can surface
+ *   misconfigured URLs as rule-level failures.
  */
 import type { NotificationChannel } from "../../notifications";
 import type { SendContext } from "./index";

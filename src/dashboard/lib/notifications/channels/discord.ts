@@ -1,6 +1,11 @@
 /**
- * Discord webhook adapter. POSTs JSON `{ content }` to a channel webhook.
- * Get the URL: Server settings → Integrations → Webhooks → New Webhook → copy.
+ * @fileType utility
+ * @domain kody
+ * @pattern discord-channel-adapter
+ * @ai-summary Discord webhook adapter. POSTs `{ content }` to a channel
+ *   webhook URL. Discord caps content at 2000 chars — this adapter silently
+ *   truncates before sending so a long PR body never causes a 400. Throws
+ *   on other non-2xx so the dispatcher can report misconfiguration.
  */
 import type { NotificationChannel } from "../../notifications";
 import type { SendContext } from "./index";

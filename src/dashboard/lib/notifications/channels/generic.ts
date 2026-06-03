@@ -1,15 +1,17 @@
 /**
- * Generic webhook adapter. POSTs to an arbitrary URL with optional custom
- * headers. The body is either a user-supplied template (rendered with the
- * same `{{var}}` substitution) or a default `{ "text": "<rendered>" }`.
+ * @fileType utility
+ * @domain kody
+ * @pattern generic-webhook-channel-adapter
+ * @ai-summary Generic webhook adapter for arbitrary URLs and custom headers.
+ *   Body is either a user-supplied `{{var}}`-rendered template or a default
+ *   `{ "text": "<rendered>" }`. Supports "json" (default, Content-Type:
+ *   application/json) and "form" (flat `{k:v}` → x-www-form-urlencoded, for
+ *   Twilio / old-school REST APIs). The `jsonTemplate` validator enforces the
+ *   form-format structural invariant before the rule is saved.
  *
- * Body format options:
- *   - "json" (default): rendered template must be valid JSON; sent with
- *     Content-Type: application/json.
- *   - "form": rendered template must be valid JSON of a flat object
- *     `{ key: "value", ... }`; each k/v pair is URL-form-encoded and sent
- *     with Content-Type: application/x-www-form-urlencoded. This is what
- *     Twilio (and most "old-school" REST APIs) want.
+ *   ⚠️ `validateGeneric` runs client-side and renders the template with an
+ *   empty vars object — if the template references vars that are always
+ *   populated at send time, the validator won't catch malformed output.
  */
 import type { NotificationChannel } from "../../notifications";
 import { renderTemplate } from "../../notifications";

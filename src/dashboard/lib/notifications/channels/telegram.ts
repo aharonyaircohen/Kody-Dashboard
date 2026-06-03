@@ -1,8 +1,12 @@
 /**
- * Telegram bot adapter. POSTs to https://api.telegram.org/bot<token>/sendMessage
- * with `{ chat_id, text, parse_mode }`. The bot must already be added to
- * the target chat (group/channel) and the chatId is what `getUpdates`
- * returns or what @userinfobot reports.
+ * @fileType utility
+ * @domain kody
+ * @pattern telegram-channel-adapter
+ * @ai-summary Telegram bot adapter. POSTs to `https://api.telegram.org/bot<token>/sendMessage`
+ *   with `{ chat_id, text }`. The bot must already be a member of the target
+ *   chat — the chatId is out-of-band (getUpdates, @userinfobot, etc.). Sends
+ *   plain text only; users wanting HTML formatting use a generic-webhook
+ *   channel instead.
  */
 import type { NotificationChannel } from "../../notifications";
 import type { SendContext } from "./index";
