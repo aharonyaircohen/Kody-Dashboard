@@ -164,17 +164,14 @@ export async function createPreviewMachine(
           min_machines_running: 0,
         },
       ],
-      checks: {
-        httpget: {
-          type: "http",
-          port: internalPort,
-          method: "GET",
-          path: "/",
-          interval: "15s",
-          timeout: "10s",
-          grace_period: "30s",
-        },
-      },
+      // NO machine-level `checks` here on purpose. A periodic HTTP check
+      // (we had GET / every 15s) issues a request to the machine forever,
+      // so Fly never sees it as idle and `auto_stop_machines: "suspend"`
+      // can never fire — every open-PR preview then runs 24/7 at 4 GB.
+      // Previews don't need health gating: the Fly proxy routes on demand
+      // and `auto_start_machines` wakes a suspended machine on the next
+      // real request. A broken preview returns 5xx, which is acceptable
+      // for a throwaway PR env. (Prod runs on Vercel, not here.)
     },
   };
   // Retry on MANIFEST_UNKNOWN — Fly's registry is eventually consistent
