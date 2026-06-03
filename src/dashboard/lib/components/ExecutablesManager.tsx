@@ -321,7 +321,7 @@ function ExecutableEditorPageInner({ slug }: { slug: string | null }) {
     onError: (err: Error) => toast.error(err.message || "Failed to save"),
   });
 
-  const back = () => router.push("/duties?tab=pipeline");
+  const back = () => router.push("/duties");
 
   return (
     <PageShell
@@ -407,7 +407,7 @@ function ExecutablesManagerInner() {
 
   return (
     <PageShell
-      title="Pipeline duties"
+      title="Duties"
       icon={Boxes}
       iconClassName="text-amber-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
@@ -452,9 +452,9 @@ function ExecutablesManagerInner() {
           <Card className="border-white/[0.08] bg-white/[0.02]">
             <CardContent className="p-6 text-center space-y-3">
               <Sparkles className="w-8 h-8 text-white/30 mx-auto" />
-              <p className="text-sm text-white/70">No pipeline duties yet.</p>
+              <p className="text-sm text-white/70">No duties yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                A pipeline duty is a staffed{" "}
+                A duty is a staffed{" "}
                 <code className="text-white/55">@kody &lt;slug&gt;</code> action
                 stored at{" "}
                 <code className="text-white/55">
