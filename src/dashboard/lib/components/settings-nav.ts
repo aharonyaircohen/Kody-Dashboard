@@ -245,16 +245,8 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/runner",
         label: "Fly Runner",
         icon: Rocket,
-        description: "Per-repo Fly infra: warm-pool size, LiteLLM, Brain.",
-        tint: "text-sky-300 bg-sky-500/10",
-      },
-      {
-        href: "/fly-activity",
-        label: "Machine Activity",
-        icon: Activity,
-        exact: true,
         description:
-          "Per-machine Fly working time, uptime, and estimated cost over time.",
+          "Per-repo Fly infra: machines, activity, warm-pool, LiteLLM, Brain.",
         tint: "text-sky-300 bg-sky-500/10",
       },
       {
