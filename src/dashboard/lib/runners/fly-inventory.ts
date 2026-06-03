@@ -39,6 +39,9 @@ export interface FlyMachineRow {
   label: string;
   /** "shared 2x · 4 GB" or "—" when size is unknown. */
   sizeLabel: string;
+  /** Raw guest sizing — consumed by the activity snapshot store / cost
+   * estimate. `sizeLabel` is the display form of this. */
+  guest?: { cpuKind?: string; cpus?: number; memoryMb?: number };
   createdAt?: string;
   ageDays?: number;
 }
@@ -150,6 +153,7 @@ export async function listFlyInventory(
           region: m.region,
           label,
           sizeLabel: sizeLabel(m.guest),
+          guest: m.guest,
           createdAt: m.createdAt,
           ageDays: Number.isFinite(created)
             ? Math.floor((now - created) / MS_PER_DAY)
