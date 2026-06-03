@@ -8,9 +8,11 @@
  *
  *   - VM size (CPUs + RAM) for each per-PR preview machine.
  *   - Sleep when idle (auto-suspend) — keep ON so idle previews cost ~$0.
- *   - Health check — OFF by default; a periodic ping keeps the machine awake
- *     and defeats auto-suspend (this was the bug that ran ~50 machines 24/7).
  *   - Expiry (TTL days) — auto-destroy previews older than N days. 0 = keep.
+ *
+ * Health check is intentionally NOT exposed here: turning it on pings the
+ * machine forever and defeats auto-suspend (that was the 24/7-cost bug). It
+ * defaults OFF in code; an advanced repo can still set it in kody.config.json.
  *
  * Plus a "Sweep expired now" action → POST /api/kody/previews/sweep, which
  * destroys past-TTL apps immediately (the webhook also sweeps opportunistically
@@ -234,22 +236,6 @@ export function PreviewsCard({
                 <span className="block text-[11px] text-white/35">
                   Recommended ON — idle previews snapshot to disk (~$0) and wake
                   in ~1s on the next request.
-                </span>
-              </span>
-            </label>
-
-            {/* Health check */}
-            <label className="flex items-start gap-2.5 cursor-pointer select-none">
-              <Checkbox
-                checked={form.healthCheck}
-                onCheckedChange={(v) => patch({ healthCheck: v === true })}
-                className="mt-0.5"
-              />
-              <span className="text-xs text-white/60 leading-relaxed">
-                Health check (ping the machine periodically)
-                <span className="block text-[11px] text-amber-300/60">
-                  Leave OFF — a periodic ping keeps the machine awake and
-                  defeats auto-suspend.
                 </span>
               </span>
             </label>
