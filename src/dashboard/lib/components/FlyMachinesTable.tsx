@@ -39,6 +39,8 @@ interface FlyMachineRow {
   label: string;
   sizeLabel: string;
   ageDays?: number;
+  /** ISO creation time — rendered as the start time + age duration. */
+  createdAt?: string;
 }
 
 interface Inventory {
@@ -81,6 +83,36 @@ function destroysWholeApp(feature: FlyFeature): boolean {
 
 function isRunning(state: string): boolean {
   return state !== "suspended" && state !== "stopped" && state !== "destroyed";
+}
+
+/** Absolute start time, e.g. "Jun 1, 14:30". Empty when unknown. */
+function formatStarted(iso?: string): string {
+  if (!iso) return "—";
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "—";
+  return new Date(t).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** Compact age since creation, e.g. "2d 4h", "3h 12m", "45m", "30s". */
+function formatDuration(iso?: string, now: number = Date.now()): string {
+  if (!iso) return "—";
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "—";
+  let s = Math.max(0, Math.floor((now - t) / 1000));
+  const d = Math.floor(s / 86400);
+  s -= d * 86400;
+  const h = Math.floor(s / 3600);
+  s -= h * 3600;
+  const m = Math.floor(s / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m`;
+  return `${s - m * 60}s`;
 }
 
 function statePill(state: string): string {
@@ -235,9 +267,18 @@ export function FlyMachinesTable({
                     <span className="text-white/40 font-mono">
                       {row.sizeLabel}
                     </span>
-                    {row.ageDays !== undefined && (
-                      <span className="text-white/30">{row.ageDays}d</span>
-                    )}
+                    <span
+                      className="text-white/30 hidden sm:inline"
+                      title="Start time"
+                    >
+                      {formatStarted(row.createdAt)}
+                    </span>
+                    <span
+                      className="text-white/45 tabular-nums"
+                      title="Running for (since created)"
+                    >
+                      {formatDuration(row.createdAt)}
+                    </span>
                     <div className="ml-auto flex items-center gap-1">
                       {running ? (
                         <Button
