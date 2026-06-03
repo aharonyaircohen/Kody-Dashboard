@@ -889,10 +889,10 @@ function ExecutableEditorForm({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-white/90">
-            {isNew ? "New executable" : `Edit @kody ${initial?.slug}`}
+            {isNew ? "New duty" : `Edit @kody ${initial?.slug}`}
           </h2>
           <p className="text-xs text-white/50">
-            Stored at .kody/executables/&lt;slug&gt;/. The engine runs it for
+            Stored at .kody/duties/&lt;slug&gt;/. The engine runs it for
             <code className="mx-1">@kody &lt;slug&gt;</code>.
           </p>
         </div>
