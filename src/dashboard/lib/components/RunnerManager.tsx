@@ -31,17 +31,8 @@ import {
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@dashboard/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { BrainFlyCard } from "./BrainFlyCard";
-import { BranchPreviewCard } from "./BranchPreviewCard";
 import { FlyActivityTab } from "./FlyActivityTab";
 import { FlyMachinesTable } from "./FlyMachinesTable";
 import { LitellmFlyCard } from "./LitellmFlyCard";
@@ -63,20 +54,24 @@ const POOL_MIN_MAX = 10;
 
 const FLY_PERF_DEFAULT: FlyPerfTier = "medium";
 
+// Plain-intent names for the per-user perf tier; the real Fly spec lives in
+// the hint. Order low→medium→high == Economy→Balanced→Fast.
 const FLY_PERF_LABELS: Record<FlyPerfTier, { label: string; hint: string }> = {
   low: {
-    label: "Low — shared CPU, 2GB",
-    hint: "Cheapest. Fine for chat-only sessions; pnpm install / tsc are slower.",
+    label: "Economy",
+    hint: "Cheapest (shared 2× / 2 GB). Fine for chat; installs/tests are slower.",
   },
   medium: {
-    label: "Medium — performance-1x, 2GB (default)",
-    hint: "Balanced. Good for vibe coding; most build/test loops feel snappy.",
+    label: "Balanced",
+    hint: "Default (performance 1× / 2 GB). Good for most Vibe / build-test work.",
   },
   high: {
-    label: "High — performance-2x, 4GB",
-    hint: "Fastest. For heavy installs, parallel tests, or large repos. Costlier.",
+    label: "Fast",
+    hint: "Fastest (performance 2× / 4 GB). For heavy installs or big repos. Costs more.",
   },
 };
+
+const PERF_ORDER: FlyPerfTier[] = ["low", "medium", "high"];
 
 function vaultHeaders(): Record<string, string> {
   const auth = getStoredAuth();
@@ -262,6 +257,13 @@ export function RunnerManager() {
 
           {/* ═══ Configuration: grouped by feature ══════════════════════ */}
           <TabsContent value="config" className="mt-4 space-y-6">
+            {/* Blast-radius legend — the chips on each section refer back here. */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] uppercase tracking-wide text-white/35 px-1">
+              <span>whole repo = everyone</span>
+              <span>just you = this browser</span>
+              <span>read-only = status</span>
+            </div>
+
             {/* Fly token — gates every feature below. */}
             <Card className="border-white/[0.08] bg-white/[0.03]">
               <CardContent className="p-4 space-y-2">
@@ -296,119 +298,103 @@ export function RunnerManager() {
                 label="Previews"
                 hint="temporary sites built for each PR"
               />
+              {/* Branch previews are folded into PreviewsCard ▸ Advanced. */}
               <PreviewsCard
-                headers={vaultHeaders()}
-                flyTokenConfigured={flyTokenConfigured}
-              />
-              <BranchPreviewCard
                 headers={vaultHeaders()}
                 flyTokenConfigured={flyTokenConfigured}
               />
             </section>
 
-            {/* ── Runners ──────────────────────────────────────────────── */}
+            {/* ── Task runners ─────────────────────────────────────────── */}
             <section className="space-y-3">
               <GroupHeader
                 icon={Server}
-                label="Runners"
+                label="Task runners"
                 hint="machines that run chat & Vibe tasks"
               />
-
-              {/* Warm pool size (repo-wide) */}
               <Card className="border-white/[0.08] bg-white/[0.03]">
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Server className="w-4 h-4 text-sky-400" />
-                    <h2 className="text-sm font-semibold">Warm pool size</h2>
-                    <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide">
-                      affects everyone
-                    </span>
-                  </div>
-                  <p className="text-xs text-white/50">
-                    Machines kept pre-booted so a chat/issue run starts
-                    instantly instead of cold-starting. {POOL_MIN_DEFAULT} by
-                    default, up to {POOL_MIN_MAX}. Each warm machine is a paid
-                    Fly VM; set 0 to always cold-start.
-                  </p>
+                <CardContent className="p-4 space-y-4">
+                  {/* Speed of my runs — per-user (this browser) */}
                   <div className="space-y-2">
-                    <Label htmlFor="pool-min" className="text-xs text-white/70">
-                      Machines kept warm
-                    </Label>
-                    <Input
-                      id="pool-min"
-                      type="number"
-                      min={0}
-                      max={POOL_MIN_MAX}
-                      step={1}
-                      placeholder={`${POOL_MIN_DEFAULT} (default)`}
-                      value={poolMin}
-                      onChange={(e) => setPoolMin(e.target.value)}
-                      className="bg-black/30 border-white/10 w-32"
-                    />
-                  </div>
-                  <div className="pt-1">
-                    <Button
-                      size="sm"
-                      onClick={savePoolMin}
-                      disabled={!poolMinHasChanges || poolMinSaving}
-                    >
-                      {poolMinSaving ? "Saving…" : "Save"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* VM size (per-user) — was "Performance tier" */}
-              <Card className="border-white/[0.08] bg-white/[0.03]">
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Rocket className="w-4 h-4 text-sky-400" />
-                    <h2 className="text-sm font-semibold">VM size</h2>
-                    <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide">
-                      your browser only
-                    </span>
-                  </div>
-                  <p className="text-xs text-white/50">
-                    How big the machine is for the chat &amp; Vibe runs you
-                    start. Bigger = faster installs/tests, but costs more.
-                  </p>
-                  <div className="space-y-2">
-                    <Label htmlFor="fly-perf" className="text-xs text-white/70">
-                      Size
-                    </Label>
-                    <Select
-                      value={flyPerf}
-                      onValueChange={(v) => setFlyPerf(v as FlyPerfTier)}
-                    >
-                      <SelectTrigger
-                        id="fly-perf"
-                        className="bg-black/30 border-white/10"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">
-                          {FLY_PERF_LABELS.low.label}
-                        </SelectItem>
-                        <SelectItem value="medium">
-                          {FLY_PERF_LABELS.medium.label}
-                        </SelectItem>
-                        <SelectItem value="high">
-                          {FLY_PERF_LABELS.high.label}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      <Rocket className="w-4 h-4 text-sky-400" />
+                      <h2 className="text-sm font-semibold">
+                        Speed of my runs
+                      </h2>
+                      <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide">
+                        just you
+                      </span>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {PERF_ORDER.map((tier) => {
+                        const active = flyPerf === tier;
+                        return (
+                          <button
+                            key={tier}
+                            type="button"
+                            onClick={() => setFlyPerf(tier)}
+                            title={FLY_PERF_LABELS[tier].hint}
+                            className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${
+                              active
+                                ? "border-sky-500/50 bg-sky-500/15 text-sky-200"
+                                : "border-white/10 bg-black/20 text-white/60 hover:text-white/80"
+                            }`}
+                          >
+                            {FLY_PERF_LABELS[tier].label}
+                          </button>
+                        );
+                      })}
+                    </div>
                     <p className="text-[11px] text-white/45 leading-snug">
                       {FLY_PERF_LABELS[flyPerf].hint}
                     </p>
-                  </div>
-                  <div className="pt-1">
                     <Button
                       size="sm"
                       onClick={saveFly}
                       disabled={!flyHasChanges}
                     >
-                      Save
+                      Save my speed
+                    </Button>
+                  </div>
+
+                  <div className="border-t border-white/[0.06]" />
+
+                  {/* Keep machines ready — repo-wide (warm pool) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Server className="w-4 h-4 text-sky-400" />
+                      <h2 className="text-sm font-semibold">
+                        Keep machines ready
+                      </h2>
+                      <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide">
+                        whole repo
+                      </span>
+                    </div>
+                    <p className="text-xs text-white/50">
+                      Machines kept pre-booted so a run starts instantly instead
+                      of cold-starting. 0 = always cold-start. Each ready
+                      machine is a paid VM everyone shares.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="pool-min"
+                        type="number"
+                        min={0}
+                        max={POOL_MIN_MAX}
+                        step={1}
+                        placeholder={`${POOL_MIN_DEFAULT}`}
+                        value={poolMin}
+                        onChange={(e) => setPoolMin(e.target.value)}
+                        className="bg-black/30 border-white/10 w-24"
+                      />
+                      <span className="text-xs text-white/50">machines</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={savePoolMin}
+                      disabled={!poolMinHasChanges || poolMinSaving}
+                    >
+                      {poolMinSaving ? "Saving…" : "Save for everyone"}
                     </Button>
                   </div>
                 </CardContent>

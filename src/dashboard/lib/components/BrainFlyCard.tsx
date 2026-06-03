@@ -93,7 +93,7 @@ function pillLabel(state: BrainFlyState): string {
     case "running":
       return "Running";
     case "suspended":
-      return "Suspended";
+      return "Sleeping";
     case "stopped":
       return "Stopped";
     default:
@@ -301,6 +301,9 @@ export function BrainFlyCard({
             >
               {pillLabel(state)}
             </span>
+            <span className="ml-2 text-[10px] text-white/35 uppercase tracking-wide">
+              just you
+            </span>
             <Button
               size="sm"
               variant="ghost"
@@ -317,14 +320,9 @@ export function BrainFlyCard({
             </Button>
           </div>
           <p className="text-xs text-white/50 -mt-2">
-            Per-user Brain server on your Fly account. Suspends when idle
-            (resumes in ~1s on the next chat) — no manual wake-up required.
+            Your personal Brain server on Fly. Sleeps when idle, wakes in ~1s on
+            the next chat — no manual wake-up needed.
           </p>
-          {!flyTokenConfigured && (
-            <p className="text-[11px] text-amber-300/80 italic">
-              Add FLY_API_TOKEN to the repo Secrets vault to enable.
-            </p>
-          )}
           {flyTokenConfigured && (
             <label className="flex items-start gap-2.5 cursor-pointer select-none">
               <Checkbox
