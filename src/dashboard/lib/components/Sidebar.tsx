@@ -22,6 +22,7 @@ import {
   Github,
   LogOut,
   Moon,
+  Search,
   Sun,
 } from "lucide-react";
 
@@ -97,6 +98,10 @@ export function Sidebar() {
       }
       return next;
     });
+  };
+
+  const openSearch = () => {
+    document.dispatchEvent(new Event("kody:open-command-palette"));
   };
 
   const width = collapsed ? "w-[64px]" : "w-[220px]";
@@ -186,6 +191,37 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
+        {/* Persistent search — a constant entry point to the ⌘K command
+            palette (the real search engine). Expanded: an input-styled
+            button with a ⌘K hint; collapsed: a bare search icon. */}
+        <div className="pb-1">
+          {collapsed ? (
+            <SimpleTooltip content="Search" side="right">
+              <button
+                type="button"
+                onClick={openSearch}
+                aria-label="Search"
+                className="flex items-center justify-center w-full rounded-md h-9 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+              >
+                <Search className="w-4 h-4 shrink-0" />
+              </button>
+            </SimpleTooltip>
+          ) : (
+            <button
+              type="button"
+              onClick={openSearch}
+              aria-label="Search pages and actions"
+              className="flex items-center gap-2 w-full rounded-md h-9 px-3 text-sm border border-white/[0.08] bg-black/20 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+            >
+              <Search className="w-4 h-4 shrink-0" />
+              <span className="truncate flex-1 text-left">Search…</span>
+              <kbd className="hidden sm:inline-flex items-center rounded border border-white/[0.12] px-1.5 py-0.5 text-[10px] font-mono">
+                ⌘K
+              </kbd>
+            </button>
+          )}
+        </div>
+
         {/* Primary view switch — Dashboard / Tasks / Vibe. These used to live in
             the header (ViewToggle + VibeToggle); the rail now owns navigation. */}
         <div className="space-y-1">
