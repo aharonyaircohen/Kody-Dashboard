@@ -26,6 +26,7 @@ import { logger } from "@dashboard/lib/logger";
 import { rebuildBaseImage } from "./base-rebuild";
 import { resolvePreviewConfigForRepo } from "./config";
 import { createPreview, destroyPreview } from "./preview-lifecycle";
+import { sweepExpiredPreviews } from "./sweep";
 import { routePreviewBuild } from "./preview-router";
 
 /**
@@ -174,6 +175,16 @@ export async function handlePrOpenedOrSynced(
       "previews.webhook: create failed (non-fatal)",
     );
   }
+
+  // Opportunistic TTL sweep: each preview build is also a chance to reap
+  // expired apps for this repo. No-op unless `fly.previews.ttlDays` is set.
+  // Fire-and-forget — never block or fail the build path on cleanup.
+  void sweepExpiredPreviews(event.repoFullName).catch((err) => {
+    logger.warn(
+      { err, repo: event.repoFullName },
+      "previews.webhook: opportunistic sweep failed (non-fatal)",
+    );
+  });
 }
 
 interface DefaultBranchPushEvent {

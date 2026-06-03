@@ -39,6 +39,7 @@ import {
 import { BrainFlyCard } from "./BrainFlyCard";
 import { BranchPreviewCard } from "./BranchPreviewCard";
 import { LitellmFlyCard } from "./LitellmFlyCard";
+import { PreviewsCard } from "./PreviewsCard";
 import { PageShell } from "./PageShell";
 import { VaultLockedBanner } from "./VaultLockedBanner";
 import { useAuth, type FlyPerfTier } from "../auth-context";
@@ -311,6 +312,12 @@ export function RunnerManager() {
 
           {/* Brain on Fly toggle */}
           <BrainFlyCard
+            headers={vaultHeaders()}
+            flyTokenConfigured={flyTokenConfigured}
+          />
+
+          {/* Per-PR preview machine size + lifecycle (idle-suspend, TTL) */}
+          <PreviewsCard
             headers={vaultHeaders()}
             flyTokenConfigured={flyTokenConfigured}
           />

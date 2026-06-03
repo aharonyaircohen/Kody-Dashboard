@@ -47,6 +47,9 @@ export interface MachineInfo {
   id: string;
   state: string;
   region: string;
+  /** ISO timestamp Fly reports as the machine's creation time. Used by the
+   * TTL sweep to decide whether a preview is past its expiry. */
+  createdAt?: string;
 }
 
 /**
@@ -283,8 +286,35 @@ export async function listMachines(
     id: string;
     state: string;
     region: string;
+    created_at?: string;
   }>;
-  return data.map((m) => ({ id: m.id, state: m.state, region: m.region }));
+  return data.map((m) => ({
+    id: m.id,
+    state: m.state,
+    region: m.region,
+    createdAt: m.created_at,
+  }));
+}
+
+/**
+ * List every Fly app in the org whose name starts with `prefix`. Used by the
+ * preview TTL sweep to enumerate a repo's preview apps (`kp-<owner>-<repo>-`).
+ * Returns app names only — the sweep then inspects each app's machines.
+ */
+export async function listAppsByPrefix(
+  prefix: string,
+  cfg: FlyPreviewConfig,
+): Promise<string[]> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps?org_slug=${encodeURIComponent(cfg.orgSlug)}`,
+    { method: "GET" },
+    cfg.token,
+  );
+  await assertOk(res, "listAppsByPrefix");
+  const data = (await res.json()) as { apps?: Array<{ name?: string }> };
+  return (data.apps ?? [])
+    .map((a) => a.name ?? "")
+    .filter((n) => n.startsWith(prefix));
 }
 
 export async function destroyMachine(
