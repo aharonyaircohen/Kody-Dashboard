@@ -39,6 +39,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { BrainFlyCard } from "./BrainFlyCard";
 import { BranchPreviewCard } from "./BranchPreviewCard";
+import { FlyActivityTab } from "./FlyActivityTab";
 import { FlyMachinesTable } from "./FlyMachinesTable";
 import { LitellmFlyCard } from "./LitellmFlyCard";
 import { PreviewsCard } from "./PreviewsCard";
@@ -237,11 +238,20 @@ export function RunnerManager() {
           <TabsList>
             <TabsTrigger value="config">Configuration</TabsTrigger>
             <TabsTrigger value="machines">Machines</TabsTrigger>
+            <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
 
           {/* ═══ Machines: what's running, act on it ════════════════════ */}
           <TabsContent value="machines" className="mt-4">
             <FlyMachinesTable
+              headers={vaultHeaders()}
+              flyTokenConfigured={flyTokenConfigured}
+            />
+          </TabsContent>
+
+          {/* ═══ Activity: working time / uptime / est. cost over time ═══ */}
+          <TabsContent value="activity" className="mt-4">
+            <FlyActivityTab
               headers={vaultHeaders()}
               flyTokenConfigured={flyTokenConfigured}
             />
