@@ -22,16 +22,20 @@ import { SimpleTooltip } from "./SimpleTooltip";
 
 type Tab = "duties" | "pipeline" | "reports";
 
+// One unified duty model now: folder-duties (profile + staff) are THE duties,
+// so the folder-duty list ("pipeline") is the primary "Duties" view and the
+// default. The legacy markdown scheduled duties stay reachable under
+// "Scheduled (legacy)" only until each repo is fully migrated to folder-duties.
 const TABS: { id: Tab; label: string }[] = [
-  { id: "duties", label: "Scheduled" },
-  { id: "pipeline", label: "Pipeline" },
+  { id: "pipeline", label: "Duties" },
+  { id: "duties", label: "Scheduled (legacy)" },
   { id: "reports", label: "Reports" },
 ];
 
 function parseTab(value: string | null | undefined): Tab {
   if (value === "reports") return "reports";
-  if (value === "pipeline") return "pipeline";
-  return "duties";
+  if (value === "scheduled") return "duties";
+  return "pipeline";
 }
 
 export function DutiesPageTabs() {
@@ -51,8 +55,10 @@ export function DutiesPageTabs() {
     (id: Tab) => {
       setActive(id);
       const params = new URLSearchParams(searchParams?.toString() ?? "");
-      if (id === "duties") params.delete("tab");
-      else params.set("tab", id);
+      // "pipeline" is the default Duties view → no query param. The legacy
+      // markdown list uses ?tab=scheduled; reports uses ?tab=reports.
+      if (id === "pipeline") params.delete("tab");
+      else params.set("tab", id === "duties" ? "scheduled" : id);
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
