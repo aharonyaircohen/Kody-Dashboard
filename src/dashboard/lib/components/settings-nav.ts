@@ -249,6 +249,15 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-sky-300 bg-sky-500/10",
       },
       {
+        href: "/fly-activity",
+        label: "Machine Activity",
+        icon: Activity,
+        exact: true,
+        description:
+          "Per-machine Fly working time, uptime, and estimated cost over time.",
+        tint: "text-sky-300 bg-sky-500/10",
+      },
+      {
         href: "/secrets",
         label: "Secrets",
         icon: KeyRound,
