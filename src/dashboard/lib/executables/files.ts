@@ -13,6 +13,7 @@
 
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "../github-client";
+import { listDutyFiles } from "../duties-files";
 import {
   appendContract,
   composeProfile,
@@ -57,7 +58,8 @@ export interface ExecutableSummary {
   slug: string;
   describe: string;
   landing: ExecutableLanding;
-  updatedAt: string;
+  /** Last-commit date; null in the list view (per-duty lookups are rate-limited). */
+  updatedAt: string | null;
   htmlUrl: string;
   /** Staff member this duty runs as (profile.staff), or null. */
   staff: string | null;
@@ -65,6 +67,8 @@ export interface ExecutableSummary {
   dir: string;
   /** True when still under the legacy `.kody/executables/` dir (pre-migration). */
   legacy: boolean;
+  /** True for a legacy markdown duty (`.kody/duties/<slug>.md`) — being migrated to a folder. */
+  markdown?: boolean;
 }
 
 export interface ExecutableDetail extends ExecutableSummary {
@@ -88,7 +92,11 @@ async function getDefaultBranch(octokit: Octokit): Promise<string> {
   return data.default_branch;
 }
 
-function buildHtmlUrl(slug: string, branch: string | null, dir: string): string {
+function buildHtmlUrl(
+  slug: string,
+  branch: string | null,
+  dir: string,
+): string {
   const ref = branch ?? "HEAD";
   return `https://github.com/${getOwner()}/${getRepo()}/tree/${ref}/${dir}/${slug}`;
 }
@@ -187,12 +195,14 @@ async function listFolderDutiesInDir(
         profile && typeof profile.staff === "string" && profile.staff.trim()
           ? profile.staff.trim()
           : null;
-      const updatedAt = await fetchLastCommitDate(octokit, profilePath);
+      // No per-duty fetchLastCommitDate here: it's one listCommits call PER duty,
+      // which drains the shared GitHub token on every list render (see
+      // CLAUDE.md rate-limit rules). The detail view shows the commit date.
       return {
         slug,
         describe,
         landing,
-        updatedAt,
+        updatedAt: null,
         htmlUrl: buildHtmlUrl(slug, branch, dir),
         staff,
         dir,
@@ -227,6 +237,29 @@ export async function listExecutableFiles(): Promise<ExecutableSummary[]> {
   return [...bySlug.values()].sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
+/**
+ * List legacy markdown duties (`.kody/duties/<slug>.md`) as summaries so they
+ * appear in the SAME single duty list (not a separate tab) until each is
+ * migrated to a folder-duty. Cheap: one directory listing, ZERO per-duty reads
+ * (so no staff/schedule detail — that needs the file, which the rate-limit
+ * rules forbid fetching per row). Marked `markdown: true` for the "legacy" badge.
+ */
+export async function listMarkdownDutySummaries(): Promise<ExecutableSummary[]> {
+  const branch = await getDefaultBranch(getOctokit()).catch(() => null);
+  const files = await listDutyFiles().catch(() => [] as Awaited<ReturnType<typeof listDutyFiles>>);
+  return files.map((f) => ({
+    slug: f.slug,
+    describe: f.title ?? f.slug,
+    landing: "comment" as ExecutableLanding,
+    updatedAt: null,
+    htmlUrl: `https://github.com/${getOwner()}/${getRepo()}/blob/${branch ?? "HEAD"}/${DUTIES_DIR}/${f.slug}.md`,
+    staff: null,
+    dir: DUTIES_DIR,
+    legacy: true,
+    markdown: true,
+  }));
+}
+
 /** Read a single executable folder into the full editable detail. */
 export async function readExecutableFile(
   slug: string,
@@ -240,7 +273,10 @@ export async function readExecutableFile(
   let dir: string | null = null;
   let profileRaw: string | null = null;
   for (const candidate of FOLDER_DIRS) {
-    const raw = await readFileText(octokit, `${candidate}/${slug}/profile.json`);
+    const raw = await readFileText(
+      octokit,
+      `${candidate}/${slug}/profile.json`,
+    );
     if (raw !== null) {
       dir = candidate;
       profileRaw = raw;
@@ -537,9 +573,10 @@ async function resolveExistingFolderDir(
   slug: string,
 ): Promise<string | null> {
   for (const dir of FOLDER_DIRS) {
-    const raw = await readFileText(octokit, `${dir}/${slug}/profile.json`).catch(
-      () => null,
-    );
+    const raw = await readFileText(
+      octokit,
+      `${dir}/${slug}/profile.json`,
+    ).catch(() => null);
     if (raw !== null) return dir;
   }
   return null;

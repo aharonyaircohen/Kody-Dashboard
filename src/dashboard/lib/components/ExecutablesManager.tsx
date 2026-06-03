@@ -95,12 +95,14 @@ interface ExecutableSummary {
   slug: string;
   describe: string;
   landing: ExecutableLanding;
-  updatedAt: string;
+  updatedAt: string | null;
   htmlUrl: string;
   /** Staff member this duty runs as, or null. */
   staff?: string | null;
   /** True when still under the legacy `.kody/executables/` dir. */
   legacy?: boolean;
+  /** True for a legacy markdown duty (`.kody/duties/<slug>.md`), pending migration. */
+  markdown?: boolean;
 }
 interface ExecutableDetail extends ExecutableSummary {
   prompt: string;
@@ -499,7 +501,7 @@ function ExecutablesManagerInner() {
                         )}
                         {e.legacy && (
                           <span className="text-[10px] uppercase tracking-wide bg-orange-500/15 text-orange-300/90 px-1.5 py-0.5 rounded">
-                            legacy
+                            {e.markdown ? "legacy .md" : "legacy"}
                           </span>
                         )}
                         {isIssueDefault && (
@@ -523,71 +525,89 @@ function ExecutablesManagerInner() {
                           Updated {formatRelative(e.updatedAt)}
                         </p>
                       )}
-                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        <Button
-                          size="sm"
-                          variant={isIssueDefault ? "secondary" : "ghost"}
-                          className="h-6 gap-1 text-[11px] px-2"
-                          onClick={() =>
-                            setDefault.mutate({
-                              slug: e.slug,
-                              target: "issue",
-                              clear: isIssueDefault,
-                            })
-                          }
-                        >
-                          <Star className="w-3 h-3" />
-                          {isIssueDefault
-                            ? "Issue default ✓"
-                            : "Set issue default"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={isPrDefault ? "secondary" : "ghost"}
-                          className="h-6 gap-1 text-[11px] px-2"
-                          onClick={() =>
-                            setDefault.mutate({
-                              slug: e.slug,
-                              target: "pr",
-                              clear: isPrDefault,
-                            })
-                          }
-                        >
-                          <Star className="w-3 h-3" />
-                          {isPrDefault ? "PR default ✓" : "Set PR default"}
-                        </Button>
-                      </div>
+                      {e.markdown ? (
+                        <p className="text-[11px] text-orange-300/70 mt-2">
+                          Legacy markdown duty — migrate to a folder-duty to edit
+                          it here.
+                        </p>
+                      ) : (
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                          <Button
+                            size="sm"
+                            variant={isIssueDefault ? "secondary" : "ghost"}
+                            className="h-6 gap-1 text-[11px] px-2"
+                            onClick={() =>
+                              setDefault.mutate({
+                                slug: e.slug,
+                                target: "issue",
+                                clear: isIssueDefault,
+                              })
+                            }
+                          >
+                            <Star className="w-3 h-3" />
+                            {isIssueDefault
+                              ? "Issue default ✓"
+                              : "Set issue default"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={isPrDefault ? "secondary" : "ghost"}
+                            className="h-6 gap-1 text-[11px] px-2"
+                            onClick={() =>
+                              setDefault.mutate({
+                                slug: e.slug,
+                                target: "pr",
+                                clear: isPrDefault,
+                              })
+                            }
+                          >
+                            <Star className="w-3 h-3" />
+                            {isPrDefault ? "PR default ✓" : "Set PR default"}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-1"
-                        onClick={() => setRunning(e.slug)}
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                        Run
-                      </Button>
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="ghost"
-                        className="gap-1"
-                      >
-                        <Link href={`/executables/${e.slug}`}>
-                          <Pencil className="w-3.5 h-3.5" />
-                          Edit
-                        </Link>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-1 text-rose-300 hover:text-rose-200"
-                        onClick={() => setDeleting(e.slug)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </Button>
+                      {e.markdown ? (
+                        <Button asChild size="sm" variant="ghost" className="gap-1">
+                          <a href={e.htmlUrl} target="_blank" rel="noreferrer">
+                            <Pencil className="w-3.5 h-3.5" />
+                            Open .md
+                          </a>
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1"
+                            onClick={() => setRunning(e.slug)}
+                          >
+                            <Play className="w-3.5 h-3.5" />
+                            Run
+                          </Button>
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1"
+                          >
+                            <Link href={`/executables/${e.slug}`}>
+                              <Pencil className="w-3.5 h-3.5" />
+                              Edit
+                            </Link>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1 text-rose-300 hover:text-rose-200"
+                            onClick={() => setDeleting(e.slug)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Delete
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
