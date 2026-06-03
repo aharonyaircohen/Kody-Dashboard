@@ -50,6 +50,10 @@ export interface MachineInfo {
   /** ISO timestamp Fly reports as the machine's creation time. Used by the
    * TTL sweep to decide whether a preview is past its expiry. */
   createdAt?: string;
+  /** Machine name (Fly-assigned or set at create). */
+  name?: string;
+  /** Guest sizing — populated for the machines-inventory view. */
+  guest?: { cpuKind?: string; cpus?: number; memoryMb?: number };
 }
 
 /**
@@ -284,15 +288,27 @@ export async function listMachines(
   await assertOk(res, "listMachines");
   const data = (await res.json()) as Array<{
     id: string;
+    name?: string;
     state: string;
     region: string;
     created_at?: string;
+    config?: {
+      guest?: { cpu_kind?: string; cpus?: number; memory_mb?: number };
+    };
   }>;
   return data.map((m) => ({
     id: m.id,
+    name: m.name,
     state: m.state,
     region: m.region,
     createdAt: m.created_at,
+    guest: m.config?.guest
+      ? {
+          cpuKind: m.config.guest.cpu_kind,
+          cpus: m.config.guest.cpus,
+          memoryMb: m.config.guest.memory_mb,
+        }
+      : undefined,
   }));
 }
 
@@ -336,6 +352,37 @@ export async function destroyMachine(
   );
   if (res.status === 404) return;
   await assertOk(res, "destroyMachine");
+}
+
+/** Suspend a machine: snapshot RAM to disk, ~$0 while idle, wakes on request
+ * (or via {@link startMachine}). No-op (404 tolerated) if it's already gone. */
+export async function suspendMachine(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/suspend`,
+    { method: "POST" },
+    cfg.token,
+  );
+  if (res.status === 404) return;
+  await assertOk(res, "suspendMachine");
+}
+
+/** Start (wake) a suspended/stopped machine. */
+export async function startMachine(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/start`,
+    { method: "POST" },
+    cfg.token,
+  );
+  if (res.status === 404) return;
+  await assertOk(res, "startMachine");
 }
 
 export async function destroyApp(

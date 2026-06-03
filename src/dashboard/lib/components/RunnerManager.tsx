@@ -38,6 +38,7 @@ import {
 } from "@dashboard/ui/select";
 import { BrainFlyCard } from "./BrainFlyCard";
 import { BranchPreviewCard } from "./BranchPreviewCard";
+import { FlyMachinesTable } from "./FlyMachinesTable";
 import { LitellmFlyCard } from "./LitellmFlyCard";
 import { PreviewsCard } from "./PreviewsCard";
 import { PageShell } from "./PageShell";
@@ -228,12 +229,25 @@ export function RunnerManager() {
             "not configured" for the wrong reason — surface the real failure. */}
         <VaultLockedBanner feature="Fly runners and previews stay off until the vault can be read." />
 
-        {/* ═══ Repo-wide ════════════════════════════════════════════════ */}
+        {/* ═══ Machines (primary: what's running, act on it) ════════════ */}
+        <section className="space-y-3">
+          <GroupHeader
+            icon={Server}
+            label="Machines"
+            hint="every Fly machine across all features — suspend / resume / destroy"
+          />
+          <FlyMachinesTable
+            headers={vaultHeaders()}
+            flyTokenConfigured={flyTokenConfigured}
+          />
+        </section>
+
+        {/* ═══ Configuration (secondary: per-feature settings) ═════════ */}
         <section className="space-y-3">
           <GroupHeader
             icon={Users}
-            label="Repo-wide"
-            hint="affects everyone on this repo"
+            label="Configuration"
+            hint="per-feature settings — affects everyone on this repo"
           />
 
           {/* Fly Machines token (read-only status) */}
