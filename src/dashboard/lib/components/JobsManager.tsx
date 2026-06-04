@@ -25,6 +25,7 @@ import {
   CalendarClock,
   ArrowLeft,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@dashboard/ui/button";
@@ -45,7 +46,7 @@ import {
 } from "@dashboard/ui/select";
 import { cn } from "../utils";
 import { kodyApi, type DutySchedule, type Duty } from "../api";
-import { useDuties, useRunDuty } from "../hooks/useDuties";
+import { useDuties, useRunDuty, useDeleteDuty } from "../hooks/useDuties";
 import { useStaff } from "../hooks/useStaff";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -97,7 +98,10 @@ export function JobsManager() {
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [pendingRun, setPendingRun] = useState<Duty | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Duty | null>(null);
+  const { githubUser } = useGitHubIdentity();
   const run = useRunDuty();
+  const remove = useDeleteDuty(githubUser?.login);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -164,6 +168,7 @@ export function JobsManager() {
               job={selected}
               onBack={() => setSelectedSlug(null)}
               onRun={() => setPendingRun(selected)}
+              onDelete={() => setPendingDelete(selected)}
               isRunning={run.isPending && run.variables?.slug === selected.slug}
             />
           ) : (
@@ -226,6 +231,23 @@ export function JobsManager() {
           setPendingRun(null);
         }}
         onClose={() => setPendingRun(null)}
+      />
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={`Delete “${pendingDelete?.title ?? ""}”?`}
+        description="Removes the job from .kody/duties/ via a commit on the default branch. Past runs are not affected."
+        variant="destructive"
+        confirmLabel="Delete job"
+        onConfirm={() => {
+          if (pendingDelete) {
+            const slug = pendingDelete.slug;
+            remove.mutate(slug);
+            if (selectedSlug === slug) setSelectedSlug(null);
+          }
+          setPendingDelete(null);
+        }}
+        onClose={() => setPendingDelete(null)}
       />
     </>
   );
@@ -291,19 +313,30 @@ function JobRow({
   );
 }
 
-/** Detail pane — the job's assembly + Run, mirroring ReportDetail's layout. */
+/** Detail pane — the job's assembly + run status, mirroring DutyDetail. */
 function JobDetail({
   job,
   onBack,
   onRun,
+  onDelete,
   isRunning,
 }: {
   job: Duty;
   onBack: () => void;
   onRun: () => void;
+  onDelete: () => void;
   isRunning: boolean;
 }) {
   const scheduled = job.schedule && job.schedule !== "manual";
+  const lastRun = job.lastTickAt
+    ? `${job.lastOutcome ?? "ran"} · ${new Date(job.lastTickAt).toLocaleDateString()}`
+    : "never run";
+  const nextRun =
+    !job.disabled && job.nextEligibleAt
+      ? new Date(job.nextEligibleAt).toLocaleString()
+      : scheduled
+        ? "—"
+        : "manual";
   return (
     <div className="flex flex-col min-h-0">
       <div className="shrink-0 flex items-center gap-2 px-4 md:px-6 py-3 border-b border-border">
@@ -326,6 +359,16 @@ function JobDetail({
           </Link>
         </Button>
         <Button
+          variant="outline"
+          size="sm"
+          onClick={onDelete}
+          className="w-9 px-0 text-red-400"
+          title="Delete job"
+          aria-label="Delete job"
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+        <Button
           size="sm"
           className="gap-1.5"
           onClick={onRun}
@@ -344,8 +387,9 @@ function JobDetail({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Axis label="When" value={scheduled ? job.schedule! : "manual"} />
           <Axis label="Who" value={job.staff || "kody"} />
-          <Axis label="Why" value={job.slug} />
           <Axis label="Status" value={job.disabled ? "paused" : "active"} />
+          <Axis label="Last run" value={lastRun} />
+          <Axis label="Next run" value={nextRun} />
         </div>
 
         {job.body ? (
