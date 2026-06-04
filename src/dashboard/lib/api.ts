@@ -1972,9 +1972,33 @@ export interface EngineEditableConfig {
   perExecutable: Record<string, string>;
 }
 
+// ============ Jobs API ============
+
+import type { KodyJob } from "./kody-job";
+
+export const jobsApi = {
+  /**
+   * Run an INSTANT job — assembles to an `@kody <executable> [why]` dispatch on
+   * the job's target issue/PR. Scheduled jobs persist as a duty instead (see
+   * `dutiesApi.create`), so this only accepts `flavor: "instant"`.
+   */
+  run: async (
+    job: KodyJob,
+    actorLogin?: string,
+  ): Promise<{ success: boolean; commentUrl: string; dispatch: string }> => {
+    const res = await fetch(`${API_BASE}/jobs`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({ ...job, actorLogin }),
+    });
+    return handleResponse(res);
+  },
+};
+
 // ============ Combined API ============
 
 export const kodyApi = {
+  jobs: jobsApi,
   tasks: tasksApi,
   prs: prsApi,
   taskDocs: taskDocsApi,
