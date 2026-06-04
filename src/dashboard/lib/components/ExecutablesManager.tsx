@@ -318,20 +318,20 @@ function ExecutableEditorPageInner({ slug }: { slug: string | null }) {
     mutationFn: (payload: SavePayload) => saveApi(headers, payload, actorLogin),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
-      toast.success("Duty saved");
+      toast.success("Executable saved");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to save"),
   });
 
-  const back = () => router.push("/duties");
+  const back = () => router.push("/executables");
 
   return (
     <PageShell
-      title={slug ? `Edit @kody ${slug}` : "New duty"}
+      title={slug ? `Edit @kody ${slug}` : "New executable"}
       icon={Boxes}
       iconClassName="text-amber-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
-      backHref="/duties"
+      backHref="/executables"
     >
       <ExecutableEditor
         slug={slug}
@@ -370,7 +370,7 @@ function ExecutablesManagerInner() {
     mutationFn: (slug: string) => deleteApi(headers, slug),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
-      toast.success("Duty deleted");
+      toast.success("Executable deleted");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to delete"),
   });
@@ -410,7 +410,7 @@ function ExecutablesManagerInner() {
 
   return (
     <PageShell
-      title="Duties"
+      title="Executables"
       icon={Boxes}
       iconClassName="text-amber-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
@@ -418,7 +418,7 @@ function ExecutablesManagerInner() {
         <Button asChild size="sm" className="gap-1">
           <Link href="/executables/new">
             <Plus className="w-4 h-4" />
-            New duty
+            New executable
           </Link>
         </Button>
       }
@@ -426,7 +426,7 @@ function ExecutablesManagerInner() {
       <div className="space-y-3">
         {isLoading && (
           <p className="text-sm text-white/50 flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading duties…
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading executables…
           </p>
         )}
 
@@ -434,7 +434,7 @@ function ExecutablesManagerInner() {
           <Card className="border-rose-500/30 bg-rose-950/20">
             <CardContent className="p-4 text-sm">
               <p className="text-rose-300 font-medium">
-                Couldn&apos;t load duties
+                Couldn&apos;t load executables
               </p>
               <p className="text-rose-200/70 mt-1">
                 {error instanceof Error ? error.message : "Unknown error"}
@@ -455,15 +455,15 @@ function ExecutablesManagerInner() {
           <Card className="border-white/[0.08] bg-white/[0.02]">
             <CardContent className="p-6 text-center space-y-3">
               <Sparkles className="w-8 h-8 text-white/30 mx-auto" />
-              <p className="text-sm text-white/70">No duties yet.</p>
+              <p className="text-sm text-white/70">No executables yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                A duty is a staffed{" "}
+                An executable is a custom{" "}
                 <code className="text-white/55">@kody &lt;slug&gt;</code> action
                 stored at{" "}
                 <code className="text-white/55">
                   .kody/duties/&lt;slug&gt;/
                 </code>{" "}
-                in this repo. The engine runs it as its staff member.
+                in this repo. The engine resolves it before its built-ins.
               </p>
             </CardContent>
           </Card>
@@ -473,8 +473,8 @@ function ExecutablesManagerInner() {
           <ListSearch
             value={search}
             onChange={setSearch}
-            placeholder="Search duties…"
-            ariaLabel="Search duties"
+            placeholder="Search executables…"
+            ariaLabel="Search executables"
             accent="teal"
           />
         )}
@@ -633,7 +633,7 @@ function ExecutablesManagerInner() {
       <ConfirmDialog
         open={deleting !== null}
         title={`Delete @kody ${deleting}?`}
-        description="The whole duty folder is removed from the repo."
+        description="The whole executable folder is removed from the repo."
         confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
         onConfirm={() => {
@@ -910,7 +910,7 @@ function ExecutableEditorForm({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-white/90">
-            {isNew ? "New duty" : `Edit @kody ${initial?.slug}`}
+            {isNew ? "New executable" : `Edit @kody ${initial?.slug}`}
           </h2>
           <p className="text-xs text-white/50">
             Stored at .kody/duties/&lt;slug&gt;/. The engine runs it for
