@@ -173,6 +173,13 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     description: "What shipped, version by version.",
     tint: "text-fuchsia-300 bg-fuchsia-500/10",
   },
+  {
+    href: "/docs",
+    label: "Docs",
+    icon: FileText,
+    description: "README and docs folder from the repo.",
+    tint: "text-amber-300 bg-amber-500/10",
+  },
 ] as const;
 
 export interface SettingsNavSection {

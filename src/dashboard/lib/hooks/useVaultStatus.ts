@@ -33,9 +33,15 @@ export function useVaultStatus(): VaultStatus {
     enabled: !!auth,
     staleTime: 30_000,
     retry: false,
-    queryFn: async (): Promise<{ code: string | null; message: string | null }> => {
+    queryFn: async (): Promise<{
+      code: string | null;
+      message: string | null;
+    }> => {
       const res = await fetch("/api/kody/secrets", {
-        headers: { "Content-Type": "application/json", ...buildAuthHeaders(auth) },
+        headers: {
+          "Content-Type": "application/json",
+          ...buildAuthHeaders(auth),
+        },
       });
       if (res.ok) return { code: null, message: null };
       const json = (await res.json().catch(() => ({}))) as {

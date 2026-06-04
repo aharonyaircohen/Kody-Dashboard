@@ -21,7 +21,10 @@ interface VaultLockedBannerProps {
   className?: string;
 }
 
-export function VaultLockedBanner({ feature, className }: VaultLockedBannerProps) {
+export function VaultLockedBanner({
+  feature,
+  className,
+}: VaultLockedBannerProps) {
   const { failed, code, message } = useVaultStatus();
   if (!failed) return null;
 

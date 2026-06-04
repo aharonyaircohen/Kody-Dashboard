@@ -191,9 +191,7 @@ function NeedsYouCard() {
           <div>
             <div className="text-sm font-medium">Needs you</div>
             <div className="text-xs text-muted-foreground">
-              {isLoading
-                ? "Loading…"
-                : `${unreadCount} awaiting your decision`}
+              {isLoading ? "Loading…" : `${unreadCount} awaiting your decision`}
             </div>
           </div>
         </div>
@@ -339,7 +337,9 @@ function DutiesHealth() {
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading duties…</p>
       ) : duties.length === 0 ? (
-        <Card className="p-4 text-sm text-muted-foreground">No duties yet.</Card>
+        <Card className="p-4 text-sm text-muted-foreground">
+          No duties yet.
+        </Card>
       ) : (
         <Card className="p-4 space-y-3">
           <div className="flex items-center gap-4 text-sm">

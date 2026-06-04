@@ -1562,6 +1562,43 @@ export const changelogApi = {
   },
 };
 
+// ============ Docs API ============
+
+export interface DocManifestEntry {
+  name: string;
+  path: string;
+  htmlUrl: string | null;
+}
+
+export interface DocsManifestPayload {
+  files: DocManifestEntry[];
+}
+
+export interface DocFilePayload {
+  name: string;
+  path: string;
+  content: string;
+  htmlUrl: string | null;
+}
+
+export const docsApi = {
+  list: async (): Promise<DocsManifestPayload> => {
+    const res = await fetch(`${API_BASE}/docs`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse<DocsManifestPayload>(res);
+  },
+  get: async (path: string): Promise<DocFilePayload> => {
+    const res = await fetch(
+      `${API_BASE}/docs?path=${encodeURIComponent(path)}`,
+      {
+        headers: buildHeaders(),
+      },
+    );
+    return handleResponse<DocFilePayload>(res);
+  },
+};
+
 // ============ Vibe API ============
 
 /**
@@ -1986,6 +2023,7 @@ export const kodyApi = {
   messages: messagesApi,
   notifications: notificationsApi,
   changelog: changelogApi,
+  docs: docsApi,
   vibe: vibeApi,
   cto: ctoApi,
   activity: activityApi,
