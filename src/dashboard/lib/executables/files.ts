@@ -71,8 +71,6 @@ export interface ExecutableSummary {
   markdown?: boolean;
   /** Recurrence cadence from profile.every (scheduled folder-duty), or null. */
   every?: string | null;
-  /** GitHub logins to @-mention in the duty's output. */
-  mentions?: string[];
 }
 
 export interface ExecutableDetail extends ExecutableSummary {
@@ -206,9 +204,6 @@ async function listFolderDutiesInDir(
         profile && typeof profile.every === "string" && profile.every.trim()
           ? profile.every.trim()
           : null;
-      const mentions: string[] = Array.isArray(profile?.mentions)
-        ? (profile.mentions as string[]).filter((m) => typeof m === "string")
-        : [];
       return {
         slug,
         describe,
@@ -219,7 +214,6 @@ async function listFolderDutiesInDir(
         dir,
         legacy: dir === LEGACY_EXECUTABLES_DIR,
         every,
-        mentions,
       };
     }),
   );
@@ -257,13 +251,9 @@ export async function listExecutableFiles(): Promise<ExecutableSummary[]> {
  * (so no staff/schedule detail — that needs the file, which the rate-limit
  * rules forbid fetching per row). Marked `markdown: true` for the "legacy" badge.
  */
-export async function listMarkdownDutySummaries(): Promise<
-  ExecutableSummary[]
-> {
+export async function listMarkdownDutySummaries(): Promise<ExecutableSummary[]> {
   const branch = await getDefaultBranch(getOctokit()).catch(() => null);
-  const files = await listDutyFiles().catch(
-    () => [] as Awaited<ReturnType<typeof listDutyFiles>>,
-  );
+  const files = await listDutyFiles().catch(() => [] as Awaited<ReturnType<typeof listDutyFiles>>);
   return files.map((f) => ({
     slug: f.slug,
     describe: f.title ?? f.slug,
@@ -274,7 +264,6 @@ export async function listMarkdownDutySummaries(): Promise<
     dir: DUTIES_DIR,
     legacy: true,
     markdown: true,
-    mentions: [],
   }));
 }
 
@@ -356,8 +345,6 @@ export async function readExecutableFile(
     staff,
     dir,
     legacy: dir === LEGACY_EXECUTABLES_DIR,
-    every: fields.every,
-    mentions: fields.mentions,
     prompt,
     model: fields.model,
     permissionMode: fields.permissionMode,

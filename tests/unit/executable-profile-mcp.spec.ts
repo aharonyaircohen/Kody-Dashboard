@@ -18,9 +18,6 @@ const base: ExecutableFields = {
     { name: "codegraph", command: "codegraph", args: ["serve", "--mcp"] },
   ],
   landing: "comment",
-  staff: null,
-  every: null,
-  mentions: [],
 };
 
 function claudeCode(profile: Record<string, unknown>): Record<string, unknown> {

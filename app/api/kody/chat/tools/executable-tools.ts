@@ -106,9 +106,6 @@ export function createExecutableTools(ctx: Ctx) {
           // dashboard editor (Tools tab) is where they're configured.
           mcpServers: [],
           landing: input.landing,
-          staff: null,
-          every: null,
-          mentions: [],
         };
 
         // Reject a malformed profile before committing.

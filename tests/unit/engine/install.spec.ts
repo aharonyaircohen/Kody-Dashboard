@@ -17,8 +17,7 @@ import {
 // never hit the network, so stub global.fetch to return a valid template —
 // otherwise every test dies in fetchTemplate (404 / offline) before the
 // install logic under test even runs.
-const MOCK_TEMPLATE =
-  "# Kody engine workflow\nname: kody\non:\n  workflow_dispatch:\n";
+const MOCK_TEMPLATE = "# Kody engine workflow\nname: kody\non:\n  workflow_dispatch:\n";
 
 beforeEach(() => {
   vi.stubGlobal(

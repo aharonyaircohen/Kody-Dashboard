@@ -397,7 +397,11 @@ function LatestReports() {
 
   return (
     <section>
-      <SectionHeader title="Latest reports" href="/reports" cta="Reports" />
+      <SectionHeader
+        title="Latest reports"
+        href="/reports"
+        cta="Reports"
+      />
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading reports…</p>
       ) : reports.length === 0 ? (
