@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Redeploy kody-preview-builder image after merge",
+    "body": "The doorman/ directory needs to be copied into the builder image. Run: flyctl deploy -c builder/fly.toml --app kody-preview-builder from the repo root after this PR merges, so the builder image includes doorman/doorman.ts before the next preview build.",
+    "rationale": "The doorman lives in builder/doorman/ but the builder image at registry.fly.io/kody-preview-builder is baked from the old builder/Dockerfile which doesn't COPY doorman/. Until the builder image is rebuilt and pushed, the builder won't copy doorman/ into cloned repos' Dockerfile.preview files.",
+    "priority": "high"
+  },
+  {
+    "title": "Redeploy existing in-flight preview machines",
+    "body": "Existing preview machines were created with internal_port=8080 (Next.js directly on 8080). After this ships, machines will need to be rebuilt to get doorman on 8080 proxying to Next.js on 3000. A PR sync (push a new commit or close/reopen the PR) will trigger a rebuild with the new port layout.",
+    "rationale": "The internal_port change from 8080→3000 is a breaking change for currently running preview machines. The next preview rebuild (triggered naturally by a push) will pick up the new port layout.",
+    "priority": "medium"
+  },
+  {
+    "title": "Test end-to-end with a real Fly preview",
+    "body": "Open a PR on a repo with Fly previews configured, observe that: (a) the PR comment shows no fly.dev URL, (b) opening the preview from the dashboard loads correctly, (c) hitting the raw fly.dev URL directly returns 401.",
+    "rationale": "The implementation is complete and typechecked, but a live end-to-end flow test against a real preview machine hasn't been performed.",
+    "priority": "medium"
+  }
+]

@@ -121,7 +121,8 @@ export function HappeningNow({
         <Card className="divide-y divide-white/[0.04] overflow-hidden">
           {inFlight.map(({ task, quietMs }) => {
             const stuck = quietMs > STUCK_MS;
-            const moving = task.column === "building" || task.column === "retrying";
+            const moving =
+              task.column === "building" || task.column === "retrying";
             return (
               <div
                 key={task.id}

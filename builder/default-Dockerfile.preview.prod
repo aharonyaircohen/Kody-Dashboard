@@ -6,6 +6,11 @@
 # first build (~5–10 min webpack) but instant per-page response.
 # Pick this mode for repos where reviewers test production-only
 # behaviour (SSG, static optimization, edge runtime parity).
+#
+# Port layout: the doorman proxy listens on 8080 (Fly routes here) and
+# proxies validated requests to Next.js on 3000 (internal). The doorman
+# is the entry point — it sets a session cookie on first load so the
+# ticket leaves no trace in browser history.
 
 ARG BASE_IMAGE=node:22-alpine
 
@@ -25,9 +30,15 @@ RUN --mount=type=cache,id=kp-pnpm-store,target=/root/.local/share/pnpm/store \
 COPY . ./
 RUN mkdir -p public
 
+# Copy the doorman proxy (must be after COPY . so it isn't overwritten;
+# if the repo has its own doorman/ it will override via the earlier COPY .)
+COPY doorman/ ./doorman/
+
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+# Doorman listens on 8080; Next.js runs internally on 3000
 ENV PORT=8080
+ENV NEXT_INTERNAL_PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV NODE_OPTIONS="--max-old-space-size=7168"
 
@@ -37,4 +48,11 @@ RUN --mount=type=cache,id=kp-next-cache,target=/app/.next/cache \
     fi
 
 EXPOSE 8080
-CMD ["sh", "-c", "if [ -f pnpm-lock.yaml ]; then pnpm exec next start -H 0.0.0.0 -p 8080; else npx next start -H 0.0.0.0 -p 8080; fi"]
+# Doorman is PID 1 — starts Next.js as a child, proxies validated traffic.
+# next start binds to NEXT_INTERNAL_PORT (3000); doorman proxies :8080 → :3000.
+# APP_NAME and KODY_PREVIEW_VERIFY_KEY are injected at machine boot (runtime).
+CMD ["sh", "-c", \
+  "if [ -f pnpm-lock.yaml ]; then pnpm exec next start -H 0.0.0.0 -p ${NEXT_INTERNAL_PORT:-3000} & \
+  else npx next start -H 0.0.0.0 -p ${NEXT_INTERNAL_PORT:-3000} & \
+  fi; \
+  exec node --experimental-strip-types doorman/doorman.ts"]

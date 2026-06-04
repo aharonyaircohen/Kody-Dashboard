@@ -25,6 +25,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { flyPrPreviewUrl } from "@dashboard/lib/previews/fly-pr-preview-url";
+import { mintPreviewTicket } from "@dashboard/lib/preview-token";
 
 // Git SHAs are 40 hex chars; accept 7-40 to tolerate abbreviated refs.
 const querySchema = z.object({
@@ -64,7 +65,15 @@ export async function GET(req: NextRequest) {
           parsed.data.pr,
         );
         if (flyUrl) {
-          return NextResponse.json({ previewUrl: flyUrl, source: "fly" });
+          // Append a signed access ticket — the doorman in the preview machine
+          // verifies it and exchanges it for a session cookie on first load.
+          const { ticket } = mintPreviewTicket(
+            `${headerAuth.owner}/${headerAuth.repo}`,
+            parsed.data.pr,
+            4 * 60 * 60, // 4 hours TTL
+          );
+          const previewUrl = `${flyUrl}?kp=${ticket}`;
+          return NextResponse.json({ previewUrl, source: "fly" });
         }
       }
     }

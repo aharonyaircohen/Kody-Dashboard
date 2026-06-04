@@ -219,6 +219,15 @@ mirror, per-PR app + IPs + preview machine). Dashboard never polls;
 status checks query Fly's API directly via the deterministic per-PR
 app name.
 
+**Token-gated access:** a doorman proxy runs on port 8080 (Fly's mapped
+port) and proxies validated traffic to Next.js on port 3000. The raw
+`<app>.fly.dev` URL returns `401` without a signed ticket. The
+dashboard mints a `kody-preview:` HMAC ticket (`repo#pr:expiry`, keyed
+by HKDF-derived verify key) on first load; the doorman verifies it,
+sets a session cookie, and strips the ticket from the URL. Tickets
+expire after 4 hours. PR comments no longer carry the raw `fly.dev`
+URL — the dashboard handles ticket minting behind its auth gate.
+
 Preview Fly machines are configured `auto_stop_machines: "suspend"` +
 `auto_start_machines: true`, so they snapshot RAM to disk when idle
 (~$0) and wake in ~1–2s on next request. **Not warm-running, not
@@ -231,6 +240,14 @@ vault `KODY_PREVIEW_BUILD_MODE=dev`).
 
 Per-repo billing: every Fly call uses `FLY_API_TOKEN` from the target
 repo's vault. **Never** read it from `process.env` or a global config.
+
+- Signed ticket minting: [src/dashboard/lib/preview-token.ts](src/dashboard/lib/preview-token.ts)
+- Ticket API: [app/api/kody/previews/ticket/route.ts](app/api/kody/previews/ticket/route.ts)
+- Doorman proxy: [builder/doorman/doorman.ts](builder/doorman/doorman.ts)
+- Lifecycle: [src/dashboard/lib/previews/preview-lifecycle.ts](src/dashboard/lib/previews/preview-lifecycle.ts)
+- Builder spawn: [src/dashboard/lib/previews/builder-client.ts](src/dashboard/lib/previews/builder-client.ts)
+- One-shot builder image: [builder/](builder/)
+- Full docs: [docs/previews.md](docs/previews.md)
 
 - Lifecycle: [src/dashboard/lib/previews/preview-lifecycle.ts](src/dashboard/lib/previews/preview-lifecycle.ts)
 - Builder spawn: [src/dashboard/lib/previews/builder-client.ts](src/dashboard/lib/previews/builder-client.ts)

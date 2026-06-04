@@ -18,6 +18,7 @@
 import { createHash } from "node:crypto";
 
 import { logger } from "@dashboard/lib/logger";
+import { derivePreviewKey } from "@dashboard/lib/preview-token";
 
 const FLY_MACHINES_BASE = "https://api.machines.dev/v1";
 const BUILDER_IMAGE =
@@ -85,6 +86,11 @@ export async function spawnPreviewBuilder(
         FLY_API_TOKEN: input.flyToken,
         FLY_ORG_SLUG: input.flyOrgSlug,
         FLY_REGION: input.flyRegion,
+        // Derived preview-verify key — HKDF of KODY_MASTER_KEY with info
+        // "kody-preview:v1". The raw master key never leaves the dashboard.
+        // The builder threads this to the preview machine as a runtime env,
+        // where the doorman reads it to verify access tickets.
+        KODY_PREVIEW_VERIFY_KEY: derivePreviewKey().toString("hex"),
         ...(input.githubToken ? { GITHUB_TOKEN: input.githubToken } : {}),
         // When set, the builder posts (or updates) one idempotent
         // comment on the PR with the preview URL. Omitted on base
