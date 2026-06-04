@@ -149,12 +149,30 @@ function AllClear({ message }: { message: string }) {
 
 // ── attention cards ─────────────────────────────────────────────────────────
 
-/** "Needs you" — unread inbox entries, with CTO approvals surfaced first. */
+/**
+ * "Needs you" — unread inbox count plus a breakdown by what kind of thing is
+ * waiting (approvals / mentions / reviews / other). Stats, not a scrolling list
+ * of items — the full items live one click away on /inbox.
+ */
 function NeedsYouCard() {
   const { unread, unreadCount, isLoading } = useInbox();
-  const top = [...unread]
-    .sort((a, b) => Date.parse(b.sentAt) - Date.parse(a.sentAt))
-    .slice(0, 5);
+
+  const approvals = unread.filter((e) => e.ctoAction).length;
+  const mentions = unread.filter(
+    (e) =>
+      !e.ctoAction && (e.source === "mention" || e.source === "team_mention"),
+  ).length;
+  const reviews = unread.filter(
+    (e) => !e.ctoAction && e.source === "review_requested",
+  ).length;
+  const other = unreadCount - approvals - mentions - reviews;
+
+  const stats = [
+    { label: "Approvals", value: approvals, tone: "text-amber-300" },
+    { label: "Mentions", value: mentions, tone: "text-sky-300" },
+    { label: "Reviews", value: reviews, tone: "text-violet-300" },
+    { label: "Other", value: other, tone: "text-foreground" },
+  ].filter((s) => s.value > 0);
 
   return (
     <Card className="p-4">
@@ -190,32 +208,24 @@ function NeedsYouCard() {
       {!isLoading && unreadCount === 0 ? (
         <AllClear message="You're all caught up." />
       ) : (
-        <div className="space-y-1">
-          {top.map((e) => {
-            const badge = e.ctoAction ?? e.source.replace(/_/g, " ");
-            return (
-              <Link
-                key={e.id}
-                href="/inbox"
-                className="flex items-start gap-2 px-2 py-2 -mx-2 rounded-md hover:bg-white/[0.04] transition-colors"
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
+          {stats.map((s) => (
+            <Link
+              key={s.label}
+              href="/inbox"
+              className="flex items-baseline gap-1.5"
+            >
+              <span
+                className={cn(
+                  "text-lg font-semibold tabular-nums leading-none",
+                  s.tone,
+                )}
               >
-                <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 shrink-0 mt-0.5">
-                  {badge}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm truncate">{e.title}</div>
-                  {e.snippet && (
-                    <div className="text-xs text-muted-foreground truncate">
-                      {e.snippet}
-                    </div>
-                  )}
-                </div>
-                <span className="text-[11px] text-muted-foreground shrink-0 mt-0.5">
-                  {timeAgo(e.sentAt)}
-                </span>
-              </Link>
-            );
-          })}
+                {s.value}
+              </span>
+              <span className="text-xs text-muted-foreground">{s.label}</span>
+            </Link>
+          ))}
         </div>
       )}
     </Card>

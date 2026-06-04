@@ -22,6 +22,7 @@ import {
 } from "@dashboard/lib/github-client";
 import {
   listExecutableFiles,
+  listMarkdownDutySummaries,
   readExecutableFile,
   writeExecutableFile,
   isValidSlug,
@@ -39,7 +40,18 @@ export async function GET(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
-    const executables = await listExecutableFiles();
+    // One unified duty list: folder-duties + legacy markdown duties merged so an
+    // unmigrated repo's `.md` duties still show (folder wins on slug clash).
+    // listMarkdownDutySummaries is a single dir listing — no per-duty reads.
+    const [folderDuties, markdownDuties] = await Promise.all([
+      listExecutableFiles(),
+      listMarkdownDutySummaries().catch(() => []),
+    ]);
+    const folderSlugs = new Set(folderDuties.map((d) => d.slug));
+    const executables = [
+      ...folderDuties,
+      ...markdownDuties.filter((d) => !folderSlugs.has(d.slug)),
+    ].sort((a, b) => a.slug.localeCompare(b.slug));
     let defaults = { issue: null as string | null, pr: null as string | null };
     if (headerAuth) {
       const userOctokit = await getUserOctokit(req);

@@ -11,7 +11,6 @@ import {
   Activity,
   Bell,
   Bot,
-  Boxes,
   Building2,
   Cpu,
   FileText,
@@ -202,14 +201,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-violet-300 bg-violet-500/10",
       },
       {
-        href: "/executables",
-        label: "Executables",
-        icon: Boxes,
-        description:
-          "Custom @kody <slug> actions stored in the repo — the engine runs them before its built-ins.",
-        tint: "text-teal-300 bg-teal-500/10",
-      },
-      {
         href: "/instructions",
         label: "Instructions",
         icon: ScrollText,
@@ -255,7 +246,8 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/runner",
         label: "Fly Runner",
         icon: Rocket,
-        description: "Per-repo Fly infra: warm-pool size, LiteLLM, Brain.",
+        description:
+          "Per-repo Fly infra: machines, activity, warm-pool, LiteLLM, Brain.",
         tint: "text-sky-300 bg-sky-500/10",
       },
       {
