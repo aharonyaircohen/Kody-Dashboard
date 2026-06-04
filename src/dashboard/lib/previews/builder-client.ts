@@ -46,6 +46,14 @@ export interface SpawnBuilderInput {
   buildEnv?: Record<string, string>;
   /** "dev" or "prod" — picks bundled Dockerfile.preview variant. */
   buildMode?: "dev" | "prod";
+  /** Per-PR preview machine sizing + lifecycle knobs, resolved from the
+   * repo's kody.config.json (`fly.previews`). Passed to the builder as env so
+   * the machine it boots uses these instead of the builder's hardcoded
+   * fallback. Omit any field to let the builder apply its own default. */
+  previewVmCpus?: number;
+  previewVmMemoryMb?: number;
+  previewIdleSuspend?: boolean;
+  previewHealthCheck?: boolean;
 }
 
 export interface SpawnBuilderResult {
@@ -91,6 +99,21 @@ export async function spawnPreviewBuilder(
           ? { MIRROR_TO_GHCR_OWNER: process.env.KODY_PREVIEW_GHCR_OWNER }
           : {}),
         ...(input.buildMode ? { PREVIEW_BUILD_MODE: input.buildMode } : {}),
+        // Preview machine knobs (from kody.config.json fly.previews). The
+        // builder reads these to size + configure the machine it boots,
+        // instead of its own hardcoded fallback.
+        ...(typeof input.previewVmCpus === "number"
+          ? { PREVIEW_VM_CPUS: String(input.previewVmCpus) }
+          : {}),
+        ...(typeof input.previewVmMemoryMb === "number"
+          ? { PREVIEW_VM_MEMORY_MB: String(input.previewVmMemoryMb) }
+          : {}),
+        ...(typeof input.previewIdleSuspend === "boolean"
+          ? { PREVIEW_IDLE_SUSPEND: input.previewIdleSuspend ? "1" : "0" }
+          : {}),
+        ...(typeof input.previewHealthCheck === "boolean"
+          ? { PREVIEW_HEALTHCHECK: input.previewHealthCheck ? "1" : "0" }
+          : {}),
         // Build env passed as a single JSON blob so name collisions
         // with builder control vars are impossible.
         ...(input.buildEnv && Object.keys(input.buildEnv).length > 0

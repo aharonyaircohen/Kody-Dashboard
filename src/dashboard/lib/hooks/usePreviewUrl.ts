@@ -2,11 +2,13 @@
  * @fileType hook
  * @domain kody
  * @pattern usePreviewUrl
- * @ai-summary Resolves a PR's Vercel preview URL on demand by its head commit.
- * The preview pane uses this so the link appears immediately on open instead
- * of waiting for the background tasks poll. Shows the already-known URL
- * instantly (placeholder) while confirming, and polls only while the
- * deployment is still building (no URL yet).
+ * @ai-summary Resolves a PR's preview URL on demand (Fly-first, Vercel
+ * fallback — the server decides). The preview pane uses this so the link
+ * appears immediately on open instead of waiting for the background tasks
+ * poll. Pass the PR number so the server can prefer the Fly preview; without
+ * it, resolution falls back to the Vercel deployment for `sha`. Shows the
+ * already-known URL instantly (placeholder) while confirming, and polls only
+ * while the deployment is still building (no URL yet).
  */
 "use client";
 
@@ -17,11 +19,12 @@ const BUILDING_POLL_MS = 15_000;
 
 export function usePreviewUrl(
   sha: string | undefined,
+  pr?: number,
   initialUrl?: string | null,
 ) {
   const query = useQuery({
-    queryKey: ["preview-url", sha],
-    queryFn: () => prsApi.preview(sha!),
+    queryKey: ["preview-url", sha, pr],
+    queryFn: () => prsApi.preview(sha!, pr),
     enabled: !!getStoredAuth() && !!sha,
     // Show the link the tasks list already knew about while we confirm it.
     placeholderData: initialUrl ?? undefined,

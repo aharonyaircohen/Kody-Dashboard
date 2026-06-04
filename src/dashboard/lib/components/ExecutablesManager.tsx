@@ -95,8 +95,14 @@ interface ExecutableSummary {
   slug: string;
   describe: string;
   landing: ExecutableLanding;
-  updatedAt: string;
+  updatedAt: string | null;
   htmlUrl: string;
+  /** Staff member this duty runs as, or null. */
+  staff?: string | null;
+  /** True when still under the legacy `.kody/executables/` dir. */
+  legacy?: boolean;
+  /** True for a legacy markdown duty (`.kody/duties/<slug>.md`), pending migration. */
+  markdown?: boolean;
 }
 interface ExecutableDetail extends ExecutableSummary {
   prompt: string;
@@ -312,16 +318,16 @@ function ExecutableEditorPageInner({ slug }: { slug: string | null }) {
     mutationFn: (payload: SavePayload) => saveApi(headers, payload, actorLogin),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
-      toast.success("Executable saved");
+      toast.success("Duty saved");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to save"),
   });
 
-  const back = () => router.push("/executables");
+  const back = () => router.push("/duties");
 
   return (
     <PageShell
-      title={slug ? `Edit @kody ${slug}` : "New executable"}
+      title={slug ? `Edit @kody ${slug}` : "New duty"}
       icon={Boxes}
       iconClassName="text-amber-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
@@ -363,7 +369,7 @@ function ExecutablesManagerInner() {
     mutationFn: (slug: string) => deleteApi(headers, slug),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
-      toast.success("Executable deleted");
+      toast.success("Duty deleted");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to delete"),
   });
@@ -403,7 +409,7 @@ function ExecutablesManagerInner() {
 
   return (
     <PageShell
-      title="Executables"
+      title="Duties"
       icon={Boxes}
       iconClassName="text-amber-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
@@ -411,7 +417,7 @@ function ExecutablesManagerInner() {
         <Button asChild size="sm" className="gap-1">
           <Link href="/executables/new">
             <Plus className="w-4 h-4" />
-            New executable
+            New duty
           </Link>
         </Button>
       }
@@ -419,7 +425,7 @@ function ExecutablesManagerInner() {
       <div className="space-y-3">
         {isLoading && (
           <p className="text-sm text-white/50 flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading executables…
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading duties…
           </p>
         )}
 
@@ -427,7 +433,7 @@ function ExecutablesManagerInner() {
           <Card className="border-rose-500/30 bg-rose-950/20">
             <CardContent className="p-4 text-sm">
               <p className="text-rose-300 font-medium">
-                Couldn&apos;t load executables
+                Couldn&apos;t load duties
               </p>
               <p className="text-rose-200/70 mt-1">
                 {error instanceof Error ? error.message : "Unknown error"}
@@ -448,15 +454,15 @@ function ExecutablesManagerInner() {
           <Card className="border-white/[0.08] bg-white/[0.02]">
             <CardContent className="p-6 text-center space-y-3">
               <Sparkles className="w-8 h-8 text-white/30 mx-auto" />
-              <p className="text-sm text-white/70">No executables yet.</p>
+              <p className="text-sm text-white/70">No duties yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                An executable is a custom{" "}
+                A duty is a staffed{" "}
                 <code className="text-white/55">@kody &lt;slug&gt;</code> action
                 stored at{" "}
                 <code className="text-white/55">
-                  .kody/executables/&lt;slug&gt;/
+                  .kody/duties/&lt;slug&gt;/
                 </code>{" "}
-                in this repo. The engine runs it before its built-ins.
+                in this repo. The engine runs it as its staff member.
               </p>
             </CardContent>
           </Card>
@@ -466,8 +472,8 @@ function ExecutablesManagerInner() {
           <ListSearch
             value={search}
             onChange={setSearch}
-            placeholder="Search executables…"
-            ariaLabel="Search executables"
+            placeholder="Search duties…"
+            ariaLabel="Search duties"
             accent="teal"
           />
         )}
@@ -488,6 +494,16 @@ function ExecutablesManagerInner() {
                         <span className="text-[10px] uppercase tracking-wide bg-white/[0.06] text-white/50 px-1.5 py-0.5 rounded">
                           {e.landing === "pr" ? "opens PR" : "comments"}
                         </span>
+                        {e.staff && (
+                          <span className="text-[10px] uppercase tracking-wide bg-emerald-500/15 text-emerald-300/90 px-1.5 py-0.5 rounded">
+                            runs as {e.staff}
+                          </span>
+                        )}
+                        {e.legacy && (
+                          <span className="text-[10px] uppercase tracking-wide bg-orange-500/15 text-orange-300/90 px-1.5 py-0.5 rounded">
+                            {e.markdown ? "legacy .md" : "legacy"}
+                          </span>
+                        )}
                         {isIssueDefault && (
                           <span className="text-[10px] uppercase tracking-wide bg-amber-500/15 text-amber-300/90 px-1.5 py-0.5 rounded">
                             issue default
@@ -509,71 +525,89 @@ function ExecutablesManagerInner() {
                           Updated {formatRelative(e.updatedAt)}
                         </p>
                       )}
-                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        <Button
-                          size="sm"
-                          variant={isIssueDefault ? "secondary" : "ghost"}
-                          className="h-6 gap-1 text-[11px] px-2"
-                          onClick={() =>
-                            setDefault.mutate({
-                              slug: e.slug,
-                              target: "issue",
-                              clear: isIssueDefault,
-                            })
-                          }
-                        >
-                          <Star className="w-3 h-3" />
-                          {isIssueDefault
-                            ? "Issue default ✓"
-                            : "Set issue default"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={isPrDefault ? "secondary" : "ghost"}
-                          className="h-6 gap-1 text-[11px] px-2"
-                          onClick={() =>
-                            setDefault.mutate({
-                              slug: e.slug,
-                              target: "pr",
-                              clear: isPrDefault,
-                            })
-                          }
-                        >
-                          <Star className="w-3 h-3" />
-                          {isPrDefault ? "PR default ✓" : "Set PR default"}
-                        </Button>
-                      </div>
+                      {e.markdown ? (
+                        <p className="text-[11px] text-orange-300/70 mt-2">
+                          Legacy markdown duty — migrate to a folder-duty to edit
+                          it here.
+                        </p>
+                      ) : (
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                          <Button
+                            size="sm"
+                            variant={isIssueDefault ? "secondary" : "ghost"}
+                            className="h-6 gap-1 text-[11px] px-2"
+                            onClick={() =>
+                              setDefault.mutate({
+                                slug: e.slug,
+                                target: "issue",
+                                clear: isIssueDefault,
+                              })
+                            }
+                          >
+                            <Star className="w-3 h-3" />
+                            {isIssueDefault
+                              ? "Issue default ✓"
+                              : "Set issue default"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={isPrDefault ? "secondary" : "ghost"}
+                            className="h-6 gap-1 text-[11px] px-2"
+                            onClick={() =>
+                              setDefault.mutate({
+                                slug: e.slug,
+                                target: "pr",
+                                clear: isPrDefault,
+                              })
+                            }
+                          >
+                            <Star className="w-3 h-3" />
+                            {isPrDefault ? "PR default ✓" : "Set PR default"}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-1"
-                        onClick={() => setRunning(e.slug)}
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                        Run
-                      </Button>
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="ghost"
-                        className="gap-1"
-                      >
-                        <Link href={`/executables/${e.slug}`}>
-                          <Pencil className="w-3.5 h-3.5" />
-                          Edit
-                        </Link>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-1 text-rose-300 hover:text-rose-200"
-                        onClick={() => setDeleting(e.slug)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </Button>
+                      {e.markdown ? (
+                        <Button asChild size="sm" variant="ghost" className="gap-1">
+                          <a href={e.htmlUrl} target="_blank" rel="noreferrer">
+                            <Pencil className="w-3.5 h-3.5" />
+                            Open .md
+                          </a>
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1"
+                            onClick={() => setRunning(e.slug)}
+                          >
+                            <Play className="w-3.5 h-3.5" />
+                            Run
+                          </Button>
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1"
+                          >
+                            <Link href={`/executables/${e.slug}`}>
+                              <Pencil className="w-3.5 h-3.5" />
+                              Edit
+                            </Link>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1 text-rose-300 hover:text-rose-200"
+                            onClick={() => setDeleting(e.slug)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Delete
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -598,7 +632,7 @@ function ExecutablesManagerInner() {
       <ConfirmDialog
         open={deleting !== null}
         title={`Delete @kody ${deleting}?`}
-        description="The whole .kody/executables/<slug>/ folder is removed from the repo."
+        description="The whole duty folder is removed from the repo."
         confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
         onConfirm={() => {
@@ -875,10 +909,10 @@ function ExecutableEditorForm({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-white/90">
-            {isNew ? "New executable" : `Edit @kody ${initial?.slug}`}
+            {isNew ? "New duty" : `Edit @kody ${initial?.slug}`}
           </h2>
           <p className="text-xs text-white/50">
-            Stored at .kody/executables/&lt;slug&gt;/. The engine runs it for
+            Stored at .kody/duties/&lt;slug&gt;/. The engine runs it for
             <code className="mx-1">@kody &lt;slug&gt;</code>.
           </p>
         </div>

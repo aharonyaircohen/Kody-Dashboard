@@ -40,6 +40,18 @@ import { Checkbox } from "@dashboard/ui/checkbox";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { useAuth, type FlyPerfTier } from "../auth-context";
+
+// Brain has its own size, independent of the task-run speed. Same intent
+// names as Task runners; the spec is in the hint.
+const BRAIN_SIZE_DEFAULT: FlyPerfTier = "medium";
+const BRAIN_SIZE_ORDER: FlyPerfTier[] = ["low", "medium", "high"];
+const BRAIN_SIZE_LABELS: Record<FlyPerfTier, { label: string; hint: string }> =
+  {
+    low: { label: "Economy", hint: "shared 2× / 2 GB — cheapest" },
+    medium: { label: "Balanced", hint: "performance 1× / 2 GB — default" },
+    high: { label: "Fast", hint: "performance 2× / 4 GB — costs more" },
+  };
 
 export type BrainFlyState =
   | "off"
@@ -93,7 +105,7 @@ function pillLabel(state: BrainFlyState): string {
     case "running":
       return "Running";
     case "suspended":
-      return "Suspended";
+      return "Sleeping";
     case "stopped":
       return "Stopped";
     default:
@@ -105,6 +117,8 @@ export function BrainFlyCard({
   headers,
   flyTokenConfigured,
 }: BrainFlyCardProps) {
+  const { auth, updateIntegrations } = useAuth();
+  const brainPerf: FlyPerfTier = auth?.brainPerf ?? BRAIN_SIZE_DEFAULT;
   const [state, setState] = useState<BrainFlyState>("unknown");
   const [app, setApp] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -199,7 +213,7 @@ export function BrainFlyCard({
     try {
       const res = await fetch("/api/kody/brain/provision", {
         method: "POST",
-        headers,
+        headers: { ...headers, "x-kody-brain-perf": brainPerf },
       });
       const body = (await res.json().catch(() => ({}))) as ProvisionResponse;
       if (!res.ok) {
@@ -301,6 +315,9 @@ export function BrainFlyCard({
             >
               {pillLabel(state)}
             </span>
+            <span className="ml-2 text-[10px] text-white/35 uppercase tracking-wide">
+              just you
+            </span>
             <Button
               size="sm"
               variant="ghost"
@@ -317,14 +334,45 @@ export function BrainFlyCard({
             </Button>
           </div>
           <p className="text-xs text-white/50 -mt-2">
-            Per-user Brain server on your Fly account. Suspends when idle
-            (resumes in ~1s on the next chat) — no manual wake-up required.
+            Your personal Brain server on Fly. Sleeps when idle, wakes in ~1s on
+            the next chat — no manual wake-up needed.
           </p>
-          {!flyTokenConfigured && (
-            <p className="text-[11px] text-amber-300/80 italic">
-              Add FLY_API_TOKEN to the repo Secrets vault to enable.
-            </p>
+
+          {/* Brain size — its OWN setting, not the task-run speed. */}
+          {flyTokenConfigured && (
+            <div className="space-y-1.5">
+              <span className="text-xs text-white/70">Size</span>
+              <div className="flex gap-1.5">
+                {BRAIN_SIZE_ORDER.map((tier) => {
+                  const active = brainPerf === tier;
+                  return (
+                    <button
+                      key={tier}
+                      type="button"
+                      onClick={() =>
+                        updateIntegrations({
+                          brainPerf: tier === BRAIN_SIZE_DEFAULT ? null : tier,
+                        })
+                      }
+                      title={BRAIN_SIZE_LABELS[tier].hint}
+                      className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${
+                        active
+                          ? "border-violet-500/50 bg-violet-500/15 text-violet-200"
+                          : "border-white/10 bg-black/20 text-white/60 hover:text-white/80"
+                      }`}
+                    >
+                      {BRAIN_SIZE_LABELS[tier].label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-white/35">
+                {BRAIN_SIZE_LABELS[brainPerf].hint}
+                {isOn ? " · applies next time you turn Brain off then on." : ""}
+              </p>
+            </div>
           )}
+
           {flyTokenConfigured && (
             <label className="flex items-start gap-2.5 cursor-pointer select-none">
               <Checkbox

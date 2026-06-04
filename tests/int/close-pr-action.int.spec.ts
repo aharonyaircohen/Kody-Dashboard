@@ -16,8 +16,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // --- Mocks for every module the route pulls in at import time ----------
 
-const closePR = vi.fn(async () => undefined);
-const deleteBranch = vi.fn(async () => undefined);
+const closePR = vi.fn(async (..._args: unknown[]) => undefined);
+const deleteBranch = vi.fn(async (..._args: unknown[]) => undefined);
 const findAssociatedPRByIssueNumber = vi.fn();
 const findTaskBranch = vi.fn();
 const isProtectedBranch = vi.fn();

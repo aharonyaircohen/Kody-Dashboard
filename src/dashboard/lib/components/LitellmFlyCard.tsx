@@ -56,21 +56,6 @@ interface PoolStatus {
   total: number;
 }
 
-function pillClasses(state: LitellmFlyState): string {
-  switch (state) {
-    case "running":
-      return "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
-    case "suspended":
-      return "bg-amber-500/15 text-amber-300 border-amber-500/30";
-    case "stopped":
-      return "bg-rose-500/15 text-rose-300 border-rose-500/30";
-    case "off":
-      return "bg-white/5 text-white/60 border-white/10";
-    default:
-      return "bg-white/5 text-white/40 border-white/10";
-  }
-}
-
 function pillLabel(state: LitellmFlyState): string {
   switch (state) {
     case "off":
@@ -91,16 +76,12 @@ export function LitellmFlyCard({
   flyTokenConfigured,
 }: LitellmFlyCardProps) {
   const [state, setState] = useState<LitellmFlyState>("unknown");
-  const [app, setApp] = useState<string | null>(null);
-  const [machineCount, setMachineCount] = useState<number | null>(null);
   const [pool, setPool] = useState<PoolStatus | null>(null);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!flyTokenConfigured || Object.keys(headers).length === 0) {
       setState("off");
-      setApp(null);
-      setMachineCount(null);
       setPool(null);
       return;
     }
@@ -115,8 +96,6 @@ export function LitellmFlyCard({
       } else {
         const body = (await statusRes.json()) as StatusResponse;
         setState(body.state ?? "unknown");
-        setApp(body.app ?? null);
-        setMachineCount(body.machineCount ?? null);
       }
       if (poolRes.ok) {
         const body = (await poolRes.json()) as { status: PoolStatus | null };
@@ -135,76 +114,46 @@ export function LitellmFlyCard({
     void refresh();
   }, [refresh]);
 
+  // Read-only one-line strip: a dot + state word + "N ready", with refresh.
+  // The shared proxy has no editable controls, so it's a status readout, not
+  // a full card. The deeper free/warming/claiming breakdown lives on the
+  // Machines tab. The page-level banner owns the FLY_API_TOKEN gate.
+  const dotColor =
+    state === "running"
+      ? "bg-emerald-400"
+      : state === "suspended"
+        ? "bg-amber-400"
+        : state === "stopped"
+          ? "bg-rose-400"
+          : "bg-white/30";
+
   return (
     <Card className="border-white/[0.08] bg-white/[0.03]">
-      <CardContent className="p-4 space-y-4">
-        <div className="flex items-center gap-2">
-          <Server className="w-4 h-4 text-sky-400" />
-          <h2 className="text-sm font-semibold">LiteLLM proxy</h2>
-          <span
-            className={`ml-2 px-2 py-0.5 rounded-full border text-[10px] font-medium uppercase tracking-wide ${pillClasses(
-              state,
-            )}`}
-          >
-            {pillLabel(state)}
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={refresh}
-            disabled={loading || !flyTokenConfigured}
-            className="ml-auto h-7 px-2 text-white/50 hover:text-white/80"
-            title="Refresh status"
-          >
-            {loading ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <RefreshCw className="w-3 h-3" />
-            )}
-          </Button>
-        </div>
-        <p className="text-xs text-white/50 -mt-2">
-          Shared always-on proxy your Fly runners point at to skip the ~24s
-          LiteLLM cold-start. Deployed from{" "}
-          <span className="font-mono">kody2/litellm-server</span> via{" "}
-          <span className="font-mono">fly deploy</span> — this card is
-          read-only.
-        </p>
-        {!flyTokenConfigured && (
-          <p className="text-[11px] text-amber-300/80 italic">
-            Add FLY_API_TOKEN to the repo Secrets vault to enable. Without Fly,
-            tasks run on GitHub Actions.
-          </p>
-        )}
-        {flyTokenConfigured && state === "off" && (
-          <p className="text-[11px] text-amber-300/80 italic">
-            App not found on your Fly org. Runs fall back to a per-session
-            LiteLLM start (~24s slower) until you deploy it.
-          </p>
-        )}
-        {app && (
-          <div className="text-[11px] text-white/40 font-mono break-all">
-            {app}.internal:4000
-            {machineCount != null && machineCount > 0
-              ? ` · ${machineCount} machine${machineCount === 1 ? "" : "s"}`
-              : ""}
-          </div>
-        )}
+      <CardContent className="p-3 flex items-center gap-2 text-xs">
+        <Server className="w-4 h-4 text-sky-400 shrink-0" />
+        <span className="font-semibold">Model proxy (LiteLLM)</span>
+        <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ml-1`} />
+        <span className="text-white/60">{pillLabel(state)}</span>
         {pool && (
-          <div className="flex items-center gap-3 pt-1 border-t border-white/[0.06] text-[11px]">
-            <span className="text-white/50 font-medium">Warm pool</span>
-            <span className="text-emerald-300/90">{pool.free} ready</span>
-            {pool.booting > 0 && (
-              <span className="text-amber-300/80">{pool.booting} warming</span>
-            )}
-            {pool.claimsInFlight > 0 && (
-              <span className="text-sky-300/80">
-                {pool.claimsInFlight} claiming
-              </span>
-            )}
-            <span className="text-white/35 ml-auto">target {pool.min}</span>
-          </div>
+          <span className="text-emerald-300/90">· {pool.free} ready</span>
         )}
+        <span className="ml-2 text-[10px] text-white/30 uppercase tracking-wide">
+          read-only
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={refresh}
+          disabled={loading || !flyTokenConfigured}
+          className="ml-auto h-6 px-1.5 text-white/40 hover:text-white/70"
+          title="Refresh status"
+        >
+          {loading ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <RefreshCw className="w-3 h-3" />
+          )}
+        </Button>
       </CardContent>
     </Card>
   );

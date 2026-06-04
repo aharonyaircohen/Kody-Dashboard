@@ -47,6 +47,13 @@ export interface MachineInfo {
   id: string;
   state: string;
   region: string;
+  /** ISO timestamp Fly reports as the machine's creation time. Used by the
+   * TTL sweep to decide whether a preview is past its expiry. */
+  createdAt?: string;
+  /** Machine name (Fly-assigned or set at create). */
+  name?: string;
+  /** Guest sizing — populated for the machines-inventory view. */
+  guest?: { cpuKind?: string; cpus?: number; memoryMb?: number };
 }
 
 /**
@@ -202,8 +209,12 @@ export async function createMachine(
           ],
           protocol: "tcp",
           internal_port: internalPort,
-          auto_stop_machines: "suspend",
-          auto_start_machines: true,
+          // Machines API field names are `autostop`/`autostart` — the
+          // fly.toml names (`auto_stop_machines`/`auto_start_machines`) are
+          // silently dropped, leaving the machine running 24/7 + unable to
+          // auto-wake. (Same bug bit the per-PR builder path.)
+          autostop: "suspend",
+          autostart: true,
           min_machines_running: 0,
         },
       ],
@@ -277,10 +288,49 @@ export async function listMachines(
   await assertOk(res, "listMachines");
   const data = (await res.json()) as Array<{
     id: string;
+    name?: string;
     state: string;
     region: string;
+    created_at?: string;
+    config?: {
+      guest?: { cpu_kind?: string; cpus?: number; memory_mb?: number };
+    };
   }>;
-  return data.map((m) => ({ id: m.id, state: m.state, region: m.region }));
+  return data.map((m) => ({
+    id: m.id,
+    name: m.name,
+    state: m.state,
+    region: m.region,
+    createdAt: m.created_at,
+    guest: m.config?.guest
+      ? {
+          cpuKind: m.config.guest.cpu_kind,
+          cpus: m.config.guest.cpus,
+          memoryMb: m.config.guest.memory_mb,
+        }
+      : undefined,
+  }));
+}
+
+/**
+ * List every Fly app in the org whose name starts with `prefix`. Used by the
+ * preview TTL sweep to enumerate a repo's preview apps (`kp-<owner>-<repo>-`).
+ * Returns app names only — the sweep then inspects each app's machines.
+ */
+export async function listAppsByPrefix(
+  prefix: string,
+  cfg: FlyPreviewConfig,
+): Promise<string[]> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps?org_slug=${encodeURIComponent(cfg.orgSlug)}`,
+    { method: "GET" },
+    cfg.token,
+  );
+  await assertOk(res, "listAppsByPrefix");
+  const data = (await res.json()) as { apps?: Array<{ name?: string }> };
+  return (data.apps ?? [])
+    .map((a) => a.name ?? "")
+    .filter((n) => n.startsWith(prefix));
 }
 
 export async function destroyMachine(
@@ -302,6 +352,37 @@ export async function destroyMachine(
   );
   if (res.status === 404) return;
   await assertOk(res, "destroyMachine");
+}
+
+/** Suspend a machine: snapshot RAM to disk, ~$0 while idle, wakes on request
+ * (or via {@link startMachine}). No-op (404 tolerated) if it's already gone. */
+export async function suspendMachine(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/suspend`,
+    { method: "POST" },
+    cfg.token,
+  );
+  if (res.status === 404) return;
+  await assertOk(res, "suspendMachine");
+}
+
+/** Start (wake) a suspended/stopped machine. */
+export async function startMachine(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/start`,
+    { method: "POST" },
+    cfg.token,
+  );
+  if (res.status === 404) return;
+  await assertOk(res, "startMachine");
 }
 
 export async function destroyApp(

@@ -880,11 +880,9 @@ export function InboxList() {
               </p>
               <p className="text-xs text-amber-100/70 mt-1">
                 The inbox lives in a private gist owned by you. Re-connect this
-                repo with a PAT that includes the `gist` scope on the{" "}
-                <Link href="/repos" className="underline">
-                  Repositories
-                </Link>{" "}
-                page.
+                repo with a PAT that includes the `gist` scope from the repo
+                menu in the header (the ▾ next to the repo name → Add
+                repository).
               </p>
             </div>
           </div>

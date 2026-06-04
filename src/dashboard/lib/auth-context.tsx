@@ -65,6 +65,12 @@ export interface KodyAuth {
    *   high   → performance-2x / 4GB (heavy installs/tests, ~$0.11/30min)
    */
   flyPerf?: "low" | "medium" | "high";
+  /**
+   * Fly VM performance tier for the per-user Brain server, INDEPENDENT of
+   * `flyPerf` (task runs). Sent as `x-kody-brain-perf` on provision; same
+   * guest mapping as flyPerf. Absent → server default (medium).
+   */
+  brainPerf?: "low" | "medium" | "high";
 }
 
 export type FlyPerfTier = NonNullable<KodyAuth["flyPerf"]>;
@@ -95,6 +101,7 @@ interface AuthContextValue {
     brain?: { url: string; apiKey: string } | null;
     vercelBypassSecret?: string | null;
     flyPerf?: FlyPerfTier | null;
+    brainPerf?: FlyPerfTier | null;
   }) => void;
 }
 
@@ -162,6 +169,7 @@ function migrateAuth(raw: unknown): KodyAuth | null {
     brain: a.brain,
     vercelBypassSecret: a.vercelBypassSecret,
     flyPerf: a.flyPerf,
+    brainPerf: a.brainPerf,
   };
 }
 
@@ -336,6 +344,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       brain?: { url: string; apiKey: string } | null;
       vercelBypassSecret?: string | null;
       flyPerf?: FlyPerfTier | null;
+      brainPerf?: FlyPerfTier | null;
     }) => {
       setAuth((prev) => {
         if (!prev) return prev;
@@ -351,6 +360,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         if (patch.flyPerf !== undefined) {
           next.flyPerf = patch.flyPerf === null ? undefined : patch.flyPerf;
+        }
+        if (patch.brainPerf !== undefined) {
+          next.brainPerf =
+            patch.brainPerf === null ? undefined : patch.brainPerf;
         }
         persist(next);
         return next;

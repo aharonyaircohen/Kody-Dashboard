@@ -642,10 +642,13 @@ export const prsApi = {
     const data = await handleResponse<{ comments: PRComment[] }>(res);
     return data.comments;
   },
-  // Resolves a PR's preview URL directly by its head commit (on-demand),
-  // so the preview pane doesn't wait for the background tasks poll.
-  preview: async (sha: string): Promise<string | null> => {
-    const res = await fetch(`${API_BASE}/prs/preview?sha=${sha}`, {
+  // Resolves a PR's preview URL on-demand (so the pane doesn't wait for the
+  // background tasks poll). Fly-first when `pr` is given and the repo builds
+  // previews on Fly; otherwise the server falls back to the Vercel deployment
+  // for `sha`.
+  preview: async (sha: string, pr?: number): Promise<string | null> => {
+    const qs = pr ? `?sha=${sha}&pr=${pr}` : `?sha=${sha}`;
+    const res = await fetch(`${API_BASE}/prs/preview${qs}`, {
       headers: buildHeaders(),
     });
     const data = await handleResponse<{ previewUrl: string | null }>(res);

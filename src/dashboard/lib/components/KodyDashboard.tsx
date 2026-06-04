@@ -101,7 +101,6 @@ import { useAuth } from "../auth-context";
 import { RepoManager } from "./RepoManager";
 import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
-import { VibeToggle } from "./VibeToggle";
 import { KodyHeader } from "./KodyHeader";
 import { HeaderOverflowMenu } from "./HeaderOverflowMenu";
 import { MobileMenu } from "./MobileMenu";

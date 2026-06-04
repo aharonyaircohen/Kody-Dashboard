@@ -29,6 +29,7 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useKodyTasks } from "../hooks";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
 import { PreviewPane } from "./PreviewPane";
+import { VaultLockedBanner } from "./VaultLockedBanner";
 import {
   fetchDashboardConfig,
   saveDashboardConfig,
@@ -378,6 +379,7 @@ export function VibePage() {
   const { url: activePreviewUrl, isResolving: previewResolving } =
     usePreviewUrl(
       selectedTask?.associatedPR?.head?.sha,
+      selectedTask?.associatedPR?.number,
       selectedTask?.previewUrl ?? null,
     );
   const fallbackPreviewUrl = !selectedTask ? defaultPreviewUrl : null;
@@ -390,7 +392,7 @@ export function VibePage() {
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header — mirrors the Dashboard so navigation feels like a view
-          toggle. The VibeToggle in the header reflects "on" via pathname. */}
+          switch. Vibe is reached from the rail's "Views" group. */}
       <KodyHeader
         onOpenMobileMenu={() => setShowMobileMenu(true)}
         onRefresh={() => {
@@ -491,10 +493,16 @@ export function VibePage() {
                 </div>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6">
+                  {/* If the vault is locked, a Fly preview can never resolve —
+                      say so (with the raw error) instead of a silent blank. */}
+                  <VaultLockedBanner
+                    className="max-w-md text-left"
+                    feature="This blocks Fly previews — the dashboard can't read the repo's Fly token."
+                  />
                   <p className="text-sm text-zinc-300">No preview yet</p>
                   <p className="text-xs text-zinc-500 max-w-md">
-                    Once a PR is opened for this issue, its Vercel preview will
-                    appear here. Use the chat to start.
+                    Once a PR is opened for this issue, its preview will appear
+                    here. Use the chat to start.
                   </p>
                 </div>
               )

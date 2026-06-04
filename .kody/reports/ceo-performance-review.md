@@ -2,20 +2,20 @@
 
 _Cadence: weekly — delivery of owned responsibilities, not subjective quality._
 
-Zero of five active duties produced output this week; three staff are idle with no active duties; two staff have active duties with no observable output.
+One of seven staff produced output this week; cto and qa remain structurally blocked with no deliverable signal.
 
-| Staff       | Owned duties  | Delivery | Consistency | Signal    | Grade   |
-| ----------- | ------------- | -------- | ----------- | --------- | ------- |
-| ceo         | 1 (1 active)  | None     | No runs     | No signal | unclear |
-| coo         | 3 (0 active)  | —        | —           | —         | idle    |
-| cto         | 4 (1 active)  | None     | No runs     | No signal | unclear |
-| kody        | 11 (0 active) | —        | —           | —         | idle    |
-| qa          | 3 (1 active)  | None     | No runs     | No signal | weak    |
-| tech-writer | 2 (2 active)  | None     | No runs     | No signal | weak    |
-| ux-designer | 1 (0 active)  | —        | —           | —         | idle    |
+| Staff        | Owned duties   | Delivery | Consistency | Signal | Grade |
+| ------------ | -------------- | -------- | ----------- | ------ | ----- |
+| ceo          | 1 (0 active)  | —        | —           | —      | idle  |
+| coo          | 3 (0 active)  | —        | —           | —      | idle  |
+| cto          | 4 (1 active)  | None     | No state    | No signal | unclear |
+| kody         | 10 (0 active) | —        | —           | —      | idle  |
+| qa           | 3 (1 active)  | None     | No state    | No signal | unclear |
+| tech-writer  | 2 (2 active)  | High     | Med         | High   | strong |
+| ux-designer  | 1 (0 active)  | —        | —           | —      | idle  |
 
-- **ceo — unclear:** job-gap-scan (owned by ceo) has never recorded a state file or produced output. No evidence of runs or findings. Prior review graded ceo strong — that assessment had no supporting state or report evidence and is not supported by this review's data.
-- **cto — unclear:** dev-ci-health (every 15m) has never recorded a state file or produced output. Cannot assess delivery.
-- **qa — weak:** qa-verify (every 30m) was enabled pre-2026-06-01; zero state commits or output in the review window. **Effect:** zero PR previews verified before merge.
-- **tech-writer — weak:** docs-code and docs-readme (every 1d) were enabled pre-2026-06-01; zero state commits or output. **Effect:** documentation drift and code-header gaps go unchecked.
-- Changes since last week: ceo strong→unclear (prior "strong" had no supporting evidence); all others unchanged.
+- **cto — unclear:** dev-ci-health (every 15m) has no state file and the `dev` branch does not exist in this repo (only `main`). Structurally blocked — no output possible regardless of execution quality. **Effect:** CI health on `dev` is permanently invisible.
+- **qa — unclear:** qa-verify (every 30m) has no state file, zero `kody:ui-verified`/`kody:ui-failed` labels on any issue/PR, and no inbox merge recommendations. **Effect:** zero PR previews verified; regressions ship unseen.
+- **tech-writer — strong:** docs-code/docs-readme (daily) produced issues #43, #45, #46 (Jun 3 UTC) — doc coverage gap findings and the docs-code enablement thread. Consistent output. **Effect:** documentation gaps actively tracked and closed.
+
+- Changes since last week: all grades unchanged (cto and qa still unclear, ceo/coo/kody/ux-designer still idle, tech-writer still strong).
