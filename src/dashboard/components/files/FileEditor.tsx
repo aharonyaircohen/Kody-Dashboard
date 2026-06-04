@@ -8,8 +8,9 @@
  */
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
+import type { EditorProps } from "@monaco-editor/react";
 import { Save, X, Loader2, Eye, Edit3, Columns } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
@@ -19,14 +20,17 @@ import type { Octokit } from "@octokit/rest";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { CommitMessageDialog } from "./CommitMessageDialog";
 
-const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center h-full">
-      <Loader2 className="w-6 h-6 animate-spin text-white/40" />
-    </div>
-  ),
-});
+const MonacoEditor = dynamic(
+  () => import("@monaco-editor/react").then((mod) => mod.Editor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+      </div>
+    ),
+  },
+) as React.ComponentType<EditorProps>;
 
 type ViewMode = "edit" | "preview" | "split";
 

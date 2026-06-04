@@ -39,6 +39,12 @@ interface FileTreeProps {
   owner: string;
   repo: string;
   onRefresh: () => void;
+  onDelete?: (path: string) => void;
+  onRename?: (path: string) => void;
+  onNewFile?: (dirPath: string) => void;
+  onNewFolder?: (dirPath: string) => void;
+  onCopyPath?: (path: string) => void;
+  onCreateSymlink?: (path: string) => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -171,6 +177,12 @@ export function FileTree({
   owner,
   repo,
   onRefresh,
+  onDelete,
+  onRename,
+  onNewFile,
+  onNewFolder,
+  onCopyPath,
+  onCreateSymlink,
 }: FileTreeProps) {
   const [openPaths, setOpenPaths] = useState<Set<string>>(new Set());
   const [childrenMap, setChildrenMap] = useState<Record<string, FileEntry[]>>(
@@ -359,6 +371,12 @@ export function FileTree({
           y={contextMenu.y}
           path={contextMenu.path}
           onClose={closeContextMenu}
+          onDelete={onDelete}
+          onRename={onRename}
+          onNewFile={onNewFile}
+          onNewFolder={onNewFolder}
+          onCopyPath={onCopyPath}
+          onCreateSymlink={onCreateSymlink}
         />
       )}
     </div>

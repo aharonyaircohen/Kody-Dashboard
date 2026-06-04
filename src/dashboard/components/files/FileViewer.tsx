@@ -8,8 +8,9 @@
  */
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
+import type { EditorProps } from "@monaco-editor/react";
 import { Copy, Loader2, FileQuestion } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
@@ -17,14 +18,17 @@ import { monacoLanguage } from "@dashboard/lib/repo-files-lang";
 import { readFile } from "@dashboard/lib/repo-files";
 import type { Octokit } from "@octokit/rest";
 
-const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center h-full">
-      <Loader2 className="w-6 h-6 animate-spin text-white/40" />
-    </div>
-  ),
-});
+const MonacoEditor = dynamic(
+  () => import("@monaco-editor/react").then((mod) => mod.Editor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+      </div>
+    ),
+  },
+) as React.ComponentType<EditorProps>;
 
 interface FileViewerProps {
   path: string;

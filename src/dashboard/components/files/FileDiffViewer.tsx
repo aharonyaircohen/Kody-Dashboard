@@ -7,8 +7,9 @@
  */
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
+import type { DiffEditorProps } from "@monaco-editor/react";
 import { Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
@@ -20,8 +21,7 @@ import {
 import type { Octokit } from "@octokit/rest";
 
 const DiffEditor = dynamic(
-  () =>
-    import("@monaco-editor/react").then((mod) => ({ default: mod.DiffEditor })),
+  () => import("@monaco-editor/react").then((mod) => mod.DiffEditor),
   {
     ssr: false,
     loading: () => (
@@ -30,7 +30,7 @@ const DiffEditor = dynamic(
       </div>
     ),
   },
-);
+) as React.ComponentType<DiffEditorProps>;
 
 interface FileDiffViewerProps {
   path: string;

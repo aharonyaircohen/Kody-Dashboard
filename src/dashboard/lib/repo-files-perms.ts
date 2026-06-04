@@ -8,29 +8,43 @@
  */
 "use client";
 
+import type { Octokit } from "@octokit/rest";
 import type { KodyAuth } from "./auth-context";
 
 export type FilePermission = "read" | "write";
 
 /**
- * Determine the current user's file permission level based on their auth.
- * For now, we check if the token appears to be a fine-grained PAT with
- * write permissions, or fall back to read-only.
+ * Check if the current token has write permission by querying the
+ * GitHub API for repository permissions. Fine-grained PATs do not expose
+ * scopes in the token itself — we must ask the API.
  *
- * A real implementation would use the GitHub API to check the token's
- * scopes, but GitHub doesn't expose scopes for fine-grained PATs — they
- * have precise repo access rules instead. This helper serves as a
- * placeholder that can be enhanced once we wire up token-scope detection.
+ * Returns "write" if the token has push or admin permission on the repo,
+ * "read" otherwise (including on error — we err on the safe side).
  */
-export function getFilePermission(auth: KodyAuth | null): FilePermission {
-  if (!auth) return "read";
-  // Write access is assumed for any authenticated user for now.
-  // In a follow-up, we'd validate the token has Contents:write scope.
-  return "write";
+export async function getFilePermission(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<FilePermission> {
+  try {
+    const res = await octokit.rest.repos.get({ owner, repo });
+    const perms = res.data.permissions;
+    if (perms?.push || perms?.admin) return "write";
+    return "read";
+  } catch {
+    // On any error (network, rate limit, etc.) conservatively assume read-only.
+    return "read";
+  }
 }
 
-export function canWrite(auth: KodyAuth | null): boolean {
-  return getFilePermission(auth) === "write";
+/**
+ * Synchronous canWrite stub — kept for backward compatibility with call sites
+ * that pass only auth. Those call sites should migrate to getFilePermission
+ * which makes a real API call. This stub returns false (read-only) until
+ * the async check is implemented per-call-site.
+ */
+export function canWrite(_auth: KodyAuth | null): boolean {
+  return false;
 }
 
 export function canRead(auth: KodyAuth | null): boolean {

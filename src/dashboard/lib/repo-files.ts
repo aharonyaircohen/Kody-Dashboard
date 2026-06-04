@@ -11,6 +11,53 @@
 
 import type { Octokit } from "@octokit/rest";
 
+// ─── Binary encoding helpers (byte-safe, UTF-8) ──────────────────────────────
+
+/** Decode a base64 string to a UTF-8 string without latin1 corruption. */
+export function base64ToString(base64: string): string {
+  const binary = atob(base64);
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+/** Encode a string to base64 using UTF-8, without btoa's latin1 restriction. */
+export function stringToBase64(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  return uint8ToBase64(bytes);
+}
+
+/** Byte-safe base64 encoder — handles all uint8 values 0–255. */
+function uint8ToBase64(bytes: Uint8Array): string {
+  const alphabet =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let result = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i]!;
+    const b1 = bytes[i + 1] ?? 0;
+    const b2 = bytes[i + 2] ?? 0;
+    result +=
+      alphabet[(b0 >> 2) & 0x3f] +
+      alphabet[((b0 << 4) | (b1 >> 4)) & 0x3f] +
+      alphabet[((b1 << 2) | (b2 >> 6)) & 0x3f] +
+      alphabet[b2 & 0x3f];
+  }
+  const pad = bytes.length % 3;
+  if (pad === 1) {
+    result = result.slice(0, -2) + "==";
+  } else if (pad === 2) {
+    result = result.slice(0, -1) + "=";
+  }
+  return result;
+}
+
+/** Compute line number (1-indexed) in a fragment given a byte offset to the match. */
+export function lineIndexFromFragment(
+  fragment: string,
+  matchByteIndex: number,
+): number {
+  return (fragment.slice(0, matchByteIndex).match(/\n/g)?.length ?? 0) + 1;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface FileEntry {
@@ -117,7 +164,9 @@ export async function readFile(
 
     const encoding = data.encoding === "base64" ? "base64" : "utf-8";
     const content =
-      encoding === "base64" ? atob(data.content ?? "") : (data.content ?? "");
+      encoding === "base64"
+        ? base64ToString(data.content ?? "")
+        : (data.content ?? "");
 
     return {
       path: data.path ?? path,
@@ -149,7 +198,7 @@ export async function writeFile(
     repo,
     path,
     message,
-    content: btoa(content),
+    content: stringToBase64(content),
     ...(sha ? { sha } : {}),
   });
 
@@ -264,11 +313,7 @@ export async function uploadFile(
 ): Promise<{ sha: string; commitSha: string }> {
   const arrayBuffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  const base64 = btoa(binary);
+  const base64 = uint8ToBase64(bytes);
 
   const res = await octokit.rest.repos.createOrUpdateFileContents({
     owner,
@@ -324,8 +369,7 @@ export async function searchCode(
     return tms.map<SearchResult>((tm) => {
       const fragment = tm.fragment ?? "";
       const firstIdx = tm.matches?.[0]?.indices?.[0] ?? 0;
-      const lineInFragment =
-        (fragment.slice(0, firstIdx).match(/\n/g)?.length ?? 0) + 1;
+      const lineInFragment = lineIndexFromFragment(fragment, firstIdx);
       return {
         path: item.path,
         snippet: fragment.slice(0, 600),

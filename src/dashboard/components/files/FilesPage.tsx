@@ -8,7 +8,7 @@
  */
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { Octokit } from "@octokit/rest";
 import {
   FolderOpen,
@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
 import { useAuth } from "@dashboard/lib/auth-context";
 import { readFile, writeFile, deleteFile } from "@dashboard/lib/repo-files";
-import { canWrite } from "@dashboard/lib/repo-files-perms";
+import { getFilePermission } from "@dashboard/lib/repo-files-perms";
 import { FileTree } from "./FileTree";
 import { FileViewer } from "./FileViewer";
 import { FileEditor } from "./FileEditor";
@@ -52,6 +52,26 @@ interface BreadcrumbItem {
   label: string;
 }
 
+/**
+ * Build a breadcrumb trail from a file path.
+ * E.g. "src/components/Button.tsx" → [
+ *   { path: "src", label: "src" },
+ *   { path: "src/components", label: "components" },
+ *   { path: "src/components/Button.tsx", label: "Button.tsx" },
+ * ]
+ */
+export function buildBreadcrumbs(path: string): BreadcrumbItem[] {
+  if (!path) return [];
+  const parts = path.split("/");
+  const items: BreadcrumbItem[] = [];
+  let acc = "";
+  for (const part of parts) {
+    acc += acc ? `/${part}` : part;
+    items.push({ path: acc, label: part });
+  }
+  return items;
+}
+
 export function FilesPage() {
   const { auth } = useAuth();
   const octokit = useMemo(
@@ -69,21 +89,24 @@ export function FilesPage() {
     null,
   );
   const [refreshKey, setRefreshKey] = useState(0);
+  const [writeable, setWriteable] = useState(false);
 
-  const writeable = canWrite(auth);
+  // Check write permission on mount / auth change
+  useEffect(() => {
+    if (!octokit || !auth) {
+      setWriteable(false);
+      return;
+    }
+    getFilePermission(octokit, auth.owner, auth.repo).then((p) =>
+      setWriteable(p === "write"),
+    );
+  }, [octokit, auth]);
 
   // Build breadcrumbs from selected file path
-  const breadcrumbs = useMemo<BreadcrumbItem[]>(() => {
-    if (!selectedFile) return [];
-    const parts = selectedFile.path.split("/");
-    const items: BreadcrumbItem[] = [];
-    let acc = "";
-    for (const part of parts) {
-      acc += (acc ? "/" : "") + part;
-      items.push({ path: acc, label: part });
-    }
-    return items;
-  }, [selectedFile]);
+  const breadcrumbs = useMemo<BreadcrumbItem[]>(
+    () => (selectedFile ? buildBreadcrumbs(selectedFile.path) : []),
+    [selectedFile],
+  );
 
   const handleFileSelect = useCallback(
     async (path: string) => {
@@ -257,8 +280,14 @@ export function FilesPage() {
     toast.info("Rename: provide new name");
   }, []);
 
+  const handleCopyPath = useCallback((path: string) => {
+    navigator.clipboard.writeText(path).then(() => {
+      toast.success("Path copied to clipboard");
+    });
+  }, []);
+
   const handleSearchResultClick = useCallback(
-    (path: string, line?: number) => {
+    (path: string, _line?: number) => {
       handleFileSelect(path);
     },
     [handleFileSelect],
@@ -411,6 +440,12 @@ export function FilesPage() {
                 owner={auth?.owner ?? ""}
                 repo={auth?.repo ?? ""}
                 onRefresh={handleRefresh}
+                onDelete={writeable ? handleDelete : undefined}
+                onRename={writeable ? handleRename : undefined}
+                onNewFile={writeable ? handleNewFile : undefined}
+                onNewFolder={writeable ? handleNewFolder : undefined}
+                onCopyPath={handleCopyPath}
+                onCreateSymlink={writeable ? handleCreateSymlink : undefined}
               />
             )}
           </div>
