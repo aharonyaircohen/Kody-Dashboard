@@ -90,6 +90,9 @@ const updateExecutableSchema = z.object({
   shellScripts: z.array(shellSchema).optional(),
   mcpServers: z.array(mcpServerSchema).optional(),
   landing: z.enum(["pr", "comment"]).optional(),
+  staff: z.string().nullable().optional(),
+  every: z.string().nullable().optional(),
+  mentions: z.array(z.string()).optional(),
   profileJsonOverride: z.string().optional(),
   actorLogin: z.string().optional(),
 });
@@ -155,6 +158,12 @@ export async function PATCH(
         shellScripts: shellScripts.map((s) => s.name),
         mcpServers: input.mcpServers ?? existing.mcpServers,
         landing: input.landing ?? existing.landing,
+        staff: input.staff !== undefined ? input.staff : existing.staff,
+        every:
+          input.every !== undefined
+            ? (input.every ?? null)
+            : (existing.every ?? null),
+        mentions: input.mentions ?? existing.mentions ?? [],
       },
       skills,
       shellScripts,
