@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Auto-derive describe from prompt on existing executables",
+    "body": "When editing an existing executable that has a manually-set describe field in profile.json, the editor should not overwrite it with the auto-derived value unless the user explicitly changes the prompt. Currently describe is always re-derived from the prompt's first line on every save, which could overwrite manual edits. Consider preserving the existing describe when prompt hasn't changed.",
+    "rationale": "UX issue: existing duties with custom descriptions will have them overwritten on next edit",
+    "priority": "low"
+  }
+]

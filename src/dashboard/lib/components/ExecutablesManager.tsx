@@ -14,13 +14,14 @@
  */
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  AtSign,
   Boxes,
   CheckCircle2,
   Download,
@@ -59,6 +60,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
+import { useStaff } from "../hooks/useStaff";
+import {
+  ALL_SCHEDULE_EVERY_OPTIONS,
+  scheduleEveryLabel,
+} from "../duties-frontmatter";
+import { type DutySchedule } from "../api";
 import {
   COMMON_TOOLS,
   composeProfile,
@@ -103,6 +110,10 @@ interface ExecutableSummary {
   legacy?: boolean;
   /** True for a legacy markdown duty (`.kody/duties/<slug>.md`), pending migration. */
   markdown?: boolean;
+  /** Cadence guard (every). */
+  every?: string | null;
+  /** GitHub logins to @-mention. */
+  mentions?: string[];
 }
 interface ExecutableDetail extends ExecutableSummary {
   prompt: string;
@@ -184,6 +195,9 @@ interface SavePayload {
   shellScripts: ExecutableShellScript[];
   mcpServers: McpServerSpec[];
   landing: ExecutableLanding;
+  staff: string | null;
+  every: string | null;
+  mentions: string[];
   isUpdate: boolean;
 }
 
@@ -528,8 +542,8 @@ function ExecutablesManagerInner() {
                       )}
                       {e.markdown ? (
                         <p className="text-[11px] text-orange-300/70 mt-2">
-                          Legacy markdown duty — migrate to a folder-duty to edit
-                          it here.
+                          Legacy markdown duty — migrate to a folder-duty to
+                          edit it here.
                         </p>
                       ) : (
                         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
@@ -570,7 +584,12 @@ function ExecutablesManagerInner() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {e.markdown ? (
-                        <Button asChild size="sm" variant="ghost" className="gap-1">
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1"
+                        >
                           <a href={e.htmlUrl} target="_blank" rel="noreferrer">
                             <Pencil className="w-3.5 h-3.5" />
                             Open .md
@@ -712,7 +731,6 @@ function ExecutableEditorForm({
 }) {
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [touchedSlug, setTouchedSlug] = useState(false);
-  const [describe, setDescribe] = useState(initial?.describe ?? "");
   const [prompt, setPrompt] = useState(initial?.prompt ?? DEFAULT_PROMPT);
   const [model, setModel] = useState(initial?.model ?? "inherit");
   // Not user-tunable: the engine runs headless (no human to approve tool
@@ -725,6 +743,11 @@ function ExecutableEditorForm({
   const [landing, setLanding] = useState<ExecutableLanding>(
     initial?.landing ?? "pr",
   );
+  const [staff, setStaff] = useState<string | null>(initial?.staff ?? null);
+  const [every, setEvery] = useState<DutySchedule | null>(
+    (initial?.every as DutySchedule) ?? null,
+  );
+  const [mentions, setMentions] = useState<string[]>(initial?.mentions ?? []);
   const [skills, setSkills] = useState<ExecutableSkill[]>(
     initial?.skills ?? [],
   );
@@ -849,9 +872,13 @@ function ExecutableEditorForm({
   // Live validation of the profile the form will generate.
   const validation = useMemo(() => {
     const effectiveSlug = isNew ? slug || "draft" : slug;
+    // Auto-derive describe from the prompt's first non-empty line.
+    const firstLine = prompt.split("\n").find((l) => l.trim().length > 0) ?? "";
+    const derivedDescribe =
+      firstLine.length > 200 ? firstLine.slice(0, 197) + "…" : firstLine;
     const profile = composeProfile({
       slug: effectiveSlug,
-      describe,
+      describe: derivedDescribe,
       prompt,
       model,
       permissionMode,
@@ -860,6 +887,9 @@ function ExecutableEditorForm({
       shellScripts: shellScripts.map((s) => s.name),
       mcpServers,
       landing,
+      staff,
+      every,
+      mentions,
     });
     const errors = validateProfile(profile);
     // Local consistency: skill/sh names must be present and well-formed.
@@ -880,7 +910,6 @@ function ExecutableEditorForm({
   }, [
     isNew,
     slug,
-    describe,
     prompt,
     model,
     permissionMode,
@@ -889,6 +918,9 @@ function ExecutableEditorForm({
     shellScripts,
     mcpServers,
     landing,
+    staff,
+    every,
+    mentions,
   ]);
 
   // Block save when the composed profile fails the engine invariants or a
@@ -929,19 +961,19 @@ function ExecutableEditorForm({
         </Button>
       </div>
 
-      <Tabs defaultValue="config" className="mt-2">
+      <Tabs defaultValue="main" className="mt-2">
         <TabsList>
-          <TabsTrigger value="config">Config</TabsTrigger>
-          <TabsTrigger value="prompt">Prompt</TabsTrigger>
+          <TabsTrigger value="main">Main</TabsTrigger>
           <TabsTrigger value="skills">Skills ({skills.length})</TabsTrigger>
           <TabsTrigger value="tools">Tools ({mcpServers.length})</TabsTrigger>
           <TabsTrigger value="scripts">
             Scripts ({shellScripts.length})
           </TabsTrigger>
+          <TabsTrigger value="advanced">Advanced</TabsTrigger>
           <TabsTrigger value="review">Review</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="config" className="space-y-3">
+        <TabsContent value="main" className="space-y-3">
           <div>
             <Label htmlFor="exec-slug" className="text-xs">
               Slug (becomes @kody slug)
@@ -960,39 +992,32 @@ function ExecutableEditorForm({
             )}
           </div>
           <div>
-            <Label htmlFor="exec-describe" className="text-xs">
-              Description
+            <Label htmlFor="exec-prompt" className="text-xs">
+              Prompt
             </Label>
             <Textarea
-              id="exec-describe"
-              value={describe}
-              onChange={(e) => setDescribe(e.target.value)}
-              placeholder="Implement an issue end-to-end and open a PR"
-              rows={4}
+              id="exec-prompt"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={DEFAULT_PROMPT}
+              className="font-mono text-xs"
+              rows={12}
             />
-          </div>
-          <div>
-            <Label className="text-xs">Landing</Label>
-            <Select
-              value={landing}
-              onValueChange={(v) => setLanding(v as ExecutableLanding)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pr">Opens a PR (commits + PR)</SelectItem>
-                <SelectItem value="comment">
-                  Just comments (posts an answer)
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            {promptError && (
+              <p className="text-xs text-rose-300 mt-1">{promptError}</p>
+            )}
             <p className="text-[11px] text-white/40 mt-1">
-              {landing === "pr"
-                ? "Edits code and opens a pull request."
-                : "Reads and replies with a comment — no code changes."}
+              Markdown with <code>{"{{issue.number}}"}</code>,{" "}
+              <code>{"{{issue.title}}"}</code>, <code>{"{{issue.body}}"}</code>{" "}
+              tokens. The required output format is appended automatically.
             </p>
           </div>
+          <StaffSelect value={staff} onChange={setStaff} />
+        </TabsContent>
+
+        <TabsContent value="advanced" className="space-y-3">
+          <ScheduleSelect value={every} onChange={setEvery} />
+          <MentionsInput value={mentions} onChange={setMentions} />
           <div>
             <Label htmlFor="exec-model" className="text-xs">
               Model (inherit = use the repo&apos;s default)
@@ -1029,24 +1054,28 @@ function ExecutableEditorForm({
               ))}
             </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value="prompt" className="space-y-2">
-          <p className="text-[11px] text-white/40">
-            Markdown with <code>{"{{issue.number}}"}</code>,{" "}
-            <code>{"{{issue.title}}"}</code>, <code>{"{{issue.body}}"}</code>{" "}
-            tokens. Saved as prompt.md. The required output format is appended
-            automatically.
-          </p>
-          <Textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            className="font-mono text-xs"
-            rows={16}
-          />
-          {promptError && (
-            <p className="text-xs text-rose-300">{promptError}</p>
-          )}
+          <div>
+            <Label className="text-xs">Landing</Label>
+            <Select
+              value={landing}
+              onValueChange={(v) => setLanding(v as ExecutableLanding)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pr">Opens a PR (commits + PR)</SelectItem>
+                <SelectItem value="comment">
+                  Just comments (posts an answer)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-white/40 mt-1">
+              {landing === "pr"
+                ? "Edits code and opens a pull request."
+                : "Reads and replies with a comment — no code changes."}
+            </p>
+          </div>
         </TabsContent>
 
         <TabsContent value="skills" className="space-y-3">
@@ -1385,9 +1414,16 @@ function ExecutableEditorForm({
           disabled={!canSave}
           onClick={() => {
             if (!canSave) return;
+            // Auto-derive describe from the prompt's first non-empty line.
+            const firstLine =
+              prompt.split("\n").find((l) => l.trim().length > 0) ?? "";
+            const derivedDescribe =
+              firstLine.length > 200
+                ? firstLine.slice(0, 197) + "…"
+                : firstLine;
             onSave({
               slug,
-              describe,
+              describe: derivedDescribe,
               prompt,
               model,
               permissionMode,
@@ -1396,6 +1432,9 @@ function ExecutableEditorForm({
               shellScripts,
               mcpServers,
               landing,
+              staff,
+              every,
+              mentions,
               isUpdate: !isNew,
             });
           }}
@@ -1412,6 +1451,256 @@ function ExecutableEditorForm({
           )}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Staff (persona) picker for the executable editor. A duty is *what* runs on
+ * a schedule; the staff member it names is *who* runs it — the engine injects
+ * that persona ahead of the duty body.
+ */
+function StaffSelect({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (next: string | null) => void;
+}) {
+  const { data: staff, isLoading } = useStaff();
+  const NONE = "__none__";
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="exec-staff" className="text-xs">
+        Staff
+      </Label>
+      <Select
+        value={value ?? NONE}
+        onValueChange={(v) => onChange(v === NONE ? null : v)}
+      >
+        <SelectTrigger id="exec-staff" className="w-full">
+          <SelectValue
+            placeholder={isLoading ? "Loading staff…" : "Select a staff member"}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>None (duty won&apos;t run)</SelectItem>
+          {(staff ?? []).map((w) => (
+            <SelectItem key={w.slug} value={w.slug}>
+              {w.title} ({w.slug})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-white/40">
+        {value ? (
+          <>
+            Runs as the <strong>{value}</strong> persona.
+          </>
+        ) : (
+          <span className="text-amber-400">
+            No staff assigned — the engine scheduler will skip this duty until
+            you pick one.
+          </span>
+        )}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Schedule dropdown for the executable editor. Options: Auto (null = use
+ * body's cadence guard), fixed cadences (15m…7d), or manual only.
+ */
+function ScheduleSelect({
+  value,
+  onChange,
+}: {
+  value: DutySchedule | null;
+  onChange: (next: DutySchedule | null) => void;
+}) {
+  const AUTO = "__auto__";
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="exec-schedule" className="text-xs">
+        Schedule
+      </Label>
+      <Select
+        value={value ?? AUTO}
+        onValueChange={(v) => onChange(v === AUTO ? null : (v as DutySchedule))}
+      >
+        <SelectTrigger id="exec-schedule" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={AUTO}>Auto</SelectItem>
+          {ALL_SCHEDULE_EVERY_OPTIONS.map((opt) => (
+            <SelectItem key={opt} value={opt}>
+              {opt === "manual"
+                ? "Manual only"
+                : `Every ${scheduleEveryLabel(opt).replace(/^every /, "")}`}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-white/40">
+        <strong>Auto</strong> — the body&apos;s cadence guard decides when to
+        run. A <strong>fixed cadence</strong> caps how often it can act.{" "}
+        <strong>Manual only</strong> — never auto-runs; click Run to trigger.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Mentions input — comma-separated GitHub logins to @-mention in the duty's
+ * output. Stored as the profile.mentions array.
+ */
+function MentionsInput({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [inputValue, setInputValue] = useState(value.join(", "));
+  const [open, setOpen] = useState(false);
+  const [collaborators, setCollaborators] = useState<{ login: string }[]>([]);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/kody/collaborators")
+      .then((r) => (r.ok ? r.json() : { collaborators: [] }))
+      .then((d) => {
+        if (!cancelled) setCollaborators(d.collaborators ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const lastComma = inputValue.lastIndexOf(",");
+  const head = lastComma >= 0 ? inputValue.slice(0, lastComma + 1) : "";
+  const token = inputValue
+    .slice(lastComma + 1)
+    .trim()
+    .replace(/^@/, "")
+    .toLowerCase();
+
+  const chosen = new Set(
+    inputValue
+      .split(",")
+      .map((s) => s.trim().replace(/^@/, "").toLowerCase())
+      .filter(Boolean),
+  );
+
+  const suggestions = collaborators
+    .filter(
+      (c) =>
+        !chosen.has(c.login.toLowerCase()) || c.login.toLowerCase() === token,
+    )
+    .filter((c) => token.length === 0 || c.login.toLowerCase().includes(token))
+    .slice(0, 6);
+
+  const showList = open && suggestions.length > 0;
+
+  function choose(login: string) {
+    setInputValue(`${head ? `${head} ` : ""}${login}, `);
+    setOpen(false);
+    setActiveIdx(0);
+    const next = inputValue
+      .split(",")
+      .map((s) => s.trim().replace(/^@/, "").toLowerCase())
+      .filter(Boolean);
+    if (!next.includes(login.toLowerCase())) {
+      onChange([...next.filter((m) => m !== token), login]);
+    } else {
+      onChange(next);
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <Label
+        htmlFor="exec-mentions"
+        className="flex items-center gap-1.5 text-xs"
+      >
+        <AtSign className="w-3.5 h-3.5 text-white/50" />
+        Mentions
+      </Label>
+      <div className="relative">
+        <Input
+          id="exec-mentions"
+          value={inputValue}
+          autoComplete="off"
+          placeholder="e.g. aguyaharonyair, alice"
+          onChange={(e) => {
+            setInputValue(e.target.value);
+            setOpen(true);
+            setActiveIdx(0);
+            // Sync the array to the raw text on every keystroke.
+            const parsed = e.target.value
+              .split(",")
+              .map((s) => s.trim().replace(/^@/, "").toLowerCase())
+              .filter(Boolean);
+            onChange(parsed);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onKeyDown={(e) => {
+            if (!showList) return;
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setActiveIdx((i) => (i + 1) % suggestions.length);
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setActiveIdx(
+                (i) => (i - 1 + suggestions.length) % suggestions.length,
+              );
+            } else if (e.key === "Enter" || e.key === "Tab") {
+              const sel = suggestions[activeIdx] ?? suggestions[0];
+              if (sel) {
+                e.preventDefault();
+                choose(sel.login);
+                setInputValue(`${head ? `${head} ` : ""}${sel.login}, `);
+              }
+            } else if (e.key === "Escape") {
+              setOpen(false);
+            }
+          }}
+        />
+        {showList && (
+          <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-popover py-1 shadow-md">
+            {suggestions.map((c, i) => (
+              <li key={c.login}>
+                <button
+                  type="button"
+                  className={`flex w-full items-center gap-2 px-2 py-1 text-left text-sm ${
+                    i === activeIdx
+                      ? "bg-accent text-accent-foreground"
+                      : "hover:bg-accent/50"
+                  }`}
+                  onMouseEnter={() => setActiveIdx(i)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    choose(c.login);
+                    setInputValue(`${head ? `${head} ` : ""}${c.login}, `);
+                  }}
+                >
+                  <AtSign className="h-3.5 w-3.5 text-white/50" />
+                  <span>{c.login}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <p className="text-xs text-white/40">
+        Comma-separated GitHub logins to <strong>@</strong>-mention in this
+        duty&apos;s output. Leave blank for none.
+      </p>
     </div>
   );
 }
