@@ -11,6 +11,7 @@ import {
   Activity,
   Bell,
   Bot,
+  Boxes,
   Building2,
   Cpu,
   FileText,
@@ -126,6 +127,14 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     icon: Layers,
     exact: true,
     description: "Run and edit recurring duties.",
+    tint: "text-amber-300 bg-amber-500/10",
+  },
+  {
+    href: "/executables",
+    label: "Executables",
+    icon: Boxes,
+    exact: true,
+    description: "Manage custom @kody executables (folder duties).",
     tint: "text-amber-300 bg-amber-500/10",
   },
   {
