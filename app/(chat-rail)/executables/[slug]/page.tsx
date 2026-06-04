@@ -14,7 +14,7 @@ import { buildKodyMetadata } from "../../../metadata";
 export const dynamic = "force-dynamic";
 
 export const metadata = buildKodyMetadata({
-  title: "Edit duty — Kody Operations Dashboard",
+  title: "Edit duty",
   description: "Edit a duty.",
   path: "/executables",
 });

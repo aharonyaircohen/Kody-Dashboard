@@ -13,7 +13,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Chat Models — Kody Operations Dashboard",
+  title: "Chat Models",
   description:
     "Pick the chat models surfaced in the dashboard and /vibe dropdowns. Routes through Vercel AI Gateway.",
   path: "/models",

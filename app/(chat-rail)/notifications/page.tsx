@@ -13,7 +13,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Notifications — Kody Operations Dashboard",
+  title: "Notifications",
   description: "Manage Slack notification rules for releases and other events.",
   path: "/notifications",
 });

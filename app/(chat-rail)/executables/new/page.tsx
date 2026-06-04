@@ -14,7 +14,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "New duty — Kody Operations Dashboard",
+  title: "New duty",
   description: "Create a duty (full folder-duty).",
   path: "/executables/new",
 });

@@ -14,7 +14,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Create Task — Kody Operations Dashboard",
+  title: "Create Task",
   description: "Create a new task for the Kody AI build agent",
   path: "/new",
 });

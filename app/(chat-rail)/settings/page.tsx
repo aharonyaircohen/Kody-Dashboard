@@ -13,7 +13,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Settings — Kody Operations Dashboard",
+  title: "Settings",
   description:
     "Manage per-browser credentials: Brain server config, Vercel preview bypass, and sign-out.",
   path: "/settings",

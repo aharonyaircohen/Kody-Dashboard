@@ -16,7 +16,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Chat — Kody Operations Dashboard",
+  title: "Chat",
   description: "Chat with the Kody AI assistant about tasks and architecture",
   path: "/chat",
 });

@@ -15,7 +15,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Activity — Kody Operations Dashboard",
+  title: "Activity",
   description:
     "Engine run health: queue depth, throughput, failures, and recent runs.",
   path: "/activity",
