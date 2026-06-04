@@ -2,7 +2,7 @@
 
 _Cadence: weekly — delivery of owned responsibilities, not subjective quality._
 
-One of seven staff produced output this week; cto and qa remain structurally blocked with no deliverable signal.
+Zero of six staff produced new output this week; cto and qa remain structurally blocked or silent with no deliverable signal; tech-writer's last output is 5 days stale.
 
 | Staff        | Owned duties   | Delivery | Consistency | Signal | Grade |
 | ------------ | -------------- | -------- | ----------- | ------ | ----- |
@@ -11,11 +11,11 @@ One of seven staff produced output this week; cto and qa remain structurally blo
 | cto          | 4 (1 active)  | None     | No state    | No signal | unclear |
 | kody         | 10 (0 active) | —        | —           | —      | idle  |
 | qa           | 3 (1 active)  | None     | No state    | No signal | unclear |
-| tech-writer  | 2 (2 active)  | High     | Med         | High   | strong |
+| tech-writer  | 2 (2 active)  | None     | Frozen      | Stale  | weak  |
 | ux-designer  | 1 (0 active)  | —        | —           | —      | idle  |
 
-- **cto — unclear:** dev-ci-health (every 15m) has no state file and the `dev` branch does not exist in this repo (only `main`). Structurally blocked — no output possible regardless of execution quality. **Effect:** CI health on `dev` is permanently invisible.
-- **qa — unclear:** qa-verify (every 30m) has no state file, zero `kody:ui-verified`/`kody:ui-failed` labels on any issue/PR, and no inbox merge recommendations. **Effect:** zero PR previews verified; regressions ship unseen.
-- **tech-writer — strong:** docs-code/docs-readme (daily) produced issues #43, #45, #46 (Jun 3 UTC) — doc coverage gap findings and the docs-code enablement thread. Consistent output. **Effect:** documentation gaps actively tracked and closed.
+- **cto — unclear:** dev-ci-health (every 15m) is structurally blocked — `dev` branch does not exist in this repo (default is `main`). No output possible regardless of execution quality. **Effect:** CI health on `dev` is permanently invisible; this duty needs operator reconfiguration or disabling.
+- **qa — unclear:** qa-verify (every 30m) has no state file, zero `kody:ui-verified`/`kody:ui-failed` labels, and no inbox merge recommendations. **Effect:** zero PR previews verified; regressions ship unseen.
+- **tech-writer — weak:** docs-readme last produced issues #23 and #24 on May 30 (5 days ago, both still open); docs-code produced PR #44 still open. No new output this week. **Effect:** documentation drift is not being actively caught; coverage gaps may be growing unchecked.
 
-- Changes since last week: all grades unchanged (cto and qa still unclear, ceo/coo/kody/ux-designer still idle, tech-writer still strong).
+- Changes since last week: tech-writer strong→weak (no new output this week); all other grades unchanged.
