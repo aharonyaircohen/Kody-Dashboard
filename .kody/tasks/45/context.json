@@ -1,0 +1,14 @@
+{
+  "taskId": "45",
+  "taskType": "issue",
+  "target": "45",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Corrected kody-cmd from phantom @kody chore --issue to valid @kody run --issue; disabled:false was already set",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [".kody/duties/docs-code.md"],
+  "sessionLog": ".kody/sessions/current.jsonl",
+  "startedAt": "2026-06-04T00:00:00.000Z",
+  "finishedAt": "2026-06-04T00:00:00.000Z"
+}

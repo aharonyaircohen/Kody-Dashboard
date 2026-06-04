@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Refresh stale coverage numbers in issue #45",
+    "body": "The operator reported that when they audited the three flagged folders (ui-verify/, runners/, previews/), sampled files carried @ai-summary headers — contradicting the coverage numbers in issue #45. The three open tracking issues (#16, #17, #18) may need to be closed or their status refreshed once the duty activates.",
+    "rationale": "The coverage heuristic data in the issue body may be wrong; dispatching the duty with stale numbers could cause it to re-flag folders that already have adequate documentation.",
+    "priority": "medium"
+  }
+]
