@@ -24,10 +24,38 @@ export type KodyPhase =
 
 export type KodyStatus = "pending" | "running" | "succeeded" | "failed";
 
+/** How a job was triggered: an instant `@kody` run vs a scheduled (cron) run. */
+export type KodyJobFlavor = "instant" | "scheduled";
+
 export interface KodyAction {
   type: string;
   payload: Record<string, unknown>;
   timestamp: string;
+}
+
+/**
+ * One job in the task's ledger — the durable record a single engine run leaves
+ * behind. Mirrors `HistoryEntry` in kody-engine's src/state.ts. A task IS the
+ * ordered list of these entries plus the rolled-up `core` state; each run
+ * appends exactly one (a re-run is a NEW entry, never a mutation of a prior one).
+ */
+export interface KodyHistoryEntry {
+  timestamp: string;
+  executable: string;
+  action: string;
+  note?: string;
+  /** Staff member this run executed as, when the duty declares one. */
+  staff?: string;
+  /** Stable id for this job run (CI run id in Actions, else a stamp). */
+  jobId?: string;
+  /** Whether this run was an instant (`@kody`) or scheduled (cron) job. */
+  flavor?: KodyJobFlavor;
+  /** Cadence this scheduled job fired on (the duty's `every`/cron). */
+  schedule?: string;
+  /** This job's outcome at the time the entry was written. */
+  status?: KodyStatus;
+  /** Link to the run (GitHub Actions run URL) when available. */
+  runUrl?: string;
 }
 
 export interface KodyTaskState {
@@ -40,7 +68,11 @@ export interface KodyTaskState {
     attempts: Record<string, number>;
     prUrl?: string;
     runUrl?: string;
+    /** Staff persona the most recent run executed as, when declared. */
+    ranAsStaff?: string | null;
   };
+  /** Ordered run-history: one job entry per engine run on this issue/PR. */
+  history: KodyHistoryEntry[];
 }
 
 /**
@@ -77,7 +109,14 @@ export function parseKodyStateComment(body: string): KodyTaskState | null {
         attempts: parsed.core.attempts ?? {},
         prUrl: parsed.core.prUrl,
         runUrl: parsed.core.runUrl,
+        ranAsStaff: parsed.core.ranAsStaff ?? null,
       },
+      history: Array.isArray(parsed.history)
+        ? parsed.history.filter(
+            (e): e is KodyHistoryEntry =>
+              !!e && typeof e.timestamp === "string",
+          )
+        : [],
     };
   } catch {
     return null;

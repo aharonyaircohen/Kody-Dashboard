@@ -24,6 +24,7 @@ import {
   formatElapsed,
 } from "../pipeline-utils";
 import { PipelineStatus } from "./PipelineStatus";
+import { TaskRunsList } from "./TaskRunsList";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CommentEditor } from "./CommentEditor";
 import { CommentList } from "./CommentList";
@@ -73,7 +74,15 @@ import {
   ListPlus,
   ListMinus,
   Flag,
+  History,
 } from "lucide-react";
+
+/** Map a task-detail pathname to its active tab (URL is the source of truth). */
+function tabFromPath(path: string): "description" | "comments" | "runs" {
+  if (path.endsWith("/comments")) return "comments";
+  if (path.endsWith("/runs")) return "runs";
+  return "description";
+}
 
 interface TaskDetailProps {
   task: KodyTask | null;
@@ -660,12 +669,12 @@ export function TaskDetail({
     refetch,
     isFetching: isDetailsFetching,
   } = useTaskDetails(task?.issueNumber ?? null, actorLogin);
-  const [activeTab, setActiveTab] = useState<"description" | "comments">(() => {
+  const [activeTab, setActiveTab] = useState<
+    "description" | "comments" | "runs"
+  >(() => {
     if (!syncTabToUrl) return "description";
     if (typeof window === "undefined") return "description";
-    return window.location.pathname.endsWith("/comments")
-      ? "comments"
-      : "description";
+    return tabFromPath(window.location.pathname);
   });
   const [retryContext, setRetryContext] = useState("");
   const [showRetryContext, setShowRetryContext] = useState(false);
@@ -700,7 +709,7 @@ export function TaskDetail({
       // Don't handle preview URLs — parent manages those
       if (path.includes("/preview")) return;
 
-      setActiveTab(path.endsWith("/comments") ? "comments" : "description");
+      setActiveTab(tabFromPath(path));
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -714,11 +723,7 @@ export function TaskDetail({
       setActiveTab("description");
       return;
     }
-    setActiveTab(
-      window.location.pathname.endsWith("/comments")
-        ? "comments"
-        : "description",
-    );
+    setActiveTab(tabFromPath(window.location.pathname));
   }, [task?.issueNumber, syncTabToUrl]);
 
   const retryWithContext = useRetryWithContext({
@@ -778,6 +783,7 @@ export function TaskDetail({
 
   const hasDescription = task.body && task.body.trim().length > 0;
   const commentsCount = fullDetails?.comments?.length || 0;
+  const runsCount = task.kodyState?.history?.length || 0;
   const showPipelineTimeline =
     task.pipeline &&
     (task.pipeline.state === "running" || task.pipeline.state === "paused") &&
@@ -997,6 +1003,12 @@ export function TaskDetail({
       icon: MessageSquare,
       count: commentsCount,
     },
+    {
+      key: "runs" as const,
+      label: "Runs",
+      icon: History,
+      count: runsCount,
+    },
   ];
 
   // Compute effective tab: if current tab was removed (e.g. no PR → no Changes/Docs), fallback
@@ -1074,6 +1086,20 @@ export function TaskDetail({
             />
           </div>
           {retryWithContextBlock}
+        </div>
+      )}
+      {effectiveTab === "runs" && (
+        <div
+          role="tabpanel"
+          id="task-panel-runs"
+          aria-labelledby="task-tab-runs"
+          className="h-full"
+        >
+          <TaskRunsList
+            history={task.kodyState?.history}
+            onRerun={() => taskActions.rerun()}
+            rerunPending={taskActions.pendingAction === "rerun"}
+          />
         </div>
       )}
     </>

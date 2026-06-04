@@ -20,6 +20,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { parseAllComments } from "@dashboard/lib/task-parser";
+import { findKodyStateInComments } from "@dashboard/lib/kody-state";
 import { matchWorkflowRunToTask } from "@dashboard/lib/workflow-matching";
 import { parseKodyPhase, parseKodyFlow } from "@dashboard/lib/constants";
 import type {
@@ -198,6 +199,10 @@ export async function GET(
           task.pipeline = pipeline;
         }
 
+        // Canonical engine state (carries the job ledger in `history`) so the
+        // detail panel can render the per-run "Runs" list.
+        task.kodyState = findKodyStateInComments(comments) ?? undefined;
+
         return NextResponse.json({
           task,
           assignees: issue.assignees,
@@ -273,6 +278,10 @@ export async function GET(
         if (pipeline) {
           task.pipeline = pipeline;
         }
+
+        // Canonical engine state (carries the job ledger in `history`) so the
+        // detail panel can render the per-run "Runs" list.
+        task.kodyState = findKodyStateInComments(comments) ?? undefined;
 
         // Return task with assignees and raw comments for the detail panel
         return NextResponse.json({
