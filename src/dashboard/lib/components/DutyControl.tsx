@@ -73,9 +73,9 @@ import {
 import { getStoredAuth, type Duty, type DutySchedule } from "../api";
 import { DUTY_TEMPLATE } from "../duty-template";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { ListSearch } from "./ListSearch";
+import { EmptyState } from "./EmptyState";
+import { MasterDetailShell } from "./MasterDetailShell";
 import { MarkdownEditor } from "./MarkdownEditor";
-import { PageHeader } from "./PageShell";
 import { useChatScope } from "./ChatRailShell";
 
 /**
@@ -103,20 +103,15 @@ function sameMentions(a: string[], b: string[]): boolean {
   return sortedA.every((v, i) => v === sortedB[i]);
 }
 
-interface DutyControlProps {
-  /** Render without the built-in PageHeader (e.g. when hosted in DutiesPageTabs). */
-  embedded?: boolean;
-}
-
-export function DutyControl({ embedded = false }: DutyControlProps = {}) {
+export function DutyControl() {
   return (
     <AuthGuard>
-      <DutyControlInner embedded={embedded} />
+      <DutyControlInner />
     </AuthGuard>
   );
 }
 
-export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
+export function DutyControlInner() {
   const router = useRouter();
   const {
     data: duties = [],
@@ -170,14 +165,26 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
   }, [selectedDuty, setScope]);
 
   return (
-    <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
-      {/* Chat rail + sidebar come from the root layout (ChatRailShell). */}
-      <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
-        {embedded ? (
-          <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-black/20">
-            <span className="text-xs text-muted-foreground mr-auto">
-              {duties.length} {duties.length === 1 ? "duty" : "duties"}
-            </span>
+    <>
+      <MasterDetailShell
+        title="Duty Control"
+        icon={Target}
+        iconClassName="text-emerald-400"
+        subtitle={`${duties.length} ${duties.length === 1 ? "duty" : "duties"}`}
+        error={
+          error ? `Failed to load duties: ${(error as Error).message}` : null
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search duties…"
+        searchAriaLabel="Search duties"
+        accent="emerald"
+        hasSelection={!!selectedDuty}
+        listAside={
+          duties.length > 0 ? <DutyHealthSummaryBar duties={duties} /> : null
+        }
+        actions={
+          <>
             <Button
               variant="outline"
               size="sm"
@@ -189,195 +196,125 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
                 className={cn("w-4 h-4", isFetching && "animate-spin")}
               />
             </Button>
-            <Button
-              size="sm"
-              className="gap-1"
-              onClick={() => setCreating(true)}
-            >
+            <Button size="sm" className="gap-1" onClick={() => setCreating(true)}>
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">New duty</span>
             </Button>
-          </div>
-        ) : (
-          <PageHeader
-            title="Duty Control"
-            icon={Target}
-            iconClassName="text-emerald-400"
-            subtitle={`${duties.length} ${duties.length === 1 ? "duty" : "duties"}`}
-            actions={
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => refetch()}
-                  disabled={isFetching}
-                  aria-label="Refresh duties"
-                >
-                  <RefreshCw
-                    className={cn("w-4 h-4", isFetching && "animate-spin")}
-                  />
-                </Button>
-                <Button
-                  size="sm"
-                  className="gap-1"
-                  onClick={() => setCreating(true)}
-                >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">New duty</span>
-                </Button>
-              </>
-            }
+          </>
+        }
+        detail={
+          selectedDuty ? (
+            <DutyDetail
+              duty={selectedDuty}
+              onBack={() => setSelectedSlug(null)}
+              onEdit={() => setEditingDuty(selectedDuty)}
+              onDelete={() => setPendingDelete(selectedDuty)}
+              onRun={() => setPendingRun(selectedDuty)}
+              isRunning={
+                runMutation.isPending &&
+                runMutation.variables?.slug === selectedDuty.slug
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={<Target />}
+              title="Select a duty"
+              hint="Pick a duty from the list to see its intent and system prompt."
+            />
+          )
+        }
+      >
+        {isLoading ? (
+          <EmptyState icon={<FileText />} title="Loading duties…" />
+        ) : duties.length === 0 ? (
+          <EmptyState
+            icon={<Target />}
+            title="No duties yet"
+            hint="Create your first duty to describe the intent, system prompt, and restrictions."
           />
-        )}
-
-        {error ? (
-          <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
-            Failed to load duties: {(error as Error).message}
-          </div>
-        ) : null}
-
-        <div className="flex-1 min-h-0 flex">
-          {/* Middle: duty list */}
-          <aside
-            className={cn(
-              "w-full md:w-80 md:border-r md:border-border overflow-y-auto",
-              selectedDuty && "hidden md:block",
-            )}
-          >
-            {duties.length > 0 ? (
-              <div className="sticky top-0 z-10 bg-background/95 backdrop-blur px-3 md:px-4 py-2 md:py-3 border-b border-border">
-                <ListSearch
-                  value={search}
-                  onChange={setSearch}
-                  placeholder="Search duties…"
-                  ariaLabel="Search duties"
-                  accent="emerald"
-                />
-                <DutyHealthSummaryBar duties={duties} />
-              </div>
-            ) : null}
-            {isLoading ? (
-              <EmptyState icon={<FileText />} title="Loading duties…" />
-            ) : duties.length === 0 ? (
-              <EmptyState
-                icon={<Target />}
-                title="No duties yet"
-                hint="Create your first duty to describe the intent, system prompt, and restrictions."
-              />
-            ) : filtered.length === 0 ? (
-              <EmptyState
-                icon={<Target />}
-                title="No matching duties"
-                hint="No duty matches your search. Try a different term."
-              />
-            ) : (
-              <ul className="divide-y divide-border">
-                {filtered.map((duty) => {
-                  const isActive = selectedSlug === duty.slug;
-                  return (
-                    <li key={duty.slug}>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          duty.folder
-                            ? router.push(`/executables/${duty.slug}`)
-                            : setSelectedSlug(duty.slug)
-                        }
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={<Target />}
+            title="No matching duties"
+            hint="No duty matches your search. Try a different term."
+          />
+        ) : (
+          <ul className="divide-y divide-border">
+            {filtered.map((duty) => {
+              const isActive = selectedSlug === duty.slug;
+              return (
+                <li key={duty.slug}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      duty.folder
+                        ? router.push(`/executables/${duty.slug}`)
+                        : setSelectedSlug(duty.slug)
+                    }
+                    className={cn(
+                      "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
+                      isActive && "bg-accent/70",
+                      duty.disabled && "opacity-60",
+                    )}
+                  >
+                    {isActive ? (
+                      <span className="absolute inset-y-0 left-0 w-0.5 bg-emerald-400" />
+                    ) : null}
+                    <div className="flex items-center gap-2">
+                      <Target
                         className={cn(
-                          "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
-                          isActive && "bg-accent/70",
-                          duty.disabled && "opacity-60",
+                          "w-3.5 h-3.5 shrink-0",
+                          isActive
+                            ? "text-emerald-400"
+                            : "text-muted-foreground",
                         )}
-                      >
-                        {isActive ? (
-                          <span className="absolute inset-y-0 left-0 w-0.5 bg-emerald-400" />
-                        ) : null}
-                        <div className="flex items-center gap-2">
-                          <Target
-                            className={cn(
-                              "w-3.5 h-3.5 shrink-0",
-                              isActive
-                                ? "text-emerald-400"
-                                : "text-muted-foreground",
-                            )}
-                          />
-                          <span className="font-medium text-sm truncate flex-1">
-                            {duty.title}
-                          </span>
-                          {duty.disabled ? (
-                            <span
-                              className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-                              title="Scheduler skips this duty. Manual Run still works."
-                            >
-                              <PowerOff className="w-2.5 h-2.5" />
-                              Disabled
-                            </span>
-                          ) : (
-                            <DutyHealthBadge duty={duty} />
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-                          <span className="font-mono opacity-80">
-                            {duty.slug}
-                          </span>
-                          <span>·</span>
-                          <span className="inline-flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(duty.updatedAt).toLocaleDateString()}
-                          </span>
-                          <ScheduleInline schedule={duty.schedule} />
-                          <LastTickInline
-                            lastTickAt={duty.lastTickAt}
-                            lastOutcome={duty.lastOutcome}
-                            lastDurationMs={duty.lastDurationMs}
-                          />
-                          {!duty.disabled ? (
-                            <NextRunInline
-                              nextEligibleAt={duty.nextEligibleAt}
-                              schedule={duty.schedule}
-                            />
-                          ) : null}
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </aside>
+                      />
+                      <span className="font-medium text-sm truncate flex-1">
+                        {duty.title}
+                      </span>
+                      {duty.disabled ? (
+                        <span
+                          className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
+                          title="Scheduler skips this duty. Manual Run still works."
+                        >
+                          <PowerOff className="w-2.5 h-2.5" />
+                          Disabled
+                        </span>
+                      ) : (
+                        <DutyHealthBadge duty={duty} />
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+                      <span className="font-mono opacity-80">{duty.slug}</span>
+                      <span>·</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(duty.updatedAt).toLocaleDateString()}
+                      </span>
+                      <ScheduleInline schedule={duty.schedule} />
+                      <LastTickInline
+                        lastTickAt={duty.lastTickAt}
+                        lastOutcome={duty.lastOutcome}
+                        lastDurationMs={duty.lastDurationMs}
+                      />
+                      {!duty.disabled ? (
+                        <NextRunInline
+                          nextEligibleAt={duty.nextEligibleAt}
+                          schedule={duty.schedule}
+                        />
+                      ) : null}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </MasterDetailShell>
 
-          {/* Right: duty detail */}
-          <section
-            className={cn(
-              "flex-1 min-w-0 overflow-y-auto",
-              !selectedDuty && "hidden md:block",
-            )}
-          >
-            {selectedDuty ? (
-              <DutyDetail
-                duty={selectedDuty}
-                onBack={() => setSelectedSlug(null)}
-                onEdit={() => setEditingDuty(selectedDuty)}
-                onDelete={() => setPendingDelete(selectedDuty)}
-                onRun={() => setPendingRun(selectedDuty)}
-                isRunning={
-                  runMutation.isPending &&
-                  runMutation.variables?.slug === selectedDuty.slug
-                }
-              />
-            ) : (
-              <EmptyState
-                icon={<Target />}
-                title="Select a duty"
-                hint="Pick a duty from the list to see its intent and system prompt."
-              />
-            )}
-          </section>
-        </div>
-
-        {/* Create — the simple markdown duty dialog (title, schedule, staff,
-            mentions, body). The full folder-duty editor lives at /executables. */}
-        <CreateDutyDialog
+      {/* Create — the simple markdown duty dialog (title, schedule, staff,
+          mentions, body). The full folder-duty editor lives at /executables. */}
+      <CreateDutyDialog
           open={creating}
           onClose={() => setCreating(false)}
           onCreated={(duty) => {
@@ -434,8 +371,7 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
           }}
           onClose={() => setPendingDelete(null)}
         />
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -1413,20 +1349,3 @@ function ScheduleInline({ schedule }: { schedule: DutySchedule | null }) {
   );
 }
 
-function EmptyState({
-  icon,
-  title,
-  hint,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  hint?: string;
-}) {
-  return (
-    <div className="h-full flex flex-col items-center justify-center text-center px-6 py-16 text-muted-foreground">
-      <div className="w-10 h-10 mb-3 opacity-60">{icon}</div>
-      <div className="text-sm font-medium text-foreground">{title}</div>
-      {hint ? <p className="text-xs mt-1 max-w-xs">{hint}</p> : null}
-    </div>
-  );
-}
