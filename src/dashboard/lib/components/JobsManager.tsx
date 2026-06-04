@@ -28,7 +28,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import {
   Dialog,
@@ -51,12 +50,7 @@ import { useStaff } from "../hooks/useStaff";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { PageHeader } from "./PageShell";
 import { ConfirmDialog } from "./ConfirmDialog";
-import {
-  validateKodyJob,
-  resolveJobProfile,
-  type KodyJob,
-  type KodyJobFlavor,
-} from "../kody-job";
+import { validateKodyJob, resolveJobProfile, type KodyJob } from "../kody-job";
 
 interface ExecutableSummary {
   slug: string;
@@ -426,13 +420,10 @@ function JobComposer({ onDone }: { onDone: () => void }) {
   const [duty, setDuty] = useState("");
   const [persona, setPersona] = useState("");
   const [schedule, setSchedule] = useState<DutySchedule>("1d");
-  const [target, setTarget] = useState("");
   const [why, setWhy] = useState("");
 
-  // The schedule itself decides the flavor: pick a cadence → recurring
-  // (scheduled); pick "manual" → run-once-now (instant). No separate toggle.
-  const flavor: KodyJobFlavor = schedule === "manual" ? "instant" : "scheduled";
-
+  // The form only DEFINES (saves) a job — running is done from the list. Every
+  // saved job is a scheduled duty; "manual" just means it has no auto-cadence.
   const { job, error } = useMemo(() => {
     try {
       const candidate: Record<string, unknown> = {
@@ -440,36 +431,25 @@ function JobComposer({ onDone }: { onDone: () => void }) {
         duty: duty || undefined,
         why: why || undefined,
         persona: persona || undefined,
-        schedule: flavor === "scheduled" ? schedule : undefined,
-        target: target ? Number(target) : undefined,
+        schedule: schedule === "manual" ? undefined : schedule,
         cliArgs: {},
-        flavor,
-        force: flavor === "scheduled" ? true : undefined,
+        flavor: "scheduled",
+        force: true,
       };
       return { job: validateKodyJob(candidate), error: null as string | null };
     } catch (e) {
       return { job: null, error: (e as Error).message };
     }
-  }, [executable, duty, why, persona, schedule, target, flavor]);
+  }, [executable, duty, why, persona, schedule]);
 
-  const runInstant = useMutation({
-    mutationFn: (j: KodyJob) => kodyApi.jobs.run(j, login),
-    onSuccess: (r) => {
-      toast.success(`Ran: ${r.dispatch}`);
-      onDone();
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
-
-  const saveScheduled = useMutation({
+  const save = useMutation({
     mutationFn: (j: KodyJob) => {
       const slug = resolveJobProfile(j) ?? "job";
-      const intent =
-        j.why?.trim() || `Run ${resolveJobProfile(j)} on schedule.`;
+      const intent = j.why?.trim() || `Run ${slug}.`;
       return kodyApi.duties.create({
-        title: `${slug} (scheduled)`,
-        body: `## Job\n\nExecutable: \`${resolveJobProfile(j)}\`\n\n${intent}\n`,
-        schedule: (j.schedule as DutySchedule) ?? null,
+        title: slug,
+        body: `## Job\n\nExecutable: \`${slug}\`\n\n${intent}\n`,
+        schedule,
         staff: j.persona || null,
         actorLogin: login,
       });
@@ -481,17 +461,11 @@ function JobComposer({ onDone }: { onDone: () => void }) {
     onError: (e) => toast.error((e as Error).message),
   });
 
-  const busy = runInstant.isPending || saveScheduled.isPending;
-  const canSubmit =
-    !!job &&
-    !error &&
-    !!resolveJobProfile(job) &&
-    (flavor === "instant" ? !!job.target : true);
+  const busy = save.isPending;
+  const canSubmit = !!job && !error && !!resolveJobProfile(job);
 
   const submit = () => {
-    if (!job) return;
-    if (flavor === "instant") runInstant.mutate(job);
-    else saveScheduled.mutate(job);
+    if (job) save.mutate(job);
   };
 
   return (
@@ -508,7 +482,7 @@ function JobComposer({ onDone }: { onDone: () => void }) {
           label="Staff — who"
           value={persona}
           onChange={setPersona}
-          placeholder={flavor === "instant" ? "kody (default)" : "Select…"}
+          placeholder="Select…"
           options={staff.map((s) => s.slug)}
         />
         <FieldSelect
@@ -518,26 +492,13 @@ function JobComposer({ onDone }: { onDone: () => void }) {
           placeholder="None"
           options={duties.map((d) => d.slug)}
         />
-        {/* The schedule is the "when" AND the flavor: a cadence = recurring,
-            "manual" = run once now. */}
+        {/* "manual" = saved with no auto-cadence; run it from the list. */}
         <FieldSelect
           label="Schedule — when"
           value={schedule}
           onChange={(v) => setSchedule(v as DutySchedule)}
           options={SCHEDULE_OPTIONS}
         />
-        {flavor === "instant" ? (
-          <div className="space-y-1.5">
-            <Label htmlFor="job-target">Target — issue/PR #</Label>
-            <Input
-              id="job-target"
-              type="number"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder="e.g. 42"
-            />
-          </div>
-        ) : null}
       </div>
 
       <div className="space-y-1.5">
@@ -566,12 +527,10 @@ function JobComposer({ onDone }: { onDone: () => void }) {
         >
           {busy ? (
             <Loader2 className="w-4 h-4 animate-spin" />
-          ) : flavor === "instant" ? (
-            <Play className="w-4 h-4" />
           ) : (
             <Plus className="w-4 h-4" />
           )}
-          {flavor === "instant" ? "Run now" : "Create job"}
+          Create job
         </Button>
       </div>
     </div>
