@@ -9,7 +9,6 @@
  */
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -128,6 +127,7 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
   } = useDuties();
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [editingDuty, setEditingDuty] = useState<Duty | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Duty | null>(null);
   const [pendingRun, setPendingRun] = useState<Duty | null>(null);
@@ -189,11 +189,13 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
                 className={cn("w-4 h-4", isFetching && "animate-spin")}
               />
             </Button>
-            <Button asChild size="sm" className="gap-1">
-              <Link href="/executables/new">
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">New duty</span>
-              </Link>
+            <Button
+              size="sm"
+              className="gap-1"
+              onClick={() => setCreating(true)}
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">New duty</span>
             </Button>
           </div>
         ) : (
@@ -215,11 +217,13 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
                     className={cn("w-4 h-4", isFetching && "animate-spin")}
                   />
                 </Button>
-                <Button asChild size="sm" className="gap-1">
-                  <Link href="/executables/new">
-                    <Plus className="w-4 h-4" />
-                    <span className="hidden sm:inline">New duty</span>
-                  </Link>
+                <Button
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => setCreating(true)}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">New duty</span>
                 </Button>
               </>
             }
@@ -371,9 +375,16 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
           </section>
         </div>
 
-        {/* Create is the full folder-duty editor at /executables/new (the
-            "New duty" button links there); the old markdown create dialog is
-            retired. */}
+        {/* Create — the simple markdown duty dialog (title, schedule, staff,
+            mentions, body). The full folder-duty editor lives at /executables. */}
+        <CreateDutyDialog
+          open={creating}
+          onClose={() => setCreating(false)}
+          onCreated={(duty) => {
+            setCreating(false);
+            setSelectedSlug(duty.slug);
+          }}
+        />
 
         {/* Edit */}
         {editingDuty ? (
@@ -653,7 +664,6 @@ function CreateDutyDialog({
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState(DUTY_TEMPLATE);
-  const [schedule, setSchedule] = useState<DutySchedule | null>(null);
   const [staff, setStaff] = useState<string | null>(null);
   const [mentions, setMentions] = useState("");
 
@@ -661,7 +671,6 @@ function CreateDutyDialog({
     if (open) {
       setTitle("");
       setBody(DUTY_TEMPLATE);
-      setSchedule(null);
       setStaff(null);
       setMentions("");
     }
@@ -673,7 +682,11 @@ function CreateDutyDialog({
       {
         title: title.trim(),
         body,
-        schedule,
+        // A duty isn't a timer: its core is executable + staff. Created
+        // "manual" (never auto-fires) — schedule it later from the engine
+        // if needed. Omitting `every` entirely would make the engine tick
+        // it every cron wake, the opposite of what we want.
+        schedule: "manual",
         staff,
         mentions: parseMentionsInput(mentions),
       },
@@ -705,7 +718,6 @@ function CreateDutyDialog({
               autoFocus
             />
           </div>
-          <ScheduleSelect value={schedule} onChange={setSchedule} />
           <StaffSelect value={staff} onChange={setStaff} />
           <MentionsInput value={mentions} onChange={setMentions} />
           <div className="space-y-1.5">

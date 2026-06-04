@@ -14,7 +14,7 @@
  */
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,17 +24,20 @@ import {
   Boxes,
   CheckCircle2,
   Download,
+  ExternalLink,
   Loader2,
   Pencil,
   Play,
   Plus,
+  RefreshCw,
   Sparkles,
   Star,
   Trash2,
+  User,
   XCircle,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
-import { ListSearch } from "./ListSearch";
+import { cn } from "../utils";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
@@ -57,6 +60,8 @@ import {
 } from "@dashboard/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { EmptyState } from "./EmptyState";
+import { MasterDetailShell } from "./MasterDetailShell";
 import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
 import {
@@ -357,7 +362,7 @@ function ExecutablesManagerInner() {
   const actorLogin = auth?.user.login;
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey,
     queryFn: () => listApi(headers),
     enabled: !!auth,
@@ -397,6 +402,7 @@ function ExecutablesManagerInner() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [running, setRunning] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -408,215 +414,118 @@ function ExecutablesManagerInner() {
     );
   }, [executables, search]);
 
+  const selected = useMemo(
+    () => executables.find((e) => e.slug === selectedSlug) ?? null,
+    [executables, selectedSlug],
+  );
+
+  // Auto-select the first executable on desktop, mirroring Jobs/Reports.
+  useEffect(() => {
+    if (!selectedSlug && executables.length > 0) {
+      setSelectedSlug(executables[0].slug);
+    }
+  }, [executables, selectedSlug]);
+
   return (
-    <PageShell
-      title="Executables"
-      icon={Boxes}
-      iconClassName="text-amber-400"
-      subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
-      actions={
-        <Button asChild size="sm" className="gap-1">
-          <Link href="/executables/new">
-            <Plus className="w-4 h-4" />
-            New executable
-          </Link>
-        </Button>
-      }
-    >
-      <div className="space-y-3">
-        {isLoading && (
-          <p className="text-sm text-white/50 flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading executables…
-          </p>
-        )}
-
-        {error && (
-          <Card className="border-rose-500/30 bg-rose-950/20">
-            <CardContent className="p-4 text-sm">
-              <p className="text-rose-300 font-medium">
-                Couldn&apos;t load executables
-              </p>
-              <p className="text-rose-200/70 mt-1">
-                {error instanceof Error ? error.message : "Unknown error"}
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-3"
-                onClick={() => refetch()}
-              >
-                Retry
+    <>
+      <MasterDetailShell
+        title="Executables"
+        icon={Boxes}
+        iconClassName="text-amber-400"
+        subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
+        error={
+          error
+            ? `Couldn't load executables: ${error instanceof Error ? error.message : "Unknown error"}`
+            : null
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search executables…"
+        searchAriaLabel="Search executables"
+        accent="amber"
+        hasSelection={!!selected}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              aria-label="Refresh executables"
+            >
+              <RefreshCw
+                className={cn("w-4 h-4", isFetching && "animate-spin")}
+              />
+            </Button>
+            <Button asChild size="sm" className="gap-1">
+              <Link href="/executables/new">
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">New executable</span>
+              </Link>
+            </Button>
+          </>
+        }
+        detail={
+          selected ? (
+            <ExecutableDetail
+              exec={selected}
+              isIssueDefault={defaults.issue === selected.slug}
+              isPrDefault={defaults.pr === selected.slug}
+              onBack={() => setSelectedSlug(null)}
+              onRun={() => setRunning(selected.slug)}
+              onDelete={() => setDeleting(selected.slug)}
+              onSetDefault={(target, clear) =>
+                setDefault.mutate({ slug: selected.slug, target, clear })
+              }
+              settingDefault={setDefault.isPending}
+            />
+          ) : (
+            <EmptyState
+              icon={<Boxes />}
+              title="Select an executable"
+              hint="Pick one from the list to see its config and run, edit, or delete it."
+            />
+          )
+        }
+      >
+        {isLoading ? (
+          <EmptyState icon={<Boxes />} title="Loading executables…" />
+        ) : executables.length === 0 ? (
+          <EmptyState
+            icon={<Sparkles />}
+            title="No executables yet"
+            hint="An executable is a custom @kody <slug> action stored at .kody/duties/<slug>/. The engine resolves it before its built-ins."
+            action={
+              <Button asChild size="sm" className="gap-1">
+                <Link href="/executables/new">
+                  <Plus className="w-4 h-4" />
+                  New executable
+                </Link>
               </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {!isLoading && !error && executables.length === 0 && (
-          <Card className="border-white/[0.08] bg-white/[0.02]">
-            <CardContent className="p-6 text-center space-y-3">
-              <Sparkles className="w-8 h-8 text-white/30 mx-auto" />
-              <p className="text-sm text-white/70">No executables yet.</p>
-              <p className="text-xs text-white/40 max-w-md mx-auto">
-                An executable is a custom{" "}
-                <code className="text-white/55">@kody &lt;slug&gt;</code> action
-                stored at{" "}
-                <code className="text-white/55">
-                  .kody/duties/&lt;slug&gt;/
-                </code>{" "}
-                in this repo. The engine resolves it before its built-ins.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {!isLoading && !error && executables.length > 0 && (
-          <ListSearch
-            value={search}
-            onChange={setSearch}
-            placeholder="Search executables…"
-            ariaLabel="Search executables"
-            accent="teal"
+            }
           />
-        )}
-
-        <ul className="space-y-2">
-          {filtered.map((e) => {
-            const isIssueDefault = defaults.issue === e.slug;
-            const isPrDefault = defaults.pr === e.slug;
-            return (
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={<Boxes />}
+            title="No matching executables"
+            hint={`Nothing matched "${search}".`}
+          />
+        ) : (
+          <ul className="divide-y divide-border">
+            {filtered.map((e) => (
               <li key={e.slug}>
-                <Card className="border-white/[0.08] bg-white/[0.03]">
-                  <CardContent className="p-3 flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-mono text-sm text-white/90 truncate">
-                          @kody {e.slug}
-                        </p>
-                        <span className="text-[10px] uppercase tracking-wide bg-white/[0.06] text-white/50 px-1.5 py-0.5 rounded">
-                          {e.landing === "pr" ? "opens PR" : "comments"}
-                        </span>
-                        {e.staff && (
-                          <span className="text-[10px] uppercase tracking-wide bg-emerald-500/15 text-emerald-300/90 px-1.5 py-0.5 rounded">
-                            runs as {e.staff}
-                          </span>
-                        )}
-                        {e.legacy && (
-                          <span className="text-[10px] uppercase tracking-wide bg-orange-500/15 text-orange-300/90 px-1.5 py-0.5 rounded">
-                            {e.markdown ? "legacy .md" : "legacy"}
-                          </span>
-                        )}
-                        {isIssueDefault && (
-                          <span className="text-[10px] uppercase tracking-wide bg-amber-500/15 text-amber-300/90 px-1.5 py-0.5 rounded">
-                            issue default
-                          </span>
-                        )}
-                        {isPrDefault && (
-                          <span className="text-[10px] uppercase tracking-wide bg-sky-500/15 text-sky-300/90 px-1.5 py-0.5 rounded">
-                            PR default
-                          </span>
-                        )}
-                      </div>
-                      {e.describe && (
-                        <p className="text-xs text-white/60 mt-1 truncate">
-                          {e.describe}
-                        </p>
-                      )}
-                      {e.updatedAt && (
-                        <p className="text-[11px] text-white/40 mt-0.5">
-                          Updated {formatRelative(e.updatedAt)}
-                        </p>
-                      )}
-                      {e.markdown ? (
-                        <p className="text-[11px] text-orange-300/70 mt-2">
-                          Legacy markdown duty — migrate to a folder-duty to edit
-                          it here.
-                        </p>
-                      ) : (
-                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                          <Button
-                            size="sm"
-                            variant={isIssueDefault ? "secondary" : "ghost"}
-                            className="h-6 gap-1 text-[11px] px-2"
-                            onClick={() =>
-                              setDefault.mutate({
-                                slug: e.slug,
-                                target: "issue",
-                                clear: isIssueDefault,
-                              })
-                            }
-                          >
-                            <Star className="w-3 h-3" />
-                            {isIssueDefault
-                              ? "Issue default ✓"
-                              : "Set issue default"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={isPrDefault ? "secondary" : "ghost"}
-                            className="h-6 gap-1 text-[11px] px-2"
-                            onClick={() =>
-                              setDefault.mutate({
-                                slug: e.slug,
-                                target: "pr",
-                                clear: isPrDefault,
-                              })
-                            }
-                          >
-                            <Star className="w-3 h-3" />
-                            {isPrDefault ? "PR default ✓" : "Set PR default"}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {e.markdown ? (
-                        <Button asChild size="sm" variant="ghost" className="gap-1">
-                          <a href={e.htmlUrl} target="_blank" rel="noreferrer">
-                            <Pencil className="w-3.5 h-3.5" />
-                            Open .md
-                          </a>
-                        </Button>
-                      ) : (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="gap-1"
-                            onClick={() => setRunning(e.slug)}
-                          >
-                            <Play className="w-3.5 h-3.5" />
-                            Run
-                          </Button>
-                          <Button
-                            asChild
-                            size="sm"
-                            variant="ghost"
-                            className="gap-1"
-                          >
-                            <Link href={`/executables/${e.slug}`}>
-                              <Pencil className="w-3.5 h-3.5" />
-                              Edit
-                            </Link>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="gap-1 text-rose-300 hover:text-rose-200"
-                            onClick={() => setDeleting(e.slug)}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Delete
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                <ExecutableRow
+                  exec={e}
+                  isActive={selectedSlug === e.slug}
+                  isIssueDefault={defaults.issue === e.slug}
+                  isPrDefault={defaults.pr === e.slug}
+                  onSelect={() => setSelectedSlug(e.slug)}
+                />
               </li>
-            );
-          })}
-        </ul>
-      </div>
+            ))}
+          </ul>
+        )}
+      </MasterDetailShell>
 
       {running && (
         <RunDialog
@@ -641,7 +550,247 @@ function ExecutablesManagerInner() {
         }}
         onClose={() => setDeleting(null)}
       />
-    </PageShell>
+    </>
+  );
+}
+
+/** One executable in the list — mirrors the duty/job list row. */
+function ExecutableRow({
+  exec: e,
+  isActive,
+  isIssueDefault,
+  isPrDefault,
+  onSelect,
+}: {
+  exec: ExecutableSummary;
+  isActive: boolean;
+  isIssueDefault: boolean;
+  isPrDefault: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
+        isActive && "bg-accent/70",
+      )}
+    >
+      {isActive ? (
+        <span className="absolute inset-y-0 left-0 w-0.5 bg-amber-400" />
+      ) : null}
+      <div className="flex items-center gap-2">
+        <Boxes
+          className={cn(
+            "w-3.5 h-3.5 shrink-0",
+            isActive ? "text-amber-400" : "text-muted-foreground",
+          )}
+        />
+        <span className="font-mono text-sm truncate flex-1 text-white/90">
+          @kody {e.slug}
+        </span>
+        {isIssueDefault ? (
+          <span className="shrink-0 text-[10px] uppercase tracking-wide text-amber-400/80">
+            issue
+          </span>
+        ) : null}
+        {isPrDefault ? (
+          <span className="shrink-0 text-[10px] uppercase tracking-wide text-sky-400/80">
+            PR
+          </span>
+        ) : null}
+      </div>
+      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+        <span className="inline-flex items-center gap-1">
+          {e.landing === "pr" ? "opens PR" : "comments"}
+        </span>
+        {e.staff ? (
+          <span className="inline-flex items-center gap-1">
+            <User className="w-3 h-3" />
+            {e.staff}
+          </span>
+        ) : null}
+        {e.markdown ? (
+          <span className="text-orange-300/70">legacy .md</span>
+        ) : e.legacy ? (
+          <span className="text-orange-300/70">legacy</span>
+        ) : null}
+      </div>
+      {e.describe ? (
+        <p className="text-xs text-white/55 mt-1 truncate">{e.describe}</p>
+      ) : null}
+    </button>
+  );
+}
+
+/** Detail pane for one executable — mirrors DutyDetail's hero + actions. */
+function ExecutableDetail({
+  exec: e,
+  isIssueDefault,
+  isPrDefault,
+  onBack,
+  onRun,
+  onDelete,
+  onSetDefault,
+  settingDefault,
+}: {
+  exec: ExecutableSummary;
+  isIssueDefault: boolean;
+  isPrDefault: boolean;
+  onBack: () => void;
+  onRun: () => void;
+  onDelete: () => void;
+  onSetDefault: (target: "issue" | "pr", clear: boolean) => void;
+  settingDefault: boolean;
+}) {
+  return (
+    <article className="min-h-full">
+      <div className="border-b border-white/[0.06] bg-gradient-to-b from-amber-500/[0.06] via-amber-500/[0.02] to-transparent">
+        <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="md:hidden gap-1 -ml-2 text-muted-foreground"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            All executables
+          </Button>
+          <header className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0 flex-1 space-y-2">
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words font-mono inline-flex items-center gap-3 flex-wrap">
+                <span>@kody {e.slug}</span>
+                <span className="text-[11px] font-sans uppercase tracking-wide bg-white/[0.06] text-white/50 px-2 py-0.5 rounded">
+                  {e.landing === "pr" ? "opens PR" : "comments"}
+                </span>
+                {e.markdown ? (
+                  <span className="text-[11px] font-sans uppercase tracking-wide bg-orange-500/15 text-orange-300/90 px-2 py-0.5 rounded">
+                    legacy .md
+                  </span>
+                ) : null}
+              </h1>
+              <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
+                {e.staff ? (
+                  <span className="inline-flex items-center gap-1">
+                    <User className="w-3 h-3" />
+                    runs as {e.staff}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1">
+                    <User className="w-3 h-3" />
+                    no staff
+                  </span>
+                )}
+                {e.updatedAt ? (
+                  <>
+                    <span>·</span>
+                    <span>updated {formatRelative(e.updatedAt)}</span>
+                  </>
+                ) : null}
+                {isIssueDefault ? (
+                  <span className="text-amber-400">· issue default</span>
+                ) : null}
+                {isPrDefault ? (
+                  <span className="text-sky-400">· PR default</span>
+                ) : null}
+                <span>·</span>
+                <a
+                  href={e.htmlUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                  title="Open on GitHub"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  GitHub
+                </a>
+              </div>
+            </div>
+            {e.markdown ? (
+              <Button asChild variant="outline" size="sm" className="gap-1.5">
+                <a href={e.htmlUrl} target="_blank" rel="noreferrer">
+                  <Pencil className="w-3.5 h-3.5" />
+                  Open .md
+                </a>
+              </Button>
+            ) : (
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  onClick={onRun}
+                  className="w-9 px-0 bg-amber-600 hover:bg-amber-700 text-white"
+                  title="Run on an issue"
+                  aria-label="Run executable"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onSetDefault("issue", isIssueDefault)}
+                  disabled={settingDefault}
+                  className={cn("w-9 px-0", isIssueDefault && "text-amber-400")}
+                  title={
+                    isIssueDefault
+                      ? "Clear issue default"
+                      : "Make this the issue default (bare @kody on an issue)"
+                  }
+                  aria-label="Toggle issue default"
+                >
+                  <Star className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="w-9 px-0"
+                  title="Edit executable"
+                >
+                  <Link href={`/executables/${e.slug}`} aria-label="Edit">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onDelete}
+                  className="w-9 px-0 text-red-400"
+                  title="Delete executable"
+                  aria-label="Delete executable"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            )}
+          </header>
+
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
+            <p className="text-sm text-white/80">
+              {e.describe || "No description yet."}
+            </p>
+            {!e.markdown ? (
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant={isPrDefault ? "secondary" : "outline"}
+                  className="h-7 gap-1 text-[11px] px-2"
+                  disabled={settingDefault}
+                  onClick={() => onSetDefault("pr", isPrDefault)}
+                >
+                  <Star className="w-3 h-3" />
+                  {isPrDefault ? "PR default ✓" : "Set PR default"}
+                </Button>
+              </div>
+            ) : (
+              <p className="text-[11px] text-orange-300/70 mt-2">
+                Legacy markdown duty — migrate to a folder-duty to edit it here.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
 

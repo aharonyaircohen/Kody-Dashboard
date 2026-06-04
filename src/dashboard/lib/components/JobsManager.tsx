@@ -11,7 +11,7 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -48,8 +48,9 @@ import { kodyApi, type DutySchedule, type Duty } from "../api";
 import { useDuties, useRunDuty } from "../hooks/useDuties";
 import { useStaff } from "../hooks/useStaff";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import { PageHeader } from "./PageShell";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { EmptyState } from "./EmptyState";
+import { MasterDetailShell } from "./MasterDetailShell";
 import { validateKodyJob, resolveJobProfile, type KodyJob } from "../kody-job";
 
 interface ExecutableSummary {
@@ -120,12 +121,20 @@ export function JobsManager() {
   }, [filtered, selectedSlug]);
 
   return (
-    <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
-      <PageHeader
+    <>
+      <MasterDetailShell
         title="Jobs"
         icon={Rocket}
         iconClassName="text-emerald-400"
         subtitle={`${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}`}
+        error={error ? `Failed to load jobs: ${(error as Error).message}` : null}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search jobs…"
+        searchAriaLabel="Search jobs"
+        accent="emerald"
+        listWidth="md:w-96"
+        hasSelection={!!selected}
         actions={
           <>
             <Button
@@ -149,76 +158,8 @@ export function JobsManager() {
             </Button>
           </>
         }
-      />
-
-      {error ? (
-        <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
-          Failed to load jobs: {(error as Error).message}
-        </div>
-      ) : null}
-
-      <div className="flex-1 min-h-0 flex">
-        {/* List — full width on mobile, fixed sidebar on desktop. */}
-        <aside
-          className={cn(
-            "w-full md:w-96 md:border-r md:border-border flex flex-col min-h-0",
-            selected && "hidden md:flex",
-          )}
-        >
-          <div className="shrink-0 px-3 md:px-4 py-2 md:py-3 border-b border-border">
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search jobs…"
-              className={cn(
-                "w-full bg-background/40 border border-border rounded-md",
-                "px-3 py-2 text-sm placeholder:text-muted-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-emerald-500/40",
-              )}
-              aria-label="Search jobs"
-            />
-          </div>
-
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            {isLoading ? (
-              <EmptyState icon={<Rocket />} title="Loading jobs…" />
-            ) : jobs.length === 0 ? (
-              <EmptyState
-                icon={<Rocket />}
-                title="No jobs yet"
-                hint="A job binds an executable, a duty, a staff member, and a schedule. Click “New job” to assemble one."
-              />
-            ) : filtered.length === 0 ? (
-              <EmptyState
-                icon={<Rocket />}
-                title="No matching jobs"
-                hint={`Nothing matched "${search}".`}
-              />
-            ) : (
-              <ul className="divide-y divide-border">
-                {filtered.map((job) => (
-                  <li key={job.slug}>
-                    <JobRow
-                      job={job}
-                      isActive={selectedSlug === job.slug}
-                      onSelect={() => setSelectedSlug(job.slug)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </aside>
-
-        {/* Detail */}
-        <section
-          className={cn(
-            "flex-1 min-w-0 overflow-y-auto",
-            !selected && "hidden md:block",
-          )}
-        >
-          {selected ? (
+        detail={
+          selected ? (
             <JobDetail
               job={selected}
               onBack={() => setSelectedSlug(null)}
@@ -231,9 +172,37 @@ export function JobsManager() {
               title="Select a job"
               hint="Pick a job from the list to see its assembly and run it."
             />
-          )}
-        </section>
-      </div>
+          )
+        }
+      >
+        {isLoading ? (
+          <EmptyState icon={<Rocket />} title="Loading jobs…" />
+        ) : jobs.length === 0 ? (
+          <EmptyState
+            icon={<Rocket />}
+            title="No jobs yet"
+            hint="A job binds an executable, a duty, a staff member, and a schedule. Click “New job” to assemble one."
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={<Rocket />}
+            title="No matching jobs"
+            hint={`Nothing matched "${search}".`}
+          />
+        ) : (
+          <ul className="divide-y divide-border">
+            {filtered.map((job) => (
+              <li key={job.slug}>
+                <JobRow
+                  job={job}
+                  isActive={selectedSlug === job.slug}
+                  onSelect={() => setSelectedSlug(job.slug)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </MasterDetailShell>
 
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent className="max-w-lg">
@@ -258,7 +227,7 @@ export function JobsManager() {
         }}
         onClose={() => setPendingRun(null)}
       />
-    </div>
+    </>
   );
 }
 
@@ -569,23 +538,3 @@ function FieldSelect({
   );
 }
 
-/** Local empty/placeholder state — mirrors the one in ReportsView/DutyControl. */
-function EmptyState({
-  icon,
-  title,
-  hint,
-}: {
-  icon: ReactNode;
-  title: string;
-  hint?: string;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center text-center px-6 py-16 text-muted-foreground">
-      <div className="w-8 h-8 mb-3 opacity-60 [&>svg]:w-8 [&>svg]:h-8">
-        {icon}
-      </div>
-      <div className="text-sm font-medium text-white/70">{title}</div>
-      {hint ? <p className="text-xs mt-1 max-w-xs">{hint}</p> : null}
-    </div>
-  );
-}
