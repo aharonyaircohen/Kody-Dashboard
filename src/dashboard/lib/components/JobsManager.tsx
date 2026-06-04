@@ -1,18 +1,17 @@
 /**
  * @fileType component
  * @domain kody
- * @pattern job-list
- * @ai-summary The Jobs page. A job is the engine's execution unit — it
- * assembles an executable (how) + duty (why) + staff (who) + schedule (when)
- * into one run. LIST-FIRST: every defined job is a row you Run on the spot;
- * "New job" opens a dialog to assemble one. Built from the shared page shell
- * (PageShell / Button / ConfirmDialog / Dialog / Select) for visual parity with
- * Duties and Staff. The composed shape matches the engine `Job`
- * (see src/dashboard/lib/kody-job.ts).
+ * @pattern master-detail
+ * @ai-summary The Jobs page — a job is the engine's execution unit, assembling
+ * executable (how) + duty (why) + staff (who) + schedule (when) into one run.
+ * Mirrors DutyControl / ReportsView: master/detail (a searchable list aside +
+ * a detail pane), with a back button on mobile. Run lives on the job (row +
+ * detail). "New job" opens a dialog to assemble one. The composed shape matches
+ * the engine `Job` (see src/dashboard/lib/kody-job.ts).
  */
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -24,7 +23,10 @@ import {
   User,
   Zap,
   CalendarClock,
+  ArrowLeft,
+  ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
@@ -89,13 +91,42 @@ function useExecutables() {
 }
 
 export function JobsManager() {
-  const { data: jobs = [], isLoading, isFetching, refetch } = useDuties();
+  const {
+    data: jobs = [],
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useDuties();
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [pendingRun, setPendingRun] = useState<Duty | null>(null);
   const run = useRunDuty();
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return jobs;
+    return jobs.filter(
+      (j) =>
+        j.slug.toLowerCase().includes(q) ||
+        j.title.toLowerCase().includes(q) ||
+        (j.staff?.toLowerCase().includes(q) ?? false),
+    );
+  }, [jobs, search]);
+
+  const selected = useMemo(
+    () => jobs.find((j) => j.slug === selectedSlug) ?? null,
+    [jobs, selectedSlug],
+  );
+
+  useEffect(() => {
+    if (selectedSlug || filtered.length === 0) return;
+    setSelectedSlug(filtered[0].slug);
+  }, [filtered, selectedSlug]);
+
   return (
-    <div className="h-full min-h-0 flex flex-col bg-black/95 text-white/90">
+    <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
       <PageHeader
         title="Jobs"
         icon={Rocket}
@@ -126,35 +157,89 @@ export function JobsManager() {
         }
       />
 
-      <main className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-6">
-        <div className="max-w-3xl mx-auto">
-          <p className="text-xs text-muted-foreground mb-3">
-            A job binds an executable (how), a duty (why), a staff member (who),
-            and a schedule (when). Run any one now, or it fires on its schedule.
-          </p>
-
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground py-10 text-center">
-              Loading jobs…
-            </p>
-          ) : jobs.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-10 text-center">
-              No jobs yet. Click “New job” to assemble one.
-            </p>
-          ) : (
-            <ul className="divide-y divide-border rounded-lg border border-border overflow-hidden">
-              {jobs.map((job) => (
-                <JobRow
-                  key={job.slug}
-                  job={job}
-                  running={run.isPending && run.variables?.slug === job.slug}
-                  onRun={() => setPendingRun(job)}
-                />
-              ))}
-            </ul>
-          )}
+      {error ? (
+        <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
+          Failed to load jobs: {(error as Error).message}
         </div>
-      </main>
+      ) : null}
+
+      <div className="flex-1 min-h-0 flex">
+        {/* List — full width on mobile, fixed sidebar on desktop. */}
+        <aside
+          className={cn(
+            "w-full md:w-96 md:border-r md:border-border flex flex-col min-h-0",
+            selected && "hidden md:flex",
+          )}
+        >
+          <div className="shrink-0 px-3 md:px-4 py-2 md:py-3 border-b border-border">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search jobs…"
+              className={cn(
+                "w-full bg-background/40 border border-border rounded-md",
+                "px-3 py-2 text-sm placeholder:text-muted-foreground",
+                "focus:outline-none focus:ring-2 focus:ring-emerald-500/40",
+              )}
+              aria-label="Search jobs"
+            />
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {isLoading ? (
+              <EmptyState icon={<Rocket />} title="Loading jobs…" />
+            ) : jobs.length === 0 ? (
+              <EmptyState
+                icon={<Rocket />}
+                title="No jobs yet"
+                hint="A job binds an executable, a duty, a staff member, and a schedule. Click “New job” to assemble one."
+              />
+            ) : filtered.length === 0 ? (
+              <EmptyState
+                icon={<Rocket />}
+                title="No matching jobs"
+                hint={`Nothing matched "${search}".`}
+              />
+            ) : (
+              <ul className="divide-y divide-border">
+                {filtered.map((job) => (
+                  <li key={job.slug}>
+                    <JobRow
+                      job={job}
+                      isActive={selectedSlug === job.slug}
+                      onSelect={() => setSelectedSlug(job.slug)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </aside>
+
+        {/* Detail */}
+        <section
+          className={cn(
+            "flex-1 min-w-0 overflow-y-auto",
+            !selected && "hidden md:block",
+          )}
+        >
+          {selected ? (
+            <JobDetail
+              job={selected}
+              onBack={() => setSelectedSlug(null)}
+              onRun={() => setPendingRun(selected)}
+              isRunning={run.isPending && run.variables?.slug === selected.slug}
+            />
+          ) : (
+            <EmptyState
+              icon={<Rocket />}
+              title="Select a job"
+              hint="Pick a job from the list to see its assembly and run it."
+            />
+          )}
+        </section>
+      </div>
 
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent className="max-w-lg">
@@ -183,65 +268,152 @@ export function JobsManager() {
   );
 }
 
-/** One job in the list — its assembly at a glance, with Run on the row. */
+/** One job in the list — mirrors ReportRow / the duty list row. */
 function JobRow({
   job,
-  running,
-  onRun,
+  isActive,
+  onSelect,
 }: {
   job: Duty;
-  running: boolean;
-  onRun: () => void;
+  isActive: boolean;
+  onSelect: () => void;
 }) {
   const scheduled = job.schedule && job.schedule !== "manual";
   return (
-    <li
+    <button
+      type="button"
+      onClick={onSelect}
       className={cn(
-        "flex items-center gap-3 px-4 py-3 hover:bg-accent/40 transition-colors",
+        "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
+        isActive && "bg-accent/70",
         job.disabled && "opacity-60",
       )}
     >
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium truncate">
+      {isActive ? (
+        <span className="absolute inset-y-0 left-0 w-0.5 bg-emerald-400" />
+      ) : null}
+      <div className="flex items-center gap-2">
+        <Rocket
+          className={cn(
+            "w-3.5 h-3.5 shrink-0",
+            isActive ? "text-emerald-400" : "text-muted-foreground",
+          )}
+        />
+        <span className="text-sm truncate flex-1 font-medium">
           {job.title || job.slug}
-        </div>
-        <div className="mt-1 flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-          <span className="font-mono opacity-80">{job.slug}</span>
-          <span>·</span>
-          <span className="inline-flex items-center gap-1">
-            {scheduled ? (
-              <CalendarClock className="w-3 h-3" />
-            ) : (
-              <Zap className="w-3 h-3" />
-            )}
-            {scheduled ? job.schedule : "manual"}
+        </span>
+        {job.disabled ? (
+          <span className="shrink-0 text-[10px] uppercase tracking-wide text-amber-400/80">
+            paused
           </span>
-          <span className="inline-flex items-center gap-1">
-            <User className="w-3 h-3" />
-            {job.staff || "kody"}
-          </span>
-          {job.disabled && <span className="text-amber-400/80">paused</span>}
-        </div>
+        ) : null}
       </div>
-      <Button
-        size="sm"
-        onClick={onRun}
-        disabled={running}
-        className="shrink-0 gap-1.5"
-        title="Run this job now"
-      >
-        {running ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <Play className="w-4 h-4" />
-        )}
-        Run
-      </Button>
-    </li>
+      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+        <span className="font-mono opacity-80">{job.slug}</span>
+        <span>·</span>
+        <span className="inline-flex items-center gap-1">
+          {scheduled ? (
+            <CalendarClock className="w-3 h-3" />
+          ) : (
+            <Zap className="w-3 h-3" />
+          )}
+          {scheduled ? job.schedule : "manual"}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <User className="w-3 h-3" />
+          {job.staff || "kody"}
+        </span>
+      </div>
+    </button>
   );
 }
 
-/** Create panel — assemble a new job from the four axes. */
+/** Detail pane — the job's assembly + Run, mirroring ReportDetail's layout. */
+function JobDetail({
+  job,
+  onBack,
+  onRun,
+  isRunning,
+}: {
+  job: Duty;
+  onBack: () => void;
+  onRun: () => void;
+  isRunning: boolean;
+}) {
+  const scheduled = job.schedule && job.schedule !== "manual";
+  return (
+    <div className="flex flex-col min-h-0">
+      <div className="shrink-0 flex items-center gap-2 px-4 md:px-6 py-3 border-b border-border">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="md:hidden"
+          onClick={onBack}
+          aria-label="Back to list"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <h2 className="text-base font-semibold truncate flex-1">
+          {job.title || job.slug}
+        </h2>
+        <Button asChild variant="outline" size="sm" className="gap-1.5">
+          <Link href="/duties" aria-label="Edit in Duties">
+            <ExternalLink className="w-4 h-4" />
+            <span className="hidden sm:inline">Edit</span>
+          </Link>
+        </Button>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          onClick={onRun}
+          disabled={isRunning}
+        >
+          {isRunning ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Play className="w-4 h-4" />
+          )}
+          Run
+        </Button>
+      </div>
+
+      <div className="p-4 md:p-6 space-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Axis label="When" value={scheduled ? job.schedule! : "manual"} />
+          <Axis label="Who" value={job.staff || "kody"} />
+          <Axis label="Why" value={job.slug} />
+          <Axis label="Status" value={job.disabled ? "paused" : "active"} />
+        </div>
+
+        {job.body ? (
+          <div className="rounded-lg border border-border bg-background/40 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">
+              Intent
+            </div>
+            <pre className="text-sm text-white/80 whitespace-pre-wrap break-words font-sans">
+              {job.body}
+            </pre>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function Axis({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-background/40 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div className="text-sm font-medium truncate" title={value}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+/** Create panel — assemble a new job from the four axes (inside the dialog). */
 function JobComposer({ onDone }: { onDone: () => void }) {
   const { githubUser } = useGitHubIdentity();
   const login = githubUser?.login;
@@ -449,6 +621,27 @@ function FieldSelect({
           ))}
         </SelectContent>
       </Select>
+    </div>
+  );
+}
+
+/** Local empty/placeholder state — mirrors the one in ReportsView/DutyControl. */
+function EmptyState({
+  icon,
+  title,
+  hint,
+}: {
+  icon: ReactNode;
+  title: string;
+  hint?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center px-6 py-16 text-muted-foreground">
+      <div className="w-8 h-8 mb-3 opacity-60 [&>svg]:w-8 [&>svg]:h-8">
+        {icon}
+      </div>
+      <div className="text-sm font-medium text-white/70">{title}</div>
+      {hint ? <p className="text-xs mt-1 max-w-xs">{hint}</p> : null}
     </div>
   );
 }
