@@ -14,7 +14,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Plus, Star, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ExternalLink,
+  Plus,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { cn } from "../utils";
 import { useAuth, type KodyRepoEntry } from "../auth-context";
 import { AddRepoForm } from "./AddRepoForm";
@@ -115,7 +122,7 @@ export function RepoSwitcher() {
                     )}
                   />
                   <span className="min-w-0">
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-200">
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-zinc-200">
                       <span className="truncate">
                         {entry.owner}/{entry.repo}
                       </span>
@@ -128,6 +135,20 @@ export function RepoSwitcher() {
                     </span>
                   </span>
                 </button>
+                <a
+                  href={
+                    entry.repoUrl ||
+                    `https://github.com/${entry.owner}/${entry.repo}`
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title="Open on GitHub"
+                  aria-label={`Open ${entry.owner}/${entry.repo} on GitHub`}
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700 transition"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
                 <button
                   type="button"
                   onClick={() => setConfirmRemove({ index: idx, entry })}
@@ -161,7 +182,7 @@ export function RepoSwitcher() {
               <button
                 type="button"
                 onClick={() => setAddOpen(true)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-zinc-800/70"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-emerald-300 hover:bg-zinc-800/70"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Add repository

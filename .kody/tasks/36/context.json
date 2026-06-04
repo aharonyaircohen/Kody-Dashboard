@@ -1,0 +1,17 @@
+{
+  "taskId": "36",
+  "taskType": "pr",
+  "target": "27-ui-page-title-duplicated-in-browser-tab",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Both conflicts resolved by taking origin/main: executables page redirects to duties (fixes title duplication), ceo report uses more current main data",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    ".kody/reports/ceo-performance-review.md",
+    "app/(chat-rail)/executables/page.tsx"
+  ],
+  "sessionLog": ".kody/sessions/d00a7c06-367a-492d-ad77-6f163464ca7a.jsonl",
+  "startedAt": "2026-06-04T07:55:26Z",
+  "finishedAt": "2026-06-04T07:56:50Z"
+}

@@ -529,11 +529,32 @@ async function main() {
     const image = `registry.fly.io/${appName}:${imageTag}`;
     console.log(`[builder] creating preview machine from ${image}`);
 
+    // Per-repo machine knobs forwarded by the dashboard (kody.config.json
+    // fly.previews). Absent → createPreviewMachine applies its own default.
+    const cpusRaw = Number.parseInt(process.env.PREVIEW_VM_CPUS ?? "", 10);
+    const memRaw = Number.parseInt(process.env.PREVIEW_VM_MEMORY_MB ?? "", 10);
+    const idleSuspend = process.env.PREVIEW_IDLE_SUSPEND
+      ? process.env.PREVIEW_IDLE_SUSPEND === "1"
+      : undefined;
+    const healthCheck = process.env.PREVIEW_HEALTHCHECK
+      ? process.env.PREVIEW_HEALTHCHECK === "1"
+      : undefined;
+
     // Same vault secrets that were baked into the build are also
     // needed at runtime — SSR pages reading DATABASE_URL on each
     // request, e.g. Payload CMS.
     const machineId = await createPreviewMachine(
-      { appName, region, image, internalPort: 8080, env: vaultEnv },
+      {
+        appName,
+        region,
+        image,
+        internalPort: 8080,
+        env: vaultEnv,
+        ...(Number.isFinite(cpusRaw) && cpusRaw > 0 ? { cpus: cpusRaw } : {}),
+        ...(Number.isFinite(memRaw) && memRaw > 0 ? { memoryMb: memRaw } : {}),
+        ...(idleSuspend !== undefined ? { idleSuspend } : {}),
+        ...(healthCheck !== undefined ? { healthCheck } : {}),
+      },
       flyToken,
     );
     console.log(

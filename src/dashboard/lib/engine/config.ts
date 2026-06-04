@@ -64,6 +64,86 @@ export interface KodyConfig {
   git?: {
     defaultBranch?: string;
   };
+  /** Non-secret Fly infrastructure knobs the dashboard + preview builder read.
+   * The Fly token, org slug, and region stay in the vault (they're secret /
+   * billing-scoped); only the plain config that used to be hardcoded in the
+   * builder lives here so the Fly panel can edit it. */
+  fly?: KodyFlyConfig;
+}
+
+/** Per-repo Fly preview-machine settings. All optional; absent fields fall
+ * back to {@link resolveFlyPreviews} defaults. These used to be hardcoded in
+ * `builder/src/fly-api.ts` — moving them here makes them editable from the
+ * Fly panel without a builder redeploy per change. */
+export interface KodyFlyPreviews {
+  /** vCPUs for each per-PR preview machine. */
+  cpus?: number;
+  /** RAM (MB) for each per-PR preview machine. Dev-mode (`next dev`) needs
+   * ~4096; prod builds run fine far lower. */
+  memoryMb?: number;
+  /** When true, idle previews suspend (snapshot to disk, ~$0) and wake on
+   * request. The platform default behaviour we want on. */
+  idleSuspend?: boolean;
+  /** When true, attach an HTTP health check that pings the machine. WARNING:
+   * a health check keeps the machine "active" so it never idles → never
+   * suspends. Defaults OFF so `idleSuspend` actually fires. */
+  healthCheck?: boolean;
+  /** Auto-destroy a preview this many days after creation. 0 / absent = keep
+   * forever (the sweep skips it). */
+  ttlDays?: number;
+}
+
+export interface KodyFlyConfig {
+  previews?: KodyFlyPreviews;
+}
+
+/** Fully-resolved preview knobs — every field present. */
+export interface ResolvedFlyPreviews {
+  cpus: number;
+  memoryMb: number;
+  idleSuspend: boolean;
+  healthCheck: boolean;
+  ttlDays: number;
+}
+
+/** Defaults chosen to (a) match the previous hardcoded size so nothing
+ * regresses, and (b) flip the health-check OFF so previews finally suspend. */
+export const DEFAULT_FLY_PREVIEWS: ResolvedFlyPreviews = {
+  cpus: 2,
+  memoryMb: 4096,
+  idleSuspend: true,
+  healthCheck: false,
+  // Auto-delete previews 14 days after creation by default — keeps stale PR
+  // previews from piling up forever. A repo can override (higher = keep
+  // longer; the UI caps at 365).
+  ttlDays: 14,
+};
+
+/** Merge a repo's `fly.previews` over the defaults. Pure — no I/O. */
+export function resolveFlyPreviews(cfg: KodyConfig): ResolvedFlyPreviews {
+  const p = cfg.fly?.previews ?? {};
+  return {
+    cpus:
+      typeof p.cpus === "number" && p.cpus > 0
+        ? p.cpus
+        : DEFAULT_FLY_PREVIEWS.cpus,
+    memoryMb:
+      typeof p.memoryMb === "number" && p.memoryMb > 0
+        ? p.memoryMb
+        : DEFAULT_FLY_PREVIEWS.memoryMb,
+    idleSuspend:
+      typeof p.idleSuspend === "boolean"
+        ? p.idleSuspend
+        : DEFAULT_FLY_PREVIEWS.idleSuspend,
+    healthCheck:
+      typeof p.healthCheck === "boolean"
+        ? p.healthCheck
+        : DEFAULT_FLY_PREVIEWS.healthCheck,
+    ttlDays:
+      typeof p.ttlDays === "number" && p.ttlDays > 0
+        ? Math.floor(p.ttlDays)
+        : DEFAULT_FLY_PREVIEWS.ttlDays,
+  };
 }
 
 /** Default config when no kody.config.json exists in the repo. */
@@ -118,6 +198,7 @@ async function fetchConfig(
         aliases: parsed.aliases,
         access: parsed.access,
         git: parsed.git,
+        fly: parsed.fly,
       },
       sha: data.sha ?? null,
     };
@@ -420,6 +501,24 @@ function cleanStringMap(map: Record<string, string>): Record<string, string> {
   return out;
 }
 
+/** Keep only valid Fly preview knobs: positive numbers for size/ttl, real
+ * booleans for the toggles. Drops anything blank/invalid so a fresh repo
+ * stays at {@link DEFAULT_FLY_PREVIEWS}. */
+function cleanFlyPreviews(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of ["cpus", "memoryMb", "ttlDays"] as const) {
+    const v = raw[key];
+    const n = typeof v === "number" ? v : Number(v);
+    if (Number.isFinite(n) && n > 0) out[key] = Math.floor(n);
+  }
+  for (const key of ["idleSuspend", "healthCheck"] as const) {
+    if (typeof raw[key] === "boolean") out[key] = raw[key];
+  }
+  return out;
+}
+
 /** Uppercase, keep only valid GitHub associations, de-dupe (order-preserving). */
 export function normalizeAssociations(raw: readonly string[]): string[] {
   const seen = new Set<string>();
@@ -450,6 +549,10 @@ export interface ConfigPatch {
   defaultExecutable?: string | null;
   /** Bare-`@kody` PR default (`defaultPrExecutable`). */
   defaultPrExecutable?: string | null;
+  /** Fly preview-machine knobs (size, idle-suspend, health-check, TTL). A
+   * partial object merges field-by-field over what's stored; `null` clears
+   * the whole `fly.previews` block (reverts to {@link DEFAULT_FLY_PREVIEWS}). */
+  flyPreviews?: Partial<KodyFlyPreviews> | null;
 }
 
 /**
@@ -543,6 +646,30 @@ export async function writeConfigPatch(
         const val = patch[key]?.trim();
         if (val) next[key] = val;
         else delete next[key];
+      }
+
+      if (patch.flyPreviews !== undefined) {
+        const prevFly =
+          typeof existing.fly === "object" && existing.fly !== null
+            ? (existing.fly as Record<string, unknown>)
+            : {};
+        const prevPreviews =
+          typeof prevFly.previews === "object" && prevFly.previews !== null
+            ? (prevFly.previews as Record<string, unknown>)
+            : {};
+        // null clears the whole previews block; a partial object merges
+        // field-by-field over what's stored (so the UI can save one knob).
+        const mergedPreviews = patch.flyPreviews
+          ? cleanFlyPreviews({ ...prevPreviews, ...patch.flyPreviews })
+          : {};
+        const { previews: _drop, ...flyRest } = prevFly;
+        if (Object.keys(mergedPreviews).length > 0) {
+          next.fly = { ...flyRest, previews: mergedPreviews };
+        } else if (Object.keys(flyRest).length > 0) {
+          next.fly = flyRest;
+        } else {
+          delete next.fly;
+        }
       }
 
       return next;

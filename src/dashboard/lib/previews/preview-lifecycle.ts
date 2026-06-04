@@ -38,6 +38,7 @@ import {
   previewAppName,
 } from "@dashboard/lib/previews/preview-key";
 import { loadVaultContextForBuild } from "@dashboard/lib/previews/vault-build-context";
+import { resolveFlyPreviewsForRepo } from "@dashboard/lib/previews/config";
 
 /**
  * The builder path only handles git-backed previews (PR or branch) — it
@@ -84,6 +85,14 @@ export async function createPreview(
     input.githubToken,
   );
 
+  // Per-repo preview machine knobs (size, idle-suspend, health-check) from
+  // kody.config.json. Reuses the same githubToken so this adds no extra
+  // GitHub round-trip on the hot path. Never throws — falls back to defaults.
+  const previews = await resolveFlyPreviewsForRepo(
+    input.repo,
+    input.githubToken,
+  );
+
   let spawned: SpawnBuilderResult;
   try {
     spawned = await spawnPreviewBuilder({
@@ -100,6 +109,10 @@ export async function createPreview(
       githubToken: input.githubToken,
       buildEnv,
       buildMode,
+      previewVmCpus: previews.cpus,
+      previewVmMemoryMb: previews.memoryMb,
+      previewIdleSuspend: previews.idleSuspend,
+      previewHealthCheck: previews.healthCheck,
     });
   } catch (err) {
     logger.error(

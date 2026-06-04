@@ -21,10 +21,24 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
-import { provisionBrain } from "@dashboard/lib/runners/brain-fly";
+import {
+  provisionBrain,
+  type PerfTier,
+} from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 
 export const runtime = "nodejs";
+
+/** Brain has its OWN size, set independently of the per-user task-run speed
+ * (`x-kody-fly-perf`). The `x-kody-brain-perf` header carries it; absent →
+ * fall back to the shared tier, then the server default. */
+function brainPerfFrom(
+  req: NextRequest,
+  fallback?: PerfTier,
+): PerfTier | undefined {
+  const raw = req.headers.get("x-kody-brain-perf");
+  return raw === "low" || raw === "medium" || raw === "high" ? raw : fallback;
+}
 
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -53,7 +67,7 @@ export async function POST(req: NextRequest) {
       model: ctx.context.engineModel,
       githubToken: ctx.context.githubToken,
       allSecrets: ctx.context.allSecrets,
-      perfTier: ctx.context.perfTier,
+      perfTier: brainPerfFrom(req, ctx.context.perfTier),
       litellmUrl: ctx.context.litellmUrl,
     });
     return NextResponse.json(result);
