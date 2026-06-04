@@ -1,14 +1,14 @@
 {
   "taskId": "45",
   "taskType": "issue",
-  "target": "45",
+  "target": "45-enable-docs-code-duty",
   "outcome": "success",
   "exitCode": 0,
-  "reason": "Corrected kody-cmd from phantom @kody chore --issue to valid @kody run --issue; disabled:false was already set",
-  "prUrl": null,
+  "reason": "duty enabled: kody-cmd corrected to valid run --issue verb; stale disabled:true note and chore --issue references updated",
+  "prUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/61",
   "runUrl": null,
   "filesTouched": [".kody/duties/docs-code.md"],
-  "sessionLog": ".kody/sessions/current.jsonl",
-  "startedAt": "2026-06-04T00:00:00.000Z",
-  "finishedAt": "2026-06-04T00:00:00.000Z"
+  "sessionLog": ".kody/sessions-placeholder.jsonl",
+  "startedAt": "2026-06-04T23:32:00.000Z",
+  "finishedAt": "2026-06-04T23:33:00.000Z"
 }
