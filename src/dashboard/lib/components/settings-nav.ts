@@ -11,7 +11,6 @@ import {
   Activity,
   Bell,
   Bot,
-  Boxes,
   Building2,
   Cpu,
   FileText,
@@ -122,7 +121,7 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     tint: "text-amber-300 bg-amber-500/10",
   },
   {
-    href: "/duties?tab=reports",
+    href: "/reports",
     label: "Reports",
     icon: FileText,
     description: "Outputs from duty runs.",
@@ -201,14 +200,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-violet-300 bg-violet-500/10",
       },
       {
-        href: "/executables",
-        label: "Executables",
-        icon: Boxes,
-        description:
-          "Custom @kody <slug> actions stored in the repo — the engine runs them before its built-ins.",
-        tint: "text-teal-300 bg-teal-500/10",
-      },
-      {
         href: "/instructions",
         label: "Instructions",
         icon: ScrollText,
@@ -254,7 +245,8 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/runner",
         label: "Fly Runner",
         icon: Rocket,
-        description: "Per-repo Fly infra: warm-pool size, LiteLLM, Brain.",
+        description:
+          "Per-repo Fly infra: machines, activity, warm-pool, LiteLLM, Brain.",
         tint: "text-sky-300 bg-sky-500/10",
       },
       {
@@ -316,7 +308,7 @@ const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
   ...SETTINGS_NAV_SECTIONS.flatMap((section) => section.items),
 ];
 
-/** Strip a query string off an href so "/duties?tab=reports" → "/duties". */
+/** Strip a query string off an href so "/reports" → "/duties". */
 function navPath(href: string): string {
   const q = href.indexOf("?");
   return q === -1 ? href : href.slice(0, q);

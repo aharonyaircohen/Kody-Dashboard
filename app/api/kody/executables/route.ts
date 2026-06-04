@@ -22,6 +22,7 @@ import {
 } from "@dashboard/lib/github-client";
 import {
   listExecutableFiles,
+  listMarkdownDutySummaries,
   readExecutableFile,
   writeExecutableFile,
   isValidSlug,
@@ -39,7 +40,18 @@ export async function GET(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
-    const executables = await listExecutableFiles();
+    // One unified duty list: folder-duties + legacy markdown duties merged so an
+    // unmigrated repo's `.md` duties still show (folder wins on slug clash).
+    // listMarkdownDutySummaries is a single dir listing — no per-duty reads.
+    const [folderDuties, markdownDuties] = await Promise.all([
+      listExecutableFiles(),
+      listMarkdownDutySummaries().catch(() => []),
+    ]);
+    const folderSlugs = new Set(folderDuties.map((d) => d.slug));
+    const executables = [
+      ...folderDuties,
+      ...markdownDuties.filter((d) => !folderSlugs.has(d.slug)),
+    ].sort((a, b) => a.slug.localeCompare(b.slug));
     let defaults = { issue: null as string | null, pr: null as string | null };
     if (headerAuth) {
       const userOctokit = await getUserOctokit(req);
@@ -110,6 +122,9 @@ const createExecutableSchema = z.object({
   shellScripts: z.array(shellSchema).default([]),
   mcpServers: z.array(mcpServerSchema).default([]),
   landing: z.enum(["pr", "comment"]).default("pr"),
+  staff: z.string().nullable().optional(),
+  every: z.string().nullable().optional(),
+  mentions: z.array(z.string()).default([]),
   profileJsonOverride: z.string().optional(),
   actorLogin: z.string().optional(),
 });
@@ -176,6 +191,9 @@ export async function POST(req: NextRequest) {
         shellScripts: input.shellScripts.map((s) => s.name),
         mcpServers: input.mcpServers,
         landing: input.landing,
+        staff: input.staff ?? null,
+        every: input.every ?? null,
+        mentions: input.mentions ?? [],
       },
       skills: input.skills,
       shellScripts: input.shellScripts,

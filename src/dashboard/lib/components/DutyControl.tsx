@@ -9,6 +9,8 @@
  */
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -116,6 +118,7 @@ export function DutyControl({ embedded = false }: DutyControlProps = {}) {
 }
 
 export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
+  const router = useRouter();
   const {
     data: duties = [],
     isLoading,
@@ -125,7 +128,6 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
   } = useDuties();
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
   const [editingDuty, setEditingDuty] = useState<Duty | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Duty | null>(null);
   const [pendingRun, setPendingRun] = useState<Duty | null>(null);
@@ -187,13 +189,11 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
                 className={cn("w-4 h-4", isFetching && "animate-spin")}
               />
             </Button>
-            <Button
-              size="sm"
-              onClick={() => setShowCreate(true)}
-              className="gap-1"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New duty</span>
+            <Button asChild size="sm" className="gap-1">
+              <Link href="/executables/new">
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">New duty</span>
+              </Link>
             </Button>
           </div>
         ) : (
@@ -215,13 +215,11 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
                     className={cn("w-4 h-4", isFetching && "animate-spin")}
                   />
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setShowCreate(true)}
-                  className="gap-1"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">New duty</span>
+                <Button asChild size="sm" className="gap-1">
+                  <Link href="/executables/new">
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">New duty</span>
+                  </Link>
                 </Button>
               </>
             }
@@ -276,7 +274,11 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
                     <li key={duty.slug}>
                       <button
                         type="button"
-                        onClick={() => setSelectedSlug(duty.slug)}
+                        onClick={() =>
+                          duty.folder
+                            ? router.push(`/executables/${duty.slug}`)
+                            : setSelectedSlug(duty.slug)
+                        }
                         className={cn(
                           "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                           isActive && "bg-accent/70",
@@ -369,15 +371,9 @@ export function DutyControlInner({ embedded = false }: DutyControlProps = {}) {
           </section>
         </div>
 
-        {/* Create */}
-        <CreateDutyDialog
-          open={showCreate}
-          onClose={() => setShowCreate(false)}
-          onCreated={(duty) => {
-            setSelectedSlug(duty.slug);
-            setShowCreate(false);
-          }}
-        />
+        {/* Create is the full folder-duty editor at /executables/new (the
+            "New duty" button links there); the old markdown create dialog is
+            retired. */}
 
         {/* Edit */}
         {editingDuty ? (

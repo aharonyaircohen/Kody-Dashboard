@@ -88,3 +88,17 @@ export function basePreviewAppName(repo: string): string {
   }
   return `kp-${shortHash(owner)}-${shortHash(name)}-base`;
 }
+
+/**
+ * The shared `kp-<ownerHash>-<repoHash>-` prefix every preview app for a repo
+ * carries (PR, branch, static, and base). The TTL sweep lists Fly apps and
+ * keeps only the ones starting with this prefix so it never touches another
+ * repo's — or a non-preview — app.
+ */
+export function repoPreviewPrefix(repo: string): string {
+  const [owner, name] = repo.split("/");
+  if (!owner || !name) {
+    throw new Error(`invalid repo "${repo}", expected "owner/name"`);
+  }
+  return `kp-${shortHash(owner)}-${shortHash(name)}-`;
+}

@@ -87,6 +87,12 @@ export interface ExecutableFields {
   mcpServers: McpServerSpec[];
   /** Where the result lands. */
   landing: ExecutableLanding;
+  /** Staff persona slug the duty runs as (profile.staff), or null. */
+  staff: string | null;
+  /** Cadence guard (profile.every): "15m"|"30m"|"1h"|"2h"|"6h"|"12h"|"1d"|"3d"|"7d"|"manual", or null for auto. */
+  every: string | null;
+  /** GitHub logins to @-mention in the duty's output (profile.mentions). */
+  mentions: string[];
 }
 
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -219,6 +225,14 @@ export function composeProfile(
     ],
     claudeCode,
     cliTools: [],
+    // Staff persona: which engine staff member runs this duty.
+    ...(fields.staff ? { staff: fields.staff } : {}),
+    // Cadence guard: null = auto (body's guard decides), string = fixed interval.
+    ...(fields.every ? { every: fields.every } : {}),
+    // Mentions: GitHub logins to @-mention in the duty's output.
+    ...(fields.mentions && fields.mentions.length > 0
+      ? { mentions: fields.mentions }
+      : {}),
   };
 
   if (fields.landing === "pr") {
@@ -306,6 +320,17 @@ export function fieldsFromProfile(
     shellScripts,
     mcpServers: parseMcpServers(cc.mcpServers),
     landing: landingOf(profile),
+    staff:
+      typeof profile.staff === "string" && profile.staff.trim()
+        ? profile.staff.trim()
+        : null,
+    every:
+      typeof profile.every === "string" && profile.every.trim()
+        ? profile.every.trim()
+        : null,
+    mentions: Array.isArray(profile.mentions)
+      ? (profile.mentions as string[]).filter((m) => typeof m === "string")
+      : [],
   };
 }
 

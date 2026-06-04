@@ -14,15 +14,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
   Github,
   LogOut,
   Moon,
+  Search,
   Sun,
+  X,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
@@ -55,7 +57,7 @@ type NavItem = SettingsNavItem;
 const COLLAPSED_KEY = "kody.sidebar.collapsed";
 
 function isActive(pathname: string, search: string, item: NavItem): boolean {
-  // Hrefs may include a query string (e.g. "/duties?tab=reports"). Compare the
+  // Hrefs may include a query string (e.g. "/reports"). Compare the
   // pathname and search portions independently so tab-scoped entries don't
   // collide with their bare-path siblings.
   const [hrefPath, hrefQuery = ""] = item.href.split("?");
@@ -68,6 +70,7 @@ function isActive(pathname: string, search: string, item: NavItem): boolean {
 
 export function Sidebar() {
   const pathname = usePathname() ?? "/";
+  const router = useRouter();
   const searchParams = useSearchParams();
   const search = searchParams?.toString() ?? "";
   const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
@@ -75,6 +78,7 @@ export function Sidebar() {
   const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false);
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [hydrated, setHydrated] = useState<boolean>(false);
+  const [query, setQuery] = useState<string>("");
 
   useEffect(() => {
     try {
@@ -97,6 +101,39 @@ export function Sidebar() {
       }
       return next;
     });
+  };
+
+  // Inline filter — narrows the rail's own sections by label/description as
+  // the user types. Empty sections drop out so a query collapses the list to
+  // just its matches.
+  const filteredSections = useMemo(() => {
+    const all = [
+      { title: PRIMARY_VIEW_TITLE, items: PRIMARY_VIEW_ITEMS },
+      { title: PRIMARY_NAV_TITLE, items: PRIMARY_NAV_ITEMS },
+      ...SETTINGS_NAV_SECTIONS,
+    ];
+    const q = query.trim().toLowerCase();
+    if (!q) return all;
+    return all
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) =>
+          `${item.label} ${item.description ?? ""}`.toLowerCase().includes(q),
+        ),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [query]);
+
+  const firstMatch = filteredSections[0]?.items[0];
+
+  const onSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      setQuery("");
+    } else if (e.key === "Enter" && firstMatch) {
+      e.preventDefault();
+      router.push(firstMatch.href);
+      setQuery("");
+    }
   };
 
   const width = collapsed ? "w-[64px]" : "w-[220px]";
@@ -130,7 +167,7 @@ export function Sidebar() {
             className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}
-        {item.href === "/duties?tab=reports" && (
+        {item.href === "/reports" && (
           <ReportsBadge
             className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
@@ -186,52 +223,71 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {/* Primary view switch — Dashboard / Tasks / Vibe. These used to live in
-            the header (ViewToggle + VibeToggle); the rail now owns navigation. */}
-        <div className="space-y-1">
-          {!collapsed && (
-            <p className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-              {PRIMARY_VIEW_TITLE}
-            </p>
-          )}
-          {PRIMARY_VIEW_ITEMS.map((item) => renderLink(item))}
-        </div>
-
-        <div className="space-y-1">
-          {!collapsed && (
-            <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-              {PRIMARY_NAV_TITLE}
-            </p>
-          )}
-          {collapsed && (
-            <div
-              className="my-2 mx-3 border-t border-white/[0.06]"
-              aria-hidden="true"
-            />
-          )}
-          {PRIMARY_NAV_ITEMS.map((item) => renderLink(item))}
-        </div>
-
-        {/* Configuration surfaces, sourced from the shared settings-nav so
-            new pages appear here and in the mobile menu automatically.
-            Section headings show only when the rail is expanded; collapsed
-            mode is a single flat icon list. */}
-        {SETTINGS_NAV_SECTIONS.map((section) => (
-          <div key={section.title} className="space-y-1">
-            {!collapsed && (
-              <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-                {section.title}
-              </p>
-            )}
-            {collapsed && (
-              <div
-                className="my-2 mx-3 border-t border-white/[0.06]"
-                aria-hidden="true"
+        {/* Inline search — filters the rail's own items as you type. Collapsed
+            mode shows an icon that expands the rail so there's room to type. */}
+        <div className="pb-1">
+          {collapsed ? (
+            <SimpleTooltip content="Search" side="right">
+              <button
+                type="button"
+                onClick={toggleCollapsed}
+                aria-label="Search"
+                className="flex items-center justify-center w-full rounded-md h-9 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+              >
+                <Search className="w-4 h-4 shrink-0" />
+              </button>
+            </SimpleTooltip>
+          ) : (
+            <div className="flex items-center gap-2 w-full rounded-md h-9 px-3 text-sm border border-white/[0.08] bg-black/20 transition-colors focus-within:border-white/[0.18]">
+              <Search className="w-4 h-4 shrink-0 text-muted-foreground" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={onSearchKeyDown}
+                placeholder="Search…"
+                aria-label="Search navigation"
+                className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
               />
-            )}
-            {section.items.map((item) => renderLink(item))}
-          </div>
-        ))}
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear search"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-3.5 h-3.5 shrink-0" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Nav sections — Views / Workspace / Configuration, sourced from the
+            shared settings-nav so new pages appear here automatically. Filtered
+            live by the inline search; section headings show only when expanded,
+            collapsed mode is a flat icon list. */}
+        {filteredSections.length === 0 ? (
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+            No matches.
+          </p>
+        ) : (
+          filteredSections.map((section, i) => (
+            <div key={section.title} className="space-y-1">
+              {!collapsed && (
+                <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                  {section.title}
+                </p>
+              )}
+              {collapsed && i > 0 && (
+                <div
+                  className="my-2 mx-3 border-t border-white/[0.06]"
+                  aria-hidden="true"
+                />
+              )}
+              {section.items.map((item) => renderLink(item))}
+            </div>
+          ))
+        )}
       </nav>
 
       <div className="border-t border-white/[0.06] p-2 space-y-1">

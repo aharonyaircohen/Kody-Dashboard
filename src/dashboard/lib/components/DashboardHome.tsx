@@ -397,11 +397,7 @@ function LatestReports() {
 
   return (
     <section>
-      <SectionHeader
-        title="Latest reports"
-        href="/duties?tab=reports"
-        cta="Reports"
-      />
+      <SectionHeader title="Latest reports" href="/reports" cta="Reports" />
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading reports…</p>
       ) : reports.length === 0 ? (
@@ -413,7 +409,7 @@ function LatestReports() {
           {reports.map((r) => (
             <Link
               key={r.slug}
-              href="/duties?tab=reports"
+              href="/reports"
               className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors"
             >
               <FileText className="w-4 h-4 text-sky-300 shrink-0" />
