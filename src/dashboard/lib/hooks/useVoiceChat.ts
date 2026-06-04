@@ -201,11 +201,10 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     // Reset retry state
     retryRef.current = 0;
     pausedRef.current = false;
-    // Go back to listening
+    // Go back to listening — keep wake lock held; conversation is still active
     setS("listening");
     stt.start();
-    await releaseWakeLock();
-  }, [tts, setS, stt, releaseWakeLock]);
+  }, [tts, setS, stt]);
 
   // Streaming: speak one sentence as the reply arrives. The first chunk of
   // a turn flips processing → speaking (and counts the turn); later chunks
@@ -250,6 +249,23 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     },
     [speakChunk, endResponse],
   );
+
+  // Wake Lock auto-releases when the tab/screen is hidden. Re-acquire when
+  // visibility is restored and voice mode is still active.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === "visible" &&
+        stateRef.current !== "idle"
+      ) {
+        acquireWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [acquireWakeLock]);
 
   useEffect(
     () => () => {

@@ -18,3 +18,21 @@ The E2E Tests workflow (GitHub Actions run 26825164641) had two distinct problem
 
 - The `deploy-preview` job that was failing **was already removed** by commit `65eb0fb` ("ci: drop Vercel preview deploy, move PR previews to Fly") which is part of the current branch's history (merged via `ea6dcfb`). A fresh workflow run on the current HEAD will not run `vercel deploy` at all.
 - The TS and format errors are pre-existing from main commits `d545491` and `715b319` respectively — they were not introduced by this PR's actual code changes (`useVoiceChat.ts` Wake Lock feature and `install.spec.ts` mock formatting).
+
+---
+
+## Fix round 2 (2026-06-04)
+
+### Bug 1 — `interruptConversation` releasing wake lock too early
+
+`interruptConversation` called `await releaseWakeLock()` after transitioning to `listening`. Since the conversation is still active when the user interrupts the AI to speak, the wake lock should remain held so the screen stays on during the call.
+
+**Fix**: Removed the `await releaseWakeLock()` call from `interruptConversation`. The wake lock stays acquired while in `listening` state.
+
+### Bug 2 — Wake Lock not re-acquired after tab visibility change
+
+The Wake Lock API automatically releases when the tab or screen is hidden, and it does not automatically re-acquire when the tab becomes visible again.
+
+**Fix**: Added a `visibilitychange` listener via `useEffect` that calls `acquireWakeLock()` whenever `document.visibilityState` becomes `"visible"` and `stateRef.current !== "idle"` (voice mode still active).
+
+**Files changed**: `src/dashboard/lib/hooks/useVoiceChat.ts`
