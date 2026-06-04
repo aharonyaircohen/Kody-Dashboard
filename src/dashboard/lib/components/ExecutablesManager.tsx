@@ -528,8 +528,8 @@ function ExecutablesManagerInner() {
                       )}
                       {e.markdown ? (
                         <p className="text-[11px] text-orange-300/70 mt-2">
-                          Legacy markdown duty — migrate to a folder-duty to edit
-                          it here.
+                          Legacy markdown duty — migrate to a folder-duty to
+                          edit it here.
                         </p>
                       ) : (
                         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
@@ -570,7 +570,12 @@ function ExecutablesManagerInner() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {e.markdown ? (
-                        <Button asChild size="sm" variant="ghost" className="gap-1">
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1"
+                        >
                           <a href={e.htmlUrl} target="_blank" rel="noreferrer">
                             <Pencil className="w-3.5 h-3.5" />
                             Open .md
