@@ -422,13 +422,16 @@ function JobComposer({ onDone }: { onDone: () => void }) {
   const { data: duties = [] } = useDuties();
   const { data: staff = [] } = useStaff();
 
-  const [flavor, setFlavor] = useState<KodyJobFlavor>("scheduled");
   const [executable, setExecutable] = useState("");
   const [duty, setDuty] = useState("");
   const [persona, setPersona] = useState("");
   const [schedule, setSchedule] = useState<DutySchedule>("1d");
   const [target, setTarget] = useState("");
   const [why, setWhy] = useState("");
+
+  // The schedule itself decides the flavor: pick a cadence → recurring
+  // (scheduled); pick "manual" → run-once-now (instant). No separate toggle.
+  const flavor: KodyJobFlavor = schedule === "manual" ? "instant" : "scheduled";
 
   const { job, error } = useMemo(() => {
     try {
@@ -493,25 +496,6 @@ function JobComposer({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2">
-        {(["scheduled", "instant"] as const).map((f) => {
-          const Icon = f === "scheduled" ? CalendarClock : Zap;
-          return (
-            <Button
-              key={f}
-              type="button"
-              variant={flavor === f ? "default" : "outline"}
-              size="sm"
-              className="gap-2"
-              onClick={() => setFlavor(f)}
-            >
-              <Icon className="w-4 h-4" />
-              {f === "scheduled" ? "Recurring" : "Run once now"}
-            </Button>
-          );
-        })}
-      </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <FieldSelect
           label="Executable — how"
@@ -534,14 +518,15 @@ function JobComposer({ onDone }: { onDone: () => void }) {
           placeholder="None"
           options={duties.map((d) => d.slug)}
         />
-        {flavor === "scheduled" ? (
-          <FieldSelect
-            label="Schedule — when"
-            value={schedule}
-            onChange={(v) => setSchedule(v as DutySchedule)}
-            options={SCHEDULE_OPTIONS}
-          />
-        ) : (
+        {/* The schedule is the "when" AND the flavor: a cadence = recurring,
+            "manual" = run once now. */}
+        <FieldSelect
+          label="Schedule — when"
+          value={schedule}
+          onChange={(v) => setSchedule(v as DutySchedule)}
+          options={SCHEDULE_OPTIONS}
+        />
+        {flavor === "instant" ? (
           <div className="space-y-1.5">
             <Label htmlFor="job-target">Target — issue/PR #</Label>
             <Input
@@ -552,7 +537,7 @@ function JobComposer({ onDone }: { onDone: () => void }) {
               placeholder="e.g. 42"
             />
           </div>
-        )}
+        ) : null}
       </div>
 
       <div className="space-y-1.5">
