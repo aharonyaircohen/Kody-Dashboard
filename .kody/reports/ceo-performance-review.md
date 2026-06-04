@@ -15,7 +15,7 @@ Zero of six staff produced verifiable output this week. ceo-performance-review r
 | ux-designer  | 1 (0 active)    | —        | —           | —      | idle  |
 
 - **cto — weak:** dev-ci-health (every 15m) structurally blocked — watches `dev` branch CI but no `dev` branch exists (only `main`). Cannot produce output. **Effect:** dev CI health permanently invisible. Unchanged from last week.
-- **qa — unclear:** qa-verify (every 30m) has no state file and zero verifiable output this week. **Effect:** no PR previews confirmed; regressions ship unseen. Unchanged from last week.
-- **tech-writer — weak:** docs-code and docs-readme (every 1d) produced no state file and no new tracked issues this week. docs-code enablement issue #45 opened Jun 3 — but that is an enablement checklist, not the duty's own output. **Effect:** documentation drift not actively caught. Unchanged from last week.
+- **qa — unclear:** qa-verify (every 30m) has no state file and zero verifiable output this week. No qa-labeled PRs open to verify. **Effect:** no PR previews confirmed; regressions ship unseen. Unchanged from last week.
+- **tech-writer — weak:** docs-code and docs-readme (every 1d) produced no state file and no new tracked issues this week. docs-code enablement issue #45 updated June 4 — but that is an operator action, not the duty's own coverage-sweep output. **Effect:** documentation drift not actively caught. Unchanged from last week.
 
 - Changes since last week: all grades unchanged (cto weak, qa unclear, tech-writer weak persist; no staff improved or degraded).
