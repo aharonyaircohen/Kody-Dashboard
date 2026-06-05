@@ -1,9 +1,9 @@
-## Clear Empty Goals — 2026-06-05
+# Clear Empty Goals — 2026-06-05
 
 Scanned: 1 goal
 Closed: 0 goals
 
-### Goals scanned
+## Goals scanned
 
 | Goal | Tasks | Status |
 |------|-------|--------|
