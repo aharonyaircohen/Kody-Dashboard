@@ -17,7 +17,7 @@ export const dynamic = "force-static";
 export const revalidate = false;
 
 export const metadata = buildKodyMetadata({
-  title: "Notifications docs — Kody Operations Dashboard",
+  title: "Notifications docs",
   description:
     "Setup recipes for Slack, Telegram, Discord, and generic-webhook channels.",
   path: "/notifications/docs",

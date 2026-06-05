@@ -15,7 +15,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Instructions — Kody Operations Dashboard",
+  title: "Instructions",
   description:
     "Per-repo chat instructions that override the base agent prompt.",
   path: "/instructions",

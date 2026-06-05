@@ -16,7 +16,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Preview — Kody Operations Dashboard",
+  title: "Preview",
   description:
     "Live preview of any environment — Production, Staging, Dev — with views, device sizes, and element-pick into chat.",
   path: "/preview",

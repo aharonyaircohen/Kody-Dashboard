@@ -15,7 +15,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Messages — Kody Operations Dashboard",
+  title: "Messages",
   description:
     "Team chat over GitHub Discussions — @mentions notify teammates via push, Slack, and the inbox.",
   path: "/messages",

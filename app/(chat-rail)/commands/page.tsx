@@ -16,7 +16,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Commands — Kody Operations Dashboard",
+  title: "Commands",
   description: "Manage slash commands for the dashboard chat.",
   path: "/commands",
 });
