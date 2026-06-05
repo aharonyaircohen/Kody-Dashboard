@@ -2,5 +2,5 @@
   "version": 1,
   "defaultChatEntryKey": "brain-fly",
   "defaultPreviewUrl": "https://kody-dashboard-sable.vercel.app/",
-  "brainFlyChatEnabled": true
+  "brainFlyChatEnabled": false
 }
