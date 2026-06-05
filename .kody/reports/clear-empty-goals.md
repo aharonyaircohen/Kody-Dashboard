@@ -2,7 +2,7 @@
 
 ## Scan
 
-- **Goals found:** 1 (from goals manifest, issue #49)
+- [*Goals found:** 1 (from goals manifest, issue #49)
   - `kody-state-split` — Split .kody into config (dev) + state (kody-state branch)
 
 - **Tasks checked:** 5 open issues with label `goal:kody-state-split`:
@@ -12,10 +12,11 @@
   - #53 — 4/5 — Stop dual-write, delete stale state
   - #54 — 5/5 — CI path-filter + fix writers
 
-- **Orphaned label:** `goal:release-version` still has no issues and is not in the manifest.
+- [*Orphaned label:** `goal:release-version` still has no issues and is not in the manifest.
 
 ## Actions
 
-- **Closed:** 0 (no empty goals found)
+- [*Closed:** 0 (no empty goals found)
 
 All goals in the manifest have associated tasks. No closes needed.
+
