@@ -12,8 +12,11 @@
   - #53 — 4/5 — Stop dual-write, delete stale state
   - #54 — 5/5 — CI path-filter + fix writers
 
+- **Orphaned label noted:** `goal:release-version` exists but has no issues and is not in the manfest.
+
 ## Actions
 
 - **Closed:** 0 (no empty goals found)
 
-All goals have associated tasks. No closes needed.
+All goals in the manifest have associated tasks. No closes needed.
+
