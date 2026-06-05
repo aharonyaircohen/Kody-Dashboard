@@ -32,5 +32,14 @@
     ]
   },
   "defaultExecutable": "classify",
-  "defaultPrExecutable": "fix"
+  "defaultPrExecutable": "fix",
+  "fly": {
+    "previews": {
+      "cpus": 1,
+      "memoryMb": 1024,
+      "ttlDays": 14,
+      "idleSuspend": true,
+      "healthCheck": false
+    }
+  }
 }
