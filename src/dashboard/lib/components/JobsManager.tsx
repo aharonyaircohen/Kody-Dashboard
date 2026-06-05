@@ -154,11 +154,12 @@ export function JobsManager() {
             </Button>
             <Button
               size="sm"
-              className="gap-1"
+              className="w-9 px-0"
               onClick={() => setCreating(true)}
+              title="New job"
+              aria-label="New job"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New job</span>
             </Button>
           </>
         }
@@ -348,10 +349,29 @@ function JobDetail({
         <h2 className="text-base font-semibold truncate flex-1">
           {job.title || job.slug}
         </h2>
-        <Button asChild variant="outline" size="sm" className="gap-1.5">
+        <Button
+          size="sm"
+          onClick={onRun}
+          disabled={isRunning}
+          className="w-9 px-0 bg-emerald-600 hover:bg-emerald-700 text-white"
+          title="Run job"
+          aria-label="Run job"
+        >
+          {isRunning ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Play className="w-3.5 h-3.5" />
+          )}
+        </Button>
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="w-9 px-0"
+          title="Edit in Duties"
+        >
           <Link href="/duties" aria-label="Edit in Duties">
-            <ExternalLink className="w-4 h-4" />
-            <span className="hidden sm:inline">Edit</span>
+            <ExternalLink className="w-3.5 h-3.5" />
           </Link>
         </Button>
         <Button
@@ -362,20 +382,7 @@ function JobDetail({
           title="Delete job"
           aria-label="Delete job"
         >
-          <Trash2 className="w-4 h-4" />
-        </Button>
-        <Button
-          size="sm"
-          className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-          onClick={onRun}
-          disabled={isRunning}
-        >
-          {isRunning ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Play className="w-4 h-4" />
-          )}
-          Run
+          <Trash2 className="w-3.5 h-3.5" />
         </Button>
       </div>
 

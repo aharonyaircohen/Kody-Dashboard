@@ -191,9 +191,14 @@ export function DutyControlInner() {
                 className={cn("w-4 h-4", isFetching && "animate-spin")}
               />
             </Button>
-            <Button size="sm" className="gap-1" onClick={() => setCreating(true)}>
+            <Button
+              size="sm"
+              className="w-9 px-0"
+              onClick={() => setCreating(true)}
+              title="New duty"
+              aria-label="New duty"
+            >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New duty</span>
             </Button>
           </>
         }
