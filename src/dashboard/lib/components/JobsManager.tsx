@@ -263,7 +263,6 @@ function JobRow({
   isActive: boolean;
   onSelect: () => void;
 }) {
-  const scheduled = job.schedule && job.schedule !== "manual";
   return (
     <button
       type="button"
@@ -287,6 +286,7 @@ function JobRow({
         <span className="text-sm truncate flex-1 font-medium">
           {job.title || job.slug}
         </span>
+        <JobTypeBadge schedule={job.schedule} />
         {job.disabled ? (
           <span className="shrink-0 text-[10px] uppercase tracking-wide text-amber-400/80">
             paused
@@ -297,19 +297,31 @@ function JobRow({
         <span className="font-mono opacity-80">{job.slug}</span>
         <span>·</span>
         <span className="inline-flex items-center gap-1">
-          {scheduled ? (
-            <CalendarClock className="w-3 h-3" />
-          ) : (
-            <Zap className="w-3 h-3" />
-          )}
-          {scheduled ? job.schedule : "manual"}
-        </span>
-        <span className="inline-flex items-center gap-1">
           <User className="w-3 h-3" />
           {job.staff || "kody"}
         </span>
       </div>
     </button>
+  );
+}
+
+/**
+ * The defining split for a job: a **scheduled** job auto-fires on a cadence;
+ * an **action** job has no cadence and only runs when triggered. One colored
+ * pill so the two are obvious at a glance in the list.
+ */
+function JobTypeBadge({ schedule }: { schedule: DutySchedule | null }) {
+  const scheduled = schedule && schedule !== "manual";
+  return scheduled ? (
+    <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-sky-500/15 text-sky-300 border border-sky-500/25">
+      <CalendarClock className="w-3 h-3" />
+      {schedule}
+    </span>
+  ) : (
+    <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-violet-500/15 text-violet-300 border border-violet-500/25">
+      <Zap className="w-3 h-3" />
+      action
+    </span>
   );
 }
 
