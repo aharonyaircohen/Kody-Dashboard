@@ -263,6 +263,10 @@ function JobRow({
   isActive: boolean;
   onSelect: () => void;
 }) {
+  const scheduled = job.schedule && job.schedule !== "manual";
+  // The leading icon IS the type: a clock for scheduled jobs (auto-fire on a
+  // cadence), a lightning bolt for action jobs (run on demand only).
+  const TypeIcon = scheduled ? CalendarClock : Zap;
   return (
     <button
       type="button"
@@ -277,16 +281,16 @@ function JobRow({
         <span className="absolute inset-y-0 left-0 w-0.5 bg-emerald-400" />
       ) : null}
       <div className="flex items-center gap-2">
-        <Rocket
+        <TypeIcon
           className={cn(
             "w-3.5 h-3.5 shrink-0",
-            isActive ? "text-emerald-400" : "text-muted-foreground",
+            scheduled ? "text-sky-400" : "text-violet-400",
           )}
+          aria-label={scheduled ? `Scheduled · ${job.schedule}` : "Action"}
         />
         <span className="text-sm truncate flex-1 font-medium">
           {job.title || job.slug}
         </span>
-        <JobTypeBadge schedule={job.schedule} />
         {job.disabled ? (
           <span className="shrink-0 text-[10px] uppercase tracking-wide text-amber-400/80">
             paused
@@ -302,26 +306,6 @@ function JobRow({
         </span>
       </div>
     </button>
-  );
-}
-
-/**
- * The defining split for a job: a **scheduled** job auto-fires on a cadence;
- * an **action** job has no cadence and only runs when triggered. One colored
- * pill so the two are obvious at a glance in the list.
- */
-function JobTypeBadge({ schedule }: { schedule: DutySchedule | null }) {
-  const scheduled = schedule && schedule !== "manual";
-  return scheduled ? (
-    <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-sky-500/15 text-sky-300 border border-sky-500/25">
-      <CalendarClock className="w-3 h-3" />
-      {schedule}
-    </span>
-  ) : (
-    <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-violet-500/15 text-violet-300 border border-violet-500/25">
-      <Zap className="w-3 h-3" />
-      action
-    </span>
   );
 }
 
