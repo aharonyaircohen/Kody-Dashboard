@@ -5,15 +5,7 @@
   "staff": "kody",
   "every": "1d",
   "mentions": [],
-  "inputs": [
-    {
-      "name": "issue",
-      "flag": "--issue",
-      "type": "int",
-      "required": true,
-      "describe": "GitHub issue number to work on."
-    }
-  ],
+  "inputs": [],
   "claudeCode": {
     "model": "inherit",
     "permissionMode": "acceptEdits",
@@ -23,7 +15,7 @@
     "cacheable": true,
     "enableVerifyTool": false,
     "verifyAttempts": 4,
-    "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+    "tools": ["Read", "Grep", "Glob", "Bash"],
     "hooks": [],
     "skills": [],
     "commands": [],
@@ -31,9 +23,17 @@
     "plugins": [],
     "mcpServers": []
   },
-  "cliTools": [],
+  "cliTools": [
+    {
+      "name": "gh",
+      "install": { "required": true, "checkCommand": "command -v gh" },
+      "verify": "gh auth status",
+      "usage": "Use gh for all GitHub actions (gh api, gh issue, gh pr).",
+      "allowedUses": ["api", "issue", "pr"]
+    }
+  ],
   "scripts": {
-    "preflight": [{ "script": "loadIssueContext" }, { "script": "composePrompt" }],
-    "postflight": [{ "script": "parseAgentResult" }, { "script": "postAgentComment" }]
+    "preflight": [{ "script": "composePrompt" }],
+    "postflight": [{ "script": "parseAgentResult" }]
   }
 }
