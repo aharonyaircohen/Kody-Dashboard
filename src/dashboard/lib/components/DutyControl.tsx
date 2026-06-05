@@ -20,9 +20,7 @@ import {
   ExternalLink,
   FileText,
   Pencil,
-  Play,
   Plus,
-  Power,
   PowerOff,
   RefreshCw,
   Sparkles,
@@ -55,7 +53,6 @@ import {
   useCreateDuty,
   useDeleteDuty,
   useDuties,
-  useRunDuty,
   useUpdateDuty,
 } from "../hooks/useDuties";
 import { useStaff } from "../hooks/useStaff";
@@ -125,7 +122,6 @@ export function DutyControlInner() {
   const [creating, setCreating] = useState(false);
   const [editingDuty, setEditingDuty] = useState<Duty | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Duty | null>(null);
-  const [pendingRun, setPendingRun] = useState<Duty | null>(null);
 
   const selectedDuty = useMemo(
     () => duties.find((m) => m.slug === selectedSlug) ?? null,
@@ -153,7 +149,6 @@ export function DutyControlInner() {
 
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteDuty(githubUser?.login);
-  const runMutation = useRunDuty();
 
   // Push chat context up to the persistent rail in the root layout.
   // The chat's context follows the currently selected duty (or nothing).
@@ -209,11 +204,6 @@ export function DutyControlInner() {
               onBack={() => setSelectedSlug(null)}
               onEdit={() => setEditingDuty(selectedDuty)}
               onDelete={() => setPendingDelete(selectedDuty)}
-              onRun={() => setPendingRun(selectedDuty)}
-              isRunning={
-                runMutation.isPending &&
-                runMutation.variables?.slug === selectedDuty.slug
-              }
             />
           ) : (
             <EmptyState
@@ -332,23 +322,6 @@ export function DutyControlInner() {
           />
         ) : null}
 
-        {/* Run confirm */}
-        <ConfirmDialog
-          open={!!pendingRun}
-          title="Run this duty now?"
-          description={
-            pendingRun
-              ? `Triggers "${pendingRun.title}" (${pendingRun.slug}) immediately, bypassing its cadence guard. GitHub Actions minutes will be used. The duty's output goes to its own report or the artifacts the body declares.`
-              : ""
-          }
-          confirmLabel="Run now"
-          onConfirm={() => {
-            if (!pendingRun) return;
-            runMutation.mutate({ slug: pendingRun.slug, force: true });
-          }}
-          onClose={() => setPendingRun(null)}
-        />
-
         {/* Delete confirm */}
         <ConfirmDialog
           open={!!pendingDelete}
@@ -380,24 +353,13 @@ function DutyDetail({
   onBack,
   onEdit,
   onDelete,
-  onRun,
-  isRunning,
 }: {
   duty: Duty;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onRun: () => void;
-  isRunning: boolean;
 }) {
   const hasBody = duty.body.trim().length > 0;
-  const { githubUser } = useGitHubIdentity();
-  const updateMutation = useUpdateDuty(duty.slug, githubUser?.login);
-  const isToggling = updateMutation.isPending;
-  const toggleDisabled = () => {
-    if (isToggling) return;
-    updateMutation.mutate({ disabled: !duty.disabled });
-  };
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -486,39 +448,6 @@ function DutyDetail({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Button
-                size="sm"
-                onClick={onRun}
-                disabled={isRunning}
-                className="w-9 px-0 bg-emerald-600 hover:bg-emerald-700 text-white"
-                title={isRunning ? "Dispatching…" : "Run duty now"}
-                aria-label="Run duty now"
-              >
-                <Play className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleDisabled}
-                disabled={isToggling}
-                title={
-                  duty.disabled
-                    ? "Enable scheduler (auto-ticks resume)"
-                    : "Disable scheduler (manual Run still works)"
-                }
-                aria-label={
-                  duty.disabled
-                    ? "Enable duty scheduler"
-                    : "Disable duty scheduler"
-                }
-                className={cn("w-9 px-0", duty.disabled && "text-amber-400")}
-              >
-                {duty.disabled ? (
-                  <PowerOff className="w-3.5 h-3.5" />
-                ) : (
-                  <Power className="w-3.5 h-3.5" />
-                )}
-              </Button>
               <Button
                 variant="outline"
                 size="sm"

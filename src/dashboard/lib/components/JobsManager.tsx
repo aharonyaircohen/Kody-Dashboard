@@ -370,7 +370,7 @@ function JobDetail({
         </Button>
         <Button
           size="sm"
-          className="gap-1.5"
+          className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
           onClick={onRun}
           disabled={isRunning}
         >
