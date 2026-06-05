@@ -457,10 +457,14 @@ function ExecutablesManagerInner() {
                 className={cn("w-4 h-4", isFetching && "animate-spin")}
               />
             </Button>
-            <Button asChild size="sm" className="gap-1">
-              <Link href="/executables/new">
+            <Button
+              asChild
+              size="sm"
+              className="w-9 px-0"
+              title="New executable"
+            >
+              <Link href="/executables/new" aria-label="New executable">
                 <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">New executable</span>
               </Link>
             </Button>
           </>
