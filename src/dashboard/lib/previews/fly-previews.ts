@@ -41,6 +41,14 @@ export interface CreatePreviewMachineInput {
    * content from a stock image with no Docker build — see `static-preview.ts`.
    */
   files?: Array<{ guestPath: string; contentBase64: string }>;
+  /**
+   * Emit an HTTP health check on the service. Defaults to off — a 15s ping
+   * marks the machine "active" forever, defeating `autostop: "suspend"`. The
+   * builder path (per-PR previews) opts back in via `kody.config.json`
+   * `fly.previews.healthCheck`; the static-preview path in this repo didn't,
+   * so every static preview ran 24/7.
+   */
+  healthCheck?: boolean;
 }
 
 export interface MachineInfo {
@@ -218,17 +226,21 @@ export async function createMachine(
           min_machines_running: 0,
         },
       ],
-      checks: {
-        httpget: {
-          type: "http",
-          port: internalPort,
-          method: "GET",
-          path: "/",
-          interval: "15s",
-          timeout: "10s",
-          grace_period: "30s",
-        },
-      },
+      ...(input.healthCheck
+        ? {
+            checks: {
+              httpget: {
+                type: "http",
+                port: internalPort,
+                method: "GET",
+                path: "/",
+                interval: "15s",
+                timeout: "10s",
+                grace_period: "30s",
+              },
+            },
+          }
+        : {}),
     },
   };
 
