@@ -4,14 +4,13 @@
   "target": "57-secrets-add-master-key-unlock-to-the-secrets-page",
   "outcome": "success",
   "exitCode": 0,
-  "reason": "Resolved both conflicts by taking origin/main, since the PR's only edits to these files were trivial line-wraps of code paths that origin/main's refactor (9986e2c0 'improve operator triage') had already removed. Typecheck, lint, and 1117 unit tests all pass with the resolved files.",
+  "reason": "Asymmetric conflict on the auto-generated .kody/reports/clear-empty-goals.md (deleted by us, modified by origin/main). PR #58 is about Secrets master-key unlock — the report deletion was incidental. Took origin/main (20:16 UTC report) to preserve the most recent data; the next scheduled refresh will overwrite it regardless.",
   "prUrl": null,
   "runUrl": null,
   "filesTouched": [
-    "src/dashboard/lib/components/ExecutablesManager.tsx",
-    "src/dashboard/lib/executables/files.ts"
+    ".kody/reports/clear-empty-goals.md"
   ],
   "sessionLog": ".kody/last-run.jsonl",
-  "startedAt": "2026-06-06T20:25:00.000Z",
-  "finishedAt": "2026-06-06T20:30:00.000Z"
+  "startedAt": "2026-06-06T20:32:00.000Z",
+  "finishedAt": "2026-06-06T20:33:00.000Z"
 }

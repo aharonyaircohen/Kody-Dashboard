@@ -1,28 +1,28 @@
-# Task 58 — Resolve PR #58 merge conflicts
+# Task 58 — Resolve PR #58 merge conflicts (clear-empty-goals.md)
 
 ## What
 
-PR #58 (`57-secrets-add-master-key-unlock-to-the-secrets-page`) was opened
-against a stale snapshot of `ExecutablesManager.tsx` and
-`executables/files.ts`. Meanwhile `main` advanced and commit
-**9986e2c0 "feat(dashboard): improve operator triage"** simplified both
-files substantially: it deleted the Card-based list rendering and the
-`ExecutableRow` component (in `ExecutablesManager.tsx`), and dropped the
-`FOLDER_DIRS` / `listMarkdownDutySummaries` / `dir` / `legacy` / `markdown`
-machinery (in `files.ts`).
-
-The PR's only edits to these two files were two whitespace-only line-wraps,
-both on code paths that the main-branch refactor removed.
+A fresh conflict surfaced on `.kody/reports/clear-empty-goals.md` after a
+subsequent `git merge origin/main` into PR #58
+(`57-secrets-add-master-key-unlock-to-the-secrets-page`). Git status
+showed the path as `deleted by us` — the PR branch had dropped the
+file at some point in its history, while `origin/main` had refreshed
+the report twice (base = 18:58 UTC, theirs = 20:16 UTC).
 
 ## Resolution
 
-Took `origin/main` on both conflicts. The PR's line-wraps were on code
-that no longer exists, so preserving them would have meant re-introducing
-the deleted abstractions. After the resolution both files are
-byte-identical to `origin/main`.
+Took `origin/main` (theirs, 20:16 UTC) via `git add`. The file is an
+auto-generated report written by the scheduled `clear-empty-goals` task
+(commit prefix `chore(clear-empty-goals): refresh report`). The PR's
+real deliverable is the Secrets page master-key unlock — the file's
+absence on the PR branch was incidental, not intentional. Keeping
+main's version preserves the most recent report data with zero
+behavioural impact, and the next scheduled refresh will overwrite
+whichever version is in place.
 
 ## Verification
 
-- `pnpm typecheck` — clean
-- `pnpm lint` — 0 errors, 120 pre-existing warnings (same as on `main`)
-- `pnpm test` — 1117 passed, 10 skipped (matches `main`)
+- `git status` — "All conflicts fixed but you are still merging"
+- `git ls-files -u` — no remaining unmerged stages
+- File on disk matches stage 3 (theirs = 20:16 UTC) content; no
+  `<<<<<<<` / `=======` / `>>>>>>>` markers.
