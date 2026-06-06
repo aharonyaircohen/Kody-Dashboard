@@ -4,6 +4,8 @@ staff: []
 
 # Open work in Kody
 
+- integrate freellmapi as default (https://github.com/tashfeenahmed/freellmapi)
+
 ## Fly previews — security & hardening punch-list
 
 - [ ] **Critical:** Pass only explicitly approved secrets to Fly Previews through an allowlist, never the full repository vault.
