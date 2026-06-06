@@ -75,6 +75,44 @@ function sortEntries(entries: FileEntry[], key: SortKey): FileEntry[] {
   });
 }
 
+/**
+ * Build a `TreeNode[]` from a flat list of `FileEntry`s.
+ *
+ * For each entry, `children` is:
+ * - `null` for files and for closed directories (so the render guard
+ *   `node.children?.map(...)` renders nothing for them), and
+ * - a recursive `TreeNode[]` for open directories whose children are
+ *   present in `childrenMap` (or an empty array while children are
+ *   still loading — opening a dir renders the row, and the row's
+ *   `isLoading` flag shows the spinner).
+ *
+ * The caller decides what to pass at the top level (the useQuery data
+ * for root, or `childrenMap[dirPath]` for a recursive call).
+ */
+export function buildTree(
+  entries: FileEntry[],
+  childrenMap: Record<string, FileEntry[]>,
+  openPaths: Set<string>,
+  loadingPaths: Set<string>,
+  sortKey: SortKey,
+): TreeNode[] {
+  return sortEntries(entries, sortKey).map((entry) => ({
+    entry,
+    children:
+      entry.type === "dir" && openPaths.has(entry.path)
+        ? buildTree(
+            childrenMap[entry.path] ?? [],
+            childrenMap,
+            openPaths,
+            loadingPaths,
+            sortKey,
+          )
+        : null,
+    isOpen: openPaths.has(entry.path),
+    isLoading: loadingPaths.has(entry.path),
+  }));
+}
+
 interface TreeNodeRowProps {
   node: TreeNode;
   depth: number;
@@ -149,23 +187,21 @@ function TreeNodeRow({
           </span>
         )}
       </div>
-      {isOpen &&
-        node.children !== null &&
-        node.children.map((child) => (
-          <TreeNodeRow
-            key={child.entry.path}
-            node={child}
-            depth={depth + 1}
-            onToggle={onToggle}
-            onSelect={onSelect}
-            selectedPath={selectedPath}
-            octokit={octokit}
-            owner={owner}
-            repo={repo}
-            sortKey={sortKey}
-            onContextMenu={onContextMenu}
-          />
-        ))}
+      {node.children?.map((child) => (
+        <TreeNodeRow
+          key={child.entry.path}
+          node={child}
+          depth={depth + 1}
+          onToggle={onToggle}
+          onSelect={onSelect}
+          selectedPath={selectedPath}
+          octokit={octokit}
+          owner={owner}
+          repo={repo}
+          sortKey={sortKey}
+          onContextMenu={onContextMenu}
+        />
+      ))}
     </>
   );
 }
@@ -195,25 +231,6 @@ export function FileTree({
     y: number;
     path: string;
   } | null>(null);
-
-  // Build tree nodes from open paths
-  const buildTree = useCallback(
-    (entries: FileEntry[], path: string, _depth: number): TreeNode[] => {
-      const children = childrenMap[path] ?? entries;
-      return sortEntries(children, sortKey).map((entry) => ({
-        entry,
-        children:
-          entry.type === "dir"
-            ? childrenMap[entry.path]
-              ? null // Already loaded
-              : []
-            : null,
-        isOpen: openPaths.has(entry.path),
-        isLoading: loadingPaths.has(entry.path),
-      }));
-    },
-    [childrenMap, openPaths, loadingPaths, sortKey],
-  );
 
   // Load root directory
   const { data: rootEntries, isLoading: rootLoading } = useQuery({
@@ -277,8 +294,9 @@ export function FileTree({
     }
   }, [contextMenu, closeContextMenu]);
 
+  // Build tree nodes from open paths
   const rootNodes: TreeNode[] = rootEntries
-    ? buildTree(rootEntries, "", 0)
+    ? buildTree(rootEntries, childrenMap, openPaths, loadingPaths, sortKey)
     : [];
 
   return (

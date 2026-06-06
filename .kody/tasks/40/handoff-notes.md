@@ -1,11 +1,21 @@
-Resolved the 3 remaining merge conflicts from `git merge origin/main` into PR #40.
+Second fix round on PR #40 (the first round only resolved merge conflicts; this round fixes the /files file-tree bug that the live preview was still showing).
 
-**Strategy:** For all three conflicted files, took the `origin/main` version (via `git checkout origin/main -- <file>` + `git add`). These are auto-generated/encrypted artifacts where main's latest copy is authoritative — the PR's "Files browser" feature has no dependency on their content.
+**Bug.** Every folder on `/files` rendered as empty. Root cause was in `src/dashboard/components/files/FileTree.tsx`'s inline `buildTree` (a `useCallback`): the function set `children` to `null` when an entry's children had been loaded, and to `[]` otherwise, but it **never recursed** to build the nested `TreeNode[]`s. The render guard `isOpen && node.children !== null && node.children.map(...)` then never ran the `.map`, so a folder whose children were fetched still rendered with `children: null` and no subtree.
 
-**Per-file notes:**
+**Fix (all in `src/dashboard/components/files/FileTree.tsx`):**
 
-- **`.kody/context/todo.md`** — marked "deleted by us" in the merge (the PR branch deleted it; main kept it). The file on disk already held main's content, so the resolution was to `git checkout origin/main --` and `git add` to confirm retention. Restoring the file (rather than allowing the deletion to stand) preserves the live context that the duties read.
-- **`.kody/reports/ceo-performance-review.md`** — auto-regenerated weekly report. Took main's version, which contains the "fourth consecutive week" cadence note, the corrected analysis that the `dev` branch *does* exist (the prior note that it didn't was wrong), and the kody `steady`→`idle` reclassification based on the actual `staff:` frontmatter rules.
-- **`.kody/secrets.enc`** — AES-256-GCM-encrypted secrets blob. Always take main's version; the live main copy is the source of truth and the encrypted payload cannot be merged by hand.
+1. **Extracted `buildTree` from the component into a top-level exported function** so the regression test can call it directly. New signature: `(entries, childrenMap, openPaths, loadingPaths, sortKey) => TreeNode[]`. The caller now threads whether it's the root (the useQuery data) or a child (recursive call) explicitly — no more `children = childrenMap[path] ?? entries` swallow at the top.
+2. **Made it recurse on open directories:** `children: entry.type === "dir" && openPaths.has(entry.path) ? buildTree(childrenMap[entry.path] ?? [], childrenMap, openPaths, loadingPaths, sortKey) : null`. For files and closed dirs, `children` is `null` (render guard skips them); for an open dir whose children haven't been fetched yet, the recursion passes `[]` (so the row renders and the existing `isLoading` spinner shows); for a fetched open dir, the recursion builds the nested `TreeNode[]`.
+3. **Changed the render guard to `node.children?.map(...)`** in `TreeNodeRow` — closed folders and files now render nothing naturally, and the empty-array case (loading) renders an empty list, so the spinner is the only visible affordance.
 
-**Verification:** `grep` for `<<<<<<<` / `=======` / `>>>>>>>` in all three files returns nothing. `git status --porcelain | grep "^UU\|^DU\|^UD"` returns nothing (no unmerged paths). `git diff --stat origin/main --` the three files is empty — they are byte-identical to main.
+**Regression test** at `tests/unit/file-tree.spec.ts` exercises:
+
+- The exact case from the live preview: `app` is open, `childrenMap.app` contains `app/page.tsx` (file) and `app/api` (dir). Asserts the returned tree has a root node for `app` with a non-null `children` array of length 2 containing both `app/api` and `app/page.tsx` (dirs first, then files), each with `children: null` (closed dir / file). This catches any future regression to the swallow/null pattern.
+- Files → `children: null`.
+- Closed directories (cached or not) → `children: null`.
+- Open dir with no cached children → `children: []` (so the spinner shows) and `isLoading: true`.
+- Sort order is dirs-first, then alpha.
+
+**Verification.** `mcp__kody-verify__verify` returns `ok: true` (typecheck/lint/format/tests). All 5 new tests pass.
+
+**Side effect of the worktree.** `pnpm install --frozen-lockfile` was needed once to populate `@monaco-editor/react` (declared in this PR's `package.json` + `pnpm-lock.yaml`, but `node_modules/` was stale on the worktree). The install only adds the 7 new packages from the lockfile — no spec drift. The typecheck failure was pre-existing on the branch, not introduced by this round.
