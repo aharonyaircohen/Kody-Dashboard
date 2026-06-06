@@ -1,4 +1,4 @@
-# Clear Empty Goals — 2026-06-06 17:44 UTC
+# Clear Empty Goals — 2026-06-06 18:58 UTC
 
 Scanned: 1 goal
 Closed: 0 goals
@@ -16,4 +16,3 @@ Closed: 0 goals
 - Pulled the goal list from the goals manifest (issue #49, labeled `kody:goals-manifest`).
 - Counted tasks per goal via `gh issue list --label goal:<id> --state all`.
 - A goal is "empty" if it has zero tasks (open or closed). None matched, so no closes were issued.
-
