@@ -4,7 +4,7 @@ staff: []
 
 # Open work in Kody
 
-- integrate freellmapi as default (https://github.com/tashfeenahmed/freellmapi)
+- **integrate freellmapi as default** (https://github.com/tashfeenahmed/freellmapi)
 
 ## Fly previews — security & hardening punch-list
 
