@@ -28,6 +28,7 @@ import {
   Maximize2,
   Minimize2,
   MousePointerClick,
+  Plus,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import { buildAgentList, type ChatModelEntry } from "../chat/agent-entries";
@@ -110,7 +111,6 @@ import { VoiceChatOverlay } from "./VoiceChatOverlay";
 import { useChatSessions } from "../hooks/useChatSessions";
 import { useKodyActionState } from "../hooks/useKodyActionState";
 import { SessionSidebar } from "./SessionSidebar";
-import { TaskSessionHistory } from "./TaskSessionHistory";
 import {
   ToolCallList,
   ThinkingPanel,
@@ -120,19 +120,9 @@ import {
 import { MessageActions } from "./MessageActions";
 import { VibeRunButton } from "./VibeRunButton";
 import {
-  loadTaskChatLocal,
-  saveTaskChatLocal,
-  clearTaskChatLocal,
-} from "../task-chat-local";
-import {
   pickVibeRequestIssueNumber,
   type RecentVibeIssue,
 } from "../vibe/recent-issue";
-import {
-  loadDutyChatLocal,
-  saveDutyChatLocal,
-  clearDutyChatLocal,
-} from "../duty-chat-local";
 import {
   isPreviewActDirective,
   isSwitchAgentDirective,
@@ -188,25 +178,10 @@ export function KodyChat({
   // is framed to advise: create issue, attach to a goal, or no action.
   const selectedReport = context?.kind === "report" ? context.report : null;
 
-  // Task-scoped messages (loaded from / saved to API)
-  const [taskMessages, setTaskMessages] = useState<Message[]>([]);
-  const [isLoadingTaskChat, setIsLoadingTaskChat] = useState(false);
-  // Tracks the task id whose history is currently loaded into `taskMessages`,
-  // so the loader can tell a real task switch from a same-task re-fire and
-  // avoid blanking the visible thread on transient re-renders.
-  const loadedTaskIdRef = useRef<string | null>(null);
-  // Duty-scoped messages keyed by duty slug. Ephemeral (lives
-  // for the React session) — switching between duties preserves each
-  // thread so users can jump around without losing context. Persistence
-  // across reloads would need a dedicated save/load API; deferred.
-  const [dutyMessagesBySlug, setDutyMessagesBySlug] = useState<
-    Record<string, Message[]>
-  >({});
-  // Goal-planner messages keyed by sessionId (one session per "Plan this
-  // goal" launch). Ephemeral — same lifetime as dutyMessagesBySlug.
-  const [plannerMessagesBySession, setPlannerMessagesBySession] = useState<
-    Record<string, Message[]>
-  >({});
+  // Per-scope (task / duty / planner / global) scope blocks flow through
+  // the existing per-turn system-prompt blocks (## Current task / ## Current
+  // duty / ## Goal planning mode / ## Current report). The thread itself is
+  // one global store keyed by sessionId — no per-scope parallel stores.
 
   const [input, setInput] = useState("");
   // Context chips attached to the composer (e.g. picked preview elements).
@@ -824,10 +799,6 @@ export function KodyChat({
   // Session sidebar state (for session management feature)
   const [showSessionSidebar, setShowSessionSidebar] = useState(false);
 
-  // Task session history (loaded from API)
-  const [taskSessions, setTaskSessions] = useState<ChatSession[]>([]);
-  const [showTaskHistory, setShowTaskHistory] = useState(false);
-
   // Use session hook for global (non-task) chat. On the Vibe page, the
   // no-task ("default preview") chat lives in its own bucket so it
   // doesn't share history with the dashboard chat — selecting an issue
@@ -900,70 +871,34 @@ export function KodyChat({
     selectedTask?.id,
   );
 
-  // Mode discriminator. Exactly one of these is true at a time.
+  // Mode discriminator. Used to drive per-turn system-prompt scope blocks
+  // (## Current task / ## Current duty / ## Goal planning mode / ## Current
+  // report) and the context bar in the chat header. The thread itself is
+  // the unified global store — these flags do NOT change which messages
+  // render or which store receives writes.
   const isTaskMode = !!selectedTask;
   const isDutyMode = !!selectedDuty;
   const isPlannerMode = !!plannerGoal && !!plannerSessionId;
   const isGlobalMode = !isTaskMode && !isDutyMode && !isPlannerMode;
 
-  // Current messages — picked by mode.
-  //  • task mode    → `taskMessages`         (loaded/saved via API)
-  //  • duty mode → `dutyMessagesBySlug[slug]` (ephemeral, per duty)
-  //  • global mode  → `sessionHook`          (localStorage-backed)
+  // All chat messages live in the global session store. The sessionHook
+  // owns a single `messages` list per active session; the page/scope
+  // (task, duty, planner, report) flows through the per-turn system
+  // prompt, not a separate message store.
   const dutySlug: string | null = selectedDuty?.slug ?? null;
-  const currentDutyMessages: Message[] =
-    dutySlug != null ? (dutyMessagesBySlug[dutySlug] ?? []) : [];
-  const currentPlannerMessages: Message[] =
-    plannerSessionId != null
-      ? (plannerMessagesBySession[plannerSessionId] ?? [])
-      : [];
-
-  const messages: Message[] = isTaskMode
-    ? taskMessages
-    : isDutyMode
-      ? currentDutyMessages
-      : isPlannerMode
-        ? currentPlannerMessages
-        : sessionHook.messages.map(chatToMessage);
+  const messages: Message[] = sessionHook.messages.map(chatToMessage);
 
   const setMessages = useCallback(
     (updater: Message[] | ((prev: Message[]) => Message[])) => {
-      if (isTaskMode) {
-        setTaskMessages((prev) =>
-          typeof updater === "function" ? updater(prev) : updater,
-        );
-      } else if (isDutyMode && dutySlug != null) {
-        setDutyMessagesBySlug((prev) => {
-          const prevForDuty = prev[dutySlug] ?? [];
-          const next =
-            typeof updater === "function" ? updater(prevForDuty) : updater;
-          return { ...prev, [dutySlug]: next };
-        });
-      } else if (isPlannerMode && plannerSessionId != null) {
-        setPlannerMessagesBySession((prev) => {
-          const prevForSession = prev[plannerSessionId] ?? [];
-          const next =
-            typeof updater === "function" ? updater(prevForSession) : updater;
-          return { ...prev, [plannerSessionId]: next };
-        });
-      } else {
-        sessionHook.setMessages((prevChat: ChatMessage[]) => {
-          const newMessages =
-            typeof updater === "function"
-              ? updater(prevChat.map(chatToMessage))
-              : updater;
-          return newMessages.map(messageToChat);
-        });
-      }
+      sessionHook.setMessages((prevChat: ChatMessage[]) => {
+        const newMessages =
+          typeof updater === "function"
+            ? updater(prevChat.map(chatToMessage))
+            : updater;
+        return newMessages.map(messageToChat);
+      });
     },
-    [
-      isTaskMode,
-      isDutyMode,
-      dutySlug,
-      isPlannerMode,
-      plannerSessionId,
-      sessionHook,
-    ],
+    [sessionHook],
   );
 
   // ─── Polling for Kody Live ─────────────────────────────────────────────────
@@ -1508,7 +1443,8 @@ export function KodyChat({
   // drains the shared GH rate-limit token. Closing the EventSource on
   // `visibilityState=hidden` halts the server poll (req.signal.abort fires);
   // we reopen on `visible`. Loss of in-flight push events is acceptable —
-  // chat history is hydrated from /api/kody/chat/load on next view.
+  // chat history is hydrated from useChatSessions (the global session store)
+  // on next view, with .kody/chat/global.json as a cross-device fallback.
   useEffect(() => {
     const sid =
       selectedTask?.id ??
@@ -1547,171 +1483,10 @@ export function KodyChat({
     };
   }, [selectedTask?.id, dutySlug, connectSSE]);
 
-  // Load task chat when task changes.
-  //
-  // Two-tier hydration: localStorage first (instant, covers branchless tasks
-  // whose server save no-ops), then server. Server wins when it has data —
-  // it's canonical for any task with a pipeline branch. If the server returns
-  // empty, keep whatever local had (the task likely has no branch yet).
-  useEffect(() => {
-    if (selectedTask) {
-      const switchingTask = loadedTaskIdRef.current !== selectedTask.id;
-      loadedTaskIdRef.current = selectedTask.id;
-      // Tier 1 — local mirror, synchronous, no network.
-      const localMsgs = loadTaskChatLocal(selectedTask.id);
-      if (localMsgs.length > 0) {
-        setTaskMessages(localMsgs.map(chatToMessage));
-      } else if (switchingTask) {
-        // Only blank when we're genuinely moving to a different task — the
-        // old task's messages must not bleed into the new one. For the same
-        // task (effect re-fire / transient re-render) keep what's on screen
-        // until the server fetch reconciles, so history can't vanish until
-        // a manual refresh.
-        setTaskMessages([]);
-      }
-
-      // Tier 2 — server fetch. Reconcile when it returns.
-      setIsLoadingTaskChat(true);
-      fetch(`/api/kody/chat/load?taskId=${selectedTask.id}`)
-        .then(async (res) => {
-          if (!res.ok) return null;
-          const data = await res.json();
-          return data as { sessions: ChatSession[] } | null;
-        })
-        .then((data) => {
-          if (!data?.sessions) return;
-
-          setTaskSessions(data.sessions);
-
-          const dashboardSessions = data.sessions.filter(
-            (s) => s.stage === "dashboard",
-          );
-          const converted: Message[] = [];
-          for (const session of dashboardSessions) {
-            for (const msg of session.messages) {
-              converted.push({
-                role: msg.role,
-                content: msg.text,
-                timestamp: msg.timestamp,
-              });
-            }
-          }
-
-          // Server wins only when it actually has dashboard messages. Empty
-          // server response = branchless task, keep local mirror in place.
-          if (converted.length > 0) {
-            setTaskMessages(converted);
-            // Server is now canonical — drop local mirror.
-            clearTaskChatLocal(selectedTask.id);
-          }
-        })
-        .catch(console.error)
-        .finally(() => setIsLoadingTaskChat(false));
-    } else {
-      // Clear task messages when no task
-      loadedTaskIdRef.current = null;
-      setTaskMessages([]);
-      setTaskSessions([]);
-    }
-  }, [selectedTask?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- intentional: only id needed, full object ref changes on every poll
-
-  // Save task chat after each message exchange (debounced)
-  const saveTaskChat = useCallback(async () => {
-    if (!selectedTask || taskMessages.length === 0) return;
-
-    try {
-      const messagesForApi: ChatMessage[] = taskMessages.map((m) => ({
-        role: m.role,
-        text: m.content,
-        timestamp: m.timestamp || new Date().toISOString(),
-      }));
-
-      const res = await fetch("/api/kody/chat/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          taskId: selectedTask.id,
-          messages: messagesForApi,
-        }),
-      });
-
-      // If the server actually persisted (branch exists, not the no-branch
-      // skip path), drop the local mirror — server is canonical now.
-      if (res.ok) {
-        const body = (await res.json().catch(() => null)) as {
-          success?: boolean;
-          skipped?: string;
-        } | null;
-        if (body?.success && body.skipped !== "no-branch") {
-          clearTaskChatLocal(selectedTask.id);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to save chat:", err);
-      // Non-fatal — local mirror still covers refresh.
-    }
-  }, [selectedTask?.id, taskMessages]); // eslint-disable-line react-hooks/exhaustive-deps -- intentional: only id needed, full object ref changes on every poll
-
-  // Mirror task chat to localStorage immediately on every change. Covers
-  // branchless tasks (where server save no-ops) and bridges the 2s debounce
-  // window before server save fires.
-  //
-  // Dep is `selectedTask?.id` not `selectedTask` because the parent rebuilds
-  // the task object on every poll. Empty taskMessages is a no-op — otherwise
-  // a second KodyChat instance (e.g. PreviewModal's panel) that hasn't loaded
-  // yet would clobber the localStorage entry written by the active instance.
-  useEffect(() => {
-    if (!isTaskMode || !selectedTask || taskMessages.length === 0) return;
-    const messagesForLocal: ChatMessage[] = taskMessages.map((m) => ({
-      role: m.role,
-      text: m.content,
-      timestamp: m.timestamp || new Date().toISOString(),
-    }));
-    saveTaskChatLocal(selectedTask.id, messagesForLocal);
-  }, [taskMessages, isTaskMode, selectedTask?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- intentional: only id needed, full object ref changes on every poll
-
-  // Save after streaming completes — skip saves while loading to avoid race conditions
-  useEffect(() => {
-    if (isTaskMode && taskMessages.length > 0 && !loading) {
-      const timer = setTimeout(saveTaskChat, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [taskMessages, isTaskMode, loading, saveTaskChat]);
-
-  // Hydrate duty chat from localStorage on slug change. We only hydrate
-  // when the in-memory entry for this slug is `undefined` (never seen
-  // this session) — once the user starts adding messages, the in-memory
-  // store is the source of truth and we don't reread from disk.
-  useEffect(() => {
-    if (!isDutyMode || !dutySlug) return;
-    if (dutyMessagesBySlug[dutySlug] !== undefined) return;
-    const local = loadDutyChatLocal(dutySlug);
-    if (local.length === 0) return;
-    setDutyMessagesBySlug((prev) => {
-      if (prev[dutySlug] !== undefined) return prev;
-      return { ...prev, [dutySlug]: local.map(chatToMessage) };
-    });
-  }, [isDutyMode, dutySlug, dutyMessagesBySlug]);
-
-  // Persist duty chat on every change. localStorage write is sync and cheap;
-  // no need to debounce. An empty array clears the entry so a deleted /
-  // reset thread doesn't haunt future visits.
-  useEffect(() => {
-    if (!isDutyMode || !dutySlug) return;
-    const msgs = currentDutyMessages;
-    if (msgs.length === 0) {
-      clearDutyChatLocal(dutySlug);
-      return;
-    }
-    saveDutyChatLocal(
-      dutySlug,
-      msgs.map((m) => ({
-        role: m.role,
-        text: m.content,
-        timestamp: m.timestamp || new Date().toISOString(),
-      })),
-    );
-  }, [isDutyMode, dutySlug, currentDutyMessages]);
+  // Unified thread: the global session store (useChatSessions) owns the
+  // message list. Per-page scope (task / duty / planner / report) flows
+  // through the per-turn system-prompt blocks, not separate stores. The
+  // "New conversation" button is the only way to reset the thread.
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -1741,16 +1516,11 @@ export function KodyChat({
   }, []);
 
   // Garbage-collect IDB attachment blobs that no message references any
-  // more. Runs once on mount across all stored sessions plus the current
-  // task chat — cheap, since the cursor only reads keys.
+  // more. Runs once on mount across all stored sessions — cheap, since the
+  // cursor only reads keys.
   useEffect(() => {
     const referenced = new Set<string>();
-    // Global sessions (from the session hook)
     for (const m of sessionHook.messages) {
-      m.attachments?.forEach((a) => referenced.add(a.id));
-    }
-    // Current task chat
-    for (const m of taskMessages) {
       m.attachments?.forEach((a) => referenced.add(a.id));
     }
     // Pending composer attachments (not yet sent)
@@ -1764,13 +1534,12 @@ export function KodyChat({
   }, []);
 
   const executeClearHistory = () => {
-    // Only touch the localStorage session store in real global mode — draft
-    // mode is ephemeral and shares nothing with sessionHook.
-    if (isGlobalMode) {
-      sessionHook.clearActiveSession();
-    }
+    // Unified thread: the global session store owns the messages. Clearing
+    // is just `clearActiveSession()` regardless of scope (task / duty /
+    // planner / report); the per-scope system-prompt blocks keep their
+    // context on the next turn.
+    sessionHook.clearActiveSession();
 
-    setMessages([]);
     setToolCalls([]);
 
     // Drop the live engine session bound to this scope so the next message
@@ -1779,19 +1548,6 @@ export function KodyChat({
     const liveScope = currentScopeKeyRef.current;
     clearLiveSession(liveScope);
     rehydrateForScope(liveScope);
-
-    // If in task mode, also clear the saved chat
-    if (isTaskMode && selectedTask) {
-      clearTaskChatLocal(selectedTask.id);
-      fetch("/api/kody/chat/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          taskId: selectedTask.id,
-          messages: [], // Clear by saving empty
-        }),
-      }).catch(console.error);
-    }
   };
 
   // Process incoming files (from picker or drag-and-drop). Reads each file,
@@ -2993,81 +2749,14 @@ export function KodyChat({
               // Host callback errors should never break the chat.
             }
           }
-          // Issue-creation transfer: when a `create_*` / `report_bug` tool
-          // returned a new issue number on this turn, migrate the running
-          // conversation onto that issue's chat store before notifying the
-          // host. Without this, the user navigating to the new issue lands
-          // in an empty chat — the conversation that birthed the issue is
-          // lost because chat is keyed by selected task. We:
-          //   1. snapshot the current `messages` (reads latest via setter)
-          //   2. mirror to localStorage under the new task's id
-          //      (task id == String(issueNumber) for branchless tasks —
-          //      see app/api/kody/tasks/route.ts:483)
-          //   3. fire a best-effort server save (skips on branchless tasks,
-          //      that's OK — the localStorage mirror covers refresh)
-          //   4. clear the current scope's buffer so the conversation
-          //      doesn't double-up in both global/draft and the new task
-          //   5. fire `onIssueCreated` so the host can navigate
+          // Issue-creation navigation: the unified chat thread does NOT
+          // migrate per-issue. The conversation that created the issue
+          // stays in the global session; the host just navigates to the
+          // new issue and the next turn's system-prompt block carries
+          // `## Current task = #N` so the model acknowledges the new
+          // scope without losing history.
           if (pendingCreatedIssue !== null && onIssueCreated) {
             const newIssueNumber = pendingCreatedIssue;
-            const taskIdForChat = String(newIssueNumber);
-            // Build the transferred chat *from local stream state*, not
-            // from React state. We tried `setMessages(c => snapshot = c)`
-            // (even wrapped in flushSync) and it didn't reliably capture
-            // the current turn's assistant text — the React render hadn't
-            // fully committed by the time the snapshot was read. Building
-            // from `messages` (the prior turns at click-time, captured in
-            // closure), the current user message (`displayContent`), and
-            // the streamed assistant text (`composeContent()`) gives us
-            // the exact same view the user sees, with zero timing risk.
-            const priorForTransfer: ChatMessage[] = messages
-              .filter((m) => !m.isLoading && !m.isError)
-              .filter((m) => m.content && m.content.trim().length > 0)
-              .map((m) => ({
-                role: m.role,
-                text: m.content,
-                timestamp: m.timestamp || new Date().toISOString(),
-                ...(m.attachments ? { attachments: m.attachments } : {}),
-                ...(m.toolCalls ? { toolCalls: m.toolCalls } : {}),
-              }));
-            const userTurnForTransfer: ChatMessage = {
-              role: "user",
-              text: displayContent,
-              timestamp,
-              ...(attachmentRefs.length > 0
-                ? { attachments: attachmentRefs }
-                : {}),
-            };
-            const assistantTextForTransfer = composeContent();
-            const assistantTurnForTransfer: ChatMessage = {
-              role: "assistant",
-              text: assistantTextForTransfer,
-              timestamp: new Date().toISOString(),
-            };
-            const transferredMessages: ChatMessage[] = [
-              ...priorForTransfer,
-              userTurnForTransfer,
-              ...(assistantTextForTransfer.trim().length > 0
-                ? [assistantTurnForTransfer]
-                : []),
-            ];
-            saveTaskChatLocal(taskIdForChat, transferredMessages);
-            void fetch("/api/kody/chat/save", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", ...authHeaders() },
-              body: JSON.stringify({
-                taskId: taskIdForChat,
-                messages: transferredMessages,
-              }),
-            }).catch(() => {
-              // Non-fatal — localStorage mirror covers branchless tasks.
-            });
-            // Clear the source scope so the conversation only lives in
-            // one place once the user lands on the new issue. flushSync
-            // guarantees the clear commits before navigate fires.
-            flushSync(() => {
-              setMessages(() => []);
-            });
             // Remember the just-created issue so the NEXT turn(s) scope to it
             // even if the page's task-scope flip hasn't propagated yet (the
             // "turn 2 carries no issue → wrong hand-off" bug).
@@ -3402,12 +3091,13 @@ export function KodyChat({
   // to start; landing them on a blank prompt and asking them to type "go" is
   // a wasted click. We fire Pass 1 automatically on first render of a fresh
   // planner session. Guarded by a ref keyed on sessionId so re-renders,
-  // mode toggles, and cleared chats can't re-trigger.
+  // mode toggles, and the "New conversation" button can't re-trigger. The
+  // session's message count comes from the global store now (unified thread).
   const plannerAutoKickedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isPlannerMode || !plannerSessionId || !plannerGoal) return;
     if (plannerAutoKickedRef.current === plannerSessionId) return;
-    if (currentPlannerMessages.length > 0) {
+    if (sessionHook.messages.length > 0) {
       plannerAutoKickedRef.current = plannerSessionId;
       return;
     }
@@ -3424,7 +3114,7 @@ export function KodyChat({
     isPlannerMode,
     plannerSessionId,
     plannerGoal,
-    currentPlannerMessages.length,
+    sessionHook.messages.length,
     sendText,
   ]);
 
@@ -4390,54 +4080,45 @@ export function KodyChat({
 
           {/* Right: Action buttons (session sidebar, task history) */}
           <div className="flex items-center gap-1">
-            {/* New chat — visible in duty + planner modes (global has its own
-                Chats sidebar; task mode persists to the task). Clears the
-                active scope's ephemeral buffer so the user can start over. */}
-            {(isDutyMode || isPlannerMode) && messages.length > 0 && (
+            {/* New conversation — wires to useChatSessions.createSession().
+                The unified thread means there's only ONE store across all
+                pages, so a new conversation is the only way to reset. The
+                button is visible everywhere except on locked views (Vibe),
+                where the parent owns the chat lifecycle. */}
+            {!lockedAgentId && (
               <button
+                type="button"
                 onClick={() => {
-                  setMessages([]);
+                  sessionHook.createSession();
                   setToolCalls([]);
                 }}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all"
-                title="Start a fresh chat in this scope"
+                disabled={loading}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Start a new conversation"
+                aria-label="New conversation"
               >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">New chat</span>
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">New conversation</span>
               </button>
             )}
 
-            {/* Session sidebar toggle (global mode only) */}
-            {isGlobalMode && (
-              <button
-                onClick={() => setShowSessionSidebar(!showSessionSidebar)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all ${
-                  showSessionSidebar
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
-                }`}
-                title="Conversations"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Chats</span>
-              </button>
-            )}
-
-            {/* Task history toggle (task mode only) */}
-            {isTaskMode && taskSessions.length > 0 && (
-              <button
-                onClick={() => setShowTaskHistory(!showTaskHistory)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all ${
-                  showTaskHistory
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
-                }`}
-                title="Session History"
-              >
-                <History className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">History</span>
-              </button>
-            )}
+            {/* Session sidebar toggle — available in any mode now that all
+                threads are unified; the sidebar just lists sessions from
+                the global store. */}
+            <button
+              type="button"
+              onClick={() => setShowSessionSidebar(!showSessionSidebar)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all ${
+                showSessionSidebar
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
+              }`}
+              title="Conversations"
+              aria-label="Toggle conversations"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Chats</span>
+            </button>
 
             {/* Fullscreen / restore (desktop rail only) */}
             {onToggleFullscreen && (
@@ -4576,7 +4257,7 @@ export function KodyChat({
         onScroll={handleMessagesScroll}
         className="flex-1 overflow-auto px-1.5 py-2 sm:p-4 space-y-4 relative"
       >
-        {messages.length === 0 && !loading && !isLoadingTaskChat && (
+        {messages.length === 0 && !loading && (
           <div className="text-center text-muted-foreground text-base py-8">
             {isTaskMode ? (
               <>
@@ -4681,19 +4362,6 @@ export function KodyChat({
                 </ul>
               </>
             )}
-          </div>
-        )}
-
-        {isLoadingTaskChat && (
-          <div className="text-center text-muted-foreground text-sm py-8">
-            Loading conversation...
-          </div>
-        )}
-
-        {/* Task session history (task mode) */}
-        {isTaskMode && showTaskHistory && taskSessions.length > 0 && (
-          <div className="mb-4">
-            <TaskSessionHistory sessions={taskSessions} />
           </div>
         )}
 
