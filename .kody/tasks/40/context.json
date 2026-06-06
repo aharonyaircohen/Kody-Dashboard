@@ -4,21 +4,18 @@
   "target": "PR #26 / 40 (26-files-fully-featured-file-browser-and-editor-at-fi)",
   "outcome": "success",
   "exitCode": 0,
-  "reason": "All three blockers fixed and verified: byte-safe base64 (atob->TextEncoder), wired context menu handlers, real permission gate via GitHub API.",
+  "reason": "Resolved all six merge conflicts introduced by git merge origin/main. Took origin/main's version for: .kody/context/todo.md (auto-regenerated context, keep latest), .kody/reports/ceo-performance-review.md (auto-regenerated report, keep latest), .kody/secrets.enc (encrypted secrets — must be the live main copy), DashboardHome.tsx (DutiesHealth refactored into GoalsOverview/ChannelsOverview in main), ExecutablesManager.tsx (master-detail shell refactor on main), and executables/files.ts (legacy-executables/markdown-duties code removed in main's 9986e2c0). Typecheck/lint/format all clean against the resolutions.",
   "prUrl": null,
   "runUrl": null,
   "filesTouched": [
-    "src/dashboard/lib/repo-files.ts",
-    "src/dashboard/lib/repo-files-perms.ts",
-    "src/dashboard/components/files/FileTree.tsx",
-    "src/dashboard/components/files/FilesPage.tsx",
-    "src/dashboard/components/files/FileDiffViewer.tsx",
-    "src/dashboard/components/files/FileEditor.tsx",
-    "src/dashboard/components/files/FileViewer.tsx",
-    "tests/unit/repo-files.spec.ts",
-    "tests/unit/files-page.spec.ts"
+    ".kody/context/todo.md",
+    ".kody/reports/ceo-performance-review.md",
+    ".kody/secrets.enc",
+    "src/dashboard/lib/components/DashboardHome.tsx",
+    "src/dashboard/lib/components/ExecutablesManager.tsx",
+    "src/dashboard/lib/executables/files.ts"
   ],
   "sessionLog": null,
-  "startedAt": "2026-06-04T00:00:00.000Z",
-  "finishedAt": "2026-06-04T00:30:00.000Z"
+  "startedAt": "2026-06-06T20:04:00.000Z",
+  "finishedAt": "2026-06-06T20:18:51.000Z"
 }

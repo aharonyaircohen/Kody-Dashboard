@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronRight,
   Globe,
+  Info,
   Loader2,
   Trash2,
 } from "lucide-react";
@@ -37,6 +38,7 @@ import { Checkbox } from "@dashboard/ui/checkbox";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { BranchPreviewCard } from "./BranchPreviewCard";
+import { SimpleTooltip } from "./SimpleTooltip";
 
 interface PreviewsCardProps {
   headers: Record<string, string>;
@@ -209,22 +211,38 @@ export function PreviewsCard({
         <div className="flex items-center gap-2">
           <Globe className="w-4 h-4 text-sky-400" />
           <h2 className="text-sm font-semibold">PR previews</h2>
-          <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide">
-            whole repo
-          </span>
+          <SimpleTooltip
+            content="A throwaway site built for every pull request."
+            side="right"
+          >
+            <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
+          </SimpleTooltip>
+          <SimpleTooltip
+            content="Applies to everyone using the repo."
+            side="bottom"
+          >
+            <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
+              whole repo
+            </span>
+          </SimpleTooltip>
           {loading && (
             <Loader2 className="w-3 h-3 animate-spin text-white/40" />
           )}
         </div>
-        <p className="text-xs text-white/50 -mt-2">
-          A throwaway site built for every pull request.
-        </p>
 
         {form && (
           <div className="space-y-4">
             {/* Size preset */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-white/70">Preview size</Label>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-white/70">Preview size</Label>
+                <SimpleTooltip
+                  content="Standard fits most apps; Large for heavy / dev-mode builds."
+                  side="right"
+                >
+                  <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
+                </SimpleTooltip>
+              </div>
               <div className="flex gap-1.5">
                 {(["small", "standard", "large"] as const).map((key) => {
                   const p = SIZE_PRESETS[key];
@@ -248,11 +266,6 @@ export function PreviewsCard({
                   );
                 })}
               </div>
-              <p className="text-[11px] text-white/35">
-                {selectedSize === "custom"
-                  ? `Custom — ${form.cpus} CPU · ${form.memoryMb} MB (set in Advanced)`
-                  : `${SIZE_PRESETS[selectedSize].hint}. Standard fits most apps; Large for heavy / dev-mode builds.`}
-              </p>
             </div>
 
             {/* Sleep when idle */}
@@ -262,19 +275,30 @@ export function PreviewsCard({
                 onCheckedChange={(v) => patch({ idleSuspend: v === true })}
                 className="mt-0.5"
               />
-              <span className="text-xs text-white/60 leading-relaxed">
+              <span className="text-xs text-white/60 leading-relaxed flex items-center gap-1.5">
                 Sleep previews when idle
-                <span className="block text-[11px] text-white/35">
-                  Recommended — idle previews cost ~$0 and wake in ~1s.
-                </span>
+                <SimpleTooltip
+                  content="Recommended — idle previews cost ~$0 and wake in ~1s."
+                  side="right"
+                >
+                  <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
+                </SimpleTooltip>
               </span>
             </label>
 
             {/* Delete after */}
             <div className="space-y-1.5">
-              <Label htmlFor="prev-ttl" className="text-xs text-white/70">
-                Delete previews after
-              </Label>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="prev-ttl" className="text-xs text-white/70">
+                  Delete previews after
+                </Label>
+                <SimpleTooltip
+                  content="Old previews delete themselves after this. Default 14 (max 365)."
+                  side="right"
+                >
+                  <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
+                </SimpleTooltip>
+              </div>
               <div className="flex items-center gap-2">
                 <Input
                   id="prev-ttl"
@@ -288,9 +312,6 @@ export function PreviewsCard({
                 />
                 <span className="text-xs text-white/50">days</span>
               </div>
-              <p className="text-[11px] text-white/35">
-                Old previews delete themselves after this. Default 14 (max 365).
-              </p>
             </div>
 
             {/* Actions */}

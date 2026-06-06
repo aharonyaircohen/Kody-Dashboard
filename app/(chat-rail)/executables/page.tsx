@@ -1,13 +1,29 @@
 /**
  * @fileType page
  * @domain executables
- * @pattern executables-redirect
- * @ai-summary Legacy route. Executables are now "Pipeline" duties — folder
- *   duties at `.kody/duties/<slug>/`. This route redirects to the Duties
- *   page's Pipeline tab so old links/bookmarks keep working.
+ * @pattern executables-page
+ * @ai-summary Executables list — the folder-duty manager (`.kody/duties/<slug>/`)
+ *   with run / set-default / edit / delete. Restored as its own page; "New duty"
+ *   and "Edit" route to `/executables/new` and `/executables/<slug>`.
  */
-import { redirect } from "next/navigation";
+import { AuthGuard } from "@dashboard/lib/auth-guard";
+import { ExecutablesManager } from "@dashboard/lib/components/ExecutablesManager";
+import { buildKodyMetadata } from "../../metadata";
+
+export const dynamic = "force-static";
+export const revalidate = false;
+export const fetchCache = "force-cache";
+
+export const metadata = buildKodyMetadata({
+  title: "Executables — Kody Operations Dashboard",
+  description: "Manage custom @kody executables (folder duties).",
+  path: "/executables",
+});
 
 export default function ExecutablesPage() {
-  redirect("/duties?tab=pipeline");
+  return (
+    <AuthGuard>
+      <ExecutablesManager />
+    </AuthGuard>
+  );
 }

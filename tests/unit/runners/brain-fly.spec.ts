@@ -210,6 +210,7 @@ describe("provisionBrain", () => {
       apiKey: "static-key-for-test",
       machineId: "m123",
       region: "fra",
+      org: "personal",
     });
 
     const machineCreate = calls.find(

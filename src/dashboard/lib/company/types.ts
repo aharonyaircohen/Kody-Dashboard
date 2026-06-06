@@ -62,7 +62,7 @@ export interface CompanyCommandEntry {
 /**
  * A custom executable. Unlike the single-file concepts above, an executable
  * is a *folder*, so it ships as a path→content map of every file under
- * `.kody/executables/<slug>/` (profile.json + prompt.md + optional `*.sh` +
+ * `.kody/duties/<slug>/` (profile.json + prompt.md + optional `*.sh` +
  * optional `skills/<name>/SKILL.md`). Paths are relative to the folder.
  */
 export interface CompanyExecutableEntry {

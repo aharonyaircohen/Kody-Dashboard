@@ -15,12 +15,20 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, GitBranch, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  ExternalLink,
+  GitBranch,
+  Info,
+  Loader2,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
+import { SimpleTooltip } from "./SimpleTooltip";
 
 interface BranchPreviewCardProps {
   /** Authenticated request headers (x-kody-token / -owner / -repo). */
@@ -182,15 +190,16 @@ export function BranchPreviewCard({
         <div className="flex items-center gap-2">
           <GitBranch className="w-4 h-4 text-sky-400" />
           <h2 className="text-sm font-semibold">Branch previews</h2>
+          <SimpleTooltip
+            content="Spin up a Fly preview from any branch — no PR needed. Builds from the branch's current HEAD; click again to rebuild. Destroy when done (these don't auto-tear-down like PR previews)."
+            side="right"
+          >
+            <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
+          </SimpleTooltip>
           {loading && (
             <Loader2 className="w-3 h-3 animate-spin text-white/40 ml-1" />
           )}
         </div>
-        <p className="text-xs text-white/50 -mt-2">
-          Spin up a Fly preview from any branch — no PR needed. Builds from the
-          branch&apos;s current HEAD; click again to rebuild. Destroy when done
-          (these don&apos;t auto-tear-down like PR previews).
-        </p>
 
         <div className="flex items-center gap-2">
           <Input

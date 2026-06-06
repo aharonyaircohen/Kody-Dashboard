@@ -11,6 +11,7 @@ import {
   Activity,
   Bell,
   Bot,
+  Boxes,
   Building2,
   Cpu,
   FileText,
@@ -114,6 +115,14 @@ export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
   {
+    href: "/jobs",
+    label: "Jobs",
+    icon: Rocket,
+    exact: true,
+    description: "Compose a run: executable + duty + staff + schedule.",
+    tint: "text-emerald-300 bg-emerald-500/10",
+  },
+  {
     href: "/duties",
     label: "Duties",
     icon: Layers,
@@ -122,7 +131,15 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     tint: "text-amber-300 bg-amber-500/10",
   },
   {
-    href: "/duties?tab=reports",
+    href: "/executables",
+    label: "Executables",
+    icon: Boxes,
+    exact: true,
+    description: "Manage custom @kody executables (folder duties).",
+    tint: "text-amber-300 bg-amber-500/10",
+  },
+  {
+    href: "/reports",
     label: "Reports",
     icon: FileText,
     description: "Outputs from duty runs.",
@@ -316,7 +333,7 @@ const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
   ...SETTINGS_NAV_SECTIONS.flatMap((section) => section.items),
 ];
 
-/** Strip a query string off an href so "/duties?tab=reports" → "/duties". */
+/** Strip a query string off an href so "/reports" → "/duties". */
 function navPath(href: string): string {
   const q = href.indexOf("?");
   return q === -1 ? href : href.slice(0, q);

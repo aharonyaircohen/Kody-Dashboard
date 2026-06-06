@@ -1,0 +1,10 @@
+[
+  {
+    "type": "decision",
+    "name": "unified-chat-thread",
+    "hook": "Chat thread is global; scope flows through system-prompt blocks, not parallel message stores",
+    "body": "The dashboard chat thread is one global session (useChatSessions('global')). Page/scope changes (task, duty, planner, report) flow through per-turn system-prompt blocks (`## Current task`, `## Current duty`, `## Goal planning mode`, `## Current report`, `## Current page`) — not separate message stores. A 24h-gated `.kody/chat/global.json` write is a cross-device fallback only; localStorage is the source of truth.\n\n**Why:** The original three parallel stores (taskMessages, dutyMessagesBySlug, plannerMessagesBySession) wiped the thread on every scope flip, which made issue-creation handoffs appear to 'delete the session' (issue #66). The unified thread is the contract KodyChat enforces; don't reintroduce per-scope message lists.\n\n**How to apply:** When adding a new chat scope, add a per-turn system-prompt block in app/api/kody/chat/kody/system-prompt.ts and a context.{kind} branch in ChatContext. Do NOT add a new message[] state to KodyChat.tsx. If you need per-task persistence, write to .tasks/<taskId>/chat.json on the task branch, never to a parallel localStorage key.",
+    "why": "Re-introducing per-scope stores would resurrect the 'session deleted on issue create' bug, which was the original symptom of issue #66.",
+    "confidence": 0.95
+  }
+]
