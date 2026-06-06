@@ -56,7 +56,10 @@ const SUSPENDED_STATES = new Set(["suspended", "suspending"]);
 
 /**
  * Report the live state of the shared LiteLLM app. Never mutates Fly.
- * Returns `{ state: "off" }` when the app isn't deployed.
+ * Returns `{ state: "off" }` when the app isn't deployed OR when the
+ * token can't see it (different Fly org). The card in Settings treats
+ * both the same — the LiteLLM proxy is unreachable from this dashboard's
+ * point of view either way.
  */
 export async function litellmStatus(
   input: LitellmStatusInput,
@@ -66,10 +69,19 @@ export async function litellmStatus(
   }
   const app = input.appNameOverride ?? LITELLM_APP_NAME;
 
-  const existing = await flyFetch<FlyAppLite>(
-    `/apps/${encodeURIComponent(app)}`,
-    { token: input.flyToken, allow404: true },
-  );
+  // 404 = app not deployed. 403 = app is in an org the token can't see
+  // (token was rotated, app lives in a different account, etc.). Both
+  // mean "not visible from this token" — report off, don't surface 502.
+  let existing: FlyAppLite | null = null;
+  try {
+    existing = await flyFetch<FlyAppLite>(`/apps/${encodeURIComponent(app)}`, {
+      token: input.flyToken,
+      allow404: true,
+    });
+  } catch (err) {
+    const status = (err as { status?: number })?.status;
+    if (status !== 403) throw err;
+  }
   if (!existing) {
     return { app, state: "off", machineCount: 0 };
   }

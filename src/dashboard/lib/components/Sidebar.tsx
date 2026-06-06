@@ -57,7 +57,7 @@ type NavItem = SettingsNavItem;
 const COLLAPSED_KEY = "kody.sidebar.collapsed";
 
 function isActive(pathname: string, search: string, item: NavItem): boolean {
-  // Hrefs may include a query string (e.g. "/duties?tab=reports"). Compare the
+  // Hrefs may include a query string (e.g. "/reports"). Compare the
   // pathname and search portions independently so tab-scoped entries don't
   // collide with their bare-path siblings.
   const [hrefPath, hrefQuery = ""] = item.href.split("?");
@@ -167,7 +167,7 @@ export function Sidebar() {
             className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}
-        {item.href === "/duties?tab=reports" && (
+        {item.href === "/reports" && (
           <ReportsBadge
             className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
           />

@@ -2,18 +2,18 @@
  * @fileType util
  * @domain executables
  * @pattern executables-files
- * @ai-summary Read/write custom executables under `.kody/executables/<slug>/`
- *   via GitHub. An executable is a *folder* (profile.json + prompt.md +
- *   optional `*.sh` + optional `skills/<name>/SKILL.md`), so unlike the
- *   single-file commands/duties helpers this commits the whole folder
- *   atomically using the Git Data API (one blob per file → one tree → one
- *   commit). The engine reads this exact path first when resolving `@kody
- *   <slug>` (registry root `.kody/executables` precedes `src/executables`).
+ * @ai-summary Read/write custom executables (folder-duties) under
+ *   `.kody/duties/<slug>/` via GitHub. An executable is a *folder*
+ *   (profile.json + prompt.md + optional `*.sh` + optional
+ *   `skills/<name>/SKILL.md`), so unlike the single-file commands/duties
+ *   helpers this commits the whole folder atomically using the Git Data
+ *   API (one blob per file → one tree → one commit). The engine reads
+ *   `.kody/duties/` first when resolving `@kody <slug>`, with engine
+ *   builtins as a fallback (kody2/src/registry.ts).
  */
 
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "../github-client";
-import { listDutyFiles } from "../duties-files";
 import {
   appendContract,
   composeProfile,
@@ -29,16 +29,10 @@ import {
 export { isValidSlug } from "./profile";
 
 /**
- * Folder-duties live at `.kody/duties/<slug>/`. During the executable→duty
- * migration we still READ legacy folders at `.kody/executables/<slug>/` so a
- * not-yet-migrated repo's duties still show; all WRITES go to `.kody/duties/`.
- * Each summary/detail carries the `dir` it was found in so edits/links target
- * the right place.
+ * Folder-duties live at `.kody/duties/<slug>/`. All reads and writes go
+ * through this single home.
  */
 const DUTIES_DIR = ".kody/duties";
-const LEGACY_EXECUTABLES_DIR = ".kody/executables";
-/** Read order: duty home first, legacy second (duty wins on slug conflict). */
-const FOLDER_DIRS = [DUTIES_DIR, LEGACY_EXECUTABLES_DIR] as const;
 
 export interface ExecutableSkill {
   /** Skill folder name under `skills/`. */
@@ -63,12 +57,8 @@ export interface ExecutableSummary {
   htmlUrl: string;
   /** Staff member this duty runs as (profile.staff), or null. */
   staff: string | null;
-  /** The folder dir this was found in (`.kody/duties` or legacy `.kody/executables`). */
-  dir: string;
-  /** True when still under the legacy `.kody/executables/` dir (pre-migration). */
-  legacy: boolean;
-  /** True for a legacy markdown duty (`.kody/duties/<slug>.md`) — being migrated to a folder. */
-  markdown?: boolean;
+  /** Recurrence cadence from profile.every (scheduled folder-duty), or null. */
+  every?: string | null;
 }
 
 export interface ExecutableDetail extends ExecutableSummary {
@@ -92,13 +82,9 @@ async function getDefaultBranch(octokit: Octokit): Promise<string> {
   return data.default_branch;
 }
 
-function buildHtmlUrl(
-  slug: string,
-  branch: string | null,
-  dir: string,
-): string {
+function buildHtmlUrl(slug: string, branch: string | null): string {
   const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/tree/${ref}/${dir}/${slug}`;
+  return `https://github.com/${getOwner()}/${getRepo()}/tree/${ref}/${DUTIES_DIR}/${slug}`;
 }
 
 async function fetchLastCommitDate(
@@ -154,13 +140,11 @@ async function readFileText(
 }
 
 /**
- * List every executable folder under `.kody/executables/` that contains a
- * `profile.json`. Returns `[]` when the directory does not exist.
+ * List every folder-duty under `.kody/duties/`. Returns `[]` if the
+ * directory does not exist (fresh repo).
  */
-/** List folder-duty summaries under a single dir. `[]` if the dir is absent. */
-async function listFolderDutiesInDir(
+async function listFolderDuties(
   octokit: Octokit,
-  dir: string,
   branch: string | null,
 ): Promise<ExecutableSummary[]> {
   let entries: Array<{ name: string; type: string }> = [];
@@ -168,7 +152,7 @@ async function listFolderDutiesInDir(
     const { data } = await octokit.repos.getContent({
       owner: getOwner(),
       repo: getRepo(),
-      path: dir,
+      path: DUTIES_DIR,
     });
     if (!Array.isArray(data)) return [];
     entries = data as Array<{ name: string; type: string }>;
@@ -183,7 +167,7 @@ async function listFolderDutiesInDir(
 
   const summaries = await Promise.all(
     slugs.map(async (slug): Promise<ExecutableSummary | null> => {
-      const profilePath = `${dir}/${slug}/profile.json`;
+      const profilePath = `${DUTIES_DIR}/${slug}/profile.json`;
       const raw = await readFileText(octokit, profilePath).catch(() => null);
       if (raw === null) return null; // folder without a profile.json — skip
       const profile = parseProfileJson(raw);
@@ -198,15 +182,18 @@ async function listFolderDutiesInDir(
       // No per-duty fetchLastCommitDate here: it's one listCommits call PER duty,
       // which drains the shared GitHub token on every list render (see
       // CLAUDE.md rate-limit rules). The detail view shows the commit date.
+      const every =
+        profile && typeof profile.every === "string" && profile.every.trim()
+          ? profile.every.trim()
+          : null;
       return {
         slug,
         describe,
         landing,
         updatedAt: null,
-        htmlUrl: buildHtmlUrl(slug, branch, dir),
+        htmlUrl: buildHtmlUrl(slug, branch),
         staff,
-        dir,
-        legacy: dir === LEGACY_EXECUTABLES_DIR,
+        every,
       };
     }),
   );
@@ -215,53 +202,13 @@ async function listFolderDutiesInDir(
 }
 
 /**
- * List every folder-duty across the duty home (`.kody/duties/`) and the legacy
- * executables dir (`.kody/executables/`). On slug conflict the duty home wins,
- * so a migrated duty shadows its legacy copy.
+ * List every folder-duty under `.kody/duties/`, sorted by slug.
  */
 export async function listExecutableFiles(): Promise<ExecutableSummary[]> {
   const octokit = getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);
-
-  const perDir = await Promise.all(
-    FOLDER_DIRS.map((dir) => listFolderDutiesInDir(octokit, dir, branch)),
-  );
-
-  const bySlug = new Map<string, ExecutableSummary>();
-  for (const summaries of perDir) {
-    for (const s of summaries) {
-      if (!bySlug.has(s.slug)) bySlug.set(s.slug, s); // first (duty home) wins
-    }
-  }
-
-  return [...bySlug.values()].sort((a, b) => a.slug.localeCompare(b.slug));
-}
-
-/**
- * List legacy markdown duties (`.kody/duties/<slug>.md`) as summaries so they
- * appear in the SAME single duty list (not a separate tab) until each is
- * migrated to a folder-duty. Cheap: one directory listing, ZERO per-duty reads
- * (so no staff/schedule detail — that needs the file, which the rate-limit
- * rules forbid fetching per row). Marked `markdown: true` for the "legacy" badge.
- */
-export async function listMarkdownDutySummaries(): Promise<
-  ExecutableSummary[]
-> {
-  const branch = await getDefaultBranch(getOctokit()).catch(() => null);
-  const files = await listDutyFiles().catch(
-    () => [] as Awaited<ReturnType<typeof listDutyFiles>>,
-  );
-  return files.map((f) => ({
-    slug: f.slug,
-    describe: f.title ?? f.slug,
-    landing: "comment" as ExecutableLanding,
-    updatedAt: null,
-    htmlUrl: `https://github.com/${getOwner()}/${getRepo()}/blob/${branch ?? "HEAD"}/${DUTIES_DIR}/${f.slug}.md`,
-    staff: null,
-    dir: DUTIES_DIR,
-    legacy: true,
-    markdown: true,
-  }));
+  const summaries = await listFolderDuties(octokit, branch);
+  return summaries.sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
 /** Read a single executable folder into the full editable detail. */
@@ -273,22 +220,9 @@ export async function readExecutableFile(
   const octokit = octokitOverride ?? getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);
 
-  // Resolve which dir holds this slug: duty home first, legacy second.
-  let dir: string | null = null;
-  let profileRaw: string | null = null;
-  for (const candidate of FOLDER_DIRS) {
-    const raw = await readFileText(
-      octokit,
-      `${candidate}/${slug}/profile.json`,
-    );
-    if (raw !== null) {
-      dir = candidate;
-      profileRaw = raw;
-      break;
-    }
-  }
-  if (dir === null || profileRaw === null) return null;
-  const base = `${dir}/${slug}`;
+  const base = `${DUTIES_DIR}/${slug}`;
+  const profileRaw = await readFileText(octokit, `${base}/profile.json`);
+  if (profileRaw === null) return null;
 
   const profile = parseProfileJson(profileRaw);
   if (!profile) return null;
@@ -338,10 +272,8 @@ export async function readExecutableFile(
     describe: fields.describe,
     landing: fields.landing,
     updatedAt: await fetchLastCommitDate(octokit, `${base}/profile.json`),
-    htmlUrl: buildHtmlUrl(slug, branch, dir),
+    htmlUrl: buildHtmlUrl(slug, branch),
     staff,
-    dir,
-    legacy: dir === LEGACY_EXECUTABLES_DIR,
     prompt,
     model: fields.model,
     permissionMode: fields.permissionMode,
@@ -499,10 +431,10 @@ export async function writeExecutableFile(
   const profileJson =
     opts.profileJsonOverride ?? serializeProfile(composeProfile(syncedFields));
 
-  // Edit a duty where it already lives (so editing a legacy executable updates
-  // it in place); new duties are created under the duty home `.kody/duties/`.
-  const existingDir = await resolveExistingFolderDir(opts.octokit, fields.slug);
-  const base = `${existingDir ?? DUTIES_DIR}/${fields.slug}`;
+  // All executables live under the duty home. `isUpdate` covers the
+  // create-vs-update diff at the commit-message level; the file paths
+  // are identical for both.
+  const base = `${DUTIES_DIR}/${fields.slug}`;
   const changes: TreeChange[] = [
     { path: `${base}/profile.json`, content: profileJson },
     {
@@ -557,9 +489,12 @@ export async function deleteExecutableFile(
   if (!isValidSlug(slug)) {
     throw new Error(`Invalid executable slug: "${slug}".`);
   }
+  // Read the current folder to enumerate skills/shells so we know which
+  // files to drop. After the migration, all executables live under the
+  // duty home — no dir lookup needed.
   const existing = await readExecutableFile(slug, octokit);
   if (!existing) return;
-  const base = `${existing.dir}/${slug}`;
+  const base = `${DUTIES_DIR}/${slug}`;
   const changes: TreeChange[] = [
     { path: `${base}/profile.json`, content: null },
     { path: `${base}/prompt.md`, content: null },
@@ -569,21 +504,6 @@ export async function deleteExecutableFile(
   for (const s of existing.skills)
     changes.push({ path: `${base}/skills/${s.name}/SKILL.md`, content: null });
   await commitChanges(octokit, changes, `chore(duty): remove ${slug}`);
-}
-
-/** Find which folder dir (duty home or legacy) currently holds `slug`, or null. */
-async function resolveExistingFolderDir(
-  octokit: Octokit,
-  slug: string,
-): Promise<string | null> {
-  for (const dir of FOLDER_DIRS) {
-    const raw = await readFileText(
-      octokit,
-      `${dir}/${slug}/profile.json`,
-    ).catch(() => null);
-    if (raw !== null) return dir;
-  }
-  return null;
 }
 
 function ensureTrailingNewline(text: string): string {

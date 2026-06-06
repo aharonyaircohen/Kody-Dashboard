@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Delete dead staff-chat-local.ts",
+    "body": "src/dashboard/lib/staff-chat-local.ts is no longer imported anywhere in the codebase. Per the issue spec, it was not in the deletion list, but the unified thread makes it dead code. Follow up to remove the file and the `kody-staff-chat-*` localStorage entries from any user with the old key.",
+    "rationale": "Per-scope local caches are the pattern we just removed. Leaving this one in place invites the same 'parallel store' trap the unified thread was built to prevent.",
+    "priority": "medium"
+  },
+  {
+    "title": "Orphan cleanup for kody-task-chat-* localStorage and .tasks/<id>/chat.json",
+    "body": "Per the issue's chosen option (3b), per-task chat histories are left as orphans. Old user devices will have `kody-task-chat-*` keys; old repos will have `.tasks/<id>/chat.json` files. A follow-up chore can ship a one-time migration that (a) reads any existing kody-task-chat-* key, appends those messages to the active global session under a 'Recovered from <taskId>' label, then (b) deletes the orphan keys. Server-side .tasks/<id>/chat.json files are still consumed by the kody.yml pipeline; leave them as-is.",
+    "rationale": "Issue #66 explicitly chose 3b (no migration). This followup is a UX-quality win for the rare user who had per-task chats they want to keep.",
+    "priority": "low"
+  },
+  {
+    "title": "Repo-wide prettier cleanup",
+    "body": "55 files in the repo fail `pnpm format:check` (pre-existing, unrelated to this PR — e.g. DashboardHome.tsx, HappeningNow.tsx, all the .kody/duties/*/profile.json files). A separate chore should run `pnpm format` and commit the result.",
+    "rationale": "Pre-existing repo debt blocking the format:check gate. Out of scope for the chat-thread unification, but blocks clean CI on this branch.",
+    "priority": "low"
+  }
+]

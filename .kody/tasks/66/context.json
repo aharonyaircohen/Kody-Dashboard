@@ -1,0 +1,24 @@
+{
+  "taskId": "66",
+  "taskType": "issue",
+  "target": "GitHub issue #66 (Unify chat thread across dashboard pages)",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Replaced three parallel per-scope message stores with the single useChatSessions('global') thread. New /api/kody/chat/global route ships a 24h-gated cross-device fallback. All touched files prettier-clean; typecheck passes; 1104 unit tests pass.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/KodyChat.tsx",
+    "app/api/kody/chat/global/route.ts",
+    "src/dashboard/lib/task-chat-local.ts",
+    "src/dashboard/lib/duty-chat-local.ts",
+    "app/api/kody/chat/save/route.ts",
+    "app/api/kody/chat/load/route.ts",
+    "tests/e2e/vibe-chat-transfer.spec.ts",
+    "tests/e2e/vibe-scope-flip.spec.ts",
+    "tests/e2e/vibe-repro-session-deleted.spec.ts"
+  ],
+  "sessionLog": null,
+  "startedAt": "2026-06-06T16:00:00Z",
+  "finishedAt": "2026-06-06T16:46:23Z"
+}

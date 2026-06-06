@@ -1,14 +1,18 @@
 {
   "taskId": "39",
   "taskType": "pr",
-  "target": "25-keep-screen-always-on-during-voice-mode",
+  "target": "PR #39 — #25: Keep screen always on during voice mode",
   "outcome": "success",
   "exitCode": 0,
-  "reason": "Fixed two wake lock bugs in useVoiceChat.ts: (1) interruptConversation was releasing the wake lock before transitioning to listening, allowing screen to sleep mid-call; (2) missing visibilitychange listener to re-acquire wake lock when tab returns to foreground.",
+  "reason": "Resolved three merge conflicts with origin/main. pnpm typecheck passes; conflicts were all on files unrelated to the PR's voice-mode subject (DashboardHome, ExecutablesManager, executables/files.ts).",
   "prUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/39",
   "runUrl": null,
-  "filesTouched": ["src/dashboard/lib/hooks/useVoiceChat.ts"],
+  "filesTouched": [
+    "src/dashboard/lib/components/DashboardHome.tsx",
+    "src/dashboard/lib/components/ExecutablesManager.tsx",
+    "src/dashboard/lib/executables/files.ts"
+  ],
   "sessionLog": null,
-  "startedAt": "2026-06-04T00:00:00Z",
-  "finishedAt": "2026-06-04T00:00:00Z"
+  "startedAt": "2026-06-06T20:18:00Z",
+  "finishedAt": "2026-06-06T20:23:40Z"
 }

@@ -2961,6 +2961,23 @@ export async function cancelWorkflowRun(
   });
 }
 
+/**
+ * Re-run a completed workflow run. Used by the dashboard's "Re-run jobs"
+ * affordance on a red default-branch CI row.
+ */
+export async function rerunWorkflowRun(
+  runId: number,
+  userOctokit?: Octokit,
+): Promise<void> {
+  const octokit = userOctokit ?? getOctokit();
+
+  await octokit.actions.reRunWorkflow({
+    owner: getOwner(),
+    repo: getRepo(),
+    run_id: runId,
+  });
+}
+
 // ============ Issue CRUD Operations ============
 
 /**

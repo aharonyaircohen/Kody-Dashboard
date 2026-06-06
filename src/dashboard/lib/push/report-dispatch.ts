@@ -17,7 +17,7 @@
  *
  *   Per affected report we send one push tagged with the report's dashboard
  *   URL so repeated updates to the same report collapse into a single banner
- *   on each device rather than stacking. Click lands on `/duties?tab=reports`,
+ *   on each device rather than stacking. Click lands on `/reports`,
  *   where the per-row "unread" dot makes which one is new obvious.
  *
  *   Never throws — logs and swallows so a push-fan-out failure can't break
@@ -122,7 +122,7 @@ function buildPayload(slug: string, repoFullName: string): string {
   const body = `${repoFullName} — open Reports to view.`;
   // Deep link into the dashboard Reports tab. The per-row unread dot makes
   // which report is new obvious without server-side per-slug routing.
-  const url = `/duties?tab=reports`;
+  const url = `/reports`;
   return JSON.stringify({
     title,
     body,

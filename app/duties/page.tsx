@@ -2,8 +2,8 @@
  * @fileType page
  * @domain kody
  * @pattern duties-page
- * @ai-summary Duties entry point. Renders a tabbed shell hosting Duty Control
- *   and Reports under a single route. Tab persisted via `?tab=` query string.
+ * @ai-summary Duties entry point. Renders the duty list (legacy functional DutyControl). No tabs; Reports
+ *   have their own route (/reports).
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { DutiesPageTabs } from "@dashboard/lib/components/DutiesPageTabs";

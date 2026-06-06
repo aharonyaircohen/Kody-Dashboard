@@ -1,38 +1,19 @@
-## What was failing
+## What happened
 
-The E2E Tests workflow (GitHub Actions run 26825164641) had two distinct problems:
+`git merge origin/main` into PR #39 produced conflicts in three files, all unrelated to the PR's actual subject (voice-mode wake lock fixes in `useVoiceChat.ts`).
 
-1. **Environmental `vercel deploy` failure** (the reported failure): `vercel deploy --token=***` exited with code 1 in the `deploy-preview` job. The output was truncated in the logs so the root cause (auth/project/network) is unknown.
+## How I resolved each
 
-2. **Pre-existing typecheck + format failures** surfaced when running the quality gates via `mcp__kody-verify__verify`:
-   - `tests/int/close-pr-action.int.spec.ts` line 53: TS2556 — spread `(...a: unknown[])` into function call rejected by strict TS.
-   - `.kody/reports/ceo-performance-review.md`: Prettier drift.
+**`src/dashboard/lib/components/DashboardHome.tsx`** — HEAD added an unused `DutiesHealth()` function that referenced an unimported `useDuties` hook (would not compile). origin/main added a single section-divider comment. Took origin/main (just the comment line) — the function was dead code (not rendered in the JSX) and would have broken the build.
 
-## What changed and why
+**`src/dashboard/lib/components/ExecutablesManager.tsx`** — HEAD kept the old inline-list row with all action buttons (Set default / Run / Edit / Delete). origin/main refactored to a master-detail pattern using a new `ExecutableRow` component (already defined later in the file at the post-merge line ~595), where the row only sets `selectedSlug` and the action buttons live in `ExecutableDetail`. Took origin/main — the rest of the file (state, `MasterDetailShell`, `ExecutableDetail` with Star/Edit/Delete buttons) is built for the master-detail pattern, so HEAD's inline buttons would have been a regression and would duplicate the detail-pane buttons.
 
-**`tests/int/close-pr-action.int.spec.ts`**: Replaced the `(...a: unknown[]) => fn(...a)` spread pattern with `(fn as (...a: unknown[]) => void).apply(null, a)`. The `.apply()` form satisfies TS's strict rest-argument rules without changing runtime behavior. The file was introduced by `d545491` (main) and was not changed by this PR.
+**`src/dashboard/lib/executables/files.ts`** — HEAD rewrote `listExecutableFiles` to iterate over an undefined `FOLDER_DIRS` constant and call an undefined `listFolderDutiesInDir` helper, plus added a `listMarkdownDutySummaries` export that assigned `dir` / `legacy` / `markdown` fields that don't exist on the `ExecutableSummary` interface (would not typecheck). origin/main kept the simple single-directory implementation. Took origin/main — HEAD's code wouldn't compile and `listMarkdownDutySummaries` has no consumers anywhere in `app/` or `src/`.
 
-**`.kody/reports/ceo-performance-review.md`**: Ran `pnpm format -- .kody/reports/ceo-performance-review.md` to fix Prettier drift. The file was refreshed by `715b319` (main) and was not changed by this PR.
+## Verification
 
-## Root-cause notes
+`pnpm typecheck` passes. `pnpm lint` shows pre-existing warnings only (0 errors); the unused `Dialog*` imports in `ExecutablesManager.tsx` are unrelated to the merge.
 
-- The `deploy-preview` job that was failing **was already removed** by commit `65eb0fb` ("ci: drop Vercel preview deploy, move PR previews to Fly") which is part of the current branch's history (merged via `ea6dcfb`). A fresh workflow run on the current HEAD will not run `vercel deploy` at all.
-- The TS and format errors are pre-existing from main commits `d545491` and `715b319` respectively — they were not introduced by this PR's actual code changes (`useVoiceChat.ts` Wake Lock feature and `install.spec.ts` mock formatting).
+## Files staged
 
----
-
-## Fix round 2 (2026-06-04)
-
-### Bug 1 — `interruptConversation` releasing wake lock too early
-
-`interruptConversation` called `await releaseWakeLock()` after transitioning to `listening`. Since the conversation is still active when the user interrupts the AI to speak, the wake lock should remain held so the screen stays on during the call.
-
-**Fix**: Removed the `await releaseWakeLock()` call from `interruptConversation`. The wake lock stays acquired while in `listening` state.
-
-### Bug 2 — Wake Lock not re-acquired after tab visibility change
-
-The Wake Lock API automatically releases when the tab or screen is hidden, and it does not automatically re-acquire when the tab becomes visible again.
-
-**Fix**: Added a `visibilitychange` listener via `useEffect` that calls `acquireWakeLock()` whenever `document.visibilityState` becomes `"visible"` and `stateRef.current !== "idle"` (voice mode still active).
-
-**Files changed**: `src/dashboard/lib/hooks/useVoiceChat.ts`
+`git add` for the three resolved files. The wrapper handles the merge commit.

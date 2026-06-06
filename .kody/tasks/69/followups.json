@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Pin @kody-ade/kody-engine version in brain:local script",
+    "body": "The script uses `@latest`, which can break a developer's local checkout when a new major is published. Consider a documented minimum version (e.g. `@^1.0`) once the engine stabilizes its Brain API.",
+    "rationale": "Currently fine for a dev tool, but `@latest` is a footgun for anyone scripting this in CI or a fixed dev environment.",
+    "priority": "low"
+  }
+]
