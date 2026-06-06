@@ -60,6 +60,19 @@ interface CreateTaskDialogProps {
     assignees?: string[];
   };
   /**
+   * Same shape as `initialData`, but does NOT trigger the "Copy of …" prefix
+   * or the "Duplicate Task" title. Use this when the caller wants a fresh
+   * issue whose fields are pre-seeded from another source (e.g. a report).
+   * Mutually exclusive with `initialData` — the dialog's behavior keys on
+   * which one is set, and passing both renders the duplication path.
+   */
+  prefill?: {
+    title: string;
+    body: string;
+    labels?: string[];
+    assignees?: string[];
+  };
+  /**
    * Labels to pre-apply without triggering the duplicate flow (no "Copy of"
    * title prefix, no body/assignee prefill). Use this for goal-scoped task
    * creation — pass [`goal:<id>`] so the new task lands under that goal.
@@ -126,6 +139,7 @@ export function CreateTaskDialog({
   onClose,
   onCreated,
   initialData,
+  prefill,
   presetLabels,
 }: CreateTaskDialogProps) {
   // --- Form state ---
@@ -200,22 +214,32 @@ export function CreateTaskDialog({
     }
   }, [open, initialData]);
 
+  // --- Handle prefill (template-seeded fresh issue — no "Copy of" prefix) ---
+  useEffect(() => {
+    if (open && prefill) {
+      setTitle(prefill.title);
+      setSummary(prefill.body);
+      setLabels(prefill.labels || []);
+      setAssignees(prefill.assignees || []);
+    }
+  }, [open, prefill]);
+
   // --- Default assignee to the current user on fresh open ---
   useEffect(() => {
-    if (open && !initialData && githubUser?.login) {
+    if (open && !initialData && !prefill && githubUser?.login) {
       setAssignees((prev) => (prev.length === 0 ? [githubUser.login] : prev));
     }
-  }, [open, initialData, githubUser?.login]);
+  }, [open, initialData, prefill, githubUser?.login]);
 
   // --- Apply presetLabels (goal-scoped create, separate from duplicate flow) ---
   useEffect(() => {
-    if (open && !initialData && presetLabels && presetLabels.length > 0) {
+    if (open && !initialData && !prefill && presetLabels && presetLabels.length > 0) {
       setLabels((prev) => {
         const merged = new Set([...prev, ...presetLabels]);
         return Array.from(merged);
       });
     }
-  }, [open, initialData, presetLabels]);
+  }, [open, initialData, prefill, presetLabels]);
 
   // --- File handling ---
   const processFile = useCallback((file: File): Promise<AttachmentFile> => {
@@ -417,8 +441,9 @@ export function CreateTaskDialog({
             {initialData ? "Duplicate Task" : "Create New Task"}
           </DialogTitle>
           <DialogDescription>
-            Fill in the structured fields below — Kody will use them to plan and
-            implement.
+            {initialData
+              ? "A copy of the source task — edit the fields below before saving."
+              : "Fill in the structured fields below — Kody will use them to plan and implement."}
           </DialogDescription>
         </DialogHeader>
 

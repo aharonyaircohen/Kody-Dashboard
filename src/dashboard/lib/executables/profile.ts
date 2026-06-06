@@ -4,12 +4,13 @@
  * @pattern executable-profile
  * @ai-summary Pure helpers that translate the dashboard's simple executable
  *   form fields <-> a valid engine `profile.json`. The engine reads custom
- *   executables from `.kody/executables/<slug>/profile.json` (registry root
- *   `.kody/executables` is checked before `src/executables`). We generate the
- *   same shape the built-in `feature` executable uses for the "opens a PR"
- *   landing (the `pr-branch` lifecycle wraps context-load → composePrompt →
- *   agent → verify → commit → PR → comment). The prompt the user writes lives
- *   in `prompt.md`, which the lifecycle's `composePrompt` step reads.
+ *   executables from `.kody/duties/<slug>/profile.json` (consumer duties
+ *   win on name conflict with engine builtins per kody2/src/registry.ts).
+ *   We generate the same shape the built-in `feature` executable uses for
+ *   the "opens a PR" landing (the `pr-branch` lifecycle wraps context-load
+ *   → composePrompt → agent → verify → commit → PR → comment). The prompt
+ *   the user writes lives in `prompt.md`, which the lifecycle's
+ *   `composePrompt` step reads.
  *
  *   No engine call is made here — this is the contract, kept in sync with
  *   kody2/src/profile.ts. Validation mirrors the engine's required invariants
@@ -63,7 +64,7 @@ export const COMMON_TOOLS = [
 
 /** Dashboard-facing description of an executable, independent of GitHub I/O. */
 export interface ExecutableFields {
-  /** Folder name under `.kody/executables/`. Becomes the `@kody <slug>` action. */
+  /** Folder name under `.kody/duties/`. Becomes the `@kody <slug>` action. */
   slug: string;
   /** One-line human description (`profile.describe`). */
   describe: string;

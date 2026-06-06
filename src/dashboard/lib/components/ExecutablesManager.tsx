@@ -2,15 +2,15 @@
  * @fileType component
  * @domain executables
  * @pattern executables-manager
- * @ai-summary CRUD UI for custom executables stored at
- *   `.kody/executables/<slug>/` in the connected repo. The engine resolves
+ * @ai-summary CRUD UI for custom executables (folder-duties) stored at
+ *   `.kody/duties/<slug>/` in the connected repo. The engine resolves
  *   these before its own built-ins, so `@kody <slug>` runs them. The editor
  *   is a simple form (describe + prompt + model + tools), plus a skills tab
  *   (paste a `SKILL.md` or import one from a GitHub source) and a scripts tab
  *   (one `*.sh` each). A
- *   Validate button checks the generated profile.json before saving; Run
- *   posts `@kody <slug>` on an issue; "Set default" writes the bare-`@kody`
- *   default into kody.config.json.
+ *   Validate button checks the generated profile.json before saving;
+ *   "Set default" writes the bare-`@kody` default into kody.config.json.
+ *   Execution is owned by Jobs (see JobsManager) — this page only edits.
  */
 "use client";
 
@@ -22,18 +22,23 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   Boxes,
+  BookOpen,
   CheckCircle2,
+  Cpu,
   Download,
   ExternalLink,
+  FileCode,
   Loader2,
   Pencil,
-  Play,
   Plus,
   RefreshCw,
   Sparkles,
   Star,
+  Terminal,
   Trash2,
   User,
+  Wrench,
+  X,
   XCircle,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
@@ -104,10 +109,6 @@ interface ExecutableSummary {
   htmlUrl: string;
   /** Staff member this duty runs as, or null. */
   staff?: string | null;
-  /** True when still under the legacy `.kody/executables/` dir. */
-  legacy?: boolean;
-  /** True for a legacy markdown duty (`.kody/duties/<slug>.md`), pending migration. */
-  markdown?: boolean;
 }
 interface ExecutableDetail extends ExecutableSummary {
   prompt: string;
@@ -255,30 +256,6 @@ async function setDefaultApi(
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
 }
 
-async function runApi(
-  headers: Record<string, string>,
-  slug: string,
-  issue: number,
-  actorLogin?: string,
-): Promise<string> {
-  const res = await fetch(
-    `/api/kody/executables/${encodeURIComponent(slug)}/run`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ issue, actorLogin }),
-    },
-  );
-  const json = (await res.json().catch(() => ({}))) as {
-    commentUrl?: string;
-    error?: string;
-    message?: string;
-  };
-  if (!res.ok)
-    throw new Error(json.message || json.error || `HTTP ${res.status}`);
-  return json.commentUrl ?? "";
-}
-
 export function ExecutablesManager() {
   return (
     <AuthGuard>
@@ -391,18 +368,12 @@ function ExecutablesManagerInner() {
       toast.error(err.message || "Failed to set default"),
   });
 
-  const run = useMutation({
-    mutationFn: (v: { slug: string; issue: number }) =>
-      runApi(headers, v.slug, v.issue, actorLogin),
-    onSuccess: (url) =>
-      toast.success(url ? "Dispatched — comment posted" : "Dispatched"),
-    onError: (err: Error) => toast.error(err.message || "Failed to run"),
-  });
-
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [running, setRunning] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  // Inline edit: when set to the selected slug, the detail pane swaps from the
+  // read-only summary to the editor — no route change, no full-page reload.
+  const [editingSlug, setEditingSlug] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -418,6 +389,18 @@ function ExecutablesManagerInner() {
     () => executables.find((e) => e.slug === selectedSlug) ?? null,
     [executables, selectedSlug],
   );
+  const existingSlugs = useMemo(
+    () => new Set(executables.map((e) => e.slug)),
+    [executables],
+  );
+
+  // Picking a different row exits edit mode — keeps the inline editor bound
+  // to whatever is selected on the left.
+  useEffect(() => {
+    if (editingSlug && editingSlug !== selectedSlug) {
+      setEditingSlug(null);
+    }
+  }, [editingSlug, selectedSlug]);
 
   // Auto-select the first executable on desktop, mirroring Jobs/Reports.
   useEffect(() => {
@@ -425,6 +408,30 @@ function ExecutablesManagerInner() {
       setSelectedSlug(executables[0].slug);
     }
   }, [executables, selectedSlug]);
+
+  // The list query only returns summaries (slug/describe/landing/etc.) — the
+  // detail pane needs prompt, model, tools, skills, scripts, MCP servers to
+  // actually show "the executable content", so load the full record for the
+  // selected slug and refetch on selection change.
+  const selectedFull = useQuery({
+    queryKey: ["kody-executable", selected?.slug ?? null] as const,
+    queryFn: () => readApi(headers, selected!.slug),
+    enabled: !!selected,
+    staleTime: 30_000,
+  });
+
+  const save = useMutation({
+    mutationFn: (payload: SavePayload) => saveApi(headers, payload, actorLogin),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({
+        queryKey: ["kody-executable", selected?.slug ?? null],
+      });
+      toast.success("Executable saved");
+      setEditingSlug(null);
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to save"),
+  });
 
   return (
     <>
@@ -471,23 +478,45 @@ function ExecutablesManagerInner() {
         }
         detail={
           selected ? (
-            <ExecutableDetail
-              exec={selected}
-              isIssueDefault={defaults.issue === selected.slug}
-              isPrDefault={defaults.pr === selected.slug}
-              onBack={() => setSelectedSlug(null)}
-              onRun={() => setRunning(selected.slug)}
-              onDelete={() => setDeleting(selected.slug)}
-              onSetDefault={(target, clear) =>
-                setDefault.mutate({ slug: selected.slug, target, clear })
-              }
-              settingDefault={setDefault.isPending}
-            />
+            editingSlug === selected.slug ? (
+              <ExecutableInlineEditor
+                slug={selected.slug}
+                headers={headers}
+                existingSlugs={existingSlugs}
+                saving={save.isPending}
+                onClose={() => setEditingSlug(null)}
+                onSave={async (payload) => {
+                  await save.mutateAsync(payload);
+                }}
+              />
+            ) : (
+              <ExecutableDetail
+                exec={selected}
+                detail={selectedFull.data ?? null}
+                detailLoading={selectedFull.isLoading}
+                detailError={
+                  selectedFull.error
+                    ? selectedFull.error instanceof Error
+                      ? selectedFull.error.message
+                      : "Failed to load"
+                    : null
+                }
+                isIssueDefault={defaults.issue === selected.slug}
+                isPrDefault={defaults.pr === selected.slug}
+                onBack={() => setSelectedSlug(null)}
+                onEdit={() => setEditingSlug(selected.slug)}
+                onDelete={() => setDeleting(selected.slug)}
+                onSetDefault={(target, clear) =>
+                  setDefault.mutate({ slug: selected.slug, target, clear })
+                }
+                settingDefault={setDefault.isPending}
+              />
+            )
           ) : (
             <EmptyState
               icon={<Boxes />}
               title="Select an executable"
-              hint="Pick one from the list to see its config and run, edit, or delete it."
+              hint="Pick one from the list to see its config, edit it, or delete it."
             />
           )
         }
@@ -530,18 +559,6 @@ function ExecutablesManagerInner() {
           </ul>
         )}
       </MasterDetailShell>
-
-      {running && (
-        <RunDialog
-          slug={running}
-          running={run.isPending}
-          onClose={() => setRunning(null)}
-          onRun={async (issue) => {
-            await run.mutateAsync({ slug: running, issue });
-            setRunning(null);
-          }}
-        />
-      )}
 
       <ConfirmDialog
         open={deleting !== null}
@@ -615,11 +632,6 @@ function ExecutableRow({
             {e.staff}
           </span>
         ) : null}
-        {e.markdown ? (
-          <span className="text-orange-300/70">legacy .md</span>
-        ) : e.legacy ? (
-          <span className="text-orange-300/70">legacy</span>
-        ) : null}
       </div>
       {e.describe ? (
         <p className="text-xs text-white/55 mt-1 truncate">{e.describe}</p>
@@ -628,22 +640,30 @@ function ExecutableRow({
   );
 }
 
-/** Detail pane for one executable — mirrors DutyDetail's hero + actions. */
+/** Detail pane for one executable — hero + actual content (prompt, model,
+ * tools, skills, scripts, MCP servers). Legacy .md duties render the hero
+ * only and link out to the file on GitHub. */
 function ExecutableDetail({
   exec: e,
+  detail,
+  detailLoading,
+  detailError,
   isIssueDefault,
   isPrDefault,
   onBack,
-  onRun,
+  onEdit,
   onDelete,
   onSetDefault,
   settingDefault,
 }: {
   exec: ExecutableSummary;
+  detail: ExecutableDetail | null;
+  detailLoading: boolean;
+  detailError: string | null;
   isIssueDefault: boolean;
   isPrDefault: boolean;
   onBack: () => void;
-  onRun: () => void;
+  onEdit: () => void;
   onDelete: () => void;
   onSetDefault: (target: "issue" | "pr", clear: boolean) => void;
   settingDefault: boolean;
@@ -668,11 +688,6 @@ function ExecutableDetail({
                 <span className="text-[11px] font-sans uppercase tracking-wide bg-white/[0.06] text-white/50 px-2 py-0.5 rounded">
                   {e.landing === "pr" ? "opens PR" : "comments"}
                 </span>
-                {e.markdown ? (
-                  <span className="text-[11px] font-sans uppercase tracking-wide bg-orange-500/15 text-orange-300/90 px-2 py-0.5 rounded">
-                    legacy .md
-                  </span>
-                ) : null}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 {e.staff ? (
@@ -711,90 +726,301 @@ function ExecutableDetail({
                 </a>
               </div>
             </div>
-            {e.markdown ? (
-              <Button asChild variant="outline" size="sm" className="gap-1.5">
-                <a href={e.htmlUrl} target="_blank" rel="noreferrer">
-                  <Pencil className="w-3.5 h-3.5" />
-                  Open .md
-                </a>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onSetDefault("issue", isIssueDefault)}
+                disabled={settingDefault}
+                className={cn("w-9 px-0", isIssueDefault && "text-amber-400")}
+                title={
+                  isIssueDefault
+                    ? "Clear issue default"
+                    : "Make this the issue default (bare @kody on an issue)"
+                }
+                aria-label="Toggle issue default"
+              >
+                <Star className="w-3.5 h-3.5" />
               </Button>
-            ) : (
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  onClick={onRun}
-                  className="w-9 px-0 bg-amber-600 hover:bg-amber-700 text-white"
-                  title="Run on an issue"
-                  aria-label="Run executable"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onSetDefault("issue", isIssueDefault)}
-                  disabled={settingDefault}
-                  className={cn("w-9 px-0", isIssueDefault && "text-amber-400")}
-                  title={
-                    isIssueDefault
-                      ? "Clear issue default"
-                      : "Make this the issue default (bare @kody on an issue)"
-                  }
-                  aria-label="Toggle issue default"
-                >
-                  <Star className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  asChild
-                  variant="outline"
-                  size="sm"
-                  className="w-9 px-0"
-                  title="Edit executable"
-                >
-                  <Link href={`/executables/${e.slug}`} aria-label="Edit">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </Link>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onDelete}
-                  className="w-9 px-0 text-red-400"
-                  title="Delete executable"
-                  aria-label="Delete executable"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onEdit}
+                className="w-9 px-0"
+                title="Edit executable"
+                aria-label="Edit executable"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onDelete}
+                className="w-9 px-0 text-red-400"
+                title="Delete executable"
+                aria-label="Delete executable"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
           </header>
 
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
             <p className="text-sm text-white/80">
               {e.describe || "No description yet."}
             </p>
-            {!e.markdown ? (
-              <div className="mt-3 flex items-center gap-2 flex-wrap">
-                <Button
-                  size="sm"
-                  variant={isPrDefault ? "secondary" : "outline"}
-                  className="h-7 gap-1 text-[11px] px-2"
-                  disabled={settingDefault}
-                  onClick={() => onSetDefault("pr", isPrDefault)}
-                >
-                  <Star className="w-3 h-3" />
-                  {isPrDefault ? "PR default ✓" : "Set PR default"}
-                </Button>
-              </div>
-            ) : (
-              <p className="text-[11px] text-orange-300/70 mt-2">
-                Legacy markdown duty — migrate to a folder-duty to edit it here.
-              </p>
-            )}
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant={isPrDefault ? "secondary" : "outline"}
+                className="h-7 gap-1 text-[11px] px-2"
+                disabled={settingDefault}
+                onClick={() => onSetDefault("pr", isPrDefault)}
+              >
+                <Star className="w-3 h-3" />
+                {isPrDefault ? "PR default ✓" : "Set PR default"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
+
+      <ExecutableContentBody
+        detail={detail}
+        loading={detailLoading}
+        error={detailError}
+      />
     </article>
+  );
+}
+
+/** The non-hero body of the detail pane: prompt, model, tools, skills,
+ * shell scripts, MCP servers. Skeleton while loading, an explicit error
+ * block if the read fails, and an "empty" hint when there is genuinely
+ * nothing configured (the file just has a description and a prompt). */
+function ExecutableContentBody({
+  detail,
+  loading,
+  error,
+}: {
+  detail: ExecutableDetail | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-8 flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Loading executable content…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-8">
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/[0.06] p-3 text-sm text-rose-200">
+          Couldn&apos;t load executable content: {error}
+        </div>
+      </div>
+    );
+  }
+  if (!detail) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-8">
+        <div className="rounded-lg border border-dashed border-white/[0.1] bg-white/[0.02] p-4 text-sm text-muted-foreground">
+          No content to show yet.
+        </div>
+      </div>
+    );
+  }
+
+  const userTools = (detail.tools ?? []).filter((t) => !t.startsWith("mcp__"));
+
+  return (
+    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+      {/* Prompt — the actual prompt the engine runs. Markdown source, scroll
+          and select-friendly. */}
+      <ContentSection
+        icon={FileCode}
+        title="Prompt"
+        subtitle="prompt.md — what the agent sees"
+        count={detail.prompt ? 1 : 0}
+      >
+        {detail.prompt ? (
+          <pre className="text-xs font-mono leading-relaxed bg-black/40 border border-white/[0.08] rounded p-3 max-h-96 overflow-auto whitespace-pre-wrap break-words text-white/85">
+            {detail.prompt}
+          </pre>
+        ) : (
+          <EmptyHint text="No prompt written yet." />
+        )}
+      </ContentSection>
+
+      {/* Model + tool allowlist — at-a-glance. */}
+      <ContentSection icon={Cpu} title="Model" subtitle="claudeCode.model">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-mono text-white/85 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1">
+            {detail.model || "inherit"}
+          </span>
+          <span className="text-white/45">·</span>
+          <span className="text-white/55">
+            {userTools.length} tool{userTools.length === 1 ? "" : "s"}
+          </span>
+        </div>
+      </ContentSection>
+
+      <ContentSection
+        icon={Wrench}
+        title="Tools"
+        subtitle="claudeCode.tools — what the agent may call"
+        count={userTools.length}
+      >
+        {userTools.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {userTools.map((t) => (
+              <span
+                key={t}
+                className="font-mono text-[11px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/80"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <EmptyHint text="No tools allowed — the agent can't read or edit." />
+        )}
+      </ContentSection>
+
+      <ContentSection
+        icon={BookOpen}
+        title="Skills"
+        subtitle="skills/<name>/SKILL.md — loaded into the agent"
+        count={detail.skills.length}
+      >
+        {detail.skills.length > 0 ? (
+          <div className="space-y-2">
+            {detail.skills.map((s) => (
+              <Card key={s.name} className="border-white/[0.08] bg-white/[0.02]">
+                <CardContent className="p-3 space-y-1.5">
+                  <div className="font-mono text-xs text-white/85">
+                    {s.name}
+                  </div>
+                  {s.body ? (
+                    <pre className="text-[11px] font-mono leading-relaxed text-white/65 whitespace-pre-wrap break-words max-h-48 overflow-auto">
+                      {s.body}
+                    </pre>
+                  ) : (
+                    <p className="text-[11px] text-white/40">
+                      (empty SKILL.md)
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <EmptyHint text="No skills attached." />
+        )}
+      </ContentSection>
+
+      <ContentSection
+        icon={Terminal}
+        title="Scripts"
+        subtitle="*.sh — preflight steps run before the agent"
+        count={detail.shellScripts.length}
+      >
+        {detail.shellScripts.length > 0 ? (
+          <div className="space-y-2">
+            {detail.shellScripts.map((s) => (
+              <Card key={s.name} className="border-white/[0.08] bg-white/[0.02]">
+                <CardContent className="p-3 space-y-1.5">
+                  <div className="font-mono text-xs text-white/85">
+                    {s.name}
+                  </div>
+                  {s.content ? (
+                    <pre className="text-[11px] font-mono leading-relaxed text-white/65 whitespace-pre-wrap break-words max-h-48 overflow-auto">
+                      {s.content}
+                    </pre>
+                  ) : (
+                    <p className="text-[11px] text-white/40">
+                      (empty script)
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <EmptyHint text="No preflight scripts." />
+        )}
+      </ContentSection>
+
+      <ContentSection
+        icon={Cpu}
+        title="MCP servers"
+        subtitle="claudeCode.mcpServers — external tool servers the agent may call"
+        count={detail.mcpServers.length}
+      >
+        {detail.mcpServers.length > 0 ? (
+          <div className="space-y-2">
+            {detail.mcpServers.map((m) => (
+              <Card key={m.name} className="border-white/[0.08] bg-white/[0.02]">
+                <CardContent className="p-3 space-y-1.5">
+                  <div className="font-mono text-xs text-white/85">
+                    {m.name}
+                  </div>
+                  <div className="text-[11px] font-mono text-white/55 break-words">
+                    {m.command}
+                    {m.args && m.args.length > 0 ? (
+                      <span className="text-white/35"> {m.args.join(" ")}</span>
+                    ) : null}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <EmptyHint text="No MCP tool servers." />
+        )}
+      </ContentSection>
+    </div>
+  );
+}
+
+function ContentSection({
+  icon: Icon,
+  title,
+  subtitle,
+  count,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  subtitle?: string;
+  count?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Icon className="w-4 h-4 text-amber-300/80" />
+        <h2 className="text-sm font-semibold text-white/90">{title}</h2>
+        {typeof count === "number" ? (
+          <span className="text-[10px] font-mono text-white/40 bg-white/[0.04] border border-white/[0.08] rounded px-1.5 py-0.5">
+            {count}
+          </span>
+        ) : null}
+      </div>
+      {subtitle ? (
+        <p className="text-[11px] text-white/40 font-mono">{subtitle}</p>
+      ) : null}
+      {children}
+    </section>
+  );
+}
+
+function EmptyHint({ text }: { text: string }) {
+  return (
+    <p className="text-xs text-white/40 italic">{text}</p>
   );
 }
 
@@ -805,6 +1031,9 @@ interface EditorProps {
   saving: boolean;
   onClose: () => void;
   onSave: (payload: SavePayload) => Promise<void>;
+  /** Render the form's built-in title + Back row. Off when the form is
+   *  embedded in a wrapper that provides its own header (inline edit). */
+  showHeader?: boolean;
 }
 
 const DEFAULT_PROMPT =
@@ -817,6 +1046,7 @@ function ExecutableEditor({
   saving,
   onClose,
   onSave,
+  showHeader = true,
 }: EditorProps) {
   const isNew = slug === null;
   const detail = useQuery({
@@ -842,7 +1072,63 @@ function ExecutableEditor({
       headers={headers}
       onClose={onClose}
       onSave={onSave}
+      showHeader={showHeader}
     />
+  );
+}
+
+/** The editor framed for the detail pane — same article + gradient hero as
+ *  the read-only card so swapping read-only → edit doesn't change the
+ *  card's silhouette. Hero carries a Cancel button; the form's own header
+ *  is suppressed (it would duplicate the slug) and the form's bottom
+ *  Cancel/Update row stays. */
+function ExecutableInlineEditor({
+  slug,
+  headers,
+  existingSlugs,
+  saving,
+  onClose,
+  onSave,
+}: EditorProps) {
+  return (
+    <article className="min-h-full">
+      <div className="border-b border-white/[0.06] bg-gradient-to-b from-amber-500/[0.06] via-amber-500/[0.02] to-transparent">
+        <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+          <header className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0 flex-1 space-y-2">
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words font-mono">
+                @kody {slug}
+              </h1>
+              <p className="text-xs text-muted-foreground">
+                Editing inline — Cancel reverts, Update commits to the repo.
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              disabled={saving}
+              className="gap-1"
+              aria-label="Cancel edit"
+            >
+              <X className="w-4 h-4" />
+              Cancel
+            </Button>
+          </header>
+        </div>
+      </div>
+      <div className="max-w-4xl mx-auto p-4 md:p-8">
+        <ExecutableEditor
+          slug={slug}
+          headers={headers}
+          existingSlugs={existingSlugs}
+          saving={saving}
+          onClose={onClose}
+          onSave={onSave}
+          showHeader={false}
+        />
+      </div>
+    </article>
   );
 }
 
@@ -854,6 +1140,7 @@ function ExecutableEditorForm({
   headers,
   onClose,
   onSave,
+  showHeader = true,
 }: {
   isNew: boolean;
   initial: ExecutableDetail | null;
@@ -862,6 +1149,7 @@ function ExecutableEditorForm({
   headers: Record<string, string>;
   onClose: () => void;
   onSave: (payload: SavePayload) => Promise<void>;
+  showHeader?: boolean;
 }) {
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [touchedSlug, setTouchedSlug] = useState(false);
@@ -1060,27 +1348,29 @@ function ExecutableEditorForm({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-white/90">
-            {isNew ? "New executable" : `Edit @kody ${initial?.slug}`}
-          </h2>
-          <p className="text-xs text-white/50">
-            Stored at .kody/duties/&lt;slug&gt;/. The engine runs it for
-            <code className="mx-1">@kody &lt;slug&gt;</code>.
-          </p>
+      {showHeader ? (
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-white/90">
+              {isNew ? "New executable" : `Edit @kody ${initial?.slug}`}
+            </h2>
+            <p className="text-xs text-white/50">
+              Stored at .kody/duties/&lt;slug&gt;/. The engine runs it for
+              <code className="mx-1">@kody &lt;slug&gt;</code>.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1 shrink-0"
+            onClick={onClose}
+            disabled={saving}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1 shrink-0"
-          onClick={onClose}
-          disabled={saving}
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </Button>
-      </div>
+      ) : null}
 
       <Tabs defaultValue="config" className="mt-2">
         <TabsList>
@@ -1566,70 +1856,5 @@ function ExecutableEditorForm({
         </Button>
       </div>
     </div>
-  );
-}
-
-function RunDialog({
-  slug,
-  running,
-  onClose,
-  onRun,
-}: {
-  slug: string;
-  running: boolean;
-  onClose: () => void;
-  onRun: (issue: number) => Promise<void>;
-}) {
-  const [issue, setIssue] = useState("");
-  const n = Number(issue);
-  const valid = Number.isInteger(n) && n > 0;
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Run @kody {slug}</DialogTitle>
-          <DialogDescription>
-            Posts <code>@kody {slug}</code> as a comment on the issue, which the
-            engine picks up.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="mt-2">
-          <Label htmlFor="run-issue" className="text-xs">
-            Issue number
-          </Label>
-          <Input
-            id="run-issue"
-            value={issue}
-            onChange={(e) => setIssue(e.target.value.replace(/[^0-9]/g, ""))}
-            placeholder="123"
-            className="font-mono"
-            autoFocus
-          />
-        </div>
-        <div className="flex justify-end gap-2 mt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            disabled={running}
-          >
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            disabled={!valid || running}
-            onClick={() => valid && onRun(n)}
-            className="gap-1"
-          >
-            {running ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Play className="w-3.5 h-3.5" />
-            )}
-            Run on #{valid ? n : "…"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }

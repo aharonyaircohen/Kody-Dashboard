@@ -748,6 +748,14 @@ export const ciApi = {
     const res = await fetch(`${API_BASE}/ci/main`, { headers: buildHeaders() });
     return handleResponse<DefaultBranchCI>(res);
   },
+  rerun: async (runId: number): Promise<{ ok: true; runId: number }> => {
+    const res = await fetch(`${API_BASE}/ci/rerun`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({ runId }),
+    });
+    return handleResponse(res);
+  },
 };
 
 // ============ Remote Dev API ============

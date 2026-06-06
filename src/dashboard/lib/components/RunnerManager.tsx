@@ -23,6 +23,7 @@ import {
   Brain,
   Cpu,
   Globe,
+  Info,
   KeyRound,
   Rocket,
   Server,
@@ -32,12 +33,16 @@ import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
-import { BrainFlyCard } from "./BrainFlyCard";
+import { BrainFlyCard, type BrainFlyState } from "./BrainFlyCard";
 import { FlyActivityTab } from "./FlyActivityTab";
 import { FlyMachinesTable } from "./FlyMachinesTable";
-import { LitellmFlyCard } from "./LitellmFlyCard";
+import {
+  LitellmFlyCard,
+  type LitellmStatus,
+} from "./LitellmFlyCard";
 import { PreviewsCard } from "./PreviewsCard";
 import { PageShell } from "./PageShell";
+import { SimpleTooltip } from "./SimpleTooltip";
 import { VaultLockedBanner } from "./VaultLockedBanner";
 import { useAuth, type FlyPerfTier } from "../auth-context";
 import { getStoredAuth } from "../api";
@@ -84,15 +89,51 @@ function vaultHeaders(): Record<string, string> {
     : {};
 }
 
-/** Group divider — labels each block by who it affects. */
+/** Tooltip copy for the blast-radius chips. Kept in one place so the wording
+ * stays consistent between the per-section chips and any future chips. */
+const SCOPE_CHIP_HINTS = {
+  wholeRepo: "Applies to everyone using the repo.",
+  justYou: "Only affects this browser — not other users.",
+  readOnly: "Status display — you can't change it from here.",
+};
+
+const STATUS_DOT_COLORS: Record<string, string> = {
+  running: "bg-emerald-400",
+  suspended: "bg-amber-400",
+  stopped: "bg-rose-400",
+  off: "bg-white/30",
+  unknown: "bg-white/20",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  running: "Running",
+  suspended: "Sleeping",
+  stopped: "Stopped",
+  off: "Off",
+  unknown: "—",
+};
+
+function StatusDot({ state }: { state: string }) {
+  return (
+    <span
+      className={`w-1.5 h-1.5 rounded-full inline-block ${STATUS_DOT_COLORS[state] ?? STATUS_DOT_COLORS.unknown}`}
+    />
+  );
+}
+
+/** Group divider — labels each block by who it affects. The optional
+ * `status` slot is for an at-a-glance live status pulled up from the
+ * child card (e.g. "● Running · 3 ready" on the LiteLLM divider). */
 function GroupHeader({
   icon: Icon,
   label,
   hint,
+  status,
 }: {
   icon: LucideIcon;
   label: string;
   hint: string;
+  status?: React.ReactNode;
 }) {
   return (
     <div className="flex items-center gap-2 px-1">
@@ -100,7 +141,14 @@ function GroupHeader({
       <h2 className="text-[11px] font-semibold uppercase tracking-wider text-white/40">
         {label}
       </h2>
-      <span className="text-[11px] text-white/30">— {hint}</span>
+      <SimpleTooltip content={hint} side="right">
+        <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
+      </SimpleTooltip>
+      {status && (
+        <span className="flex items-center gap-1.5 text-[10px] text-white/55 normal-case tracking-normal">
+          {status}
+        </span>
+      )}
     </div>
   );
 }
@@ -116,6 +164,14 @@ export function RunnerManager() {
 
   // ─── Per-user: perf tier (VM size for THIS browser's runs) ──────────────
   const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT);
+
+  // ─── At-a-glance section status (lifted from the child cards so the
+  //     GroupHeader can show "● Running" / "● 3 ready" without scrolling). ─
+  const [brainState, setBrainState] = useState<BrainFlyState>("unknown");
+  const [litellmStatus, setLitellmStatus] = useState<LitellmStatus>({
+    state: "unknown",
+    free: null,
+  });
 
   const probeFlyToken = useCallback(async () => {
     const headers = vaultHeaders();
@@ -234,9 +290,25 @@ export function RunnerManager() {
             Configuration = the per-feature knobs. */}
         <Tabs defaultValue="config">
           <TabsList>
-            <TabsTrigger value="config">Configuration</TabsTrigger>
-            <TabsTrigger value="machines">live machines</TabsTrigger>
-            <TabsTrigger value="activity">history</TabsTrigger>
+            <TabsTrigger value="config">configuration</TabsTrigger>
+            <SimpleTooltip
+              content="Set FLY_API_TOKEN on the Secrets page to view live machines and activity."
+              side="bottom"
+              delayDuration={200}
+            >
+              <TabsTrigger value="machines" disabled={!flyTokenConfigured}>
+                live machines
+              </TabsTrigger>
+            </SimpleTooltip>
+            <SimpleTooltip
+              content="Set FLY_API_TOKEN on the Secrets page to view live machines and activity."
+              side="bottom"
+              delayDuration={200}
+            >
+              <TabsTrigger value="activity" disabled={!flyTokenConfigured}>
+                history
+              </TabsTrigger>
+            </SimpleTooltip>
           </TabsList>
 
           {/* ═══ Machines: what's running, act on it ════════════════════ */}
@@ -257,39 +329,44 @@ export function RunnerManager() {
 
           {/* ═══ Configuration: grouped by feature ══════════════════════ */}
           <TabsContent value="config" className="mt-4 space-y-6">
-            {/* Blast-radius legend — the chips on each section refer back here. */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] uppercase tracking-wide text-white/35 px-1">
-              <span>whole repo = everyone</span>
-              <span>just you = this browser</span>
-              <span>read-only = status</span>
-            </div>
-
             {/* Fly token — gates every feature below. */}
             <Card className="border-white/[0.08] bg-white/[0.03]">
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center gap-2">
                   <KeyRound className="w-4 h-4 text-sky-400" />
                   <h2 className="text-sm font-semibold">Fly token</h2>
+                  <SimpleTooltip
+                    side="right"
+                    content={
+                      <>
+                        Required for everything below. Set{" "}
+                        <span className="font-mono">FLY_API_TOKEN</span> on the{" "}
+                        <Link
+                          href="/secrets"
+                          className="text-sky-400 hover:underline"
+                        >
+                          Secrets
+                        </Link>{" "}
+                        page. Without it, every Fly feature falls back to GitHub
+                        Actions.
+                      </>
+                    }
+                  >
+                    <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
+                  </SimpleTooltip>
                   <span
-                    className={`ml-1 text-[11px] ${flyTokenConfigured ? "text-emerald-300" : "text-amber-300"}`}
+                    className={`ml-auto text-[11px] ${flyTokenConfigured ? "text-emerald-300" : "text-amber-300"}`}
                   >
                     {flyTokenConfigured ? "configured" : "not set"}
                   </span>
                 </div>
-                <p className="text-xs text-white/50">
-                  Required for everything below. Set{" "}
-                  <span className="font-mono">FLY_API_TOKEN</span> on the{" "}
-                  <Link
-                    href="/secrets"
-                    className="text-sky-400 hover:underline"
-                  >
-                    Secrets
-                  </Link>{" "}
-                  page. Without it, every Fly feature falls back to GitHub
-                  Actions.
-                </p>
               </CardContent>
             </Card>
+
+            {/* The four feature sections are gated by FLY_API_TOKEN. Until
+                the token is set, the Fly token card above IS the page. */}
+            {flyTokenConfigured && (
+              <>
 
             {/* ── Previews ─────────────────────────────────────────────── */}
             <section className="space-y-3">
@@ -311,6 +388,14 @@ export function RunnerManager() {
                 icon={Server}
                 label="Task runners"
                 hint="machines that run chat & Vibe tasks"
+                status={
+                  litellmStatus.free != null ? (
+                    <span className="flex items-center gap-1.5">
+                      <StatusDot state={litellmStatus.state} />
+                      {litellmStatus.free} ready
+                    </span>
+                  ) : null
+                }
               />
               <Card className="border-white/[0.08] bg-white/[0.03]">
                 <CardContent className="p-4 space-y-4">
@@ -321,9 +406,20 @@ export function RunnerManager() {
                       <h2 className="text-sm font-semibold">
                         Speed of my runs
                       </h2>
-                      <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide">
-                        just you
-                      </span>
+                      <SimpleTooltip
+                        content="Pick the VM size for YOUR chat & Vibe runs. Hover each tier for the spec."
+                        side="right"
+                      >
+                        <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
+                      </SimpleTooltip>
+                      <SimpleTooltip
+                        content={SCOPE_CHIP_HINTS.justYou}
+                        side="bottom"
+                      >
+                        <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
+                          just you
+                        </span>
+                      </SimpleTooltip>
                     </div>
                     <div className="flex gap-1.5">
                       {PERF_ORDER.map((tier) => {
@@ -345,9 +441,6 @@ export function RunnerManager() {
                         );
                       })}
                     </div>
-                    <p className="text-[11px] text-white/45 leading-snug">
-                      {FLY_PERF_LABELS[flyPerf].hint}
-                    </p>
                     <Button
                       size="sm"
                       onClick={saveFly}
@@ -366,15 +459,21 @@ export function RunnerManager() {
                       <h2 className="text-sm font-semibold">
                         Keep machines ready
                       </h2>
-                      <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide">
-                        whole repo
-                      </span>
+                      <SimpleTooltip
+                        content="Machines kept pre-booted so a run starts instantly instead of cold-starting. 0 = always cold-start. Each ready machine is a paid VM everyone shares."
+                        side="right"
+                      >
+                        <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
+                      </SimpleTooltip>
+                      <SimpleTooltip
+                        content={SCOPE_CHIP_HINTS.wholeRepo}
+                        side="bottom"
+                      >
+                        <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
+                          whole repo
+                        </span>
+                      </SimpleTooltip>
                     </div>
-                    <p className="text-xs text-white/50">
-                      Machines kept pre-booted so a run starts instantly instead
-                      of cold-starting. 0 = always cold-start. Each ready
-                      machine is a paid VM everyone shares.
-                    </p>
                     <div className="flex items-center gap-2">
                       <Input
                         id="pool-min"
@@ -407,10 +506,17 @@ export function RunnerManager() {
                 icon={Brain}
                 label="Brain"
                 hint="your personal Brain server"
+                status={
+                  <span className="flex items-center gap-1.5">
+                    <StatusDot state={brainState} />
+                    {STATUS_LABELS[brainState]}
+                  </span>
+                }
               />
               <BrainFlyCard
                 headers={vaultHeaders()}
                 flyTokenConfigured={flyTokenConfigured}
+                onStatusChange={setBrainState}
               />
             </section>
 
@@ -420,12 +526,24 @@ export function RunnerManager() {
                 icon={Cpu}
                 label="LiteLLM"
                 hint="shared model proxy"
+                status={
+                  <span className="flex items-center gap-1.5">
+                    <StatusDot state={litellmStatus.state} />
+                    {STATUS_LABELS[litellmStatus.state]}
+                    {litellmStatus.free != null && (
+                      <span>· {litellmStatus.free} ready</span>
+                    )}
+                  </span>
+                }
               />
               <LitellmFlyCard
                 headers={vaultHeaders()}
                 flyTokenConfigured={flyTokenConfigured}
+                onStatusChange={setLitellmStatus}
               />
             </section>
+              </>
+            )}
           </TabsContent>
         </Tabs>
       </div>

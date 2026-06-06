@@ -2,10 +2,10 @@
  * @fileType api-endpoint
  * @domain executables
  * @pattern executables-api
- * @ai-summary Executables Control API — GET lists custom executables stored
- *   at `.kody/executables/<slug>/` (merged with the bare-`@kody` default
- *   flags from kody.config.json), POST creates a new one. Each executable is
- *   a folder the engine resolves before its own built-ins.
+ * @ai-summary Executables Control API — GET lists custom executables
+ *   (folder-duties) stored at `.kody/duties/<slug>/`, POST creates a new
+ *   one. Each executable is a folder the engine resolves before its own
+ *   built-ins (kody2/src/registry.ts).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -22,7 +22,6 @@ import {
 } from "@dashboard/lib/github-client";
 import {
   listExecutableFiles,
-  listMarkdownDutySummaries,
   readExecutableFile,
   writeExecutableFile,
   isValidSlug,
@@ -40,18 +39,7 @@ export async function GET(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
-    // One unified duty list: folder-duties + legacy markdown duties merged so an
-    // unmigrated repo's `.md` duties still show (folder wins on slug clash).
-    // listMarkdownDutySummaries is a single dir listing — no per-duty reads.
-    const [folderDuties, markdownDuties] = await Promise.all([
-      listExecutableFiles(),
-      listMarkdownDutySummaries().catch(() => []),
-    ]);
-    const folderSlugs = new Set(folderDuties.map((d) => d.slug));
-    const executables = [
-      ...folderDuties,
-      ...markdownDuties.filter((d) => !folderSlugs.has(d.slug)),
-    ].sort((a, b) => a.slug.localeCompare(b.slug));
+    const executables = await listExecutableFiles();
     let defaults = { issue: null as string | null, pr: null as string | null };
     if (headerAuth) {
       const userOctokit = await getUserOctokit(req);
