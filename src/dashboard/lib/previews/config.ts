@@ -58,7 +58,11 @@ export async function resolvePreviewConfigForOctokit(
 ): Promise<FlyPreviewConfig | null> {
   const secrets = await readVaultMap(input.octokit, input.owner, input.repo);
 
-  const token = secrets.FLY_API_TOKEN ?? process.env.FLY_API_TOKEN ?? "";
+  const token =
+    secrets.FLY_API_TOKEN ??
+    process.env.FLY_API_TOKEN ??
+    process.env.FLY_IO_TOKEN ??
+    "";
   if (!token) return null;
 
   const orgSlug =

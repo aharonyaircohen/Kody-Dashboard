@@ -26,8 +26,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   Brain,
+  CheckCircle2,
   Copy,
+  Info,
   Loader2,
   Pause,
   Play,
@@ -40,6 +43,7 @@ import { Checkbox } from "@dashboard/ui/checkbox";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { SimpleTooltip } from "./SimpleTooltip";
 import { useAuth, type FlyPerfTier } from "../auth-context";
 
 // Brain has its own size, independent of the task-run speed. Same intent
@@ -65,6 +69,8 @@ interface BrainFlyCardProps {
   headers: Record<string, string>;
   /** True only when FLY_API_TOKEN is configured in the repo vault. */
   flyTokenConfigured: boolean;
+  /** Reports the current Brain lifecycle state to the parent. */
+  onStatusChange?: (state: BrainFlyState) => void;
 }
 
 interface StatusResponse {
@@ -73,6 +79,12 @@ interface StatusResponse {
   url?: string;
   machineId?: string;
   error?: string;
+  stored?: {
+    version: 1;
+    appName: string;
+    orgSlug: string;
+    createdAt: string;
+  } | null;
 }
 
 interface ProvisionResponse {
@@ -80,6 +92,12 @@ interface ProvisionResponse {
   url?: string;
   apiKey?: string;
   machineId?: string;
+  /**
+   * Set when ensureApp auto-renamed because the default slug was taken or
+   * owned by an org the token can't see. UI surfaces a notice so the
+   * user understands why the stored record shows a `-2`/`-3` suffix.
+   */
+  originalName?: string;
   error?: string;
 }
 
@@ -116,16 +134,51 @@ function pillLabel(state: BrainFlyState): string {
 export function BrainFlyCard({
   headers,
   flyTokenConfigured,
+  onStatusChange,
 }: BrainFlyCardProps) {
   const { auth, updateIntegrations } = useAuth();
   const brainPerf: FlyPerfTier = auth?.brainPerf ?? BRAIN_SIZE_DEFAULT;
   const [state, setState] = useState<BrainFlyState>("unknown");
   const [app, setApp] = useState<string | null>(null);
+  const [stored, setStored] = useState<StatusResponse["stored"]>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<
-    "idle" | "provisioning" | "destroying" | "suspending" | "resuming"
+    | "idle"
+    | "provisioning"
+    | "destroying"
+    | "suspending"
+    | "resuming"
+    | "clearing-record"
   >("idle");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Report the latest state to the parent so the section header can show
+  // a live status dot + label without scrolling into the card.
+  useEffect(() => {
+    onStatusChange?.(state);
+  }, [state, onStatusChange]);
+  // Optional Fly app name override. The default slug
+  // `kody-brain-<github-login>` is globally unique on Fly — if a previous
+  // account held the name and never freed it, the only way forward is to
+  // pick a different slug. Persisted in localStorage so the choice
+  // follows the user across page reloads. Empty string = use default.
+  const [customAppName, setCustomAppName] = useState("");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("kody.brain.appName");
+      if (typeof saved === "string") setCustomAppName(saved);
+    } catch {
+      // localStorage unavailable — fall back to default slug.
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      if (customAppName)
+        localStorage.setItem("kody.brain.appName", customAppName);
+      else localStorage.removeItem("kody.brain.appName");
+    } catch {
+      // ignore — best-effort persistence
+    }
+  }, [customAppName]);
   // Per-repo `.kody/dashboard.json` flag — whether the "Kody Brain (Fly)"
   // row is offered in the chat picker. Default off. Independent of the
   // provision lifecycle above and of Fly task execution.
@@ -136,6 +189,7 @@ export function BrainFlyCard({
     if (!flyTokenConfigured || Object.keys(headers).length === 0) {
       setState("off");
       setApp(null);
+      setStored(null);
       return;
     }
     setLoading(true);
@@ -148,6 +202,7 @@ export function BrainFlyCard({
       const body = (await res.json()) as StatusResponse;
       setState(body.state ?? "unknown");
       setApp(body.app ?? null);
+      setStored(body.stored ?? null);
     } catch {
       setState("unknown");
     } finally {
@@ -211,16 +266,33 @@ export function BrainFlyCard({
   async function turnOn() {
     setBusy("provisioning");
     try {
+      const trimmedOverride = customAppName.trim();
       const res = await fetch("/api/kody/brain/provision", {
         method: "POST",
         headers: { ...headers, "x-kody-brain-perf": brainPerf },
+        body: JSON.stringify(
+          trimmedOverride.length > 0 ? { appName: trimmedOverride } : {},
+        ),
       });
       const body = (await res.json().catch(() => ({}))) as ProvisionResponse;
       if (!res.ok) {
         toast.error(body.error ?? `Provision failed (HTTP ${res.status})`);
         return;
       }
-      toast.success("Brain on Fly is on — first chat may take ~30s to warm up");
+      if (body.originalName) {
+        // ensureApp auto-renamed because the default slug was taken (likely
+        // a previous Fly org or another account owns it). The new app is
+        // the actual brain — note the rename so the user understands why
+        // the stored name carries a `-2`/`-3` suffix.
+        toast.success(
+          `Brain on Fly is on (used ${body.app} because ${body.originalName} was unreachable).`,
+          { duration: 6000 },
+        );
+      } else {
+        toast.success(
+          "Brain on Fly is on — first chat may take ~30s to warm up",
+        );
+      }
       // Refresh shows running/starting; subsequent polls will pick up
       // suspended state if the user doesn't chat for a while.
       await refresh();
@@ -288,6 +360,7 @@ export function BrainFlyCard({
       toast.success("Brain on Fly is off");
       setState("off");
       setApp(null);
+      setStored(null);
     } catch (err) {
       toast.error(`Destroy failed: ${(err as Error).message}`);
     } finally {
@@ -296,10 +369,46 @@ export function BrainFlyCard({
     }
   }
 
+  /**
+   * Clear the stored record at `.kody/users/<login>/data/brain.json`
+   * without touching Fly. Use this for the orphan case: the dashboard
+   * remembers a brain app the user can no longer reach (token revoked,
+   * app moved orgs, etc.) and the user wants to start fresh.
+   */
+  async function clearStoredRecord() {
+    setBusy("clearing-record");
+    try {
+      const res = await fetch("/api/kody/brain/stored", {
+        method: "DELETE",
+        headers,
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        toast.error(body.error ?? `Clear failed (HTTP ${res.status})`);
+        return;
+      }
+      toast.success("Stored Brain record cleared");
+      setStored(null);
+    } catch (err) {
+      toast.error(`Clear failed: ${(err as Error).message}`);
+    } finally {
+      setBusy("idle");
+    }
+  }
+
   // "On" means the Fly app exists in any of the live states. Suspended
   // is still "on" — it just means no traffic for a while.
   const isOn =
     state === "running" || state === "suspended" || state === "stopped";
+
+  // Orphan: the dashboard has a stored record for this user but the Fly
+  // token can't see the app (token revoked, app moved to a different
+  // org, slug taken by another account, etc.). The user can clear the
+  // record to start fresh, or just hit Turn on and let the auto-rename
+  // in `ensureApp` pick a new slug.
+  const isOrphan = state === "off" && stored !== null;
 
   return (
     <>
@@ -308,6 +417,12 @@ export function BrainFlyCard({
           <div className="flex items-center gap-2">
             <Brain className="w-4 h-4 text-violet-400" />
             <h2 className="text-sm font-semibold">Brain on Fly</h2>
+            <SimpleTooltip
+              content="Your personal Brain server on Fly. Sleeps when idle, wakes in ~1s on the next chat — no manual wake-up needed."
+              side="right"
+            >
+              <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
+            </SimpleTooltip>
             <span
               className={`ml-2 px-2 py-0.5 rounded-full border text-[10px] font-medium uppercase tracking-wide ${pillClasses(
                 state,
@@ -315,9 +430,38 @@ export function BrainFlyCard({
             >
               {pillLabel(state)}
             </span>
-            <span className="ml-2 text-[10px] text-white/35 uppercase tracking-wide">
-              just you
-            </span>
+            <SimpleTooltip
+              side="right"
+              content={
+                <div className="space-y-1 text-xs">
+                  <div>
+                    <span className="font-semibold">Off</span> — not deployed
+                  </div>
+                  <div>
+                    <span className="font-semibold">Running</span> — live, ready
+                    for chats
+                  </div>
+                  <div>
+                    <span className="font-semibold">Sleeping</span> — paused;
+                    auto-resumes in ~1s on next chat
+                  </div>
+                  <div>
+                    <span className="font-semibold">Stopped</span> — shut down
+                    (manual only)
+                  </div>
+                </div>
+              }
+            >
+              <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
+            </SimpleTooltip>
+            <SimpleTooltip
+              content="Only affects this browser — not other users."
+              side="bottom"
+            >
+              <span className="ml-2 text-[10px] text-white/35 uppercase tracking-wide cursor-help">
+                just you
+              </span>
+            </SimpleTooltip>
             <Button
               size="sm"
               variant="ghost"
@@ -333,15 +477,19 @@ export function BrainFlyCard({
               )}
             </Button>
           </div>
-          <p className="text-xs text-white/50 -mt-2">
-            Your personal Brain server on Fly. Sleeps when idle, wakes in ~1s on
-            the next chat — no manual wake-up needed.
-          </p>
 
           {/* Brain size — its OWN setting, not the task-run speed. */}
           {flyTokenConfigured && (
             <div className="space-y-1.5">
-              <span className="text-xs text-white/70">Size</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/70">Size</span>
+                <SimpleTooltip
+                  content={`${BRAIN_SIZE_LABELS[brainPerf].hint}${isOn ? " Applies next time you turn Brain off then on." : ""}`}
+                  side="right"
+                >
+                  <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
+                </SimpleTooltip>
+              </div>
               <div className="flex gap-1.5">
                 {BRAIN_SIZE_ORDER.map((tier) => {
                   const active = brainPerf === tier;
@@ -366,10 +514,6 @@ export function BrainFlyCard({
                   );
                 })}
               </div>
-              <p className="text-[11px] text-white/35">
-                {BRAIN_SIZE_LABELS[brainPerf].hint}
-                {isOn ? " · applies next time you turn Brain off then on." : ""}
-              </p>
             </div>
           )}
 
@@ -381,13 +525,43 @@ export function BrainFlyCard({
                 onCheckedChange={(v) => void toggleChatEnabled(v === true)}
                 className="mt-0.5"
               />
-              <span className="text-xs text-white/60 leading-relaxed">
+              <span className="text-xs text-white/60 leading-relaxed flex items-center gap-1.5">
                 Offer &ldquo;Kody Brain (Fly)&rdquo; in the chat picker.
-                <span className="block text-[11px] text-white/35">
-                  Off by default. Chat-only — Fly task execution is unaffected.
-                </span>
+                <SimpleTooltip
+                  content="Off by default. Chat-only — Fly task execution is unaffected."
+                  side="right"
+                >
+                  <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
+                </SimpleTooltip>
               </span>
             </label>
+          )}
+          {flyTokenConfigured && !isOn && (
+            <div className="space-y-1">
+              <label
+                htmlFor="brain-app-name"
+                className="text-[11px] text-white/55 flex items-center gap-1.5"
+              >
+                Fly app name{" "}
+                <span className="text-white/35">(leave empty for default)</span>
+                <SimpleTooltip
+                  content="Use a custom name if Fly is holding your default slug from a previous account. Lowercase letters, numbers, and hyphens only."
+                  side="right"
+                >
+                  <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
+                </SimpleTooltip>
+              </label>
+              <input
+                id="brain-app-name"
+                type="text"
+                value={customAppName}
+                onChange={(e) => setCustomAppName(e.target.value)}
+                placeholder={`kody-brain-${auth?.user.login ?? "<login>"}`}
+                spellCheck={false}
+                autoComplete="off"
+                className="w-full rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-xs font-mono text-white/85 placeholder:text-white/30 focus:border-violet-500/50 focus:outline-none"
+              />
+            </div>
           )}
           {app && (
             <div className="flex items-center gap-1.5 text-[11px] text-white/40 font-mono break-all">
@@ -403,6 +577,24 @@ export function BrainFlyCard({
                 }}
               >
                 <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+          {isOrphan && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/15 p-2.5 text-[12px] text-amber-50 space-y-2">
+              <div>
+                Can&apos;t reach the stored Brain app{" "}
+                <span className="font-mono">{stored?.appName}</span>. Turn on
+                will create a fresh one.
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={clearStoredRecord}
+                disabled={busy !== "idle" || !flyTokenConfigured}
+                className="text-amber-50 hover:text-white h-7 px-2"
+              >
+                {busy === "clearing-record" ? "Clearing…" : "Forget this Brain"}
               </Button>
             </div>
           )}

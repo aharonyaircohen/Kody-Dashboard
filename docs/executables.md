@@ -4,7 +4,7 @@ A **custom executable** is a new `@kody <slug>` action you define from the
 dashboard — its own prompt, model, tools, skills, and shell preflight — stored
 as a folder in your repo. The dashboard never invents a new engine concept for
 this: it writes a normal engine `profile.json` (the same shape the built-in
-`feature` and `fix` executables use) into `.kody/executables/<slug>/`, and the
+`feature` and `fix` executables use) into `.kody/duties/<slug>/`, and the
 engine resolves that folder **before** its own built-ins. So "build me a
 custom action" is really "commit a known-good profile to a folder the engine
 already reads."
@@ -18,15 +18,15 @@ files through the GitHub Git Data API.
 
 ## The pieces
 
-| Piece                     | What it is                                                                                                                                                               | Where                                                                                                              |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| The executable **folder** | `.kody/executables/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first.    | the connected repo                                                                                                 |
-| **File layer**            | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. Reads strip the managed prompt contract; writes re-append it. | [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           |
-| **Profile helpers**       | Pure form-fields ↔ `profile.json` translation, slug validation, and engine-mirroring profile validation. No I/O.                                                         | [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       |
-| The **/executables page** | CRUD UI: list, create, edit, validate, run, delete, set-default, import a skill.                                                                                         | [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) |
-| **Control API**           | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/default`, `/run`, and `/import-skill` sub-routes.                                                            | [`../app/api/kody/executables/`](../app/api/kody/executables/)                                                     |
-| **Chat tools**            | In-process tools that let Kody build/manage executables by conversation — same file layer, same atomic commit.                                                           | [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)                 |
-| **Company bundle**        | Export/import flattens each folder into a portable path→content map, so executables travel with the rest of a company profile.                                           | [`../src/dashboard/lib/company/`](../src/dashboard/lib/company/)                                                   |
+| Piece                     | What it is                                                                                                                                                                                                                                                                           | Where                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| The executable **folder** | `.kody/duties/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first (consumer duties override builtins on name clash — except duties can't shadow a builtin, per kody2/src/registry.ts). | the connected repo                                                                                                 |
+| **File layer**            | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. Reads strip the managed prompt contract; writes re-append it.                                                                                                             | [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           |
+| **Profile helpers**       | Pure form-fields ↔ `profile.json` translation, slug validation, and engine-mirroring profile validation. No I/O.                                                                                                                                                                     | [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       |
+| The **/executables page** | CRUD UI: list, create, edit, validate, run, delete, set-default, import a skill.                                                                                                                                                                                                     | [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) |
+| **Control API**           | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/default`, `/run`, and `/import-skill` sub-routes.                                                                                                                                                                        | [`../app/api/kody/executables/`](../app/api/kody/executables/)                                                     |
+| **Chat tools**            | In-process tools that let Kody build/manage executables by conversation — same file layer, same atomic commit.                                                                                                                                                                       | [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)                 |
+| **Company bundle**        | Export/import flattens each folder into a portable path→content map, so executables travel with the rest of a company profile.                                                                                                                                                       | [`../src/dashboard/lib/company/`](../src/dashboard/lib/company/)                                                   |
 
 ## What a folder contains
 
@@ -122,14 +122,14 @@ a `buildSyntheticPlugin` preflight step whenever the skills list is non-empty
    │  skills/<name>/SKILL.md, *.sh             │
    │  → 1 tree → 1 commit on default branch    │
    └───────────────┬──────────────────────────┘
-                   │  .kody/executables/<slug>/ committed
+                   │  .kody/duties/<slug>/ committed
                    ▼
    ┌──────────────────────────────────────────┐
    │ Run: POST /run → comment "@kody <slug>"   │
    │ (or "Set default" → kody.config.json)     │
    └───────────────┬──────────────────────────┘
                    │ engine resolves <slug> against
-                   │ .kody/executables/ FIRST, then built-ins
+                   │ .kody/duties/ FIRST, then built-ins
                    ▼
    ┌──────────────────────────────────────────┐
    │ engine runs the executable                │
@@ -138,19 +138,19 @@ a `buildSyntheticPlugin` preflight step whenever the skills list is non-empty
    └──────────────────────────────────────────┘
 ```
 
-**Run** never invents a dispatch mechanism: `POST /api/kody/executables/<slug>/run`
-with `{ issue, args? }` simply posts `@kody <slug> <args>` as an issue comment
-under the acting user's token — the exact path the chat tools and a human
-typing in the issue both use — then invalidates that issue's cache.
+Execution is owned by **Jobs** — a job binds an executable, a duty, a
+staff member, and a schedule, and is the only way the engine schedules or
+manually dispatches an executable. The `/executables` page is edit-only;
+run dispatch lives on the job (see [jobs.md](jobs.md)).
 
 ## Writes need a signed-in user token
 
 Listing and reading an executable run under the shared polling token (the
 module-level GitHub context), but **every write — create, update, delete,
-set-default, run — requires a signed-in GitHub user token** (`getUserOctokit`),
+set-default — requires a signed-in GitHub user token** (`getUserOctokit`),
 because the commit/comment must be attributed to a real actor. Each write also
 verifies the claimed `actorLogin` and records an audit entry
-(`executable.create` / `.update` / `.delete` / `.set_default` / `.run`).
+(`executable.create` / `.update` / `.delete` / `.set_default`).
 The slug is validated everywhere (`^[a-z0-9][a-z0-9_-]{0,63}$`) and the
 generated profile is validated against the engine's invariants before commit.
 
@@ -175,7 +175,6 @@ the company files in [`../src/dashboard/lib/company/`](../src/dashboard/lib/comp
 | [`../app/api/kody/executables/route.ts`](../app/api/kody/executables/route.ts)                                     | List (`GET`) + create (`POST`)                                        |
 | [`../app/api/kody/executables/[slug]/route.ts`](../app/api/kody/executables/[slug]/route.ts)                       | Read (`GET`) / update (`PATCH`) / delete (`DELETE`) one               |
 | [`../app/api/kody/executables/[slug]/default/route.ts`](../app/api/kody/executables/[slug]/default/route.ts)       | Set/clear the bare-`@kody` default executable                         |
-| [`../app/api/kody/executables/[slug]/run/route.ts`](../app/api/kody/executables/[slug]/run/route.ts)               | Run by posting `@kody <slug>` on an issue                             |
 | [`../app/api/kody/executables/import-skill/route.ts`](../app/api/kody/executables/import-skill/route.ts)           | Fetch a skill's `SKILL.md` from a GitHub source                       |
 | [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)                 | Chat tools for conversational CRUD                                    |
 | `kody.config.json` (consumer repo)                                                                                 | `defaultExecutable` / `defaultPrExecutable` (set-default writes here) |
@@ -184,7 +183,7 @@ the company files in [`../src/dashboard/lib/company/`](../src/dashboard/lib/comp
 
 **How does the engine find my custom executable instead of a built-in?**
 
-The engine's executable registry checks `.kody/executables/` **before** its own
+The engine's executable registry checks `.kody/duties/` **before** its own
 `src/executables/`, so a folder whose `profile.json` `name` matches `<slug>`
 wins for `@kody <slug>`. Same lookup the dashboard relies on for every action.
 

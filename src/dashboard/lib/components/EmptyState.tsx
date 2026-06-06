@@ -1,0 +1,35 @@
+/**
+ * @fileType component
+ * @domain layout
+ * @pattern empty-state
+ * @ai-summary Shared empty/placeholder state for list panes and detail panes.
+ *   One source of truth so Jobs, Duties, and Executables render identical
+ *   "nothing here / select one / loading" blocks instead of three local copies.
+ */
+"use client";
+
+import type { ReactNode } from "react";
+
+export function EmptyState({
+  icon,
+  title,
+  hint,
+  action,
+}: {
+  icon: ReactNode;
+  title: string;
+  hint?: string;
+  /** Optional CTA rendered under the hint (e.g. a "New" button). */
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center px-6 py-16 text-muted-foreground">
+      <div className="w-8 h-8 mb-3 opacity-60 [&>svg]:w-8 [&>svg]:h-8">
+        {icon}
+      </div>
+      <div className="text-sm font-medium text-white/70">{title}</div>
+      {hint ? <p className="text-xs mt-1 max-w-xs">{hint}</p> : null}
+      {action ? <div className="mt-4">{action}</div> : null}
+    </div>
+  );
+}

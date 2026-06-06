@@ -748,6 +748,14 @@ export const ciApi = {
     const res = await fetch(`${API_BASE}/ci/main`, { headers: buildHeaders() });
     return handleResponse<DefaultBranchCI>(res);
   },
+  rerun: async (runId: number): Promise<{ ok: true; runId: number }> => {
+    const res = await fetch(`${API_BASE}/ci/rerun`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({ runId }),
+    });
+    return handleResponse(res);
+  },
 };
 
 // ============ Remote Dev API ============
@@ -876,6 +884,12 @@ export interface Duty {
   mentions: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
+  /**
+   * True when this row is a folder-duty (`.kody/duties/<slug>/profile.json`)
+   * rather than a markdown duty. The list routes its edit to the full folder
+   * editor (`/executables/<slug>`) instead of the markdown dialog.
+   */
+  folder?: boolean;
 }
 
 export const dutiesApi = {
@@ -2003,9 +2017,33 @@ export interface EngineEditableConfig {
   perExecutable: Record<string, string>;
 }
 
+// ============ Jobs API ============
+
+import type { KodyJob } from "./kody-job";
+
+export const jobsApi = {
+  /**
+   * Run an INSTANT job — assembles to an `@kody <executable> [why]` dispatch on
+   * the job's target issue/PR. Scheduled jobs persist as a duty instead (see
+   * `dutiesApi.create`), so this only accepts `flavor: "instant"`.
+   */
+  run: async (
+    job: KodyJob,
+    actorLogin?: string,
+  ): Promise<{ success: boolean; commentUrl: string; dispatch: string }> => {
+    const res = await fetch(`${API_BASE}/jobs`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({ ...job, actorLogin }),
+    });
+    return handleResponse(res);
+  },
+};
+
 // ============ Combined API ============
 
 export const kodyApi = {
+  jobs: jobsApi,
   tasks: tasksApi,
   prs: prsApi,
   taskDocs: taskDocsApi,
