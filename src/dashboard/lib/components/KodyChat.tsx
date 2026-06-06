@@ -4665,65 +4665,14 @@ export function KodyChat({
             ) : null}
           </div>
         ) : null}
+        {/* Composer restructured (issue #65): the input row stretches
+            the textarea to full width with the Send button at the
+            trailing edge, then a hairline separator, then an action
+            row for the icon buttons. The action row is the future home
+            for composer widgets (slash-command trigger, attachment
+            previews, mode toggles, etc.) — the trailing flex-1 slot is
+            reserved empty until those land. */}
         <div className="flex gap-2 items-center">
-          {/* Attachment button */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*,.txt,.md,.json,.js,.ts,.jsx,.tsx,.html,.css,.scss,.yaml,.yml,.sh"
-            onChange={handleFileSelect}
-            className="hidden"
-            disabled={loading}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={loading}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-            title="Attach files"
-          >
-            <Paperclip className="w-5 h-5" />
-          </button>
-
-          {/* Voice button — gated on `agent.supportsVoice`. Each agent
-              declares whether its backend can honor the voice overlay
-              (see AgentConfig.supportsVoice). Brain agents support it
-              once the brain server applies the overlay server-side;
-              kody-live/engine agents don't (latency). The mic stays
-              hidden for unsupported agents so the dropdown never lies. */}
-          <VoiceButton
-            isActive={voiceOverlayOpen}
-            isSupported={voiceChat.isSupported && currentAgent.supportsVoice}
-            onTap={() => {
-              // Handle tap based on current voice state:
-              // - If AI is speaking: interrupt and start listening (voice interrupt)
-              // - If listening/processing: stop conversation
-              // - If idle: start conversation
-              if (voiceChat.state === "speaking") {
-                // Voice interrupt: cancel AI speech and start listening
-                voiceChat.interruptConversation();
-                setVoiceOverlayOpen(true);
-                setVoiceMuted(false);
-              } else if (voiceOverlayOpen) {
-                // Already in voice mode - stop it
-                voiceChat.stopConversation();
-                setVoiceOverlayOpen(false);
-                setVoiceMuted(false);
-              } else {
-                // Not in voice mode - start it
-                voiceChat.startConversation();
-                setVoiceOverlayOpen(true);
-              }
-            }}
-            onLongPressStart={() => {
-              voiceChat.startConversation();
-              setVoiceOverlayOpen(true);
-            }}
-            onLongPressEnd={() => {
-              /* let conversation handle it */
-            }}
-            disabled={loading}
-          />
           <div className="flex-1 relative">
             {slashMenuOpen && (
               <SlashCommandMenu
@@ -4803,6 +4752,74 @@ export function KodyChat({
               Send
             </button>
           )}
+        </div>
+        <div className="border-t border-border/40" />
+        <div className="flex gap-2 items-center">
+          {/* Attachment button — hidden file input lives alongside the
+              Paperclip so the picker click handler still targets the
+              same ref. */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,.txt,.md,.json,.js,.ts,.jsx,.tsx,.html,.css,.scss,.yaml,.yml,.sh"
+            onChange={handleFileSelect}
+            className="hidden"
+            disabled={loading}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={loading}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+            title="Attach files"
+          >
+            <Paperclip className="w-5 h-5" />
+          </button>
+
+          {/* Voice button — gated on `agent.supportsVoice`. Each agent
+              declares whether its backend can honor the voice overlay
+              (see AgentConfig.supportsVoice). Brain agents support it
+              once the brain server applies the overlay server-side;
+              kody-live/engine agents don't (latency). The mic stays
+              hidden for unsupported agents so the dropdown never lies. */}
+          <VoiceButton
+            isActive={voiceOverlayOpen}
+            isSupported={voiceChat.isSupported && currentAgent.supportsVoice}
+            onTap={() => {
+              // Handle tap based on current voice state:
+              // - If AI is speaking: interrupt and start listening (voice interrupt)
+              // - If listening/processing: stop conversation
+              // - If idle: start conversation
+              if (voiceChat.state === "speaking") {
+                // Voice interrupt: cancel AI speech and start listening
+                voiceChat.interruptConversation();
+                setVoiceOverlayOpen(true);
+                setVoiceMuted(false);
+              } else if (voiceOverlayOpen) {
+                // Already in voice mode - stop it
+                voiceChat.stopConversation();
+                setVoiceOverlayOpen(false);
+                setVoiceMuted(false);
+              } else {
+                // Not in voice mode - start it
+                voiceChat.startConversation();
+                setVoiceOverlayOpen(true);
+              }
+            }}
+            onLongPressStart={() => {
+              voiceChat.startConversation();
+              setVoiceOverlayOpen(true);
+            }}
+            onLongPressEnd={() => {
+              /* let conversation handle it */
+            }}
+            disabled={loading}
+          />
+          {/* Reserved slot for future widget actions (slash-command
+              trigger, attachment previews inline, mode toggles, etc.).
+              flex-1 keeps the row visually left-anchored with breathing
+              room on the right. */}
+          <div className="flex-1" />
         </div>
         {/* Clear history link */}
         {messages.length > 0 && !loading && (
