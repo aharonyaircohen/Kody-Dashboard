@@ -1,0 +1,5 @@
+Fixed `derivePRCi` in `src/dashboard/lib/github-client.ts` so the DIRTY branch (merge conflicts) no longer hard-codes `ciStatus: "failure"`. It now reports `mapRollupState(rollupState)` and falls back to `"pending"` when no rollup is available. `hasConflicts` is still set so `MergeConflictBanner` continues to render.
+
+Why this was wrong: DIRTY means the PR can't merge cleanly into its base (stale/conflicting) — orthogonal to CI. PRs #58 and #40 had all checks green, were just behind main, and the old mapping lit up the CI failure banner and broke the fix-ci action. CIFailureBanner already short-circuits on `hasConflicts`, so the conflict UI was the only thing the user actually needed to see.
+
+Added 4 unit tests under `describe("derivePRCi: DIRTY...")` in `tests/unit/github-client-graphql.spec.ts` covering SUCCESS/PENDING/FAILURE rollup states and the null-rollup fallback, plus a `prNodeWith` factory alongside the existing `prNode`. Verify (typecheck + lint + tests) passed on attempt 1.
