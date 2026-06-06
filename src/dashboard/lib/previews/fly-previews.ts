@@ -42,11 +42,12 @@ export interface CreatePreviewMachineInput {
    */
   files?: Array<{ guestPath: string; contentBase64: string }>;
   /**
-   * Emit an HTTP health check on the service. Defaults to off — a 15s ping
-   * marks the machine "active" forever, defeating `autostop: "suspend"`. The
-   * builder path (per-PR previews) opts back in via `kody.config.json`
-   * `fly.previews.healthCheck`; the static-preview path in this repo didn't,
-   * so every static preview ran 24/7.
+   * Whether to attach a periodic HTTP health check to the machine. Default
+   * is `false` — without a check, Fly's `autostop: "suspend"` can fire on
+   * idle (a check would count traffic and keep the machine "active"
+   * forever, defeating the suspend). Opt in only for repos that want
+   * health-gated previews and accept the machine stays awake.
+   * Mirrors the builder's `fly.previews.healthCheck` config flag.
    */
   healthCheck?: boolean;
 }
@@ -226,6 +227,10 @@ export async function createMachine(
           min_machines_running: 0,
         },
       ],
+      // By default NO machine-level `checks`: a periodic HTTP check (we had
+      // GET / every 15s) issues a request to the machine forever, so Fly
+      // never sees it as idle and `autostop: "suspend"` can never fire. Opt
+      // back in only when the caller explicitly asks for it.
       ...(input.healthCheck
         ? {
             checks: {
