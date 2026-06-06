@@ -4,15 +4,14 @@
   "target": "PR #39 — #25: Keep screen always on during voice mode",
   "outcome": "success",
   "exitCode": 0,
-  "reason": "Resolved three merge conflicts with origin/main. pnpm typecheck passes; conflicts were all on files unrelated to the PR's voice-mode subject (DashboardHome, ExecutablesManager, executables/files.ts).",
+  "reason": "Resolved two merge conflicts in regenerated duty-output report snapshots by taking origin/main's most recent refresh for both. PR's changes are unrelated to these reports; the duty will refresh them again on next fire.",
   "prUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/39",
   "runUrl": null,
   "filesTouched": [
-    "src/dashboard/lib/components/DashboardHome.tsx",
-    "src/dashboard/lib/components/ExecutablesManager.tsx",
-    "src/dashboard/lib/executables/files.ts"
+    ".kody/reports/ceo-performance-review.md",
+    ".kody/reports/clear-empty-goals.md"
   ],
   "sessionLog": null,
-  "startedAt": "2026-06-06T20:18:00Z",
-  "finishedAt": "2026-06-06T20:23:40Z"
+  "startedAt": "2026-06-06T21:23:00Z",
+  "finishedAt": "2026-06-06T21:24:30Z"
 }

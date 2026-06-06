@@ -1,0 +1,17 @@
+{
+  "taskId": "72",
+  "taskType": "issue",
+  "target": "72",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Fixed derivePRCi DIRTY branch: ciStatus now reflects actual rollup state (or 'pending' fallback) instead of forcing 'failure'; hasConflicts still set so MergeConflictBanner continues to render.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/github-client.ts",
+    "tests/unit/github-client-graphql.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/72.jsonl",
+  "startedAt": "2026-06-06T17:42:00Z",
+  "finishedAt": "2026-06-06T17:46:17Z"
+}
