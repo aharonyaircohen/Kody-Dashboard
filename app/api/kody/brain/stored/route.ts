@@ -25,6 +25,7 @@ import {
   readBrainApp,
   type BrainAppFile,
 } from "@dashboard/lib/brain/store";
+import { setGitHubContext } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 
@@ -38,6 +39,10 @@ export async function GET(req: NextRequest) {
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
+  // The storage layer reads owner/repo from the request-scoped github
+  // context (`getOwner()` / `getRepo()`), not from the fly context we
+  // just resolved. Set it explicitly so the read targets the right repo.
+  setGitHubContext(ctx.context.owner, ctx.context.repo, ctx.context.githubToken);
 
   try {
     const record = await readBrainApp(
@@ -63,6 +68,7 @@ export async function DELETE(req: NextRequest) {
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
+  setGitHubContext(ctx.context.owner, ctx.context.repo, ctx.context.githubToken);
 
   try {
     await clearBrainApp(ctx.context.account, ctx.context.githubToken);
