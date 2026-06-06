@@ -23,6 +23,10 @@ name: kody
 on:
   workflow_dispatch:
     inputs:
+      executable:
+        description: "Executable name (e.g. ui-review, run, fix)"
+        type: string
+        default: ""
       issue_number:
         description: "GitHub issue number (agent mode)"
         type: string

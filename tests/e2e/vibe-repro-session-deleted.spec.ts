@@ -55,16 +55,41 @@ async function snapshotStorage(page: Page): Promise<Record<string, unknown>> {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k) continue;
-      if (k.startsWith("kody-task-chat-") || k === "kody-live-session") {
+      if (
+        k.startsWith("kody-task-chat-") ||
+        k === "kody-live-session" ||
+        k.startsWith("kody-sessions-v3")
+      ) {
         const raw = localStorage.getItem(k) ?? "";
         try {
           const parsed = JSON.parse(raw);
-          out[k] = Array.isArray(parsed)
-            ? {
-                __len: parsed.length,
-                roles: parsed.map((m: { role?: string }) => m.role),
-              }
-            : parsed;
+          if (
+            k.startsWith("kody-sessions-v3") &&
+            parsed &&
+            typeof parsed === "object" &&
+            "messages" in parsed
+          ) {
+            const store = parsed as {
+              activeSessionId: string;
+              messages: Record<string, Array<{ role?: string }>>;
+              sessions: Array<{ id: string; title?: string }>;
+            };
+            const activeMsgs = store.messages?.[store.activeSessionId] ?? [];
+            out[k] = {
+              __kind: "global",
+              activeId: store.activeSessionId,
+              sessions: (store.sessions ?? []).map((s) => s.title ?? s.id),
+              __len: activeMsgs.length,
+              roles: activeMsgs.map((m) => m.role),
+            };
+          } else if (Array.isArray(parsed)) {
+            out[k] = {
+              __len: parsed.length,
+              roles: parsed.map((m: { role?: string }) => m.role),
+            };
+          } else {
+            out[k] = parsed;
+          }
         } catch {
           out[k] = raw.slice(0, 120);
         }
@@ -360,19 +385,32 @@ test.describe("Vibe — REPRO: session deleted on approve", () => {
       "an issue should have been created (URL ?issue=N)",
     ).toBeGreaterThan(0);
 
-    // The chat scope key is repo-scoped: `kody-task-chat-<owner>/<repo>:<id>`.
-    // Find the conversation under ANY key that ends with the issue number,
-    // so we don't false-negative on the scope prefix.
-    const convoKey = Object.keys(finalStore).find(
-      (k) => k.startsWith("kody-task-chat-") && k.endsWith(`:${issueNumber}`),
+    // The thread is unified (issue #66): the conversation lives in the
+    // global session store `kody-sessions-v3:<owner>/<repo>`, NOT in a
+    // per-task `kody-task-chat-*` entry. The previous bug repro looked
+    // for a per-task entry; that path was the cause of the "session
+    // deleted" symptom (migrating into a fresh per-task key that hadn't
+    // hydrated yet). Now we look at the global store — the assistant
+    // turn for the new issue should be there.
+    const globalKey = `kody-sessions-v3:${owner}/${repo}`;
+    const globalRaw = await page.evaluate(
+      (k) => localStorage.getItem(k),
+      globalKey,
     );
-    const convoLen =
-      (finalStore[convoKey ?? ""] as { __len?: number } | undefined)?.__len ??
-      0;
-    log(`convoKey=${convoKey ?? "(none)"} convoLen=${convoLen}`);
+    const globalStore = globalRaw
+      ? (JSON.parse(globalRaw) as {
+          activeSessionId: string;
+          messages: Record<string, Array<{ role: string; text: string }>>;
+        })
+      : null;
+    const activeId = globalStore?.activeSessionId ?? "";
+    const activeMsgs = globalStore?.messages[activeId] ?? [];
+    log(
+      `globalKey=${globalKey} activeId=${activeId} activeMsgs=${activeMsgs.length}`,
+    );
     expect(
-      convoLen,
-      `new issue chat scope must hold the transferred conversation — empty/missing = session deleted`,
+      activeMsgs.length,
+      `global session must hold the conversation — empty/missing = session deleted`,
     ).toBeGreaterThan(0);
     expect(
       dispatchCalls,

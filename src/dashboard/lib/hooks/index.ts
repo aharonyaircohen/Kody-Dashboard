@@ -481,6 +481,7 @@ export function useTaskActions({
 
   const isPending =
     execute.isPending ||
+    rerun.isPending ||
     close.isPending ||
     closePR.isPending ||
     reset.isPending ||
@@ -510,24 +511,26 @@ export function useTaskActions({
     isPending,
     pendingAction: execute.isPending
       ? "execute"
-      : abort.isPending
-        ? "abort"
-        : approveUI.isPending
-          ? "approve-ui"
-          : approvePR.isPending
-            ? "approve-pr"
-            : close.isPending
-              ? "close"
-              : closePR.isPending
-                ? "close-pr"
-                : reset.isPending
-                  ? "reset"
-                  : reopen.isPending
-                    ? "reopen"
-                    : addToQueue.isPending
-                      ? "add-to-queue"
-                      : removeFromQueue.isPending
-                        ? "remove-from-queue"
-                        : null,
+      : rerun.isPending
+        ? "rerun"
+        : abort.isPending
+          ? "abort"
+          : approveUI.isPending
+            ? "approve-ui"
+            : approvePR.isPending
+              ? "approve-pr"
+              : close.isPending
+                ? "close"
+                : closePR.isPending
+                  ? "close-pr"
+                  : reset.isPending
+                    ? "reset"
+                    : reopen.isPending
+                      ? "reopen"
+                      : addToQueue.isPending
+                        ? "add-to-queue"
+                        : removeFromQueue.isPending
+                          ? "remove-from-queue"
+                          : null,
   };
 }

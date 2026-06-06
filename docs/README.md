@@ -42,7 +42,7 @@ One doc per dashboard-managed store / capability.
 ### Authoring & config
 
 - ✅ [Commands](commands.md) — slash commands, built-ins + repo commands.
-- ✅ [Executables](executables.md) — custom `.kody/executables/<slug>/`
+- ✅ [Executables](executables.md) — custom `.kody/duties/<slug>/`
   folders (Git Data API CRUD), set-default, and the commit-skills caveat.
 - ✅ [Engine config](engine-config.md) — the `/config` page editing
   `kody.config.json` (operators, quality commands, access gate, aliases);
@@ -121,9 +121,6 @@ not behavior bugs — but two are real seams worth a look.
   says "Get picker" / "four" in places; the live `PreviewInspector.tsx` renders
   "Get inspector" with six actions (pick, console, requests, screenshot, speed,
   record-a-test). See [vibe-and-voice.md](vibe-and-voice.md).
-- **`/run` 404 message**: `executables/[slug]/run/route.ts` returns the literal
-  `Issue #not found` (missing `${issue}` interpolation). Cosmetic. See
-  [executables.md](executables.md).
 - **`autonomous` route comment stale**: its header says it lists "PRs it
   opens/merges/closes" via `fetchRecentPRs`, but it actually calls
   `fetchCompanyActivity()` over `.kody/activity/*.jsonl`. Behavior correct.

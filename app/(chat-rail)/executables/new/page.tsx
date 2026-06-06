@@ -2,7 +2,7 @@
  * @fileType page
  * @domain executables
  * @pattern executables-page
- * @ai-summary Create a new custom executable. Its own route so the browser
+ * @ai-summary Create a new duty (full folder-duty). Its own route so the browser
  *   Back button returns to the executables list.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
@@ -14,8 +14,8 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "New executable — Kody Operations Dashboard",
-  description: "Create a custom @kody executable.",
+  title: "New duty — Kody Operations Dashboard",
+  description: "Create a duty (full folder-duty).",
   path: "/executables/new",
 });
 

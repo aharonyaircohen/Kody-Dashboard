@@ -20,6 +20,7 @@ const minimalState: KodyTaskState = {
     },
     attempts: { plan: 1 },
   },
+  history: [],
 };
 
 function renderComment(state: KodyTaskState): string {
@@ -83,6 +84,44 @@ describe("parseKodyStateComment", () => {
     expect(parsed?.core.status).toBe("running");
     expect(parsed?.core.currentExecutable).toBe("plan");
     expect(parsed?.core.attempts).toEqual({ plan: 1 });
+  });
+
+  it("parses the job ledger (history) and ranAsStaff", () => {
+    const withHistory: KodyTaskState = {
+      ...minimalState,
+      core: { ...minimalState.core, ranAsStaff: "qa-engineer" },
+      history: [
+        {
+          timestamp: "2026-05-10T14:00:00Z",
+          executable: "plan",
+          action: "PLAN_STARTED",
+          flavor: "instant",
+          status: "succeeded",
+          jobId: "gh-123",
+        },
+        {
+          timestamp: "2026-05-10T15:00:00Z",
+          executable: "qa-verify",
+          action: "VERIFIED",
+          flavor: "scheduled",
+          schedule: "0 */6 * * *",
+          staff: "qa-engineer",
+          status: "failed",
+          runUrl: "https://github.com/x/y/actions/runs/123",
+        },
+      ],
+    };
+    const parsed = parseKodyStateComment(renderComment(withHistory));
+    expect(parsed?.core.ranAsStaff).toBe("qa-engineer");
+    expect(parsed?.history).toHaveLength(2);
+    expect(parsed?.history[1].flavor).toBe("scheduled");
+    expect(parsed?.history[1].schedule).toBe("0 */6 * * *");
+    expect(parsed?.history[1].runUrl).toContain("/actions/runs/123");
+  });
+
+  it("defaults history to an empty array when the field is absent", () => {
+    const parsed = parseKodyStateComment(renderComment(minimalState));
+    expect(parsed?.history).toEqual([]);
   });
 
   it("uses the LAST STATE_END marker (artifact content can contain literals)", () => {

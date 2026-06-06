@@ -2,9 +2,9 @@
  * @fileType page
  * @domain executables
  * @pattern executables-page
- * @ai-summary Executables CRUD entry point. Manages custom `@kody <slug>`
- *   actions stored at `.kody/executables/<slug>/` in the connected repo —
- *   the engine resolves them before its own built-ins.
+ * @ai-summary Executables list — the folder-duty manager (`.kody/duties/<slug>/`)
+ *   with run / set-default / edit / delete. Restored as its own page; "New duty"
+ *   and "Edit" route to `/executables/new` and `/executables/<slug>`.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { ExecutablesManager } from "@dashboard/lib/components/ExecutablesManager";
@@ -16,7 +16,7 @@ export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
   title: "Executables — Kody Operations Dashboard",
-  description: "Manage custom @kody executables stored in the repo.",
+  description: "Manage custom @kody executables (folder duties).",
   path: "/executables",
 });
 

@@ -1,0 +1,11 @@
+.kody/
+.kody/**
+.kody-lean/
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+pnpm-lock.yaml
+kody.config.json

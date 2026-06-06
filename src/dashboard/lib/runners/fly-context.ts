@@ -153,10 +153,14 @@ export async function resolveFlyContext(
 
   const allSecrets = await buildAllSecretsFromVault(octokit, owner, repo);
 
-  // Fly Machines API token is a PROJECT credential pulled from the same
-  // vault as the model keys. The spawned engine doesn't need it, so
-  // strip it from ALL_SECRETS and surface separately for spawnRunner.
-  const flyToken = allSecrets.FLY_API_TOKEN;
+  // Fly Machines API token. Single source of truth: env wins, vault is
+  // the per-repo fallback. No fallback dance, no per-call retry, no
+  // multi-token probing — if the chosen token can't create, the user
+  // sees Fly's error verbatim and updates the token in one place.
+  const flyToken =
+    process.env.FLY_API_TOKEN ??
+    process.env.FLY_IO_TOKEN ??
+    allSecrets.FLY_API_TOKEN;
   if (flyToken) delete allSecrets.FLY_API_TOKEN;
 
   const rawPerf = req.headers.get("x-kody-fly-perf");

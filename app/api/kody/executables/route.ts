@@ -2,10 +2,10 @@
  * @fileType api-endpoint
  * @domain executables
  * @pattern executables-api
- * @ai-summary Executables Control API — GET lists custom executables stored
- *   at `.kody/executables/<slug>/` (merged with the bare-`@kody` default
- *   flags from kody.config.json), POST creates a new one. Each executable is
- *   a folder the engine resolves before its own built-ins.
+ * @ai-summary Executables Control API — GET lists custom executables
+ *   (folder-duties) stored at `.kody/duties/<slug>/`, POST creates a new
+ *   one. Each executable is a folder the engine resolves before its own
+ *   built-ins (kody2/src/registry.ts).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
