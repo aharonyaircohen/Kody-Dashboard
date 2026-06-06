@@ -1931,7 +1931,13 @@ function derivePRCi(input: {
       ciStatus = "running";
       break;
     case "DIRTY":
-      ciStatus = "failure";
+      // DIRTY = merge conflicts, not a CI failure. Surface the actual rollup
+      // state so the badge reflects what the checks actually say (e.g. all
+      // green on a PR that's just behind main). hasConflicts stays true so
+      // the conflict banner still renders separately.
+      ciStatus = input.rollupState
+        ? mapRollupState(input.rollupState)
+        : "pending";
       hasConflicts = true;
       break;
     case "UNKNOWN":

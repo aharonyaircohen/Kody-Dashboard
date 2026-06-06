@@ -1,0 +1,10 @@
+[
+  {
+    "type": "lesson",
+    "name": "mergeStateStatus-dirty-not-ci-failure",
+    "hook": "GitHub's DIRTY mergeStateStatus means merge conflicts, not CI failure — never map it to ciStatus: failure",
+    "body": "When mapping GitHub's `mergeStateStatus: DIRTY` to a dashboard `ciStatus`, do not return `'failure'`. DIRTY means the PR can't be merged cleanly into its base (conflicts or stale), which is orthogonal to whether checks pass. Always surface the actual `statusCheckRollup` state for `ciStatus` and use a separate `hasConflicts` flag for the conflict banner. Same caution applies to `BEHIND` / `BLOCKED` — those are mergeability states, not CI states.\n\n**Why:** PRs #58 and #40 had all checks green but were behind main, so mergeStateStatus=DIRTY. The previous code mapped that to ciStatus='failure', lighting up the CI failure banner and breaking the fix-ci button (which can't help with conflicts). Visible to operators, low signal.\n**How to apply:** When adding any mergeStateStatus → ciStatus mapping, default to `mapRollupState(rollupState)` and reserve hasConflicts / a separate flag for the conflict UI.",
+    "why": "The mapping is non-obvious (DIRTY reads as 'bad' but specifically means conflicts), and the wrong mapping causes operators to chase phantom CI failures on PRs that are merely stale.",
+    "confidence": 0.9
+  }
+]
