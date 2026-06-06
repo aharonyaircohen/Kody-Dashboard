@@ -683,7 +683,9 @@ function GoalOverviewRow({ goal }: { goal: Goal }) {
           onClick={() =>
             setState.mutate({ state: isActive ? "paused" : "active" })
           }
-          title={isActive ? "Pause this goal's runner" : "Resume this goal's runner"}
+          title={
+            isActive ? "Pause this goal's runner" : "Resume this goal's runner"
+          }
         >
           {setState.isPending ? (
             <Loader2 className="w-3 h-3 animate-spin" />
@@ -781,7 +783,13 @@ const ACTOR_TINT: Record<string, string> = {
   system: "bg-zinc-400",
 };
 
-type ActorTypeFilter = "all" | "user" | "scheduler" | "engine" | "webhook" | "system";
+type ActorTypeFilter =
+  | "all"
+  | "user"
+  | "scheduler"
+  | "engine"
+  | "webhook"
+  | "system";
 const FILTER_ORDER: ActorTypeFilter[] = [
   "all",
   "user",
@@ -826,8 +834,9 @@ function ActivityOverview() {
         <div className="flex items-center gap-1 mb-2 flex-wrap">
           {visibleTypes.map((v) => {
             const isActive = filter === v;
-            const dot = v === "all" ? "bg-zinc-400" : ACTOR_TINT[v] ?? "bg-zinc-400";
-            const count = v === "all" ? all.length : counts[v] ?? 0;
+            const dot =
+              v === "all" ? "bg-zinc-400" : (ACTOR_TINT[v] ?? "bg-zinc-400");
+            const count = v === "all" ? all.length : (counts[v] ?? 0);
             return (
               <button
                 key={v}
@@ -888,16 +897,17 @@ function ActivityOverview() {
                 key={e.id}
                 href={e.resourceUrl}
                 target={e.resourceUrl.startsWith("http") ? "_blank" : undefined}
-                rel={e.resourceUrl.startsWith("http") ? "noopener noreferrer" : undefined}
+                rel={
+                  e.resourceUrl.startsWith("http")
+                    ? "noopener noreferrer"
+                    : undefined
+                }
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.04] transition-colors"
               >
                 {rowInner}
               </a>
             ) : (
-              <div
-                key={e.id}
-                className="flex items-center gap-3 px-4 py-2.5"
-              >
+              <div key={e.id} className="flex items-center gap-3 px-4 py-2.5">
                 {rowInner}
               </div>
             );

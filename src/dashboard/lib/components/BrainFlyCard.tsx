@@ -172,7 +172,8 @@ export function BrainFlyCard({
   }, []);
   useEffect(() => {
     try {
-      if (customAppName) localStorage.setItem("kody.brain.appName", customAppName);
+      if (customAppName)
+        localStorage.setItem("kody.brain.appName", customAppName);
       else localStorage.removeItem("kody.brain.appName");
     } catch {
       // ignore — best-effort persistence
@@ -542,9 +543,7 @@ export function BrainFlyCard({
                 className="text-[11px] text-white/55 flex items-center gap-1.5"
               >
                 Fly app name{" "}
-                <span className="text-white/35">
-                  (leave empty for default)
-                </span>
+                <span className="text-white/35">(leave empty for default)</span>
                 <SimpleTooltip
                   content="Use a custom name if Fly is holding your default slug from a previous account. Lowercase letters, numbers, and hyphens only."
                   side="right"

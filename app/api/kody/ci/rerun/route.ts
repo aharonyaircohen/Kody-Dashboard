@@ -42,8 +42,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to re-run a workflow.",
+          message: "A signed-in GitHub token is required to re-run a workflow.",
         },
         { status: 401 },
       );

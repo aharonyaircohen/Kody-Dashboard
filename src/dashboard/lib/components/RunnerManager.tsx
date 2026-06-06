@@ -36,10 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { BrainFlyCard, type BrainFlyState } from "./BrainFlyCard";
 import { FlyActivityTab } from "./FlyActivityTab";
 import { FlyMachinesTable } from "./FlyMachinesTable";
-import {
-  LitellmFlyCard,
-  type LitellmStatus,
-} from "./LitellmFlyCard";
+import { LitellmFlyCard, type LitellmStatus } from "./LitellmFlyCard";
 import { PreviewsCard } from "./PreviewsCard";
 import { PageShell } from "./PageShell";
 import { SimpleTooltip } from "./SimpleTooltip";
@@ -367,181 +364,182 @@ export function RunnerManager() {
                 the token is set, the Fly token card above IS the page. */}
             {flyTokenConfigured && (
               <>
+                {/* ── Previews ─────────────────────────────────────────────── */}
+                <section className="space-y-3">
+                  <GroupHeader
+                    icon={Globe}
+                    label="Previews"
+                    hint="temporary sites built for each PR"
+                  />
+                  {/* Branch previews are folded into PreviewsCard ▸ Advanced. */}
+                  <PreviewsCard
+                    headers={vaultHeaders()}
+                    flyTokenConfigured={flyTokenConfigured}
+                  />
+                </section>
 
-            {/* ── Previews ─────────────────────────────────────────────── */}
-            <section className="space-y-3">
-              <GroupHeader
-                icon={Globe}
-                label="Previews"
-                hint="temporary sites built for each PR"
-              />
-              {/* Branch previews are folded into PreviewsCard ▸ Advanced. */}
-              <PreviewsCard
-                headers={vaultHeaders()}
-                flyTokenConfigured={flyTokenConfigured}
-              />
-            </section>
-
-            {/* ── Task runners ─────────────────────────────────────────── */}
-            <section className="space-y-3">
-              <GroupHeader
-                icon={Server}
-                label="Task runners"
-                hint="machines that run chat & Vibe tasks"
-                status={
-                  litellmStatus.free != null ? (
-                    <span className="flex items-center gap-1.5">
-                      <StatusDot state={litellmStatus.state} />
-                      {litellmStatus.free} ready
-                    </span>
-                  ) : null
-                }
-              />
-              <Card className="border-white/[0.08] bg-white/[0.03]">
-                <CardContent className="p-4 space-y-4">
-                  {/* Speed of my runs — per-user (this browser) */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Rocket className="w-4 h-4 text-sky-400" />
-                      <h2 className="text-sm font-semibold">
-                        Speed of my runs
-                      </h2>
-                      <SimpleTooltip
-                        content="Pick the VM size for YOUR chat & Vibe runs. Hover each tier for the spec."
-                        side="right"
-                      >
-                        <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
-                      </SimpleTooltip>
-                      <SimpleTooltip
-                        content={SCOPE_CHIP_HINTS.justYou}
-                        side="bottom"
-                      >
-                        <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
-                          just you
+                {/* ── Task runners ─────────────────────────────────────────── */}
+                <section className="space-y-3">
+                  <GroupHeader
+                    icon={Server}
+                    label="Task runners"
+                    hint="machines that run chat & Vibe tasks"
+                    status={
+                      litellmStatus.free != null ? (
+                        <span className="flex items-center gap-1.5">
+                          <StatusDot state={litellmStatus.state} />
+                          {litellmStatus.free} ready
                         </span>
-                      </SimpleTooltip>
-                    </div>
-                    <div className="flex gap-1.5">
-                      {PERF_ORDER.map((tier) => {
-                        const active = flyPerf === tier;
-                        return (
-                          <button
-                            key={tier}
-                            type="button"
-                            onClick={() => setFlyPerf(tier)}
-                            title={FLY_PERF_LABELS[tier].hint}
-                            className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${
-                              active
-                                ? "border-sky-500/50 bg-sky-500/15 text-sky-200"
-                                : "border-white/10 bg-black/20 text-white/60 hover:text-white/80"
-                            }`}
+                      ) : null
+                    }
+                  />
+                  <Card className="border-white/[0.08] bg-white/[0.03]">
+                    <CardContent className="p-4 space-y-4">
+                      {/* Speed of my runs — per-user (this browser) */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Rocket className="w-4 h-4 text-sky-400" />
+                          <h2 className="text-sm font-semibold">
+                            Speed of my runs
+                          </h2>
+                          <SimpleTooltip
+                            content="Pick the VM size for YOUR chat & Vibe runs. Hover each tier for the spec."
+                            side="right"
                           >
-                            {FLY_PERF_LABELS[tier].label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={saveFly}
-                      disabled={!flyHasChanges}
-                    >
-                      Save my speed
-                    </Button>
-                  </div>
+                            <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
+                          </SimpleTooltip>
+                          <SimpleTooltip
+                            content={SCOPE_CHIP_HINTS.justYou}
+                            side="bottom"
+                          >
+                            <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
+                              just you
+                            </span>
+                          </SimpleTooltip>
+                        </div>
+                        <div className="flex gap-1.5">
+                          {PERF_ORDER.map((tier) => {
+                            const active = flyPerf === tier;
+                            return (
+                              <button
+                                key={tier}
+                                type="button"
+                                onClick={() => setFlyPerf(tier)}
+                                title={FLY_PERF_LABELS[tier].hint}
+                                className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${
+                                  active
+                                    ? "border-sky-500/50 bg-sky-500/15 text-sky-200"
+                                    : "border-white/10 bg-black/20 text-white/60 hover:text-white/80"
+                                }`}
+                              >
+                                {FLY_PERF_LABELS[tier].label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={saveFly}
+                          disabled={!flyHasChanges}
+                        >
+                          Save my speed
+                        </Button>
+                      </div>
 
-                  <div className="border-t border-white/[0.06]" />
+                      <div className="border-t border-white/[0.06]" />
 
-                  {/* Keep machines ready — repo-wide (warm pool) */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Server className="w-4 h-4 text-sky-400" />
-                      <h2 className="text-sm font-semibold">
-                        Keep machines ready
-                      </h2>
-                      <SimpleTooltip
-                        content="Machines kept pre-booted so a run starts instantly instead of cold-starting. 0 = always cold-start. Each ready machine is a paid VM everyone shares."
-                        side="right"
-                      >
-                        <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
-                      </SimpleTooltip>
-                      <SimpleTooltip
-                        content={SCOPE_CHIP_HINTS.wholeRepo}
-                        side="bottom"
-                      >
-                        <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
-                          whole repo
-                        </span>
-                      </SimpleTooltip>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id="pool-min"
-                        type="number"
-                        min={0}
-                        max={POOL_MIN_MAX}
-                        step={1}
-                        placeholder={`${POOL_MIN_DEFAULT}`}
-                        value={poolMin}
-                        onChange={(e) => setPoolMin(e.target.value)}
-                        className="bg-black/30 border-white/10 w-24"
-                      />
-                      <span className="text-xs text-white/50">machines</span>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={savePoolMin}
-                      disabled={!poolMinHasChanges || poolMinSaving}
-                    >
-                      {poolMinSaving ? "Saving…" : "Save for everyone"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
+                      {/* Keep machines ready — repo-wide (warm pool) */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Server className="w-4 h-4 text-sky-400" />
+                          <h2 className="text-sm font-semibold">
+                            Keep machines ready
+                          </h2>
+                          <SimpleTooltip
+                            content="Machines kept pre-booted so a run starts instantly instead of cold-starting. 0 = always cold-start. Each ready machine is a paid VM everyone shares."
+                            side="right"
+                          >
+                            <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
+                          </SimpleTooltip>
+                          <SimpleTooltip
+                            content={SCOPE_CHIP_HINTS.wholeRepo}
+                            side="bottom"
+                          >
+                            <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
+                              whole repo
+                            </span>
+                          </SimpleTooltip>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            id="pool-min"
+                            type="number"
+                            min={0}
+                            max={POOL_MIN_MAX}
+                            step={1}
+                            placeholder={`${POOL_MIN_DEFAULT}`}
+                            value={poolMin}
+                            onChange={(e) => setPoolMin(e.target.value)}
+                            className="bg-black/30 border-white/10 w-24"
+                          />
+                          <span className="text-xs text-white/50">
+                            machines
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={savePoolMin}
+                          disabled={!poolMinHasChanges || poolMinSaving}
+                        >
+                          {poolMinSaving ? "Saving…" : "Save for everyone"}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </section>
 
-            {/* ── Brain ────────────────────────────────────────────────── */}
-            <section className="space-y-3">
-              <GroupHeader
-                icon={Brain}
-                label="Brain"
-                hint="your personal Brain server"
-                status={
-                  <span className="flex items-center gap-1.5">
-                    <StatusDot state={brainState} />
-                    {STATUS_LABELS[brainState]}
-                  </span>
-                }
-              />
-              <BrainFlyCard
-                headers={vaultHeaders()}
-                flyTokenConfigured={flyTokenConfigured}
-                onStatusChange={setBrainState}
-              />
-            </section>
+                {/* ── Brain ────────────────────────────────────────────────── */}
+                <section className="space-y-3">
+                  <GroupHeader
+                    icon={Brain}
+                    label="Brain"
+                    hint="your personal Brain server"
+                    status={
+                      <span className="flex items-center gap-1.5">
+                        <StatusDot state={brainState} />
+                        {STATUS_LABELS[brainState]}
+                      </span>
+                    }
+                  />
+                  <BrainFlyCard
+                    headers={vaultHeaders()}
+                    flyTokenConfigured={flyTokenConfigured}
+                    onStatusChange={setBrainState}
+                  />
+                </section>
 
-            {/* ── LiteLLM ──────────────────────────────────────────────── */}
-            <section className="space-y-3">
-              <GroupHeader
-                icon={Cpu}
-                label="LiteLLM"
-                hint="shared model proxy"
-                status={
-                  <span className="flex items-center gap-1.5">
-                    <StatusDot state={litellmStatus.state} />
-                    {STATUS_LABELS[litellmStatus.state]}
-                    {litellmStatus.free != null && (
-                      <span>· {litellmStatus.free} ready</span>
-                    )}
-                  </span>
-                }
-              />
-              <LitellmFlyCard
-                headers={vaultHeaders()}
-                flyTokenConfigured={flyTokenConfigured}
-                onStatusChange={setLitellmStatus}
-              />
-            </section>
+                {/* ── LiteLLM ──────────────────────────────────────────────── */}
+                <section className="space-y-3">
+                  <GroupHeader
+                    icon={Cpu}
+                    label="LiteLLM"
+                    hint="shared model proxy"
+                    status={
+                      <span className="flex items-center gap-1.5">
+                        <StatusDot state={litellmStatus.state} />
+                        {STATUS_LABELS[litellmStatus.state]}
+                        {litellmStatus.free != null && (
+                          <span>· {litellmStatus.free} ready</span>
+                        )}
+                      </span>
+                    }
+                  />
+                  <LitellmFlyCard
+                    headers={vaultHeaders()}
+                    flyTokenConfigured={flyTokenConfigured}
+                    onStatusChange={setLitellmStatus}
+                  />
+                </section>
               </>
             )}
           </TabsContent>

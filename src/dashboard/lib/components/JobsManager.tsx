@@ -131,7 +131,9 @@ export function JobsManager() {
         icon={Rocket}
         iconClassName="text-emerald-400"
         subtitle={`${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}`}
-        error={error ? `Failed to load jobs: ${(error as Error).message}` : null}
+        error={
+          error ? `Failed to load jobs: ${(error as Error).message}` : null
+        }
         search={search}
         onSearch={setSearch}
         searchPlaceholder="Search jobs…"
@@ -584,4 +586,3 @@ function FieldSelect({
     </div>
   );
 }
-
