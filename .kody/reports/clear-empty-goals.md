@@ -10,3 +10,4 @@ Closed: 0 goals
 | `kody-state-split` — Split .kody into config (dev) + state (kody-state branch) | 5 tasks (issues #50–#54) | Not empty — no action |
 
 **Result:** No empty goals found. All goals have associated tasks.
+
