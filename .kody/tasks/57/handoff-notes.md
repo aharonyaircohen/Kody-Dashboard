@@ -1,21 +1,25 @@
-# Master Key Unlock — Implementation Notes
+# Master Key Unlock — Implementation Notes (re-verified)
 
 ## What was built
 
-Added a master-key unlock flow to the Secrets page so users can decrypt and view their secret values. Unlock state persists for the browser session (React state — clears on refresh/close).
+Master-key unlock flow on the Secrets page lets users decrypt and view secret values. Unlock state persists only for the browser session (React `useState` — cleared on refresh/close), per issue requirement.
 
 ## Key design decisions
 
-**keyCheck via SHA-256**: Instead of trying to decrypt with a user-provided key (which would fail with a generic GCM auth tag error for wrong keys), the vault stores a `keyCheck = SHA256(KODY_MASTER_KEY)` field. On first write via `writeVault`, if `keyCheck` is absent, it is derived from `process.env.KODY_MASTER_KEY` and stamped into the document. The unlock endpoint verifies the user's input against this stored hash.
+**keyCheck via SHA-256**: Storing `keyCheck = SHA256(KODY_MASTER_KEY)` lets the unlock endpoint reject a wrong key without trying a GCM decryption (which would produce a generic auth-tag error). `writeVault` stamps `keyCheck` on first write if absent, so existing vaults get it on the next save.
 
-**New endpoint `POST /api/kody/secrets/vault`**: Accepts `{ key }`, verifies against `keyCheck`, returns all secrets as `name/value` pairs sorted by name. Returns `wrong_key` (400) for bad keys and `vault_not_initialized` (400) for legacy vaults without `keyCheck`.
+**`POST /api/kody/secrets/vault`**: Accepts `{ key }`, verifies against `keyCheck`, returns all secrets as `name/value` pairs sorted by name. Returns `wrong_key` (400), `vault_not_initialized` (400) for legacy vaults, `vault_not_configured` (503) when `KODY_MASTER_KEY` is missing.
 
-**UI**: An amber-bordered unlock card appears above the secrets list when secrets exist and the vault is locked. The card has a password input (with show/hide toggle), an Unlock button, and an error message area. When unlocked, the secrets list switches to show name/value pairs with a green value color, and a Lock button appears on each row.
+**UI**: An amber-bordered unlock card appears above the list when secrets exist and the vault is locked — password input with show/hide toggle, Unlock button (Enter-to-submit), inline error. On success, each row shows the value in emerald; a Lock button on each row re-locks the vault. No localStorage, no per-tab persistence — state is React-only, cleared on refresh per the issue spec.
 
 ## Files changed
 
-- `src/dashboard/lib/vault/crypto.ts`: Added `deriveKeyCheck`, `verifyKey`, `normalizeKey`, updated `getKey` to use `normalizeKey`, updated `decrypt` to accept optional `keyOverride`
-- `src/dashboard/lib/vault/store.ts`: Added `keyCheck?: string` to `VaultDocument`, `writeVault` stamps `keyCheck` on first write
-- `app/api/kody/secrets/vault/route.ts`: New endpoint for unlock
-- `src/dashboard/lib/components/SecretsManager.tsx`: Added unlock state, input, card UI, revealed value display, Lock button
-- `tests/int/secrets-vault-route.int.spec.ts`: 6 integration tests covering auth, vault_not_configured, no_repo_context, vault_not_initialized, wrong_key, and happy path
+- `src/dashboard/lib/vault/crypto.ts` — `deriveKeyCheck`, `verifyKey`, `normalizeKey`, `getKey` rewrite, `decrypt(..., keyOverride?)`
+- `src/dashboard/lib/vault/store.ts` — `keyCheck?: string` on `VaultDocument`; `writeVault` stamps it on first write
+- `app/api/kody/secrets/vault/route.ts` — new unlock endpoint (auth + vault-config + keyCheck + wrong-key branches)
+- `src/dashboard/lib/components/SecretsManager.tsx` — unlock card, error state, revealed-value display, Lock button
+- `tests/int/secrets-vault-route.int.spec.ts` — auth, vault_not_configured, no_repo_context, malformed JSON, vault_not_initialized, wrong_key, happy path, sort-by-name
+
+## Re-run status
+
+This is a re-trigger of issue #57 after PR #58 was closed (the original PR resolved its own merge conflicts in subsequent commits 790e3fc8 and 32ddfce6). The implementation is already on the branch. Re-ran `verify` (typecheck + lint + tests): all green, no failures. No code changes needed.
