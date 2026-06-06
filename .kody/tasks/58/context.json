@@ -1,0 +1,17 @@
+{
+  "taskId": "58",
+  "taskType": "pr",
+  "target": "57-secrets-add-master-key-unlock-to-the-secrets-page",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Resolved both conflicts by taking origin/main, since the PR's only edits to these files were trivial line-wraps of code paths that origin/main's refactor (9986e2c0 'improve operator triage') had already removed. Typecheck, lint, and 1117 unit tests all pass with the resolved files.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/ExecutablesManager.tsx",
+    "src/dashboard/lib/executables/files.ts"
+  ],
+  "sessionLog": ".kody/last-run.jsonl",
+  "startedAt": "2026-06-06T20:25:00.000Z",
+  "finishedAt": "2026-06-06T20:30:00.000Z"
+}

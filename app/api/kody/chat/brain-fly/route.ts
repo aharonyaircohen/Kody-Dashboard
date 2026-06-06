@@ -26,6 +26,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
+import { readBrainApp, writeBrainApp } from "@dashboard/lib/brain/store";
 import { logger } from "@dashboard/lib/logger";
 import {
   streamBrainChat,
@@ -99,10 +100,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "message required" }, { status: 400 });
   }
 
-  // Provision (or reuse) the user's brain machine. Idempotent: returns the
-  // existing apiKey when a live machine exists, otherwise creates one and
-  // returns a fresh key.
-  let provisioned: { url: string; apiKey: string };
+  // Provision (or reuse) the user's brain machine. Idempotent: returns
+  // the existing apiKey when a live machine exists, otherwise creates one
+  // and returns a fresh key. The Fly token is whatever `fly-context.ts`
+  // resolved (env-first, vault fallback — single source of truth). The
+  // app name is read from the storage record so the chat route stays in
+  // sync with whatever the Runner card provisioned.
+  const stored = await readBrainApp(
+    ctx.context.account,
+    ctx.context.githubToken,
+  ).catch(() => null);
+  const appNameOverride = stored?.appName;
+
+  let provisioned: { url: string; apiKey: string; app?: string };
   try {
     const result = await provisionBrain({
       flyToken: ctx.context.flyToken,
@@ -114,8 +124,22 @@ export async function POST(req: NextRequest) {
       allSecrets: ctx.context.allSecrets,
       perfTier: ctx.context.perfTier,
       litellmUrl: ctx.context.litellmUrl,
+      ...(appNameOverride ? { appNameOverride } : {}),
     });
-    provisioned = { url: result.url, apiKey: result.apiKey };
+    provisioned = { url: result.url, apiKey: result.apiKey, app: result.app };
+    try {
+      await writeBrainApp(ctx.context.account, ctx.context.githubToken, {
+        version: 1,
+        appName: result.app,
+        orgSlug: result.org,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (writeErr) {
+      logger.warn(
+        { err: writeErr, owner: ctx.context.owner, app: result.app },
+        "chat/brain-fly: record write failed (non-fatal)",
+      );
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(

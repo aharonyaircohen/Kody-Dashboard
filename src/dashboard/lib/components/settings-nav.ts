@@ -11,6 +11,7 @@ import {
   Activity,
   Bell,
   Bot,
+  Boxes,
   Building2,
   Cpu,
   FileText,
@@ -113,11 +114,27 @@ export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
   {
+    href: "/jobs",
+    label: "Jobs",
+    icon: Rocket,
+    exact: true,
+    description: "Compose a run: executable + duty + staff + schedule.",
+    tint: "text-emerald-300 bg-emerald-500/10",
+  },
+  {
     href: "/duties",
     label: "Duties",
     icon: Layers,
     exact: true,
     description: "Run and edit recurring duties.",
+    tint: "text-amber-300 bg-amber-500/10",
+  },
+  {
+    href: "/executables",
+    label: "Executables",
+    icon: Boxes,
+    exact: true,
+    description: "Manage custom @kody executables (folder duties).",
     tint: "text-amber-300 bg-amber-500/10",
   },
   {

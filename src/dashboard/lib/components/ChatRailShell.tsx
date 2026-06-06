@@ -191,10 +191,13 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     setDragging(true);
     document.body.style.userSelect = "none";
     document.body.style.cursor = "col-resize";
+    const railEl = (e.currentTarget as HTMLElement)
+      .previousElementSibling as HTMLElement | null;
+    const railLeft = railEl ? railEl.getBoundingClientRect().left : 0;
     const onMove = (ev: PointerEvent) => {
       const next = Math.min(
         RAIL_MAX,
-        Math.max(RAIL_MIN, Math.round(ev.clientX)),
+        Math.max(RAIL_MIN, Math.round(ev.clientX - railLeft)),
       );
       setRailWidth(next);
     };

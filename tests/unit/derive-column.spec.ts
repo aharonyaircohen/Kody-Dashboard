@@ -43,6 +43,7 @@ function shippedState(): KodyTaskState {
       lastOutcome: null,
       attempts: {},
     },
+    history: [],
   };
 }
 
@@ -56,6 +57,7 @@ function failedState(): KodyTaskState {
       lastOutcome: null,
       attempts: {},
     },
+    history: [],
   };
 }
 
@@ -71,6 +73,7 @@ function idleRunningState(): KodyTaskState {
       lastOutcome: null,
       attempts: { classify: 1 },
     },
+    history: [],
   };
 }
 

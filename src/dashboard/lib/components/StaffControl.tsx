@@ -456,11 +456,11 @@ function StaffDetail({
                 <Button
                   size="sm"
                   onClick={onSendTask}
-                  className="gap-1.5"
+                  className="w-9 px-0 bg-emerald-600 hover:bg-emerald-700 text-white"
                   title="Send an ad-hoc task to this staff member"
+                  aria-label="Send task"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Send task</span>
                 </Button>
                 <Button
                   variant="outline"

@@ -26,6 +26,7 @@ import { Loader2, RefreshCw, Server } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
+import { SimpleTooltip } from "./SimpleTooltip";
 
 export type LitellmFlyState =
   | "off"
@@ -34,11 +35,18 @@ export type LitellmFlyState =
   | "stopped"
   | "unknown";
 
+export interface LitellmStatus {
+  state: LitellmFlyState;
+  free: number | null;
+}
+
 interface LitellmFlyCardProps {
   /** Authenticated request headers (x-kody-token / -owner / -repo). */
   headers: Record<string, string>;
   /** True only when FLY_API_TOKEN is configured in the repo vault. */
   flyTokenConfigured: boolean;
+  /** Reports the current LiteLLM state + warm-pool free count to the parent. */
+  onStatusChange?: (status: LitellmStatus) => void;
 }
 
 interface StatusResponse {
@@ -74,10 +82,16 @@ function pillLabel(state: LitellmFlyState): string {
 export function LitellmFlyCard({
   headers,
   flyTokenConfigured,
+  onStatusChange,
 }: LitellmFlyCardProps) {
   const [state, setState] = useState<LitellmFlyState>("unknown");
   const [pool, setPool] = useState<PoolStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  // Report the latest status to the parent so the section header can show
+  // a live state + warm-pool free count without scrolling into the card.
+  useEffect(() => {
+    onStatusChange?.({ state, free: pool?.free ?? null });
+  }, [state, pool, onStatusChange]);
 
   const refresh = useCallback(async () => {
     if (!flyTokenConfigured || Object.keys(headers).length === 0) {
@@ -137,9 +151,14 @@ export function LitellmFlyCard({
         {pool && (
           <span className="text-emerald-300/90">· {pool.free} ready</span>
         )}
-        <span className="ml-2 text-[10px] text-white/30 uppercase tracking-wide">
-          read-only
-        </span>
+        <SimpleTooltip
+          content="Status display — you can't change it from here."
+          side="bottom"
+        >
+          <span className="ml-2 text-[10px] text-white/30 uppercase tracking-wide cursor-help">
+            read-only
+          </span>
+        </SimpleTooltip>
         <Button
           size="sm"
           variant="ghost"
