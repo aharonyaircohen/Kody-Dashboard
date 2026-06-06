@@ -95,7 +95,7 @@ export interface ProvisionBrainInput {
 }
 
 export interface ProvisionBrainResult {
-  /** Fly app name (kody-brain-<account>). */
+  /** Fly app name actually used (may be `<name>-2` if the original slug was taken). */
   app: string;
   /** Public URL the dashboard's Brain proxy points at. */
   url: string;
@@ -105,6 +105,16 @@ export interface ProvisionBrainResult {
   machineId: string;
   /** Fly region. */
   region: string;
+  /** Fly org the app actually landed in. May differ from the configured
+   * `FLY_BRAIN_ORG` default if the token is scoped to a different org. */
+  org: string;
+  /**
+   * If non-null, the requested app name was unavailable (orphan, taken by
+   * another Fly account, etc.) and `ensureApp` auto-renamed to `<app>` with
+   * a `-2`/`-3` suffix. The UI should surface this to the user so they
+   * understand why their stored record shows a different name.
+   */
+  originalName?: string;
 }
 
 export interface DestroyBrainInput {
@@ -269,9 +279,13 @@ export async function flyFetch<T>(
       { status: res.status, body: text.slice(0, 500), path },
       "brain-fly: Fly API error",
     );
-    throw new Error(
+    const error = new Error(
       `Fly Machines API ${res.status} on ${path}: ${text.slice(0, 200) || res.statusText}`,
-    );
+    ) as Error & { status?: number; body?: string; path?: string };
+    error.status = res.status;
+    error.body = text;
+    error.path = path;
+    throw error;
   }
   if (res.status === 204) return null;
   // Fly returns 200/202 with an empty body on some mutating calls (e.g.
@@ -281,7 +295,7 @@ export async function flyFetch<T>(
   if (!raw.trim()) return null;
   try {
     return JSON.parse(raw) as T;
-  } catch (err) {
+  } catch {
     logger.error(
       { status: res.status, body: raw.slice(0, 500), path },
       "brain-fly: Fly API returned non-JSON body",
@@ -308,36 +322,78 @@ interface FlyMachine {
 
 /**
  * Ensure the per-user app exists. Idempotent — if it's already there,
- * return it; otherwise create it. Fly app names are globally unique, so
- * a 409 on create means another user (or stale provision) owns it.
+ * return it; otherwise create it. Single try: the slug is whatever the
+ * caller passed (default `kody-brain-<login>` from `brainAppName`, or
+ * a custom name from the UI / storage record). If the slug is taken
+ * globally, Fly returns 409/422 and the error propagates verbatim —
+ * the user picks a different name in the UI. No auto-rename, no
+ * multi-org iteration, no retry loop.
  */
 async function ensureApp(flyToken: string, appName: string): Promise<FlyApp> {
-  const existing = await flyFetch<FlyApp>(
-    `/apps/${encodeURIComponent(appName)}`,
-    { token: flyToken, allow404: true },
-  );
-  if (existing) {
-    // Existing apps may already have IPs (or not, on a half-finished
-    // provision). allocateIpsIfMissing is idempotent.
-    await allocateIpsIfMissing(flyToken, appName);
-    return existing;
+  // Probe: does the app already exist? 404 and 403 (orphan: another
+  // account owns the slug) both mean "create it". Anything else (real
+  // auth failure, etc.) is fatal.
+  let existing: FlyApp | null = null;
+  try {
+    existing = await flyFetch<FlyApp>(
+      `/apps/${encodeURIComponent(appName)}`,
+      { token: flyToken, allow404: true },
+    );
+  } catch (err) {
+    const status = (err as { status?: number })?.status;
+    if (status !== 403) throw err;
   }
+  if (existing) {
+    const name = existing.name ?? appName;
+    await allocateIpsIfMissing(flyToken, name);
+    return { ...existing, name };
+  }
+
+  // Create. The POST /apps response omits the name field — track it
+  // locally so callers (and IP allocation) can use it. If Fly rejects
+  // (409/422 = name taken, 403 = no write scope, etc.), the error
+  // surfaces verbatim for the user to act on.
   const created = await flyFetch<FlyApp>("/apps", {
     method: "POST",
     token: flyToken,
     body: { app_name: appName, org_slug: ORGANIZATION },
   });
-  if (!created) throw new Error("brain-fly: create app returned empty");
-  await allocateIpsIfMissing(flyToken, appName);
-  return created;
+  if (!created) {
+    throw new Error("brain-fly: create app returned empty");
+  }
+  const name = created.name ?? appName;
+  await allocateIpsIfMissing(flyToken, name);
+  return { ...created, name };
 }
 
 /**
+ * List the Fly orgs the given token can see. Used by the Runner page to
+ * surface a "your token is scoped to X, dashboard is creating under Y"
+ * warning when the two don't match — the root cause of the 403 a user
+ * hits when their app lives in an org their token can't reach. Returns
+ * the org slugs only; other fields (name, type) are intentionally
+ * dropped to keep the response shape minimal.
+ *
+  * Note: the Machines REST API (`api.machines.dev/v1`) does NOT expose an
+  * orgs endpoint — `/orgs` returns 404 there. Orgs live on Fly's GraphQL
+  * API (`api.fly.io/graphql`), same surface the existing
+  * `allocateIpsIfMissing` already calls.
+ */
+
+/**
+
  * Allocate a shared v4 + dedicated v6 IP for the app if it doesn't have
  * any yet. The Machines REST API does NOT auto-allocate IPs on
  * `POST /apps`, so without this the app's *.fly.dev DNS resolves to
  * nothing and HTTPS requests fail with NXDOMAIN. IP allocation lives on
  * Fly's GraphQL API rather than Machines REST.
+ *
+ * Fly's GraphQL `allocateIpAddress` mutation expects the app's
+ * **name** (slug) in `appId`, not the UUID the REST API returns as
+ * `id`. Passing the UUID gives `Could not find App`. There's also a
+ * small propagation delay after `POST /apps` before the new app is
+ * visible to the GraphQL API — we retry briefly on the two error
+ * shapes Fly uses for the not-yet-visible state.
  */
 export async function allocateIpsIfMissing(
   flyToken: string,
@@ -358,26 +414,62 @@ export async function allocateIpsIfMissing(
   }`;
 
   const allocate = async (type: "shared_v4" | "v6") => {
-    const res = await fetch("https://api.fly.io/graphql", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${flyToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query, variables: { appId: appName, type } }),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(
-        `brain-fly: allocate IP (${type}) failed ${res.status}: ${text.slice(0, 200)}`,
-      );
+    // POST /apps returns immediately but the new app takes a moment to
+    // show up in the GraphQL index. Fly expresses the not-yet-visible
+    // state as one of two error shapes:
+    //   - `Could not find App` with code NOT_FOUND
+    //   - `Variable $appId of type ID! was provided invalid value` (the
+    //     ID type-validator rejects the value before the lookup runs)
+    // Both clear once propagation finishes. Anything else (auth failure,
+    // billing, etc.) is fatal — surface it immediately.
+    let lastErr: Error | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const res = await fetch("https://api.fly.io/graphql", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${flyToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query,
+          variables: { appId: appName, type },
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(
+          `brain-fly: allocate IP (${type}) failed ${res.status}: ${text.slice(0, 200)}`,
+        );
+      }
+      const body = (await res.json()) as {
+        errors?: Array<{ message: string; extensions?: { code?: string } }>;
+      };
+      if (!body.errors || body.errors.length === 0) {
+        return; // success (or no-op — `ipAddress: null` is a valid response)
+      }
+      const transient =
+        body.errors.some(
+          (e) =>
+            e.extensions?.code === "NOT_FOUND" ||
+            /could not find app/i.test(e.message),
+        ) ||
+        body.errors.some(
+          (e) => /variable \$appId of type id! was provided invalid/i.test(e.message),
+        );
+      if (!transient) {
+        throw new Error(
+          `brain-fly: allocate IP (${type}) graphql error: ${body.errors[0]!.message}`,
+        );
+      }
+      lastErr = new Error(body.errors[0]!.message);
+      // 500ms, 1s, 1.5s, 2s, 2.5s — bounded, total < 8s
+      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
     }
-    const body = (await res.json()) as { errors?: Array<{ message: string }> };
-    if (body.errors && body.errors.length > 0) {
-      throw new Error(
-        `brain-fly: allocate IP (${type}) graphql error: ${body.errors[0]!.message}`,
-      );
-    }
+    throw new Error(
+      `brain-fly: allocate IP (${type}) — app ${appName} not visible to GraphQL after 5 attempts: ${
+        lastErr?.message ?? "unknown"
+      }`,
+    );
   };
 
   await allocate("shared_v4");
@@ -512,10 +604,11 @@ export async function provisionBrain(
       "brain-fly: flyToken required (set FLY_API_TOKEN in the repo secrets vault)",
     );
   }
-  const app = input.appNameOverride ?? brainAppName(input.account);
+  const requested = input.appNameOverride ?? brainAppName(input.account);
+  const flyApp = await ensureApp(input.flyToken, requested);
+  const app = flyApp.name;
   const url = brainAppUrl(app);
-
-  await ensureApp(input.flyToken, app);
+  const originalName = app !== requested ? requested : undefined;
 
   const existing = await findExistingMachine(input.flyToken, app);
   if (existing) {
@@ -550,6 +643,8 @@ export async function provisionBrain(
         apiKey,
         machineId: machine.id,
         region: machine.region ?? DEFAULT_REGION,
+        org: flyApp.organization?.slug ?? ORGANIZATION,
+        ...(originalName ? { originalName } : {}),
       };
     }
 
@@ -569,6 +664,8 @@ export async function provisionBrain(
       apiKey: existingKey,
       machineId: existing.id,
       region: existing.region ?? DEFAULT_REGION,
+      org: flyApp.organization?.slug ?? ORGANIZATION,
+      ...(originalName ? { originalName } : {}),
     };
   }
 
@@ -586,6 +683,8 @@ export async function provisionBrain(
     apiKey,
     machineId: machine.id,
     region: machine.region ?? DEFAULT_REGION,
+    org: flyApp.organization?.slug ?? ORGANIZATION,
+    ...(originalName ? { originalName } : {}),
   };
 }
 
