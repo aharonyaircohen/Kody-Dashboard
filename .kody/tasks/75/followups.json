@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Live-verify static preview machine suspends on idle in real Fly",
+    "body": "Run the existing integration test tests/int/previews-builder-live.int.spec.ts (or a new one for static-preview) against a real Fly org with FLY_API_TOKEN + KODY_MASTER_KEY, create a static preview, leave it idle past the configured window, and assert listMachines reports state === 'suspended'. The unit test only proves the request body shape; the runtime suspension is Fly-side.",
+    "rationale": "Issue #75 explicitly asked to 'verify with a static preview machine that it transitions to suspended after the idle window'. This PR's unit test guarantees the check is omitted from the create payload (so autostop CAN fire), but the actual suspension is a Fly runtime behavior we cannot exercise without a live Fly org. Without this follow-up, a regression in Fly's autostop logic (or a future config drift) would go uncaught.",
+    "priority": "medium"
+  }
+]
