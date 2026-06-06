@@ -899,7 +899,10 @@ function ExecutableContentBody({
         {detail.skills.length > 0 ? (
           <div className="space-y-2">
             {detail.skills.map((s) => (
-              <Card key={s.name} className="border-white/[0.08] bg-white/[0.02]">
+              <Card
+                key={s.name}
+                className="border-white/[0.08] bg-white/[0.02]"
+              >
                 <CardContent className="p-3 space-y-1.5">
                   <div className="font-mono text-xs text-white/85">
                     {s.name}
@@ -931,7 +934,10 @@ function ExecutableContentBody({
         {detail.shellScripts.length > 0 ? (
           <div className="space-y-2">
             {detail.shellScripts.map((s) => (
-              <Card key={s.name} className="border-white/[0.08] bg-white/[0.02]">
+              <Card
+                key={s.name}
+                className="border-white/[0.08] bg-white/[0.02]"
+              >
                 <CardContent className="p-3 space-y-1.5">
                   <div className="font-mono text-xs text-white/85">
                     {s.name}
@@ -941,9 +947,7 @@ function ExecutableContentBody({
                       {s.content}
                     </pre>
                   ) : (
-                    <p className="text-[11px] text-white/40">
-                      (empty script)
-                    </p>
+                    <p className="text-[11px] text-white/40">(empty script)</p>
                   )}
                 </CardContent>
               </Card>
@@ -963,7 +967,10 @@ function ExecutableContentBody({
         {detail.mcpServers.length > 0 ? (
           <div className="space-y-2">
             {detail.mcpServers.map((m) => (
-              <Card key={m.name} className="border-white/[0.08] bg-white/[0.02]">
+              <Card
+                key={m.name}
+                className="border-white/[0.08] bg-white/[0.02]"
+              >
                 <CardContent className="p-3 space-y-1.5">
                   <div className="font-mono text-xs text-white/85">
                     {m.name}
@@ -1019,9 +1026,7 @@ function ContentSection({
 }
 
 function EmptyHint({ text }: { text: string }) {
-  return (
-    <p className="text-xs text-white/40 italic">{text}</p>
-  );
+  return <p className="text-xs text-white/40 italic">{text}</p>;
 }
 
 interface EditorProps {

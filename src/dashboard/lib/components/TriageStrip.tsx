@@ -15,7 +15,11 @@ import { Loader2, X } from "lucide-react";
 
 import { Card } from "@dashboard/ui/card";
 import { Button } from "@dashboard/ui/button";
-import { useTriageStrip, type TriageItem, type TriageSeverity } from "../hooks/useTriageStrip";
+import {
+  useTriageStrip,
+  type TriageItem,
+  type TriageSeverity,
+} from "../hooks/useTriageStrip";
 import { cn } from "../utils";
 
 const DOT: Record<TriageSeverity, string> = {
@@ -59,11 +63,7 @@ export function TriageStrip() {
       <Card className="overflow-hidden">
         <ul className="divide-y divide-white/[0.04]">
           {items.map((it) => (
-            <TriageRow
-              key={it.id}
-              item={it}
-              onDismiss={() => dismiss(it.id)}
-            />
+            <TriageRow key={it.id} item={it} onDismiss={() => dismiss(it.id)} />
           ))}
         </ul>
       </Card>
