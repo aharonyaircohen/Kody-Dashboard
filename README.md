@@ -96,6 +96,23 @@ pnpm format       # Format
 pnpm test         # Run tests
 ```
 
+### Local Brain server
+
+`pnpm brain:local` runs the [Kody Brain](https://github.com/aharonyaircohen/Kody-Engine) server on this machine so the `brain` and `brain-fly` chat agents can use your local tools during development. The server is fetched on demand via `npx` — it is not a project dependency.
+
+Two terminals are required, and `BRAIN_API_KEY` (server side) must match `BRAIN_CHAT_API_KEY` (dashboard side):
+
+```bash
+# Terminal 1 — Brain server (port 8080 by default)
+BRAIN_API_KEY=local-dev-key pnpm brain:local
+
+# Terminal 2 — Dashboard
+# .env.example has matching BRAIN_CHAT_URL + BRAIN_CHAT_API_KEY; copy it to .env
+pnpm dev
+```
+
+To restrict the server's working tree, export `BRAIN_REPOS_ROOT=/path/to/repos` in Terminal 1.
+
 ### Project structure
 
 ```

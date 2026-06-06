@@ -1,0 +1,18 @@
+{
+  "taskId": "56",
+  "taskType": "pr",
+  "target": "PR #56 (47-featpreviews-token-gate-per-pr-fly-previews-signed)",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Resolved 3 merge conflicts with origin/main, all on the origin/main side. HEAD additions in the conflicts were incomplete (referenced unimported/undefined symbols and missing interface fields) and unrelated to the PR's preview-token-gating purpose. pnpm typecheck and pnpm lint pass cleanly (0 errors).",
+  "prUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/56",
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/DashboardHome.tsx",
+    "src/dashboard/lib/components/ExecutablesManager.tsx",
+    "src/dashboard/lib/executables/files.ts"
+  ],
+  "sessionLog": ".kody/sessions/56.jsonl",
+  "startedAt": "2026-06-06T20:21:06Z",
+  "finishedAt": "2026-06-06T20:21:06Z"
+}

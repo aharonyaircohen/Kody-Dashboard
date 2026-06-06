@@ -3,8 +3,8 @@
  * @domain executables
  * @pattern executables-index
  * @ai-summary Public surface for the executables feature — re-exports the
- *   file layer (folder CRUD under `.kody/executables/`) and the pure profile
- *   helpers (form fields <-> profile.json, validation).
+ *   file layer (folder CRUD under `.kody/duties/<slug>/`) and the pure
+ *   profile helpers (form fields <-> profile.json, validation).
  */
 
 export * from "./profile";

@@ -96,14 +96,14 @@ test.describe("Vibe — page must flip to task scope after creating an issue", (
         }),
       }),
     );
-    await page.route("**/api/kody/chat/load*", (route) =>
+    await page.route("**/api/kody/chat/global*", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ sessions: [] }),
+        body: JSON.stringify({ messages: [] }),
       }),
     );
-    await page.route("**/api/kody/chat/save", (route) =>
+    await page.route("**/api/kody/chat/global", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
