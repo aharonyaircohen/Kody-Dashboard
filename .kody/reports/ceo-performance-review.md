@@ -6,7 +6,7 @@ CEO delivered again this week. QA and tech-writer duties remain broken since the
 
 | Staff        | Owned duties     | Delivery | Consistency | Signal | Grade |
 | ------------ | ---------------- | -------- | ----------- | ------ | ----- |
-| ceo          | 1 (1 active)    | High     | High        | High   | strong |
+| ceo          | 2 (1 active)    | High     | High        | High   | strong |
 | coo          | 3 (0 active)    | —        | —           | —      | idle  |
 | cto          | 4 (1 active)    | None     | No runs since migration | None | weak |
 | kody         | 11 (0 active)   | —        | —           | —      | idle  |
