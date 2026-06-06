@@ -11,10 +11,13 @@
   },
   "github": {
     "owner": "aharonyaircohen",
-    "repo": "Kody-Dashboard"
+    "repo": "Kody-Dashboard",
+    "operators": [
+      "aharonyaircohen"
+    ]
   },
   "agent": {
-    "model": "minimax/MiniMax-M2.7-highspeed"
+    "model": "minimax/MiniMax-M3"
   },
   "jobs": {
     "stateBackend": "local-file"
@@ -32,5 +35,14 @@
     ]
   },
   "defaultExecutable": "classify",
-  "defaultPrExecutable": "fix"
+  "defaultPrExecutable": "fix",
+  "fly": {
+    "previews": {
+      "cpus": 1,
+      "memoryMb": 1024,
+      "ttlDays": 14,
+      "idleSuspend": true,
+      "healthCheck": false
+    }
+  }
 }

@@ -1,0 +1,63 @@
+{
+  "name": "docs-readme",
+  "role": "primitive",
+  "describe": "Docs Drift \u2014 README / markdown",
+  "staff": "tech-writer",
+  "every": "1d",
+  "mentions": [
+    "aguyaharonyair"
+  ],
+  "inputs": [],
+  "claudeCode": {
+    "model": "inherit",
+    "permissionMode": "acceptEdits",
+    "maxTurns": null,
+    "maxTurnTimeoutSec": 1200,
+    "systemPromptAppend": null,
+    "cacheable": true,
+    "enableVerifyTool": false,
+    "verifyAttempts": 4,
+    "tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Bash",
+      "Grep",
+      "Glob"
+    ],
+    "hooks": [],
+    "skills": [],
+    "commands": [],
+    "subagents": [],
+    "plugins": [],
+    "mcpServers": []
+  },
+  "cliTools": [
+    {
+      "name": "gh",
+      "install": {
+        "required": true,
+        "checkCommand": "command -v gh"
+      },
+      "verify": "gh auth status",
+      "usage": "Use gh for all GitHub actions (gh api, gh issue, gh pr).",
+      "allowedUses": [
+        "api",
+        "issue",
+        "pr"
+      ]
+    }
+  ],
+  "scripts": {
+    "preflight": [
+      {
+        "script": "composePrompt"
+      }
+    ],
+    "postflight": [
+      {
+        "script": "parseAgentResult"
+      }
+    ]
+  }
+}
