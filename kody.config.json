@@ -11,7 +11,10 @@
   },
   "github": {
     "owner": "aharonyaircohen",
-    "repo": "Kody-Dashboard"
+    "repo": "Kody-Dashboard",
+    "operators": [
+      "aharonyaircohen"
+    ]
   },
   "agent": {
     "model": "minimax/MiniMax-M2.7-highspeed"
