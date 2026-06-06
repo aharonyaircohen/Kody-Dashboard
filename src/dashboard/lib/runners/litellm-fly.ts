@@ -74,10 +74,10 @@ export async function litellmStatus(
   // mean "not visible from this token" — report off, don't surface 502.
   let existing: FlyAppLite | null = null;
   try {
-    existing = await flyFetch<FlyAppLite>(
-      `/apps/${encodeURIComponent(app)}`,
-      { token: input.flyToken, allow404: true },
-    );
+    existing = await flyFetch<FlyAppLite>(`/apps/${encodeURIComponent(app)}`, {
+      token: input.flyToken,
+      allow404: true,
+    });
   } catch (err) {
     const status = (err as { status?: number })?.status;
     if (status !== 403) throw err;

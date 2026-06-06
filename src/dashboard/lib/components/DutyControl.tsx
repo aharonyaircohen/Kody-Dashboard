@@ -310,45 +310,45 @@ export function DutyControlInner() {
       {/* Create — the simple markdown duty dialog (title, schedule, staff,
           mentions, body). The full folder-duty editor lives at /executables. */}
       <CreateDutyDialog
-          open={creating}
-          onClose={() => setCreating(false)}
-          onCreated={(duty) => {
-            setCreating(false);
-            setSelectedSlug(duty.slug);
-          }}
-        />
+        open={creating}
+        onClose={() => setCreating(false)}
+        onCreated={(duty) => {
+          setCreating(false);
+          setSelectedSlug(duty.slug);
+        }}
+      />
 
-        {/* Edit */}
-        {editingDuty ? (
-          <EditDutyDialog
-            duty={editingDuty}
-            onClose={() => setEditingDuty(null)}
-            onSaved={() => setEditingDuty(null)}
-          />
-        ) : null}
-
-        {/* Delete confirm */}
-        <ConfirmDialog
-          open={!!pendingDelete}
-          title="Delete this duty?"
-          description={
-            pendingDelete
-              ? `Duty "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/duties/ via a commit on the default branch.`
-              : ""
-          }
-          variant="destructive"
-          confirmLabel="Delete duty"
-          onConfirm={() => {
-            if (!pendingDelete) return;
-            const target = pendingDelete;
-            deleteMutation.mutate(target.slug, {
-              onSuccess: () => {
-                if (selectedSlug === target.slug) setSelectedSlug(null);
-              },
-            });
-          }}
-          onClose={() => setPendingDelete(null)}
+      {/* Edit */}
+      {editingDuty ? (
+        <EditDutyDialog
+          duty={editingDuty}
+          onClose={() => setEditingDuty(null)}
+          onSaved={() => setEditingDuty(null)}
         />
+      ) : null}
+
+      {/* Delete confirm */}
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete this duty?"
+        description={
+          pendingDelete
+            ? `Duty "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/duties/ via a commit on the default branch.`
+            : ""
+        }
+        variant="destructive"
+        confirmLabel="Delete duty"
+        onConfirm={() => {
+          if (!pendingDelete) return;
+          const target = pendingDelete;
+          deleteMutation.mutate(target.slug, {
+            onSuccess: () => {
+              if (selectedSlug === target.slug) setSelectedSlug(null);
+            },
+          });
+        }}
+        onClose={() => setPendingDelete(null)}
+      />
     </>
   );
 }
@@ -1282,4 +1282,3 @@ function ScheduleInline({ schedule }: { schedule: DutySchedule | null }) {
     </>
   );
 }
-

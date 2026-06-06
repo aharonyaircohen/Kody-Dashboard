@@ -152,7 +152,9 @@ export function useTriageStrip(limit = 4): UseTriageStripResult {
     }
 
     // Failed tasks — severity 3 (top 3 only)
-    for (const t of (tasks ?? []).filter((t) => t.column === "failed").slice(0, 3)) {
+    for (const t of (tasks ?? [])
+      .filter((t) => t.column === "failed")
+      .slice(0, 3)) {
       out.push({
         id: `task:${t.id}`,
         severity: 3,
@@ -215,7 +217,17 @@ export function useTriageStrip(limit = 4): UseTriageStripResult {
         return now - Date.parse(at) >= DISMISS_TTL_MS;
       })
       .slice(0, limit);
-  }, [ci, tasks, duties, health, dismissed, rerunCI, retryTask, runDuty, limit]);
+  }, [
+    ci,
+    tasks,
+    duties,
+    health,
+    dismissed,
+    rerunCI,
+    retryTask,
+    runDuty,
+    limit,
+  ]);
 
   return { items, dismiss };
 }

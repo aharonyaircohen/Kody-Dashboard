@@ -82,10 +82,7 @@ async function getDefaultBranch(octokit: Octokit): Promise<string> {
   return data.default_branch;
 }
 
-function buildHtmlUrl(
-  slug: string,
-  branch: string | null,
-): string {
+function buildHtmlUrl(slug: string, branch: string | null): string {
   const ref = branch ?? "HEAD";
   return `https://github.com/${getOwner()}/${getRepo()}/tree/${ref}/${DUTIES_DIR}/${slug}`;
 }

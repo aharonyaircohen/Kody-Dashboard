@@ -176,5 +176,11 @@ export function useAcknowledgeHealthSignal(): UseAcknowledgeHealthSignalResult {
     [acks],
   );
 
-  return { acks, isAcknowledged, acknowledge, unacknowledge, isHydrated: hydrated };
+  return {
+    acks,
+    isAcknowledged,
+    acknowledge,
+    unacknowledge,
+    isHydrated: hydrated,
+  };
 }

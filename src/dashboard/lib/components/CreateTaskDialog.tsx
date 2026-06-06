@@ -233,7 +233,13 @@ export function CreateTaskDialog({
 
   // --- Apply presetLabels (goal-scoped create, separate from duplicate flow) ---
   useEffect(() => {
-    if (open && !initialData && !prefill && presetLabels && presetLabels.length > 0) {
+    if (
+      open &&
+      !initialData &&
+      !prefill &&
+      presetLabels &&
+      presetLabels.length > 0
+    ) {
       setLabels((prev) => {
         const merged = new Set([...prev, ...presetLabels]);
         return Array.from(merged);

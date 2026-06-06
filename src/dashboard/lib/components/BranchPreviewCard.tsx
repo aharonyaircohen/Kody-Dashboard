@@ -15,7 +15,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, GitBranch, Info, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  ExternalLink,
+  GitBranch,
+  Info,
+  Loader2,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@dashboard/ui/button";

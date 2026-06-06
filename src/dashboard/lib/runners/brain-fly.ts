@@ -335,10 +335,10 @@ async function ensureApp(flyToken: string, appName: string): Promise<FlyApp> {
   // auth failure, etc.) is fatal.
   let existing: FlyApp | null = null;
   try {
-    existing = await flyFetch<FlyApp>(
-      `/apps/${encodeURIComponent(appName)}`,
-      { token: flyToken, allow404: true },
-    );
+    existing = await flyFetch<FlyApp>(`/apps/${encodeURIComponent(appName)}`, {
+      token: flyToken,
+      allow404: true,
+    });
   } catch (err) {
     const status = (err as { status?: number })?.status;
     if (status !== 403) throw err;
@@ -374,10 +374,10 @@ async function ensureApp(flyToken: string, appName: string): Promise<FlyApp> {
  * the org slugs only; other fields (name, type) are intentionally
  * dropped to keep the response shape minimal.
  *
-  * Note: the Machines REST API (`api.machines.dev/v1`) does NOT expose an
-  * orgs endpoint — `/orgs` returns 404 there. Orgs live on Fly's GraphQL
-  * API (`api.fly.io/graphql`), same surface the existing
-  * `allocateIpsIfMissing` already calls.
+ * Note: the Machines REST API (`api.machines.dev/v1`) does NOT expose an
+ * orgs endpoint — `/orgs` returns 404 there. Orgs live on Fly's GraphQL
+ * API (`api.fly.io/graphql`), same surface the existing
+ * `allocateIpsIfMissing` already calls.
  */
 
 /**
@@ -453,8 +453,8 @@ export async function allocateIpsIfMissing(
             e.extensions?.code === "NOT_FOUND" ||
             /could not find app/i.test(e.message),
         ) ||
-        body.errors.some(
-          (e) => /variable \$appId of type id! was provided invalid/i.test(e.message),
+        body.errors.some((e) =>
+          /variable \$appId of type id! was provided invalid/i.test(e.message),
         );
       if (!transient) {
         throw new Error(
