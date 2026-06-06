@@ -1,8 +1,1 @@
-[
-  {
-    "title": "Verify @monaco-editor/react is installed in node_modules",
-    "body": "pnpm typecheck fails on src/dashboard/components/files/{FileDiffViewer,FileEditor,FileViewer}.tsx with TS2307 'Cannot find module @monaco-editor/react'. The package is declared in package.json (^4.7.0) but not installed in this environment. This is pre-existing on HEAD (commit 8b08e494) and not introduced by the merge. Run `pnpm install` in CI/local before typecheck.",
-    "rationale": "If CI doesn't run pnpm install before tsc, the PR will fail typecheck for reasons unrelated to the merge resolution.",
-    "priority": "medium"
-  }
-]
+[]
