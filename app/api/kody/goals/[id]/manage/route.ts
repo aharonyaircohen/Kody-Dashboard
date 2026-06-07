@@ -243,6 +243,7 @@ export async function POST(
           repo: headerAuth.repo,
           workflow_id: "kody.yml",
           ref: defaultBranch,
+          inputs: { issue_number: { value: id } },
         });
         engineDispatched = true;
         logger.info(
