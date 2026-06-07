@@ -131,6 +131,9 @@ function verifyAndGetSession(ticket: string, key: Buffer): boolean {
 
   // note: payload.r is validated against kody_repo_context above.
   // we include it in the hmac subject so the ticket is bound to this specific machine.
+  // SECURITY: the repo is sourced from the ticket's `r` field (HMAC-verified below),
+  // NOT from parseAppName() — the parser can't recover the original repo name from
+  // the hashed app name, and we must not "fix" that. Binding relies on the ticket.
   const subject = buildSubject(payload);
   const expectedSig = crypto
     .createHmac("sha256", key)

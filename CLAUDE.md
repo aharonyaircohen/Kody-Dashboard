@@ -249,11 +249,6 @@ repo's vault. **Never** read it from `process.env` or a global config.
 - One-shot builder image: [builder/](builder/)
 - Full docs: [docs/previews.md](docs/previews.md)
 
-- Lifecycle: [src/dashboard/lib/previews/preview-lifecycle.ts](src/dashboard/lib/previews/preview-lifecycle.ts)
-- Builder spawn: [src/dashboard/lib/previews/builder-client.ts](src/dashboard/lib/previews/builder-client.ts)
-- One-shot builder image: [builder/](builder/)
-- Full docs: [docs/previews.md](docs/previews.md)
-
 On the **GitHub Actions** build path, the per-PR `docker build` can run
 on a **Namespace.so remote builder** (~2.4–2.7× faster, persistent
 cache) instead of the runner's local docker. Opt-in per repo: add

@@ -67,6 +67,10 @@ export async function GET(req: NextRequest) {
         if (flyUrl) {
           // Append a signed access ticket — the doorman in the preview machine
           // verifies it and exchanges it for a session cookie on first load.
+          // SECURITY: repo is sourced from headerAuth (the authenticated user's
+          // GitHub context), NOT from any request body or query string. This
+          // ensures a caller can only mint a ticket for their own repo and
+          // never for an arbitrary repo#pr they couldn't otherwise access.
           const { ticket } = mintPreviewTicket(
             `${headerAuth.owner}/${headerAuth.repo}`,
             parsed.data.pr,

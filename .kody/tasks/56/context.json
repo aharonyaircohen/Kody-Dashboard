@@ -4,15 +4,13 @@
   "target": "PR #56 (47-featpreviews-token-gate-per-pr-fly-previews-signed)",
   "outcome": "success",
   "exitCode": 0,
-  "reason": "Applied 4 review-feedback items: (1) doorman rejects tickets mismatching machine's KODY_REPO_CONTEXT/KODY_PR identity; (2) added buildSubject() helper with explanatory comment; (3) builder-client passes KODY_REPO_CONTEXT and KODY_PR to preview machines; (4) fly.toml gains [env] section for KODY_PR/KODY_REPO_CONTEXT, followups updated with fly secrets set instructions.",
+  "reason": "Applied 3 review-feedback nits: (1) consolidated the duplicated 'lifecycle / builder spawn / one-shot builder image' bullet list in CLAUDE.md into a single copy; (2) added a SECURITY comment to app/api/kody/prs/preview/route.ts making explicit that the mintPreviewTicket repo is sourced from headerAuth (authenticated user context) and never from request body or query; (3) added a SECURITY comment in builder/doorman/doorman.ts near the verify flow explaining that the repo is sourced from the ticket's `r` field (HMAC-verified) and not from parseAppName(), so a future reader doesn't 'fix' the parser and break machine-to-ticket binding.",
   "prUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/56",
   "runUrl": null,
   "filesTouched": [
-    "builder/doorman/doorman.ts",
-    "src/dashboard/lib/previews/builder-client.ts",
-    "builder/src/builder.ts",
-    "builder/fly.toml",
-    ".kody/tasks/47/followups.json"
+    "CLAUDE.md",
+    "app/api/kody/prs/preview/route.ts",
+    "builder/doorman/doorman.ts"
   ],
   "sessionLog": ".kody/sessions/56.jsonl",
   "startedAt": "2026-06-07T00:00:00Z",
