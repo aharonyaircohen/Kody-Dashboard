@@ -30,3 +30,11 @@ Turn 7 loose conventions into enforced contracts:
 1. Report schema → 2. Ledger sections → 3. Done-claim → 4. Escalation markers → 5. Duty contract → 6. Aggregator → 7. Write-back
 
 **Zero engine changes. All dashboard + consumer repo.**
+
+## Goals (NOT issues)
+
+A "goal" is a high-level objective surfaced as a GitHub **Discussion** and referenced as **#<number>** (e.g. "goal 1533", "#1533"). Goal numbers are a separate namespace from issue/PR numbers — `github_get_issue` will NOT find a goal and must never be used for one.
+
+- To answer anything about a goal (explain it, its status, its tasks), call `get_goal` with the number (or `list_goals` to discover it). Never assume a goal "doesn't exist" because an issue lookup failed.
+- A goal's tasks are issues carrying its `taskLabel` (`goal:<id>`, returned by `get_goal`/`list_goals`); pass that label to `github_list_issues` to enumerate them.
+- Use `attach_task_to_goal` / `detach_task_from_goal` to change which task issues belong to a goal.
