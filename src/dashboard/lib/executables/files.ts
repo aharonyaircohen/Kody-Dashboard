@@ -207,6 +207,7 @@ async function listFolderDuties(
 export async function listExecutableFiles(): Promise<ExecutableSummary[]> {
   const octokit = getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);
+
   const summaries = await listFolderDuties(octokit, branch);
   return summaries.sort((a, b) => a.slug.localeCompare(b.slug));
 }
