@@ -2,13 +2,10 @@
  * @fileType library
  * @domain runners
  * @pattern fly-machines-litellm
- *
- * Read-only status probe for the shared always-on LiteLLM proxy app on Fly
- * (`kody-litellm`). Unlike brain-fly.ts (per-user, provisioned from the
- * dashboard) this app is deployed out-of-band via `fly deploy` in
- * kody2/litellm-server. The dashboard never creates or mutates it — it only
- * reports whether it's up so the Settings card can turn "assume it's there"
- * into "see it's there".
+ * @ai-summary Read-only status probe for the shared always-on LiteLLM proxy
+ *   (kody-litellm). Never mutates Fly — only reports state for the Settings
+ *   card. Uses the same per-repo vault Fly token; 403/404 both surface as
+ *   "off" so a token scoped to the wrong org looks identical to "not deployed".
  *
  * Lives in the user's own Fly org (same org as the one-shot runners and the
  * Brain app), reachable over 6PN at `<app>.internal:4000`. So the status

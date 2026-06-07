@@ -55,7 +55,10 @@ function installFetchStub(
           headers: { "content-type": "application/json" },
         });
       }
-      if (call.url.startsWith("https://kody-terminal-") && call.url.endsWith("/healthz")) {
+      if (
+        call.url.startsWith("https://kody-terminal-") &&
+        call.url.endsWith("/healthz")
+      ) {
         return new Response("ok", {
           status: 200,
           headers: { "content-type": "text/plain" },
@@ -89,16 +92,16 @@ describe("terminalBridgeAppName", () => {
 
 describe("ensureTerminalBridge", () => {
   it("ships a persistent real-PTY SSH session", () => {
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("\"flyctl\"");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("\"ssh\"");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("\"console\"");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('"flyctl"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('"ssh"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('"console"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("--pty");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("python3");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("pty-relay.py");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "Terminal did not answer the keyboard self-test.",
     );
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("type: \"ready\"");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('type: "ready"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("findReadyProof");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("\\/dev\\/(?:pts\\/[0-9]+|tty");
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("--command");

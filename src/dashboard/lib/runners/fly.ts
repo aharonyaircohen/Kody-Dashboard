@@ -7,6 +7,12 @@
  * runs the kody engine. Used as a parallel runtime to GitHub Actions
  * for the kody-live-fly agent (POC).
  *
+ * @ai-summary One-shot Fly Machines spawner for kody-live sessions.
+ *   auto_destroy=true, restart=no — machine is always recycled after exit.
+ *   The caller is responsible for writing session meta BEFORE calling
+ *   spawnRunner; if spawn succeeds but the writer fails, the machine idles
+ *   and the session is orphaned with no events in the feed.
+ *
  * Reference: https://docs.machines.dev/swagger/index.html
  */
 

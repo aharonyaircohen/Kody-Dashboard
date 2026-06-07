@@ -2,11 +2,11 @@
  * @fileType library
  * @domain runner
  * @pattern fly-inventory
- *
- * One read of every Fly machine the repo's token can see, classified by the
- * feature that owns it (preview / runner / brain / litellm / builder). Powers
- * the operator's Machines table on /runner — the single place to see what's
- * actually running and act on it.
+ * @ai-summary Read-only Fly machine inventory: lists all kody-managed machines
+ *   (preview, runner, brain, litellm, builder) the token can see. Uses the
+ *   connected repo's FLY_API_TOKEN — surfaces only machines the authenticated
+ *   user owns. Errors during per-app listing are skipped (best-effort); a bad
+ *   app never fails the whole inventory.
  *
  * Classification is by app-name shape (see preview-key.ts for the `kp-` scheme
  * and the runner/brain/litellm app names). Billing rule unchanged: this uses

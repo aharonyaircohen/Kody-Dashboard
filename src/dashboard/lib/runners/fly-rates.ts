@@ -2,14 +2,10 @@
  * @fileType utility
  * @domain runner
  * @pattern fly-cost-estimate
- *
- * Approximate Fly Machines pricing so the activity view can show an estimated
- * cost per machine. Fly has no per-machine cost API (only the org-level bill),
- * so we estimate from size × running time using published list rates.
- *
- * These are ESTIMATES — list price, fra region, RAM billed as "additional"
- * above the included base is folded into a flat per-GB rate. Good enough to
- * spot the expensive machines; not a billing source of truth.
+ * @ai-summary Approximate Fly Machines cost estimation from published list
+ *   rates (÷730h). shared ~$0.0027/h, performance ~$0.0425/h, RAM ~$0.0069/GB/h.
+ *   Fly has no per-machine cost API, only org-level billing. Estimates only —
+ *   not a billing source of truth; good enough to flag expensive machines.
  *
  * Rates derived from Fly's published monthly prices ÷ 730h:
  *   shared vCPU   ~$1.94/mo  → ~$0.002658/h

@@ -2,10 +2,10 @@
  * @fileType library
  * @domain runners
  * @pattern warm-pool-client
- *
- * Dashboard-side client for the warm-pool owner (`kody pool-serve`, co-located
- * on the kody-litellm Fly machine). Used by the Vibe execute path to claim a
- * pre-booted, frozen runner instead of creating one from scratch.
+ * @ai-summary Warm pool accelerator: claimFromPool NEVER throws — returns
+ *   {ok:false} on any failure so the caller always falls back to spawnRunner.
+ *   Secrets never cross the wire; the pool resolves them from the repo vault
+ *   server-side. 20s timeout prevents a slow pool from stalling the request.
  *
  * Auth: Bearer the derived POOL_API_KEY (see pool-keys.ts) — never stored or
  * transmitted; both sides derive it from KODY_MASTER_KEY.

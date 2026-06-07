@@ -583,7 +583,9 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
           >
             {panelState === "split" && (
               <FileTree
-                onFileSelect={(path) => openRepoPath(path, { typeHint: "file" })}
+                onFileSelect={(path) =>
+                  openRepoPath(path, { typeHint: "file" })
+                }
                 onFolderSelect={(path) =>
                   openRepoPath(path, { typeHint: "dir" })
                 }
