@@ -7,7 +7,7 @@
  *   collapsed to family-level patterns so it covers new point-releases without
  *   per-model maintenance. Unknown models return `false` so the caller falls
  *   back to inlining the image as text — the safe default that never sends an
- *   image_url a text-only model (e.g. MiniMax) would choke on or ignore.
+ *   image_url a text-only model (e.g. MiniMax M2.7) would choke on or ignore.
  */
 
 /**
@@ -55,6 +55,8 @@ const VISION_MODEL_PATTERNS: RegExp[] = [
   /deepseek-vl/,
   /phi-.*vision/,
   /phi-4-multimodal/,
+  // MiniMax — only the M3 generation is natively multimodal; M2 / M2.7 stay text-only.
+  /minimax-m3/,
 ];
 
 /**
