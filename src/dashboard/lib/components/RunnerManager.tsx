@@ -12,7 +12,7 @@
  *     • Brain — per-user Brain-on-Fly. • LiteLLM — shared proxy status.
  *   Fly token status sits on top (gates everything); the token is set on
  *   /secrets. Health-check is deliberately not exposed (footgun — defeats
- *   auto-suspend); it defaults off in code.
+ *   idle sleep); it defaults off in code.
  */
 "use client";
 
@@ -27,6 +27,7 @@ import {
   KeyRound,
   Rocket,
   Server,
+  SquareTerminal,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
@@ -500,17 +501,25 @@ export function RunnerManager() {
 
                 {/* ── Brain ────────────────────────────────────────────────── */}
                 <section className="space-y-3">
-                  <GroupHeader
-                    icon={Brain}
-                    label="Brain"
-                    hint="your personal Brain server"
-                    status={
-                      <span className="flex items-center gap-1.5">
-                        <StatusDot state={brainState} />
-                        {STATUS_LABELS[brainState]}
-                      </span>
-                    }
-                  />
+                  <div className="flex items-center justify-between gap-3">
+                    <GroupHeader
+                      icon={Brain}
+                      label="Brain"
+                      hint="your personal Brain server"
+                      status={
+                        <span className="flex items-center gap-1.5">
+                          <StatusDot state={brainState} />
+                          {STATUS_LABELS[brainState]}
+                        </span>
+                      }
+                    />
+                    <Button asChild size="sm" variant="outline">
+                      <Link href="/terminal">
+                        <SquareTerminal className="w-3.5 h-3.5" />
+                        Terminal
+                      </Link>
+                    </Button>
+                  </div>
                   <BrainFlyCard
                     headers={vaultHeaders()}
                     flyTokenConfigured={flyTokenConfigured}

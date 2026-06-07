@@ -15,7 +15,11 @@
  *      (so the row renders but the loading spinner shows).
  */
 import { describe, it, expect } from "vitest";
-import { buildTree } from "@dashboard/components/files/FileTree";
+import {
+  ancestorPaths,
+  buildTree,
+  pathAndAncestorPaths,
+} from "@dashboard/components/files/FileTree";
 import type { FileEntry } from "@dashboard/lib/repo-files";
 
 function file(name: string, path: string, size = 10): FileEntry {
@@ -147,5 +151,25 @@ describe("buildTree", () => {
       "alpha.tsx",
       "zeta.tsx",
     ]);
+  });
+});
+
+describe("path helpers", () => {
+  it("returns only parent folders for a file path", () => {
+    expect(ancestorPaths("src/components/Button.tsx")).toEqual([
+      "src",
+      "src/components",
+    ]);
+  });
+
+  it("returns the folder and its parents for a folder path", () => {
+    expect(pathAndAncestorPaths("src/components")).toEqual([
+      "src",
+      "src/components",
+    ]);
+  });
+
+  it("returns no parents for a root file", () => {
+    expect(ancestorPaths("README.md")).toEqual([]);
   });
 });

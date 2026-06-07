@@ -15,7 +15,7 @@
  *   - Advanced — exact CPU/RAM + manual branch previews (BranchPreviewCard).
  *
  * Health check is intentionally NOT exposed (footgun — pinging defeats
- * auto-suspend); it stays OFF in code, settable only via kody.config.json.
+ * idle sleep); it stays OFF in code, settable only via kody.config.json.
  * The FLY_API_TOKEN gate is handled once by the page-level banner, so this
  * card no longer repeats its own "not configured" warning.
  */
@@ -61,9 +61,9 @@ interface SweepResult {
   errored: string[];
 }
 
-// Named sizes hide the raw CPU/RAM numbers. Large (2x / 4 GB) is the default
-// because dev-mode (`next dev`) builds need the headroom; smaller suits prod
-// builds. The exact numbers stay reachable under Advanced.
+// Named sizes hide the raw CPU/RAM numbers. Standard (2x / 2 GB) is the
+// default because Fly suspend is supported/recommended at <= 2 GB; Large is
+// still available for heavy dev-mode builds and cold-stops when idle.
 type SizeKey = "small" | "standard" | "large" | "custom";
 const SIZE_PRESETS: Record<
   Exclude<SizeKey, "custom">,
@@ -76,7 +76,12 @@ const SIZE_PRESETS: Record<
     label: "Standard",
     hint: "shared 2× · 2 GB",
   },
-  large: { cpus: 2, memoryMb: 4096, label: "Large", hint: "shared 2× · 4 GB" },
+  large: {
+    cpus: 2,
+    memoryMb: 4096,
+    label: "Large",
+    hint: "shared 2× · 4 GB · stops when idle",
+  },
 };
 
 function matchPreset(cpus: number, memoryMb: number): SizeKey {
@@ -237,7 +242,7 @@ export function PreviewsCard({
               <div className="flex items-center gap-2">
                 <Label className="text-xs text-white/70">Preview size</Label>
                 <SimpleTooltip
-                  content="Standard fits most apps; Large for heavy / dev-mode builds."
+                  content="Standard suspends when idle; Large is for heavy builds and stops when idle."
                   side="right"
                 >
                   <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
@@ -278,7 +283,7 @@ export function PreviewsCard({
               <span className="text-xs text-white/60 leading-relaxed flex items-center gap-1.5">
                 Sleep previews when idle
                 <SimpleTooltip
-                  content="Recommended — idle previews cost ~$0 and wake in ~1s."
+                  content="Recommended — 2 GB previews suspend; larger previews stop and wake cold."
                   side="right"
                 >
                   <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />

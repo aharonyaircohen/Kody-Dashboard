@@ -1,6 +1,6 @@
 {
   "name": "kody-dashboard",
-  "version": "0.1.1057",
+  "version": "0.1.1058",
   "private": true,
   "license": "MIT",
   "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
@@ -43,6 +43,8 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@sentry/nextjs": "^10.32.1",
     "@tanstack/react-query": "^5.90.21",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "ai": "^6.0.97",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",

@@ -31,6 +31,7 @@ import {
   Settings2,
   SlidersHorizontal,
   Sparkles,
+  SquareTerminal,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -114,6 +115,14 @@ export const PRIMARY_VIEW_ITEMS: readonly SettingsNavItem[] = [
 export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
+  {
+    href: "/terminal",
+    label: "Terminal",
+    icon: SquareTerminal,
+    exact: true,
+    description: "Interactive shell for live Fly runner and Brain machines.",
+    tint: "text-emerald-300 bg-emerald-500/10",
+  },
   {
     href: "/jobs",
     label: "Jobs",
