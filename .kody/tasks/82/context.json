@@ -1,0 +1,16 @@
+{
+  "taskId": "82",
+  "taskType": "issue",
+  "target": "https://github.com/aharonyaircohen/Kody-Dashboard/issues/82",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Bug as described (className=\"hidden sm:flex\") was already fixed in current code; added regression test to prevent reintroduction.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "tests/unit/preview-actions-mobile.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/82.jsonl",
+  "startedAt": "2026-06-07T20:14:00Z",
+  "finishedAt": "2026-06-07T20:22:00Z"
+}
