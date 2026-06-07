@@ -41,6 +41,15 @@ export interface CreatePreviewMachineInput {
    * content from a stock image with no Docker build — see `static-preview.ts`.
    */
   files?: Array<{ guestPath: string; contentBase64: string }>;
+  /**
+   * Whether to attach a periodic HTTP health check to the machine. Default
+   * is `false` — without a check, Fly's `autostop: "suspend"` can fire on
+   * idle (a check would count traffic and keep the machine "active"
+   * forever, defeating the suspend). Opt in only for repos that want
+   * health-gated previews and accept the machine stays awake.
+   * Mirrors the builder's `fly.previews.healthCheck` config flag.
+   */
+  healthCheck?: boolean;
 }
 
 export interface MachineInfo {
@@ -218,17 +227,25 @@ export async function createMachine(
           min_machines_running: 0,
         },
       ],
-      checks: {
-        httpget: {
-          type: "http",
-          port: internalPort,
-          method: "GET",
-          path: "/",
-          interval: "15s",
-          timeout: "10s",
-          grace_period: "30s",
-        },
-      },
+      // By default NO machine-level `checks`: a periodic HTTP check (we had
+      // GET / every 15s) issues a request to the machine forever, so Fly
+      // never sees it as idle and `autostop: "suspend"` can never fire. Opt
+      // back in only when the caller explicitly asks for it.
+      ...(input.healthCheck
+        ? {
+            checks: {
+              httpget: {
+                type: "http",
+                port: internalPort,
+                method: "GET",
+                path: "/",
+                interval: "15s",
+                timeout: "10s",
+                grace_period: "30s",
+              },
+            },
+          }
+        : {}),
     },
   };
 
