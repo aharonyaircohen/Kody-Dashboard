@@ -427,7 +427,7 @@ function FailingCard({
   );
 }
 
-// ── restored sections (Reports + Engine) ─────────────────────────────────────
+// ── lower sections (Reports + Engine) ────────────────────────────────────────
 
 function LatestReports() {
   const { data, isLoading } = useReports();

@@ -252,10 +252,13 @@ async function postPreviewComment(args: {
   ref: string;
 }): Promise<void> {
   const MARKER = "<!-- kody-fly-preview -->";
-  const url = `https://${args.appName}.fly.dev`;
+  // The preview URL is now token-gated (doorman proxy on :8080 validates a
+  // signed ticket before proxying). The raw fly.dev URL would return 401
+  // without a ticket from the dashboard. People reach previews through the
+  // Kody dashboard (already behind login), which appends the ticket.
   const body = [
     MARKER,
-    `✅ **Preview ready:** ${url}`,
+    `✅ **Preview ready** — open it from the Kody dashboard.`,
     "",
     `<sub>App: \`${args.appName}\` · Commit: \`${args.ref.slice(0, 7)}\` · Updated: ${new Date().toISOString()}</sub>`,
   ].join("\n");
@@ -548,8 +551,24 @@ async function main() {
         appName,
         region,
         image,
-        internalPort: 8080,
-        env: vaultEnv,
+        // Doorman proxy runs on 8080; Next.js (and other apps) on 3000.
+        internalPort: 3000,
+        // Vault secrets (from BUILD_ENV_JSON) are app runtime env; also
+        // thread the derived preview-verify key from the dashboard so the
+        // doorman can validate access tickets without the raw master key.
+        env: {
+          ...vaultEnv,
+          ...(process.env.KODY_PREVIEW_VERIFY_KEY
+            ? { KODY_PREVIEW_VERIFY_KEY: process.env.KODY_PREVIEW_VERIFY_KEY }
+            : {}),
+          // Machine identity — set by the dashboard so the doorman in the
+          // preview machine can bind tickets to this specific repo/pr and
+          // reject tickets meant for a different machine.
+          ...(process.env.KODY_REPO_CONTEXT
+            ? { KODY_REPO_CONTEXT: process.env.KODY_REPO_CONTEXT }
+            : {}),
+          ...(process.env.KODY_PR ? { KODY_PR: process.env.KODY_PR } : {}),
+        },
         ...(Number.isFinite(cpusRaw) && cpusRaw > 0 ? { cpus: cpusRaw } : {}),
         ...(Number.isFinite(memRaw) && memRaw > 0 ? { memoryMb: memRaw } : {}),
         ...(idleSuspend !== undefined ? { idleSuspend } : {}),
