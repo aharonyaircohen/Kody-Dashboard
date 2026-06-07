@@ -7,7 +7,7 @@
  */
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronRight,
@@ -34,10 +34,13 @@ interface TreeNode {
 
 interface FileTreeProps {
   onFileSelect: (path: string) => void;
+  onFolderSelect?: (path: string) => void;
   selectedPath: string | null;
+  selectedPathType?: FileEntry["type"] | null;
   octokit: Octokit | null;
   owner: string;
   repo: string;
+  refreshKey?: number;
   onRefresh: () => void;
   onDelete?: (path: string) => void;
   onRename?: (path: string) => void;
@@ -45,6 +48,18 @@ interface FileTreeProps {
   onNewFolder?: (dirPath: string) => void;
   onCopyPath?: (path: string) => void;
   onCreateSymlink?: (path: string) => void;
+}
+
+export function ancestorPaths(path: string): string[] {
+  const parts = path.split("/").filter(Boolean);
+  return parts
+    .slice(0, -1)
+    .map((_, index) => parts.slice(0, index + 1).join("/"));
+}
+
+export function pathAndAncestorPaths(path: string): string[] {
+  const parts = path.split("/").filter(Boolean);
+  return parts.map((_, index) => parts.slice(0, index + 1).join("/"));
 }
 
 function formatBytes(bytes: number): string {
@@ -118,6 +133,7 @@ interface TreeNodeRowProps {
   depth: number;
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
+  onFolderSelect?: (path: string) => void;
   selectedPath: string | null;
   octokit: Octokit;
   owner: string;
@@ -131,6 +147,7 @@ function TreeNodeRow({
   depth,
   onToggle,
   onSelect,
+  onFolderSelect,
   selectedPath,
   octokit,
   owner,
@@ -156,6 +173,7 @@ function TreeNodeRow({
         style={{ paddingLeft }}
         onClick={() => {
           if (isDir) {
+            onFolderSelect?.(entry.path);
             onToggle(entry.path);
           } else {
             onSelect(entry.path);
@@ -194,6 +212,7 @@ function TreeNodeRow({
           depth={depth + 1}
           onToggle={onToggle}
           onSelect={onSelect}
+          onFolderSelect={onFolderSelect}
           selectedPath={selectedPath}
           octokit={octokit}
           owner={owner}
@@ -208,10 +227,13 @@ function TreeNodeRow({
 
 export function FileTree({
   onFileSelect,
+  onFolderSelect,
   selectedPath,
+  selectedPathType = null,
   octokit,
   owner,
   repo,
+  refreshKey = 0,
   onRefresh,
   onDelete,
   onRename,
@@ -224,6 +246,7 @@ export function FileTree({
   const [childrenMap, setChildrenMap] = useState<Record<string, FileEntry[]>>(
     {},
   );
+  const childrenMapRef = useRef(childrenMap);
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [contextMenu, setContextMenu] = useState<{
@@ -234,11 +257,67 @@ export function FileTree({
 
   // Load root directory
   const { data: rootEntries, isLoading: rootLoading } = useQuery({
-    queryKey: ["files-tree", owner, repo, ""],
+    queryKey: ["files-tree", owner, repo, "", refreshKey],
     queryFn: () => listDir(octokit!, owner, repo, ""),
     enabled: !!octokit,
     staleTime: 30_000,
   });
+
+  useEffect(() => {
+    childrenMapRef.current = childrenMap;
+  }, [childrenMap]);
+
+  useEffect(() => {
+    setChildrenMap({});
+    childrenMapRef.current = {};
+  }, [owner, repo, refreshKey]);
+
+  useEffect(() => {
+    if (!octokit || !selectedPath) return;
+
+    const pathsToOpen =
+      selectedPathType === "dir"
+        ? pathAndAncestorPaths(selectedPath)
+        : ancestorPaths(selectedPath);
+    if (pathsToOpen.length === 0) return;
+
+    let cancelled = false;
+
+    const openSelectedPath = async () => {
+      for (const path of pathsToOpen) {
+        if (cancelled) return;
+
+        setOpenPaths((prev) => new Set(prev).add(path));
+        if (childrenMapRef.current[path]) continue;
+
+        setLoadingPaths((prev) => new Set(prev).add(path));
+        try {
+          const entries = await listDir(octokit, owner, repo, path);
+          if (cancelled) return;
+          setChildrenMap((prev) => {
+            if (prev[path]) return prev;
+            return { ...prev, [path]: entries };
+          });
+        } catch {
+          // The selected path may be a file; only its real directories open.
+        } finally {
+          if (!cancelled) {
+            setLoadingPaths((prev) => {
+              const next = new Set(prev);
+              next.delete(path);
+              return next;
+            });
+          }
+        }
+      }
+    };
+
+    void openSelectedPath();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [octokit, owner, repo, refreshKey, selectedPath, selectedPathType]);
 
   const handleToggle = useCallback(
     async (path: string) => {
@@ -371,6 +450,7 @@ export function FileTree({
               depth={0}
               onToggle={handleToggle}
               onSelect={handleSelect}
+              onFolderSelect={onFolderSelect}
               selectedPath={selectedPath}
               octokit={octokit!}
               owner={owner}

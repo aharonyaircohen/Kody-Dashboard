@@ -18,8 +18,9 @@
  * hyphen-safe). The app exposes :443 → :8080 (the brain-serve HTTP port).
  * Auth between dashboard and brain-serve is a 32-byte hex API key
  * generated at provision time and stored on the machine as
- * BRAIN_API_KEY (env). The same key is returned once to the dashboard
- * which writes it into the user's Settings (auth.brain.apiKey).
+ * BRAIN_API_KEY (env). The dashboard uses that key server-side for chat
+ * proxying, and returns it only when the user explicitly copies an external
+ * Brain login from the Runner page.
  *
  * Reference: https://docs.machines.dev/swagger/index.html
  */
@@ -109,10 +110,9 @@ export interface ProvisionBrainResult {
    * `FLY_BRAIN_ORG` default if the token is scoped to a different org. */
   org: string;
   /**
-   * If non-null, the requested app name was unavailable (orphan, taken by
-   * another Fly account, etc.) and `ensureApp` auto-renamed to `<app>` with
-   * a `-2`/`-3` suffix. The UI should surface this to the user so they
-   * understand why their stored record shows a different name.
+   * If non-null, Fly ended up using a different app name than the caller
+   * requested. The UI should surface this so the user knows which slug is
+   * actually stored.
    */
   originalName?: string;
 }

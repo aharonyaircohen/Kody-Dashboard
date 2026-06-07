@@ -12,9 +12,18 @@
  */
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Pause, Play, RefreshCw, Server, Trash2 } from "lucide-react";
+import {
+  Loader2,
+  Pause,
+  Play,
+  RefreshCw,
+  Server,
+  SquareTerminal,
+  Trash2,
+} from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
@@ -83,6 +92,23 @@ function destroysWholeApp(feature: FlyFeature): boolean {
 
 function isRunning(state: string): boolean {
   return state !== "suspended" && state !== "stopped" && state !== "destroyed";
+}
+
+function canOpenTerminal(state: string): boolean {
+  return (
+    state === "started" ||
+    state === "running" ||
+    state === "suspended" ||
+    state === "stopped"
+  );
+}
+
+function canUseTerminal(feature: FlyFeature): boolean {
+  return feature === "runner" || feature === "brain";
+}
+
+function terminalHref(row: FlyMachineRow): string {
+  return `/terminal?app=${encodeURIComponent(row.app)}&machineId=${encodeURIComponent(row.machineId)}&connect=1`;
 }
 
 /** Absolute start time, e.g. "Jun 1, 14:30". Empty when unknown. */
@@ -275,11 +301,35 @@ export function FlyMachinesTable({
                     </span>
                     <span
                       className="text-white/45 tabular-nums"
-                      title="Running for (since created)"
+                      title="Age since created"
                     >
-                      {formatDuration(row.createdAt)}
+                      age {formatDuration(row.createdAt)}
                     </span>
                     <div className="ml-auto flex items-center gap-1">
+                      {canUseTerminal(row.feature) &&
+                        (canOpenTerminal(row.state) ? (
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-1.5 text-emerald-300 hover:text-emerald-200"
+                            title="Open terminal"
+                          >
+                            <Link href={terminalHref(row)}>
+                              <SquareTerminal className="w-3 h-3" />
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled
+                            className="h-6 px-1.5 text-white/30"
+                            title="Terminal unavailable for this machine state"
+                          >
+                            <SquareTerminal className="w-3 h-3" />
+                          </Button>
+                        ))}
                       {running ? (
                         <Button
                           size="sm"

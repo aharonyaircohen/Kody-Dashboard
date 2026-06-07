@@ -29,7 +29,10 @@ const CFG: FlyPreviewConfig = {
 interface CapturedRequest {
   url: string;
   parsedBody: {
-    config: { checks?: unknown } & Record<string, unknown>;
+    config: {
+      checks?: unknown;
+      services?: Array<{ autostop?: unknown }>;
+    } & Record<string, unknown>;
   } & Record<string, unknown>;
 }
 
@@ -117,5 +120,43 @@ describe("createMachine checks block", () => {
         grace_period: "30s",
       },
     });
+  });
+
+  it("uses suspend for previews at or below Fly's 2 GB suspend limit", async () => {
+    const captured: CapturedRequest[] = [];
+    mockCreateResponse(captured);
+
+    await createMachine(
+      {
+        appName: "kp-test-app",
+        region: "fra",
+        image: "nginx:alpine",
+        internalPort: 8080,
+        memoryMb: 2048,
+      },
+      CFG,
+    );
+
+    expect(captured[0].parsedBody.config.services?.[0]?.autostop).toBe(
+      "suspend",
+    );
+  });
+
+  it("stops oversized previews instead of asking Fly to suspend them", async () => {
+    const captured: CapturedRequest[] = [];
+    mockCreateResponse(captured);
+
+    await createMachine(
+      {
+        appName: "kp-test-app",
+        region: "fra",
+        image: "nginx:alpine",
+        internalPort: 8080,
+        memoryMb: 4096,
+      },
+      CFG,
+    );
+
+    expect(captured[0].parsedBody.config.services?.[0]?.autostop).toBe(true);
   });
 });

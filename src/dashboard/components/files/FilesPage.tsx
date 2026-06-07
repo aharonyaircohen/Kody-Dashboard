@@ -8,7 +8,7 @@
  */
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Octokit } from "@octokit/rest";
 import {
   FolderOpen,
@@ -21,7 +21,12 @@ import {
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
 import { useAuth } from "@dashboard/lib/auth-context";
-import { readFile, writeFile, deleteFile } from "@dashboard/lib/repo-files";
+import {
+  listDir,
+  readFile,
+  writeFile,
+  deleteFile,
+} from "@dashboard/lib/repo-files";
 import { getFilePermission } from "@dashboard/lib/repo-files-perms";
 import { FileTree } from "./FileTree";
 import { FileViewer } from "./FileViewer";
@@ -72,14 +77,53 @@ export function buildBreadcrumbs(path: string): BreadcrumbItem[] {
   return items;
 }
 
-export function FilesPage() {
+export function normalizeRepoPath(path: string): string {
+  return path.replace(/^\/+|\/+$/g, "").replace(/\/{2,}/g, "/");
+}
+
+export function buildFileHref(path: string | null | undefined): string {
+  const normalized = normalizeRepoPath(path ?? "");
+  if (!normalized) return "/files";
+  return `/files/${normalized.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+export function filePathFromHref(pathname: string): string {
+  if (pathname === "/files") return "";
+  if (!pathname.startsWith("/files/")) return "";
+  return normalizeRepoPath(
+    pathname
+      .slice("/files/".length)
+      .split("/")
+      .map((part) => {
+        try {
+          return decodeURIComponent(part);
+        } catch {
+          return part;
+        }
+      })
+      .join("/"),
+  );
+}
+
+interface FilesPageProps {
+  initialPath?: string;
+}
+
+export function FilesPage({ initialPath = "" }: FilesPageProps) {
   const { auth } = useAuth();
   const octokit = useMemo(
     () => (auth?.token ? new Octokit({ auth: auth.token }) : null),
     [auth?.token],
   );
 
+  const initialRepoPath = useMemo(
+    () => normalizeRepoPath(initialPath),
+    [initialPath],
+  );
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
+  const [selectedPath, setSelectedPath] = useState<string | null>(
+    initialRepoPath || null,
+  );
   const [viewMode, setViewMode] = useState<ViewMode>("viewer");
   const [panelState, setPanelState] = useState<PanelState>("split");
   const [showNewFileDialog, setShowNewFileDialog] = useState(false);
@@ -90,6 +134,8 @@ export function FilesPage() {
   );
   const [refreshKey, setRefreshKey] = useState(0);
   const [writeable, setWriteable] = useState(false);
+  const openRequestRef = useRef(0);
+  const openedInitialPathRef = useRef<string | null>(null);
 
   // Check write permission on mount / auth change
   useEffect(() => {
@@ -104,30 +150,122 @@ export function FilesPage() {
 
   // Build breadcrumbs from selected file path
   const breadcrumbs = useMemo<BreadcrumbItem[]>(
-    () => (selectedFile ? buildBreadcrumbs(selectedFile.path) : []),
-    [selectedFile],
+    () => (selectedPath ? buildBreadcrumbs(selectedPath) : []),
+    [selectedPath],
   );
 
-  const handleFileSelect = useCallback(
-    async (path: string) => {
+  const updateFileHref = useCallback(
+    (path: string, options: { replace?: boolean } = {}) => {
+      if (typeof window === "undefined") return;
+
+      const href = buildFileHref(path);
+      if (window.location.pathname === href) return;
+
+      if (options.replace) {
+        window.history.replaceState(null, "", href);
+      } else {
+        window.history.pushState(null, "", href);
+      }
+    },
+    [],
+  );
+
+  const openRepoPath = useCallback(
+    async (
+      path: string,
+      options: {
+        updateRoute?: boolean;
+        replace?: boolean;
+        typeHint?: "file" | "dir";
+      } = {},
+    ) => {
+      const normalizedPath = normalizeRepoPath(path);
+      const updateRoute = options.updateRoute ?? true;
+      const requestId = ++openRequestRef.current;
+
+      if (!normalizedPath) {
+        setSelectedPath(null);
+        setSelectedFile(null);
+        setViewMode("viewer");
+        if (updateRoute) updateFileHref("", { replace: options.replace });
+        return;
+      }
+
+      setSelectedPath(normalizedPath);
+      if (options.typeHint === "dir") {
+        setSelectedFile(null);
+        setViewMode("viewer");
+      }
+      if (updateRoute) {
+        updateFileHref(normalizedPath, { replace: options.replace });
+      }
+
       if (!octokit || !auth) return;
 
       try {
-        const file = await readFile(octokit, auth.owner, auth.repo, path);
+        const file = await readFile(
+          octokit,
+          auth.owner,
+          auth.repo,
+          normalizedPath,
+        );
+        if (requestId !== openRequestRef.current) return;
+
         if (file) {
-          setSelectedFile({ path, sha: file.sha });
-          setViewMode("viewer");
+          setSelectedPath(file.path);
+          setSelectedFile({ path: file.path, sha: file.sha });
+          setViewMode(writeable ? "editor" : "viewer");
+          return;
         }
+
+        await listDir(octokit, auth.owner, auth.repo, normalizedPath);
+        if (requestId !== openRequestRef.current) return;
+        setSelectedFile(null);
+        setViewMode("viewer");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to open file");
+        if (requestId !== openRequestRef.current) return;
+        setSelectedPath(null);
+        setSelectedFile(null);
+        setViewMode("viewer");
       }
     },
-    [octokit, auth],
+    [octokit, auth, updateFileHref, writeable],
   );
 
-  const handleEdit = useCallback(() => {
-    setViewMode("editor");
-  }, []);
+  useEffect(() => {
+    if (!octokit || !auth) return;
+    const initialOpenKey = `${auth.owner}/${auth.repo}:${initialRepoPath}`;
+
+    if (!initialRepoPath) {
+      openedInitialPathRef.current = initialOpenKey;
+      setSelectedPath(null);
+      setSelectedFile(null);
+      setViewMode("viewer");
+      return;
+    }
+
+    if (openedInitialPathRef.current === initialOpenKey) return;
+    openedInitialPathRef.current = initialOpenKey;
+    void openRepoPath(initialRepoPath, { updateRoute: false });
+  }, [auth, initialRepoPath, octokit, openRepoPath]);
+
+  useEffect(() => {
+    if (writeable && selectedFile && viewMode === "viewer") {
+      setViewMode("editor");
+    }
+  }, [selectedFile, viewMode, writeable]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      void openRepoPath(filePathFromHref(window.location.pathname), {
+        updateRoute: false,
+      });
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [openRepoPath]);
 
   const handleViewDiff = useCallback(() => {
     setViewMode("diff");
@@ -136,16 +274,11 @@ export function FilesPage() {
   const handleSaved = useCallback(() => {
     // Refresh the file content
     if (selectedFile) {
-      handleFileSelect(selectedFile.path);
+      openRepoPath(selectedFile.path, { updateRoute: false });
     }
-  }, [selectedFile, handleFileSelect]);
+  }, [selectedFile, openRepoPath]);
 
   const handleCancel = useCallback(() => {
-    setViewMode("viewer");
-  }, []);
-
-  const handleClose = useCallback(() => {
-    setSelectedFile(null);
     setViewMode("viewer");
   }, []);
 
@@ -180,16 +313,14 @@ export function FilesPage() {
         setShowNewFileDialog(false);
         setNewItemPath("");
         handleRefresh();
-        // Open the new file in editor
-        setSelectedFile({ path, sha: "" });
-        setViewMode("editor");
+        await openRepoPath(path);
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : "Failed to create file",
         );
       }
     },
-    [octokit, auth, newItemPath, handleRefresh],
+    [octokit, auth, newItemPath, handleRefresh, openRepoPath],
   );
 
   const handleCreateFolder = useCallback(
@@ -212,13 +343,14 @@ export function FilesPage() {
         setShowNewFolderDialog(false);
         setNewItemPath("");
         handleRefresh();
+        await openRepoPath(folderPath);
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : "Failed to create folder",
         );
       }
     },
-    [octokit, auth, newItemPath, handleRefresh],
+    [octokit, auth, newItemPath, handleRefresh, openRepoPath],
   );
 
   const handleDelete = useCallback(
@@ -252,9 +384,11 @@ export function FilesPage() {
         `chore: delete ${showDeleteConfirm}`,
       );
       toast.success(`Deleted ${showDeleteConfirm}`);
-      if (selectedFile?.path === showDeleteConfirm) {
+      if (selectedPath === showDeleteConfirm) {
         setSelectedFile(null);
+        setSelectedPath(null);
         setViewMode("viewer");
+        updateFileHref("");
       }
       handleRefresh();
     } catch (err) {
@@ -262,10 +396,17 @@ export function FilesPage() {
     } finally {
       setShowDeleteConfirm(null);
     }
-  }, [octokit, auth, showDeleteConfirm, selectedFile, handleRefresh]);
+  }, [
+    octokit,
+    auth,
+    showDeleteConfirm,
+    selectedPath,
+    updateFileHref,
+    handleRefresh,
+  ]);
 
   const handleCreateSymlink = useCallback(
-    async (targetPath: string) => {
+    async (_targetPath: string) => {
       if (!octokit || !auth) return;
       // This would show a dialog for symlink creation
       // Simplified for now
@@ -274,7 +415,7 @@ export function FilesPage() {
     [octokit, auth],
   );
 
-  const handleRename = useCallback(async (oldPath: string) => {
+  const handleRename = useCallback(async (_oldPath: string) => {
     // This would show a rename dialog
     // Simplified for now
     toast.info("Rename: provide new name");
@@ -288,9 +429,9 @@ export function FilesPage() {
 
   const handleSearchResultClick = useCallback(
     (path: string, _line?: number) => {
-      handleFileSelect(path);
+      openRepoPath(path, { typeHint: "file" });
     },
-    [handleFileSelect],
+    [openRepoPath],
   );
 
   const renderMainContent = () => {
@@ -351,9 +492,17 @@ export function FilesPage() {
           octokit={octokit}
           owner={auth?.owner ?? ""}
           repo={auth?.repo ?? ""}
-          onEdit={writeable ? handleEdit : undefined}
           onViewDiff={handleViewDiff}
         />
+      );
+    }
+
+    if (selectedPath) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-white/40">
+          <FolderOpen className="w-12 h-12 mb-4" />
+          <p className="text-sm">/{selectedPath}</p>
+        </div>
       );
     }
 
@@ -417,8 +566,8 @@ export function FilesPage() {
     <PageShell
       title="Files"
       icon={FolderOpen}
-      subtitle={selectedFile ? `/${selectedFile.path}` : undefined}
-      backHref="/"
+      subtitle={selectedPath ? `/${selectedPath}` : undefined}
+      backHref={null}
       actions={actions}
       width="full"
       contentClassName="p-0"
@@ -434,11 +583,18 @@ export function FilesPage() {
           >
             {panelState === "split" && (
               <FileTree
-                onFileSelect={handleFileSelect}
-                selectedPath={selectedFile?.path ?? null}
+                onFileSelect={(path) => openRepoPath(path, { typeHint: "file" })}
+                onFolderSelect={(path) =>
+                  openRepoPath(path, { typeHint: "dir" })
+                }
+                selectedPath={selectedPath}
+                selectedPathType={
+                  selectedFile ? "file" : selectedPath ? "dir" : null
+                }
                 octokit={octokit}
                 owner={auth?.owner ?? ""}
                 repo={auth?.repo ?? ""}
+                refreshKey={refreshKey}
                 onRefresh={handleRefresh}
                 onDelete={writeable ? handleDelete : undefined}
                 onRename={writeable ? handleRename : undefined}
@@ -459,8 +615,7 @@ export function FilesPage() {
               <button
                 className="text-white/50 hover:text-white/80"
                 onClick={() => {
-                  setSelectedFile(null);
-                  setViewMode("viewer");
+                  void openRepoPath("");
                 }}
               >
                 <FolderOpen className="w-4 h-4" />
@@ -475,7 +630,7 @@ export function FilesPage() {
                         ? "text-white/90"
                         : "text-white/50",
                     )}
-                    onClick={() => handleFileSelect(crumb.path)}
+                    onClick={() => void openRepoPath(crumb.path)}
                   >
                     {crumb.label}
                   </button>

@@ -78,11 +78,13 @@ export interface KodyConfig {
 export interface KodyFlyPreviews {
   /** vCPUs for each per-PR preview machine. */
   cpus?: number;
-  /** RAM (MB) for each per-PR preview machine. Dev-mode (`next dev`) needs
-   * ~4096; prod builds run fine far lower. */
+  /** RAM (MB) for each per-PR preview machine. Keep the default at 2048
+   * because Fly suspend is only supported/recommended at <= 2 GB. Dev-mode
+   * previews can opt into 4096, but they cold-stop instead of suspending. */
   memoryMb?: number;
-  /** When true, idle previews suspend (snapshot to disk, ~$0) and wake on
-   * request. The platform default behaviour we want on. */
+  /** When true, idle previews sleep and wake on request. At <= 2 GB this uses
+   * Fly suspend; larger previews use stop because suspend is not supported /
+   * recommended there. */
   idleSuspend?: boolean;
   /** When true, attach an HTTP health check that pings the machine. WARNING:
    * a health check keeps the machine "active" so it never idles → never
@@ -106,11 +108,11 @@ export interface ResolvedFlyPreviews {
   ttlDays: number;
 }
 
-/** Defaults chosen to (a) match the previous hardcoded size so nothing
- * regresses, and (b) flip the health-check OFF so previews finally suspend. */
+/** Defaults chosen so previews are eligible for Fly suspend and health-checks
+ * stay off by default (checks would keep idle machines awake forever). */
 export const DEFAULT_FLY_PREVIEWS: ResolvedFlyPreviews = {
   cpus: 2,
-  memoryMb: 4096,
+  memoryMb: 2048,
   idleSuspend: true,
   healthCheck: false,
   // Auto-delete previews 14 days after creation by default — keeps stale PR

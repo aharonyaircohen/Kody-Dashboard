@@ -19,6 +19,7 @@
 const FLY_MACHINES_BASE = "https://api.machines.dev/v1";
 const FLY_GRAPHQL = "https://api.fly.io/graphql";
 const REQUEST_TIMEOUT_MS = 30_000;
+const FLY_SUSPEND_MEMORY_LIMIT_MB = 2048;
 
 export interface FlyPreviewConfig {
   token: string;
@@ -63,6 +64,11 @@ export interface MachineInfo {
   name?: string;
   /** Guest sizing — populated for the machines-inventory view. */
   guest?: { cpuKind?: string; cpus?: number; memoryMb?: number };
+}
+
+function autostopForMemory(memoryMb: number | undefined): "suspend" | true {
+  const effectiveMemoryMb = memoryMb ?? 512;
+  return effectiveMemoryMb <= FLY_SUSPEND_MEMORY_LIMIT_MB ? "suspend" : true;
 }
 
 /**
@@ -222,7 +228,9 @@ export async function createMachine(
           // fly.toml names (`auto_stop_machines`/`auto_start_machines`) are
           // silently dropped, leaving the machine running 24/7 + unable to
           // auto-wake. (Same bug bit the per-PR builder path.)
-          autostop: "suspend",
+          // Fly suspend is limited/recommended at <= 2 GB. Larger previews
+          // still need to sleep, so use stop mode instead of staying started.
+          autostop: autostopForMemory(input.memoryMb),
           autostart: true,
           min_machines_running: 0,
         },

@@ -6,9 +6,9 @@ Per-PR preview hosting that replaces Vercel preview deployments.
 ## Why
 
 Vercel's preview bill is ~96% build CPU minutes. On Fly: builds run on
-Fly's own remote builder, the per-PR preview machine **suspends to
-disk** when idle (~$0 cost) and wakes in ~1–2s on next request. Net
-result: idle previews are essentially free; only build minutes cost.
+Fly's own remote builder, and the per-PR preview machine **sleeps**
+when idle (~$0 cost) and wakes on the next request. Net result: idle
+previews are essentially free; only build minutes cost.
 
 ## Architecture (one-shot builder pattern)
 
@@ -29,7 +29,7 @@ PR opened/synced
   └─ boot the preview machine
        ↓
 [Preview Fly Machine] — serves https://kp-<...>-pr-<n>.fly.dev
-  • suspend after idle, wake on request
+  • sleep after idle, wake on request
 ```
 
 **The dashboard never polls.** It spawns the builder and returns
@@ -187,8 +187,10 @@ compile to a small preview machine and is slower end-to-end.
 - **Builder Fly Machine**: shared-cpu-2x / 1 GB — orchestration only;
   the real `docker build` happens on `fly-builder-<org>` (Fly's
   always-on remote builder, performance-8x / 16 GB).
-- **Preview Fly Machine**: shared-cpu-2x / 4 GB — needed for Next.js
-  runtime memory headroom. Suspends when idle (≈$0).
+- **Preview Fly Machine**: shared-cpu-2x / 2 GB by default — eligible for
+  Fly suspend when idle. Repos can opt into 4 GB for heavy dev-mode previews;
+  those cold-stop when idle because Fly suspend is limited/recommended at
+  ≤ 2 GB.
 
 ## Static-file previews (upload-and-serve, no build)
 

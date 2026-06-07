@@ -2,7 +2,11 @@
  * Unit tests for FilesPage breadcrumb-building logic.
  */
 import { describe, it, expect } from "vitest";
-import { buildBreadcrumbs } from "@dashboard/components/files/FilesPage";
+import {
+  buildBreadcrumbs,
+  buildFileHref,
+  normalizeRepoPath,
+} from "@dashboard/components/files/FilesPage";
 
 describe("buildBreadcrumbs", () => {
   it("returns empty array for empty path", () => {
@@ -57,5 +61,35 @@ describe("buildBreadcrumbs", () => {
       path: ".github/workflows/ci.yml",
       label: "ci.yml",
     });
+  });
+});
+
+describe("normalizeRepoPath", () => {
+  it("removes leading and trailing slashes", () => {
+    expect(normalizeRepoPath("/src/components/")).toBe("src/components");
+  });
+
+  it("collapses repeated separators", () => {
+    expect(normalizeRepoPath("src//components///Button.tsx")).toBe(
+      "src/components/Button.tsx",
+    );
+  });
+});
+
+describe("buildFileHref", () => {
+  it("returns the files root for an empty path", () => {
+    expect(buildFileHref("")).toBe("/files");
+  });
+
+  it("builds a nested file route", () => {
+    expect(buildFileHref("src/components/Button.tsx")).toBe(
+      "/files/src/components/Button.tsx",
+    );
+  });
+
+  it("encodes URL-sensitive path segments", () => {
+    expect(buildFileHref("docs/What now?.md")).toBe(
+      "/files/docs/What%20now%3F.md",
+    );
   });
 });
