@@ -51,6 +51,42 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
   const retryRef = useRef(0);
   const pausedRef = useRef(false);
   const spokeThisTurnRef = useRef(false); // did this reply enqueue any speech?
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
+  const acquireWakeLock = useCallback(async () => {
+    if (!("wakeLock" in navigator)) return;
+    try {
+      wakeLockRef.current = await navigator.wakeLock.request("screen");
+    } catch {
+      // Wake Lock not supported or denied — fall back silently
+    }
+  }, []);
+
+  const releaseWakeLock = useCallback(async () => {
+    if (!wakeLockRef.current) return;
+    try {
+      await wakeLockRef.current.release();
+    } catch {
+      // ignore
+    }
+    wakeLockRef.current = null;
+  }, []);
+
+  // Re-acquire wake lock when the page becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (
+        document.visibilityState === "visible" &&
+        wakeLockRef.current === null &&
+        stateRef.current !== "idle"
+      ) {
+        await acquireWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [acquireWakeLock]);
 
   useEffect(() => {
     sendRef.current = onSendMessage;
@@ -145,7 +181,8 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     pausedRef.current = false;
     setS("listening");
     stt.start();
-  }, [isSupported, setS, stt, tts]);
+    acquireWakeLock();
+  }, [isSupported, setS, stt, tts, acquireWakeLock]);
 
   const stopConversation = useCallback(() => {
     stt.stop();
@@ -153,13 +190,15 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     pausedRef.current = false;
     retryRef.current = 0;
     setS("idle");
-  }, [stt, tts, setS]);
+    releaseWakeLock();
+  }, [stt, tts, setS, releaseWakeLock]);
 
   const pauseConversation = useCallback(() => {
     pausedRef.current = true;
     stt.stop();
     if (stateRef.current === "listening") setS("idle");
-  }, [stt, setS]);
+    releaseWakeLock();
+  }, [stt, setS, releaseWakeLock]);
 
   const resumeConversation = useCallback(() => {
     if (!isSupported) return;
@@ -182,7 +221,8 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     // Go back to listening
     setS("listening");
     stt.start();
-  }, [tts, setS, stt]);
+    acquireWakeLock();
+  }, [tts, setS, stt, acquireWakeLock]);
 
   // Streaming: speak one sentence as the reply arrives. The first chunk of
   // a turn flips processing → speaking (and counts the turn); later chunks
@@ -232,9 +272,10 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     () => () => {
       stt.stop();
       tts.cancel();
+      releaseWakeLock();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- cleanup only on unmount
-    [],
+    [releaseWakeLock],
   );
 
   return {
