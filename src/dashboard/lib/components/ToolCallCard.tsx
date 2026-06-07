@@ -9,6 +9,7 @@
 import { useState } from "react";
 import { cn } from "@dashboard/lib/utils/ui";
 import { usePersistedState } from "../hooks/usePersistedState";
+export { parseReasoning, stripReasoning } from "../chat/reasoning";
 
 interface ToolCall {
   name: string;
@@ -279,29 +280,4 @@ export function ReasoningPanel({
       )}
     </div>
   );
-}
-
-/**
- * Split assistant content into reasoning blocks (inside <think>...</think>)
- * and the visible answer (everything outside). Tolerates an unclosed final
- * <think> block during streaming — that tail is treated as live reasoning.
- */
-export function parseReasoning(raw: string): {
-  reasoning: string;
-  answer: string;
-} {
-  if (!raw) return { reasoning: "", answer: "" };
-  const reasoningParts: string[] = [];
-  let answer = "";
-  let cursor = 0;
-  const re = /<think>([\s\S]*?)(?:<\/think>|$)/gi;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(raw)) !== null) {
-    answer += raw.slice(cursor, match.index);
-    reasoningParts.push(match[1]);
-    cursor = re.lastIndex;
-    if (!raw.slice(match.index).match(/<\/think>/i)) break;
-  }
-  answer += raw.slice(cursor);
-  return { reasoning: reasoningParts.join("\n\n"), answer };
 }
