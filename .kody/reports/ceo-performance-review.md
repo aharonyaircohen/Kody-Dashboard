@@ -2,25 +2,19 @@
 
 _Cadence: weekly — delivery of owned responsibilities, not subjective quality._
 
-Two of four active staff produced verifiable output this week; qa has no open delivery PRs to verify, making current status ambiguous.
+Four of seven staff delivered real work this week; tech-writer's docs-readme turned the corner (real fix PR open), qa-verify is running on cadence but every verdict is stuck on CONCERNS due to a broken local preview.
 
-| Staff        | Owned duties        | Delivery | Consistency | Signal | Grade |
+| Staff        | Owned duties        | Delivery | Consistency | Signal | Grade  |
 | ------------ | ------------------- | -------- | ----------- | ------ | ------ |
-| ceo          | 1 (1 active)       | High     | High        | High   | strong |
-| coo          | 3 (0 active)       | —        | —           | —      | idle   |
-| cto          | 1 (1 active)       | High     | High        | High   | strong |
-| kody         | 12 (0 active)      | —        | —           | —      | idle   |
-| qa           | 1 (1 active)       | Unclear  | Unclear     | Unclear| unclear |
-| tech-writer  | 2 (2 active)       | Med      | High        | Med    | steady |
-| ux-designer  | 1 (0 active)       | —        | —           | —      | idle   |
+| ceo          | 1 (1 active)        | High     | High        | High   | strong |
+| coo          | 3 (0 active)        | —        | —           | —      | idle   |
+| cto          | 4 (1 active)        | Med      | Med         | Med    | steady |
+| kody         | 11 (0 active)       | —        | —           | —      | idle   |
+| qa           | 3 (1 active)        | High     | High        | Low    | steady |
+| tech-writer  | 2 (2 active)        | High     | High        | High   | strong |
+| ux-designer  | 1 (0 active)        | —        | —           | —      | idle   |
 
-- **qa — unclear:** qa-verify runs every 30m but there are currently no open delivery PRs to verify — no ui-review verdicts observed in the current cycle. Cannot determine if the duty is correctly finding nothing to do or is wedged without PRs to process. **Effect:** no quality gate on current work until a new PR opens.
-- **tech-writer — steady:** docs-code produced issue #99 (src/dashboard/lib/runners/ coverage gap, June 7) — real finding, currently under work. However docs-readme has filed zero docs-drift issues since May 30 despite merged PRs #85, #87, and others touching documented areas. **Effect:** merged features may have undocumented surfaces; the drift-detection gap is growing.
+- **cto — steady (down from strong):** dev-ci-health is the only active duty (cadence 15m, `disabled: false`). No `kody:dev-ci-red` tracking issue is open and the `dev` branch tip has no visible failed run, but no state-file evidence of recent ticks either. **Effect:** dev is quiet and we have no signal whether the duty is actively polling or simply finding nothing because the branch is green.
+- **qa — steady (up from unclear):** qa-verify is now actively dispatching `ui-review` on the surge of open delivery PRs — PR #63 alone has 7 review attempts in the last 24h, all returning `CONCERNS — preview at http://localhost:3000 unreachable (ERR_CONNECTION_REFUSED)`. **Effect:** the gate is running and correctly surfacing a wedge, but no PR advances to merge because every verdict is non-PASS; the queue of 10+ open `kody:done` PRs grows.
 
-### Changes since last week
-
-- **qa:** weak → unclear (no open PRs to verify — different signal than last week's "PRs existed but no verdict").
-- **tech-writer:** weak → steady (docs-code produced a real finding this week; docs-readme continued silence is a concern but docs-code output tips the grade).
-- **ceo:** steady → strong (report ran and updated June 7 — own delivery confirmed).
-- **cto:** steady → strong (CI consistently passing; absence of "dev CI is red" tracking issue confirms the duty is actively monitoring).
-- **coo, kody, ux-designer:** idle (unchanged).
+**Changes since last week:** cto strong→steady (no concrete evidence of active polling); qa unclear→steady (real review attempts now, though blocked by preview env); tech-writer steady→strong (docs-readme produced issue #24's fix PR #109 after a week of silence). ceo, coo, kody, ux-designer unchanged.
