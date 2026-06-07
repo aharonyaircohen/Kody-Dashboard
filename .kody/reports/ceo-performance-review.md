@@ -2,27 +2,28 @@
 
 _Cadence: weekly — delivery of owned responsibilities, not subjective quality._
 
-Two of seven staff delivered this week: ceo (own report duty, real content but the engine is over-firing it ~7.0× daily, up from last week's ~6.9×) and kody (the only active kody-owned duty, `clear-empty-goals`, is shipping a real daily scan, still over-firing ~3.1× daily); cto, qa, and tech-writer all own active duties that remain silent for a second consecutive tick, and coo / ux-designer stay parked with everything disabled. New this tick: `dev-ci-health` finally wrote its first state-file commit (rev 1, cursor `idle`) on 2026-06-06 21:30 UTC — the only first-tick evidence the duty has produced — but still no report, no `chore(dev-ci-health)` commit, and no PR/issue/label output.
+Two of four staff with active duties delivered this week: ceo (own report duty, real weekly content but over-firing ~7.0× daily) and kody (all 12 kody-owned duties remain disabled; the prior strong grade was based on clear-empty-goals, but that duty has no staff: line and is not actually kody-owned on the .md); cto, qa, and tech-writer all own active duties that remain silent for a third consecutive tick, and coo / ux-designer stay parked with everything disabled.
 
-| Staff        | Owned duties  | Delivery | Consistency | Signal | Grade  |
-| ------------ | ------------- | -------- | ----------- | ------ | ------ |
-| ceo          | 2 (1 active)  | High     | Med         | High   | strong |
-| coo          | 3 (0 active)  | —        | —           | —      | idle   |
-| cto          | 4 (1 active)  | Low      | Low         | Low    | weak   |
-| kody         | 12 (1 active) | High     | Med         | High   | strong |
-| qa           | 3 (1 active)  | Low      | Low         | Low    | weak   |
-| tech-writer  | 2 (2 active)  | Low      | Low         | Low    | weak   |
-| ux-designer  | 1 (0 active)  | —        | —           | —      | idle   |
+| Staff        | Owned duties        | Delivery | Consistency | Signal | Grade  |
+| ------------ | ------------------- | -------- | ----------- | ------ | ------ |
+| ceo          | 2 (1 active)        | High     | Med         | High   | strong |
+| coo          | 3 (0 active)        | —        | —           | —      | idle   |
+| cto          | 4 (1 active)        | Low      | Low         | Low    | weak   |
+| kody         | 12 (0 active)       | —        | —           | —      | idle   |
+| qa           | 3 (1 active)        | Low      | Low         | Low    | weak   |
+| tech-writer  | 2 (2 active)        | Low      | Low         | Low    | weak   |
+| ux-designer  | 1 (0 active)        | —        | —           | —      | idle   |
 
-- **coo — idle:** all three owned duties (`duty-review`, `system-audit`, `task-memory-extractor`) remain `disabled: true`. **Effect:** none — operator parking, not a miss.
-- **cto — weak:** `dev-ci-health` finally produced a state-file commit on 2026-06-06 21:30 UTC (`chore(jobs): update state for dev-ci-health (rev 1)` → `cursor: "idle", rev: 1`) — the first state file the duty has ever landed on the default branch. But still no report, no `chore(dev-ci-health)` commit, no PR/issue/label output of any kind, and the `kody:dev-ci-failing` / equivalent review surface the duty is supposed to drive is empty in the window. The other three owned duties (`approval-gate`, `architecture-audit`, `pr-health-triage`) remain `disabled: true`. **Effect:** the 15m CI-health heartbeat on `dev` is essentially still silent — a state file with `cursor: "idle"` is the engine acknowledging the duty, not the duty doing its job; a broken `dev` build would still go unreviewed.
-- **qa — weak:** `qa-verify` produced no state, no PR verdict, no `kody:ui-verified` / `kody:ui-failed` label, and no `chore(qa-verify)` commit in the window (the 0-commit picture on the report file holds; the 2 commits to the .md are the 2026-06-01 add and the 2026-06-02 prettier sweep, both prior to the window). The other two owned duties (`qa`, `qa-sweep`) remain `disabled: true`. **Effect:** the 30m verification heartbeat is still silent; PRs can land without a UI verdict.
-- **tech-writer — weak:** `docs-code` and `docs-readme` both still have `disabled: false` on paper, but neither produced a state file, a report, a commit, or a doc-drift PR in the window — and no `chore(docs-code)` or `chore(docs-readme)` commit exists in the repo at all (the 4 commits to each file are the 2026-05-27 enable pass and the prettier sweep). The previously-noted blocker (PR #61 closed without merging on 2026-06-06T20:39:06Z) is still the blocker, one week on — no replacement PR, no comment, no reopened discussion. **Effect:** the daily doc-drift guard is silent; the on-paper enable is closed-as-abandoned rather than open-pending.
-- **ux-designer — idle:** the only owned duty (`design-review`) is `disabled: true`. **Effect:** none — operator parking.
+- **coo — idle:** all three owned duties (, , ) remain . **Effect:** none — operator parking, not a miss.
+- **cto — weak:**  has produced no state file, no  label (doesn't exist in the repo), no tracking issue, and no CI signal in the window. Dev branch has zero CI runs listed — the heartbeat is essentially silent. The other three owned duties (, , ) remain . **Effect:** the 15m CI-health heartbeat on  is silent; a broken  build would go unreviewed.
+- **kody — idle:** all 12 kody-owned duties are  (the last report's strong grade was based on  running daily, but that duty has no  line in its .md and is not actively kody-owned). **Effect:** none — all duties parked, not a delivery miss.
+- **qa — weak:**  produced no state, no  /  labels (both label types exist but no issues carry them), no PR verdicts, and no  commits. The 30m verification heartbeat is silent. The other two owned duties (, ) remain . **Effect:** PRs can land without a UI verdict.
+- **tech-writer — weak:**  and  both have  on paper but neither produced a state file, a report, a doc-drift issue, or any attributed commits in the window. PR #61 (the prior attempt to enable docs-code) closed without merging on 2026-06-06 — no replacement PR has been opened. **Effect:** the daily doc-drift guard is silent; the on-paper enable is closed-as-abandoned.
+- **ux-designer — idle:** the only owned duty () is . **Effect:** none — operator parking.
 
 ### Cadence escalations (engine, not staff)
 
-- **ceo (strong, but over-firing):** `ceo-performance-review` fired **49 times in the last 7d** against a `every: 7d` frontmatter — roughly **7.0× daily**, or **~49× the stated weekly cadence** (up marginally from last week's 48 fires/7d, ~6.9×/day). The local working-copy state file at `.kody/duties/ceo-performance-review.state.json` still shows `cursor: "seed", rev: 0` after 49 total fires, so the engine is producing report output but neither advancing the duty cursor nor committing the state file. The state file is untracked in the working copy and the engine never commits it, which is the engine-side root cause of the cursor stall. **Effect:** the weekly review is delivered; the engine over-fires it ~7.0× daily and the cursor is stuck.
-- **kody (strong, but over-firing):** `clear-empty-goals` (the only kody-owned active duty) fired **22 times in the last 7d** against an `every: 1d` frontmatter — roughly **3.1× daily** (up marginally from last week's 21 fires/7d, ~3.0×/day). The latest report content (`clear-empty-goals.md`, 2026-06-07 06:29 UTC) is real — scanned 1 goal (`kody-state-split`, 5 tasks all open), found 0 empty, no closes — so the duty is not churning empty no-ops, but the engine is firing it ~3× more often than the frontmatter allows. The `.md` frontmatter for `clear-empty-goals` still has no `staff:` line while the duty is treated as kody-owned per the persona and last week's mapping — fix the .md or remove it. **Effect:** the daily empty-goal sweep is delivered; the engine over-fires the duty ~3.1× daily.
+- **ceo (strong, but over-firing):**  fired **49 times in the last 7d** against an  frontmatter — roughly **7.0× daily**, or **~49× the stated weekly cadence** (essentially flat from last week's 48 fires). The report content is real and substantive — the over-firing is an engine-side issue, not a delivery miss. **Effect:** weekly review delivered; engine cadence broken.
+- **kody (reassessed idle):** The prior strong grade was based on  running as a kody-owned daily duty. However,  has no  frontmatter, so it is not actively mapped to kody. All 12 explicitly kody-owned duties are . kody is idle this cycle. **Effect:** none — no active duties.
 
-- Changes since last week: **no grade changes.** Cadence picture: ceo 48→49 fires/7d (essentially flat at ~7.0× daily, ~49× cadence); clear-empty-goals 21→22 fires/7d (essentially flat at ~3.1 fires/day, ~22× stated daily cadence). The four silent active duties (`dev-ci-health`, `qa-verify`, `docs-code`, `docs-readme`) remain confirmed silent — `dev-ci-health` ticked once (state file, `rev: 1, cursor: "idle"`) but did not produce any CI signal, and the other three produced zero attributed output of any kind, holding the same picture as last week.
+- Changes since last week: **kody strong→idle** (clear-empty-goals confirmed not kody-owned; all explicit kody duties disabled). All other grades unchanged: ceo strong, cto/qa/tech-writer weak, coo/ux-designer idle.
