@@ -8,5 +8,9 @@
 app = "kody-preview-builder"
 primary_region = "fra"
 
+[env]
+  kody_pr = ""  # set via fly secrets set
+  kody_repo_context = ""  # set via fly secrets set
+
 [build]
   dockerfile = "Dockerfile"

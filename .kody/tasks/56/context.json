@@ -1,0 +1,18 @@
+{
+  "taskId": "56",
+  "taskType": "pr",
+  "target": "PR #56 (47-featpreviews-token-gate-per-pr-fly-previews-signed)",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Applied 3 review-feedback nits: (1) consolidated the duplicated 'lifecycle / builder spawn / one-shot builder image' bullet list in CLAUDE.md into a single copy; (2) added a SECURITY comment to app/api/kody/prs/preview/route.ts making explicit that the mintPreviewTicket repo is sourced from headerAuth (authenticated user context) and never from request body or query; (3) added a SECURITY comment in builder/doorman/doorman.ts near the verify flow explaining that the repo is sourced from the ticket's `r` field (HMAC-verified) and not from parseAppName(), so a future reader doesn't 'fix' the parser and break machine-to-ticket binding.",
+  "prUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/56",
+  "runUrl": null,
+  "filesTouched": [
+    "CLAUDE.md",
+    "app/api/kody/prs/preview/route.ts",
+    "builder/doorman/doorman.ts"
+  ],
+  "sessionLog": ".kody/sessions/56.jsonl",
+  "startedAt": "2026-06-07T00:00:00Z",
+  "finishedAt": "2026-06-07T00:00:00Z"
+}

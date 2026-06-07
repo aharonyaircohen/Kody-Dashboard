@@ -12,6 +12,9 @@
 #
 # When BASE_IMAGE is set, deps are inherited from the per-repo base
 # image; the install layer just verifies the lockfile.
+#
+# Port layout: the doorman proxy listens on 8080 (Fly routes here) and
+# proxies validated requests to Next.js on 3000 (internal).
 
 ARG BASE_IMAGE=node:22-alpine
 
@@ -34,10 +37,20 @@ RUN --mount=type=cache,id=kp-pnpm-store,target=/root/.local/share/pnpm/store \
 COPY . ./
 RUN mkdir -p public
 
+# Copy the doorman proxy
+COPY doorman/ ./doorman/
+
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=development
+# Doorman listens on 8080; Next.js runs internally on 3000
 ENV PORT=8080
+ENV NEXT_INTERNAL_PORT=3000
 ENV HOSTNAME=0.0.0.0
 
 EXPOSE 8080
-CMD ["sh", "-c", "if [ -f pnpm-lock.yaml ]; then pnpm exec next dev -H 0.0.0.0 -p 8080; else npx next dev -H 0.0.0.0 -p 8080; fi"]
+# Doorman is PID 1 — starts Next.js as a child, proxies validated traffic.
+CMD ["sh", "-c", \
+  "if [ -f pnpm-lock.yaml ]; then pnpm exec next dev -H 0.0.0.0 -p ${NEXT_INTERNAL_PORT:-3000} & \
+  else npx next dev -H 0.0.0.0 -p ${NEXT_INTERNAL_PORT:-3000} & \
+  fi; \
+  exec node --experimental-strip-types doorman/doorman.ts"]
