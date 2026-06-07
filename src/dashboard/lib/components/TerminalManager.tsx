@@ -389,116 +389,119 @@ export function TerminalManager() {
     }
   }, [refreshInventory, selectedMachine, writeSystemLine]);
 
-  const connect = useCallback(async (overrideMachine?: FlyMachineRow) => {
-    if (!terminalReady) {
-      setError("Terminal is still starting.");
-      return;
-    }
-    const machine = overrideMachine ?? selectedMachine;
-    if (!machine) {
-      setError("Select a terminal-capable machine.");
-      return;
-    }
-    const headers = authHeaders();
-    if (Object.keys(headers).length === 0) {
-      setError("Connect a repository first.");
-      return;
-    }
-
-    socketRef.current?.close();
-    socketRef.current = null;
-    setConnectionState("connecting");
-    setError(null);
-    writeSystemLine(`Connecting to ${machine.app} ${machine.machineId}`);
-
-    try {
-      fitAddonRef.current?.fit();
-      const term = terminalRef.current;
-      const res = await fetch("/api/kody/terminal/session", {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          app: machine.app,
-          machineId: machine.machineId,
-          cols: term?.cols ?? 120,
-          rows: term?.rows ?? 36,
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          message?: string;
-          error?: string;
-        };
-        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+  const connect = useCallback(
+    async (overrideMachine?: FlyMachineRow) => {
+      if (!terminalReady) {
+        setError("Terminal is still starting.");
+        return;
       }
-      const session = (await res.json()) as TerminalSessionResponse;
-      const ws = new WebSocket(session.webSocketUrl);
-      socketRef.current = ws;
+      const machine = overrideMachine ?? selectedMachine;
+      if (!machine) {
+        setError("Select a terminal-capable machine.");
+        return;
+      }
+      const headers = authHeaders();
+      if (Object.keys(headers).length === 0) {
+        setError("Connect a repository first.");
+        return;
+      }
 
-      ws.onopen = () => {
-        writeSystemLine("Bridge connected");
-        if (terminalRef.current) {
-          ws.send(
-            JSON.stringify({
-              type: "resize",
-              cols: terminalRef.current.cols,
-              rows: terminalRef.current.rows,
-            }),
-          );
+      socketRef.current?.close();
+      socketRef.current = null;
+      setConnectionState("connecting");
+      setError(null);
+      writeSystemLine(`Connecting to ${machine.app} ${machine.machineId}`);
+
+      try {
+        fitAddonRef.current?.fit();
+        const term = terminalRef.current;
+        const res = await fetch("/api/kody/terminal/session", {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            app: machine.app,
+            machineId: machine.machineId,
+            cols: term?.cols ?? 120,
+            rows: term?.rows ?? 36,
+          }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as {
+            message?: string;
+            error?: string;
+          };
+          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
         }
-      };
-      ws.onmessage = async (event) => {
-        const raw =
-          typeof event.data === "string"
-            ? event.data
-            : await (event.data as Blob).text();
-        const message = parseBridgeMessage(raw);
-        if (!message) {
-          terminalRef.current?.write(raw);
-          return;
-        }
-        if (message.type === "output" && typeof message.data === "string") {
-          terminalRef.current?.write(message.data);
-          return;
-        }
-        if (message.type === "ready") {
-          setConnectionState("connected");
-          writeSystemLine("Terminal ready");
-          terminalRef.current?.focus();
-          return;
-        }
-        if (message.type === "error") {
+        const session = (await res.json()) as TerminalSessionResponse;
+        const ws = new WebSocket(session.webSocketUrl);
+        socketRef.current = ws;
+
+        ws.onopen = () => {
+          writeSystemLine("Bridge connected");
+          if (terminalRef.current) {
+            ws.send(
+              JSON.stringify({
+                type: "resize",
+                cols: terminalRef.current.cols,
+                rows: terminalRef.current.rows,
+              }),
+            );
+          }
+        };
+        ws.onmessage = async (event) => {
+          const raw =
+            typeof event.data === "string"
+              ? event.data
+              : await (event.data as Blob).text();
+          const message = parseBridgeMessage(raw);
+          if (!message) {
+            terminalRef.current?.write(raw);
+            return;
+          }
+          if (message.type === "output" && typeof message.data === "string") {
+            terminalRef.current?.write(message.data);
+            return;
+          }
+          if (message.type === "ready") {
+            setConnectionState("connected");
+            writeSystemLine("Terminal ready");
+            terminalRef.current?.focus();
+            return;
+          }
+          if (message.type === "error") {
+            setConnectionState("error");
+            setError(message.message ?? "Terminal bridge error");
+            writeSystemLine(message.message ?? "Terminal bridge error");
+            return;
+          }
+          if (message.type === "exit") {
+            setConnectionState("closed");
+            writeSystemLine(
+              `Process exited${message.code === undefined ? "" : ` (${message.code})`}`,
+            );
+          }
+        };
+        ws.onerror = () => {
           setConnectionState("error");
-          setError(message.message ?? "Terminal bridge error");
-          writeSystemLine(message.message ?? "Terminal bridge error");
-          return;
-        }
-        if (message.type === "exit") {
-          setConnectionState("closed");
-          writeSystemLine(
-            `Process exited${message.code === undefined ? "" : ` (${message.code})`}`,
+          setError("Terminal websocket error.");
+          writeSystemLine("Terminal websocket error");
+        };
+        ws.onclose = () => {
+          if (socketRef.current === ws) socketRef.current = null;
+          setConnectionState((current) =>
+            current === "error" ? "error" : "closed",
           );
-        }
-      };
-      ws.onerror = () => {
+        };
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to connect terminal";
         setConnectionState("error");
-        setError("Terminal websocket error.");
-        writeSystemLine("Terminal websocket error");
-      };
-      ws.onclose = () => {
-        if (socketRef.current === ws) socketRef.current = null;
-        setConnectionState((current) =>
-          current === "error" ? "error" : "closed",
-        );
-      };
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to connect terminal";
-      setConnectionState("error");
-      setError(message);
-      writeSystemLine(message);
-    }
-  }, [selectedMachine, terminalReady, writeSystemLine]);
+        setError(message);
+        writeSystemLine(message);
+      }
+    },
+    [selectedMachine, terminalReady, writeSystemLine],
+  );
 
   const wakeAndConnect = useCallback(async () => {
     if (!selectedMachine) {
@@ -616,7 +619,10 @@ export function TerminalManager() {
               </SelectTrigger>
               <SelectContent>
                 {terminalMachines.map((machine) => (
-                  <SelectItem key={machineKey(machine)} value={machineKey(machine)}>
+                  <SelectItem
+                    key={machineKey(machine)}
+                    value={machineKey(machine)}
+                  >
                     {machine.label} · {machine.state} · {machine.region} ·{" "}
                     {machineIdShort(machine.machineId)}
                   </SelectItem>

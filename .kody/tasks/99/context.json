@@ -1,0 +1,24 @@
+{
+  "taskId": "99",
+  "taskType": "issue",
+  "target": "99",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added @ai-summary headers to all 9 runner modules that lacked one; added folder-level header to central fly.ts",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/runners/fly.ts",
+    "src/dashboard/lib/runners/brain-fly.ts",
+    "src/dashboard/lib/runners/fly-inventory.ts",
+    "src/dashboard/lib/runners/pool-client.ts",
+    "src/dashboard/lib/runners/fly-activity.ts",
+    "src/dashboard/lib/runners/litellm-fly.ts",
+    "src/dashboard/lib/runners/fly-context.ts",
+    "src/dashboard/lib/runners/fly-activity-store.ts",
+    "src/dashboard/lib/runners/fly-rates.ts"
+  ],
+  "sessionLog": ".kody/sessions/",
+  "startedAt": "2026-06-07T19:14:00Z",
+  "finishedAt": "2026-06-07T19:18:00Z"
+}
