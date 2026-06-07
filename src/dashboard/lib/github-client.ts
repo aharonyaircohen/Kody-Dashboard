@@ -17,11 +17,6 @@ import {
   TASK_ID_REGEX,
   ALL_STAGES,
 } from "./constants";
-import {
-  assertBudget,
-  methodKind,
-  recordResponseHeaders,
-} from "./github-budget";
 import { isProtectedBranch } from "./branches";
 import { STATE_BRANCH } from "./state-branch";
 import {
@@ -278,27 +273,6 @@ export function invalidateWorkflowCache(): void {
   revalidateTagSafe("gh:workflows");
 }
 
-// ============ Budget circuit breaker ============
-//
-// Attach the same pre/post hooks to every Octokit instance so the budget
-// snapshot reflects ALL traffic and assertBudget runs before every call.
-// `hook.before` throws -> the request is never sent (saves the wall);
-// `hook.after` feeds the snapshot from response headers.
-
-function attachBudgetHooks(octokit: Octokit): void {
-  // Defensive: tests mock Octokit and may not expose `.hook`.
-  const hook = (octokit as { hook?: any }).hook;
-  if (!hook || typeof hook.before !== "function") return;
-  hook.before("request", (options: any) => {
-    assertBudget(methodKind(options?.method));
-  });
-  hook.after("request", (response: any) => {
-    if (response?.headers) {
-      recordResponseHeaders(response.headers as Record<string, unknown>);
-    }
-  });
-}
-
 // ============ Per-Request Repo Context ============
 //
 // The dashboard supports per-user repos (user logs in with their own GitHub
@@ -412,7 +386,6 @@ export function setGitHubContext(
       },
     },
   });
-  attachBudgetHooks(octokit);
 
   requestContext()?.enterWith({ owner, repo, octokit });
 }
@@ -480,7 +453,6 @@ export function getOctokit(): Octokit {
       },
     },
   });
-  attachBudgetHooks(octokitInstance);
 
   return octokitInstance as ThrottledOctokit;
 }
@@ -513,7 +485,6 @@ export function createUserOctokit(token: string): Octokit {
       },
     },
   });
-  attachBudgetHooks(instance);
   return instance;
 }
 

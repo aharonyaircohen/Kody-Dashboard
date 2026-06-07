@@ -1,0 +1,18 @@
+{
+  "taskId": "83",
+  "taskType": "issue",
+  "target": "83",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Deleted github-budget.ts and removed its usage from github-client.ts and health/route.ts. All quality gates pass.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/github-budget.ts (deleted)",
+    "src/dashboard/lib/github-client.ts",
+    "app/api/kody/health/route.ts"
+  ],
+  "sessionLog": ".kody/sessions/5049d786-f87d-4914-9c02-1b534ae4f59d.jsonl",
+  "startedAt": "2026-06-07T16:30:00Z",
+  "finishedAt": "2026-06-07T16:35:34Z"
+}
