@@ -2,14 +2,20 @@
  * @fileType library
  * @domain previews
  * @pattern vault-read
+ * @ai-summary Shared vault read for preview builds. Used by both the
+ *   per-PR `createPreview` path and the base-image rebuild path so they
+ *   bake the same secrets + obey the same build-mode toggle.
  *
- * Shared vault read for preview builds. Used by both the per-PR
- * `createPreview` path and the base-image rebuild path so they bake
- * the same secrets + obey the same build-mode toggle.
- *
- * Returns a safe fallback (empty env + prod mode) when the vault is
- * absent, unreadable, or no background token is available. Callers
- * never need to special-case those.
+ *   Trap: a safe fallback (empty env + prod mode) is returned when the
+ *   vault is absent, unreadable, or no background token is available.
+ *   Callers never need to special-case those — but those silent
+ *   fall-throughs (empty env → broken build) used to be invisible. The
+ *   three failure modes (no token at all, vault read failed, vault
+ *   returned 0 secrets) are now distinguished via loud `logger.error`
+ *   paths so the empty-vault case stops being a mystery. `NEVER_PASS_TO_BUILD`
+ *   is the load-bearing allowlist: it strips infra-only keys (Fly token,
+ *   master key, build-mode knob) so they never get baked into a
+ *   user-facing image.
  */
 
 import { Octokit } from "@octokit/rest";

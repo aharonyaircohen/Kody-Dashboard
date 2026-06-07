@@ -2,21 +2,20 @@
  * @fileType library
  * @domain previews
  * @pattern lifecycle-dispatch
+ * @ai-summary Per-PR / per-branch preview lifecycle — the public API the
+ *   webhook handlers and the static-preview switcher call into. Two
+ *   operations, both cheap and synchronous from the dashboard's side:
+ *   `createPreview` (spawns the builder Fly Machine that handles the entire
+ *   build + boot pipeline and returns immediately) and `destroyPreview`
+ *   (deletes the per-PR Fly app; idempotent). Status lookups (`getPreview`)
+ *   hit Fly's API directly using the deterministic per-PR app name — the
+ *   dashboard never stores preview state of its own, so a Vercel restart
+ *   loses nothing.
  *
- * Per-PR preview lifecycle.
- *
- * Two operations, both cheap and synchronous from the dashboard side:
- *
- *   createPreview  — spawns a builder Fly Machine that handles the full
- *                    pipeline (build + push image + create app + IPs +
- *                    preview machine + exit). The dashboard's only Fly
- *                    interaction is the single spawn call (~1s).
- *
- *   destroyPreview — deletes the per-PR Fly app on PR close. Idempotent.
- *
- * Status lookups (getPreview) hit Fly's API directly using the
- * deterministic per-PR app name. The dashboard never stores preview
- * state of its own.
+ *   Static-file previews are intentionally excluded from `CreatePreviewInput`
+ *   (they skip the builder entirely — see `static-preview.ts`); their status
+ *   + teardown flow through the same `getPreview` / `destroyPreview` because
+ *   those functions already work for any `PreviewKey`.
  */
 
 import { logger } from "@dashboard/lib/logger";

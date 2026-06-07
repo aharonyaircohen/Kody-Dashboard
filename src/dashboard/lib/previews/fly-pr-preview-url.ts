@@ -2,13 +2,16 @@
  * @fileType library
  * @domain previews
  * @pattern fly-url-resolver
+ * @ai-summary Resolve the deterministic Fly preview URL for a PR, but only
+ *   when the repo actually has Fly previews configured AND a per-PR app
+ *   already exists. Returns `null` for every "not on Fly" case (no Fly token
+ *   in the repo vault, no app built yet, or any Fly API hiccup), which is
+ *   the caller's signal to fall back to the Vercel preview lookup.
  *
- * Resolve the deterministic Fly preview URL for a PR — but only when the
- * repo actually has Fly previews configured AND a per-PR app exists. Returns
- * `null` for every "not on Fly" case (no Fly token in the repo vault, no app
- * built yet, or any Fly API hiccup), which is the caller's signal to fall
- * back to the Vercel preview lookup. Best-effort: it never throws, so a Fly
- * outage degrades to Vercel rather than blanking the preview pane.
+ *   Best-effort contract: it NEVER throws. A Fly outage degrades to Vercel
+ *   rather than blanking the preview pane. Callers can therefore wire it
+ *   into the optimistic UI path without a try/catch — null is the
+ *   "use Vercel" answer.
  */
 
 import type { Octokit } from "@octokit/rest";

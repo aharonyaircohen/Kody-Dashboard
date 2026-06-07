@@ -1,0 +1,29 @@
+{
+  "taskId": "118",
+  "taskType": "issue",
+  "target": "118",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added @ai-summary to all 14 modules in src/dashboard/lib/previews/ and a folder-level header to the central fly-previews.ts",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/previews/base-rebuild.ts",
+    "src/dashboard/lib/previews/builder-client.ts",
+    "src/dashboard/lib/previews/config.ts",
+    "src/dashboard/lib/previews/fly-pr-preview-url.ts",
+    "src/dashboard/lib/previews/fly-previews.ts",
+    "src/dashboard/lib/previews/preview-key.ts",
+    "src/dashboard/lib/previews/preview-lifecycle.ts",
+    "src/dashboard/lib/previews/preview-pool.ts",
+    "src/dashboard/lib/previews/preview-router.ts",
+    "src/dashboard/lib/previews/static-preview-client.ts",
+    "src/dashboard/lib/previews/static-preview.ts",
+    "src/dashboard/lib/previews/sweep.ts",
+    "src/dashboard/lib/previews/vault-build-context.ts",
+    "src/dashboard/lib/previews/webhook.ts"
+  ],
+  "sessionLog": ".kody/sessions/118.jsonl",
+  "startedAt": "2026-06-07T22:01:30Z",
+  "finishedAt": "2026-06-07T22:02:30Z"
+}

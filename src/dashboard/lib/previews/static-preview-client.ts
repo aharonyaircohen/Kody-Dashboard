@@ -2,11 +2,15 @@
  * @fileType api-client
  * @domain previews
  * @pattern browser-fetch
+ * @ai-summary Browser-side upload + teardown for static-file previews,
+ *   hitting `/api/kody/previews/static`. Used by the Preview workspace's
+ *   environment switcher: upload a file → get a live Fly URL (added as
+ *   an environment); remove that environment → destroy the Fly app.
  *
- * Browser-side upload + teardown for static-file previews, hitting
- * `/api/kody/previews/static`. Used by the Preview workspace's environment
- * switcher: upload a file → get a live Fly URL (added as an environment);
- * remove that environment → destroy the Fly app.
+ *   `authHeaders()` reuses the same stored PAT the rest of the dashboard
+ *   uses, and the upload deliberately does NOT set a content-type so the
+ *   browser adds the multipart boundary (silently setting
+ *   `application/json` is the classic FormData bug here).
  */
 "use client";
 

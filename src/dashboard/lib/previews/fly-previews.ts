@@ -2,18 +2,48 @@
  * @fileType library
  * @domain previews
  * @pattern fly-machines-client
+ * @ai-summary Low-level Fly Machines REST + GraphQL client — the only file
+ *   in this folder that talks to api.machines.dev / api.fly.io directly.
+ *   Higher-level code (preview-lifecycle, static-preview, sweep, pool) calls
+ *   `appExists` / `createApp` / `createMachine` / `listMachines` / `destroyApp`
+ *   and treats each function as a single Fly round-trip. Retry on transient
+ *   fetch errors (TLS races, ECONNRESET) and on MANIFEST_UNKNOWN (registry
+ *   eventual consistency after a fresh push) live here so callers don't have
+ *   to. Loading-bearing gotcha: `autostop: "suspend"` only works at ≤ 2 GB —
+ *   above that the field is downgraded to plain `true` (cold-stop) and the
+ *   preview machine never resumes cheaply. Also: machine-level `checks` count
+ *   as traffic and prevent suspend, so they default OFF.
  *
- * Fly Machines REST + GraphQL client for PR preview hosting.
+ * ---
  *
- * Separate from the runners' `fly.ts` because:
- *   - runners spawn one-shot machines that exit; previews are long-lived
- *     HTTP services that auto-suspend.
- *   - previews need app creation + IP allocation per PR (each preview is
- *     its own app, so it gets its own <app>.fly.dev hostname).
- *   - runners share one `kody-runner` app; previews can't.
+ * Folder: `src/dashboard/lib/previews/` — PR previews on Fly Machines.
  *
- * The pool path (see `pool-claim.ts`) skips most of this — it claims a
- * pre-booted suspended machine and only swaps the image.
+ * What this folder is: the dashboard-side runtime for per-PR preview hosting
+ * on Fly (each PR gets its own `<app>.fly.dev` URL; machines auto-suspend on
+ * idle). Production stays on Vercel; only previews move to Fly.
+ *
+ * Entry points (in the order you'd read them):
+ *   - `webhook.ts`              — PR open/sync/closed handlers wired from the
+ *                                 GitHub webhook receiver.
+ *   - `preview-router.ts`       — picks Fly (preferred) vs GitHub Actions
+ *                                 (fallback) for the build.
+ *   - `preview-lifecycle.ts`    — `createPreview` / `destroyPreview` /
+ *                                 `getPreview` for the create-fresh path.
+ *   - `static-preview.ts`       — upload-and-serve (no builder, no Docker).
+ *   - `builder-client.ts`       — spawns the one-shot builder Fly Machine.
+ *   - `fly-previews.ts` (THIS)  — the Fly REST + GraphQL client.
+ *
+ * Load-bearing gotchas for the whole folder:
+ *   - **Per-repo billing.** Every Fly call uses `FLY_API_TOKEN` from the
+ *     TARGET repo's vault (see `config.ts`). Never read it from
+ *     `process.env` or a global config — that would bill a stranger's
+ *     builds to the dashboard's account.
+ *   - **Deterministic app naming** (`preview-key.ts`). Same (repo, PR) →
+ *     same app name. Lets status checks be a direct Fly query and lets
+ *     webhook routing be stateless.
+ *   - **No dashboards storage.** Preview state lives on Fly, not in the
+ *     dashboard. The dashboard reads Fly for status, so a Vercel instance
+ *     restart loses nothing.
  */
 
 const FLY_MACHINES_BASE = "https://api.machines.dev/v1";

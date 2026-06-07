@@ -2,17 +2,18 @@
  * @fileType library
  * @domain previews
  * @pattern ttl-sweep
+ * @ai-summary Destroy per-PR preview apps that have outlived their TTL.
+ *   Previews accumulate: every open PR (and stale bot PRs never close)
+ *   keeps a Fly app alive; even when machines suspend they still cost
+ *   rootfs storage, and the app count balloons. This sweep enumerates a
+ *   repo's preview apps and destroys any whose oldest machine is older
+ *   than `fly.previews.ttlDays`.
  *
- * Destroy per-PR preview apps that have outlived their TTL.
- *
- * Previews accumulate: every open PR (and stale bot PRs never close) keeps a
- * Fly app alive. Even when machines suspend they still cost rootfs storage,
- * and the app count balloons. This sweep enumerates a repo's preview apps and
- * destroys any whose oldest machine is older than `fly.previews.ttlDays`.
- *
- * TTL is opt-in: `ttlDays <= 0` (the default) sweeps nothing. The per-repo
- * BASE image (`kp-…-base`) is always skipped — it's the build cache, not a
- * preview.
+ *   Opt-in: `ttlDays <= 0` (the default) sweeps nothing. The per-repo BASE
+ *   image (`kp-…-base`) is ALWAYS skipped — it's the build cache, not a
+ *   preview. Best-effort: a failure on one app is logged and recorded in
+ *   `errored` but never aborts the rest, and `now` is injectable for
+ *   tests.
  */
 
 import { logger } from "@dashboard/lib/logger";

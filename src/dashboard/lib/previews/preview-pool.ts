@@ -2,26 +2,22 @@
  * @fileType library
  * @domain previews
  * @pattern warm-pool-client
+ * @ai-summary Dashboard-side client for the preview warm pool. Mirrors the
+ *   runner pool pattern (runners/pool-client.ts) — separate endpoint, same
+ *   fall-back-cleanly-when-unavailable contract. The owner
+ *   (preview-pool-serve) is expected to live on the same Fly machine as
+ *   the litellm proxy + runner pool owner. It manages N pre-booted,
+ *   suspended Fly machines per repo running a generic Next.js base image;
+ *   `claimPreviewFromPool` asks the owner to pick a free suspended
+ *   machine, swap its image config to the PR's just-built image, unfreeze
+ *   + rename the parent app to the PR-keyed name, and return the machine
+ *   id and public URL. Time-to-URL drops from ~40s (create-fresh) to ~3s.
  *
- * Dashboard-side client for the preview warm pool. Mirrors the runner
- * pool pattern (runners/pool-client.ts) — separate endpoint, same
- * fall-back-cleanly-when-unavailable contract.
- *
- * The owner (preview-pool-serve) is expected to live on the same Fly
- * machine as the litellm proxy + runner pool owner. It manages N
- * pre-booted, suspended Fly machines per repo running a generic Next.js
- * base image. `claimPreviewFromPool` asks the owner to:
- *   1. Pick a free suspended machine
- *   2. Swap its image config to the PR's just-built image
- *   3. Unfreeze + rename the parent app to the PR-keyed name
- *   4. Return the machine id and public URL
- *
- * Result: time-to-URL drops from ~40s (create-fresh) to ~3s (pool path).
- *
- * Contract: NEVER throws. On any failure (no master key, owner
- * unreachable, empty pool → 503) returns { ok:false } and the caller
- * falls back to the create-fresh path in `preview-lifecycle.ts`. The
- * pool is an accelerator, not a hard dependency.
+ *   Trap / contract: NEVER throws. On any failure (no master key, owner
+ *   unreachable, empty pool → 503) returns `{ ok:false }` and the caller
+ *   falls back to the create-fresh path in `preview-lifecycle.ts`. The
+ *   pool is an accelerator, not a hard dependency — code paths that
+ *   short-circuit on `ok:false` are the design, not an error case.
  */
 
 import { logger } from "@dashboard/lib/logger";

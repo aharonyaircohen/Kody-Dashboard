@@ -2,18 +2,20 @@
  * @fileType library
  * @domain previews
  * @pattern config
+ * @ai-summary Resolve the per-repo Fly preview config — the `FLY_API_TOKEN`
+ *   that bills this repo's previews, the org slug, and the default region.
+ *   Each repo's previews bill to THAT repo's own Fly token (per-repo infra
+ *   rule); never fall back to a global dashboard token. The token is read
+ *   from the target repo's vault (`.kody/secrets.enc`) with `process.env` as
+ *   a dev-only override.
  *
- * Resolve Fly preview config from the per-repo vault. Follows the
- * per-repo infra rule: each repo's previews are billed against THAT
- * repo's own Fly token, not a global dashboard token.
- *
- * Two entry points:
- *   - `resolvePreviewConfigForOctokit` — call when you already have an
- *     authenticated Octokit (API routes that go through resolveActor or
- *     request-auth wiring).
- *   - `resolvePreviewConfigForRepo` — call from server-side contexts
- *     without a user session (webhook receivers, cron). Uses
- *     KODY_BOT_TOKEN / GITHUB_TOKEN to build a server Octokit.
+ *   Two entry points: `resolvePreviewConfigForOctokit` (caller already has
+ *   an Octokit) and `resolvePreviewConfigForRepo` (server-side contexts —
+ *   webhooks, cron — that resolve a background token via the shared App /
+ *   vault policy). Also exposes `resolveFlyPreviewsForRepo` for the
+ *   per-repo machine-sizing knobs in `kody.config.json`'s `fly.previews`
+ *   block; that one NEVER throws so the preview hot path survives a config
+ *   read error and falls back to defaults.
  */
 
 import { Octokit } from "@octokit/rest";

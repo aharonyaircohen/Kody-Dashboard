@@ -2,17 +2,19 @@
  * @fileType library
  * @domain previews
  * @pattern fly-machine-spawn
+ * @ai-summary Fire-and-forget spawn of the per-PR builder Fly Machine. The
+ *   builder handles the entire preview pipeline on its own (clone, build,
+ *   push image, create per-PR app, allocate IPs, boot preview machine, exit)
+ *   so the dashboard's only Fly interaction is this single ~1s call.
  *
- * Spawns the per-PR builder Fly Machine and returns immediately.
+ *   Trap: a Vercel serverless function must NOT poll the builder — long
+ *   polling fights the 10s function timeout. Instead, return the
+ *   deterministic `expectedUrl` immediately and let the dashboard's status
+ *   endpoint probe Fly for current state on demand.
  *
- * The builder machine handles the ENTIRE preview lifecycle on its
- * own — clone, build, push image, create per-PR app, allocate IPs,
- * boot preview machine, exit. The dashboard never polls it.
- *
- * Result: a single fast Vercel→Fly call (~1s) per webhook fire. No
- * long-running serverless function, no cross-cloud TLS in the hot
- * path. The dashboard checks Fly state on demand via the existing
- * status endpoint (deterministic app name → query Fly Machines API).
+ *   Also threads the HKDF-derived preview-verify key (`KODY_PREVIEW_VERIFY_KEY`)
+ *   into the builder so the doorman on the preview machine can validate
+ *   access tickets without ever seeing the raw `KODY_MASTER_KEY`.
  */
 
 import { createHash } from "node:crypto";

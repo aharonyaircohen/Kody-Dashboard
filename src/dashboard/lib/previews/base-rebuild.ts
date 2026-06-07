@@ -2,25 +2,23 @@
  * @fileType library
  * @domain previews
  * @pattern base-image-refresh
+ * @ai-summary Auto-rebuild the per-repo GHCR base image on every push to the
+ *   default branch. The base image holds the heavy `pnpm install` +
+ *   `next build` cache for the current main; per-PR builds `FROM` it and
+ *   skip those steps, cutting a cold PR build from ~13 min to ~3.
  *
- * Auto-rebuild the per-repo GHCR base image on every push to the
- * default branch. The base image holds the heavy `pnpm install` +
- * `next build` cache for the current main; per-PR builds `FROM` it
- * and skip those steps, cutting a cold PR build from ~13 min to ~3.
+ *   Without auto-rebuild the base goes stale (deps update on main, source
+ *   diverges) and PR `FROM` falls back to a slow full build. Same builder
+ *   code path as a per-PR build — only the app name is different (`...-base`
+ *   suffix). The builder detects that suffix and mirrors the resulting image
+ *   to GHCR as `kp-<owner>-<repo>-base:latest` so per-PR builds (which run
+ *   under `flyctl --remote-only` and can't auth to the Fly registry) can
+ *   inherit from it.
  *
- * Without auto-rebuild the base goes stale (deps update on main,
- * source diverges) and PR `FROM` falls back to a slow full build.
- *
- * Same builder code path as a per-PR build — only the app name is
- * different (`...-base` suffix). The builder detects that suffix
- * (`isBaseBuild`) and mirrors the resulting image to GHCR as
- * `kp-<owner>-<repo>-base:latest`. From there every subsequent PR's
- * `FROM ${BASE_IMAGE}` inherits the freshly-built layers.
- *
- * Per-repo in-process debounce keeps back-to-back pushes from
- * queuing parallel base builds. Cross-instance debounce isn't
- * needed: a second base build from a different Vercel instance
- * just overwrites the GHCR `:latest` tag idempotently.
+ *   In-process per-repo debounce (10 min) keeps back-to-back pushes from
+ *   queuing parallel base builds. Cross-instance debounce isn't needed: a
+ *   second base build from another Vercel instance just overwrites the
+ *   GHCR `:latest` tag idempotently.
  */
 
 import { logger } from "@dashboard/lib/logger";

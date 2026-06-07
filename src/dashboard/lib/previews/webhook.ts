@@ -2,21 +2,21 @@
  * @fileType library
  * @domain previews
  * @pattern webhook-handler
+ * @ai-summary GitHub webhook entry points for the preview lifecycle, wired
+ *   from the `pull_request` event handler in
+ *   `app/api/webhooks/github/route.ts`. Two flows: `handlePrOpenedOrSynced`
+ *   (builds + boots the preview through the router, falls back to
+ *   create-fresh if the router is disabled) and `handlePrClosed` (destroys
+ *   the per-PR Fly app + machine). Also: `handleDefaultBranchPush` for
+ *   auto-rebuilding the GHCR base image, plus an opportunistic TTL sweep
+ *   and Fly activity snapshot fired on every successful build.
  *
- * GitHub webhook entry points for the preview lifecycle. Wired from
- * the `pull_request` event handler in
- * app/api/webhooks/github/route.ts.
- *
- * Two flows:
- *   - opened / synchronize / reopened → handlePrOpenedOrSynced
- *       Builds + boots the preview through the dedicated builder
- *       service. Tries the warm pool first; falls back to create-fresh.
- *   - closed → handlePrClosed
- *       Destroys the per-PR Fly app + machine.
- *
- * Both resolve the Fly token from the TARGET repo's vault, so each
- * repo's previews are billed to that repo. Opt-in is implicit: when
- * the repo's vault has no FLY_API_TOKEN, every handler returns silently.
+ *   Both flows resolve the Fly token from the TARGET repo's vault, so each
+ *   repo's previews are billed to that repo. Opt-in is implicit: when the
+ *   repo's vault has no `FLY_API_TOKEN`, every handler returns silently.
+ *   Engine-only pushes (changes under `.kody/` or `CHANGELOG.md` only)
+ *   are skipped to match the Vercel `ignoreCommand` policy and avoid
+ *   burning builder time on bookkeeping writes.
  */
 
 import { Octokit } from "@octokit/rest";

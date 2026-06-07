@@ -2,10 +2,16 @@
  * @fileType library
  * @domain previews
  * @pattern naming
+ * @ai-summary Deterministic Fly app naming for previews — same (repo, PR)
+ *   always yields the same app name, which means the public URL is
+ *   deterministic too. No DB lookup, idempotent rebuilds, easy webhook
+ *   routing.
  *
- * Deterministic app naming for previews. Same (repo, PR) always yields
- * the same Fly app name, which means the public URL is deterministic too
- * — no DB lookup, idempotent rebuilds, easy webhook routing.
+ *   Trap: the `kp-<ownerHash>-<repoHash>-…` shape is load-bearing for the
+ *   TTL sweep (which lists apps by prefix and must not touch non-preview
+ *   apps) and for the warm-pool owner (which keys its suspended machines by
+ *   the same hash). Renaming the prefix or the hash function is a breaking
+ *   change that orphans every existing preview app.
  */
 
 import { createHash } from "node:crypto";

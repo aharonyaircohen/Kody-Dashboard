@@ -2,22 +2,21 @@
  * @fileType library
  * @domain previews
  * @pattern dispatch-router
+ * @ai-summary Pick where a per-PR preview build runs. Previews PREFER Fly
+ *   (Fly Machines, the prebuilt builder image) whenever the repo has a Fly
+ *   token — the builder clones + `flyctl deploy`s directly and never runs
+ *   the `npx kody-engine@latest` download the GitHub path does on every
+ *   build (that download was crashing ~half of preview builds with
+ *   transient ECONNRESET and leaving no app behind). GitHub Actions
+ *   (`kody.yml`, executable=preview-build) is only the fallback — when the
+ *   repo has no Fly token, or the Fly arm itself errors.
  *
- * Pick where a per-PR preview build runs. Previews PREFER Fly:
- *
- *   - Fly Machines (the prebuilt builder image) whenever the repo has a
- *     Fly token. The builder clones + `flyctl deploy`s directly, so it
- *     never runs the `npx kody-engine@latest` download the GitHub path
- *     does on every build — that download was crashing ~half of preview
- *     builds with transient ECONNRESET and leaving no app (so the
- *     `*.fly.dev` hostname never resolved).
- *   - GitHub Actions (kody.yml, executable=preview-build) only as the
- *     fallback — when the repo has no Fly token, or the Fly arm errors.
- *
- * NOTE: this inverts the engine-runner policy on purpose. Engine *jobs*
- * stay GitHub-first via dispatchRun ("GitHub base, Fly fallback"); only
- * previews prefer Fly, because the Fly builder is the reliable,
- * download-free path for them.
+ *   This inverts the engine-runner policy ON PURPOSE. Engine jobs stay
+ *   GitHub-first via `dispatchRun` (GitHub base, Fly fallback); only
+ *   previews prefer Fly, because the Fly builder is the reliable,
+ *   download-free path for them. The feature flag `KODY_PREVIEW_ROUTER`
+ *   lets us roll the policy back to always-Fly if the new path
+ *   misbehaves in production.
  */
 
 import { Octokit } from "@octokit/rest";

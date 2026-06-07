@@ -2,24 +2,21 @@
  * @fileType library
  * @domain previews
  * @pattern static-file-preview
+ * @ai-summary Serve an uploaded static file (HTML, PDF, image…) as a Fly
+ *   preview — with NO builder and NO Docker build. Unlike PR/branch
+ *   previews (which clone a repo and build an image on a one-shot builder
+ *   machine), a static preview boots a stock static-server image
+ *   (`nginx:alpine` by default) and injects the uploaded file(s) straight
+ *   into the machine via Fly's `config.files`. That means it's ready in
+ *   seconds, not minutes, and the dashboard's only Fly calls are
+ *   `createApp` → `allocateSharedIps` → `createMachine`.
  *
- * Serve an uploaded static file (HTML, PDF, image…) as a Fly preview —
- * with NO builder and NO Docker build.
- *
- * Unlike PR/branch previews (which clone a repo and build an image on a
- * one-shot builder machine), a static preview boots a stock static-server
- * image (`nginx:alpine` by default) and injects the uploaded file(s)
- * straight into the machine via Fly's `config.files`. That means it's
- * ready in seconds, not minutes, and the dashboard's only Fly calls are
- * createApp → allocateSharedIps → createMachine.
- *
- * Lifecycle reuse: status (`getPreview`) and teardown (`destroyPreview`)
- * in `preview-lifecycle.ts` already work for any `PreviewKey`, so a
- * `StaticPreviewKey` flows through them unchanged. Only *creation* differs,
- * which is what this file provides.
- *
- * Per-repo billing: the caller passes the target repo's own
- * `FlyPreviewConfig` (resolved from that repo's vault `FLY_API_TOKEN`).
+ *   Lifecycle reuse: `getPreview` and `destroyPreview` in
+ *   `preview-lifecycle.ts` already work for any `PreviewKey`, so a
+ *   `StaticPreviewKey` flows through them unchanged. Only *creation*
+ *   differs, which is what this file provides. Per-repo billing: the
+ *   caller passes the target repo's own `FlyPreviewConfig` (resolved
+ *   from that repo's vault `FLY_API_TOKEN`).
  */
 
 import { logger } from "@dashboard/lib/logger";
