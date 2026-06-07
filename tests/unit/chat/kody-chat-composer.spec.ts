@@ -4,10 +4,13 @@
  * single rounded flex row (Paperclip | Textarea | VoiceButton | Send)
  * to two distinct rows separated by a hairline:
  *
- *   Row A — input row:    [ Textarea (flex-1) ][ Send/Stop/Start ]
+ *   Row A — input row:    [ Textarea (flex-1) ][ Stop/Cancel (conditional) ]
  *   separator —           <div className="border-t …" />
- *   Row B — action row:   [ Paperclip ][ VoiceButton ][ spacer (flex-1) ]
+ *   Row B — action row:   [ Paperclip ][ VoiceButton ][ Send (inline icon, conditional) ][ spacer (flex-1) ]
  *
+ * The inline Send icon replaces the old Send/Start text buttons — it
+ * lives in the action row alongside the other icon buttons, visible
+ * only when there's composer content and the chat isn't loading.
  * Pure JSX layout refactor — no behavior change. The test reads the
  * source file and asserts the structural markers so the refactor can
  * never silently regress to the old single-row layout.
@@ -135,7 +138,7 @@ describe("KodyChat composer — two-row layout (issue #65)", () => {
     ).toBe(true);
   });
 
-  it("the input row (1st flex row) contains the textarea + Send button, not Paperclip/VoiceButton", () => {
+  it("the input row (1st flex row) contains the textarea but not Paperclip/VoiceButton/Send", () => {
     // The input row is the FIRST `<div className="flex ` in the
     // composer. The old layout had a single row containing all four
     // children — this test pins the new layout.
@@ -150,11 +153,11 @@ describe("KodyChat composer — two-row layout (issue #65)", () => {
     );
 
     expect(inputText).toContain("<textarea");
-    // Send button — the literal "Send" label, possibly with whitespace
-    // between the text and the closing `</button>`.
-    expect(inputText, "input row must contain the Send button").toMatch(
-      />\s*Send\s*</,
-    );
+    // The inline Send icon lives in the action row, not the input row.
+    expect(
+      inputText,
+      "input row must NOT contain <Send (it lives in the action row as an inline icon)",
+    ).not.toMatch(/<Send\b/);
     // Paperclip and VoiceButton live in the action row below.
     expect(
       inputText,
@@ -166,9 +169,10 @@ describe("KodyChat composer — two-row layout (issue #65)", () => {
     ).not.toMatch(/<VoiceButton\b/);
   });
 
-  it("the action row (2nd flex row) contains Paperclip + VoiceButton, not the textarea", () => {
+  it("the action row (2nd flex row) contains Paperclip + VoiceButton + Send, not the textarea", () => {
     // The action row is the SECOND `<div className="flex ` in the
-    // composer.
+    // composer. The inline Send icon button lives here alongside the
+    // other icon buttons (Paperclip, VoiceButton).
     const actionRow = findFlexRowRange(
       SOURCE_LINES,
       COMPOSER_RANGE.start,
@@ -182,6 +186,10 @@ describe("KodyChat composer — two-row layout (issue #65)", () => {
 
     expect(actionText).toContain("<Paperclip");
     expect(actionText).toMatch(/<VoiceButton\b/);
+    expect(
+      actionText,
+      "action row must contain the inline <Send icon button",
+    ).toMatch(/<Send\b/);
     // The action row must NOT contain the textarea — that lives in
     // the input row above.
     expect(
