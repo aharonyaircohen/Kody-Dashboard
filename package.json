@@ -1,6 +1,6 @@
 {
   "name": "kody-dashboard",
-  "version": "0.1.1056",
+  "version": "0.1.1057",
   "private": true,
   "license": "MIT",
   "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
@@ -18,6 +18,7 @@
     "vault:init": "node scripts/generate-vault-key.mjs",
     "push:init": "node scripts/generate-vapid-keys.mjs",
     "picker:pack": "node scripts/pack-extension.mjs",
+    "brain:local": "npx -y -p @kody-ade/kody-engine@latest kody-engine brain-serve",
     "prepare": "husky"
   },
   "dependencies": {

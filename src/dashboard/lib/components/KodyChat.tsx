@@ -115,8 +115,8 @@ import {
   ToolCallList,
   ThinkingPanel,
   ReasoningPanel,
-  parseReasoning,
 } from "./ToolCallCard";
+import { parseReasoning, stripReasoning } from "../chat/reasoning";
 import { MessageActions } from "./MessageActions";
 import { VibeRunButton } from "./VibeRunButton";
 import {
@@ -1701,10 +1701,7 @@ export function KodyChat({
       // the rest of the reply is still generating. No-op outside voice mode.
       const emitVoiceDelta =
         options.voiceMode && options.onVoiceDelta
-          ? (full: string) =>
-              options.onVoiceDelta!(
-                full.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim(),
-              )
+          ? (full: string) => options.onVoiceDelta!(stripReasoning(full))
           : null;
 
       // Voice mode is a MODALITY. It does NOT swap agents — the user's
@@ -1762,15 +1759,12 @@ export function KodyChat({
       //    They come from aborted turns or turns where the model only
       //    produced reasoning. Sending them back makes the model "continue
       //    from nothing" and often regress into apologies.
-      const stripThinkingTags = (content: string): string =>
-        content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
-
       const priorMessages = messages
         .map((m) => {
           if (m.role !== "assistant") return m;
           if (m.isError) return null;
           if (m.content.startsWith("Error: ")) return null;
-          const cleaned = stripThinkingTags(m.content);
+          const cleaned = stripReasoning(m.content);
           if (!cleaned) return null;
           return { ...m, content: cleaned };
         })
@@ -2223,9 +2217,7 @@ export function KodyChat({
           // them when voiceMode is set, but the dashboard should never
           // narrate them even if an old server leaks them through.
           const spokenText = voiceMode
-            ? latestAssistantText
-                .replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "")
-                .trim()
+            ? stripReasoning(latestAssistantText)
             : latestAssistantText;
           return spokenText || null;
         } catch (error) {
@@ -2482,7 +2474,7 @@ export function KodyChat({
                   | { type: string };
                 if (chunk.type === "text-delta" && "delta" in chunk) {
                   textBuf += chunk.delta;
-                  emitVoiceDelta?.(textBuf);
+                  emitVoiceDelta?.(stripReasoning(textBuf));
                 } else if (
                   chunk.type === "reasoning-delta" &&
                   "delta" in chunk
@@ -2777,9 +2769,7 @@ export function KodyChat({
           // stream (some providers route thoughts through text-delta
           // instead of reasoning-delta, especially under OpenAI-compat
           // shims) so TTS never narrates them.
-          const stripThink = (s: string) =>
-            s.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
-          const spoken = voiceMode ? stripThink(textBuf) : textBuf.trim();
+          const spoken = voiceMode ? stripReasoning(textBuf) : textBuf.trim();
           return spoken || null;
         } catch (err) {
           // Stop button fired — fetch/reader throws an AbortError. That's
