@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Consider deleting PreviewModal in favor of the standalone /preview route",
+    "body": "PreviewModal now duplicates ~80% of PreviewWorkspace (PreviewPane + tabs + actions) just to scope it to a task. The /preview route already exists for a chosen environment; a /<issue>/preview route could host the per-PR version. Worth a follow-up to consolidate rather than maintain two near-identical preview UIs.",
+    "rationale": "Now that the modal no longer needs an inner chat panel, the main reason it had to be a separate component is gone. Most of its body could be expressed as a `PreviewPane` wrapper plus the PR-specific tabs/actions, mirroring how VibePage and PreviewWorkspace share PreviewPane.",
+    "priority": "low"
+  }
+]

@@ -2,7 +2,10 @@
  * @fileType component
  * @domain kody
  * @pattern preview-modal
- * @ai-summary Full-screen modal overlay showing PR preview: iframe, changes, comments, actions
+ * @ai-summary In-page preview panel: iframe, changes, comments, actions.
+ *   Renders inline within the page's main content area (next to the
+ *   sidebar and persistent chat rail mounted by ChatRailShell), not as
+ *   a full-screen overlay — see issue #110.
  */
 "use client";
 
@@ -19,7 +22,6 @@ import { FileDiff } from "./FileDiff";
 import { MergeConflictBanner } from "./MergeConflictBanner";
 import { CIFailureBanner } from "./CIFailureBanner";
 import { BranchBehindBanner } from "./BranchBehindBanner";
-import { KodyChat } from "./KodyChat";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
 import {
@@ -56,27 +58,6 @@ import { Button } from "@dashboard/ui/button";
 
 type PreviewTab = "preview" | "changes" | "comments";
 
-const CHAT_WIDTH_KEY = "kody.chatPanelWidth";
-const CHAT_WIDTH_MIN = 320;
-const CHAT_WIDTH_MAX = 1600;
-const CHAT_WIDTH_SSR_FALLBACK = 600;
-
-function getInitialChatWidth(): number {
-  if (typeof window === "undefined") return CHAT_WIDTH_SSR_FALLBACK;
-  const stored = Number(window.localStorage.getItem(CHAT_WIDTH_KEY));
-  if (!Number.isFinite(stored) || stored <= 0) {
-    const half = Math.floor(window.innerWidth / 2);
-    return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, half));
-  }
-  return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, stored));
-}
-
-function getDefaultChatWidth(): number {
-  if (typeof window === "undefined") return CHAT_WIDTH_SSR_FALLBACK;
-  const half = Math.floor(window.innerWidth / 2);
-  return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, half));
-}
-
 interface PreviewModalProps {
   task: KodyTask;
   onClose: () => void;
@@ -102,44 +83,6 @@ export function PreviewModal({
     return "preview";
   });
   const { githubUser } = useGitHubIdentity();
-  const [chatPanelWidth, setChatPanelWidth] =
-    useState<number>(getInitialChatWidth);
-  const isResizingChatRef = useRef(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(CHAT_WIDTH_KEY, String(chatPanelWidth));
-    }
-  }, [chatPanelWidth]);
-
-  const startChatResize = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isResizingChatRef.current = true;
-    const prevUserSelect = document.body.style.userSelect;
-    const prevCursor = document.body.style.cursor;
-    document.body.style.userSelect = "none";
-    document.body.style.cursor = "col-resize";
-
-    const onMove = (ev: MouseEvent) => {
-      if (!isResizingChatRef.current) return;
-      const clamped = Math.min(
-        CHAT_WIDTH_MAX,
-        Math.max(CHAT_WIDTH_MIN, ev.clientX),
-      );
-      setChatPanelWidth(clamped);
-    };
-
-    const onUp = () => {
-      isResizingChatRef.current = false;
-      document.body.style.userSelect = prevUserSelect;
-      document.body.style.cursor = prevCursor;
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  }, []);
   const [changes, setChanges] = useState<FileChange[]>([]);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -293,7 +236,7 @@ export function PreviewModal({
 
   if (!pr) {
     return (
-      <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
+      <div className="flex flex-col h-full w-full items-center justify-center bg-zinc-950/95">
         <div className="text-center space-y-3">
           <p className="text-zinc-400">
             No pull request associated with this task yet.
@@ -327,7 +270,7 @@ export function PreviewModal({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950/95 backdrop-blur-sm">
+    <div className="flex flex-col h-full w-full bg-zinc-950/95">
       {/* Header */}
       <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-zinc-800 bg-zinc-950">
         <Button
@@ -384,30 +327,11 @@ export function PreviewModal({
         </div>
       </div>
 
-      {/* Body: chat panel (left) + main column (tabs + content + actions) */}
+      {/* Body: main column (tabs + content + actions). The chat rail is
+          rendered by ChatRailShell and is already scoped to the selected
+          task, so we don't mount a second chat panel here — the modal
+          sits next to the rail rather than covering it. */}
       <div className="flex-1 min-h-0 flex">
-        {/* Chat panel — left, resizable, desktop only (matches dashboard) */}
-        <div
-          className="relative hidden md:block border-r border-zinc-800 shrink-0"
-          style={{ width: `${chatPanelWidth}px` }}
-        >
-          <KodyChat
-            context={{ kind: "task", task }}
-            actorLogin={githubUser?.login}
-            composerInjection={composerInjection}
-            attachmentInjection={attachmentInjection}
-          />
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize chat panel"
-            onMouseDown={startChatResize}
-            onDoubleClick={() => setChatPanelWidth(getDefaultChatWidth())}
-            className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
-            title="Drag to resize • Double-click to reset"
-          />
-        </div>
-
         {/* Main column */}
         <div className="flex-1 min-w-0 flex flex-col">
           {/* Tab bar */}
