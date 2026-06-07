@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSpeechRecognition } from "./useSpeechRecognition";
 import { useKodyTTSPiper } from "./useKodyTTSPiper";
+import { requestWakeLock, releaseWakeLock } from "@dashboard/lib/wake-lock";
 
 export type VoiceChatState = "idle" | "listening" | "processing" | "speaking";
 const STOP_WORDS =
@@ -51,6 +52,8 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
   const retryRef = useRef(0);
   const pausedRef = useRef(false);
   const spokeThisTurnRef = useRef(false); // did this reply enqueue any speech?
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const isVoiceActiveRef = useRef(false); // tracks whether voice mode is in use
 
   useEffect(() => {
     sendRef.current = onSendMessage;
@@ -131,7 +134,27 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
 
   const isSupported = stt.isSupported && tts.isSupported;
 
-  const startConversation = useCallback(() => {
+  const releaseWakeLockAsync = useCallback(async () => {
+    isVoiceActiveRef.current = false;
+    await releaseWakeLock(wakeLockRef.current);
+    wakeLockRef.current = null;
+  }, []);
+
+  // Re-acquire wake lock if the page becomes visible while voice mode is active.
+  // The wake lock is automatically released when the page is hidden, so we
+  // need to re-request it when the user comes back.
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible" && isVoiceActiveRef.current) {
+        wakeLockRef.current = await requestWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
+  const startConversation = useCallback(async () => {
     if (!isSupported) {
       setError("Voice chat is not supported in this browser");
       return;
@@ -145,29 +168,36 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     pausedRef.current = false;
     setS("listening");
     stt.start();
+    // Keep screen awake while voice mode is active.
+    isVoiceActiveRef.current = true;
+    wakeLockRef.current = await requestWakeLock();
   }, [isSupported, setS, stt, tts]);
 
-  const stopConversation = useCallback(() => {
+  const stopConversation = useCallback(async () => {
     stt.stop();
     tts.cancel();
     pausedRef.current = false;
     retryRef.current = 0;
     setS("idle");
-  }, [stt, tts, setS]);
+    await releaseWakeLockAsync();
+  }, [stt, tts, setS, releaseWakeLockAsync]);
 
-  const pauseConversation = useCallback(() => {
+  const pauseConversation = useCallback(async () => {
     pausedRef.current = true;
     stt.stop();
     if (stateRef.current === "listening") setS("idle");
-  }, [stt, setS]);
+    await releaseWakeLockAsync();
+  }, [stt, setS, releaseWakeLockAsync]);
 
-  const resumeConversation = useCallback(() => {
+  const resumeConversation = useCallback(async () => {
     if (!isSupported) return;
     tts.unlock(); // re-prime; resume is also a user gesture
     pausedRef.current = false;
     setError(null);
     setS("listening");
     stt.start();
+    isVoiceActiveRef.current = true;
+    wakeLockRef.current = await requestWakeLock();
   }, [isSupported, setS, stt, tts]);
 
   // NEW: Allow interrupting AI while it's speaking to start listening
@@ -232,6 +262,8 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     () => () => {
       stt.stop();
       tts.cancel();
+      // Release wake lock on unmount regardless of current state.
+      releaseWakeLockAsync();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- cleanup only on unmount
     [],
