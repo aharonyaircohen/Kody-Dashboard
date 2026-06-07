@@ -1,0 +1,18 @@
+{
+  "taskId": "55",
+  "taskType": "pr",
+  "target": "55",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Resolved three merge conflicts from git merge origin/main into PR #55. Took origin/main's side in every case because HEAD's variant referenced symbols removed by main's recent refactors (useDuties hook, legacy/markdown fields, FOLDER_DIRS, listFolderDutiesInDir, setRunning state, Play icon, Run mutation). Main's refactor reorganized the dashboard to a 2x2 grid (Goals/Channels/Reports/Engine) without the DutiesHealth card, switched the executables list to a master/detail pattern with ExecutableRow, and simplified listExecutableFiles to a single-directory read.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/DashboardHome.tsx",
+    "src/dashboard/lib/components/ExecutablesManager.tsx",
+    "src/dashboard/lib/executables/files.ts"
+  ],
+  "sessionLog": ".kody/sessions/55.jsonl",
+  "startedAt": "2026-06-06T20:15:00Z",
+  "finishedAt": "2026-06-06T20:25:00Z"
+}

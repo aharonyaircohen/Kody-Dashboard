@@ -1,0 +1,22 @@
+{
+  "taskId": "48",
+  "taskType": "feature",
+  "target": "48-featdocs-read-only-docs-page-in-dashboard-mirror-c",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "All acceptance criteria met: /docs route, multi-doc listing, markdown rendering, refresh, View on GitHub, sidebar nav, typecheck+lint pass",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/docs/file.ts",
+    "src/dashboard/lib/api.ts",
+    "src/dashboard/lib/hooks/useDocs.ts",
+    "app/api/kody/docs/route.ts",
+    "src/dashboard/lib/components/DocsView.tsx",
+    "app/docs/page.tsx",
+    "src/dashboard/lib/components/settings-nav.ts"
+  ],
+  "sessionLog": ".kody/sessions/48.jsonl",
+  "startedAt": "2026-06-04T00:00:00.000Z",
+  "finishedAt": "2026-06-04T00:00:00.000Z"
+}

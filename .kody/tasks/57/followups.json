@@ -1,0 +1,14 @@
+[
+  {
+    "title": "Legacy vault: vault_not_initialized error when unlocking",
+    "body": "Vaults created before this feature (or via direct .kody/secrets.enc writes without going through the UI) have no keyCheck field. The unlock endpoint returns { error: 'vault_not_initialized', message: 'Add or update a secret via the form first.' } The UI shows this as an error. The first save via the Secrets form stamps keyCheck, so one user action self-heals — no migration script needed.",
+    "rationale": "Users with existing vaults from before this feature will see an error on their first unlock attempt; saving any secret via the form fixes it. Worth documenting in the user-facing docs page.",
+    "priority": "low"
+  },
+  {
+    "title": "Unlock endpoint bypasses 60s vault cache",
+    "body": "POST /api/kody/secrets/vault calls readVault with force: true. This ensures fresh data on every unlock at the cost of an extra GitHub API call. Acceptable for a deliberate user action; revisit only if usage patterns change.",
+    "rationale": "Unlock is a deliberate user action, not polling, so a forced fresh read is appropriate. No change needed.",
+    "priority": "low"
+  }
+]

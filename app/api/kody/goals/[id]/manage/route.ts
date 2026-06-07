@@ -63,6 +63,40 @@ interface FileResponse {
   sha?: string;
 }
 
+/**
+ * Ensure the `kody-state` branch exists, creating it from the default branch
+ * if it does not. Idempotent — if the branch already exists this is a no-op.
+ */
+async function ensureStateBranch(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<void> {
+  try {
+    await octokit.rest.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${STATE_BRANCH}`,
+    });
+  } catch (err) {
+    if ((err as { status?: number }).status !== 404) throw err;
+    // Branch doesn't exist — create it from the default branch
+    const { data: repoMeta } = await octokit.rest.repos.get({ owner, repo });
+    const defaultBranch = repoMeta.default_branch || "main";
+    const { data: refData } = await octokit.rest.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${defaultBranch}`,
+    });
+    await octokit.rest.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${STATE_BRANCH}`,
+      sha: refData.object.sha,
+    });
+  }
+}
+
 async function fetchExisting(
   octokit: Octokit,
   owner: string,
@@ -176,6 +210,10 @@ export async function POST(
     const content = Buffer.from(JSON.stringify(next, null, 2), "utf8").toString(
       "base64",
     );
+
+    // Ensure the state branch exists before writing — GitHub will reject
+    // writes to a non-existent branch with a 422 that maps to a generic 500.
+    await ensureStateBranch(octokit, headerAuth.owner, headerAuth.repo);
 
     await octokit.rest.repos.createOrUpdateFileContents({
       owner: headerAuth.owner,
