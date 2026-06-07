@@ -2,6 +2,10 @@
  * @fileType library
  * @domain previews
  * @pattern naming
+ * @ai-summary Deterministic Fly app names so (repo, PR) → fixed
+ *   hostname, no DB lookup, idempotent rebuilds, easy webhook routing.
+ *   Hashes (vs raw names) keep us under Fly's 30-char limit and don't
+ *   leak owner / branch names into hostnames.
  *
  * Deterministic app naming for previews. Same (repo, PR) always yields
  * the same Fly app name, which means the public URL is deterministic too

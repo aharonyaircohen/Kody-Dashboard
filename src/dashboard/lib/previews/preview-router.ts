@@ -2,6 +2,12 @@
  * @fileType library
  * @domain previews
  * @pattern dispatch-router
+ * @ai-summary Route preview builds Fly-first (prebuilt builder image,
+ *   no `npx kody-engine@latest` download that was crashing ~half of
+ *   GitHub builds with transient ECONNRESET). GitHub Actions is the
+ *   fallback, not the default — this inverts the engine-runner policy
+ *   on purpose because the Fly builder is the reliable,
+ *   download-free path for previews.
  *
  * Pick where a per-PR preview build runs. Previews PREFER Fly:
  *

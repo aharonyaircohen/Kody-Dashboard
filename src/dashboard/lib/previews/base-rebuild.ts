@@ -2,6 +2,11 @@
  * @fileType library
  * @domain previews
  * @pattern base-image-refresh
+ * @ai-summary Auto-rebuild the per-repo GHCR base image so PR builds
+ *   `FROM` a warm `pnpm install` + `next build` cache instead of a
+ *   cold install. Without this the base goes stale (deps update on
+ *   main, source diverges) and PR builds fall back to a slow full
+ *   build.
  *
  * Auto-rebuild the per-repo GHCR base image on every push to the
  * default branch. The base image holds the heavy `pnpm install` +

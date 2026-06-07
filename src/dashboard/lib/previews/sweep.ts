@@ -2,6 +2,9 @@
  * @fileType library
  * @domain previews
  * @pattern ttl-sweep
+ * @ai-summary TTL sweep for per-repo preview apps. Opt-in (no
+ *   `ttlDays` → no-op); the per-repo base image (`kp-…-base`) is
+ *   always skipped because it's the build cache, not a preview.
  *
  * Destroy per-PR preview apps that have outlived their TTL.
  *

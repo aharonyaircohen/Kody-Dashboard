@@ -2,6 +2,14 @@
  * @fileType library
  * @domain previews
  * @pattern fly-machines-client
+ * @ai-summary Fly Machines REST + GraphQL client for long-lived
+ *   preview apps. Distinct from the runner's `fly.ts` because previews
+ *   are HTTP services with auto-suspend (not one-shot workers) and
+ *   each preview needs its own app + IPs for a `<app>.fly.dev`
+ *   hostname. Trap: `autostop`/`autostart` are the Machines API
+ *   field names — the fly.toml names (`auto_stop_machines`/
+ *   `auto_start_machines`) are silently dropped, leaving machines
+ *   running 24/7.
  *
  * Fly Machines REST + GraphQL client for PR preview hosting.
  *

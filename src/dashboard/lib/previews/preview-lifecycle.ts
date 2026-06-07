@@ -2,6 +2,10 @@
  * @fileType library
  * @domain previews
  * @pattern lifecycle-dispatch
+ * @ai-summary Per-PR preview create / get / destroy. Create is one
+ *   fast Fly spawn that owns the full pipeline; status reads Fly
+ *   directly via the deterministic app name — the dashboard never
+ *   stores preview state of its own.
  *
  * Per-PR preview lifecycle.
  *

@@ -2,6 +2,10 @@
  * @fileType library
  * @domain previews
  * @pattern warm-pool-client
+ * @ai-summary Try to claim a pre-booted, suspended preview machine
+ *   from the warm pool to skip the ~40s cold start. Never-throws
+ *   contract: any failure returns `ok:false` so the caller falls back
+ *   to create-fresh — the pool is an accelerator, not a dependency.
  *
  * Dashboard-side client for the preview warm pool. Mirrors the runner
  * pool pattern (runners/pool-client.ts) — separate endpoint, same

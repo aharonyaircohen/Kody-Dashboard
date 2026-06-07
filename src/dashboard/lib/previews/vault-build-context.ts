@@ -2,6 +2,11 @@
  * @fileType library
  * @domain previews
  * @pattern vault-read
+ * @ai-summary Read the per-repo vault for the preview build env.
+ *   Trap: `NEVER_PASS_TO_BUILD` is a hard deny-list
+ *   (FLY_API_TOKEN, FLY_ORG_SLUG, FLY_DEFAULT_REGION, KODY_MASTER_KEY)
+ *   — missing a name leaks a server-side secret into a user-facing
+ *   image. Add new server-only secrets there, not at the call site.
  *
  * Shared vault read for preview builds. Used by both the per-PR
  * `createPreview` path and the base-image rebuild path so they bake

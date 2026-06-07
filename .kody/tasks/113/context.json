@@ -1,0 +1,30 @@
+{
+  "taskId": "113",
+  "taskType": "issue",
+  "target": "113",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added @ai-summary header to all 14 previews modules and created a central index.ts with folder-level @ai-summary and the load-bearing gotcha (per-repo billing via vault FLY_API_TOKEN).",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/previews/index.ts",
+    "src/dashboard/lib/previews/base-rebuild.ts",
+    "src/dashboard/lib/previews/builder-client.ts",
+    "src/dashboard/lib/previews/config.ts",
+    "src/dashboard/lib/previews/fly-pr-preview-url.ts",
+    "src/dashboard/lib/previews/fly-previews.ts",
+    "src/dashboard/lib/previews/preview-key.ts",
+    "src/dashboard/lib/previews/preview-lifecycle.ts",
+    "src/dashboard/lib/previews/preview-pool.ts",
+    "src/dashboard/lib/previews/preview-router.ts",
+    "src/dashboard/lib/previews/static-preview.ts",
+    "src/dashboard/lib/previews/static-preview-client.ts",
+    "src/dashboard/lib/previews/sweep.ts",
+    "src/dashboard/lib/previews/vault-build-context.ts",
+    "src/dashboard/lib/previews/webhook.ts"
+  ],
+  "sessionLog": ".kody/sessions/pw-test-session-1776872398338.jsonl",
+  "startedAt": "2026-06-07T20:50:00Z",
+  "finishedAt": "2026-06-07T20:55:00Z"
+}

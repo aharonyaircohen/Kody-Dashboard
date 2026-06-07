@@ -2,6 +2,11 @@
  * @fileType library
  * @domain previews
  * @pattern fly-machine-spawn
+ * @ai-summary Spawn the per-PR builder Fly Machine (fire-and-forget);
+ *   the machine owns the entire build pipeline (clone + `flyctl deploy`
+ *   + image push + per-PR app + IPs + preview machine + exit) so the
+ *   dashboard's only Fly interaction is one fast POST and there is
+ *   no long-running serverless function on the hot path.
  *
  * Spawns the per-PR builder Fly Machine and returns immediately.
  *

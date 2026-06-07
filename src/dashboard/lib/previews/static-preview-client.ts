@@ -2,6 +2,10 @@
  * @fileType api-client
  * @domain previews
  * @pattern browser-fetch
+ * @ai-summary Browser upload / destroy of static-file previews against
+ *   `/api/kody/previews/static`. Used by the Preview workspace's
+ *   environment switcher — turns a file into a live Fly URL in one
+ *   fetch.
  *
  * Browser-side upload + teardown for static-file previews, hitting
  * `/api/kody/previews/static`. Used by the Preview workspace's environment

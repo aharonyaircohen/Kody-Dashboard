@@ -2,6 +2,11 @@
  * @fileType library
  * @domain previews
  * @pattern static-file-preview
+ * @ai-summary Static-file preview with no Docker build — boot a
+ *   stock static-server image (`nginx:alpine` by default) and inject
+ *   the uploaded file(s) via Fly's `config.files`. Ready in seconds
+ *   (no `pnpm install`, no `next build`). Status + teardown reuse
+ *   the regular `preview-lifecycle.ts` paths via `StaticPreviewKey`.
  *
  * Serve an uploaded static file (HTML, PDF, image…) as a Fly preview —
  * with NO builder and NO Docker build.

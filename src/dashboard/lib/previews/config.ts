@@ -2,6 +2,11 @@
  * @fileType library
  * @domain previews
  * @pattern config
+ * @ai-summary Per-repo Fly config resolver — token always comes from
+ *   the target repo's vault, never a global env. Per-repo billing is
+ *   the contract (each repo's previews are billed to THAT repo's
+ *   own Fly token), so a repo without a token in its vault is
+ *   effectively opted out everywhere this folder is reached.
  *
  * Resolve Fly preview config from the per-repo vault. Follows the
  * per-repo infra rule: each repo's previews are billed against THAT

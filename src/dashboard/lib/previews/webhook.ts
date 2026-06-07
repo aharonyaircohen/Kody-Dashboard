@@ -2,6 +2,11 @@
  * @fileType library
  * @domain previews
  * @pattern webhook-handler
+ * @ai-summary GitHub webhook entry points for the preview lifecycle.
+ *   PR open/sync/reopen → build (Fly preferred, GitHub fallback via
+ *   `routePreviewBuild`); PR close → destroy; default-branch push →
+ *   base image refresh. A repo without `FLY_API_TOKEN` in its vault
+ *   is silently skipped at every handler — previews are opt-in.
  *
  * GitHub webhook entry points for the preview lifecycle. Wired from
  * the `pull_request` event handler in
