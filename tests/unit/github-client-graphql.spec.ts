@@ -67,6 +67,35 @@ function prNode(number: number) {
   };
 }
 
+// Variant factory: same as prNode but with custom mergeStateStatus / rollup
+// state / mergeable. Used to exercise the derivePRCi mapping per branch.
+function prNodeWith(
+  number: number,
+  opts: {
+    mergeStateStatus?: string;
+    mergeable?: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
+    rollupState?: string | null;
+  },
+) {
+  return {
+    ...prNode(number),
+    mergeable: opts.mergeable ?? "MERGEABLE",
+    mergeStateStatus: opts.mergeStateStatus ?? "CLEAN",
+    commits: {
+      nodes: [
+        {
+          commit: {
+            statusCheckRollup:
+              opts.rollupState === null
+                ? null
+                : { state: opts.rollupState ?? "SUCCESS" },
+          },
+        },
+      ],
+    },
+  };
+}
+
 const openPRsResponse = (numbers: number[]) => ({
   repository: { pullRequests: { nodes: numbers.map(prNode) } },
 });
@@ -176,6 +205,97 @@ describe("fetchOpenPRs", () => {
     expect(getCacheStats().keys.some((k) => k.startsWith("open-prs:"))).toBe(
       false,
     );
+  });
+
+  // Regression: DIRTY = merge conflicts, not failing CI. The bug mapped
+  // mergeStateStatus=DIRTY → ciStatus="failure", which made every PR with
+  // conflicts (or just behind main) show as CI red even when all checks
+  // were green. The conflict banner owns that case via hasConflicts.
+  describe("derivePRCi: DIRTY (merge conflicts) must not report CI failure", () => {
+    it("reports the actual rollup state when DIRTY + checks are SUCCESS", async () => {
+      graphql.mockResolvedValueOnce({
+        repository: {
+          pullRequests: {
+            nodes: [
+              prNodeWith(58, {
+                mergeStateStatus: "DIRTY",
+                mergeable: "CONFLICTING",
+                rollupState: "SUCCESS",
+              }),
+            ],
+          },
+        },
+      });
+
+      const prs = await fetchOpenPRs();
+      expect(prs[0].ciStatus).toBe("success");
+      expect(prs[0].hasConflicts).toBe(true);
+      expect(prs[0].mergeable).toBe(false);
+    });
+
+    it("reports running when DIRTY + checks are PENDING", async () => {
+      graphql.mockResolvedValueOnce({
+        repository: {
+          pullRequests: {
+            nodes: [
+              prNodeWith(40, {
+                mergeStateStatus: "DIRTY",
+                mergeable: "CONFLICTING",
+                rollupState: "PENDING",
+              }),
+            ],
+          },
+        },
+      });
+
+      const prs = await fetchOpenPRs();
+      expect(prs[0].ciStatus).toBe("running");
+      expect(prs[0].hasConflicts).toBe(true);
+      expect(prs[0].mergeable).toBe(false);
+    });
+
+    it("still reports failure when DIRTY + checks genuinely failed", async () => {
+      graphql.mockResolvedValueOnce({
+        repository: {
+          pullRequests: {
+            nodes: [
+              prNodeWith(7, {
+                mergeStateStatus: "DIRTY",
+                mergeable: "CONFLICTING",
+                rollupState: "FAILURE",
+              }),
+            ],
+          },
+        },
+      });
+
+      const prs = await fetchOpenPRs();
+      // hasConflicts owns the conflict UI; ciStatus still reflects real CI.
+      expect(prs[0].ciStatus).toBe("failure");
+      expect(prs[0].hasConflicts).toBe(true);
+      expect(prs[0].mergeable).toBe(false);
+    });
+
+    it("falls back to pending when DIRTY + no rollup state", async () => {
+      graphql.mockResolvedValueOnce({
+        repository: {
+          pullRequests: {
+            nodes: [
+              prNodeWith(11, {
+                mergeStateStatus: "DIRTY",
+                mergeable: "CONFLICTING",
+                rollupState: null,
+              }),
+            ],
+          },
+        },
+      });
+
+      const prs = await fetchOpenPRs();
+      expect(prs[0].ciStatus).toBe("pending");
+      expect(prs[0].hasConflicts).toBe(true);
+      expect(prs[0].mergeable).toBe(false);
+    });
   });
 });
 
