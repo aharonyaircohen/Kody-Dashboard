@@ -33,6 +33,11 @@ describe("supportsVision", () => {
     "qwen/qwen2.5-vl-7b-instruct",
     "amazon/nova-pro-v1",
     "deepseek-vl-7b-chat",
+    // MiniMax M3 family — the current multimodal generation; M2.7 stays
+    // text-only (see the regression guard in the textModels block below).
+    "minimax/MiniMax-M3",
+    "minimax/MiniMax-M3.0",
+    "minimax/MiniMax-M3.5-highspeed",
   ];
 
   const textModels = [
