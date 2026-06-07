@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { z } from "zod";
 import { requireKodyAuth, getUserOctokit } from "@dashboard/lib/auth";
+import { stripReasoning } from "@dashboard/lib/chat/reasoning";
 import { resolveChatModel } from "../../chat/resolve-model";
 
 export const runtime = "nodejs";
@@ -97,7 +98,7 @@ async function fetchText(
 function extractJson(text: string): unknown | null {
   // Thinking models emit a <think>…</think> scratchpad first — strip it so a
   // stray "{" inside the reasoning doesn't capture a non-JSON span.
-  const stripped = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "");
+  const stripped = stripReasoning(text);
   const fenced = stripped.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fenced ? fenced[1] : stripped;
   const start = candidate.indexOf("{");

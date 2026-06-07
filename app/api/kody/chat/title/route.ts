@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText, type ModelMessage } from "ai";
 import { requireKodyAuth } from "@dashboard/lib/auth";
+import { stripReasoning } from "@dashboard/lib/chat/reasoning";
 import { resolveChatModel } from "../resolve-model";
 
 export const runtime = "nodejs";
@@ -53,10 +54,7 @@ export async function POST(req: NextRequest) {
       role: m.role,
       // Defensively strip <think> reasoning server-side too — a title
       // should reflect intent, never the model's scratchpad.
-      content: m.content
-        .replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "")
-        .trim()
-        .slice(0, MAX_CHARS_PER_MESSAGE),
+      content: stripReasoning(m.content).slice(0, MAX_CHARS_PER_MESSAGE),
     }))
     .filter((m) => m.content.length > 0);
 
