@@ -1,0 +1,17 @@
+{
+  "taskId": "74",
+  "taskType": "issue",
+  "target": "74-fly-runner-per-section-suspend-all-button-on-the-m",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "All quality gates pass: typecheck ok, 1202 tests green, format clean, verify ok=true",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/runners/fly-suspend-all.ts",
+    "src/dashboard/lib/components/FlyMachinesTable.tsx",
+    "tests/unit/fly-suspend-all.spec.ts"
+  ],
+  "startedAt": "2026-06-07T20:08:00Z",
+  "finishedAt": "2026-06-07T20:15:00Z"
+}
