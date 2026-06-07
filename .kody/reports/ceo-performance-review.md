@@ -2,26 +2,22 @@
 
 _Cadence: weekly — delivery of owned responsibilities, not subjective quality._
 
-Five of seven staff have all duties disabled; only CTO and QA each hold one active duty, both silent this week. Tech-writer docs output is stale (June 3 / May 30).
+Three of seven staff hold active duties producing output this week; CTO's dev-ci-health and QA's qa-verify produced no evidence of runs. Tech-writer docs-code finding (issue #43) was acted upon and closed; docs-readme has been silent since May 30 despite 10+ merged PRs since.
 
-| Staff        | Owned duties       | Delivery | Consistency | Signal | Grade |
-| ------------ | ------------------ | -------- | ----------- | ------ | ------ |
-| ceo          | 2 (1 active)      | Med      | Med         | Med    | steady |
-| coo          | 3 (0 active)      | —        | —           | —      | idle   |
-| cto          | 4 (1 active)      | Low      | Low         | Low    | weak   |
-| kody         | 12 (0 active)     | —        | —           | —      | idle   |
-| qa           | 3 (1 active)      | Low      | Low         | Low    | weak   |
-| tech-writer  | 2 (2 active)      | Med      | Med         | Low    | steady |
-| ux-designer  | 1 (0 active)      | —        | —           | —      | idle   |
+| Staff        | Owned duties        | Delivery | Consistency | Signal | Grade |
+| ------------ | ------------------- | -------- | ----------- | ------ | ------ |
+| ceo          | 2 (1 active)       | Med      | Med         | Med    | steady |
+| coo          | 3 (0 active)       | —        | —           | —      | idle   |
+| cto          | 4 (1 active)       | Low      | Low         | Low    | unclear |
+| kody         | 12 (0 active)      | —        | —           | —      | idle   |
+| qa           | 3 (1 active)       | Low      | Low         | Low    | weak   |
+| tech-writer  | 2 (2 active)       | Low      | Low         | Low    | weak   |
+| ux-designer  | 1 (0 active)       | —        | —           | —      | idle   |
 
-- **cto — weak:** dev-ci-health (15m cadence) has no state file, no commits, and no tracking issue. No evidence of any run this week. **Effect:** broken dev CI would be invisible to the operator.
-- **qa — weak:** qa-verify (30m cadence) has no state file, no commits, and no PASS/CONCERNS/FAIL verdicts on open PRs. No kody:ui-verified or kody:ui-failed labels issued this week. **Effect:** PRs can land without a UI verdict.
-- **tech-writer — steady:** docs-code last produced finding June 3 (issue #43, notifications channels coverage gap); docs-readme last produced May 30. No new docs-drift findings this calendar week. Signal is real but infrequent — consistent with a slow-burn duty catching up on backlog.
+- **cto — unclear:** dev-ci-health has no state file and no commits; dev CI is green on June 7, so no repair was needed. Cannot determine if the duty is running silently on cadence and finding nothing to do, or not running at all.
+- **qa — weak:** qa-verify has no state file, no ui-verified/ui-failed labels, and no PASS/CONCERNS/FAIL verdicts on any open PRs despite having 10+ open PRs with kody:done labels. No evidence of any dispatch this week. **Effect:** PRs merge without a UI verdict.
+- **tech-writer — weak:** docs-code produced issue #43 (notifications channels coverage gap) on June 3; that issue was acted upon and closed June 7 — real, acted-upon output. However docs-readme has been silent since May 30 despite 10+ PRs merged since then (including #55 docs page, #77 secrets master-key, #81 goals fix). docs-readme should have flagged doc drift on at least the docs PR. **Effect:** merged features may have undocumented UI surfaces.
 
 ### Changes since last week
 
-- ceo: idle→steady (ceo-performance-review itself ran multiple times this week; job-gap-scan remains disabled)
-- coo/kody/ux-designer: idle (unchanged)
-- cto: weak (unchanged — dev-ci-health still silent)
-- qa: weak (unchanged — qa-verify still silent)
-- tech-writer: steady (unchanged — stale output confirmed; prior report noted June 3 and May 30 dates, both now 4+ and 8+ days old respectively)
+_This is the first report with graded staff — no prior grades to diff against. Previous ceo-performance-review (June 7, 2026) noted cto and qa as weak, tech-writer as steady. This cycle: cto remains unclear (CI green but no run evidence), qa remains weak, tech-writer declined steady→weak (docs-readme continued silence confirmed)._
