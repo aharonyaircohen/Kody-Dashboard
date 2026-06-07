@@ -10,9 +10,46 @@
  *   encrypted secret in .kody/secrets.enc — back values up first.
  */
 
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from "crypto";
 
 const VERSION = "v1";
+
+/** Derive a verification string from a master key (SHA-256 hex). Used to
+ *  check whether a user-supplied key matches the vault's key without
+ *  attempting full decryption. */
+export function deriveKeyCheck(key: string): string {
+  const raw = normalizeKey(key);
+  return createHash("sha256").update(raw).digest("hex");
+}
+
+/** Verify a user-supplied key against a stored keyCheck value. */
+export function verifyKey(key: string, keyCheck: string): boolean {
+  try {
+    return deriveKeyCheck(key) === keyCheck;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Normalize a raw key string to a 32-byte Buffer, accepting hex (64 chars)
+ * or base64 (44 chars). Throws if the key cannot be decoded to 32 bytes.
+ */
+function normalizeKey(key: string): Buffer {
+  if (/^[0-9a-fA-F]{64}$/.test(key)) {
+    return Buffer.from(key, "hex");
+  }
+  const buf = Buffer.from(key, "base64");
+  if (buf.length !== 32) {
+    throw new Error("Key must decode to 32 bytes");
+  }
+  return buf;
+}
 
 function getKey(): Buffer {
   const raw = process.env.KODY_MASTER_KEY;
@@ -21,17 +58,13 @@ function getKey(): Buffer {
       "KODY_MASTER_KEY is not configured. Run `pnpm vault:init` to generate one.",
     );
   }
-  // Accept hex (64 chars) or base64 (44 chars including padding).
-  if (/^[0-9a-fA-F]{64}$/.test(raw)) {
-    return Buffer.from(raw, "hex");
-  }
-  const buf = Buffer.from(raw, "base64");
-  if (buf.length !== 32) {
+  try {
+    return normalizeKey(raw);
+  } catch {
     throw new Error(
       "KODY_MASTER_KEY must decode to 32 bytes (64-char hex or base64-encoded 32 bytes).",
     );
   }
-  return buf;
 }
 
 export function encrypt(plaintext: string): string {
@@ -43,13 +76,13 @@ export function encrypt(plaintext: string): string {
   return `${VERSION}:${iv.toString("base64")}:${ct.toString("base64")}:${tag.toString("base64")}`;
 }
 
-export function decrypt(payload: string): string {
+export function decrypt(payload: string, keyOverride?: string): string {
   const parts = payload.split(":");
   if (parts.length !== 4 || parts[0] !== VERSION) {
     throw new Error("Invalid vault payload format");
   }
   const [, ivB64, ctB64, tagB64] = parts;
-  const key = getKey();
+  const key = keyOverride ? normalizeKey(keyOverride) : getKey();
   const iv = Buffer.from(ivB64, "base64");
   const ct = Buffer.from(ctB64, "base64");
   const tag = Buffer.from(tagB64, "base64");

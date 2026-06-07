@@ -15,6 +15,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   BookOpen,
+  Eye,
+  EyeOff,
   KeyRound,
   Loader2,
   Pencil,
@@ -43,6 +45,33 @@ interface SecretRow {
   name: string;
   updatedAt: string;
   updatedBy?: string;
+}
+
+interface SecretValue {
+  name: string;
+  value: string;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+async function unlockVault(
+  headers: Record<string, string>,
+  key: string,
+): Promise<SecretValue[]> {
+  const res = await fetch("/api/kody/secrets/vault", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ key }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    secrets?: SecretValue[];
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+  return json.secrets ?? [];
 }
 
 const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
@@ -167,11 +196,34 @@ function SecretsManagerInner() {
       toast.error(err.message || "Failed to delete secret"),
   });
 
+  async function handleUnlock() {
+    if (!unlockKey.trim()) return;
+    setIsUnlocking(true);
+    setUnlockError(null);
+    try {
+      const secrets = await unlockVault(headers, unlockKey);
+      setUnlockedSecrets(secrets);
+      setUnlocked(true);
+    } catch (err) {
+      setUnlockError(
+        err instanceof Error ? err.message : "Failed to unlock vault",
+      );
+    } finally {
+      setIsUnlocking(false);
+    }
+  }
+
   const [editing, setEditing] = useState<{
     name: string;
     existing: boolean;
   } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [unlocked, setUnlocked] = useState(false);
+  const [unlockedSecrets, setUnlockedSecrets] = useState<SecretValue[]>([]);
+  const [unlockKey, setUnlockKey] = useState("");
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [showKey, setShowKey] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
 
   return (
     <PageShell
@@ -249,8 +301,62 @@ function SecretsManagerInner() {
           </Card>
         )}
 
+        {/* Unlock card — shown when vault is locked and secrets exist */}
+        {!unlocked && !isLoading && !error && secrets.length > 0 && (
+          <Card className="border-amber-500/30 bg-amber-950/10">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-amber-400 shrink-0" />
+                <p className="text-sm text-amber-200">
+                  Enter your master key to reveal secret values
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    type={showKey ? "text" : "password"}
+                    value={unlockKey}
+                    onChange={(e) => setUnlockKey(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleUnlock();
+                    }}
+                    placeholder="KODY_MASTER_KEY"
+                    className="pr-10 font-mono text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
+                    aria-label={showKey ? "Hide key" : "Show key"}
+                  >
+                    {showKey ? (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    ) : (
+                      <Eye className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={handleUnlock}
+                  disabled={isUnlocking || !unlockKey.trim()}
+                >
+                  {isUnlocking ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    "Unlock"
+                  )}
+                </Button>
+              </div>
+              {unlockError && (
+                <p className="text-xs text-rose-300">{unlockError}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         <ul className="space-y-2">
-          {secrets.map((s) => (
+          {(unlocked ? unlockedSecrets : secrets).map((s) => (
             <li key={s.name}>
               <Card className="border-white/[0.08] bg-white/[0.03]">
                 <CardContent className="p-3 flex items-center justify-between gap-3">
@@ -258,32 +364,57 @@ function SecretsManagerInner() {
                     <p className="font-mono text-sm text-white/90 truncate">
                       {s.name}
                     </p>
-                    <p className="text-[11px] text-white/40 mt-0.5">
-                      Updated {formatRelative(s.updatedAt)}
-                      {s.updatedBy ? ` by ${s.updatedBy}` : ""}
-                    </p>
+                    {unlocked ? (
+                      <p className="font-mono text-[11px] text-emerald-300 mt-0.5 truncate">
+                        {(s as SecretValue).value}
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-white/40 mt-0.5">
+                        Updated {formatRelative(s.updatedAt)}
+                        {s.updatedBy ? ` by ${s.updatedBy}` : ""}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="gap-1"
-                      onClick={() =>
-                        setEditing({ name: s.name, existing: true })
-                      }
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="gap-1 text-rose-300 hover:text-rose-200"
-                      onClick={() => setDeleting(s.name)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Delete
-                    </Button>
+                    {unlocked ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-1 text-amber-300"
+                        onClick={() => {
+                          setUnlocked(false);
+                          setUnlockedSecrets([]);
+                          setUnlockKey("");
+                          setUnlockError(null);
+                        }}
+                      >
+                        <EyeOff className="w-3.5 h-3.5" />
+                        Lock
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1"
+                          onClick={() =>
+                            setEditing({ name: s.name, existing: true })
+                          }
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1 text-rose-300 hover:text-rose-200"
+                          onClick={() => setDeleting(s.name)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
