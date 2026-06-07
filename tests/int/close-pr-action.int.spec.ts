@@ -50,11 +50,13 @@ vi.mock("@dashboard/lib/github-client", () => ({
   addLabels: vi.fn(),
   removeLabel: vi.fn(),
   ensureLabel: vi.fn(),
-  closePR: (...a: unknown[]) => closePR(...a),
-  findAssociatedPRByIssueNumber: (...a: unknown[]) =>
-    findAssociatedPRByIssueNumber(...a),
-  findTaskBranch: (...a: unknown[]) => findTaskBranch(...a),
-  deleteBranch: (...a: unknown[]) => deleteBranch(...a),
+  closePR: (...a: Parameters<typeof closePR>) => closePR(...a),
+  findAssociatedPRByIssueNumber: (
+    ...a: Parameters<typeof findAssociatedPRByIssueNumber>
+  ) => findAssociatedPRByIssueNumber(...a),
+  findTaskBranch: (...a: Parameters<typeof findTaskBranch>) =>
+    findTaskBranch(...a),
+  deleteBranch: (...a: Parameters<typeof deleteBranch>) => deleteBranch(...a),
   invalidateTaskCache: vi.fn(),
   invalidatePRCache: vi.fn(),
   invalidateBoardCache: vi.fn(),
