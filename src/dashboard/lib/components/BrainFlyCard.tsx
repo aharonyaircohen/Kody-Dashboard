@@ -26,9 +26,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
-  AlertTriangle,
   Brain,
-  CheckCircle2,
   Copy,
   Info,
   Loader2,
@@ -93,11 +91,18 @@ interface ProvisionResponse {
   apiKey?: string;
   machineId?: string;
   /**
-   * Set when ensureApp auto-renamed because the default slug was taken or
-   * owned by an org the token can't see. UI surfaces a notice so the
-   * user understands why the stored record shows a `-2`/`-3` suffix.
+   * Set when Fly reports a different app slug than the requested one. UI
+   * surfaces a notice so the user knows which Brain address is real.
    */
   originalName?: string;
+  error?: string;
+}
+
+interface BrainLoginResponse {
+  app?: string;
+  url?: string;
+  apiKey?: string;
+  machineId?: string;
   error?: string;
 }
 
@@ -149,6 +154,7 @@ export function BrainFlyCard({
     | "suspending"
     | "resuming"
     | "clearing-record"
+    | "copying-login"
   >("idle");
   const [confirmOpen, setConfirmOpen] = useState(false);
   // Report the latest state to the parent so the section header can show
@@ -280,10 +286,8 @@ export function BrainFlyCard({
         return;
       }
       if (body.originalName) {
-        // ensureApp auto-renamed because the default slug was taken (likely
-        // a previous Fly org or another account owns it). The new app is
-        // the actual brain — note the rename so the user understands why
-        // the stored name carries a `-2`/`-3` suffix.
+        // The new app is the actual brain — note the name so the user
+        // understands why the stored address differs from the requested slug.
         toast.success(
           `Brain on Fly is on (used ${body.app} because ${body.originalName} was unreachable).`,
           { duration: 6000 },
@@ -298,6 +302,44 @@ export function BrainFlyCard({
       await refresh();
     } catch (err) {
       toast.error(`Provision failed: ${(err as Error).message}`);
+    } finally {
+      setBusy("idle");
+    }
+  }
+
+  async function copyExternalLogin() {
+    setBusy("copying-login");
+    try {
+      const trimmedOverride = customAppName.trim();
+      const res = await fetch("/api/kody/brain/login", {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          "x-kody-brain-perf": brainPerf,
+        },
+        body: JSON.stringify(
+          trimmedOverride.length > 0 ? { appName: trimmedOverride } : {},
+        ),
+      });
+      const body = (await res.json().catch(() => ({}))) as BrainLoginResponse;
+      if (!res.ok) {
+        toast.error(body.error ?? `Copy failed (HTTP ${res.status})`);
+        return;
+      }
+      if (!body.url || !body.apiKey) {
+        toast.error("Brain login was missing a URL or API key");
+        return;
+      }
+
+      await navigator.clipboard.writeText(
+        `BRAIN_CHAT_URL=${body.url}\nBRAIN_CHAT_API_KEY=${body.apiKey}`,
+      );
+      toast.success("External Brain login copied");
+      if (body.app) setApp(body.app);
+      await refresh();
+    } catch (err) {
+      toast.error(`Copy failed: ${(err as Error).message}`);
     } finally {
       setBusy("idle");
     }
@@ -564,8 +606,15 @@ export function BrainFlyCard({
             </div>
           )}
           {app && (
-            <div className="flex items-center gap-1.5 text-[11px] text-white/40 font-mono break-all">
-              <span>https://{app}.fly.dev</span>
+            <div className="flex items-center gap-2 rounded-md border border-white/[0.08] bg-black/20 px-2.5 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-medium text-white/60">
+                  External login
+                </div>
+                <div className="text-[11px] text-white/40 font-mono truncate">
+                  https://{app}.fly.dev
+                </div>
+              </div>
               <Button
                 size="sm"
                 variant="ghost"
@@ -578,6 +627,25 @@ export function BrainFlyCard({
               >
                 <Copy className="h-3 w-3" />
               </Button>
+              <SimpleTooltip
+                content="Copies URL and API key for an external Brain client."
+                side="bottom"
+              >
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 shrink-0 text-white/60 hover:text-white"
+                  onClick={copyExternalLogin}
+                  disabled={busy !== "idle" || !flyTokenConfigured}
+                >
+                  {busy === "copying-login" ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <Copy className="h-3 w-3 mr-1" />
+                  )}
+                  {busy === "copying-login" ? "Copying…" : "Copy login"}
+                </Button>
+              </SimpleTooltip>
             </div>
           )}
           {isOrphan && (

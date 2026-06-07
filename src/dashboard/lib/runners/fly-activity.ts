@@ -2,14 +2,11 @@
  * @fileType utility
  * @domain runner
  * @pattern fly-activity-compute
- *
- * Pure computation of per-machine activity from a timeline of snapshots.
- *
- * Fly only keeps a short event history and exposes no uptime/cost, so we
- * record our own periodic snapshots (see fly-activity-store.ts) and derive the
- * metrics here: observed lifespan, working time span (sum of running
- * intervals), suspend count, uptime %, and estimated cost. Pure + deterministic
- * so it's unit-testable; the route stamps `now` and feeds the stored file in.
+ * @ai-summary Derives per-machine Fly activity from snapshot timeline:
+ *   uptime %, runningMs, suspendCount, estCostUsd. Fly exposes no uptime/cost
+ *   API — we record our own periodic snapshots and compute everything here.
+ *   Pure and deterministic (unit-testable); the route stamps `now` and feeds
+ *   the stored file in.
  */
 
 import { classifyApp, type FlyFeature } from "./fly-inventory";

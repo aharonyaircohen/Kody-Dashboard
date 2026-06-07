@@ -1,0 +1,14 @@
+{
+  "taskId": "86",
+  "taskType": "issue",
+  "target": "86",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Wake Lock API implemented in useVoiceChat.ts with acquire on start/interrupt, release on stop/pause/unmount, visibility re-acquisition, and silent fallback.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": ["src/dashboard/lib/hooks/useVoiceChat.ts"],
+  "sessionLog": ".kody/sessions/86.jsonl",
+  "startedAt": "2026-06-07T00:00:00.000Z",
+  "finishedAt": "2026-06-07T00:00:00.000Z"
+}

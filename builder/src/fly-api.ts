@@ -9,6 +9,7 @@
 const FLY_MACHINES_BASE = "https://api.machines.dev/v1";
 const FLY_GRAPHQL = "https://api.fly.io/graphql";
 const REQUEST_TIMEOUT_MS = 30_000;
+const FLY_SUSPEND_MEMORY_LIMIT_MB = 2048;
 
 function authHeader(token: string): HeadersInit {
   return {
@@ -143,22 +144,28 @@ export interface CreatePreviewMachineInput {
   healthCheck?: boolean;
 }
 
+function autostopForPreview(
+  idleSuspend: boolean,
+  memoryMb: number,
+): "suspend" | true | "off" {
+  if (!idleSuspend) return "off";
+  return memoryMb <= FLY_SUSPEND_MEMORY_LIMIT_MB ? "suspend" : true;
+}
+
 export async function createPreviewMachine(
   input: CreatePreviewMachineInput,
   token: string,
 ): Promise<string> {
   const internalPort = input.internalPort ?? 8080;
-  // Dev mode (`next dev`) runs webpack at request time, which is
-  // memory-hungry for heavy apps (A-Guy hung silently on 2 GB). 4 GB / 2 CPU
-  // is the floor that compiles A-Guy-class pages without OOM, so it's the
-  // default — but a prod-build repo can size down via kody.config.json.
-  // Suspended state costs ~$0 regardless.
+  // 2 GB is the default because Fly suspend is only supported/recommended at
+  // <= 2 GB. Heavy dev-mode repos can opt into 4 GB, which sleeps via stop
+  // mode instead of suspend.
   const cpus =
     typeof input.cpus === "number" && input.cpus > 0 ? input.cpus : 2;
   const memoryMb =
     typeof input.memoryMb === "number" && input.memoryMb > 0
       ? input.memoryMb
-      : 4096;
+      : 2048;
   const idleSuspend = input.idleSuspend !== false; // default ON
   const body = {
     region: input.region,
@@ -180,7 +187,7 @@ export async function createPreviewMachine(
           // The fly.toml names (`auto_stop_machines`/`auto_start_machines`)
           // are SILENTLY DROPPED here — which is why every preview ran 24/7
           // (no autostop) and won't wake once stopped (no autostart).
-          autostop: idleSuspend ? "suspend" : "off",
+          autostop: autostopForPreview(idleSuspend, memoryMb),
           autostart: true,
           min_machines_running: 0,
         },

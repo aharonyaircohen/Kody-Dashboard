@@ -14,7 +14,7 @@
     "repo": "Kody-Dashboard"
   },
   "agent": {
-    "model": "minimax/MiniMax-M2.7-highspeed"
+    "model": "minimax/MiniMax-M3"
   },
   "jobs": {
     "stateBackend": "local-file"

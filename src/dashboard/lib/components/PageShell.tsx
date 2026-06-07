@@ -31,7 +31,7 @@ interface PageHeaderProps {
   iconClassName?: string;
   subtitle?: string;
   actions?: React.ReactNode;
-  backHref?: string;
+  backHref?: string | null;
   className?: string;
 }
 
@@ -52,11 +52,13 @@ export function PageHeader({
       )}
     >
       <div className="flex items-center gap-3 min-w-0">
-        <Button asChild variant="ghost" size="sm">
-          <Link href={backHref} aria-label="Back">
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-        </Button>
+        {backHref && (
+          <Button asChild variant="ghost" size="sm">
+            <Link href={backHref} aria-label="Back">
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+          </Button>
+        )}
         {Icon && (
           <Icon
             className={cn("w-5 h-5 shrink-0", iconClassName ?? "text-white/70")}

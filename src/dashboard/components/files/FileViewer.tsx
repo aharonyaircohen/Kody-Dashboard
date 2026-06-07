@@ -36,7 +36,6 @@ interface FileViewerProps {
   octokit: Octokit | null;
   owner: string;
   repo: string;
-  onEdit?: () => void;
   onViewDiff?: () => void;
 }
 
@@ -54,7 +53,6 @@ export function FileViewer({
   octokit,
   owner,
   repo,
-  onEdit,
   onViewDiff,
 }: FileViewerProps) {
   const [content, setContent] = useState<string | null>(null);
@@ -127,18 +125,6 @@ export function FileViewer({
           <Copy className="w-3.5 h-3.5" />
           Copy
         </button>
-
-        {onEdit && (
-          <button
-            onClick={onEdit}
-            className={cn(
-              "flex items-center gap-1.5 text-xs px-2 py-1 rounded",
-              "text-white/60 hover:text-white/90 hover:bg-white/10",
-            )}
-          >
-            Edit
-          </button>
-        )}
 
         {onViewDiff && (
           <button
