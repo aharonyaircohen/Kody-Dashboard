@@ -10,7 +10,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { decrypt, encrypt } from "./crypto";
+import { decrypt, deriveKeyCheck, encrypt } from "./crypto";
 import { logger } from "@dashboard/lib/logger";
 
 export const VAULT_PATH = ".kody/secrets.enc";
@@ -29,6 +29,8 @@ export interface VaultEntry extends VaultSecretMeta {
 export interface VaultDocument {
   version: 1;
   secrets: Record<string, VaultEntry>;
+  /** SHA-256 of KODY_MASTER_KEY; set on first vault write. */
+  keyCheck?: string;
 }
 
 interface CacheEntry {
@@ -145,7 +147,12 @@ export async function writeVault(
   currentSha: string | null,
   commitMessage = "chore(vault): update dashboard secrets",
 ): Promise<{ sha: string }> {
-  const ciphertext = encrypt(JSON.stringify(doc));
+  // Set keyCheck on first vault write (when it is not yet present).
+  const docToWrite: VaultDocument = doc.keyCheck
+    ? doc
+    : { ...doc, keyCheck: deriveKeyCheck(process.env.KODY_MASTER_KEY ?? "") };
+
+  const ciphertext = encrypt(JSON.stringify(docToWrite));
   const content = Buffer.from(ciphertext, "utf8").toString("base64");
   const res = await octokit.rest.repos.createOrUpdateFileContents({
     owner,
