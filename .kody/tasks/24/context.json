@@ -1,0 +1,17 @@
+{
+  "taskId": "24",
+  "taskType": "issue",
+  "target": "Issue #24 (24-docs-drift-docsnotificationsmd-20); @kody run comment redirected work to MiniMax M3 vision support",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added /minimax-m3/ to VISION_MODEL_PATTERNS in src/dashboard/lib/chat/vision-support.ts so MiniMax M3 attachments are sent as real image parts instead of inlined as text. Updated the file's header doc-comment to point at MiniMax M2.7 (still text-only) as the example. Extended tests/unit/chat/vision-support.spec.ts with M3 cases in visionModels and a whitespace/case assertion; M2 / M2.7 cases stay in textModels to lock in that older generations keep the inline fallback.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/chat/vision-support.ts",
+    "tests/unit/chat/vision-support.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/24.jsonl",
+  "startedAt": "2026-06-07T20:24:00Z",
+  "finishedAt": "2026-06-07T20:28:56Z"
+}

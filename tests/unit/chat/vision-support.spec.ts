@@ -1,9 +1,9 @@
 /**
  * Locks in the vision-vs-text split that decides whether an image is sent as
- * a real image part or inlined as text. The user's two live models are the
- * load-bearing cases: Gemini (vision → real image) and MiniMax (text → inline).
- * Unknown models must fail safe to text-only so we never ship an image_url a
- * text model would reject.
+ * a real image part or inlined as text. The user's live models are the
+ * load-bearing cases: Gemini and MiniMax M3 (vision → real image) and
+ * MiniMax M2.7 (text → inline). Unknown models must fail safe to text-only
+ * so we never ship an image_url a text model would reject.
  */
 import { describe, expect, it } from "vitest";
 import { supportsVision } from "@dashboard/lib/chat/vision-support";
@@ -26,6 +26,10 @@ describe("supportsVision", () => {
     "gpt-5",
     "o3",
     "o4-mini",
+    // MiniMax M3 — natively multimodal in every spelling.
+    "minimax/MiniMax-M3",
+    "MiniMax-M3",
+    "minimax-m3",
     // Other multimodal families.
     "mistral/pixtral-12b",
     "meta-llama/llama-3.2-90b-vision-instruct",
@@ -36,7 +40,7 @@ describe("supportsVision", () => {
   ];
 
   const textModels = [
-    // The live case: MiniMax in every spelling.
+    // The live case: MiniMax M2 / M2.7 stay text-only even though M3 is vision.
     "minimax/MiniMax-M2.7-highspeed",
     "MiniMax-M2.7-highspeed",
     "minimax-m2",
@@ -69,6 +73,7 @@ describe("supportsVision", () => {
 
   it("ignores surrounding whitespace and case", () => {
     expect(supportsVision("  Google/Gemini-2.5-Pro  ")).toBe(true);
+    expect(supportsVision("  minimax/MiniMax-M3  ")).toBe(true);
     expect(supportsVision("  MiniMax-M2.7-highspeed  ")).toBe(false);
   });
 });
