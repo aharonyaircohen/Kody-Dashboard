@@ -733,7 +733,8 @@ async function createBridgeMachine(
     `/apps/${encodeURIComponent(app)}/machines`,
     { method: "POST", token: cfg.token, body },
   );
-  if (!machine?.id) throw new Error("terminal bridge: create machine returned empty");
+  if (!machine?.id)
+    throw new Error("terminal bridge: create machine returned empty");
   return machine;
 }
 

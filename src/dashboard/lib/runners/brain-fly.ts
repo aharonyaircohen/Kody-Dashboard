@@ -2,10 +2,12 @@
  * @fileType library
  * @domain runners
  * @pattern fly-machines-brain
- *
- * Brain-on-Fly provisioner. Creates and manages a per-user, long-running
- * Fly Machine that serves the Brain SSE protocol. Pairs with the kody2
- * `brain-serve` executable (HTTP wrapper around the chat loop).
+ * @ai-summary Persistent per-user Brain app provisioner: auto_destroy=false,
+ *   autostop="suspend" for near-zero idle (~1s resume). Shares flyToken
+ *   plumbing with fly.ts but diverges on lifecycle — brain-fly is NOT one-shot.
+ *   Reuses existing machine when image ref unchanged; recreates only on genuine
+ *   image tag change to avoid churn loops. App name = kody-brain-<account>
+ *   (stable per person, not per repo).
  *
  * Separate module from runners/fly.ts on purpose:
  *   - fly.ts spawns one-shot, ephemeral machines (auto_destroy=true,

@@ -2,10 +2,11 @@
  * @fileType library
  * @domain runners
  * @pattern fly-spawn-context
- *
- * Shared "Fly Machine spawn context" builder used by every route that
- * spawns a runner machine. Pulls together the bits that every spawner
- * needs: auth, repo, secrets vault, Fly token, perf tier, LiteLLM URL.
+ * @ai-summary Resolves Fly spawn context from request headers + vault: auth,
+ *   repo, secrets, flyToken, perf tier, engine model, LiteLLM URL. Every
+ *   spawner route calls this — routes stay thin. Errors return {ok:false}
+ *   so callers decide how to respond. account is the verified PAT owner
+ *   (stable per person), not the incidental connected-repo owner.
  *
  * Routes stay thin — they call resolveFlyContext, then spawnRunner with
  * mode-specific bits (chat-mode adds session meta + ingest URL; vibe

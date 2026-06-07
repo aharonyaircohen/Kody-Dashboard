@@ -2,11 +2,11 @@
  * @fileType utility
  * @domain runner
  * @pattern fly-activity-store
- *
- * Read / append the Fly machine-activity timeline as a single JSON file on the
- * `kody-state` branch (`.kody/state/fly-activity.json`) — GitHub is the only
- * datastore; no Vercel KV / cron. The branch is excluded from the Vercel build
- * `ignoreCommand`, so these frequent writes never trigger a redeploy.
+ * @ai-summary Persists Fly activity snapshots to .kody/state/fly-activity.json
+ *   on the kody-state branch (GitHub is the only datastore; no Vercel KV/cron).
+ *   Writes are throttled (≥5min interval), pruned to 14-day window, and use
+ *   CAS to avoid clobbering. snapshotDue() lets callers skip an expensive Fly
+ *   inventory call when a write would be throttled anyway.
  *
  * Modeled on cto/trust-store.ts, but takes an explicit Octokit (rather than the
  * request-context globals) so the same writer works from the activity API
