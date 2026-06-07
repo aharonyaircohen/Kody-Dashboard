@@ -2,28 +2,31 @@
 
 _Cadence: weekly — delivery of owned responsibilities, not subjective quality._
 
-Two of four staff with active duties delivered this week: ceo (own report duty, real weekly content but over-firing ~7.0× daily) and kody (all 12 kody-owned duties remain disabled; the prior strong grade was based on clear-empty-goals, but that duty has no staff: line and is not actually kody-owned on the .md); cto, qa, and tech-writer all own active duties that remain silent for a third consecutive tick, and coo / ux-designer stay parked with everything disabled.
+CEO delivered its own review; CTO, QA, and tech-writer each own an active duty with no verifiable run this week — three unclear signals against a system that otherwise idles or self-reports cleanly.
 
 | Staff        | Owned duties        | Delivery | Consistency | Signal | Grade  |
 | ------------ | ------------------- | -------- | ----------- | ------ | ------ |
 | ceo          | 2 (1 active)        | High     | Med         | High   | strong |
 | coo          | 3 (0 active)        | —        | —           | —      | idle   |
-| cto          | 4 (1 active)        | Low      | Low         | Low    | weak   |
+| cto          | 4 (1 active)        | Unclear  | Unclear     | Unclear | unclear |
 | kody         | 12 (0 active)       | —        | —           | —      | idle   |
-| qa           | 3 (1 active)        | Low      | Low         | Low    | weak   |
-| tech-writer  | 2 (2 active)        | Low      | Low         | Low    | weak   |
+| qa           | 3 (1 active)        | Unclear  | Unclear     | Unclear | unclear |
+| tech-writer  | 2 (2 active)        | Unclear  | Unclear     | Unclear | unclear |
 | ux-designer  | 1 (0 active)        | —        | —           | —      | idle   |
 
-- **coo — idle:** all three owned duties (, , ) remain . **Effect:** none — operator parking, not a miss.
-- **cto — weak:**  has produced no state file, no  label (doesn't exist in the repo), no tracking issue, and no CI signal in the window. Dev branch has zero CI runs listed — the heartbeat is essentially silent. The other three owned duties (, , ) remain . **Effect:** the 15m CI-health heartbeat on  is silent; a broken  build would go unreviewed.
-- **kody — idle:** all 12 kody-owned duties are  (the last report's strong grade was based on  running daily, but that duty has no  line in its .md and is not actively kody-owned). **Effect:** none — all duties parked, not a delivery miss.
-- **qa — weak:**  produced no state, no  /  labels (both label types exist but no issues carry them), no PR verdicts, and no  commits. The 30m verification heartbeat is silent. The other two owned duties (, ) remain . **Effect:** PRs can land without a UI verdict.
-- **tech-writer — weak:**  and  both have  on paper but neither produced a state file, a report, a doc-drift issue, or any attributed commits in the window. PR #61 (the prior attempt to enable docs-code) closed without merging on 2026-06-06 — no replacement PR has been opened. **Effect:** the daily doc-drift guard is silent; the on-paper enable is closed-as-abandoned.
-- **ux-designer — idle:** the only owned duty () is . **Effect:** none — operator parking.
+- **cto — unclear:** dev-ci-health (15m cadence) has no state file and opened no tracking issue. No CI-signal evidence in the window. **Effect:** broken dev CI would be invisible to the operator.
+- **qa — unclear:** qa-verify (30m cadence) has no state file, no PASS/CONCERNS/FAIL verdicts on open PRs, and no kody:ui-verified/kody:ui-failed labels issued this week. **Effect:** PRs can land without a UI verdict.
+- **tech-writer — unclear:** docs-code and docs-readme produced real issues in late May (3 docs-coverage, 2 docs-drift issues still open), most recently updated June 3. No new findings or commits this calendar week. Duties may be running but finding nothing new to flag. **Effect:** doc drift on post-June-3 merges is unmonitored.
 
 ### Cadence escalations (engine, not staff)
 
-- **ceo (strong, but over-firing):**  fired **49 times in the last 7d** against an  frontmatter — roughly **7.0× daily**, or **~49× the stated weekly cadence** (essentially flat from last week's 48 fires). The report content is real and substantive — the over-firing is an engine-side issue, not a delivery miss. **Effect:** weekly review delivered; engine cadence broken.
-- **kody (reassessed idle):** The prior strong grade was based on  running as a kody-owned daily duty. However,  has no  frontmatter, so it is not actively mapped to kody. All 12 explicitly kody-owned duties are . kody is idle this cycle. **Effect:** none — no active duties.
+- **ceo (strong, but over-firing):** ceo-performance-review fired 49 times in the last 7d against a every: 7d frontmatter — roughly 7.0x daily, essentially unchanged from last week's 48 fires. Report content is real; the engine cadence is broken. **Effect:** weekly review delivered; engine-side fix needed.
+- **tech-writer (reassessed unclear):** Prior week's weak grade was based on confirmed silence (no issues opened). This week: 5 tracking issues exist and the most recent (previews coverage gap) was updated June 3 — within the week, but likely a re-confirm of an already-tracked finding rather than new output. Signal is ambiguous; unclear is honest. **Effect:** unclear whether new drift/gaps are being caught.
+- **kody (idle confirmed):** All 12 kody-owned duties remain disabled. No change from prior week.
 
-- Changes since last week: **kody strong→idle** (clear-empty-goals confirmed not kody-owned; all explicit kody duties disabled). All other grades unchanged: ceo strong, cto/qa/tech-writer weak, coo/ux-designer idle.
+### Changes since last week
+
+- cto weak to unclear (active duty silent; no state, no output — ambiguous, not clearly failing)
+- qa weak to unclear (same — active duty silent; no verdicts, no labels)
+- tech-writer weak to unclear (old issues confirmed still open; June 3 update re-confirmed existing findings; no new output this calendar week)
+- All others unchanged: ceo strong, coo/kody/ux-designer idle
