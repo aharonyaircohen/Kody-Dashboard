@@ -73,6 +73,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     const createRefCalls: unknown[] = [];
     const getRefCalls: unknown[] = [];
     let capturedWriteBranch: string | undefined;
+    let capturedDispatchInputs: unknown;
 
     const mockOctokit = {
       rest: {
@@ -108,7 +109,12 @@ describe("POST /api/kody/goals/[id]/manage", () => {
           }),
         },
         actions: {
-          createWorkflowDispatch: vi.fn().mockResolvedValue({ status: 204 }),
+          createWorkflowDispatch: vi
+            .fn()
+            .mockImplementation((opts: unknown) => {
+              capturedDispatchInputs = opts;
+              return Promise.resolve({ status: 204 });
+            }),
         },
       },
     };
@@ -135,6 +141,16 @@ describe("POST /api/kody/goals/[id]/manage", () => {
       sha: "main-sha-abc",
     });
     expect(capturedWriteBranch).toBe("kody-state");
+
+    // The dispatch must pass the goal slug as issue_number so the engine can
+    // detect it is a goal (not a GitHub issue number) and read goal state.
+    expect(capturedDispatchInputs).toEqual({
+      owner: "test-owner",
+      repo: "test-repo",
+      workflow_id: "kody.yml",
+      ref: "main",
+      inputs: { issue_number: { value: "duty-migration" } },
+    });
   });
 
   it("skips branch creation when kody-state already exists", async () => {

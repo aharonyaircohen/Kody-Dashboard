@@ -1,0 +1,10 @@
+[
+  {
+    "type": "lesson",
+    "name": "engine-goal-slug-detection-is-external",
+    "hook": "Goal-slug detection lives in @kody-ade/kody-engine, not dashboard repo",
+    "body": "When fixing goal dispatch (issue #102), the engine-side change (detecting when issue_number is a goal slug vs a GitHub issue number) lives in @kody-ade/kody-engine — an external npm package. The dashboard repo only owns the dispatch call with the correct inputs.\n\n**Why:** The kody engine (`@kody-ade/kody-engine`) is a separate package from the dashboard. Goal state lives at `.kody/goals/<slug>/state.json` on the `kody-state` branch — the engine reads this. The dashboard's job is only to pass the goal slug as `issue_number` in the workflow dispatch.\n\n**How to apply:** If you need to modify how the engine detects or reads goal state, that change goes in the `kody-engine` repo, not here. Look for how `github.event.inputs.issue_number` is processed there.",
+    "why": "Future attempts to 'also fix the engine side' in this repo will be wasted effort — the engine is external",
+    "confidence": 0.95
+  }
+]
