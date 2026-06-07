@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, MicOff, PhoneOff, Loader2, Volume2 } from "lucide-react";
 import { cn } from "@dashboard/lib/utils/ui";
 import type { VoiceChatState } from "../hooks/useVoiceChat";
+import { stripReasoning } from "../chat/reasoning";
 
 interface VoiceChatOverlayProps {
   state: VoiceChatState;
@@ -32,16 +33,6 @@ function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-/**
- * The kody-direct stream wraps model thought summaries in
- * `<think>…</think>` so the text-chat reasoning panel can render them.
- * The voice overlay has no such panel — strip the block (including any
- * unclosed mid-stream tail) so the bubble shows only the spoken answer.
- */
-function stripReasoning(content: string): string {
-  return content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
 }
 
 export function VoiceChatOverlay({
