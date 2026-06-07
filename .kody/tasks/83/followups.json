@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Pre-existing format failures in KodyChat.tsx and reasoning.spec.ts",
+    "body": "Run `pnpm format` to fix formatting issues in src/dashboard/lib/components/KodyChat.tsx and tests/unit/chat/reasoning.spec.ts. These are unrelated to the github-budget removal.",
+    "rationale": "The verify tool flagged format issues in files not touched by this change — they were pre-existing.",
+    "priority": "low"
+  }
+]

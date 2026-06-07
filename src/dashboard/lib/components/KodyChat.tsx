@@ -111,11 +111,7 @@ import { VoiceChatOverlay } from "./VoiceChatOverlay";
 import { useChatSessions } from "../hooks/useChatSessions";
 import { useKodyActionState } from "../hooks/useKodyActionState";
 import { SessionSidebar } from "./SessionSidebar";
-import {
-  ToolCallList,
-  ThinkingPanel,
-  ReasoningPanel,
-} from "./ToolCallCard";
+import { ToolCallList, ThinkingPanel, ReasoningPanel } from "./ToolCallCard";
 import { parseReasoning, stripReasoning } from "../chat/reasoning";
 import { MessageActions } from "./MessageActions";
 import { VibeRunButton } from "./VibeRunButton";
