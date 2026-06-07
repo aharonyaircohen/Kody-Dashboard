@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Add a happy-dom + @testing-library/react test infra",
+    "body": "The repo's vitest config is environment: 'node' and has no DOM testing library. Every React component test is either a source-level structural regex match (kody-chat-composer.spec.ts) or omitted. The MergeButton / PreviewActions integration in this fix is verified by reading the source, not by mounting the component. Adding happy-dom + @testing-library/react (and a small wrapper per component) would let a follow-up replace the structural regex with a real render and assert on the disabled state under various CI conditions.",
+    "rationale": "The pattern works for layout and import-wiring assertions, but cannot verify that MergeButton's disabled state actually gates the click handler in PreviewActions. A real render would catch behavioral regressions the structural test can't.",
+    "priority": "low"
+  }
+]
