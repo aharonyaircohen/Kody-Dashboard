@@ -19,6 +19,7 @@ import {
   Loader2,
   Pause,
   Play,
+  Power,
   RefreshCw,
   Server,
   SquareTerminal,
@@ -27,6 +28,10 @@ import {
 
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
+import {
+  batchSuspendRunning,
+  countRunningInGroup,
+} from "@dashboard/lib/runners/fly-suspend-all";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 type FlyFeature =
@@ -160,6 +165,8 @@ export function FlyMachinesTable({
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<FlyMachineRow | null>(null);
+  const [busyFeature, setBusyFeature] = useState<FlyFeature | null>(null);
+  const [confirmFeature, setConfirmFeature] = useState<FlyFeature | null>(null);
 
   const refresh = useCallback(async () => {
     if (!hasAuth || !flyTokenConfigured) {
@@ -221,6 +228,52 @@ export function FlyMachinesTable({
     }
   }
 
+  async function suspendGroup(feature: FlyFeature) {
+    const rows = (inv?.machines ?? []).filter((m) => m.feature === feature);
+    setBusyFeature(feature);
+    try {
+      const { results, okCount, failCount } = await batchSuspendRunning(
+        rows,
+        async (row) => {
+          const res = await fetch("/api/kody/fly/machines/action", {
+            method: "POST",
+            headers: { ...headers, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              app: row.app,
+              machineId: row.machineId,
+              action: "suspend",
+            }),
+          });
+          if (!res.ok) {
+            const body = (await res.json().catch(() => ({}))) as {
+              error?: string;
+            };
+            throw new Error(body.error ?? `HTTP ${res.status}`);
+          }
+        },
+      );
+      if (failCount === 0) {
+        toast.success(
+          `Suspended ${okCount} machine(s) in ${FEATURE_TITLE[feature]}.`,
+        );
+      } else {
+        const failedIds = results
+          .filter((r) => !r.ok)
+          .map((r) => r.machineId)
+          .join(", ");
+        toast.error(
+          `Suspended ${okCount}, ${failCount} failed in ${FEATURE_TITLE[feature]}: ${failedIds}`,
+        );
+      }
+      await refresh();
+    } catch (err) {
+      toast.error(`Suspend all failed: ${(err as Error).message}`);
+    } finally {
+      setBusyFeature(null);
+      setConfirmFeature(null);
+    }
+  }
+
   const groups = FEATURE_ORDER.map((feature) => ({
     feature,
     rows: (inv?.machines ?? []).filter((m) => m.feature === feature),
@@ -263,117 +316,138 @@ export function FlyMachinesTable({
           <p className="text-xs text-white/40">No machines found.</p>
         )}
 
-        {groups.map(({ feature, rows }) => (
-          <div key={feature} className="space-y-1">
-            <div className="flex items-center gap-2 pt-1">
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-white/40">
-                {FEATURE_TITLE[feature]}
-              </h3>
-              <span className="text-[11px] text-white/25">{rows.length}</span>
-            </div>
-            <div className="divide-y divide-white/[0.06]">
-              {rows.map((row) => {
-                const busy = busyId === row.machineId;
-                const running = isRunning(row.state);
-                return (
-                  <div
-                    key={row.machineId}
-                    className="flex items-center gap-2 py-1.5 text-xs"
+        {groups.map(({ feature, rows }) => {
+          const runningInGroup = countRunningInGroup(rows);
+          const groupBusy = busyFeature === feature;
+          return (
+            <div key={feature} className="space-y-1">
+              <div className="flex items-center gap-2 pt-1">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-white/40">
+                  {FEATURE_TITLE[feature]}
+                </h3>
+                <span className="text-[11px] text-white/25">{rows.length}</span>
+                {runningInGroup > 0 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={groupBusy}
+                    onClick={() => setConfirmFeature(feature)}
+                    className="ml-auto h-6 px-1.5 text-amber-300 hover:text-amber-200"
+                    title="Suspend all running machines in this section"
                   >
-                    <span className="font-medium text-white/80 w-28 truncate">
-                      {row.label}
-                    </span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded-full border text-[10px] ${statePill(
-                        row.state,
-                      )}`}
+                    {groupBusy ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Power className="w-3 h-3 mr-1" />
+                    )}
+                    Suspend all
+                  </Button>
+                )}
+              </div>
+              <div className="divide-y divide-white/[0.06]">
+                {rows.map((row) => {
+                  const busy = groupBusy || busyId === row.machineId;
+                  const running = isRunning(row.state);
+                  return (
+                    <div
+                      key={row.machineId}
+                      className="flex items-center gap-2 py-1.5 text-xs"
                     >
-                      {row.state}
-                    </span>
-                    <span className="text-white/40 font-mono">
-                      {row.sizeLabel}
-                    </span>
-                    <span
-                      className="text-white/30 hidden sm:inline"
-                      title="Start time"
-                    >
-                      {formatStarted(row.createdAt)}
-                    </span>
-                    <span
-                      className="text-white/45 tabular-nums"
-                      title="Age since created"
-                    >
-                      age {formatDuration(row.createdAt)}
-                    </span>
-                    <div className="ml-auto flex items-center gap-1">
-                      {canUseTerminal(row.feature) &&
-                        (canOpenTerminal(row.state) ? (
-                          <Button
-                            asChild
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 px-1.5 text-emerald-300 hover:text-emerald-200"
-                            title="Open terminal"
-                          >
-                            <Link href={terminalHref(row)}>
-                              <SquareTerminal className="w-3 h-3" />
-                            </Link>
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled
-                            className="h-6 px-1.5 text-white/30"
-                            title="Terminal unavailable for this machine state"
-                          >
-                            <SquareTerminal className="w-3 h-3" />
-                          </Button>
-                        ))}
-                      {running ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={busy}
-                          onClick={() => act(row, "suspend")}
-                          className="h-6 px-1.5 text-amber-300 hover:text-amber-200"
-                          title="Suspend (snapshot, ~$0)"
-                        >
-                          <Pause className="w-3 h-3" />
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={busy}
-                          onClick={() => act(row, "start")}
-                          className="h-6 px-1.5 text-emerald-300 hover:text-emerald-200"
-                          title="Resume"
-                        >
-                          <Play className="w-3 h-3" />
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={busy}
-                        onClick={() => setConfirm(row)}
-                        className="h-6 px-1.5 text-rose-300 hover:text-rose-200"
-                        title="Destroy"
+                      <span className="font-medium text-white/80 w-28 truncate">
+                        {row.label}
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded-full border text-[10px] ${statePill(
+                          row.state,
+                        )}`}
                       >
-                        {busy ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
+                        {row.state}
+                      </span>
+                      <span className="text-white/40 font-mono">
+                        {row.sizeLabel}
+                      </span>
+                      <span
+                        className="text-white/30 hidden sm:inline"
+                        title="Start time"
+                      >
+                        {formatStarted(row.createdAt)}
+                      </span>
+                      <span
+                        className="text-white/45 tabular-nums"
+                        title="Age since created"
+                      >
+                        age {formatDuration(row.createdAt)}
+                      </span>
+                      <div className="ml-auto flex items-center gap-1">
+                        {canUseTerminal(row.feature) &&
+                          (canOpenTerminal(row.state) ? (
+                            <Button
+                              asChild
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-1.5 text-emerald-300 hover:text-emerald-200"
+                              title="Open terminal"
+                            >
+                              <Link href={terminalHref(row)}>
+                                <SquareTerminal className="w-3 h-3" />
+                              </Link>
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled
+                              className="h-6 px-1.5 text-white/30"
+                              title="Terminal unavailable for this machine state"
+                            >
+                              <SquareTerminal className="w-3 h-3" />
+                            </Button>
+                          ))}
+                        {running ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={() => act(row, "suspend")}
+                            className="h-6 px-1.5 text-amber-300 hover:text-amber-200"
+                            title="Suspend (snapshot, ~$0)"
+                          >
+                            <Pause className="w-3 h-3" />
+                          </Button>
                         ) : (
-                          <Trash2 className="w-3 h-3" />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={() => act(row, "start")}
+                            className="h-6 px-1.5 text-emerald-300 hover:text-emerald-200"
+                            title="Resume"
+                          >
+                            <Play className="w-3 h-3" />
+                          </Button>
                         )}
-                      </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={busy}
+                          onClick={() => setConfirm(row)}
+                          className="h-6 px-1.5 text-rose-300 hover:text-rose-200"
+                          title="Destroy"
+                        >
+                          {busy ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </CardContent>
 
       <ConfirmDialog
@@ -398,6 +472,27 @@ export function FlyMachinesTable({
           )
         }
         onClose={() => setConfirm(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmFeature !== null}
+        title={
+          confirmFeature
+            ? `Suspend all in ${FEATURE_TITLE[confirmFeature]}?`
+            : "Suspend all?"
+        }
+        description={
+          confirmFeature
+            ? `Suspends ${countRunningInGroup(
+                (inv?.machines ?? []).filter(
+                  (m) => m.feature === confirmFeature,
+                ),
+              )} running machine(s) in ${FEATURE_TITLE[confirmFeature]}. Already-suspended machines are skipped.`
+            : ""
+        }
+        confirmLabel="Suspend all"
+        onConfirm={() => confirmFeature && suspendGroup(confirmFeature)}
+        onClose={() => setConfirmFeature(null)}
       />
     </Card>
   );
