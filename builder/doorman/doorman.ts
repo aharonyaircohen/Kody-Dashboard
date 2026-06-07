@@ -32,6 +32,12 @@ const NEXT_PORT = Number.parseInt(process.env.NEXT_INTERNAL_PORT ?? "3000", 10);
 const COOKIE_NAME = "kody_preview_session";
 const COOKIE_MAX_AGE = 4 * 60 * 60; // 4 hours in seconds
 
+// Machine identity — set at boot so the doorman can bind tickets to this
+// specific machine (repo + pr), preventing a ticket minted for machine A
+// from being used on machine B (they share the same verify key).
+const APP_REPO = process.env.KODY_REPO_CONTEXT ?? "";
+const APP_PR = Number.parseInt(process.env.KODY_PR ?? "0", 10);
+
 /**
  * HKDF-derive the preview verify key from the raw env var.
  * The raw master key never arrives here — only the derived 32-byte key.
@@ -102,6 +108,15 @@ function decodeTicket(ticket: string): TicketPayload | null {
   }
 }
 
+/**
+ * Rebuild the HMAC subject from the ticket payload.
+ * Note: payload.r is validated against kody_repo_context before this is called,
+ * so we include it in the subject to bind the ticket to this specific machine.
+ */
+function buildSubject(payload: TicketPayload): string {
+  return `${payload.r}#${payload.p}:${payload.e}`;
+}
+
 function verifyAndGetSession(ticket: string, key: Buffer): boolean {
   const payload = decodeTicket(ticket);
   if (!payload) return false;
@@ -109,7 +124,14 @@ function verifyAndGetSession(ticket: string, key: Buffer): boolean {
   const now = Math.floor(Date.now() / 1000);
   if (now >= payload.e) return false;
 
-  const subject = `${payload.r}#${payload.p}:${payload.e}`;
+  // Reject if the ticket isn't for this machine's repo or PR.
+  // This prevents a ticket minted for machine A from being used on machine B,
+  // even though both machines share the same verify key.
+  if (payload.r !== APP_REPO || payload.p !== APP_PR) return false;
+
+  // note: payload.r is validated against kody_repo_context above.
+  // we include it in the hmac subject so the ticket is bound to this specific machine.
+  const subject = buildSubject(payload);
   const expectedSig = crypto
     .createHmac("sha256", key)
     .update(subject)

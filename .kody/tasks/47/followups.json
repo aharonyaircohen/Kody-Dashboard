@@ -1,8 +1,8 @@
 [
   {
     "title": "Redeploy kody-preview-builder image after merge",
-    "body": "The doorman/ directory needs to be copied into the builder image. Run: flyctl deploy -c builder/fly.toml --app kody-preview-builder from the repo root after this PR merges, so the builder image includes doorman/doorman.ts before the next preview build.",
-    "rationale": "The doorman lives in builder/doorman/ but the builder image at registry.fly.io/kody-preview-builder is baked from the old builder/Dockerfile which doesn't COPY doorman/. Until the builder image is rebuilt and pushed, the builder won't copy doorman/ into cloned repos' Dockerfile.preview files.",
+    "body": "The doorman/ directory needs to be copied into the builder image. Run: flyctl deploy -c builder/fly.toml --app kody-preview-builder from the repo root after this PR merges, so the builder image includes doorman/doorman.ts before the next preview build. Also set the machine identity secrets:\nfly secrets set KODY_REPO_CONTEXT=\"owner/repo\" -a kody-preview-builder\nfly secrets set KODY_PR=\"\" -a kody-preview-builder",
+    "rationale": "The doorman lives in builder/doorman/ but the builder image at registry.fly.io/kody-preview-builder is baked from the old builder/Dockerfile which doesn't COPY doorman/. Until the builder image is rebuilt and pushed, the builder won't copy doorman/ into cloned repos' Dockerfile.preview files. The KODY_REPO_CONTEXT and KODY_PR secrets are used by the doorman to bind preview tickets to specific machines.",
     "priority": "high"
   },
   {

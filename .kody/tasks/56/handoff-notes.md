@@ -1,17 +1,48 @@
-# PR #56 conflict resolution
+# PR #56 — review feedback fix round
 
-Resolved three merge conflicts between `47-featpreviews-token-gate-per-pr-fly-previews-signed` and `origin/main`. Took the `origin/main` side in all three cases; the HEAD additions in each conflict block referenced symbols that don't exist in the resolved tree and are unrelated to the PR's preview-token-gating purpose.
+Applied 4 review-feedback items closing logic gaps in the token-gated fly previews
+security design.
 
-## Files
+## Changes
 
-- **`src/dashboard/lib/components/DashboardHome.tsx`** — HEAD added a `DutiesHealth` section that called `useDuties()`, but that hook isn't imported in this file. Removed the function and the surrounding comment placeholder; `LatestReports()` follows the section header directly as on main.
+### 1. `builder/doorman/doorman.ts` — bind tickets to machine identity
 
-- **`src/dashboard/lib/components/ExecutablesManager.tsx`** — HEAD rewrote the list `<li>` to an inline `Card` with edit/run/delete actions, but the row body referenced `setRunning(e.slug)` (never declared anywhere in the file) and `isIssueDefault` / `isPrDefault` (not in the `.map()` scope). Kept the existing `<ExecutableRow>` component which receives those props from the parent.
+Added `APP_REPO` / `APP_PR` constants read from `KODY_REPO_CONTEXT` / `KODY_PR`
+env vars. `verifyAndGetSession()` now rejects any ticket whose `repo` or `pr`
+doesn't match the machine's own identity — preventing a ticket minted for
+machine A from being accepted on machine B (they share the same verify key).
 
-- **`src/dashboard/lib/executables/files.ts`** — HEAD replaced `listExecutableFiles` with a multi-folder sweep and added a new `listMarkdownDutySummaries` export. Both referenced `FOLDER_DIRS` and `listFolderDutiesInDir` (not defined in this file) and used `legacy` / `markdown` / `dir` fields that aren't in the `ExecutableSummary` interface. Reverted to the main-branch `listFolderDuties` call; no other call sites depend on the new export.
+Also extracted `buildSubject(payload)` helper with an explanatory comment:
+```ts
+// note: payload.r is validated against kody_repo_context above.
+// we include it in the hmac subject so the ticket is bound to this specific machine.
+```
+
+### 2. `src/dashboard/lib/previews/builder-client.ts` — pass machine identity env
+
+Added `KODY_REPO_CONTEXT: input.repo` and `KODY_PR: String(input.pr ?? "")`
+to the builder machine env (set via Fly Machines API when spawning the builder).
+
+### 3. `builder/src/builder.ts` — thread identity env to preview machine
+
+The builder CLI now also forwards `KODY_REPO_CONTEXT` and `KODY_PR` to the
+preview machine's runtime env, so the doorman can read them.
+
+### 4. `builder/fly.toml` — env section for machine identity secrets
+
+Added `[env]` section with empty defaults so the secrets survive `fly secrets set`:
+```toml
+[env]
+  kody_pr = ""  # set via fly secrets set
+  kody_repo_context = ""  # set via fly secrets set
+```
+
+### 5. `.kody/tasks/47/followups.json` — updated deploy instructions
+
+Added the `fly secrets set` commands to the builder-redeploy followup so operators
+know to set machine identity secrets when deploying the updated builder image.
 
 ## Verification
 
 - `pnpm typecheck` — clean
-- `pnpm lint` — 0 errors, 124 pre-existing warnings in test files (unrelated)
-- `grep '^(<<<<<<<|=======|>>>>>>>)' src` — no matches
+- `pnpm lint` — 0 errors

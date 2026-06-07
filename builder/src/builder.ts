@@ -561,6 +561,13 @@ async function main() {
           ...(process.env.KODY_PREVIEW_VERIFY_KEY
             ? { KODY_PREVIEW_VERIFY_KEY: process.env.KODY_PREVIEW_VERIFY_KEY }
             : {}),
+          // Machine identity — set by the dashboard so the doorman in the
+          // preview machine can bind tickets to this specific repo/pr and
+          // reject tickets meant for a different machine.
+          ...(process.env.KODY_REPO_CONTEXT
+            ? { KODY_REPO_CONTEXT: process.env.KODY_REPO_CONTEXT }
+            : {}),
+          ...(process.env.KODY_PR ? { KODY_PR: process.env.KODY_PR } : {}),
         },
         ...(Number.isFinite(cpusRaw) && cpusRaw > 0 ? { cpus: cpusRaw } : {}),
         ...(Number.isFinite(memRaw) && memRaw > 0 ? { memoryMb: memRaw } : {}),
