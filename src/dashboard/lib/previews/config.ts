@@ -2,6 +2,13 @@
  * @fileType library
  * @domain previews
  * @pattern config
+ * @ai-summary Resolves the per-repo Fly token / org / region used for every
+ *   Fly API call in the preview system. Trap: this is the per-repo billing
+ *   gate — never accept a token from a global source (Vercel env,
+ *   `process.env.FLY_API_TOKEN` only) as the sole path. A repo with no
+ *   vault token gets `null` back, which is the universal "this repo is not
+ *   opted into previews" signal; webhook handlers depend on that signal
+ *   to no-op.
  *
  * Resolve Fly preview config from the per-repo vault. Follows the
  * per-repo infra rule: each repo's previews are billed against THAT

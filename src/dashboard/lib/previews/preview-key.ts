@@ -2,6 +2,13 @@
  * @fileType library
  * @domain previews
  * @pattern naming
+ * @ai-summary Derives a stable Fly app name from (repo, pr|branch|staticId)
+ *   so the whole preview system — public URLs, status lookups, the TTL
+ *   sweep, the warm pool, and the doorman's ticket binding — can reference
+ *   a preview by hash alone, with no DB row. Trap: the hash scheme is a
+ *   silent contract. Changing the algorithm invalidates every running
+ *   preview, every open ticket, and every sweep target. Bump a version
+ *   + write a migration, never edit in place.
  *
  * Deterministic app naming for previews. Same (repo, PR) always yields
  * the same Fly app name, which means the public URL is deterministic too

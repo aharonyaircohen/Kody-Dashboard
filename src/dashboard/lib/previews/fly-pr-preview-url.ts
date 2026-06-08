@@ -2,6 +2,11 @@
  * @fileType library
  * @domain previews
  * @pattern fly-url-resolver
+ * @ai-summary Best-effort lookup of the Fly preview URL for a PR; returns
+ *   `null` on every "not on Fly" case so the PR page falls back to the
+ *   Vercel preview rather than showing a blank. Trap: this function must
+ *   NEVER throw — a Fly outage should degrade the preview pane to Vercel,
+ *   not break the page. Every code path inside is wrapped accordingly.
  *
  * Resolve the deterministic Fly preview URL for a PR — but only when the
  * repo actually has Fly previews configured AND a per-PR app exists. Returns

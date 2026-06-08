@@ -2,6 +2,13 @@
  * @fileType library
  * @domain previews
  * @pattern fly-machine-spawn
+ * @ai-summary Single fast Fly API call that spawns the per-PR builder
+ *   machine and returns its ID + expected URL. The builder does every
+ *   subsequent step (clone, build, image push, app create, IP alloc,
+ *   preview machine boot) on its own and exits — the dashboard never
+ *   polls it. Trap: the returned URL is NOT reachable yet; it is the
+ *   deterministic destination the builder will boot once it finishes
+ *   (~2-5 min), not a live link. Status callers must re-query Fly.
  *
  * Spawns the per-PR builder Fly Machine and returns immediately.
  *
