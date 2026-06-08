@@ -102,6 +102,8 @@ export interface SessionMeta {
   messageCount: number;
   /** Whether this session is pinned */
   pinned?: boolean;
+  /** Ephemeral UI status derived from the stored messages */
+  status?: "idle" | "running";
 }
 
 /**

@@ -7,7 +7,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { Loader2, Pencil, Pin, PinOff, Plus, Trash2, X } from "lucide-react";
 import { cn } from "@dashboard/lib/utils/ui";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { SessionMeta } from "../chat-types";
@@ -20,6 +20,8 @@ interface SessionSidebarProps {
   onDeleteSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
   onPinSession: (sessionId: string) => void;
+  pinnedOpen?: boolean;
+  onTogglePinnedOpen?: () => void;
   onClose?: () => void;
   className?: string;
 }
@@ -52,6 +54,8 @@ export function SessionSidebar({
   onDeleteSession,
   onRenameSession,
   onPinSession,
+  pinnedOpen = false,
+  onTogglePinnedOpen,
   onClose,
   className,
 }: SessionSidebarProps) {
@@ -111,31 +115,41 @@ export function SessionSidebar({
               {sessions.length}
             </span>
           </div>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="md:hidden -mr-1 p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
-              aria-label="Close conversations"
-              title="Close"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+          <div className="flex items-center gap-1">
+            {onTogglePinnedOpen && (
+              <button
+                type="button"
+                onClick={onTogglePinnedOpen}
+                className={cn(
+                  "-mr-1 p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground",
+                  pinnedOpen && "text-primary bg-muted",
+                )}
+                aria-label={
+                  pinnedOpen
+                    ? "Unpin conversations panel"
+                    : "Pin conversations panel"
+                }
+                title={pinnedOpen ? "Unpin panel" : "Pin panel"}
               >
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-              </svg>
-            </button>
-          )}
+                {pinnedOpen ? (
+                  <PinOff className="w-4 h-4" aria-hidden="true" />
+                ) : (
+                  <Pin className="w-4 h-4" aria-hidden="true" />
+                )}
+              </button>
+            )}
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="md:hidden -mr-1 p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
+                aria-label="Close conversations"
+                title="Close"
+              >
+                <X className="w-4 h-4" aria-hidden="true" />
+              </button>
+            )}
+          </div>
         </div>
         <button
           onClick={onCreateSession}
@@ -184,16 +198,21 @@ export function SessionSidebar({
                   ) : (
                     <p
                       className={cn(
-                        "text-sm font-medium truncate pr-32 md:pr-16",
+                        "flex items-center gap-1.5 text-sm font-medium truncate pr-32 md:pr-20",
                         session.id === activeSessionId && "text-primary",
                       )}
                     >
                       {session.pinned && (
-                        <span className="mr-1 text-amber-500">📌</span>
+                        <Pin className="w-3 h-3 shrink-0 text-amber-500" />
                       )}
-                      {session.title === "New conversation" && session.preview
-                        ? session.preview
-                        : session.title}
+                      {session.status === "running" && (
+                        <Loader2 className="w-3 h-3 shrink-0 animate-spin text-primary" />
+                      )}
+                      <span className="truncate">
+                        {session.title === "New conversation" && session.preview
+                          ? session.preview
+                          : session.title}
+                      </span>
                     </p>
                   )}
 
@@ -202,6 +221,12 @@ export function SessionSidebar({
                     <span>{formatRelativeTime(session.updatedAt)}</span>
                     <span>•</span>
                     <span>{session.messageCount} messages</span>
+                    {session.status === "running" && (
+                      <>
+                        <span>•</span>
+                        <span className="text-primary">Running</span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -219,7 +244,11 @@ export function SessionSidebar({
                       session.pinned ? "Unpin conversation" : "Pin conversation"
                     }
                   >
-                    {session.pinned ? "📌" : "📍"}
+                    {session.pinned ? (
+                      <PinOff className="w-4 h-4" aria-hidden="true" />
+                    ) : (
+                      <Pin className="w-4 h-4" aria-hidden="true" />
+                    )}
                   </button>
 
                   {/* Edit button */}
@@ -232,7 +261,7 @@ export function SessionSidebar({
                     title="Rename"
                     aria-label="Rename conversation"
                   >
-                    ✏️
+                    <Pencil className="w-4 h-4" aria-hidden="true" />
                   </button>
 
                   {/* Delete button */}
@@ -245,7 +274,7 @@ export function SessionSidebar({
                     title="Delete"
                     aria-label="Delete conversation"
                   >
-                    🗑️
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </div>
               </li>

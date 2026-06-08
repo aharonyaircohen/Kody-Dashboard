@@ -239,6 +239,13 @@ export interface UseChatSessionsResult {
   setMessages: (
     msgs: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]),
   ) => void;
+  /** Set messages for a specific session */
+  setSessionMessages: (
+    sessionId: string,
+    msgs: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]),
+  ) => void;
+  /** Read messages for a specific session */
+  getSessionMessages: (sessionId: string) => ChatMessage[];
   /** Create a new session */
   createSession: () => string;
   /** Switch to a different session */
@@ -281,13 +288,22 @@ export function useChatSessions(
     };
   }, [storageKey, scope]);
 
-  // Get sessions sorted by updatedAt descending
+  // Get sessions sorted by pinned first, then updatedAt descending.
   const sessions = useMemo(() => {
     if (!store) return [];
-    return [...store.sessions].sort(
-      (a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-    );
+    return [...store.sessions]
+      .sort((a, b) => {
+        if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+        return (
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+      })
+      .map((session) => ({
+        ...session,
+        status: store.messages[session.id]?.some((m) => m.isLoading)
+          ? ("running" as const)
+          : ("idle" as const),
+      }));
   }, [store]);
 
   // Get active session
@@ -551,11 +567,74 @@ export function useChatSessions(
     [storageKey],
   );
 
+  const setSessionMessages = useCallback(
+    (
+      sessionId: string,
+      newMessagesOrUpdater:
+        | ChatMessage[]
+        | ((prev: ChatMessage[]) => ChatMessage[]),
+    ) => {
+      setStore((prev) => {
+        if (!prev) return prev;
+
+        let nextSessions = prev.sessions;
+        let nextMessages = prev.messages;
+        if (!nextSessions.some((s) => s.id === sessionId)) {
+          const now = new Date().toISOString();
+          nextSessions = [
+            ...nextSessions,
+            {
+              id: sessionId,
+              title: "New conversation",
+              createdAt: now,
+              updatedAt: now,
+              messageCount: 0,
+              pinned: false,
+            },
+          ];
+          nextMessages = { ...nextMessages, [sessionId]: [] };
+        }
+
+        const computedNew =
+          typeof newMessagesOrUpdater === "function"
+            ? newMessagesOrUpdater(nextMessages[sessionId] || [])
+            : newMessagesOrUpdater;
+
+        const newStore: GlobalChatStore = {
+          ...prev,
+          messages: { ...nextMessages, [sessionId]: computedNew },
+          sessions: nextSessions.map((s) =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  messageCount: computedNew.length,
+                  updatedAt: new Date().toISOString(),
+                  preview: derivePreview(computedNew) ?? s.preview,
+                }
+              : s,
+          ),
+        };
+        saveStore(newStore, storageKey);
+        return newStore;
+      });
+    },
+    [storageKey],
+  );
+
+  const getSessionMessages = useCallback(
+    (sessionId: string) => {
+      return store?.messages[sessionId] ?? [];
+    },
+    [store],
+  );
+
   return {
     sessions,
     activeSession,
     messages,
     setMessages,
+    setSessionMessages,
+    getSessionMessages,
     createSession,
     switchSession,
     renameSession,

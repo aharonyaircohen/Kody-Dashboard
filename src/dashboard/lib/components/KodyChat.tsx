@@ -245,7 +245,7 @@ export function KodyChat({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dragCounterRef = useRef(0);
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(
     lockedAgentId ?? "kody-live",
@@ -297,11 +297,13 @@ export function KodyChat({
   // Brain auto-default effect's existing gating contract intact.
   const [defaultChatEntryLoaded, setDefaultChatEntryLoaded] = useState(true);
   const brainAbortRef = useRef<AbortController | null>(null);
+  const brainAbortBySessionRef = useRef(new Map<string, AbortController>());
   // AbortController for the in-process chat path (`/api/kody/chat/kody`).
   // Without this the Stop button can't cancel the in-flight stream — the
   // model keeps generating, tokens keep flowing into the assistant bubble,
   // and the user has no recourse. Mirrors the Brain backend's pattern.
   const kodyAbortRef = useRef<AbortController | null>(null);
+  const kodyAbortBySessionRef = useRef(new Map<string, AbortController>());
   // Preview-DOM auto-attach. The Kody Preview Inspector extension reports
   // the preview frame's URL/title/selection/DOM outline. The user-facing
   // toggle lives on the PreviewInspector toolbar (preview surfaces only);
@@ -798,6 +800,20 @@ export function KodyChat({
 
   // Session sidebar state (for session management feature)
   const [showSessionSidebar, setShowSessionSidebar] = useState(false);
+  const [sessionSidebarPinned, setSessionSidebarPinned] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return (
+      window.localStorage.getItem("kody-chat:sessions-panel-pinned") === "1"
+    );
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      "kody-chat:sessions-panel-pinned",
+      sessionSidebarPinned ? "1" : "0",
+    );
+    if (sessionSidebarPinned) setShowSessionSidebar(true);
+  }, [sessionSidebarPinned]);
 
   // Use session hook for global (non-task) chat. On the Vibe page, the
   // no-task ("default preview") chat lives in its own bucket so it
@@ -822,48 +838,28 @@ export function KodyChat({
   }, [desiredSessionScope, sessionStoreScope]);
   const sessionHook = useChatSessions(sessionStoreScope);
 
-  // Abort any in-flight stream + reset loading when the active session
-  // changes. Without this, switching to (or creating) a new session
-  // mid-stream leaks the previous turn's events into the new session's
-  // message list — the deltas keep firing after the switch, hit
-  // setMessages (which now writes to the new session), and leave the
-  // loading flag stuck so the input is disabled. Fires on agent switch
-  // too, which is also the correct behaviour (kody-direct, brain,
-  // brain-fly, and kody-live all stop on agent flip).
+  // Reset the visible stream state on agent switch. Session switches are
+  // intentionally allowed while a reply is running; each send now writes
+  // back to the session id it started from.
   const activeSessionIdForReset = sessionHook.activeSession?.id ?? null;
-  // Track previous values so the reset effect can tell a real switch from the
-  // chat's FIRST session being created by the in-flight turn itself.
-  const prevSessionIdRef = useRef<string | null>(activeSessionIdForReset);
   const prevAgentIdRef = useRef<string>(selectedAgentId);
   useEffect(() => {
-    const prevSession = prevSessionIdRef.current;
     const agentChanged = selectedAgentId !== prevAgentIdRef.current;
-    prevSessionIdRef.current = activeSessionIdForReset;
     prevAgentIdRef.current = selectedAgentId;
 
-    // BUG GUARD: sending the first message in a fresh chat (no active session)
-    // CREATES a session, flipping this id from null → new. That fired this
-    // effect and aborted the very request that triggered it, leaving a silent
-    // blank bubble. Only skip the abort for exactly that case — first session
-    // created (null → id), same agent, a kody turn already in flight. A real
-    // task switch (id → other id) or agent flip still aborts as before.
-    const firstSessionCreated =
-      prevSession === null &&
-      activeSessionIdForReset !== null &&
-      !agentChanged &&
-      !!kodyAbortRef.current;
-
-    brainAbortRef.current?.abort();
-    eventSourceRef.current?.close();
-    if (!firstSessionCreated) {
-      kodyAbortRef.current?.abort();
+    if (agentChanged) {
+      const sessionId = activeSessionIdForReset;
+      if (sessionId) {
+        brainAbortBySessionRef.current.get(sessionId)?.abort();
+        kodyAbortBySessionRef.current.get(sessionId)?.abort();
+      } else {
+        brainAbortRef.current?.abort();
+        kodyAbortRef.current?.abort();
+      }
+      eventSourceRef.current?.close();
       setLoading(false);
       setToolCalls([]);
     }
-    // Intentionally omit the abort/setter refs from deps — they are
-    // stable refs / setters, and including them would re-fire this
-    // effect every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSessionIdForReset, selectedAgentId]);
 
   // Poll action state — detects when Kody is waiting for instructions
@@ -900,6 +896,22 @@ export function KodyChat({
     },
     [sessionHook],
   );
+  const setMessagesForSession = useCallback(
+    (
+      sessionId: string,
+      updater: Message[] | ((prev: Message[]) => Message[]),
+    ) => {
+      sessionHook.setSessionMessages(sessionId, (prevChat: ChatMessage[]) => {
+        const newMessages =
+          typeof updater === "function"
+            ? updater(prevChat.map(chatToMessage))
+            : updater;
+        return newMessages.map(messageToChat);
+      });
+    },
+    [sessionHook],
+  );
+  const activeLoading = messages.some((m) => m.isLoading);
 
   // ─── Polling for Kody Live ─────────────────────────────────────────────────
   // Plain fixed-interval poll of /api/kody/events/poll. We tried real-time
@@ -919,9 +931,15 @@ export function KodyChat({
   }, []);
 
   const startInteractivePoll = useCallback(
-    (sessionId: string) => {
+    (sessionId: string, uiSessionId?: string | null) => {
       stopInteractivePoll();
       pollWatermarkRef.current = 0;
+      const writeMessages = (
+        updater: Message[] | ((prev: Message[]) => Message[]),
+      ) => {
+        if (uiSessionId) setMessagesForSession(uiSessionId, updater);
+        else setMessages(updater);
+      };
 
       const handleLines = (lines: string[]) => {
         for (const line of lines) {
@@ -965,7 +983,7 @@ export function KodyChat({
                 typeof payload.timestamp === "string"
                   ? payload.timestamp
                   : new Date().toISOString();
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 // Inherit mid-turn progress from the in-flight bubble: any
                 // <think> blocks already accumulated from chat.thinking, and
                 // all tool-call cards from chat.tool. Without this, when all
@@ -1005,7 +1023,7 @@ export function KodyChat({
                   : "Unknown error";
               dispatchLive({ type: "RUNNER_ERROR", errorMessage: error });
               setLoading(false);
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const filtered = prev.filter(
                   (m) => !(m.role === "assistant" && m.isLoading),
                 );
@@ -1030,7 +1048,7 @@ export function KodyChat({
                 typeof payload.text === "string" ? payload.text : "";
               if (!chunk) break;
               const block = `<think>${chunk}</think>`;
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const copy = [...prev];
                 const idx = copy.findIndex(
                   (m) => m.role === "assistant" && m.isLoading,
@@ -1060,7 +1078,7 @@ export function KodyChat({
                     ? payload.toolUseId
                     : undefined;
                 const isError = payload.isError === true;
-                setMessages((prev) => {
+                writeMessages((prev) => {
                   const copy = [...prev];
                   const idx = copy.findIndex(
                     (m) => m.role === "assistant" && m.isLoading,
@@ -1097,7 +1115,7 @@ export function KodyChat({
                 >;
                 const toolId =
                   typeof payload.id === "string" ? payload.id : undefined;
-                setMessages((prev) => {
+                writeMessages((prev) => {
                   const copy = [...prev];
                   let idx = copy.findIndex(
                     (m) => m.role === "assistant" && m.isLoading,
@@ -1173,15 +1191,24 @@ export function KodyChat({
       void tick();
       pollIntervalRef.current = setInterval(tick, 3_000);
     },
-    [setMessages],
+    [dispatchLive, setMessages, setMessagesForSession, stopInteractivePoll],
   );
 
   // ─── SSE for chat streaming ────────────────────────────────────────────────
 
   const connectSSE = useCallback(
-    (sessionId: string, opts: { interactive?: boolean } = {}) => {
+    (
+      sessionId: string,
+      opts: { interactive?: boolean; uiSessionId?: string | null } = {},
+    ) => {
       // Close any existing connection
       eventSourceRef.current?.close();
+      const writeMessages = (
+        updater: Message[] | ((prev: Message[]) => Message[]),
+      ) => {
+        if (opts.uiSessionId) setMessagesForSession(opts.uiSessionId, updater);
+        else setMessages(updater);
+      };
 
       // EventSource cannot attach custom headers — we pass the same auth
       // triplet as query params so the stream route can resolve the target
@@ -1231,7 +1258,7 @@ export function KodyChat({
               // Inherit mid-turn progress (reasoning + tool calls) from the
               // in-flight bubble before replacing it with the final reply —
               // see the matching comment in the polling path's handler.
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const inflight = prev.find(
                   (m) => m.role === "assistant" && m.isLoading,
                 );
@@ -1270,7 +1297,7 @@ export function KodyChat({
                     : "Unknown error",
               });
               setLoading(false);
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const filtered = prev.filter(
                   (m) => !(m.role === "assistant" && m.isLoading),
                 );
@@ -1300,7 +1327,7 @@ export function KodyChat({
               const chunk = typeof parsed.text === "string" ? parsed.text : "";
               if (!chunk) break;
               const block = `<think>${chunk}</think>`;
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const copy = [...prev];
                 const idx = copy.findIndex(
                   (m) => m.role === "assistant" && m.isLoading,
@@ -1328,7 +1355,7 @@ export function KodyChat({
               const toolInput = (parsed.input ?? {}) as Record<string, unknown>;
               const toolId =
                 typeof parsed.id === "string" ? parsed.id : undefined;
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const copy = [...prev];
                 let idx = copy.findIndex(
                   (m) => m.role === "assistant" && m.isLoading,
@@ -1366,7 +1393,7 @@ export function KodyChat({
                   ? parsed.toolUseId
                   : undefined;
               const isError = parsed.isError === true;
-              setMessages((prev) => {
+              writeMessages((prev) => {
                 const copy = [...prev];
                 const idx = copy.findIndex(
                   (m) => m.role === "assistant" && m.isLoading,
@@ -1431,7 +1458,7 @@ export function KodyChat({
         };
       }
     },
-    [setMessages],
+    [dispatchLive, setMessages, setMessagesForSession],
   );
 
   // Open SSE whenever we have a scoped session id — task id for task mode,
@@ -1462,7 +1489,7 @@ export function KodyChat({
         eventSourceRef.current.readyState !== EventSource.CLOSED
       )
         return;
-      connectSSE(sid);
+      connectSSE(sid, { uiSessionId: activeSessionIdForReset });
     };
     const close = () => {
       eventSourceRef.current?.close();
@@ -1481,7 +1508,7 @@ export function KodyChat({
       document.removeEventListener("visibilitychange", handleVisibility);
       close();
     };
-  }, [selectedTask?.id, dutySlug, connectSSE]);
+  }, [selectedTask?.id, dutySlug, connectSSE, activeSessionIdForReset]);
 
   // Unified thread: the global session store (useChatSessions) owns the
   // message list. Per-page scope (task / duty / planner / report) flows
@@ -1506,7 +1533,7 @@ export function KodyChat({
 
   useEffect(() => {
     if (isAtBottom) scrollToBottom();
-  }, [messages, loading, isAtBottom, scrollToBottom]);
+  }, [messages, activeLoading, isAtBottom, scrollToBottom]);
 
   // Cleanup SSE on unmount
   useEffect(() => {
@@ -1750,6 +1777,17 @@ export function KodyChat({
       const wireContent = previewContext
         ? `${messageContent}\n\n${previewContext}`
         : messageContent;
+      const uiSessionId =
+        sessionHook.activeSession?.id ?? sessionHook.createSession();
+      const turnMessages =
+        sessionHook.activeSession?.id === uiSessionId
+          ? messages
+          : sessionHook.getSessionMessages(uiSessionId).map(chatToMessage);
+      const setMessages = (
+        updater: Message[] | ((prev: Message[]) => Message[]),
+      ) => {
+        setMessagesForSession(uiSessionId, updater);
+      };
 
       // Build the prior-conversation transcript for the Kody backend. It
       // gets the cleaned-up text only; older attachments are referenced by
@@ -1770,7 +1808,7 @@ export function KodyChat({
       //    They come from aborted turns or turns where the model only
       //    produced reasoning. Sending them back makes the model "continue
       //    from nothing" and often regress into apologies.
-      const priorMessages = messages
+      const priorMessages = turnMessages
         .map((m) => {
           if (m.role !== "assistant") return m;
           if (m.isError) return null;
@@ -1810,7 +1848,7 @@ export function KodyChat({
       const resolveSessionId = (): string => {
         if (selectedTask) return selectedTask.id;
         if (dutySlug != null) return `duty-${dutySlug}`;
-        return sessionHook.activeSession?.id ?? sessionHook.createSession();
+        return uiSessionId;
       };
 
       setLoading(true);
@@ -1849,8 +1887,9 @@ export function KodyChat({
             : "/api/kody/chat/brain";
         const brainExtraHeaders: Record<string, string> =
           selectedAgentId === "brain-fly" ? {} : brainHeaders();
-        brainAbortRef.current?.abort();
+        brainAbortBySessionRef.current.get(uiSessionId)?.abort();
         const abort = new AbortController();
+        brainAbortBySessionRef.current.set(uiSessionId, abort);
         brainAbortRef.current = abort;
 
         // Scope chat memory per user + per task so every issue gets its own
@@ -2254,6 +2293,13 @@ export function KodyChat({
             ];
           });
           return null;
+        } finally {
+          if (brainAbortBySessionRef.current.get(uiSessionId) === abort) {
+            brainAbortBySessionRef.current.delete(uiSessionId);
+          }
+          if (brainAbortRef.current === abort) {
+            brainAbortRef.current = null;
+          }
         }
       }
 
@@ -2337,8 +2383,9 @@ export function KodyChat({
         // Fresh AbortController per turn — Stop button calls .abort() on
         // whichever request is in-flight. Cancel any prior controller in
         // the unlikely case a previous turn never settled.
-        kodyAbortRef.current?.abort();
+        kodyAbortBySessionRef.current.get(uiSessionId)?.abort();
         const kodyAbort = new AbortController();
+        kodyAbortBySessionRef.current.set(uiSessionId, kodyAbort);
         kodyAbortRef.current = kodyAbort;
         try {
           const res = await fetch("/api/kody/chat/kody", {
@@ -2827,6 +2874,9 @@ export function KodyChat({
           if (kodyAbortRef.current === kodyAbort) {
             kodyAbortRef.current = null;
           }
+          if (kodyAbortBySessionRef.current.get(uiSessionId) === kodyAbort) {
+            kodyAbortBySessionRef.current.delete(uiSessionId);
+          }
         }
       }
 
@@ -2880,6 +2930,7 @@ export function KodyChat({
             initialContent: liveUserContent,
             initialTimestamp: timestamp,
             taskContext: liveTaskContext,
+            uiSessionId,
           });
           firstTurnPersistedByStart = true;
         }
@@ -3039,7 +3090,7 @@ export function KodyChat({
         // selectedTask.id; global chats (no task) would otherwise never
         // see the engine's reply because nothing watches the session id.
         // Open the stream here so both modes are covered.
-        connectSSE(sessionId);
+        connectSSE(sessionId, { uiSessionId });
         return null;
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
@@ -3074,7 +3125,7 @@ export function KodyChat({
       plannerGoal,
       plannerExistingTasks,
       onPlannerTasksCreated,
-      setMessages,
+      setMessagesForSession,
       messages,
       selectedAgentId,
       actorLogin,
@@ -3131,6 +3182,7 @@ export function KodyChat({
         prNumber?: number;
         branch?: string;
       };
+      uiSessionId?: string | null;
     }) => {
       const cur = liveStateRef.current.phase;
       if (cur === "booting" || cur === "ready" || cur === "awaiting") return;
@@ -3205,7 +3257,10 @@ export function KodyChat({
           // resolved target so a refresh during boot still shows the link.
           dispatchLive({ type: "TARGET_RESOLVED", target: startBody.target });
         }
-        startInteractivePoll(sessionId);
+        startInteractivePoll(
+          sessionId,
+          opts?.uiSessionId ?? activeSessionIdForReset,
+        );
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
@@ -3226,6 +3281,7 @@ export function KodyChat({
       startInteractivePoll,
       dispatchLive,
       vibeMode,
+      activeSessionIdForReset,
     ],
   );
 
@@ -3714,7 +3770,7 @@ export function KodyChat({
       return;
     }
     // Esc aborts a streaming reply.
-    if (e.key === "Escape" && loading) {
+    if (e.key === "Escape" && activeLoading) {
       e.preventDefault();
       handleStop();
       return;
@@ -3754,7 +3810,7 @@ export function KodyChat({
   // the offline fallback — titling must never block or break the chat.
   const titledSessionRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!isGlobalMode || loading) return;
+    if (!isGlobalMode || activeLoading) return;
     const session = sessionHook.activeSession;
     if (!session || session.title !== "New conversation") return;
     const firstUser = messages.find((m) => m.role === "user");
@@ -3805,16 +3861,22 @@ export function KodyChat({
       }
       sessionHook.renameSession(session.id, sliceTitle);
     })();
-  }, [isGlobalMode, loading, messages, sessionHook, selectedModelId]);
+  }, [isGlobalMode, activeLoading, messages, sessionHook, selectedModelId]);
 
   const handleStop = () => {
     // Cancel every backend the chat can be talking to. Each abort/close
     // is a no-op if that backend wasn't active — calling them all
     // unconditionally keeps the handler simple and the Stop button
     // honest regardless of which agent is selected.
+    const activeSessionId = sessionHook.activeSession?.id ?? null;
     eventSourceRef.current?.close();
-    kodyAbortRef.current?.abort();
-    brainAbortRef.current?.abort();
+    if (activeSessionId) {
+      kodyAbortBySessionRef.current.get(activeSessionId)?.abort();
+      brainAbortBySessionRef.current.get(activeSessionId)?.abort();
+    } else {
+      kodyAbortRef.current?.abort();
+      brainAbortRef.current?.abort();
+    }
     setLoading(false);
     setMessages((prev) => {
       const newMessages = [...prev];
@@ -3900,7 +3962,7 @@ export function KodyChat({
         </div>
       )}
       {/* Session Sidebar */}
-      {showSessionSidebar && isGlobalMode && (
+      {showSessionSidebar && isGlobalMode && !sessionSidebarPinned && (
         <button
           type="button"
           aria-label="Close conversations"
@@ -3914,15 +3976,15 @@ export function KodyChat({
           activeSessionId={sessionHook.activeSession?.id || null}
           onSwitchSession={(id) => {
             sessionHook.switchSession(id);
-            setShowSessionSidebar(false);
           }}
           onCreateSession={() => {
             sessionHook.createSession();
-            setShowSessionSidebar(false);
           }}
           onDeleteSession={sessionHook.deleteSession}
           onRenameSession={sessionHook.renameSession}
           onPinSession={sessionHook.pinSession}
+          pinnedOpen={sessionSidebarPinned}
+          onTogglePinnedOpen={() => setSessionSidebarPinned((prev) => !prev)}
           onClose={() => setShowSessionSidebar(false)}
           className="absolute left-0 top-0 bottom-0 w-full sm:w-72 z-50 shadow-lg"
         />
@@ -4104,7 +4166,7 @@ export function KodyChat({
                   sessionHook.createSession();
                   setToolCalls([]);
                 }}
-                disabled={loading}
+                disabled={activeLoading}
                 className="p-2 rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Start a new conversation"
                 aria-label="New conversation"
@@ -4268,7 +4330,7 @@ export function KodyChat({
         onScroll={handleMessagesScroll}
         className="flex-1 overflow-auto px-1.5 py-2 sm:p-4 space-y-4 relative"
       >
-        {messages.length === 0 && !loading && (
+        {messages.length === 0 && !activeLoading && (
           <div className="text-center text-muted-foreground text-base py-8">
             {isTaskMode ? (
               <>
@@ -4459,7 +4521,8 @@ export function KodyChat({
                       const { reasoning, answer } = parseAssistantContent(
                         msg.content,
                       );
-                      const isActive = loading && i === messages.length - 1;
+                      const isActive =
+                        activeLoading && i === messages.length - 1;
                       const hasAnswer = answer.trim().length > 0;
                       return (
                         <>
@@ -4515,7 +4578,7 @@ export function KodyChat({
                     {msg.content}
                   </>
                 )}
-                {loading &&
+                {activeLoading &&
                   i === messages.length - 1 &&
                   msg.role === "assistant" &&
                   parseAssistantContent(msg.content).answer.trim() && (
@@ -4531,7 +4594,7 @@ export function KodyChat({
         {/* Typing indicator shown before an assistant placeholder exists.
             Covers the Kody-engine first-byte window where the placeholder is
             only pushed once the first SSE event arrives. */}
-        {loading &&
+        {activeLoading &&
           messages.length > 0 &&
           messages[messages.length - 1]?.role === "user" && (
             <div className="flex justify-start">
@@ -4572,7 +4635,7 @@ export function KodyChat({
             aria-label="Jump to latest messages"
           >
             <ChevronDown className="w-3.5 h-3.5" />
-            {loading ? "New messages" : "Jump to latest"}
+            {activeLoading ? "New messages" : "Jump to latest"}
           </button>
         </div>
       )}
@@ -4593,7 +4656,7 @@ export function KodyChat({
               <button
                 onClick={() => removeAttachment(attachment.id)}
                 className="ml-1 hover:text-destructive"
-                disabled={loading}
+                disabled={activeLoading}
               >
                 <X className="w-3 h-3" />
               </button>
@@ -4744,7 +4807,9 @@ export function KodyChat({
               rows={1}
               dir="auto"
               className="w-full px-3 py-2 text-base rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading || (isKodyLive && interactiveState !== "ready")}
+              disabled={
+                activeLoading || (isKodyLive && interactiveState !== "ready")
+              }
               style={{ height: "auto" }}
             />
           </div>
@@ -4759,7 +4824,7 @@ export function KodyChat({
               the previous "no send affordance when empty" behavior. */}
           {(() => {
             const isInFlight =
-              loading ||
+              activeLoading ||
               composerAction === "stop" ||
               composerAction === "cancel";
             const showTrailingButton = isInFlight
@@ -4777,7 +4842,7 @@ export function KodyChat({
               <button
                 type="button"
                 onClick={() => {
-                  if (loading) {
+                  if (activeLoading) {
                     handleStop();
                   } else if (
                     composerAction === "stop" ||
@@ -4815,11 +4880,11 @@ export function KodyChat({
             accept="image/*,.txt,.md,.json,.js,.ts,.jsx,.tsx,.html,.css,.scss,.yaml,.yml,.sh"
             onChange={handleFileSelect}
             className="hidden"
-            disabled={loading}
+            disabled={activeLoading}
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={loading}
+            disabled={activeLoading}
             className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
             title="Attach files"
           >
@@ -4863,7 +4928,7 @@ export function KodyChat({
             onLongPressEnd={() => {
               /* let conversation handle it */
             }}
-            disabled={loading}
+            disabled={activeLoading}
           />
           {/* Reserved slot for future widget actions (slash-command
               trigger, attachment previews inline, mode toggles, etc.).
@@ -4872,7 +4937,7 @@ export function KodyChat({
           <div className="flex-1" />
         </div>
         {/* Clear history link */}
-        {messages.length > 0 && !loading && (
+        {messages.length > 0 && !activeLoading && (
           <button
             onClick={() => setShowClearConfirm(true)}
             className="mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
