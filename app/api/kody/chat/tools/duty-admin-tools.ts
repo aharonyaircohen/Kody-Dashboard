@@ -4,7 +4,7 @@
  * @pattern chat-tools
  * @ai-summary Lifecycle chat tools for scheduled duties, complementing
  *   create_kody_duty (in duty-tools.ts): list, read, delete, and run-now. Run
- *   posts `@kody job-tick --job <slug> --force` to the control issue, bypassing
+ *   posts `@kody duty-tick --duty <slug> --force` to the control issue, bypassing
  *   the cadence guard. Kept separate from the creation flow.
  */
 import { tool } from "ai";
@@ -17,6 +17,7 @@ import {
   isValidSlug,
 } from "@dashboard/lib/duties-files";
 import { findOrCreateControlIssue } from "@dashboard/lib/control-issue";
+import { buildDutyRunCommentBody } from "@dashboard/lib/duties/run-comment";
 
 interface Ctx {
   octokit: Octokit;
@@ -84,7 +85,7 @@ export function createDutyAdminTools(ctx: Ctx) {
     }),
 
     run_duty: tool({
-      description: `Run a duty NOW in ${repoRef}, bypassing its cadence guard. Posts \`@kody job-tick --job <slug> --force\` to the control issue. Use for "run the X duty now". Returns the comment URL.`,
+      description: `Run a duty NOW in ${repoRef}, bypassing its cadence guard. Posts \`@kody duty-tick --duty <slug> --force\` to the control issue. Use for "run the X duty now". Returns the comment URL.`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
@@ -100,7 +101,11 @@ export function createDutyAdminTools(ctx: Ctx) {
             owner,
             repo,
             issue_number: issueNumber,
-            body: `@kody job-tick --job ${slug} --force`,
+            // Engine renamed dispatch: `job-tick --job` → `duty-tick --duty`.
+            // `--force` still bypasses the `every:` cadence guard. The literal
+            // text is owned by `buildDutyRunCommentBody` so the API route
+            // and the chat tool can never drift apart.
+            body: buildDutyRunCommentBody({ slug, force: true }),
           });
           return {
             ok: true,

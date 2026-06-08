@@ -886,6 +886,28 @@ export interface Duty {
    * key is absent.
    */
   mentions: string[];
+  /**
+   * Engine-side chain of executables this duty composes into one tick,
+   * parsed from the `executables:` frontmatter (comma-separated). Engine
+   * built-ins are valid names we don't recognize, so the dashboard does
+   * not validate. Empty array when absent. (Engine `executables:` field,
+   * kody2 main.)
+   */
+  executables: string[];
+  /**
+   * Engine-side DUTY-only tool allowlist, parsed from the on-disk `tools:`
+   * frontmatter (the engine name) and surfaced as `dutyTools` to keep
+   * "agent tools" and "duty tools" visually separate. Empty array when
+   * absent.
+   */
+  dutyTools: string[];
+  /**
+   * Optional inline script the engine runs before the duty tick
+   * (frontmatter `tickScript:`). `null` when absent. Single-line on the
+   * wire, but the parser also understands a YAML block scalar so engine
+   * files with multi-line scripts round-trip.
+   */
+  tickScript: string | null;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
   /**
@@ -919,6 +941,12 @@ export const dutiesApi = {
     disabled?: boolean;
     staff?: string | null;
     mentions?: string[];
+    // New engine duty contract (kody2 main). All optional on create —
+    // the dashboard defaults to empty / null so a fresh duty round-trips
+    // to a minimal `.md` file.
+    executables?: string[];
+    dutyTools?: string[];
+    tickScript?: string | null;
     actorLogin?: string;
   }): Promise<Duty> => {
     const res = await fetch(`${API_BASE}/duties`, {
@@ -939,6 +967,11 @@ export const dutiesApi = {
       disabled?: boolean;
       staff?: string | null;
       mentions?: string[];
+      // New engine duty contract (kody2 main). Omit preserves, `[]`
+      // / `null` clears. The server enforces the read-merge contract.
+      executables?: string[];
+      dutyTools?: string[];
+      tickScript?: string | null;
       actorLogin?: string;
     },
   ): Promise<Duty> => {

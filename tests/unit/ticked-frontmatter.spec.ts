@@ -98,6 +98,67 @@ describe("splitFrontmatter", () => {
       splitFrontmatter("---\nmentions:   ,  \n---\nx").frontmatter.mentions,
     ).toBeUndefined();
   });
+
+  it("parses executables as a comma-separated engine executable chain", () => {
+    expect(
+      splitFrontmatter("---\nexecutables: research, plan\n---\nx").frontmatter
+        .executables,
+    ).toEqual(["research", "plan"]);
+  });
+
+  it("omits executables when the list is empty after trimming", () => {
+    expect(
+      splitFrontmatter("---\nexecutables:   , \n---\nx").frontmatter
+        .executables,
+    ).toBeUndefined();
+  });
+
+  it("parses on-disk `tools:` as dutyTools (engine-side name)", () => {
+    // The on-disk key is `tools` (the engine name); the in-memory name
+    // is `dutyTools` so the editor can keep "agent tools" and
+    // "duty tools" visually separate.
+    expect(
+      splitFrontmatter("---\ntools: Bash, Read\n---\nx").frontmatter.dutyTools,
+    ).toEqual(["Bash", "Read"]);
+  });
+
+  it("parses tickScript as a single-line string", () => {
+    expect(
+      splitFrontmatter('---\ntickScript: echo "hi"\n---\nx').frontmatter
+        .tickScript,
+    ).toBe('echo "hi"');
+  });
+
+  it("parses tickScript as a YAML block scalar (|) for multi-line scripts", () => {
+    const raw = [
+      "---",
+      "tickScript: |",
+      '  echo "line 1"',
+      '  echo "line 2"',
+      "---",
+      "body",
+    ].join("\n");
+    const { frontmatter, body } = splitFrontmatter(raw);
+    expect(frontmatter.tickScript).toBe('echo "line 1"\necho "line 2"');
+    // The block-scalar indentation must not leak into the body.
+    expect(body).toBe("body");
+  });
+
+  it("parses tickScript as a YAML folded scalar (>) too", () => {
+    // Engine files may use either `|` (literal) or `>` (folded); the
+    // dashboard reads both the same way. Folded is uncommon for
+    // scripts, but the parser should not choke on it.
+    const raw = [
+      "---",
+      "tickScript: >",
+      "  echo one",
+      "  echo two",
+      "---",
+      "body",
+    ].join("\n");
+    const { frontmatter } = splitFrontmatter(raw);
+    expect(frontmatter.tickScript).toBe("echo one\necho two");
+  });
 });
 
 describe("joinFrontmatter", () => {

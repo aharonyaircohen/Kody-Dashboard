@@ -14,6 +14,7 @@
 
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "../github-client";
+import type { ScheduleEvery } from "@dashboard/lib/ticked/frontmatter";
 import {
   appendContract,
   composeProfile,
@@ -33,6 +34,24 @@ export { isValidSlug } from "./profile";
  * through this single home.
  */
 const DUTIES_DIR = ".kody/duties";
+
+/** The valid `every` token set, mirrored from `ticked/frontmatter.ts`.
+ * Kept local to avoid a circular import (the frontmatter module pulls
+ * in tickFile, which pulls in this module's shape). Used to narrow
+ * untyped `profile.every` values from on-disk JSON to the typed
+ * `ScheduleEvery` enum. */
+const VALID_EVERY: ReadonlySet<string> = new Set([
+  "15m",
+  "30m",
+  "1h",
+  "2h",
+  "6h",
+  "12h",
+  "1d",
+  "3d",
+  "7d",
+  "manual",
+]);
 
 export interface ExecutableSkill {
   /** Skill folder name under `skills/`. */
@@ -58,13 +77,15 @@ export interface ExecutableSummary {
   /** Staff member this duty runs as (profile.staff), or null. */
   staff: string | null;
   /** Recurrence cadence from profile.every (scheduled folder-duty), or null. */
-  every?: string | null;
+  every: ScheduleEvery | null;
 }
 
 export interface ExecutableDetail extends ExecutableSummary {
   prompt: string;
   model: string;
   permissionMode: ExecutableFields["permissionMode"];
+  /** Agent tools (`claudeCode.tools`). Distinct from `dutyTools` (duty's
+   * runtime allowlist, top-level `profile.dutyTools`). */
   tools: string[];
   skills: ExecutableSkill[];
   shellScripts: ExecutableShellScript[];
@@ -72,6 +93,15 @@ export interface ExecutableDetail extends ExecutableSummary {
   mcpServers: McpServerSpec[];
   /** The raw profile.json text, for the advanced editor. */
   profileJson: string;
+  // ── Duty settings (top-level profile fields) ──────────────────────────
+  /** Duty-only tool allowlist (top-level `profile.dutyTools`). */
+  dutyTools: string[];
+  /** GitHub logins to `@`-mention on output (top-level `profile.mentions`). */
+  mentions: string[];
+  /** Engine executable this folder-duty wraps (top-level `profile.executable`).
+   * `null` for a folder-duty that IS the executable (i.e. its slug is the
+   * executable name). */
+  executable: string | null;
 }
 
 async function getDefaultBranch(octokit: Octokit): Promise<string> {
@@ -182,9 +212,16 @@ async function listFolderDuties(
       // No per-duty fetchLastCommitDate here: it's one listCommits call PER duty,
       // which drains the shared GitHub token on every list render (see
       // CLAUDE.md rate-limit rules). The detail view shows the commit date.
-      const every =
+      // Validate the cadence against the ScheduleEvery enum so a typo'd
+      // value in profile.json doesn't surface as an "always-eligible"
+      // every-cron-wake duty in the dashboard.
+      const rawEvery =
         profile && typeof profile.every === "string" && profile.every.trim()
           ? profile.every.trim()
+          : null;
+      const every: ScheduleEvery | null =
+        rawEvery && VALID_EVERY.has(rawEvery)
+          ? (rawEvery as ScheduleEvery)
           : null;
       return {
         slug,
@@ -231,6 +268,15 @@ export async function readExecutableFile(
     typeof profile.staff === "string" && profile.staff.trim()
       ? profile.staff.trim()
       : null;
+  // Narrow untyped `profile.every` to the typed ScheduleEvery enum;
+  // a typo'd value in profile.json otherwise surfaces as an "always
+  // eligible, every cron wake" duty in the dashboard, masking the bug.
+  const rawEvery =
+    typeof profile.every === "string" && profile.every.trim()
+      ? profile.every.trim()
+      : null;
+  const every: ScheduleEvery | null =
+    rawEvery && VALID_EVERY.has(rawEvery) ? (rawEvery as ScheduleEvery) : null;
 
   // The stored prompt.md ends with the managed output-format contract;
   // strip it so the editor shows only the user-authored part.
@@ -275,6 +321,7 @@ export async function readExecutableFile(
     updatedAt: await fetchLastCommitDate(octokit, `${base}/profile.json`),
     htmlUrl: buildHtmlUrl(slug, branch),
     staff,
+    every,
     prompt,
     model: fields.model,
     permissionMode: fields.permissionMode,
@@ -283,6 +330,9 @@ export async function readExecutableFile(
     shellScripts,
     mcpServers: fields.mcpServers,
     profileJson: profileRaw,
+    dutyTools: fields.dutyTools,
+    mentions: fields.mentions,
+    executable: fields.executable,
   };
 }
 

@@ -783,7 +783,9 @@ export function TaskDetail({
 
   const hasDescription = task.body && task.body.trim().length > 0;
   const commentsCount = fullDetails?.comments?.length || 0;
-  const runsCount = task.kodyState?.history?.length || 0;
+  const runsCount =
+    (task.kodyState?.history?.length || 0) +
+    (task.kodyState?.jobs?.length || 0);
   const showPipelineTimeline =
     task.pipeline &&
     (task.pipeline.state === "running" || task.pipeline.state === "paused") &&
@@ -1097,6 +1099,7 @@ export function TaskDetail({
         >
           <TaskRunsList
             history={task.kodyState?.history}
+            jobs={task.kodyState?.jobs}
             onRerun={() => taskActions.rerun()}
             rerunPending={taskActions.pendingAction === "rerun"}
           />

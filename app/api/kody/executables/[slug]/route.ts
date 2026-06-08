@@ -91,6 +91,16 @@ const updateExecutableSchema = z.object({
   mcpServers: z.array(mcpServerSchema).optional(),
   landing: z.enum(["pr", "comment"]).optional(),
   profileJsonOverride: z.string().optional(),
+  // ── Duty settings (top-level profile fields). Omit preserves, explicit
+  //    `[]`/null clears. ────────────────────────────────────────────────
+  staff: z.string().min(1).nullable().optional(),
+  every: z
+    .enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d", "manual"])
+    .nullable()
+    .optional(),
+  mentions: z.array(z.string()).optional(),
+  dutyTools: z.array(z.string()).optional(),
+  executable: z.string().min(1).nullable().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -155,6 +165,22 @@ export async function PATCH(
         shellScripts: shellScripts.map((s) => s.name),
         mcpServers: input.mcpServers ?? existing.mcpServers,
         landing: input.landing ?? existing.landing,
+        staff: input.staff === undefined ? existing.staff : input.staff,
+        every: input.every === undefined ? existing.every : input.every,
+        mentions:
+          input.mentions === undefined
+            ? existing.mentions
+            : input.mentions
+                .map((m) => m.trim().replace(/^@/, ""))
+                .filter((m) => m.length > 0),
+        dutyTools:
+          input.dutyTools === undefined
+            ? existing.dutyTools
+            : input.dutyTools.map((s) => s.trim()).filter((s) => s.length > 0),
+        executable:
+          input.executable === undefined
+            ? existing.executable
+            : input.executable,
       },
       skills,
       shellScripts,

@@ -111,6 +111,16 @@ const createExecutableSchema = z.object({
   mcpServers: z.array(mcpServerSchema).default([]),
   landing: z.enum(["pr", "comment"]).default("pr"),
   profileJsonOverride: z.string().optional(),
+  // ── Duty settings (a folder-duty is also a duty; written to top-level
+  //    profile keys, distinct from `claudeCode.*`) ──────────────────────
+  staff: z.string().min(1).nullable().optional(),
+  every: z
+    .enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d", "manual"])
+    .nullable()
+    .optional(),
+  mentions: z.array(z.string()).optional(),
+  dutyTools: z.array(z.string()).optional(),
+  executable: z.string().min(1).nullable().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -176,6 +186,15 @@ export async function POST(req: NextRequest) {
         shellScripts: input.shellScripts.map((s) => s.name),
         mcpServers: input.mcpServers,
         landing: input.landing,
+        staff: input.staff ?? null,
+        every: input.every ?? null,
+        mentions: (input.mentions ?? [])
+          .map((m) => m.trim().replace(/^@/, ""))
+          .filter((m) => m.length > 0),
+        dutyTools: (input.dutyTools ?? [])
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0),
+        executable: input.executable ?? null,
       },
       skills: input.skills,
       shellScripts: input.shellScripts,

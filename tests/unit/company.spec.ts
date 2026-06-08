@@ -273,6 +273,13 @@ describe("applyCompanyBundle", () => {
         schedule: null,
         disabled: false,
         staff: null,
+        // New engine duty contract (kody2 main) — fixtures carry every
+        // field so a future field-added failure surfaces here, not in
+        // production data.
+        mentions: [],
+        executables: [],
+        dutyTools: [],
+        tickScript: null,
       },
     ],
     duties: [
@@ -283,6 +290,10 @@ describe("applyCompanyBundle", () => {
         schedule: "1d" as const,
         disabled: false,
         staff: "cto",
+        mentions: [],
+        executables: [],
+        dutyTools: [],
+        tickScript: null,
       },
     ],
     commands: [

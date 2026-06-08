@@ -3,15 +3,15 @@
  * @domain kody
  * @pattern duty-run
  * @ai-summary POST /api/kody/duties/:slug/run — manually trigger a single
- *   duty by posting an `@kody job-tick --job <slug> [--force]` comment on
+ *   duty by posting an `@kody duty-tick --duty <slug> --force` comment on
  *   the repo's "Kody control" issue. The engine's existing `issue_comment`
- *   trigger fires kody.yml; the dispatcher routes to `job-tick`. (The
- *   `job-tick` executable name and `--job` flag are an unchanged engine
- *   command contract — only the dashboard feature noun became "duty".)
+ *   trigger fires kody.yml; the dispatcher routes to `duty-tick` (the
+ *   engine renamed `job-tick` → `duty-tick` and `--job` → `--duty` to
+ *   match the dashboard's "duty" noun).
  *
  *   Why a comment, not a chat-trigger fake: duties are autonomous primitives,
  *   not chat sessions. This path uses three established conventions
- *   (`@kody <subcommand>`, `job-tick --job <slug>`, `issue_comment` trigger)
+ *   (`@kody <subcommand>`, `duty-tick --duty <slug>`, `issue_comment` trigger)
  *   without overloading any of them — and crucially without needing
  *   `KODY_MASTER_KEY` for HMAC signing, since no chat session is being minted.
  */
@@ -26,6 +26,7 @@ import {
 import { isValidSlug } from "@dashboard/lib/duties-files";
 import { findOrCreateControlIssue } from "@dashboard/lib/control-issue";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { buildDutyRunCommentBody } from "@dashboard/lib/duties/run-comment";
 
 const runSchema = z.object({
   force: z.boolean().optional().default(true),
@@ -80,8 +81,13 @@ export async function POST(
 
   try {
     const issueNumber = await findOrCreateControlIssue(octokit, owner, repo);
-    const flags = payload.force ? `--job ${slug} --force` : `--job ${slug}`;
-    const body = `@kody job-tick ${flags}`;
+    // Engine renamed the dispatch: `job-tick --job` → `duty-tick --duty`.
+    // `--force` still bypasses the cadence guard so the manual "Run now"
+    // button on the dashboard fires regardless of `every:` / `disabled:`.
+    const body = buildDutyRunCommentBody({
+      slug,
+      force: payload.force,
+    });
     const { data: comment } = await octokit.rest.issues.createComment({
       owner,
       repo,

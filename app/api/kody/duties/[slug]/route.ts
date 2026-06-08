@@ -25,6 +25,7 @@ import {
   deleteDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
+import { mergeDutyPatch } from "@dashboard/lib/duties/merge-patch";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(
@@ -72,18 +73,27 @@ const updateDutySchema = z.object({
   disabled: z.boolean().optional(),
   staff: z.string().min(1).nullable().optional(),
   mentions: z.array(z.string()).optional(),
+  // Engine-side executable chain (`executables:` frontmatter). Free-form
+  // strings — engine built-ins may be valid. `[]` clears the chain,
+  // omitting the field preserves the existing list.
+  executables: z.array(z.string()).optional(),
+  // Duty-only tool allowlist (on-disk `tools:` frontmatter). Distinct
+  // from the agent's runtime `claudeCode.tools`. `[]` clears, omit
+  // preserves.
+  dutyTools: z.array(z.string()).optional(),
+  // Optional inline script the engine runs before the tick. `null`
+  // clears the field (no `tickScript:` line written), an empty string
+  // is treated the same as null. Omit preserves the existing value.
+  tickScript: z.string().nullable().optional(),
   actorLogin: z.string().optional(),
 });
 
 /**
- * Clean a client-supplied mentions list before it hits the frontmatter
- * serializer: drop a leading `@`, trim whitespace, drop empties.
+ * Read-merge lives in `lib/duties/merge-patch.ts` so it can be unit-tested
+ * without faking the request / octokit stack. The contract is: omit
+ * preserves the existing field, an explicit `[]` clears it, an empty
+ * string on `tickScript` clears it the same as `null`.
  */
-function normalizeMentions(mentions: string[]): string[] {
-  return mentions
-    .map((m) => m.trim().replace(/^@/, ""))
-    .filter((m) => m.length > 0);
-}
 
 export async function PATCH(
   req: NextRequest,
@@ -108,8 +118,18 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, body, schedule, disabled, staff, mentions, actorLogin } =
-      updateDutySchema.parse(payload);
+    const {
+      title,
+      body,
+      schedule,
+      disabled,
+      staff,
+      mentions,
+      executables,
+      dutyTools,
+      tickScript,
+      actorLogin,
+    } = updateDutySchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -125,6 +145,13 @@ export async function PATCH(
       );
     }
 
+    const merged = mergeDutyPatch(existing, {
+      mentions,
+      executables,
+      dutyTools,
+      tickScript,
+    });
+
     const duty = await writeDutyFile({
       octokit: userOctokit,
       slug,
@@ -133,12 +160,13 @@ export async function PATCH(
       schedule: schedule === undefined ? existing.schedule : schedule,
       disabled: disabled === undefined ? existing.disabled : disabled,
       staff: staff === undefined ? existing.staff : staff,
-      // Read-merge: omitting `mentions` preserves the existing list rather
-      // than clearing it. An explicit `[]` clears it.
-      mentions:
-        mentions === undefined
-          ? existing.mentions
-          : normalizeMentions(mentions),
+      // Read-merge via mergeDutyPatch: omit preserves, explicit `[]` /
+      // `null` clears, empty string on `tickScript` clears the same as
+      // null. The pure logic is unit-tested separately.
+      mentions: merged.mentions,
+      executables: merged.executables,
+      dutyTools: merged.dutyTools,
+      tickScript: merged.tickScript,
       sha: existing.sha,
     });
 

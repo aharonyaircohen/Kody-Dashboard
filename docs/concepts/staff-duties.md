@@ -52,9 +52,9 @@ So:
 
 ## Duty frontmatter
 
-A duty is markdown with an optional flat-YAML frontmatter block. Only
-four keys are recognized (others are preserved but ignored by the
-dashboard). See [`.kody/duties/security-audit.md`](../../.kody/duties/security-audit.md)
+A duty is markdown with an optional flat-YAML frontmatter block. The
+recognized keys match the kody2 main engine contract. See
+[`.kody/duties/security-audit.md`](../../.kody/duties/security-audit.md)
 for a full example.
 
 ```markdown
@@ -63,6 +63,10 @@ staff: kody
 every: 1d
 disabled: false
 mentions: aguyaharonyair, alice
+executables: research, plan
+tools: Bash, Read
+tickScript: |
+  echo "preflight step"
 ---
 
 # Security Audit
@@ -92,8 +96,29 @@ mentions: aguyaharonyair, alice
   Duties page (with collaborator autocomplete) and shown read-only in the duty
   view. Replaces the old per-repo `github.operator` config. Absent = mentions
   no one.
+- **`executables:`** — engine-side chain of executables this duty composes
+  into a single tick (e.g. `research, plan`). A duty with an `executables:`
+  chain does not run its own body — the engine composes each named
+  executable's work into one run. The dashboard does NOT validate the names
+  (engine built-ins may be valid). Absent = empty chain; the duty body
+  runs as a single, un-composed tick.
+- **`tools:`** — engine-side, **duty-only** tool allowlist. Distinct from
+  the agent's runtime `claudeCode.tools`. The editor surfaces this as a
+  separate "Duty tools" field so users don't conflate the two. Comma-
+  separated, like `mentions:`. Absent = no duty-level allowlist; the
+  engine uses the agent's defaults.
+- **`tickScript:`** — optional inline shell script the engine runs as a
+  preflight step before the tick. The dashboard accepts both a single-line
+  value and a YAML block scalar (`|`) for multi-line scripts. Empty / null
+  = no preflight script. The on-disk serializer emits multi-line scripts
+  as a block scalar so round-trips stay readable.
 
 Staff files carry no recognized frontmatter — they're identity only.
+Folder duties (`.kody/duties/<slug>/profile.json`) carry the same
+`staff` / `every` / `mentions` / `dutyTools` / `executable` knobs at the
+top level of the profile. See
+[`docs/executables.md`](../executables.md#folder-duty-top-level-fields) for
+the on-disk shape.
 
 ## How a tick flows
 
@@ -113,11 +138,13 @@ Staff files carry no recognized frontmatter — they're identity only.
                                   │ for each DUE duty
                                   ▼
               ┌───────────────────────────────────────┐
-              │ job-tick  (one duty, one agent run)    │
+              │ duty-tick  (one duty, one agent run)   │
               │ loadJobFromFile preflight:             │
               │  • read .kody/duties/<slug>.md (body)  │
               │  • read staff: → .kody/staff/<staff>.md│
               │      persona injected AHEAD of body    │
+              │  • if executables: chain is composed   │
+              │  • if tickScript: preflight runs first │
               │  • load prior state (<slug>.state.json)│
               │ → agent decides + acts via gh          │
               │ → emits next-state block               │
@@ -135,7 +162,7 @@ Key points, grounded in the code:
 
 - **The scheduler runs no agent.** `dispatchJobFileTicks` sets
   `ctx.skipAgent = true` and just fans out: enumerate `.kody/duties/*.md`,
-  then `runExecutable("job-tick", { job: slug })` once per due duty,
+  then `runExecutable("duty-tick", { duty: slug })` once per due duty,
   sequentially and in-process.
 - **Three skip gates, in order:** `disabled: true` → skip; no/empty
   `staff:` → skip (loud, to stderr); `every:` cadence not yet elapsed →
@@ -186,11 +213,17 @@ GitHub rate-limit budget.
 - Writes commit the `.md` file straight to the default branch via the
   signed-in user's token (a `GITHUB_TOKEN`-only request can read/list but
   cannot commit). Slugs must match `^[a-z0-9][a-z0-9_-]{0,63}$`.
-- **"Run now"** triggers a manual `workflow_dispatch` against `job-tick`
-  for that single slug. It **bypasses the scheduler entirely** — so it
-  ignores `disabled` and `every: manual` — but `job-tick`'s loader still
-  rejects a missing/dangling `staff:`. The `--force` input tells the agent
-  to ignore the duty body's own cadence guard for that run.
+- **"Run now"** triggers a manual dispatch by posting the comment
+  `@kody duty-tick --duty <slug> --force` to the repo's "Kody control"
+  issue. The engine's `issue_comment` trigger fires `kody.yml`; the
+  dispatcher routes to the `duty-tick` executable with the named slug.
+  It **bypasses the scheduler entirely** — so it ignores `disabled` and
+  `every: manual` — but `duty-tick`'s loader still rejects a missing
+  / dangling `staff:`. The `--force` flag tells the agent to ignore the
+  duty body's own cadence guard for that run. The literal text is owned
+  by [`buildDutyRunCommentBody`](../../src/dashboard/lib/duties/run-comment.ts)
+  so the API route (`POST /api/kody/duties/<slug>/run`) and the chat
+  `run_duty` tool can never drift apart.
 
 ## A note on cron cadence
 
@@ -218,22 +251,25 @@ comment in `kody.yml`.
 
 ## File reference
 
-| File                                                                                       | Purpose                                                                            |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| [`src/dashboard/lib/staff-files.ts`](../../src/dashboard/lib/staff-files.ts)               | Staff preset over the shared store (`.kody/staff`, scope `staff`)                  |
-| [`src/dashboard/lib/duties-files.ts`](../../src/dashboard/lib/duties-files.ts)             | Duty preset over the shared store (`.kody/duties`, scope `duties`)                 |
-| [`src/dashboard/lib/ticked/files.ts`](../../src/dashboard/lib/ticked/files.ts)             | The one ticked-file store: `createTickedFiles`, `TickFile`, read/write/list/delete |
-| [`src/dashboard/lib/ticked/frontmatter.ts`](../../src/dashboard/lib/ticked/frontmatter.ts) | Flat-YAML parser; `every:`/`staff:`/`disabled:`; cadence tokens + ms math          |
-| [`src/dashboard/lib/duties-frontmatter.ts`](../../src/dashboard/lib/duties-frontmatter.ts) | Thin re-export of the frontmatter parser under `DutyFrontmatter`                   |
-| [`src/dashboard/lib/ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts)       | "Next tick" math (`CRON_INTERVAL_MS`) + relative-time formatting                   |
-| [`app/api/kody/staff/route.ts`](../../app/api/kody/staff/route.ts)                         | `GET` list / `POST` create staff                                                   |
-| [`app/api/kody/duties/route.ts`](../../app/api/kody/duties/route.ts)                       | `GET` list / `POST` create duties                                                  |
-| [`.kody/staff/cto.md`](../../.kody/staff/cto.md)                                           | Example persona (identity only)                                                    |
-| [`.kody/duties/security-audit.md`](../../.kody/duties/security-audit.md)                   | Example duty (frontmatter + cadence guard + state schema)                          |
-| `kody2/src/scripts/dispatchJobFileTicks.ts` (engine)                                       | Scheduler fan-out: enumerate duties, skip gates, per-slug `job-tick`               |
-| `kody2/src/scripts/loadJobFromFile.ts` (engine)                                            | Tick preflight: load duty body + inject staff persona ahead of it                  |
-| `kody2/src/executables/job-scheduler/profile.json` (engine)                                | Scheduled, no-agent scheduler executable                                           |
-| `kody2/src/executables/job-tick/profile.json` (engine)                                     | One-shot per-duty tick executable (`--job`, `--force`)                             |
+| File                                                                                       | Purpose                                                                                                         |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| [`src/dashboard/lib/staff-files.ts`](../../src/dashboard/lib/staff-files.ts)               | Staff preset over the shared store (`.kody/staff`, scope `staff`)                                               |
+| [`src/dashboard/lib/duties-files.ts`](../../src/dashboard/lib/duties-files.ts)             | Duty preset over the shared store (`.kody/duties`, scope `duties`)                                              |
+| [`src/dashboard/lib/ticked/files.ts`](../../src/dashboard/lib/ticked/files.ts)             | The one ticked-file store: `createTickedFiles`, `TickFile`, read/write/list/delete                              |
+| [`src/dashboard/lib/ticked/frontmatter.ts`](../../src/dashboard/lib/ticked/frontmatter.ts) | Flat-YAML parser; `every:`/`staff:`/`disabled:`/`executables:`/`tools:`/`tickScript:`; cadence tokens + ms math |
+| [`src/dashboard/lib/duties/run-comment.ts`](../../src/dashboard/lib/duties/run-comment.ts) | Builds the `@kody duty-tick --duty <slug> --force` comment body (single source of truth)                        |
+| [`src/dashboard/lib/duties/merge-patch.ts`](../../src/dashboard/lib/duties/merge-patch.ts) | Read-merge for the duty PATCH route (omit preserves, explicit `[]`/`null` clears)                               |
+| [`src/dashboard/lib/ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts)       | "Next tick" math (`CRON_INTERVAL_MS`) + relative-time formatting                                                |
+| [`app/api/kody/staff/route.ts`](../../app/api/kody/staff/route.ts)                         | `GET` list / `POST` create staff                                                                                |
+| [`app/api/kody/duties/route.ts`](../../app/api/kody/duties/route.ts)                       | `GET` list / `POST` create duties                                                                               |
+| [`app/api/kody/duties/[slug]/route.ts`](../../app/api/kody/duties/[slug]/route.ts)         | `GET` read / `PATCH` update (read-merge) / `DELETE` a single duty                                               |
+| [`app/api/kody/duties/[slug]/run/route.ts`](../../app/api/kody/duties/[slug]/run/route.ts) | `POST` "Run now" — posts the `duty-tick --duty <slug> --force` comment                                          |
+| [`.kody/staff/cto.md`](../../.kody/staff/cto.md)                                           | Example persona (identity only)                                                                                 |
+| [`.kody/duties/security-audit.md`](../../.kody/duties/security-audit.md)                   | Example duty (frontmatter + cadence guard + state schema)                                                       |
+| `kody2/src/scripts/dispatchJobFileTicks.ts` (engine)                                       | Scheduler fan-out: enumerate duties, skip gates, per-slug `duty-tick`                                           |
+| `kody2/src/scripts/loadJobFromFile.ts` (engine)                                            | Tick preflight: load duty body + inject staff persona ahead of it                                               |
+| `kody2/src/executables/job-scheduler/profile.json` (engine)                                | Scheduled, no-agent scheduler executable                                                                        |
+| `kody2/src/executables/duty-tick/profile.json` (engine)                                    | One-shot per-duty tick executable (`--duty <slug>`, `--force`)                                                  |
 
 ## FAQ
 
@@ -251,10 +287,10 @@ the executor identity it declared.
 
 **Why are staff and duties the same code?**
 
-They're both "a markdown file the engine's job-tick chain enumerates and
-ticks." The only differences are directory, commit scope, and cache, which
-`createTickedFiles` binds. Splitting them would duplicate read/write/list
-logic with no behavioral payoff.
+They're both "a markdown file the engine's duty-tick chain enumerates
+and ticks." The only differences are directory, commit scope, and
+cache, which `createTickedFiles` binds. Splitting them would duplicate
+read/write/list logic with no behavioral payoff.
 
 **Can a duty have no schedule?**
 

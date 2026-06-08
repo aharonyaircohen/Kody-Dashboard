@@ -63,6 +63,9 @@ export async function GET(req: NextRequest) {
         disabled: false,
         staff: f.staff ?? null,
         mentions: [] as string[],
+        executables: [] as string[],
+        dutyTools: [] as string[],
+        tickScript: null as string | null,
         htmlUrl: f.htmlUrl,
         folder: true,
       }));
@@ -106,6 +109,18 @@ const createDutySchema = z.object({
   disabled: z.boolean().optional(),
   staff: z.string().min(1).nullable().optional(),
   mentions: z.array(z.string()).optional(),
+  // Engine-side executable chain (`executables:` frontmatter). Free-form
+  // strings — engine built-ins may be valid, so the dashboard does not
+  // validate the names. Empty arrays mean "no chain" (engine falls back to
+  // the duty's single behavior).
+  executables: z.array(z.string()).optional(),
+  // Duty-only tool allowlist (on-disk `tools:` frontmatter). Distinct
+  // from the agent's runtime `claudeCode.tools`.
+  dutyTools: z.array(z.string()).optional(),
+  // Optional inline script the engine runs before the tick. `null` is
+  // a no-op (clears any pre-existing script). The serializer writes
+  // multi-line values as a YAML block scalar.
+  tickScript: z.string().nullable().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -149,6 +164,9 @@ export async function POST(req: NextRequest) {
       disabled,
       staff,
       mentions,
+      executables,
+      dutyTools,
+      tickScript,
       actorLogin,
     } = createDutySchema.parse(payload);
 
@@ -195,6 +213,12 @@ export async function POST(req: NextRequest) {
       disabled: disabled === true,
       staff: staff ?? null,
       mentions: normalizeMentions(mentions),
+      executables: (executables ?? []).map((s) => s.trim()).filter(Boolean),
+      dutyTools: (dutyTools ?? []).map((s) => s.trim()).filter(Boolean),
+      tickScript:
+        typeof tickScript === "string" && tickScript.length > 0
+          ? tickScript
+          : null,
     });
 
     recordAudit(req, {

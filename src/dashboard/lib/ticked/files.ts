@@ -86,6 +86,29 @@ export interface TickFile {
    * key is absent. The dashboard reads it to render/seed the mentions input.
    */
   mentions: string[];
+  /**
+   * Engine-side chain of executables this duty composes into one tick,
+   * parsed from the `executables:` frontmatter (comma-separated). Engine
+   * built-ins are valid names we don't recognize, so the dashboard does
+   * not validate. Empty array when absent. Duty-only; staff files never
+   * declare a chain. (Engine `executables:` field, kody2 main.)
+   */
+  executables: string[];
+  /**
+   * Engine-side duty-only tool allowlist, parsed from the on-disk `tools:`
+   * frontmatter (the engine name) and surfaced as `dutyTools` to keep
+   * "agent tools" and "duty tools" visually separate in the editor.
+   * Empty array when absent. The agent's `claudeCode.tools` is a
+   * separate concern and lives elsewhere.
+   */
+  dutyTools: string[];
+  /**
+   * Optional inline script the engine runs before the duty tick
+   * (frontmatter `tickScript:`). `null` when absent. Single-line on the
+   * wire, but the parser also understands a YAML block scalar so engine
+   * files with multi-line scripts round-trip.
+   */
+  tickScript: string | null;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -115,6 +138,24 @@ export interface TickWriteOptions {
    * no `@`). Empty / absent writes no `mentions:` line.
    */
   mentions?: string[];
+  /**
+   * Engine-side executable chain to emit as `executables:` frontmatter.
+   * Empty / absent writes no `executables:` line. The dashboard does not
+   * validate names — engine built-ins may be valid.
+   */
+  executables?: string[];
+  /**
+   * Duty-only tool allowlist to emit as the on-disk `tools:` frontmatter.
+   * Empty / absent writes no `tools:` line. Distinct from the agent's
+   * `claudeCode.tools`.
+   */
+  dutyTools?: string[];
+  /**
+   * Optional inline script to emit as `tickScript:` frontmatter. `null`
+   * clears the field (no line written). Multi-line values are written
+   * as a YAML block scalar.
+   */
+  tickScript?: string | null;
   /** SHA of the existing blob; omit on create. */
   sha?: string;
   /** Commit message override. */
@@ -331,6 +372,9 @@ function buildFileContent(
   disabled: boolean,
   staff: string | null,
   mentions: string[],
+  executables: string[],
+  dutyTools: string[],
+  tickScript: string | null,
 ): string {
   // Strip any leading H1 the caller's body already carries so we never
   // double the title — `# ${title}` is the single canonical heading.
@@ -344,6 +388,9 @@ function buildFileContent(
   if (staff) fm.staff = staff;
   if (mentions.length > 0) fm.mentions = mentions;
   if (disabled) fm.disabled = true;
+  if (executables.length > 0) fm.executables = executables;
+  if (dutyTools.length > 0) fm.dutyTools = dutyTools;
+  if (tickScript != null && tickScript.length > 0) fm.tickScript = tickScript;
   return joinFrontmatter(fm, titled);
 }
 
@@ -456,6 +503,9 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
             disabled: frontmatter.disabled === true,
             staff: frontmatter.staff ?? null,
             mentions: frontmatter.mentions ?? [],
+            executables: frontmatter.executables ?? [],
+            dutyTools: frontmatter.dutyTools ?? [],
+            tickScript: frontmatter.tickScript ?? null,
             htmlUrl: buildHtmlUrl(slug, branch),
           } satisfies TickFile;
         } catch {
@@ -522,6 +572,9 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         disabled: frontmatter.disabled === true,
         staff: frontmatter.staff ?? null,
         mentions: frontmatter.mentions ?? [],
+        executables: frontmatter.executables ?? [],
+        dutyTools: frontmatter.dutyTools ?? [],
+        tickScript: frontmatter.tickScript ?? null,
         htmlUrl: buildHtmlUrl(slug, branch),
       };
     } catch (error: unknown) {
@@ -548,6 +601,9 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
       opts.disabled === true,
       opts.staff ?? null,
       opts.mentions ?? [],
+      opts.executables ?? [],
+      opts.dutyTools ?? [],
+      opts.tickScript ?? null,
     );
     const message =
       opts.message ??

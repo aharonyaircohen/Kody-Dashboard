@@ -86,6 +86,15 @@ async function importTickCollection(
         schedule: entry.schedule,
         disabled: entry.disabled,
         staff: entry.staff,
+        // New engine duty contract (kody2 main). Carry verbatim so a
+        // bundle round-trips through export/import without losing the
+        // engine's new frontmatter fields. Staff entries never set them
+        // (their on-disk serializer omits empty arrays), so it's safe
+        // to pass empty arrays through.
+        mentions: entry.mentions,
+        executables: entry.executables,
+        dutyTools: entry.dutyTools,
+        tickScript: entry.tickScript,
         sha: existing?.sha,
       });
       if (existing) counts.updated++;

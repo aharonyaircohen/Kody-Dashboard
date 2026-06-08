@@ -61,6 +61,11 @@ export function useCreateDuty(actorLogin?: string) {
       disabled?: boolean;
       staff?: string | null;
       mentions?: string[];
+      // New engine duty contract (kody2 main). All optional — a
+      // minimal create leaves them empty / null.
+      executables?: string[];
+      dutyTools?: string[];
+      tickScript?: string | null;
     }
   >({
     mutationFn: (data) =>
@@ -91,6 +96,11 @@ export function useUpdateDuty(slug: string, actorLogin?: string) {
       disabled?: boolean;
       staff?: string | null;
       mentions?: string[];
+      // New engine duty contract (kody2 main). Omit preserves,
+      // `[]` / `null` clears.
+      executables?: string[];
+      dutyTools?: string[];
+      tickScript?: string | null;
     }
   >({
     mutationFn: (data) =>

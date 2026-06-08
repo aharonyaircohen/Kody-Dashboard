@@ -106,6 +106,15 @@ export function createExecutableTools(ctx: Ctx) {
           // dashboard editor (Tools tab) is where they're configured.
           mcpServers: [],
           landing: input.landing,
+          // New engine duty contract (kody2 main) — folder-duty knobs.
+          // The chat tool path doesn't expose them, so all default to
+          // the "no special binding" values the editor would emit on a
+          // fresh folder-duty without these fields.
+          staff: null,
+          every: null,
+          mentions: [],
+          dutyTools: [],
+          executable: null,
         };
 
         // Reject a malformed profile before committing.

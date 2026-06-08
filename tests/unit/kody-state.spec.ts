@@ -124,6 +124,59 @@ describe("parseKodyStateComment", () => {
     expect(parsed?.history).toEqual([]);
   });
 
+  it("defaults jobs to an empty array when the field is absent (legacy comments)", () => {
+    // Older engine comments predate the `jobs` field. Readers must
+    // default to [] so the Runs tab can iterate without guarding.
+    const parsed = parseKodyStateComment(renderComment(minimalState));
+    expect(parsed?.jobs).toEqual([]);
+  });
+
+  it("parses planned jobs alongside history (new engine contract)", () => {
+    const withJobs: KodyTaskState = {
+      ...minimalState,
+      jobs: [
+        {
+          executable: "qa-verify",
+          why: "verify the implementation PR before merge",
+          status: "pending",
+          timestamp: "2026-05-10T14:00:00Z",
+        },
+        {
+          executable: "pr-review",
+          why: "post implementation",
+          status: "running",
+          runUrl: "https://github.com/x/y/actions/runs/456",
+          prUrl: "https://github.com/x/y/pull/42",
+          jobId: "gh-456",
+        },
+      ],
+    };
+    const parsed = parseKodyStateComment(renderComment(withJobs));
+    expect(parsed?.jobs).toHaveLength(2);
+    expect(parsed?.jobs?.[0].executable).toBe("qa-verify");
+    expect(parsed?.jobs?.[0].why).toContain("verify the implementation");
+    expect(parsed?.jobs?.[0].status).toBe("pending");
+    expect(parsed?.jobs?.[1].status).toBe("running");
+    expect(parsed?.jobs?.[1].runUrl).toContain("/actions/runs/456");
+    expect(parsed?.jobs?.[1].prUrl).toContain("/pull/42");
+  });
+
+  it("drops planned jobs that don't have an executable (malformed entry)", () => {
+    const bad: KodyTaskState = {
+      ...minimalState,
+      jobs: [
+        { executable: "qa-verify", status: "pending" },
+        // The engine guarantees `executable` on every job; if it's missing
+        // we drop the entry rather than guessing — a planned job with no
+        // executable is a producer bug we can't render.
+        { why: "no executable field" } as unknown as { executable: string },
+      ],
+    };
+    const parsed = parseKodyStateComment(renderComment(bad));
+    expect(parsed?.jobs).toHaveLength(1);
+    expect(parsed?.jobs?.[0].executable).toBe("qa-verify");
+  });
+
   it("uses the LAST STATE_END marker (artifact content can contain literals)", () => {
     // An embedded artifact (e.g. a plan markdown that discusses kody state)
     // can include literal STATE_END strings; the producer guarantees the real

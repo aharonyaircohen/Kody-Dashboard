@@ -37,6 +37,13 @@ function toTickEntry(file: TickFile): CompanyTickEntry {
     schedule: file.schedule,
     disabled: file.disabled,
     staff: file.staff,
+    // New engine duty contract (kody2 main). Carried verbatim so a
+    // bundle round-trips through export/import without dropping the
+    // engine's new frontmatter fields.
+    mentions: file.mentions,
+    executables: file.executables,
+    dutyTools: file.dutyTools,
+    tickScript: file.tickScript,
   };
 }
 

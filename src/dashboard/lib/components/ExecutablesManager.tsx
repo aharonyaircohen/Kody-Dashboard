@@ -79,6 +79,11 @@ import {
   type McpServerSpec,
   type PermissionMode,
 } from "../executables/profile";
+import {
+  ALL_SCHEDULE_EVERY_OPTIONS,
+  scheduleEveryLabel,
+  type ScheduleEvery,
+} from "../ticked/frontmatter";
 
 /** One-line explanation per tool, shown beside its checkbox. */
 const TOOL_DESCRIPTIONS: Record<string, string> = {
@@ -114,11 +119,24 @@ interface ExecutableDetail extends ExecutableSummary {
   prompt: string;
   model: string;
   permissionMode: PermissionMode;
+  /** Agent tools (`claudeCode.tools`). Distinct from `dutyTools` (duty's
+   * own runtime allowlist, top-level `profile.dutyTools`). */
   tools: string[];
   skills: ExecutableSkill[];
   shellScripts: ExecutableShellScript[];
   mcpServers: McpServerSpec[];
   profileJson: string;
+  // ── Duty settings (top-level profile fields) ──────────────────────────
+  /** Staff member this duty runs as (top-level `profile.staff`). */
+  staff: string | null;
+  /** Recurrence cadence (top-level `profile.every`). */
+  every: ScheduleEvery | null;
+  /** GitHub logins to `@`-mention on output. */
+  mentions: string[];
+  /** Duty-only tool allowlist (top-level `profile.dutyTools`). */
+  dutyTools: string[];
+  /** Engine executable this folder-duty wraps (top-level `profile.executable`). */
+  executable: string | null;
 }
 interface DefaultsState {
   issue: string | null;
@@ -190,6 +208,12 @@ interface SavePayload {
   shellScripts: ExecutableShellScript[];
   mcpServers: McpServerSpec[];
   landing: ExecutableLanding;
+  // ── Duty settings (top-level profile fields) ──────────────────────────
+  staff: string | null;
+  every: ScheduleEvery | null;
+  mentions: string[];
+  dutyTools: string[];
+  executable: string | null;
   isUpdate: boolean;
 }
 
@@ -1180,6 +1204,20 @@ function ExecutableEditorForm({
   const [mcpServers, setMcpServers] = useState<McpServerSpec[]>(
     initial?.mcpServers ?? [],
   );
+  // ── Duty settings (top-level profile fields). A folder-duty is also a
+  //    duty; the engine reads these from the profile root, not claudeCode.
+  // ─────────────────────────────────────────────────────────────────────
+  const [staff, setStaff] = useState<string | null>(initial?.staff ?? null);
+  const [every, setEvery] = useState<ScheduleEvery | null>(
+    initial?.every ?? null,
+  );
+  const [mentions, setMentions] = useState<string[]>(initial?.mentions ?? []);
+  const [dutyTools, setDutyTools] = useState<string[]>(
+    initial?.dutyTools ?? [],
+  );
+  const [executable, setExecutable] = useState<string | null>(
+    initial?.executable ?? null,
+  );
   const [skillSource, setSkillSource] = useState("");
   const [importing, setImporting] = useState(false);
   const [mcpSource, setMcpSource] = useState("");
@@ -1306,6 +1344,11 @@ function ExecutableEditorForm({
       shellScripts: shellScripts.map((s) => s.name),
       mcpServers,
       landing,
+      staff,
+      every,
+      mentions,
+      dutyTools,
+      executable,
     });
     const errors = validateProfile(profile);
     // Local consistency: skill/sh names must be present and well-formed.
@@ -1335,6 +1378,11 @@ function ExecutableEditorForm({
     shellScripts,
     mcpServers,
     landing,
+    staff,
+    every,
+    mentions,
+    dutyTools,
+    executable,
   ]);
 
   // Block save when the composed profile fails the engine invariants or a
@@ -1380,6 +1428,7 @@ function ExecutableEditorForm({
       <Tabs defaultValue="config" className="mt-2">
         <TabsList>
           <TabsTrigger value="config">Config</TabsTrigger>
+          <TabsTrigger value="duty">Duty</TabsTrigger>
           <TabsTrigger value="prompt">Prompt</TabsTrigger>
           <TabsTrigger value="skills">Skills ({skills.length})</TabsTrigger>
           <TabsTrigger value="tools">Tools ({mcpServers.length})</TabsTrigger>
@@ -1476,6 +1525,126 @@ function ExecutableEditorForm({
                 </label>
               ))}
             </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="duty" className="space-y-3">
+          <p className="text-[11px] text-white/40">
+            A folder-duty is also a duty: it can declare a persona, a cadence, a
+            mention list, and a duty-only tool allowlist. These are written to
+            the top level of <code>profile.json</code> (engine-side) — distinct
+            from <code>claudeCode.tools</code>, which is the agent&apos;s
+            runtime allowlist.
+          </p>
+          <div>
+            <Label htmlFor="exec-staff" className="text-xs">
+              Staff (persona)
+            </Label>
+            <Input
+              id="exec-staff"
+              value={staff ?? ""}
+              onChange={(e) =>
+                setStaff(e.target.value.trim() ? e.target.value.trim() : null)
+              }
+              placeholder="triage-bot"
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-white/40 mt-1">
+              The staff file at <code>.kody/staff/&lt;slug&gt;.md</code> that
+              runs this duty. Leave empty to skip the scheduler (no persona).
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="exec-every" className="text-xs">
+              Cadence
+            </Label>
+            <Select
+              value={every ?? "__inherit__"}
+              onValueChange={(v) =>
+                setEvery(v === "__inherit__" ? null : (v as ScheduleEvery))
+              }
+            >
+              <SelectTrigger id="exec-every">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__inherit__">
+                  every cron wake (default)
+                </SelectItem>
+                {ALL_SCHEDULE_EVERY_OPTIONS.filter((e) => e !== "manual").map(
+                  (e) => (
+                    <SelectItem key={e} value={e}>
+                      {scheduleEveryLabel(e)}
+                    </SelectItem>
+                  ),
+                )}
+                <SelectItem value="manual">manual only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="exec-mentions" className="text-xs">
+              Mentions
+            </Label>
+            <Input
+              id="exec-mentions"
+              value={mentions.join(", ")}
+              onChange={(e) =>
+                setMentions(
+                  e.target.value
+                    .split(",")
+                    .map((m) => m.trim().replace(/^@/, ""))
+                    .filter((m) => m.length > 0),
+                )
+              }
+              placeholder="alice, bob"
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-white/40 mt-1">
+              Comma-separated GitHub logins (no <code>@</code>) to ping on this
+              duty&apos;s output.
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="exec-executable" className="text-xs">
+              Wraps executable (optional)
+            </Label>
+            <Input
+              id="exec-executable"
+              value={executable ?? ""}
+              onChange={(e) =>
+                setExecutable(
+                  e.target.value.trim() ? e.target.value.trim() : null,
+                )
+              }
+              placeholder="(this folder's slug)"
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-white/40 mt-1">
+              Engine executable this folder-duty delegates to. Leave empty if
+              the folder IS the executable (default).
+            </p>
+          </div>
+          <div>
+            <Label className="text-xs">Duty tools (allowlist)</Label>
+            <p className="text-[11px] text-white/40 mt-1 mb-1">
+              Tools the engine tick loop may invoke when running this
+              duty&apos;s body. Distinct from the agent&apos;s runtime allowlist
+              (Tools tab).
+            </p>
+            <Input
+              value={dutyTools.join(", ")}
+              onChange={(e) =>
+                setDutyTools(
+                  e.target.value
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter((s) => s.length > 0),
+                )
+              }
+              placeholder="Bash, Read, Grep"
+              className="font-mono text-xs"
+            />
           </div>
         </TabsContent>
 
@@ -1844,6 +2013,11 @@ function ExecutableEditorForm({
               shellScripts,
               mcpServers,
               landing,
+              staff,
+              every,
+              mentions,
+              dutyTools,
+              executable,
               isUpdate: !isNew,
             });
           }}

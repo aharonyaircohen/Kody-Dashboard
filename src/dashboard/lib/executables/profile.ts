@@ -12,10 +12,20 @@
  *   the user writes lives in `prompt.md`, which the lifecycle's
  *   `composePrompt` step reads.
  *
+ *   A folder-duty is also a duty: it can carry a `staff:` persona, an
+ *   `every:` cadence, a `mentions:` list, a `dutyTools:` allowlist, and
+ *   an `executable:` wrapper. Those fields are written at the TOP level
+ *   of the profile (engine-side), distinct from `claudeCode.*` (the
+ *   agent's runtime config). The editor surfaces them in a "Duty
+ *   settings" section; "Agent tools" (`claudeCode.tools`) and "Duty
+ *   tools" (`dutyTools`) are kept visually separate.
+ *
  *   No engine call is made here — this is the contract, kept in sync with
  *   kody2/src/profile.ts. Validation mirrors the engine's required invariants
  *   so the dashboard can reject a broken profile before committing.
  */
+
+import type { ScheduleEvery } from "@dashboard/lib/ticked/frontmatter";
 
 /** Where the executable's result lands. `pr` opens a pull request (the
  * `pr-branch` lifecycle); `comment` posts the agent's answer as a comment
@@ -74,7 +84,7 @@ export interface ExecutableFields {
   model: string;
   /** `claudeCode.permissionMode`. */
   permissionMode: PermissionMode;
-  /** `claudeCode.tools`. */
+  /** `claudeCode.tools` — the AGENT's tool allowlist. Distinct from `dutyTools`. */
   tools: string[];
   /** Skill folder names under `skills/`. Maps to `claudeCode.skills`. */
   skills: string[];
@@ -88,6 +98,40 @@ export interface ExecutableFields {
   mcpServers: McpServerSpec[];
   /** Where the result lands. */
   landing: ExecutableLanding;
+  // ── Duty settings (top-level profile fields; a folder-duty is also a
+  //    duty and carries the same frontmatter-style knobs the markdown
+  //    duties do) ──────────────────────────────────────────────────────
+  /**
+   * Staff member (persona) slug. Top-level `staff:` in `profile.json`.
+   * `null` means "no persona" — the engine scheduler skips a duty with
+   * no staff.
+   */
+  staff: string | null;
+  /**
+   * Per-file cadence. Top-level `every:` in `profile.json`. `null` means
+   * "every cron wake" (the engine's 15-minute cron).
+   */
+  every: ScheduleEvery | null;
+  /**
+   * GitHub logins to `@`-mention on output. Top-level `mentions:` in
+   * `profile.json` (comma-separated, no `@`). Empty array = none.
+   */
+  mentions: string[];
+  /**
+   * Engine-side DUTY-only tool allowlist. Top-level `dutyTools:` in
+   * `profile.json` (distinct from `claudeCode.tools`, which is what the
+   * agent uses at runtime). The editor surfaces this as a separate
+   * "Duty tools" field so users don't conflate the two.
+   */
+  dutyTools: string[];
+  /**
+   * Engine executable this folder-duty wraps / delegates to. Top-level
+   * `executable:` in `profile.json`. Defaults to the folder's own slug
+   * (a folder-duty IS an executable), but a duty-wrapping-a-builtin
+   * (e.g. an `incident-responder` folder whose work is the engine's
+   * `qa-verify` executable) names that builtin here.
+   */
+  executable: string | null;
 }
 
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -222,6 +266,16 @@ export function composeProfile(
     cliTools: [],
   };
 
+  // Top-level "Duty settings" — a folder-duty is also a duty. Mirrors
+  // the frontmatter on `.kody/duties/<slug>.md` so the engine's scheduler
+  // treats both shapes identically. Omitted keys stay absent so an
+  // unchanged profile stays byte-identical on re-save.
+  if (fields.staff) base.staff = fields.staff;
+  if (fields.every) base.every = fields.every;
+  if (fields.mentions.length > 0) base.mentions = fields.mentions.join(", ");
+  if (fields.dutyTools.length > 0) base.dutyTools = fields.dutyTools.join(", ");
+  if (fields.executable) base.executable = fields.executable;
+
   if (fields.landing === "pr") {
     return {
       ...base,
@@ -307,7 +361,44 @@ export function fieldsFromProfile(
     shellScripts,
     mcpServers: parseMcpServers(cc.mcpServers),
     landing: landingOf(profile),
+    // Top-level "Duty settings" — read back from the same top-level keys
+    // we wrote in composeProfile. Mentions / dutyTools are comma-separated
+    // strings on disk; the editor wants arrays.
+    staff: typeof profile.staff === "string" ? profile.staff : null,
+    every: isScheduleEvery(profile.every) ? profile.every : null,
+    mentions: parseCsvField(profile.mentions),
+    dutyTools: parseCsvField(profile.dutyTools),
+    executable:
+      typeof profile.executable === "string" ? profile.executable : null,
   };
+}
+
+/** Parse a comma-separated string field into a clean string array. */
+function parseCsvField(raw: unknown): string[] {
+  if (typeof raw !== "string") return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim().replace(/^@/, ""))
+    .filter((s) => s.length > 0);
+}
+
+/** Type-narrowing guard for ScheduleEvery values coming back from a profile. */
+function isScheduleEvery(v: unknown): v is ScheduleEvery {
+  return (
+    typeof v === "string" &&
+    [
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "6h",
+      "12h",
+      "1d",
+      "3d",
+      "7d",
+      "manual",
+    ].includes(v)
+  );
 }
 
 /** Parse a raw `claudeCode.mcpServers` value into validated specs ([] if absent/malformed). */

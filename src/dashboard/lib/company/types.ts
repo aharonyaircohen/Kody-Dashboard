@@ -40,6 +40,14 @@ const SCHEDULE_TOKENS = [
  * A staff member or duty entry — both are "ticked markdown" files and
  * share the same portable shape. `staff` (the executor persona slug) is
  * only ever set on duties; staff files always carry `null`.
+ *
+ * The new engine duty contract adds three more fields a duty may carry:
+ * `mentions` (GitHub logins to ping on output), `executables` (chain of
+ * engine executables the duty composes), `dutyTools` (duty-only tool
+ * allowlist, surfaced as the on-disk `tools:` frontmatter), and
+ * `tickScript` (optional inline pre-tick script). Older bundles don't
+ * have them — the import defaults to sensible empty values so a v1
+ * bundle still round-trips into the v2 shape.
  */
 export interface CompanyTickEntry {
   slug: string;
@@ -49,6 +57,14 @@ export interface CompanyTickEntry {
   disabled: boolean;
   /** Executor persona slug — duties only; staff entries are always null. */
   staff: string | null;
+  /** GitHub logins the engine should `@`-mention on output. */
+  mentions: string[];
+  /** Engine-side chain of executables the duty composes into one tick. */
+  executables: string[];
+  /** Duty-only tool allowlist (on-disk `tools:` frontmatter). */
+  dutyTools: string[];
+  /** Optional inline script the engine runs before the tick (`null` = none). */
+  tickScript: string | null;
 }
 
 /** A slash-command entry. */
@@ -159,6 +175,12 @@ const tickEntrySchema = z.object({
   schedule: z.enum(SCHEDULE_TOKENS).nullable().default(null),
   disabled: z.boolean().default(false),
   staff: z.string().min(1).nullable().default(null),
+  // New engine duty contract (kody2 main). Defaults empty / null so v1
+  // bundles (which predate these fields) still import cleanly.
+  mentions: z.array(z.string()).default([]),
+  executables: z.array(z.string()).default([]),
+  dutyTools: z.array(z.string()).default([]),
+  tickScript: z.string().nullable().default(null),
 });
 
 const commandEntrySchema = z.object({

@@ -58,6 +58,30 @@ export interface KodyHistoryEntry {
   runUrl?: string;
 }
 
+/**
+ * One PLANNED job in the task's run plan — a future engine run the orchestrator
+ * has already queued (e.g. a follow-up PR-review executable after the
+ * implementation lands). Mirrors the engine's `PlannedJob` shape; the
+ * `status` is the engine's own per-job status, not the task's overall status.
+ * Used by the Runs tab to show what's queued alongside what's already run.
+ */
+export interface KodyPlannedJob {
+  /** Engine executable name (e.g. "qa-verify", "plan"). */
+  executable: string;
+  /** Optional human-readable why / intent. */
+  why?: string;
+  /** Per-job status from the engine (distinct from the task's overall status). */
+  status?: "pending" | "running" | "succeeded" | "failed" | "skipped";
+  /** Link to the run when the job has been dispatched. */
+  runUrl?: string;
+  /** Link to the PR this job targets, when known. */
+  prUrl?: string;
+  /** Wall-clock when this planned job was added to the plan. */
+  timestamp?: string;
+  /** Stable job id when one has been minted by the engine. */
+  jobId?: string;
+}
+
 export interface KodyTaskState {
   schemaVersion: 1;
   core: {
@@ -73,6 +97,14 @@ export interface KodyTaskState {
   };
   /** Ordered run-history: one job entry per engine run on this issue/PR. */
   history: KodyHistoryEntry[];
+  /**
+   * Planned future jobs the orchestrator has queued (e.g. a follow-up
+   * qa-verify after the implementation PR opens). The Runs tab shows
+   * these alongside `history` so users can see what's still to come.
+   * Absent on legacy state comments (older engines didn't write it) —
+   * readers must default to an empty array.
+   */
+  jobs?: KodyPlannedJob[];
 }
 
 /**
@@ -115,6 +147,14 @@ export function parseKodyStateComment(body: string): KodyTaskState | null {
         ? parsed.history.filter(
             (e): e is KodyHistoryEntry =>
               !!e && typeof e.timestamp === "string",
+          )
+        : [],
+      // The engine may or may not have written `jobs`; older comments
+      // predate the field. Preserve whatever the producer emitted (or
+      // default to `[]` when absent so callers can iterate freely).
+      jobs: Array.isArray(parsed.jobs)
+        ? parsed.jobs.filter(
+            (j): j is KodyPlannedJob => !!j && typeof j.executable === "string",
           )
         : [],
     };

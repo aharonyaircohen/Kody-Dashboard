@@ -70,6 +70,29 @@ export interface TickFrontmatter {
    * Absent / empty array = no mentions (the line is omitted on write).
    */
   mentions?: string[];
+  /**
+   * Engine-side `executables: [name1, name2]`. Names a chain of built-in or
+   * custom engine executables the duty composes into one tick — e.g. a
+   * duty that wants to `research` then `plan` runs both, in order, against
+   * the duty body. Free-form string list; the dashboard does not validate
+   * the names because engine built-ins may be valid.
+   */
+  executables?: string[];
+  /**
+   * Engine-side duty-only tool allowlist (the `tools` frontmatter key on
+   * a duty file). Distinct from the staff/executable `claudeCode.tools`
+   * the agent uses at runtime — duty tools are what the tick loop may
+   * invoke when running the duty's body. Stored on disk as `tools:` (no
+   * separate `dutyTools:` key); the dashboard surfaces this as
+   * `dutyTools` everywhere in the API.
+   */
+  dutyTools?: string[];
+  /**
+   * Optional inline script the engine can run before the duty tick (e.g.
+   * an extra data gather step). Rendered verbatim as the `tickScript:`
+   * frontmatter value. `null` clears the field on write.
+   */
+  tickScript?: string | null;
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -179,13 +202,43 @@ export function scheduleEveryLabel(every: ScheduleEvery): string {
 
 function parseFlatYaml(text: string): TickFrontmatter {
   const out: TickFrontmatter = {};
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
+  const lines = text.split(/\r?\n/);
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    if (!line || line.startsWith("#")) {
+      i++;
+      continue;
+    }
     const colon = line.indexOf(":");
-    if (colon < 0) continue;
+    if (colon < 0) {
+      i++;
+      continue;
+    }
     const key = line.slice(0, colon).trim();
-    const value = stripQuotes(line.slice(colon + 1).trim());
+    let value = stripQuotes(line.slice(colon + 1).trim());
+    i++;
+
+    // tickScript may use a YAML block scalar (`|` / `>`) for multi-line
+    // scripts. Read the indented continuation into one string.
+    if (key === "tickScript" && (value === "|" || value === ">")) {
+      const block: string[] = [];
+      while (i < lines.length) {
+        const next = lines[i];
+        if (next === "" || /^\s/.test(next)) {
+          block.push(next.replace(/^ {1,2}/, ""));
+          i++;
+        } else {
+          break;
+        }
+      }
+      while (block.length > 0 && block[block.length - 1] === "") {
+        block.pop();
+      }
+      if (block.length > 0) out.tickScript = block.join("\n");
+      continue;
+    }
+
     if (key === "every" && isScheduleEvery(value)) {
       out.every = value;
     } else if (key === "disabled") {
@@ -203,6 +256,25 @@ function parseFlatYaml(text: string): TickFrontmatter {
         .map((m) => m.trim().replace(/^@/, ""))
         .filter((m) => m.length > 0);
       if (mentions.length > 0) out.mentions = mentions;
+    } else if (key === "executables") {
+      // Free-form engine executable names. We don't validate them — engine
+      // built-ins may be valid and the dashboard doesn't know the registry.
+      const exes = value
+        .split(",")
+        .map((m) => m.trim())
+        .filter((m) => m.length > 0);
+      if (exes.length > 0) out.executables = exes;
+    } else if (key === "tools") {
+      // The on-disk key for `dutyTools` is `tools` (the engine-side name).
+      // The dashboard surfaces it as `dutyTools` to keep "agent tools" and
+      // "duty tools" visually separate in the editor.
+      const tools = value
+        .split(",")
+        .map((m) => m.trim())
+        .filter((m) => m.length > 0);
+      if (tools.length > 0) out.dutyTools = tools;
+    } else if (key === "tickScript" && value.length > 0) {
+      out.tickScript = value;
     }
     // Unknown keys silently dropped on read — they round-trip via the
     // raw body if callers preserve it. We don't surface them on the
@@ -222,6 +294,28 @@ function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
   // Only emit `disabled: true` — the default (enabled) leaves the line
   // out so an unchanged ticked file stays byte-identical.
   if (frontmatter.disabled === true) lines.push(`disabled: true`);
+  if (frontmatter.executables?.length)
+    lines.push(`executables: ${frontmatter.executables.join(", ")}`);
+  // On-disk key is `tools`, in-memory key is `dutyTools`. The engine reads
+  // `tools`; the API surfaces `dutyTools` to keep agent/duty tools distinct.
+  if (frontmatter.dutyTools?.length)
+    lines.push(`tools: ${frontmatter.dutyTools.join(", ")}`);
+  // tickScript: single-line stays inline, multi-line uses a `|` block scalar
+  // so the engine can read it back verbatim. `null` / empty string omits the
+  // key entirely (the dashboard uses null to "clear" the field on PATCH).
+  if (
+    typeof frontmatter.tickScript === "string" &&
+    frontmatter.tickScript.length > 0
+  ) {
+    if (frontmatter.tickScript.includes("\n")) {
+      lines.push("tickScript: |");
+      for (const ln of frontmatter.tickScript.split("\n")) {
+        lines.push(`  ${ln}`);
+      }
+    } else {
+      lines.push(`tickScript: ${frontmatter.tickScript}`);
+    }
+  }
   return lines;
 }
 

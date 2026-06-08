@@ -100,6 +100,32 @@ function sameMentions(a: string[], b: string[]): boolean {
   return sortedA.every((v, i) => v === sortedB[i]);
 }
 
+/**
+ * Parse a generic comma-separated text field into a clean string list.
+ * Used for the new engine duty contract fields (executables, dutyTools) —
+ * free-form engine names, no leading-`@` strip, no validation (engine
+ * built-ins may be valid).
+ */
+function parseCsvInput(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/** Render a stored list back into the comma-separated text field. */
+function formatCsvInput(items: string[]): string {
+  return items.join(", ");
+}
+
+/** Order-insensitive equality for two string lists. */
+function sameStringList(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((v, i) => v === sortedB[i]);
+}
+
 export function DutyControl() {
   return (
     <AuthGuard>
@@ -536,6 +562,10 @@ function CreateDutyDialog({
   const [body, setBody] = useState(DUTY_TEMPLATE);
   const [staff, setStaff] = useState<string | null>(null);
   const [mentions, setMentions] = useState("");
+  // New engine duty contract (kody2 main). All optional on create.
+  const [executables, setExecutables] = useState("");
+  const [dutyTools, setDutyTools] = useState("");
+  const [tickScript, setTickScript] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -543,6 +573,9 @@ function CreateDutyDialog({
       setBody(DUTY_TEMPLATE);
       setStaff(null);
       setMentions("");
+      setExecutables("");
+      setDutyTools("");
+      setTickScript("");
     }
   }, [open]);
 
@@ -559,6 +592,9 @@ function CreateDutyDialog({
         schedule: "manual",
         staff,
         mentions: parseMentionsInput(mentions),
+        executables: parseCsvInput(executables),
+        dutyTools: parseCsvInput(dutyTools),
+        tickScript: tickScript.length > 0 ? tickScript : null,
       },
       {
         onSuccess: (duty) => onCreated(duty),
@@ -590,6 +626,14 @@ function CreateDutyDialog({
           </div>
           <StaffSelect value={staff} onChange={setStaff} />
           <MentionsInput value={mentions} onChange={setMentions} />
+          <DutyAdvancedFields
+            executables={executables}
+            onExecutables={setExecutables}
+            dutyTools={dutyTools}
+            onDutyTools={setDutyTools}
+            tickScript={tickScript}
+            onTickScript={setTickScript}
+          />
           <div className="space-y-1.5">
             <Label>Body</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={14} />
@@ -630,6 +674,15 @@ function EditDutyDialog({
   const [schedule, setSchedule] = useState<DutySchedule | null>(duty.schedule);
   const [staff, setStaff] = useState<string | null>(duty.staff);
   const [mentions, setMentions] = useState(formatMentionsInput(duty.mentions));
+  // New engine duty contract (kody2 main). On edit we show the local
+  // state until the user changes it; on submit we diff against the
+  // stored value so the read-merge contract on the server is respected.
+  const [executables, setExecutables] = useState(
+    formatCsvInput(duty.executables),
+  );
+  const [dutyTools, setDutyTools] = useState(formatCsvInput(duty.dutyTools));
+  const [tickScript, setTickScript] = useState(duty.tickScript ?? "");
+  const [disabled, setDisabled] = useState(duty.disabled);
 
   useEffect(() => {
     setTitle(duty.title);
@@ -637,6 +690,10 @@ function EditDutyDialog({
     setSchedule(duty.schedule);
     setStaff(duty.staff);
     setMentions(formatMentionsInput(duty.mentions));
+    setExecutables(formatCsvInput(duty.executables));
+    setDutyTools(formatCsvInput(duty.dutyTools));
+    setTickScript(duty.tickScript ?? "");
+    setDisabled(duty.disabled);
   }, [duty]);
 
   const handleSubmit = () => {
@@ -645,16 +702,32 @@ function EditDutyDialog({
       title?: string;
       body?: string;
       schedule?: DutySchedule | null;
+      disabled?: boolean;
       staff?: string | null;
       mentions?: string[];
+      executables?: string[];
+      dutyTools?: string[];
+      tickScript?: string | null;
     } = {};
     if (title !== duty.title) patch.title = title.trim();
     if (body !== duty.body) patch.body = body;
     if (schedule !== duty.schedule) patch.schedule = schedule;
+    if (disabled !== duty.disabled) patch.disabled = disabled;
     if (staff !== duty.staff) patch.staff = staff;
     const nextMentions = parseMentionsInput(mentions);
     if (!sameMentions(nextMentions, duty.mentions))
       patch.mentions = nextMentions;
+    // New engine duty contract: diff each field against the stored
+    // value. Omit preserves on the server; explicit `[]` / `null` clears.
+    const nextExecutables = parseCsvInput(executables);
+    if (!sameStringList(nextExecutables, duty.executables))
+      patch.executables = nextExecutables;
+    const nextDutyTools = parseCsvInput(dutyTools);
+    if (!sameStringList(nextDutyTools, duty.dutyTools))
+      patch.dutyTools = nextDutyTools;
+    const nextTickScript = tickScript.length > 0 ? tickScript : null;
+    if (nextTickScript !== (duty.tickScript ?? null))
+      patch.tickScript = nextTickScript;
     if (Object.keys(patch).length === 0) {
       onSaved();
       return;
@@ -683,9 +756,29 @@ function EditDutyDialog({
               autoFocus
             />
           </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="edit-duty-disabled"
+              type="checkbox"
+              checked={disabled}
+              onChange={(e) => setDisabled(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            <Label htmlFor="edit-duty-disabled" className="text-xs">
+              Disabled (scheduler skips; manual Run still works)
+            </Label>
+          </div>
           <ScheduleSelect value={schedule} onChange={setSchedule} />
           <StaffSelect value={staff} onChange={setStaff} />
           <MentionsInput value={mentions} onChange={setMentions} />
+          <DutyAdvancedFields
+            executables={executables}
+            onExecutables={setExecutables}
+            dutyTools={dutyTools}
+            onDutyTools={setDutyTools}
+            tickScript={tickScript}
+            onTickScript={setTickScript}
+          />
           <DutyTimingReadout
             lastTickAt={duty.lastTickAt}
             nextEligibleAt={duty.nextEligibleAt}
@@ -1208,6 +1301,89 @@ function MentionsInput({
         Comma-separated GitHub logins to <strong>@</strong>-mention in this
         duty&apos;s output. Leave blank for none.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Advanced duty fields (engine duty contract, kody2 main): the
+ * executable chain, the duty-only tool allowlist, and the optional
+ * pre-tick script. Kept in their own block so the Create/Edit dialog
+ * stays focused on title/body/schedule/staff/mentions at the top.
+ */
+function DutyAdvancedFields({
+  executables,
+  onExecutables,
+  dutyTools,
+  onDutyTools,
+  tickScript,
+  onTickScript,
+}: {
+  executables: string;
+  onExecutables: (next: string) => void;
+  dutyTools: string;
+  onDutyTools: (next: string) => void;
+  tickScript: string;
+  onTickScript: (next: string) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-dashed border-white/[0.08] bg-white/[0.015] p-3 space-y-3">
+      <p className="text-[11px] text-muted-foreground">
+        Advanced — engine duty contract. Leave blank for the engine defaults
+        (the duty&apos;s body runs as the single behavior).
+      </p>
+      <div className="space-y-1.5">
+        <Label htmlFor="duty-executables" className="text-xs">
+          Executables (chain)
+        </Label>
+        <Input
+          id="duty-executables"
+          value={executables}
+          onChange={(e) => onExecutables(e.target.value)}
+          placeholder="research, plan"
+          className="font-mono text-xs"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Comma-separated engine executable names. The engine runs them in order
+          against the duty body. Engine built-ins may be valid; the dashboard
+          does not validate the names.
+        </p>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="duty-tools" className="text-xs">
+          Duty tools (allowlist)
+        </Label>
+        <Input
+          id="duty-tools"
+          value={dutyTools}
+          onChange={(e) => onDutyTools(e.target.value)}
+          placeholder="Bash, Read, Grep"
+          className="font-mono text-xs"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Tools the engine tick loop may invoke when running this duty&apos;s
+          body. Distinct from the agent&apos;s runtime allowlist. Serialized as{" "}
+          <code>tools:</code> on disk; the API surfaces it as
+          <code> dutyTools</code>.
+        </p>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="duty-tick-script" className="text-xs">
+          Tick script (optional)
+        </Label>
+        <Input
+          id="duty-tick-script"
+          value={tickScript}
+          onChange={(e) => onTickScript(e.target.value)}
+          placeholder="echo collecting metrics"
+          className="font-mono text-xs"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Optional inline script the engine runs before each tick of this duty.
+          Leave blank for none. Cleared by setting it to blank — the existing
+          line is removed from the file.
+        </p>
+      </div>
     </div>
   );
 }
