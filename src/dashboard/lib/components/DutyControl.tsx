@@ -10,16 +10,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
   AtSign,
+  Boxes,
   Calendar,
   Clock,
   ExternalLink,
   FileText,
+  Loader2,
   Pencil,
+  Play,
   Plus,
   PowerOff,
   RefreshCw,
@@ -53,6 +57,7 @@ import {
   useCreateDuty,
   useDeleteDuty,
   useDuties,
+  useRunDuty,
   useUpdateDuty,
 } from "../hooks/useDuties";
 import { useStaff } from "../hooks/useStaff";
@@ -74,6 +79,7 @@ import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { useChatScope } from "./ChatRailShell";
+import { buildAuthHeaders, useAuth } from "../auth-context";
 
 /**
  * Parse the raw "Mentions" text field into a clean login list: split on
@@ -98,6 +104,46 @@ function sameMentions(a: string[], b: string[]): boolean {
   const sortedA = [...a].sort();
   const sortedB = [...b].sort();
   return sortedA.every((v, i) => v === sortedB[i]);
+}
+
+function sameList(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((v, i) => v === sortedB[i]);
+}
+
+interface ExecutableSummary {
+  slug: string;
+  describe?: string;
+}
+
+const NO_EXECUTABLE_VALUE = "__none__";
+
+function useExecutableSummaries() {
+  const { auth } = useAuth();
+  return useQuery({
+    queryKey: ["kody-executables-list", auth?.owner, auth?.repo],
+    queryFn: async (): Promise<ExecutableSummary[]> => {
+      const res = await fetch("/api/kody/executables", {
+        headers: {
+          "content-type": "application/json",
+          ...buildAuthHeaders(auth),
+        },
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+        throw new Error(json.message || json.error || `HTTP ${res.status}`);
+      }
+      const data = (await res.json()) as { executables?: ExecutableSummary[] };
+      return data.executables ?? [];
+    },
+    enabled: !!auth,
+    staleTime: 30_000,
+  });
 }
 
 export function DutyControl() {
@@ -137,7 +183,8 @@ export function DutyControlInner() {
         d.slug.toLowerCase().includes(q) ||
         d.title.toLowerCase().includes(q) ||
         d.body.toLowerCase().includes(q) ||
-        (d.staff?.toLowerCase().includes(q) ?? false),
+        (d.staff?.toLowerCase().includes(q) ?? false) ||
+        d.executables.some((e) => e.toLowerCase().includes(q)),
     );
   }, [duties, search]);
 
@@ -149,6 +196,7 @@ export function DutyControlInner() {
 
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteDuty(githubUser?.login);
+  const runMutation = useRunDuty();
 
   // Push chat context up to the persistent rail in the root layout.
   // The chat's context follows the currently selected duty (or nothing).
@@ -209,6 +257,13 @@ export function DutyControlInner() {
               onBack={() => setSelectedSlug(null)}
               onEdit={() => setEditingDuty(selectedDuty)}
               onDelete={() => setPendingDelete(selectedDuty)}
+              onRun={() =>
+                runMutation.mutate({ slug: selectedDuty.slug, force: true })
+              }
+              isRunning={
+                runMutation.isPending &&
+                runMutation.variables?.slug === selectedDuty.slug
+              }
             />
           ) : (
             <EmptyState
@@ -307,8 +362,8 @@ export function DutyControlInner() {
         )}
       </MasterDetailShell>
 
-      {/* Create — the simple markdown duty dialog (title, schedule, staff,
-          mentions, body). The full folder-duty editor lives at /executables. */}
+      {/* Create — the simple markdown duty dialog. The full folder-duty editor
+          lives at /executables. */}
       <CreateDutyDialog
         open={creating}
         onClose={() => setCreating(false)}
@@ -358,11 +413,15 @@ function DutyDetail({
   onBack,
   onEdit,
   onDelete,
+  onRun,
+  isRunning,
 }: {
   duty: Duty;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onRun: () => void;
+  isRunning: boolean;
 }) {
   const hasBody = duty.body.trim().length > 0;
   return (
@@ -427,6 +486,15 @@ function DutyDetail({
                     {duty.mentions.map((m) => `@${m}`).join(", ")}
                   </span>
                 ) : null}
+                {duty.executables.length > 0 ? (
+                  <span
+                    className="inline-flex items-center gap-1"
+                    title="Executables assigned to this duty"
+                  >
+                    <Boxes className="w-3 h-3" />
+                    {duty.executables.join(", ")}
+                  </span>
+                ) : null}
                 <ScheduleInline schedule={duty.schedule} />
                 <LastTickDetail
                   lastTickAt={duty.lastTickAt}
@@ -453,6 +521,20 @@ function DutyDetail({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                onClick={onRun}
+                disabled={isRunning}
+                className="w-9 px-0"
+                title="Run duty now"
+                aria-label="Run duty now"
+              >
+                {isRunning ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Play className="w-3.5 h-3.5" />
+                )}
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -536,6 +618,7 @@ function CreateDutyDialog({
   const [body, setBody] = useState(DUTY_TEMPLATE);
   const [staff, setStaff] = useState<string | null>(null);
   const [mentions, setMentions] = useState("");
+  const [executables, setExecutables] = useState<string[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -543,6 +626,7 @@ function CreateDutyDialog({
       setBody(DUTY_TEMPLATE);
       setStaff(null);
       setMentions("");
+      setExecutables([]);
     }
   }, [open]);
 
@@ -559,6 +643,7 @@ function CreateDutyDialog({
         schedule: "manual",
         staff,
         mentions: parseMentionsInput(mentions),
+        executables,
       },
       {
         onSuccess: (duty) => onCreated(duty),
@@ -589,6 +674,7 @@ function CreateDutyDialog({
             />
           </div>
           <StaffSelect value={staff} onChange={setStaff} />
+          <ExecutablesSelect value={executables} onChange={setExecutables} />
           <MentionsInput value={mentions} onChange={setMentions} />
           <div className="space-y-1.5">
             <Label>Body</Label>
@@ -630,6 +716,7 @@ function EditDutyDialog({
   const [schedule, setSchedule] = useState<DutySchedule | null>(duty.schedule);
   const [staff, setStaff] = useState<string | null>(duty.staff);
   const [mentions, setMentions] = useState(formatMentionsInput(duty.mentions));
+  const [executables, setExecutables] = useState<string[]>(duty.executables);
 
   useEffect(() => {
     setTitle(duty.title);
@@ -637,6 +724,7 @@ function EditDutyDialog({
     setSchedule(duty.schedule);
     setStaff(duty.staff);
     setMentions(formatMentionsInput(duty.mentions));
+    setExecutables(duty.executables);
   }, [duty]);
 
   const handleSubmit = () => {
@@ -647,6 +735,7 @@ function EditDutyDialog({
       schedule?: DutySchedule | null;
       staff?: string | null;
       mentions?: string[];
+      executables?: string[];
     } = {};
     if (title !== duty.title) patch.title = title.trim();
     if (body !== duty.body) patch.body = body;
@@ -655,6 +744,8 @@ function EditDutyDialog({
     const nextMentions = parseMentionsInput(mentions);
     if (!sameMentions(nextMentions, duty.mentions))
       patch.mentions = nextMentions;
+    if (!sameList(executables, duty.executables))
+      patch.executables = executables;
     if (Object.keys(patch).length === 0) {
       onSaved();
       return;
@@ -668,8 +759,8 @@ function EditDutyDialog({
         <DialogHeader>
           <DialogTitle>Edit duty `{duty.slug}`</DialogTitle>
           <DialogDescription>
-            Update the duty&apos;s title or body. Saving commits the file to the
-            default branch.
+            Update the duty&apos;s metadata, executable assignment, or body.
+            Saving commits the file to the default branch.
           </DialogDescription>
         </DialogHeader>
 
@@ -685,6 +776,7 @@ function EditDutyDialog({
           </div>
           <ScheduleSelect value={schedule} onChange={setSchedule} />
           <StaffSelect value={staff} onChange={setStaff} />
+          <ExecutablesSelect value={executables} onChange={setExecutables} />
           <MentionsInput value={mentions} onChange={setMentions} />
           <DutyTimingReadout
             lastTickAt={duty.lastTickAt}
@@ -1046,6 +1138,60 @@ function StaffSelect({
           </span>
         )}
       </p>
+    </div>
+  );
+}
+
+function ExecutablesSelect({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const {
+    data: executables = [],
+    error,
+    isError,
+    isLoading,
+  } = useExecutableSummaries();
+  const selected = value[0] ?? NO_EXECUTABLE_VALUE;
+  const options =
+    value[0] && !executables.some((exec) => exec.slug === value[0])
+      ? [{ slug: value[0] }, ...executables]
+      : executables;
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="duty-executable">Executable</Label>
+      <Select
+        value={selected}
+        onValueChange={(next) =>
+          onChange(next === NO_EXECUTABLE_VALUE ? [] : [next])
+        }
+        disabled={isLoading || isError || options.length === 0}
+      >
+        <SelectTrigger id="duty-executable">
+          <SelectValue
+            placeholder={
+              isLoading ? "Loading executables…" : "Select executable"
+            }
+          />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NO_EXECUTABLE_VALUE}>No executable</SelectItem>
+          {options.map((exec) => (
+            <SelectItem key={exec.slug} value={exec.slug}>
+              {exec.slug}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {isError ? (
+        <p className="px-1 text-xs text-rose-300">
+          Failed to load executables: {(error as Error).message}
+        </p>
+      ) : null}
     </div>
   );
 }

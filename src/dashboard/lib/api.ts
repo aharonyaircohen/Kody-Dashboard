@@ -886,6 +886,12 @@ export interface Duty {
    * key is absent.
    */
   mentions: string[];
+  /** Executable slugs assigned to this duty. Empty when unset. */
+  executables: string[];
+  /** Engine-facing duty tool names from `tools:` frontmatter. */
+  dutyTools: string[];
+  /** Optional tick script path, or null when unset. */
+  tickScript: string | null;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
   /**
@@ -919,6 +925,9 @@ export const dutiesApi = {
     disabled?: boolean;
     staff?: string | null;
     mentions?: string[];
+    executables?: string[];
+    dutyTools?: string[];
+    tickScript?: string | null;
     actorLogin?: string;
   }): Promise<Duty> => {
     const res = await fetch(`${API_BASE}/duties`, {
@@ -939,6 +948,9 @@ export const dutiesApi = {
       disabled?: boolean;
       staff?: string | null;
       mentions?: string[];
+      executables?: string[];
+      dutyTools?: string[];
+      tickScript?: string | null;
       actorLogin?: string;
     },
   ): Promise<Duty> => {

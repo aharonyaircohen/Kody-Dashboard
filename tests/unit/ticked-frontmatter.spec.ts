@@ -98,6 +98,26 @@ describe("splitFrontmatter", () => {
       splitFrontmatter("---\nmentions:   ,  \n---\nx").frontmatter.mentions,
     ).toBeUndefined();
   });
+
+  it("parses multi-executable, duty-tool, and scripted duty fields", () => {
+    const { frontmatter } = splitFrontmatter(
+      [
+        "---",
+        "executables: db-worker, api-worker, ui-worker",
+        "tools: list_prs_to_repair, sync_pr",
+        "tickScript: .kody/scripts/check-duty.sh",
+        "---",
+        "body",
+      ].join("\n"),
+    );
+    expect(frontmatter.executables).toEqual([
+      "db-worker",
+      "api-worker",
+      "ui-worker",
+    ]);
+    expect(frontmatter.dutyTools).toEqual(["list_prs_to_repair", "sync_pr"]);
+    expect(frontmatter.tickScript).toBe(".kody/scripts/check-duty.sh");
+  });
 });
 
 describe("joinFrontmatter", () => {
@@ -149,6 +169,42 @@ describe("joinFrontmatter", () => {
     };
     const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
     expect(frontmatter).toEqual(fm);
+  });
+
+  it("emits the full engine duty frontmatter shape in stable order", () => {
+    const fm: TickFrontmatter = {
+      every: "1h",
+      staff: "kody",
+      mentions: ["alice"],
+      executables: ["db-worker", "api-worker"],
+      dutyTools: ["list_prs_to_repair", "sync_pr"],
+      tickScript: ".kody/scripts/check-duty.sh",
+      disabled: true,
+    };
+    expect(joinFrontmatter(fm, "body")).toBe(
+      [
+        "---",
+        "every: 1h",
+        "staff: kody",
+        "mentions: alice",
+        "executables: db-worker, api-worker",
+        "tools: list_prs_to_repair, sync_pr",
+        "tickScript: .kody/scripts/check-duty.sh",
+        "disabled: true",
+        "---",
+        "",
+        "body",
+      ].join("\n"),
+    );
+  });
+
+  it("omits empty new duty arrays and null tick scripts", () => {
+    expect(
+      joinFrontmatter(
+        { every: "1h", executables: [], dutyTools: [], tickScript: null },
+        "body",
+      ),
+    ).toBe("---\nevery: 1h\n---\n\nbody");
   });
 });
 

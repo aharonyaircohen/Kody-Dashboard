@@ -53,6 +53,8 @@ import {
   listMachines,
 } from "./fly-api.ts";
 
+const DEFAULT_BUILD_TIMEOUT_MS = 45 * 60 * 1000;
+
 function defaultDockerfilePath(): string {
   // PREVIEW_BUILD_MODE selects which bundled template to drop in when
   // the consumer repo doesn't ship its own Dockerfile.preview.
@@ -88,7 +90,7 @@ async function exists(path: string): Promise<boolean> {
 function run(
   cmd: string,
   args: string[],
-  opts: { cwd?: string; env?: Record<string, string> } = {},
+  opts: { cwd?: string; env?: Record<string, string>; timeoutMs?: number } = {},
 ): Promise<number> {
   return new Promise((resolveFn) => {
     const child = spawn(cmd, args, {
@@ -96,7 +98,23 @@ function run(
       env: { ...process.env, ...(opts.env ?? {}) },
       stdio: "inherit",
     });
-    child.on("close", (code) => resolveFn(code ?? -1));
+    const timeoutMs = opts.timeoutMs;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    if (timeoutMs && timeoutMs > 0) {
+      timeout = setTimeout(() => {
+        console.error(
+          `[builder] ${cmd} timed out after ${Math.round(timeoutMs / 1000)}s`,
+        );
+        child.kill("SIGTERM");
+        const forceKill = setTimeout(() => child.kill("SIGKILL"), 10_000);
+        forceKill.unref?.();
+      }, timeoutMs);
+      timeout.unref?.();
+    }
+    child.on("close", (code) => {
+      if (timeout) clearTimeout(timeout);
+      resolveFn(code ?? -1);
+    });
   });
 }
 
@@ -411,6 +429,9 @@ async function pushPreviewImage(
         // Tell flyctl's heartbeat to give up quickly rather than retry.
         FLY_NO_DEPLOY_PROGRESS: "1",
       },
+      timeoutMs:
+        Number.parseInt(process.env.PREVIEW_BUILD_TIMEOUT_MS ?? "", 10) ||
+        DEFAULT_BUILD_TIMEOUT_MS,
     });
     if (built === 0) break;
     if (attempt < 3) {

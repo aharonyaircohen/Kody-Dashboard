@@ -86,6 +86,12 @@ export interface TickFile {
    * key is absent. The dashboard reads it to render/seed the mentions input.
    */
   mentions: string[];
+  /** Executable slugs assigned to this duty (`executables:` frontmatter). */
+  executables: string[];
+  /** Duty tool names from the engine-facing `tools:` frontmatter line. */
+  dutyTools: string[];
+  /** Optional tick script path (`tickScript:` frontmatter). */
+  tickScript: string | null;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -115,6 +121,12 @@ export interface TickWriteOptions {
    * no `@`). Empty / absent writes no `mentions:` line.
    */
   mentions?: string[];
+  /** Executable slugs to emit as `executables:` frontmatter. */
+  executables?: string[];
+  /** Duty tools to emit as `tools:` frontmatter. */
+  dutyTools?: string[];
+  /** Optional tick script path to emit as `tickScript:` frontmatter. */
+  tickScript?: string | null;
   /** SHA of the existing blob; omit on create. */
   sha?: string;
   /** Commit message override. */
@@ -331,6 +343,9 @@ function buildFileContent(
   disabled: boolean,
   staff: string | null,
   mentions: string[],
+  executables: string[],
+  dutyTools: string[],
+  tickScript: string | null,
 ): string {
   // Strip any leading H1 the caller's body already carries so we never
   // double the title — `# ${title}` is the single canonical heading.
@@ -343,6 +358,9 @@ function buildFileContent(
   if (schedule) fm.every = schedule;
   if (staff) fm.staff = staff;
   if (mentions.length > 0) fm.mentions = mentions;
+  if (executables.length > 0) fm.executables = executables;
+  if (dutyTools.length > 0) fm.dutyTools = dutyTools;
+  if (tickScript?.trim()) fm.tickScript = tickScript.trim();
   if (disabled) fm.disabled = true;
   return joinFrontmatter(fm, titled);
 }
@@ -456,6 +474,9 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
             disabled: frontmatter.disabled === true,
             staff: frontmatter.staff ?? null,
             mentions: frontmatter.mentions ?? [],
+            executables: frontmatter.executables ?? [],
+            dutyTools: frontmatter.dutyTools ?? [],
+            tickScript: frontmatter.tickScript ?? null,
             htmlUrl: buildHtmlUrl(slug, branch),
           } satisfies TickFile;
         } catch {
@@ -522,6 +543,9 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         disabled: frontmatter.disabled === true,
         staff: frontmatter.staff ?? null,
         mentions: frontmatter.mentions ?? [],
+        executables: frontmatter.executables ?? [],
+        dutyTools: frontmatter.dutyTools ?? [],
+        tickScript: frontmatter.tickScript ?? null,
         htmlUrl: buildHtmlUrl(slug, branch),
       };
     } catch (error: unknown) {
@@ -548,6 +572,9 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
       opts.disabled === true,
       opts.staff ?? null,
       opts.mentions ?? [],
+      opts.executables ?? [],
+      opts.dutyTools ?? [],
+      opts.tickScript ?? null,
     );
     const message =
       opts.message ??
