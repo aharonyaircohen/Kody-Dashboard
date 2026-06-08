@@ -15,6 +15,7 @@ import ReactMarkdown from "react-markdown";
 import {
   Globe,
   Paperclip,
+  Send,
   X,
   Image as ImageIcon,
   FileText,
@@ -4720,24 +4721,7 @@ export function KodyChat({
             >
               {composerAction === "cancel" ? "Cancel" : "Stop"}
             </button>
-          ) : composerAction === "start" ? (
-            <button
-              type="button"
-              onClick={() => void startInteractiveSession()}
-              className="px-3 py-2 text-base bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-              title="Warm up the live runner now (boots in ~30–60s)."
-            >
-              Start
-            </button>
-          ) : (
-            <button
-              onClick={sendMessage}
-              disabled={!canSend}
-              className="px-3 py-2 text-base bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
-            >
-              Send
-            </button>
-          )}
+          ) : null}
         </div>
         <div className="border-t border-border/40" />
         <div className="flex gap-2 items-center">
@@ -4801,6 +4785,31 @@ export function KodyChat({
             }}
             disabled={loading}
           />
+          {/* Inline send icon — visible only when there's text. Boots the
+              runner if idle, sends the message otherwise. */}
+          {hasComposerContent && !loading && (
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  interactiveState === "idle" ||
+                  interactiveState === "ended"
+                ) {
+                  void startInteractiveSession();
+                } else {
+                  void sendMessage();
+                }
+              }}
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+              title={
+                interactiveState === "idle" || interactiveState === "ended"
+                  ? "Boot runner and send"
+                  : "Send message"
+              }
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          )}
           {/* Reserved slot for future widget actions (slash-command
               trigger, attachment previews inline, mode toggles, etc.).
               flex-1 keeps the row visually left-anchored with breathing
