@@ -2,6 +2,12 @@
  * @fileType library
  * @domain previews
  * @pattern base-image-refresh
+ * @ai-summary Keeps the per-repo GHCR base image fresh so per-PR builds can
+ *   `FROM` it and skip the slow `pnpm install` + `next build` steps
+ *   (cold-build drops from ~13 min to ~3). Trap: the base only refreshes
+ *   on default-branch pushes; an unrefreshed base silently regresses every
+ *   PR to the full-build path — the most common cause of "why is my preview
+ *   build suddenly slow?" reports.
  *
  * Auto-rebuild the per-repo GHCR base image on every push to the
  * default branch. The base image holds the heavy `pnpm install` +

@@ -55,6 +55,9 @@ const VISION_MODEL_PATTERNS: RegExp[] = [
   /deepseek-vl/,
   /phi-.*vision/,
   /phi-4-multimodal/,
+  // MiniMax — M3 family is multimodal; M2.x is text-only (regression
+  // guarded in tests/unit/chat/vision-support.spec.ts).
+  /minimax-m3/,
 ];
 
 /**

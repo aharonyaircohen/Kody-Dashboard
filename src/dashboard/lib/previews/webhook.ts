@@ -2,6 +2,12 @@
  * @fileType library
  * @domain previews
  * @pattern webhook-handler
+ * @ai-summary Translates GitHub `pull_request` and `push` events into
+ *   the right preview-lifecycle action (open/sync → build, close → destroy,
+ *   default-branch push → base-image rebuild). Trap: opt-in is implicit
+ *   — a repo with no `FLY_API_TOKEN` in its vault causes every handler
+ *   to no-op silently. If previews are mysteriously missing for a repo,
+ *   check the vault FIRST before debugging the build path.
  *
  * GitHub webhook entry points for the preview lifecycle. Wired from
  * the `pull_request` event handler in

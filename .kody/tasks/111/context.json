@@ -1,0 +1,17 @@
+{
+  "taskId": "111",
+  "taskType": "issue",
+  "target": "111",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added MergeButton to PreviewActions action bar after both approvals, with structural test guarding the wiring.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/PreviewActions.tsx",
+    "tests/unit/preview-actions-merge-button.spec.ts"
+  ],
+  "sessionLog": null,
+  "startedAt": "2026-06-07T20:43:00Z",
+  "finishedAt": "2026-06-07T20:48:00Z"
+}

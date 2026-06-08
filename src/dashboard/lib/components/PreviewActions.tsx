@@ -28,6 +28,7 @@ import { usePRCIStatus } from "../hooks/usePRCIStatus";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "../utils";
+import { MergeButton } from "./MergeButton";
 
 /**
  * Optimistically add a label to this task in every cached tasks list, so the
@@ -270,7 +271,7 @@ export function PreviewActions({
               className={cn(
                 "gap-1.5 cursor-pointer bg-transparent transition-all active:scale-[0.97]",
                 hasNeedsFix
-                  ? "text-red-300 border-red-900/60 hover:bg-red-500/10 hover:border-red-700"
+                  ? "text-red-300 border-red-900/60 hover:bg-red-500/10 hover:bg-red-700"
                   : "text-zinc-200 border-zinc-700 hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50",
               )}
             >
@@ -279,8 +280,21 @@ export function PreviewActions({
             </Button>
           )}
 
-          {/* No manual Merge button — Approve auto-merges when CI is green,
-              and the auto-merge effect handles the CI-pending case. */}
+          {/* Manual merge — visible once both approvals are recorded so the
+              user can force-trigger the merge without waiting for the
+              auto-merge effect. MergeButton is disabled by its own logic
+              when CI isn't green or there are conflicts, so the auto-merge
+              path remains the primary trigger. */}
+          {isUIApproved && isPRApproved && (
+            <MergeButton
+              prNumber={pr.number}
+              prTitle={pr.title}
+              branchName={pr.head.ref}
+              isMerging={isMerging}
+              onMerge={onMerge}
+              labels={task.labels ?? []}
+            />
+          )}
         </div>
 
         {/* Divider */}
