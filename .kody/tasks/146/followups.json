@@ -1,0 +1,14 @@
+[
+  {
+    "title": "Audit dead-code fallback title in [issueNumber]/page.tsx and siblings",
+    "body": "app/[issueNumber]/page.tsx (and its preview/comments/docs/changes siblings) have a generateMetadata fallback: `if (isNaN(parsed)) return { title: 'Kody Operations Dashboard' }`. This string is the same site name the layout would duplicate. In practice the page handler returns notFound() for non-numeric segments before rendering, so the fallback title is never displayed. Worth changing to a short page-specific label (e.g. the issue number, or a generic 'Not found') for consistency, but it does not affect the browser tab today.",
+    "rationale": "Not in scope for issue #146 (which was scoped to the / home page). Flagged so a future task can clean it up without rediscovering it.",
+    "priority": "low"
+  },
+  {
+    "title": "Consider renaming the layout's title.template suffix for consistency",
+    "body": "app/layout.tsx currently has title.template = '%s | Kody Operations' while every page uses titles like 'Tasks — Kody Operations Dashboard' (the full site name as suffix). The result is that most tabs read 'Tasks — Kody Operations Dashboard | Kody Operations' — site name once in full plus a shorter redundant suffix. If you want a single canonical suffix, pick one: either drop the suffix from the page titles and rely on the template, or drop the template's suffix and let each page own its own.",
+    "rationale": "Issue #146 only asked for / to not duplicate. The cleaner-template alternative from the issue body has already been applied. This is the next-layer cleanup, not a fix.",
+    "priority": "low"
+  }
+]

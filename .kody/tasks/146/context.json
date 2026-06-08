@@ -1,0 +1,17 @@
+{
+  "taskId": "146",
+  "taskType": "issue",
+  "target": "146",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Home page metadata title is now page-specific ('Happening now') instead of the full site name, so the layout's title template no longer produces a redundant 'Kody Operations Dashboard | Kody Operations' tab on /. Other pages (Tasks, Vibe, /<n>) already use page-specific titles and were not affected.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "app/page.tsx",
+    "tests/unit/page-home-title.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/146.jsonl",
+  "startedAt": "2026-06-08T07:28:00Z",
+  "finishedAt": "2026-06-08T07:42:00Z"
+}
