@@ -2,6 +2,13 @@
  * @fileType api-client
  * @domain previews
  * @pattern browser-fetch
+ * @ai-summary Browser-side `fetch` helpers for the static-preview
+ *   endpoints (`/api/kody/previews/static`). The Preview workspace's
+ *   environment switcher wires these so a user-uploaded file becomes a
+ *   live Fly URL with one click, and removing that environment tears
+ *   it down. Trap: this is the ONLY client file in this folder that
+ *   runs in the browser — it must stay free of server-only imports
+ *   (no Octokit, no node:crypto) or the client bundle will fail to build.
  *
  * Browser-side upload + teardown for static-file previews, hitting
  * `/api/kody/previews/static`. Used by the Preview workspace's environment

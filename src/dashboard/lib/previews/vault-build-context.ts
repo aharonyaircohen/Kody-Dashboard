@@ -2,6 +2,12 @@
  * @fileType library
  * @domain previews
  * @pattern vault-read
+ * @ai-summary Single source of truth for which per-repo vault secrets get
+ *   baked into a preview image and which Dockerfile variant the builder
+ *   uses. Trap: `NEVER_PASS_TO_BUILD` strips Fly infra creds and the
+ *   master key BEFORE secrets reach the build — extending the safe set
+ *   silently leaks a credential into a public `*.fly.dev` image.
+ *   Always re-check this list when adding a new infra-shaped secret.
  *
  * Shared vault read for preview builds. Used by both the per-PR
  * `createPreview` path and the base-image rebuild path so they bake
