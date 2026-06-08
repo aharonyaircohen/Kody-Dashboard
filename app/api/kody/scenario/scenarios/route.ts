@@ -7,6 +7,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { requireKodyAuth } from "@dashboard/lib/auth";
+import {
+  parseSafeFileStem,
+  parseScenarioCategory,
+  resolveUnderBase,
+} from "@dashboard/lib/scenario-paths";
 
 // Base directory for scenarios
 const SCENARIOS_BASE_PATH = path.resolve(
@@ -40,7 +46,7 @@ export async function GET() {
             id: data.id || file.replace(".json", ""),
             name: data.name || file.replace(".json", ""),
             type: data.type || category,
-            path: filePath,
+            path: `${category}/${file}`,
           });
         } catch {
           // Skip invalid JSON files
@@ -59,6 +65,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const authError = await requireKodyAuth(request);
+  if (authError) return authError;
+
   try {
     const body = await request.json();
     const { scenario, category = "feature" } = body;
@@ -67,14 +76,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid scenario" }, { status: 400 });
     }
 
+    const safeCategory = parseScenarioCategory(category);
+    const safeId = parseSafeFileStem(scenario.id);
+    if (!safeCategory || !safeId) {
+      return NextResponse.json(
+        { error: "Invalid scenario path" },
+        { status: 400 },
+      );
+    }
+
     // Ensure directory exists
-    const categoryPath = path.join(SCENARIOS_BASE_PATH, category);
+    const categoryPath = resolveUnderBase(SCENARIOS_BASE_PATH, safeCategory);
+    if (!categoryPath) {
+      return NextResponse.json(
+        { error: "Invalid scenario path" },
+        { status: 400 },
+      );
+    }
     if (!fs.existsSync(categoryPath)) {
       fs.mkdirSync(categoryPath, { recursive: true });
     }
 
     // Write scenario file
-    const filePath = path.join(categoryPath, `${scenario.id}.json`);
+    const filePath = resolveUnderBase(categoryPath, `${safeId}.json`);
+    if (!filePath) {
+      return NextResponse.json(
+        { error: "Invalid scenario path" },
+        { status: 400 },
+      );
+    }
     fs.writeFileSync(filePath, JSON.stringify(scenario, null, 2));
 
     return NextResponse.json({ success: true, path: filePath });
@@ -88,6 +118,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const authError = await requireKodyAuth(request);
+  if (authError) return authError;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
@@ -100,7 +133,26 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const filePath = path.join(SCENARIOS_BASE_PATH, category, `${id}.json`);
+    const safeCategory = parseScenarioCategory(category);
+    const safeId = parseSafeFileStem(id);
+    if (!safeCategory || !safeId) {
+      return NextResponse.json(
+        { error: "Invalid scenario path" },
+        { status: 400 },
+      );
+    }
+
+    const filePath = resolveUnderBase(
+      SCENARIOS_BASE_PATH,
+      safeCategory,
+      `${safeId}.json`,
+    );
+    if (!filePath) {
+      return NextResponse.json(
+        { error: "Invalid scenario path" },
+        { status: 400 },
+      );
+    }
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }

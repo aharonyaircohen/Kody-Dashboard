@@ -41,9 +41,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  // This endpoint is called by the engine (via its dashboard hook) or by the dashboard itself.
-  // No auth required — the engine's dashboard hook fires internally.
-  // Production: validate origin or add a shared secret (KODY_ACTION_SECRET).
+  const authError = await requireKodyAuth(req);
+  if (authError) return authError;
 
   let body: Record<string, unknown>;
   try {

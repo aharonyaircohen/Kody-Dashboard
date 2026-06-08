@@ -30,7 +30,11 @@ import {
   type AgentId,
 } from "@dashboard/lib/agents";
 import { applyVoiceOverlay } from "@dashboard/lib/voice/overlay";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import {
+  requireKodyAuth,
+  getRequestAuth,
+  verifyActorLogin,
+} from "@dashboard/lib/auth";
 import {
   createUserOctokit,
   setGitHubContext,
@@ -441,6 +445,9 @@ export async function POST(req: NextRequest) {
   if ("error" in resolution) return resolution.error;
   const { model, resolvedModel, apiKey } = resolution;
   const modelId = resolvedModel.id;
+  const actorResult = await verifyActorLogin(req, body.actorLogin);
+  if (actorResult instanceof NextResponse) return actorResult;
+  const verifiedActorLogin = actorResult.identity.login;
   // Only vision-capable models get real image parts. For text-only models
   // (looked up from LiteLLM's supports_vision data) inline the image as text
   // so the attachment still rides along instead of being dropped/rejected.
@@ -589,13 +596,13 @@ export async function POST(req: NextRequest) {
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createTaskTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createGoalTools({
         octokit,
@@ -606,32 +613,32 @@ export async function POST(req: NextRequest) {
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createStaffTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createMemoryTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createReleaseTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createKodyTools({ octokit, owner: repo.owner, repo: repo.repo }),
       ...createExecutableTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       // Dashboard-management tools: let chat manage every dashboard feature
       // (config files, settings, infra) the same way the pages do. Reads use
@@ -640,37 +647,37 @@ export async function POST(req: NextRequest) {
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createContextTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createInstructionsTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createVariableTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createSecretTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createModelTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createReportTools({ owner: repo.owner, repo: repo.repo }),
       ...createNotificationTools({ owner: repo.owner, repo: repo.repo }),
@@ -678,7 +685,7 @@ export async function POST(req: NextRequest) {
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createWebhookTools({
         token: repo.token,
@@ -694,19 +701,19 @@ export async function POST(req: NextRequest) {
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createDutyAdminTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       ...createMacroTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: body.actorLogin ?? null,
+        actorLogin: verifiedActorLogin,
       }),
       // Vibe-only: pre-create branch + draft PR so Vercel cold-builds in
       // parallel with the runner warmup. Stripped from the tool set when
@@ -727,7 +734,7 @@ export async function POST(req: NextRequest) {
             octokit,
             owner: repo.owner,
             repo: repo.repo,
-            actorLogin: body.actorLogin ?? null,
+            actorLogin: verifiedActorLogin,
             goalId: body.goal.id,
           })
         : {}),
@@ -743,7 +750,7 @@ export async function POST(req: NextRequest) {
   }
   extraTools = {
     ...extraTools,
-    ...createRemoteTools(body.actorLogin ?? null),
+    ...createRemoteTools(verifiedActorLogin),
   };
   // Vibe tool policy (see vibe-tool-policy.ts): strips the `@kody` dispatch
   // tools in vibe mode, strips issue-creation tools once a task is scoped

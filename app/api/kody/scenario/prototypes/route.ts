@@ -7,6 +7,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { requireKodyAuth } from "@dashboard/lib/auth";
+import {
+  parseSafeFileStem,
+  resolveUnderBase,
+} from "@dashboard/lib/scenario-paths";
 
 // Base directory for prototypes
 const PROTOTYPE_BASE_PATH = path.resolve(process.cwd(), "site-docs/prototypes");
@@ -28,6 +33,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const authError = await requireKodyAuth(request);
+  if (authError) return authError;
+
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
@@ -46,8 +54,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine filename
-    const fileName = name || file.name.replace(/\.html$/, "");
-    const filePath = path.join(PROTOTYPE_BASE_PATH, `${fileName}.html`);
+    const fileName = parseSafeFileStem(name || file.name);
+    if (!fileName) {
+      return NextResponse.json(
+        { error: "Invalid prototype name" },
+        { status: 400 },
+      );
+    }
+    const filePath = resolveUnderBase(PROTOTYPE_BASE_PATH, `${fileName}.html`);
+    if (!filePath) {
+      return NextResponse.json(
+        { error: "Invalid prototype path" },
+        { status: 400 },
+      );
+    }
 
     // Write file
     const content = await file.text();

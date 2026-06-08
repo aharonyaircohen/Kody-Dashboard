@@ -6,6 +6,7 @@
  */
 import type { Metadata } from "next";
 import { fetchIssue } from "@dashboard/lib/github-client";
+import { GITHUB_OWNER, GITHUB_REPO } from "@dashboard/lib/constants";
 
 const SITE_NAME = "Kody Operations Dashboard";
 const BASE_URL =
@@ -59,6 +60,14 @@ export async function buildTaskMetadata(
 ): Promise<Metadata> {
   const suffix = options?.suffix || "";
   const path = options?.path || `/${issueNumber}`;
+
+  if (!GITHUB_OWNER || !GITHUB_REPO) {
+    return buildKodyMetadata({
+      title: `Task #${issueNumber}${suffix ? ` — ${suffix}` : ""} — ${SITE_NAME}`,
+      description: `View task #${issueNumber} on the Kody Operations Dashboard`,
+      path,
+    });
+  }
 
   try {
     const issue = await fetchIssue(issueNumber);

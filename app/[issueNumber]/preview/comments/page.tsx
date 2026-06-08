@@ -15,12 +15,9 @@ export const dynamic = "force-static";
 export const revalidate = false;
 export const fetchCache = "force-cache";
 
-// Pre-render common issue numbers at build time for OG tags
+// Do not guess issue numbers at build time.
 export async function generateStaticParams() {
-  const issueNumbers = Array.from({ length: 50 }, (_, i) => ({
-    issueNumber: String(i + 800),
-  }));
-  return issueNumbers;
+  return [];
 }
 
 export async function generateMetadata({

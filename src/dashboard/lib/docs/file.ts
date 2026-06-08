@@ -38,6 +38,14 @@ export interface DocsManifest {
   files: DocManifestEntry[];
 }
 
+export function isAllowedDocPath(path: string): boolean {
+  if (path.includes("\\") || path.startsWith("/") || path.includes("..")) {
+    return false;
+  }
+  if (path === README_PATH) return true;
+  return /^docs\/[^/]+\.md$/i.test(path);
+}
+
 /**
  * List README.md + docs/*.md in the repo. Returns entries with name, path,
  * and htmlUrl but no content (lightweight listing for the selector sidebar).
@@ -109,6 +117,10 @@ export async function readDoc(
   repo: string,
   path: string,
 ): Promise<DocFile> {
+  if (!isAllowedDocPath(path)) {
+    throw new Error("invalid_doc_path");
+  }
+
   try {
     const res = await octokit.rest.repos.getContent({
       owner,

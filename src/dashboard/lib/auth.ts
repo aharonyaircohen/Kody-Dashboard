@@ -6,8 +6,7 @@
  *
  * Auth priority:
  * 1. Request headers from client (x-kody-token, x-kody-owner, x-kody-repo)
- * 2. Env vars (KODY_BOT_TOKEN, GITHUB_TOKEN, GH_PAT) — server-side fallback
- *    used by cron jobs / webhook handlers that have no logged-in user.
+ * 2. Env vars only when a server-only caller opts in explicitly.
  *
  * There is no server-side session: the dashboard stores credentials in
  * localStorage after the user connects a repo, and every API call passes
@@ -56,26 +55,31 @@ function getEnvToken(): string | null {
   );
 }
 
-// ─── Require auth — 401 if neither header token nor env token present ─────────
+// ─── Require auth — 401 unless request auth is present ───────────────────────
+
+export interface KodyAuthOptions {
+  allowEnvToken?: boolean;
+}
 
 /**
  * Require auth for a route. Checks:
  * 1. x-kody-token header (client localStorage auth)
- * 2. KODY_BOT_TOKEN / GITHUB_TOKEN env var (server-side fallback)
+ * 2. KODY_BOT_TOKEN / GITHUB_TOKEN only when allowEnvToken is true
  *
  * Returns null on success, or a NextResponse on failure.
  */
 export async function requireKodyAuth(
   req: NextRequest,
+  options: KodyAuthOptions = {},
 ): Promise<null | NextResponse> {
   const headerAuth = getRequestAuth(req);
-  const envToken = getEnvToken();
+  const envToken = options.allowEnvToken ? getEnvToken() : null;
 
   if (!headerAuth && !envToken) {
     return NextResponse.json(
       {
         message:
-          "Not authenticated. Provide x-kody-token header or set KODY_BOT_TOKEN env var.",
+          "Not authenticated. Provide x-kody-token, x-kody-owner, and x-kody-repo headers.",
       },
       { status: 401 },
     );
@@ -90,13 +94,14 @@ export async function requireKodyAuth(
  *
  * Priority:
  * 1. Client token from x-kody-token header (localStorage auth)
- * 2. Env token fallback (CI / token-only deployments)
+ * 2. Env token fallback only when allowEnvToken is true
  *
  * Callers should prefer the header token so operations are attributed
  * to the actual user rather than the bot account.
  */
 export async function getUserOctokit(
   req: NextRequest,
+  options: KodyAuthOptions = {},
 ): Promise<Octokit | null> {
   // 1. Client header token (localStorage auth)
   const headerAuth = getRequestAuth(req);
@@ -104,8 +109,8 @@ export async function getUserOctokit(
     return createUserOctokit(headerAuth.token);
   }
 
-  // 2. Env token fallback
-  const envToken = getEnvToken();
+  // 2. Env token fallback for explicit server-only callers
+  const envToken = options.allowEnvToken ? getEnvToken() : null;
   if (envToken) {
     return createUserOctokit(envToken);
   }
@@ -161,7 +166,7 @@ export async function resolveActorFromToken(
 
   try {
     const octokit = createUserOctokit(token);
-    const { data } = await octokit.users.getAuthenticated();
+    const { data } = await octokit.rest.users.getAuthenticated();
     const identity: ActorIdentity = {
       login: data.login,
       githubId: data.id,
@@ -180,11 +185,8 @@ export async function resolveActorFromToken(
 /**
  * Verify that the supplied actorLogin matches the authenticated request.
  *
- * Without a server-side session there is no canonical "logged-in user" to
- * compare against — the PAT and its scopes are the only authority. This
- * function now just accepts any actorLogin string as long as auth is
- * present, returning a stub identity. Callers that need real attribution
- * should resolve `actorLogin` to the GitHub user themselves.
+ * The PAT and its scopes are the authority. Resolve the token owner through
+ * GitHub, then reject any caller-supplied actorLogin that does not match.
  */
 export async function verifyActorLogin(
   req: NextRequest,
@@ -193,21 +195,46 @@ export async function verifyActorLogin(
   | { identity: { login: string; avatar_url: string; githubId: number } }
   | NextResponse
 > {
-  const authError = await requireKodyAuth(req);
-  if (authError !== null) {
-    return authError;
+  const headerAuth = getRequestAuth(req);
+  if (!headerAuth) {
+    return NextResponse.json(
+      {
+        error: "request_auth_required",
+        message:
+          "Actor verification requires x-kody-token, x-kody-owner, and x-kody-repo headers.",
+      },
+      { status: 401 },
+    );
   }
 
-  logger.info(
-    { actorLogin: suppliedLogin, path: req.nextUrl.pathname },
-    "Token auth: actorLogin verification skipped (no server session)",
-  );
+  const resolved = await resolveActorFromToken(headerAuth.token);
+  if (!resolved) {
+    return NextResponse.json(
+      { error: "invalid_token", message: "Unable to verify GitHub identity." },
+      { status: 401 },
+    );
+  }
+
+  if (suppliedLogin && suppliedLogin !== resolved.login) {
+    logger.warn(
+      {
+        suppliedLogin,
+        resolvedLogin: resolved.login,
+        path: req.nextUrl.pathname,
+      },
+      "Actor login mismatch",
+    );
+    return NextResponse.json(
+      { error: "actor_mismatch", message: "Actor does not match token owner." },
+      { status: 403 },
+    );
+  }
+
   return {
     identity: {
-      login: suppliedLogin || "token-user",
-      avatar_url:
-        "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
-      githubId: 0,
+      login: resolved.login,
+      avatar_url: resolved.avatarUrl,
+      githubId: resolved.githubId,
     },
   };
 }

@@ -17,14 +17,9 @@ import type { Metadata } from "next";
 import { KodyDashboard } from "@dashboard/lib/components/KodyDashboard";
 import { buildTaskMetadata } from "../metadata";
 
-// Pre-render common issue numbers at build time for OG tags. Any
-// numeric param NOT in this list renders on demand (default behavior).
-// Non-numeric segments are rejected by the runtime guard below.
+// Do not guess issue numbers at build time. Numeric params render on demand.
 export async function generateStaticParams() {
-  const issueNumbers = Array.from({ length: 50 }, (_, i) => ({
-    issueNumber: String(i + 800),
-  }));
-  return issueNumbers;
+  return [];
 }
 
 export async function generateMetadata({

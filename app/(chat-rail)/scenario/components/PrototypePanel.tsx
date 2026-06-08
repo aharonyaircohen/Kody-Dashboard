@@ -11,6 +11,7 @@ import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { Badge } from "@dashboard/ui/badge";
+import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import type { PrototypeElement } from "@dashboard/lib/scenario-schema-stub";
 import { Search, Upload, X } from "lucide-react";
 
@@ -32,6 +33,7 @@ export function PrototypePanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const { auth } = useAuth();
 
   // Load prototype list
   useEffect(() => {
@@ -130,6 +132,7 @@ export function PrototypePanel({
 
       const response = await fetch("/api/kody/scenario/prototypes", {
         method: "POST",
+        headers: buildAuthHeaders(auth),
         body: formData,
       });
 
