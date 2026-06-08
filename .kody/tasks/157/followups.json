@@ -1,0 +1,14 @@
+[
+  {
+    "title": "Open the PR on GitHub",
+    "body": "Per the operator's request to 'open a PR when complete' and the Kody harness rule 'no git/gh commands', the PR was not opened by the agent. Run from a workstation with `gh` auth: `git push -u origin 157-update-dashboard-for-new-engine-duty-contract && gh pr create --title \"chore(duties): align dashboard with kody2 main engine duty contract\" --body-file .kody/tasks/157/handoff-notes.md --base main`.",
+    "rationale": "The harness's safety rule blocks `gh` and `git push` from the agent; the operator's request to open the PR must be carried out by a human. All work is committed locally on branch 157-update-dashboard-for-new-engine-duty-contract at HEAD 920bea3b.",
+    "priority": "high"
+  },
+  {
+    "title": "Update the engine contract lockfile / pin",
+    "body": "If the dashboard pins the engine shape anywhere (a snapshot of kody2 main's duty contract for golden tests, a types subpackage, or a vendored copy of the engine's profile.ts), regenerate it from the actual `kody2` main commit this branch targets. The dashboard now assumes the new contract; a divergent engine could quietly break duty runs without a test failure.",
+    "rationale": "The dashboard reads from the engine; if the engine reverts or ships a different contract, no unit test catches it because the helpers (merge-patch, run-comment, frontmatter) are pure. A periodic `git fetch` of `kody2 main` and a diff against the schema notes here is the only way to detect drift.",
+    "priority": "medium"
+  }
+]
