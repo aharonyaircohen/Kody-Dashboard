@@ -409,6 +409,7 @@ export const tasksApi = {
   approvePR: async (
     issueNumber: number,
     actorLogin?: string,
+    options?: { approveDrafts?: boolean },
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
@@ -416,6 +417,9 @@ export const tasksApi = {
       body: JSON.stringify({
         action: "approve-pr",
         ...(actorLogin && { actorLogin }),
+        ...(options?.approveDrafts !== undefined && {
+          approveDrafts: options.approveDrafts,
+        }),
       }),
     });
     return handleResponse(res);
