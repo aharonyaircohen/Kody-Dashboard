@@ -1,0 +1,17 @@
+{
+  "taskId": "131",
+  "taskType": "issue",
+  "target": "131",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Send button moved into the input row; trailing icon button swaps between Send and Stop by state; old red Stop text button removed. Structural test flipped to assert the new layout and now passes.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/KodyChat.tsx",
+    "tests/unit/chat/kody-chat-composer.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/global-1780897261211-878cig.jsonl",
+  "startedAt": "2026-06-08T06:00:00Z",
+  "finishedAt": "2026-06-08T06:08:00Z"
+}

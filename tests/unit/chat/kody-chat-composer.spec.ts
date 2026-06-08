@@ -1,19 +1,22 @@
 /**
  * Source-level structural test for the chat composer layout in
- * `KodyChat.tsx`. The composer was restructured (issue #65) from a
- * single rounded flex row (Paperclip | Textarea | VoiceButton | Send)
- * to two distinct rows separated by a hairline:
+ * `KodyChat.tsx`. The composer is two distinct rows separated by a
+ * hairline (issue #65):
  *
- *   Row A — input row:    [ Textarea (flex-1) ][ Stop/Cancel (conditional) ]
+ *   Row A — input row:    [ Textarea (flex-1) ][ trailing send/stop icon button ]
  *   separator —           <div className="border-t …" />
- *   Row B — action row:   [ Paperclip ][ VoiceButton ][ Send (inline icon, conditional) ][ spacer (flex-1) ]
+ *   Row B — action row:   [ Paperclip ][ VoiceButton ][ spacer (flex-1) ]
  *
- * The inline Send icon replaces the old Send/Start text buttons — it
- * lives in the action row alongside the other icon buttons, visible
- * only when there's composer content and the chat isn't loading.
- * Pure JSX layout refactor — no behavior change. The test reads the
- * source file and asserts the structural markers so the refactor can
- * never silently regress to the old single-row layout.
+ * Per issue #131 the trailing-edge send/stop button lives INSIDE the
+ * input row, not the action row. The trailing button is a single role
+ * that swaps by state (issue #131 refinement):
+ *   - Idle / no in-flight run  → <Send> paper-plane icon
+ *   - In-flight run            → <Square> stop icon (replaces the old
+ *                                 red `bg-destructive` Stop text button)
+ *
+ * The test reads the source file and asserts the structural markers so
+ * the layout can never silently regress — either to the post-#65 split
+ * (Send in the action row) or the original single-row layout.
  *
  * @testFramework vitest
  * @domain unit
@@ -115,7 +118,7 @@ const COMPOSER_LINES = SOURCE_LINES.slice(
   COMPOSER_RANGE.end + 1,
 );
 
-describe("KodyChat composer — two-row layout (issue #65)", () => {
+describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
   it("renders a hairline separator between the input row and the action row", () => {
     // A real divider element — not just whitespace. The token should
     // be a low-contrast border (border-border/40 or border-white/10).
@@ -138,10 +141,10 @@ describe("KodyChat composer — two-row layout (issue #65)", () => {
     ).toBe(true);
   });
 
-  it("the input row (1st flex row) contains the textarea but not Paperclip/VoiceButton/Send", () => {
+  it("the input row (1st flex row) contains the textarea AND the trailing send/stop icon button", () => {
     // The input row is the FIRST `<div className="flex ` in the
-    // composer. The old layout had a single row containing all four
-    // children — this test pins the new layout.
+    // composer. Per issue #131, the trailing-edge send/stop button
+    // sits INSIDE the input row (not in the action row).
     const inputRow = findFlexRowRange(
       SOURCE_LINES,
       COMPOSER_RANGE.start,
@@ -153,11 +156,11 @@ describe("KodyChat composer — two-row layout (issue #65)", () => {
     );
 
     expect(inputText).toContain("<textarea");
-    // The inline Send icon lives in the action row, not the input row.
+    // The trailing send/stop icon button lives in the input row.
     expect(
       inputText,
-      "input row must NOT contain <Send (it lives in the action row as an inline icon)",
-    ).not.toMatch(/<Send\b/);
+      "input row must contain <Send (the trailing send/stop button lives here, per issue #131)",
+    ).toMatch(/<Send\b/);
     // Paperclip and VoiceButton live in the action row below.
     expect(
       inputText,
@@ -169,10 +172,10 @@ describe("KodyChat composer — two-row layout (issue #65)", () => {
     ).not.toMatch(/<VoiceButton\b/);
   });
 
-  it("the action row (2nd flex row) contains Paperclip + VoiceButton + Send, not the textarea", () => {
+  it("the action row (2nd flex row) contains Paperclip + VoiceButton, not the textarea and not Send", () => {
     // The action row is the SECOND `<div className="flex ` in the
-    // composer. The inline Send icon button lives here alongside the
-    // other icon buttons (Paperclip, VoiceButton).
+    // composer. Per issue #131, the Send button moved OUT of the
+    // action row and into the input row.
     const actionRow = findFlexRowRange(
       SOURCE_LINES,
       COMPOSER_RANGE.start,
@@ -186,16 +189,48 @@ describe("KodyChat composer — two-row layout (issue #65)", () => {
 
     expect(actionText).toContain("<Paperclip");
     expect(actionText).toMatch(/<VoiceButton\b/);
+    // Send moved to the input row (issue #131).
     expect(
       actionText,
-      "action row must contain the inline <Send icon button",
-    ).toMatch(/<Send\b/);
+      "action row must NOT contain <Send (it lives in the input row as the trailing button, per issue #131)",
+    ).not.toMatch(/<Send\b/);
     // The action row must NOT contain the textarea — that lives in
     // the input row above.
     expect(
       actionText,
       "action row must NOT contain <textarea (it lives in the input row)",
     ).not.toContain("<textarea");
+  });
+
+  it("the input row has no standalone red Stop text button — the trailing icon button is the only stop affordance (issue #131 refinement)", () => {
+    // The refinement on issue #131 explicitly retires the red
+    // `bg-destructive` Stop text button that used to sit in the input
+    // row when loading. The new trailing send/stop icon button is
+    // the only stop affordance while a run is active.
+    const inputRow = findFlexRowRange(
+      SOURCE_LINES,
+      COMPOSER_RANGE.start,
+      COMPOSER_RANGE.end,
+      1,
+    );
+    const inputText = SOURCE_LINES.slice(inputRow.start, inputRow.end + 1).join(
+      "\n",
+    );
+    // The old "Stop" button used the destructive red background.
+    expect(
+      inputText,
+      "input row must NOT contain a red `bg-destructive` button (issue #131 retired the standalone red Stop text button)",
+    ).not.toMatch(/<button[^>]*\bbg-destructive\b/);
+    // The old "Stop" button also rendered literal "Stop" / "Cancel"
+    // text. The new trailing button is icon-only — no text child.
+    expect(
+      inputText,
+      "input row must NOT contain a literal '>Stop<' text button (the trailing button is icon-only)",
+    ).not.toMatch(/>Stop</);
+    expect(
+      inputText,
+      "input row must NOT contain a literal '>Cancel<' text button (the trailing button is icon-only)",
+    ).not.toMatch(/>Cancel</);
   });
 
   it("the action row (2nd flex row) includes a reserved flex-1 spacer slot for future widget actions", () => {
