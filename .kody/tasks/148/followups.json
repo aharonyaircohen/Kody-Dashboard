@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Verify wake-lock fix on a real Android Chrome device",
+    "body": "Per the project memory entry `voice-wake-lock-recurring`, the fix should be exercised on a real Android Chrome device (not just the emulator and not just the unit tests) before closing the bug. The 100ms setTimeout + state re-check addresses the documented NotAllowedError race, but the on-device test is the only way to confirm Chrome's user-gesture check actually treats the wake-up tap as a gesture at the deferred tick. Owner: Kody / a human reviewer with an Android device.",
+    "rationale": "Prior wake-lock attempts in this same hook silently failed on Android Chrome; project memory explicitly flags this risk. A test in vitest (node env, no real browser) cannot observe the WakeLockSentinel behavior — only an on-device test can.",
+    "priority": "high"
+  }
+]

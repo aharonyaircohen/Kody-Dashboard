@@ -1,0 +1,17 @@
+{
+  "taskId": "148",
+  "taskType": "issue",
+  "target": "148",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Re-acquire wake lock in resumeConversation and defer the post-visibilitychange re-acquire by 100ms with a re-check, so Android Chrome's user-gesture check passes and the screen stays on through the whole voice conversation (issue #148).",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/hooks/useVoiceChat.ts",
+    "tests/unit/chat/voice-wake-lock.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/148.jsonl",
+  "startedAt": "2026-06-08T09:05:00Z",
+  "finishedAt": "2026-06-08T09:10:30Z"
+}
