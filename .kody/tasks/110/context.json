@@ -1,0 +1,17 @@
+{
+  "taskId": "110",
+  "taskType": "issue",
+  "target": "110",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Fixed PreviewModal layout: was full-screen overlay, now in-page panel next to sidebar + chat rail.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/PreviewModal.tsx",
+    "tests/unit/preview-modal-positioning.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/gh-27104178761-1.jsonl",
+  "startedAt": "2026-06-07T20:48:00Z",
+  "finishedAt": "2026-06-07T20:50:00Z"
+}
