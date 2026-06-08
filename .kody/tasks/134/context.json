@@ -1,0 +1,18 @@
+{
+  "taskId": "134",
+  "taskType": "issue",
+  "target": "134",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Surfaced Live in buildAgentList dropdown (matches chat default selectedAgentId); added source-level no-auto-dispatch guard for KodyChat.tsx; all gates green",
+  "prUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/145",
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/chat/agent-entries.ts",
+    "tests/unit/chat-agent-entries.spec.ts",
+    "tests/unit/chat/kody-chat-no-auto-dispatch.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/gh-27118844376-1.jsonl",
+  "startedAt": "2026-06-08T06:30:00Z",
+  "finishedAt": "2026-06-08T06:51:27Z"
+}
