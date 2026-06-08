@@ -1,0 +1,17 @@
+{
+  "taskId": "140",
+  "taskType": "issue",
+  "target": "140",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Slash command submit handler now pushes a user Message with the original typed input and passes the expanded prompt to the model. Bubbles no longer show text the user never typed.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/KodyChat.tsx",
+    "tests/unit/chat/kodychat-slash-command-bubble.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/140.jsonl",
+  "startedAt": "2026-06-08T06:25:00Z",
+  "finishedAt": "2026-06-08T06:38:08Z"
+}

@@ -1690,6 +1690,14 @@ export function KodyChat({
         voiceMode?: boolean;
         hidden?: boolean;
         onVoiceDelta?: (spokenSoFar: string) => void;
+        /**
+         * Override the text that goes into the user bubble. Defaults to
+         * `messageContent` — set this when the model should see something
+         * different from what the user sees (e.g. an expanded slash-command
+         * prompt: the model gets the expanded body, the bubble shows only
+         * what the user typed).
+         */
+        displayContent?: string;
       } = {},
     ): Promise<string | null> => {
       if (!messageContent.trim() && currentAttachments.length === 0)
@@ -1728,7 +1736,10 @@ export function KodyChat({
 
       // The user's bubble shows just the typed text — the attachment chips
       // are rendered separately from `attachments`. No base64 in the text.
-      const displayContent = messageContent;
+      // Callers can override via `options.displayContent` when the model
+      // should see something different (e.g. an expanded slash-command
+      // prompt — the user bubble still shows the typed input).
+      const displayContent = options.displayContent ?? messageContent;
 
       // Preview page context is appended INVISIBLY: the model sees it on the
       // wire, but the chat UI still shows the user's clean message. Without
@@ -3569,7 +3580,17 @@ export function KodyChat({
       return;
     }
 
-    await sendText(userMessage, currentAttachments);
+    // When a slash command matched, the user bubble must show ONLY the
+    // original typed input — not the expanded prompt body. The model still
+    // receives the expanded `userMessage` (built from `result.text` above)
+    // via the `messageContent` arg to `sendText`; `displayContent` overrides
+    // just the bubble text so the chat history isn't contaminated with text
+    // the user never typed.
+    await sendText(
+      userMessage,
+      currentAttachments,
+      expanded ? { displayContent: rawInput } : undefined,
+    );
   };
 
   // ─── Voice chat integration ───
