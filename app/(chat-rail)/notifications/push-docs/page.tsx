@@ -17,7 +17,7 @@ export const dynamic = "force-static";
 export const revalidate = false;
 
 export const metadata = buildKodyMetadata({
-  title: "Push notifications docs — Kody Operations Dashboard",
+  title: "Push notifications docs",
   description:
     "How to install Kody as a PWA, enable push on iOS / Android / desktop, and extend push to new features.",
   path: "/notifications/push-docs",

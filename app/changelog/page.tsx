@@ -15,7 +15,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Changelog — Kody Operations Dashboard",
+  title: "Changelog",
   description: "Project changelog: every merged PR and published release.",
   path: "/changelog",
 });

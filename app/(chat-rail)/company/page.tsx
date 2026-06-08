@@ -15,7 +15,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Company — Kody Operations Dashboard",
+  title: "Company",
   description:
     "Import and export a company: staff, duties, commands, instructions.",
   path: "/company",
