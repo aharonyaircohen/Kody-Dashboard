@@ -4071,7 +4071,8 @@ export function KodyChat({
                 The unified thread means there's only ONE store across all
                 pages, so a new conversation is the only way to reset. The
                 button is visible everywhere except on locked views (Vibe),
-                where the parent owns the chat lifecycle. */}
+                where the parent owns the chat lifecycle. Icon-only to
+                match the other header controls (collapse, fullscreen). */}
             {!lockedAgentId && (
               <button
                 type="button"
@@ -4080,22 +4081,22 @@ export function KodyChat({
                   setToolCalls([]);
                 }}
                 disabled={loading}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Start a new conversation"
                 aria-label="New conversation"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">New conversation</span>
+                <Plus className="w-4 h-4" aria-hidden="true" />
               </button>
             )}
 
             {/* Session sidebar toggle — available in any mode now that all
                 threads are unified; the sidebar just lists sessions from
-                the global store. */}
+                the global store. Icon-only to match the other header
+                controls (collapse, fullscreen). */}
             <button
               type="button"
               onClick={() => setShowSessionSidebar(!showSessionSidebar)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all ${
+              className={`p-2 rounded-md border transition-all ${
                 showSessionSidebar
                   ? "bg-primary text-primary-foreground border-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
@@ -4103,8 +4104,7 @@ export function KodyChat({
               title="Conversations"
               aria-label="Toggle conversations"
             >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Chats</span>
+              <MessageSquare className="w-4 h-4" aria-hidden="true" />
             </button>
 
             {/* Fullscreen / restore (desktop rail only) */}
