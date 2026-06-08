@@ -1,0 +1,17 @@
+{
+  "taskId": "150",
+  "taskType": "issue",
+  "target": "150",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Removed the over-restrictive `task.column === \"review\" || task.column === \"done\"` gate on the Preview button in both the desktop quickLinks and the mobile bottom toolbar of TaskDetail.tsx. The button is now gated solely on `task.associatedPR && onOpenPreview`, so completed tasks in any column (e.g. `building` with a finished pipeline run, `failed` / `retrying` / `gate-waiting` with a PR) can now open the preview on mobile.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/TaskDetail.tsx",
+    "tests/unit/task-detail-mobile-preview.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/150.jsonl",
+  "startedAt": "2026-06-08T09:36:01Z",
+  "finishedAt": "2026-06-08T09:49:36Z"
+}
