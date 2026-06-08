@@ -12,6 +12,7 @@ import {
   type LiveSessionState,
 } from "./kody-chat-reducer";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Globe,
   Paperclip,
@@ -114,6 +115,7 @@ import { useKodyActionState } from "../hooks/useKodyActionState";
 import { SessionSidebar } from "./SessionSidebar";
 import { ToolCallList, ThinkingPanel, ReasoningPanel } from "./ToolCallCard";
 import { parseReasoning, stripReasoning } from "../chat/reasoning";
+import { parseAssistantContent } from "../chat/tool-call-strip";
 import { MessageActions } from "./MessageActions";
 import { VibeRunButton } from "./VibeRunButton";
 import {
@@ -4426,7 +4428,15 @@ export function KodyChat({
                       />
                     )}
                     {(() => {
-                      const { reasoning, answer } = parseReasoning(msg.content);
+                      // Strip model-emitted tool-call markup (`<kody_run_issue />`
+                      // and `<tool_call>…</tool_call>` blocks) from the visible
+                      // answer — the structured call is already surfaced via
+                      // the ThinkingPanel above, and the raw XML in the
+                      // text stream is just noise. Bare URLs get auto-linked
+                      // by `remark-gfm` below.
+                      const { reasoning, answer } = parseAssistantContent(
+                        msg.content,
+                      );
                       const isActive = loading && i === messages.length - 1;
                       const hasAnswer = answer.trim().length > 0;
                       return (
@@ -4444,7 +4454,24 @@ export function KodyChat({
                           )}
                           {hasAnswer && (
                             <div className="prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words">
-                              <ReactMarkdown>{answer}</ReactMarkdown>
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  a: ({ href, children, ...props }) => (
+                                    <a
+                                      href={href}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-primary hover:underline break-all"
+                                      {...props}
+                                    >
+                                      {children}
+                                    </a>
+                                  ),
+                                }}
+                              >
+                                {answer}
+                              </ReactMarkdown>
                             </div>
                           )}
                           {/* Never a blank bubble: while the turn is in flight and
@@ -4469,7 +4496,7 @@ export function KodyChat({
                 {loading &&
                   i === messages.length - 1 &&
                   msg.role === "assistant" &&
-                  parseReasoning(msg.content).answer.trim() && (
+                  parseAssistantContent(msg.content).answer.trim() && (
                     <span className="inline-block ml-2 animate-pulse text-primary">
                       ●
                     </span>

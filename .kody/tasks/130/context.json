@@ -1,0 +1,19 @@
+{
+  "taskId": "130",
+  "taskType": "issue",
+  "target": "130",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Stripped model-emitted tool-call XML from the assistant bubble and added remark-gfm so bare URLs auto-link. New helper at src/dashboard/lib/chat/tool-call-strip.ts wraps parseReasoning with a known-tool-name tag stripper; bubble now uses parseAssistantContent and ReactMarkdown now has remarkPlugins={[remarkGfm]}. New unit + source-level regression tests cover the stripper and the bubble wiring. Verify gates green (typecheck/lint/format/tests).",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/chat/tool-call-strip.ts",
+    "src/dashboard/lib/components/KodyChat.tsx",
+    "tests/unit/chat/tool-call-strip.spec.ts",
+    "tests/unit/chat/kody-chat-bubble-tool-call-markup.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/130.jsonl",
+  "startedAt": "2026-06-08T05:50:00Z",
+  "finishedAt": "2026-06-08T06:06:00Z"
+}
