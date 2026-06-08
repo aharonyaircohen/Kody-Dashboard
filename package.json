@@ -6,6 +6,7 @@
   "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
   "scripts": {
     "dev": "next dev --turbopack -p 3333",
+    "dev:brain": "concurrently -k -n brain,web 'BRAIN_API_KEY=local-dev-key pnpm brain:local' 'BRAIN_CHAT_URL=http://localhost:8080 BRAIN_CHAT_API_KEY=local-dev-key pnpm dev'",
     "build": "next build",
     "start": "next start -p 3333",
     "typecheck": "tsc --noEmit",
@@ -79,6 +80,7 @@
     "@typescript-eslint/parser": "^8.57.2",
     "@vitest/coverage-v8": "^4.0.16",
     "autoprefixer": "^10.4.19",
+    "concurrently": "^9.1.0",
     "dotenv": "^17.4.2",
     "eslint": "^9.16.0",
     "eslint-config-next": "15.4.7",
