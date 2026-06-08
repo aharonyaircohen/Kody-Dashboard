@@ -1,0 +1,14 @@
+[
+  {
+    "title": "Verify the executable end-to-end on a real Vercel deploy hook before relying on it in anger",
+    "body": "The unit test pins the on-disk profile/prompt to the engine's contract, but the actual POST/label/secret flow runs inside the kody-engine on GitHub Actions and was not exercised. The first real user should add a Vercel deploy hook for a throwaway project, store VERCEL_HOOK_<ACCT>_<PROJ> via the /secrets page, label an issue, and post @kody publish-vercel — confirm the comment comes back with the 201 status and (if Vercel returns one) a deploy link.",
+    "rationale": "Acceptance criteria are runtime behaviors; the only way to be sure the engine wires the env var correctly and the comment postflight fires is a live run.",
+    "priority": "medium"
+  },
+  {
+    "title": "Add docs/commands.md entry for the new comment-only /publish-vercel dispatch (engine docs)",
+    "body": "The dashboard docs/commands.md (and any sibling engine doc) document built-in / commands; @kody publish-vercel is now a first-class dispatch but it isn't listed. Add a short paragraph under whatever section documents 'comment-only actions' so an operator reading the repo knows the slug exists and the label/secret contract.",
+    "rationale": "The executable is fully functional but discoverable only via the @kody <slug> trigger — new operators won't know to try `publish-vercel` unless it's in the docs.",
+    "priority": "low"
+  }
+]
