@@ -11,6 +11,17 @@
  * Mapping to labels:
  *   PASS, CONCERNS → kody:ui-verified  (advisory issues don't block)
  *   FAIL           → kody:ui-failed
+ *
+ * @ai-summary Pure parser for the engine's `## Verdict: PASS|CONCERNS|FAIL`
+ *   line. No I/O, no side effects — the caller (`apply-label.ts`) does
+ *   the GitHub work. The regex is intentionally case-insensitive on the
+ *   verdict token; the engine always emits uppercase, so the explicit
+ *   `.toUpperCase()` on match is defensive, not load-bearing. Trap: the
+ *   webhook route prefilters on the substring "Verdict" before calling
+ *   the parser, so don't tighten the regex so far that it rejects
+ *   engine comments with extra whitespace or different casing — the
+ *   substring check is the cheap outer guard, the regex is the
+ *   structured extraction.
  */
 
 import { UI_VERIFIED, UI_FAILED } from "./labels";

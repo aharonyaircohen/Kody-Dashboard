@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Re-enabling ui-verify auto-dispatch needs SHA/preview-URL dedup",
+    "body": "If the team wants to bring back auto-dispatch of `@kody ui-review` on Vercel preview-ready, the per-PR label guard in dispatch.ts is not enough — the SHA changes on every preview sync, so the same PR re-fires. Re-enabling requires SHA/preview-URL-keyed dedup in addition to the existing UI_VERIFY_GUARD_LABELS check. Documented in dispatch.ts:30 and apply-label.ts:35-37 @ai-summary headers.",
+    "rationale": "The 984-comment incident is load-bearing context — without the SHA-keyed dedup, auto-dispatch will re-fire on every preview rebuild and jam the Actions queue. Currently captured only in a comment block in the webhook route; a follow-up issue would prevent someone from re-enabling it naively.",
+    "priority": "low"
+  }
+]
