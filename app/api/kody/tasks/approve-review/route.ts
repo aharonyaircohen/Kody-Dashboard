@@ -90,6 +90,25 @@ export async function POST(req: NextRequest) {
       results.push(`Review note: ${msg}`);
     }
 
+    // 1b. Mark the PR ready-for-review if it's still a draft. GitHub
+    //     refuses to merge draft PRs (409 "not mergeable"), so flip the
+    //     flag before the merge attempt. Skipped for already-ready PRs
+    //     to keep that path byte-identical.
+    if (prData.draft === true) {
+      try {
+        await octokit.pulls.update({
+          owner: getOwner(),
+          repo: getRepo(),
+          pull_number: Number(prNumber),
+          draft: false,
+        });
+        results.push(`Marked PR #${prNumber} ready for review`);
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        results.push(`Ready-for-review note: ${msg}`);
+      }
+    }
+
     // 2. Merge the PR (squash merge for all PRs)
     try {
       const mergeMethod = isPublishPR ? "merge" : "squash";
