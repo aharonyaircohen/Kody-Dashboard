@@ -77,6 +77,12 @@ const actionSchema = z.object({
   title: z.string().optional(),
   body: z.string().optional(),
   actorLogin: z.string().optional(),
+  /** When true (and the PR is a draft) the approve-pr case flips
+   *  `draft: false` before posting the review — GitHub rejects
+   *  `createReview({event:"APPROVE"})` on draft PRs, so without
+   *  this the "Approve" button silently no-ops on drafts. See
+   *  issue #129. */
+  approveDrafts: z.boolean().optional(),
 });
 
 // `withActor` + `postWithFallback` live in @dashboard/lib/kody-command so
@@ -103,6 +109,7 @@ export async function POST(
       fromStage,
       mode: _mode,
       actorLogin,
+      approveDrafts,
     } = actionSchema.parse(body);
 
     // Verify actorLogin matches the authenticated session (prevents impersonation)
@@ -642,6 +649,25 @@ export async function POST(
         // Use user's Octokit for PR review (review appears under user's identity)
         // If user token fails, the PR review fails - but we still try to add labels and comment
         const octokit = userOctokit ?? getOctokit();
+        // Issue #129: GitHub rejects `createReview({event:"APPROVE"})` on
+        // a draft PR. When the dashboard's "Also approve drafts" toggle is
+        // on, flip the PR to ready-for-review FIRST so the review sticks.
+        // Skipped entirely when the toggle is off or the PR is already
+        // ready — both paths must stay byte-identical to the pre-fix
+        // behavior for non-draft PRs.
+        if (approveDrafts && associatedPR.isDraft) {
+          try {
+            await octokit.pulls.update({
+              owner: getOwner(),
+              repo: getRepo(),
+              pull_number: associatedPR.number,
+              draft: false,
+            });
+          } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error);
+            console.warn("[Kody] PR ready-for-review note:", msg);
+          }
+        }
         try {
           await octokit.pulls.createReview({
             owner: getOwner(),

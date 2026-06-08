@@ -30,6 +30,14 @@ interface MergeButtonProps {
   isMerging: boolean;
   onMerge: () => Promise<void>;
   labels?: string[];
+  /** Issue #129: surfaced from the bulk open-PRs GraphQL so the
+   *  manual-merge control stays in sync with the Approve button's
+   *  "draft" badge. Approval can't have succeeded on a still-draft
+   *  PR (GitHub rejects it), so this is normally false by the time
+   *  the button is visible — but pass it through so the wiring is
+   *  explicit and the badge can render during the brief window
+   *  between the toggle flipping the flag and the cache refresh. */
+  prIsDraft?: boolean;
 }
 
 const ciIcons = {

@@ -247,6 +247,12 @@ export interface GitHubPR {
   ciStatus?: "pending" | "success" | "failure" | "running";
   mergeable?: boolean;
   hasConflicts?: boolean;
+  /** True when GitHub has the PR in draft state. Surfaced via the bulk
+   *  open-PRs GraphQL so the dashboard can show a "draft" badge and
+   *  let the user opt into marking it ready for review before
+   *  approving (GitHub rejects `createReview({event:"APPROVE"})` on
+   *  draft PRs — see issue #129). */
+  isDraft?: boolean;
 }
 export interface KodyTask {
   id: string; // taskId

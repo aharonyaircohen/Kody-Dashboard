@@ -1842,6 +1842,7 @@ interface OpenPRsGraphQL {
         mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
         mergeStateStatus: MergeStateStatus;
         labels: { nodes: Array<{ name: string }> };
+        isDraft: boolean;
         closingIssuesReferences: { nodes: Array<{ number: number }> };
         commits: {
           nodes: Array<{
@@ -1987,6 +1988,7 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
             mergeable
             mergeStateStatus
             labels(first: 20) { nodes { name } }
+            isDraft
             closingIssuesReferences(first: 10) { nodes { number } }
             commits(last: 1) {
               nodes {
@@ -2033,6 +2035,7 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
           ciStatus: ci.ciStatus,
           mergeable: ci.mergeable,
           hasConflicts: ci.hasConflicts,
+          isDraft: pr.isDraft,
         };
       });
 
