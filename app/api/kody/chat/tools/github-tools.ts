@@ -13,7 +13,10 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@dashboard/lib/logger";
-import { invalidateIssueCache } from "@dashboard/lib/github-client";
+import {
+  invalidateIssueCache,
+  invalidatePRCache,
+} from "@dashboard/lib/github-client";
 
 interface Ctx {
   octokit: Octokit;
@@ -783,6 +786,186 @@ export function createGitHubTools(ctx: Ctx) {
           );
           return {
             error: err instanceof Error ? err.message : "Failed to close issue",
+          };
+        }
+      },
+    }),
+
+    merge_pr: tool({
+      description:
+        `Merge a pull request in ${owner}/${repo} via the GitHub merge API. ` +
+        "DESTRUCTIVE — writes to the PR's base branch. Only call when the user " +
+        'explicitly and unambiguously asks to merge ("merge #45", "merge PR 45", ' +
+        '"ship it — squash and merge"). Refuses on draft, merge conflicts, blocked ' +
+        "branch protection, or failing required CI — those cases return a clear " +
+        "error rather than a partial merge. Default strategy is squash; pass " +
+        '`strategy: "merge"` or `"rebase"` to override. The source branch is NOT ' +
+        "deleted unless `deleteBranch: true` is passed (opt-in). On success the " +
+        "tool re-reads the PR to confirm `merged: true` before reporting — never " +
+        "claim success unless the verification call comes back merged.",
+      inputSchema: z.object({
+        prNumber: z
+          .number()
+          .int()
+          .positive()
+          .describe(
+            "The pull request number to merge. Must be a PR, not a plain issue.",
+          ),
+        strategy: z
+          .enum(["squash", "merge", "rebase"])
+          .optional()
+          .default("squash")
+          .describe(
+            'GitHub merge method. "squash" (default) collapses the PR into a ' +
+              'single commit on the base branch; "merge" preserves all commits ' +
+              'in a merge commit; "rebase" fast-forwards the base branch to the ' +
+              "PR head. Choose what matches the repo's convention — most repos " +
+              "use squash.",
+          ),
+        deleteBranch: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "If true, delete the PR's head branch after a successful merge. " +
+              "Default false — destructive, off until the user asks.",
+          ),
+      }),
+      execute: async ({
+        prNumber,
+        strategy = "squash",
+        deleteBranch = false,
+      }) => {
+        try {
+          // 1. Pre-merge sanity check. Read the PR first so we can refuse on
+          //    draft / conflicts / branch-protection BEFORE calling the merge
+          //    endpoint. GitHub would reject those with 405/409, but a clear
+          //    chat-side refusal is more useful than a terse API error.
+          const pre = await octokit.rest.pulls.get({
+            owner,
+            repo,
+            pull_number: prNumber,
+          });
+          const pr = pre.data;
+          if (pr.draft) {
+            return {
+              error:
+                `Refusing to merge: PR #${prNumber} is still a draft. ` +
+                "Mark it ready-for-review first, then call merge_pr again.",
+            };
+          }
+          if (pr.mergeable === false) {
+            const state = (pr as { mergeable_state?: string }).mergeable_state;
+            if (state === "dirty") {
+              return {
+                error:
+                  `Refusing to merge: PR #${prNumber} has merge conflicts. ` +
+                  "Resolve them first (e.g. by syncing the branch with its base).",
+              };
+            }
+            if (state === "blocked") {
+              return {
+                error:
+                  `Refusing to merge: PR #${prNumber} is blocked by branch ` +
+                  "protection or failing required CI. Check the PR's checks tab.",
+              };
+            }
+            return {
+              error:
+                `Refusing to merge: PR #${prNumber} is not currently ` +
+                `mergeable (state: ${state ?? "unknown"}).`,
+            };
+          }
+          if (pr.merged) {
+            return {
+              error: `PR #${prNumber} is already merged.`,
+            };
+          }
+
+          // 2. Fire the merge. 405 = branch protection / required CI failure;
+          //    409 = merge conflict; surface those verbatim so the chat message
+          //    is the same as what GitHub would show in the UI.
+          let mergeRes;
+          try {
+            mergeRes = await octokit.rest.pulls.merge({
+              owner,
+              repo,
+              pull_number: prNumber,
+              merge_method: strategy,
+            });
+          } catch (err) {
+            const e = err as { status?: number; message?: string };
+            const msg = e.message ?? "Unknown GitHub merge error";
+            if (e.status === 405 || /not allowed|not mergeable/i.test(msg)) {
+              return {
+                error:
+                  `Refusing to merge: ${msg}. Branch protection or required ` +
+                  "CI is blocking the merge.",
+              };
+            }
+            if (e.status === 409 || /conflict/i.test(msg)) {
+              return {
+                error: `Merge conflict: ${msg}`,
+              };
+            }
+            return { error: msg };
+          }
+
+          // 3. Re-read the PR to confirm the merge actually landed. Without
+          //    this step a stale merge response (or a race with a webhook
+          //    revert) could leave the user thinking the merge succeeded when
+          //    it didn't. We never claim success unless the verify call
+          //    returns merged: true.
+          const post = await octokit.rest.pulls.get({
+            owner,
+            repo,
+            pull_number: prNumber,
+          });
+          if (!post.data.merged) {
+            return {
+              error:
+                `Merge call returned success but PR #${prNumber} is not ` +
+                "showing as merged on a re-read. Treating as not-merged.",
+            };
+          }
+
+          // 4. Opt-in branch delete. Off by default — destructive even on
+          //    merged PRs (the branch may still be referenced elsewhere).
+          let branchDeleted = false;
+          if (deleteBranch) {
+            const headRef = post.data.head.ref;
+            try {
+              await octokit.rest.git.deleteRef({
+                owner,
+                repo,
+                ref: `heads/${headRef}`,
+              });
+              branchDeleted = true;
+            } catch (err) {
+              logger.warn(
+                { err, owner, repo, prNumber, headRef },
+                "merge_pr: branch delete failed (merge still succeeded)",
+              );
+            }
+          }
+
+          invalidatePRCache();
+          invalidateIssueCache(prNumber);
+
+          return {
+            ok: true,
+            prNumber,
+            sha:
+              (mergeRes.data as { sha?: string } | undefined)?.sha ??
+              post.data.head.sha,
+            strategy,
+            branchDeleted,
+            url: post.data.html_url,
+          };
+        } catch (err) {
+          logger.warn({ err, owner, repo, prNumber }, "merge_pr failed");
+          return {
+            error: err instanceof Error ? err.message : "Failed to merge PR",
           };
         }
       },
