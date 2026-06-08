@@ -1177,20 +1177,18 @@ export function TaskDetail({
           fallbackRun={task.workflowRun}
         />
       )}
-      {task.associatedPR &&
-        onOpenPreview &&
-        (task.column === "review" || task.column === "done") && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenPreview();
-            }}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:text-emerald-200 transition-all duration-150 shrink-0 border border-emerald-500/20 cursor-pointer"
-          >
-            <Eye className="w-3 h-3" />
-            Preview
-          </button>
-        )}
+      {task.associatedPR && onOpenPreview && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenPreview();
+          }}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 hover:text-emerald-200 transition-all duration-150 shrink-0 border border-emerald-500/20 cursor-pointer"
+        >
+          <Eye className="w-3 h-3" />
+          Preview
+        </button>
+      )}
     </>
   );
 
@@ -1885,20 +1883,18 @@ export function TaskDetail({
             PR #{task.associatedPR.number}
           </a>
         )}
-        {task.associatedPR &&
-          onOpenPreview &&
-          (task.column === "review" || task.column === "done") && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenPreview();
-              }}
-              className="h-9 inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0 cursor-pointer"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              Preview
-            </button>
-          )}
+        {task.associatedPR && onOpenPreview && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenPreview();
+            }}
+            className="h-9 inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0 cursor-pointer"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            Preview
+          </button>
+        )}
         {task.previewUrl && (
           <a
             href={task.previewUrl}
