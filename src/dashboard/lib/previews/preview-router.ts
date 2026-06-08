@@ -2,6 +2,14 @@
  * @fileType library
  * @domain previews
  * @pattern dispatch-router
+ * @ai-summary Decides whether the per-PR preview build runs on Fly (the
+ *   prebuilt builder image) or on GitHub Actions (consumer's kody.yml).
+ *   Trap: this INVERTS the engine-runner policy on purpose — engine *jobs*
+ *   stay GitHub-first, but previews are Fly-first because the GitHub path
+ *   was crashing ~half of preview builds with transient `ECONNRESET` on
+ *   the `npx kody-engine@latest` download. If you change this to
+ *   GitHub-first, expect a re-emergence of "preview URL never resolves"
+ *   failures.
  *
  * Pick where a per-PR preview build runs. Previews PREFER Fly:
  *

@@ -2,6 +2,13 @@
  * @fileType library
  * @domain previews
  * @pattern warm-pool-client
+ * @ai-summary Optional accelerator that claims a pre-booted suspended
+ *   machine from the warm-pool owner and swaps in the just-built image
+ *   (~3s vs ~40s for create-fresh). Trap: every code path MUST be
+ *   no-throw — the pool is an accelerator, not a dependency. On any
+ *   failure (no master key, owner unreachable, empty pool) the caller
+ *   falls back to create-fresh, so a missing pool cannot break preview
+ *   creation.
  *
  * Dashboard-side client for the preview warm pool. Mirrors the runner
  * pool pattern (runners/pool-client.ts) — separate endpoint, same
