@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Trailing icon button stays hidden when composer is empty on non-Kody-Live agents",
+    "body": "Per the issue body, the send button is described as living at the trailing edge of the input row. I preserved the post-#65 behavior of hiding the button when the composer is empty AND the selected agent is not Kody-Live (no send affordance when there's nothing to send). A future issue could revisit and make the button always visible (disabled) to satisfy a stricter reading of the issue body — or visual polish could match the original #65 single-row layout more closely (e.g. a shared rounded border around textarea + button so they read as one box).",
+    "rationale": "Layout choices for the trailing button were deliberately conservative — match the existing 'hide when empty' affordance rather than over-fixing. Worth a follow-up if the user wants the input row to feel like a single rounded box (the issue body hints at this) or wants the button always visible.",
+    "priority": "low"
+  }
+]

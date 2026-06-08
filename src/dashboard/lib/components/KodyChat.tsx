@@ -31,6 +31,7 @@ import {
   Minimize2,
   MousePointerClick,
   Plus,
+  Square,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import { buildAgentList, type ChatModelEntry } from "../chat/agent-entries";
@@ -4679,13 +4680,11 @@ export function KodyChat({
             ) : null}
           </div>
         ) : null}
-        {/* Composer restructured (issue #65): the input row stretches
-            the textarea to full width with the Send button at the
-            trailing edge, then a hairline separator, then an action
-            row for the icon buttons. The action row is the future home
-            for composer widgets (slash-command trigger, attachment
-            previews, mode toggles, etc.) — the trailing flex-1 slot is
-            reserved empty until those land. */}
+        {/* Composer input row (issue #131): the textarea and a single
+            trailing send/stop icon button share this row, with the
+            button swapped by state. The action row below (Paperclip,
+            VoiceButton) no longer hosts the send affordance — the
+            hairline separates input from action rows. */}
         <div className="flex gap-2 items-center">
           <div className="flex-1 relative">
             {slashMenuOpen && (
@@ -4728,27 +4727,60 @@ export function KodyChat({
               style={{ height: "auto" }}
             />
           </div>
-          {loading ? (
-            <button
-              onClick={handleStop}
-              className="px-3 py-2 text-base bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90"
-            >
-              Stop
-            </button>
-          ) : composerAction === "stop" || composerAction === "cancel" ? (
-            <button
-              type="button"
-              onClick={endInteractiveSession}
-              className="px-3 py-2 text-base bg-destructive/85 text-destructive-foreground rounded-md hover:bg-destructive/95"
-              title={
-                composerAction === "cancel"
-                  ? "Abandon this boot attempt. The runner will idle-exit on its own."
-                  : "End this live session. The runner will idle-exit on its own."
-              }
-            >
-              {composerAction === "cancel" ? "Cancel" : "Stop"}
-            </button>
-          ) : null}
+          {/* Trailing send/stop icon button — single role that swaps by
+              state (issue #131 refinement):
+                * Idle / no in-flight run → paper-plane Send icon
+                * In-flight run (loading or stop/cancel) → Square stop icon
+              Replaces both the old red `bg-destructive` Stop text button
+              in the input row and the inline Send button that used to
+              live in the action row below. The button is hidden when
+              there's no content and the agent isn't Kody-Live, matching
+              the previous "no send affordance when empty" behavior. */}
+          {(() => {
+            const isInFlight =
+              loading ||
+              composerAction === "stop" ||
+              composerAction === "cancel";
+            const showTrailingButton = isInFlight
+              ? true
+              : hasComposerContent || isKodyLive;
+            if (!showTrailingButton) return null;
+            const title = isInFlight
+              ? composerAction === "cancel"
+                ? "Cancel boot"
+                : "Stop run"
+              : composerAction === "start"
+                ? "Boot runner"
+                : "Send message";
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  if (loading) {
+                    handleStop();
+                  } else if (
+                    composerAction === "stop" ||
+                    composerAction === "cancel"
+                  ) {
+                    endInteractiveSession();
+                  } else if (composerAction === "start") {
+                    void startInteractiveSession();
+                  } else {
+                    void sendMessage();
+                  }
+                }}
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                title={title}
+                aria-label={title}
+              >
+                {isInFlight ? (
+                  <Square className="w-5 h-5" fill="currentColor" />
+                ) : (
+                  <Send className="w-5 h-5" />
+                )}
+              </button>
+            );
+          })()}
         </div>
         <div className="border-t border-border/40" />
         <div className="flex gap-2 items-center">
@@ -4812,31 +4844,6 @@ export function KodyChat({
             }}
             disabled={loading}
           />
-          {/* Inline send icon — visible only when there's text. Boots the
-              runner if idle, sends the message otherwise. */}
-          {hasComposerContent && !loading && (
-            <button
-              type="button"
-              onClick={() => {
-                if (
-                  interactiveState === "idle" ||
-                  interactiveState === "ended"
-                ) {
-                  void startInteractiveSession();
-                } else {
-                  void sendMessage();
-                }
-              }}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-              title={
-                interactiveState === "idle" || interactiveState === "ended"
-                  ? "Boot runner and send"
-                  : "Send message"
-              }
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          )}
           {/* Reserved slot for future widget actions (slash-command
               trigger, attachment previews inline, mode toggles, etc.).
               flex-1 keeps the row visually left-anchored with breathing
