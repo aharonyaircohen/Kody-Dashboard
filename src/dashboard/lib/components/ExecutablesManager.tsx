@@ -10,7 +10,7 @@
  *   (one `*.sh` each). A
  *   Validate button checks the generated profile.json before saving;
  *   "Set default" writes the bare-`@kody` default into kody.config.json.
- *   Execution is owned by Jobs (see JobsManager) — this page only edits.
+ *   Execution assignment is owned by Duties — this page only edits.
  */
 "use client";
 
@@ -56,13 +56,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@dashboard/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@dashboard/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
@@ -402,7 +395,7 @@ function ExecutablesManagerInner() {
     }
   }, [editingSlug, selectedSlug]);
 
-  // Auto-select the first executable on desktop, mirroring Jobs/Reports.
+  // Auto-select the first executable on desktop, mirroring Duties/Reports.
   useEffect(() => {
     if (!selectedSlug && executables.length > 0) {
       setSelectedSlug(executables[0].slug);
@@ -1041,8 +1034,23 @@ interface EditorProps {
   showHeader?: boolean;
 }
 
-const DEFAULT_PROMPT =
-  "You are working on issue #{{issue.number}}: {{issue.title}}\n\n{{issue.body}}\n\nImplement the change end-to-end.\n";
+const DEFAULT_PROMPT = `# Responsibility
+
+You are running a reusable unit of action.
+
+This executable has one specific responsibility.
+
+## Do
+
+- Understand the current run context.
+- Do only this executable's responsibility.
+- Use the available tools, skills, and scripts.
+- Keep the work focused and complete.
+
+## Finish
+
+Report what you did and anything that still needs attention.
+`;
 
 function ExecutableEditor({
   slug,

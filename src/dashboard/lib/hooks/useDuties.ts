@@ -61,6 +61,9 @@ export function useCreateDuty(actorLogin?: string) {
       disabled?: boolean;
       staff?: string | null;
       mentions?: string[];
+      executables?: string[];
+      dutyTools?: string[];
+      tickScript?: string | null;
     }
   >({
     mutationFn: (data) =>
@@ -91,6 +94,9 @@ export function useUpdateDuty(slug: string, actorLogin?: string) {
       disabled?: boolean;
       staff?: string | null;
       mentions?: string[];
+      executables?: string[];
+      dutyTools?: string[];
+      tickScript?: string | null;
     }
   >({
     mutationFn: (data) =>

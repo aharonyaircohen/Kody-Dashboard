@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern duties-api
  * @ai-summary Duty detail API — GET reads a single duty file, PATCH
- *   updates the title/body, DELETE removes the file. Backed by `.kody/duties/<slug>.md`
- *   via the GitHub contents API.
+ *   updates metadata/body/executable assignment, DELETE removes the file.
+ *   Backed by `.kody/duties/<slug>.md` via the GitHub contents API.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -72,6 +72,9 @@ const updateDutySchema = z.object({
   disabled: z.boolean().optional(),
   staff: z.string().min(1).nullable().optional(),
   mentions: z.array(z.string()).optional(),
+  executables: z.array(z.string()).optional(),
+  dutyTools: z.array(z.string()).optional(),
+  tickScript: z.string().nullable().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -83,6 +86,10 @@ function normalizeMentions(mentions: string[]): string[] {
   return mentions
     .map((m) => m.trim().replace(/^@/, ""))
     .filter((m) => m.length > 0);
+}
+
+function normalizeList(values: string[]): string[] {
+  return values.map((v) => v.trim()).filter((v) => v.length > 0);
 }
 
 export async function PATCH(
@@ -108,8 +115,18 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, body, schedule, disabled, staff, mentions, actorLogin } =
-      updateDutySchema.parse(payload);
+    const {
+      title,
+      body,
+      schedule,
+      disabled,
+      staff,
+      mentions,
+      executables,
+      dutyTools,
+      tickScript,
+      actorLogin,
+    } = updateDutySchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -139,6 +156,18 @@ export async function PATCH(
         mentions === undefined
           ? existing.mentions
           : normalizeMentions(mentions),
+      executables:
+        executables === undefined
+          ? existing.executables
+          : normalizeList(executables),
+      dutyTools:
+        dutyTools === undefined ? existing.dutyTools : normalizeList(dutyTools),
+      tickScript:
+        tickScript === undefined
+          ? existing.tickScript
+          : tickScript?.trim()
+            ? tickScript.trim()
+            : null,
       sha: existing.sha,
     });
 

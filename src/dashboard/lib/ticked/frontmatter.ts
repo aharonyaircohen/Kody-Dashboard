@@ -5,10 +5,8 @@
  * @ai-summary Tiny YAML-frontmatter parser/serializer shared by every
  *   "ticked markdown" feature (duties, staff, and any future kind). A
  *   ticked file is allowed to start with a `---\n…\n---\n` block carrying
- *   flat scalar key/value pairs (no nesting). Today the only recognized
- *   fields are `every:` (per-file cadence) and `disabled:`, but the
- *   parser preserves any other keys so engine-side features can read
- *   them without dashboard awareness.
+ *   flat scalar key/value pairs (no nesting). The parser recognizes the
+ *   duty fields the dashboard edits and silently drops unknown keys.
  *
  *   No `gray-matter` dep on purpose — the format is intentionally
  *   restricted (flat, scalar values only) and a 30-line parser keeps
@@ -70,6 +68,22 @@ export interface TickFrontmatter {
    * Absent / empty array = no mentions (the line is omitted on write).
    */
   mentions?: string[];
+  /**
+   * Executable slugs this duty can dispatch. Stored as one comma-separated
+   * line (`executables: bug, qa-engineer`). Empty / absent = no explicit
+   * executable assignment.
+   */
+  executables?: string[];
+  /**
+   * Tool names exposed to the duty tick runner. Stored on the engine-facing
+   * `tools:` frontmatter line.
+   */
+  dutyTools?: string[];
+  /**
+   * Optional script path the engine runs before/for the tick. `null` writes
+   * no line; a non-empty string emits `tickScript: <path>`.
+   */
+  tickScript?: string | null;
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -198,11 +212,16 @@ function parseFlatYaml(text: string): TickFrontmatter {
     } else if (key === "mentions") {
       // Comma-separated logins on one line; trim, strip an optional leading
       // `@`, drop empties. Only set the field when at least one login remains.
-      const mentions = value
-        .split(",")
-        .map((m) => m.trim().replace(/^@/, ""))
-        .filter((m) => m.length > 0);
+      const mentions = parseCommaList(value).map((m) => m.replace(/^@/, ""));
       if (mentions.length > 0) out.mentions = mentions;
+    } else if (key === "executables") {
+      const executables = parseCommaList(value);
+      if (executables.length > 0) out.executables = executables;
+    } else if (key === "tools") {
+      const tools = parseCommaList(value);
+      if (tools.length > 0) out.dutyTools = tools;
+    } else if (key === "tickScript" && value.length > 0) {
+      out.tickScript = value;
     }
     // Unknown keys silently dropped on read — they round-trip via the
     // raw body if callers preserve it. We don't surface them on the
@@ -219,10 +238,23 @@ function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
   // so an unchanged file stays byte-identical.
   if (frontmatter.mentions?.length)
     lines.push(`mentions: ${frontmatter.mentions.join(", ")}`);
+  if (frontmatter.executables?.length)
+    lines.push(`executables: ${frontmatter.executables.join(", ")}`);
+  if (frontmatter.dutyTools?.length)
+    lines.push(`tools: ${frontmatter.dutyTools.join(", ")}`);
+  if (frontmatter.tickScript?.trim())
+    lines.push(`tickScript: ${frontmatter.tickScript.trim()}`);
   // Only emit `disabled: true` — the default (enabled) leaves the line
   // out so an unchanged ticked file stays byte-identical.
   if (frontmatter.disabled === true) lines.push(`disabled: true`);
   return lines;
+}
+
+function parseCommaList(value: string): string[] {
+  return value
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
 }
 
 function stripQuotes(value: string): string {

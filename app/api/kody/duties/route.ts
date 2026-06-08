@@ -63,6 +63,9 @@ export async function GET(req: NextRequest) {
         disabled: false,
         staff: f.staff ?? null,
         mentions: [] as string[],
+        executables: [f.slug],
+        dutyTools: [] as string[],
+        tickScript: null,
         htmlUrl: f.htmlUrl,
         folder: true,
       }));
@@ -106,6 +109,9 @@ const createDutySchema = z.object({
   disabled: z.boolean().optional(),
   staff: z.string().min(1).nullable().optional(),
   mentions: z.array(z.string()).optional(),
+  executables: z.array(z.string()).optional(),
+  dutyTools: z.array(z.string()).optional(),
+  tickScript: z.string().nullable().optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -119,6 +125,11 @@ function normalizeMentions(mentions?: string[]): string[] {
   return mentions
     .map((m) => m.trim().replace(/^@/, ""))
     .filter((m) => m.length > 0);
+}
+
+function normalizeList(values?: string[]): string[] {
+  if (!values) return [];
+  return values.map((v) => v.trim()).filter((v) => v.length > 0);
 }
 
 function slugifyTitle(title: string): string {
@@ -149,6 +160,9 @@ export async function POST(req: NextRequest) {
       disabled,
       staff,
       mentions,
+      executables,
+      dutyTools,
+      tickScript,
       actorLogin,
     } = createDutySchema.parse(payload);
 
@@ -195,6 +209,9 @@ export async function POST(req: NextRequest) {
       disabled: disabled === true,
       staff: staff ?? null,
       mentions: normalizeMentions(mentions),
+      executables: normalizeList(executables),
+      dutyTools: normalizeList(dutyTools),
+      tickScript: tickScript?.trim() ? tickScript.trim() : null,
     });
 
     recordAudit(req, {

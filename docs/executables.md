@@ -138,10 +138,9 @@ a `buildSyntheticPlugin` preflight step whenever the skills list is non-empty
    └──────────────────────────────────────────┘
 ```
 
-Execution is owned by **Jobs** — a job binds an executable, a duty, a
-staff member, and a schedule, and is the only way the engine schedules or
-manually dispatches an executable. The `/executables` page is edit-only;
-run dispatch lives on the job (see [jobs.md](jobs.md)).
+Execution assignment is owned by **Duties** — a duty binds intent, staff,
+cadence, and the executables it may run. The `/executables` page is edit-only;
+run dispatch lives on the duty.
 
 ## Writes need a signed-in user token
 

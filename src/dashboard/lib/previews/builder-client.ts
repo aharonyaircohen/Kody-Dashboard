@@ -35,6 +35,17 @@ const BUILDER_HOST_APP =
   process.env.KODY_PREVIEW_BUILDER_HOST_APP ?? "kody-preview-builder";
 
 const SPAWN_TIMEOUT_MS = 30_000;
+const BUILDER_MAINTENANCE_TIMEOUT_MS = 10_000;
+const BUILDER_STALE_MS = 2 * 60 * 60 * 1000;
+
+interface BuilderMachineInfo {
+  id?: string;
+  state?: string;
+  created_at?: string;
+  config?: {
+    env?: Record<string, string>;
+  };
+}
 
 export interface SpawnBuilderInput {
   repo: string;
@@ -78,9 +89,96 @@ function defaultTagFor(repo: string, ref: string): string {
     .slice(0, 12);
 }
 
+function builderAuthHeaders(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+}
+
+function builderMachinesUrl(machineId?: string): string {
+  const base = `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(BUILDER_HOST_APP)}/machines`;
+  return machineId
+    ? `${base}/${encodeURIComponent(machineId)}?force=true`
+    : base;
+}
+
+function isDestroyableBuilderState(state?: string): boolean {
+  return state !== "destroyed" && state !== "destroying";
+}
+
+function isStaleBuilder(machine: BuilderMachineInfo, now: number): boolean {
+  if (!machine.created_at) return false;
+  const created = Date.parse(machine.created_at);
+  return Number.isFinite(created) && now - created > BUILDER_STALE_MS;
+}
+
+function shouldDestroyBuilder(
+  machine: BuilderMachineInfo,
+  targetAppName: string,
+  now: number,
+): boolean {
+  if (!machine.id || !isDestroyableBuilderState(machine.state)) return false;
+  const samePreview = machine.config?.env?.APP_NAME === targetAppName;
+  return samePreview || isStaleBuilder(machine, now);
+}
+
+async function destroyBuilderMachine(
+  machineId: string,
+  token: string,
+): Promise<void> {
+  const res = await fetch(builderMachinesUrl(machineId), {
+    method: "DELETE",
+    headers: builderAuthHeaders(token),
+    signal: AbortSignal.timeout(BUILDER_MAINTENANCE_TIMEOUT_MS),
+  });
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `destroy builder ${machineId} failed: ${res.status} ${text.slice(0, 200)}`,
+    );
+  }
+}
+
+async function pruneBuilderMachines(
+  token: string,
+  targetAppName: string,
+): Promise<void> {
+  try {
+    const res = await fetch(builderMachinesUrl(), {
+      method: "GET",
+      headers: builderAuthHeaders(token),
+      signal: AbortSignal.timeout(BUILDER_MAINTENANCE_TIMEOUT_MS),
+    });
+    if (!res.ok) return;
+    const machines = (await res.json()) as BuilderMachineInfo[];
+    const now = Date.now();
+    const doomed = machines.filter((m) =>
+      shouldDestroyBuilder(m, targetAppName, now),
+    );
+    await Promise.all(
+      doomed.map((m) =>
+        destroyBuilderMachine(m.id!, token).catch((err) =>
+          logger.warn(
+            { err, machineId: m.id, targetAppName },
+            "previews.builder: stale builder destroy failed",
+          ),
+        ),
+      ),
+    );
+  } catch (err) {
+    logger.warn(
+      { err, targetAppName },
+      "previews.builder: stale builder scan failed",
+    );
+  }
+}
+
 export async function spawnPreviewBuilder(
   input: SpawnBuilderInput,
 ): Promise<SpawnBuilderResult> {
+  await pruneBuilderMachines(input.flyToken, input.appName);
+
   const tag = input.imageTag ?? defaultTagFor(input.repo, input.ref);
   const body = {
     config: {
@@ -154,10 +252,7 @@ export async function spawnPreviewBuilder(
     `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(BUILDER_HOST_APP)}/machines`,
     {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${input.flyToken}`,
-        "Content-Type": "application/json",
-      },
+      headers: builderAuthHeaders(input.flyToken),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(SPAWN_TIMEOUT_MS),
     },

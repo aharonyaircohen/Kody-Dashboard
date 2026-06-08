@@ -124,14 +124,6 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     tint: "text-emerald-300 bg-emerald-500/10",
   },
   {
-    href: "/jobs",
-    label: "Jobs",
-    icon: Rocket,
-    exact: true,
-    description: "Compose a run: executable + duty + staff + schedule.",
-    tint: "text-emerald-300 bg-emerald-500/10",
-  },
-  {
     href: "/duties",
     label: "Duties",
     icon: Layers,
