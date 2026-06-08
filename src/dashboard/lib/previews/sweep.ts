@@ -2,6 +2,12 @@
  * @fileType library
  * @domain previews
  * @pattern ttl-sweep
+ * @ai-summary TTL-based garbage collection for per-PR preview apps —
+ *   every open (and stale-bot) PR keeps a Fly app alive, and even
+ *   suspended machines cost rootfs storage. Trap: TTL is opt-in via
+ *   `fly.previews.ttlDays` (≤ 0 = no-op), and the per-repo BASE image
+ *   (`kp-…-base`) is always exempt — destroying it would invalidate the
+ *   build cache and re-cold-build every PR.
  *
  * Destroy per-PR preview apps that have outlived their TTL.
  *

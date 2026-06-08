@@ -1,0 +1,26 @@
+{
+  "taskId": "47",
+  "taskType": "issue",
+  "target": "47-featpreviews-token-gate-per-pr-fly-previews-signed",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "All 9 implementation steps completed, all tests pass, typecheck/lint/format clean",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/preview-token.ts",
+    "tests/unit/preview-token.spec.ts",
+    "app/api/kody/previews/ticket/route.ts",
+    "builder/doorman/doorman.ts",
+    "builder/default-Dockerfile.preview.prod",
+    "builder/default-Dockerfile.preview.dev",
+    "src/dashboard/lib/previews/builder-client.ts",
+    "builder/src/builder.ts",
+    "app/api/kody/prs/preview/route.ts",
+    "docs/previews.md",
+    "CLAUDE.md"
+  ],
+  "sessionLog": ".kody/last-run.jsonl",
+  "startedAt": "2026-06-04T08:00:00Z",
+  "finishedAt": "2026-06-04T08:12:00Z"
+}

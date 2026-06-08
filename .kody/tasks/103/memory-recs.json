@@ -1,0 +1,10 @@
+[
+  {
+    "type": "lesson",
+    "name": "prettier-check-can-block-verify",
+    "hook": "Prettier --check is part of the verify gate; pre-existing format drift on the branch can fail the gate for unrelated work",
+    "body": "The verify gate runs `pnpm format:check` as one of its checks. If a branch has pre-existing prettier drift (verified by `git stash` + `pnpm format:check`), the gate will fail for an unrelated fix. Fix the drift with `pnpm prettier --write <files>` so the gate can ratify the actual change. The drift fix lands in the same PR — this is acceptable scope because no behavior changes.",
+    "why": "Verify gate is a black box; it doesn't know whether failures are pre-existing. A red gate blocks DONE declaration regardless of cause, so pre-existing format drift must be cleared before the gate can ratify the real fix.",
+    "confidence": 0.7
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "taskId": "103",
+  "taskType": "issue",
+  "target": "add-minimax-m3-to-visionmodelpatterns",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added /minimax-m3/ to VISION_MODEL_PATTERNS; M3 family now treated as vision-capable, M2.7 text-only regression guard preserved.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/chat/vision-support.ts",
+    "tests/unit/chat/vision-support.spec.ts",
+    "src/dashboard/components/files/FilesPage.tsx",
+    "src/dashboard/lib/components/TerminalManager.tsx",
+    "src/dashboard/lib/terminal/bridge-fly.ts",
+    "tests/unit/terminal-bridge-fly.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/instant.jsonl",
+  "startedAt": "2026-06-07T20:01:30Z",
+  "finishedAt": "2026-06-07T20:09:00Z"
+}

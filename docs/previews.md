@@ -49,13 +49,46 @@ immediately with the deterministic URL. Status checks (`GET
 ### Consumer repos = zero-touch
 
 No Dockerfile, no workflow, no env vars in the consumer repo. The
-builder ships two bundled templates:
+builder ships two bundled templates (including the doorman proxy):
 
 - `default-Dockerfile.preview.prod` — `next build` + `next start`
   (matches Vercel's flow). **Default.**
 - `default-Dockerfile.preview.dev` — `next dev` (skips build, compiles
   on first request). Opt-in via `KODY_PREVIEW_BUILD_MODE=dev` in the
   repo's vault.
+
+## Token-gated access (doorman proxy)
+
+Preview machines are **not open to the public** — a doorman proxy sits
+in front of Next.js (listening on `:8080`, proxying validated traffic to
+Next.js on `:3000`). The raw `<app>.fly.dev` URL returns `401` without
+a signed ticket.
+
+**Flow:**
+
+1. Dashboard mints a **signed ticket** (HMAC of `repo#pr:expiry`, keyed
+   by a HKDF-derived verify key) and appends `?kp=<ticket>` to the
+   iframe URL on first load.
+2. The doorman verifies the ticket using the same derived key (shipped
+   to the machine as `KODY_PREVIEW_VERIFY_KEY` runtime env). Valid →
+   `Set-Cookie` + strip the param + proxy through. Invalid/expired →
+   `401`.
+3. Subsequent requests authenticate via the cookie, so the ticket leaves
+   no trace in browser history.
+4. Tickets expire after **4 hours**; a fresh one is minted on the next
+   dashboard visit.
+
+**Key derivation:** the verify key is HKDF-SHA256 of `KODY_MASTER_KEY`
+with info `"kody-preview:v1"` — distinct from chat-token's purpose.
+Rotating `KODY_MASTER_KEY` invalidates all in-flight tickets (same
+behaviour as chat-token). The raw master key never leaves the dashboard.
+
+**PR comments** no longer carry the raw `fly.dev` URL (which would 401
+without a ticket). The comment says "open it from the Kody dashboard"
+instead — the dashboard handles ticket minting behind the auth gate.
+
+**API:** `GET /api/kody/previews/ticket?repo=owner/name&pr=N` (auth-gated)
+returns `{ ticket, expiresAt }`.
 
 ## Per-repo billing
 

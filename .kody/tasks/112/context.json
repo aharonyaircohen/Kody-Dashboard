@@ -1,0 +1,17 @@
+{
+  "taskId": "112",
+  "taskType": "issue",
+  "target": "112",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added a draft-to-ready-for-review step to the approve-review handler. When the fetched PR data has `draft === true`, the route now calls `octokit.pulls.update({ draft: false })` between posting the APPROVE review and calling `pulls.merge`. Non-draft PRs skip the call entirely. The merge strategy, branch cleanup, issue close, and error logging are unchanged.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "app/api/kody/tasks/approve-review/route.ts",
+    "tests/int/approve-review-draft.int.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/112.jsonl",
+  "startedAt": "2026-06-07T20:50:00Z",
+  "finishedAt": "2026-06-07T20:55:00Z"
+}
