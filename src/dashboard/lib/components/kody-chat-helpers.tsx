@@ -57,3 +57,38 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/**
+ * Build the user-turn content split into a visible (display) part and a
+ * wire-only part. The visible part is what shows in the chat bubble; the
+ * wire part is the full payload sent to the model (clean text + any
+ * chip contexts the user attached + the auto-collected preview page
+ * context). The chip contexts come from the Preview Inspector toolbar
+ * (picked elements, console errors, failed requests, perf snapshots)
+ * and the preview context is collected by the preview-extension hook.
+ *
+ * Mirrors the split introduced for the auto-attached preview context
+ * (see dc12fa8f) and extended to the picker-attached chips (issue #141).
+ * Both are sent to the model but hidden from the bubble — the user
+ * already sees the chips as compact pills above the input, and the
+ * preview context is a passive background snapshot.
+ */
+export function buildUserTurnParts(opts: {
+  baseMessage: string;
+  chipContexts?: readonly string[];
+  previewContext?: string | null;
+}): { displayContent: string; wireContent: string } {
+  const { baseMessage } = opts;
+  const chipContexts = opts.chipContexts ?? [];
+  const previewContext = opts.previewContext ?? null;
+  const displayContent = baseMessage;
+  const extras = [
+    ...chipContexts.filter((s) => s.trim()),
+    ...(previewContext && previewContext.trim() ? [previewContext] : []),
+  ];
+  const wireContent =
+    extras.length > 0
+      ? `${baseMessage}\n\n${extras.join("\n\n")}`
+      : baseMessage;
+  return { displayContent, wireContent };
+}
