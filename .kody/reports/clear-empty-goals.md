@@ -1,3 +1,16 @@
+---
+generatedAt: "2026-06-07T09:53:00Z"
+dutySlug: clear-empty-goals
+findings:
+  - id: no-empty-goals-2026-06-07
+    severity: low
+    title: No empty goals found
+    data:
+      scannedGoals: 1
+      closedGoals: 0
+      activeGoal: kody-state-split
+---
+
 # Clear Empty Goals — 2026-06-07 09:53 UTC
 
 Scanned: 1 goal

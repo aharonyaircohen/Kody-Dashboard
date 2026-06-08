@@ -1,3 +1,35 @@
+---
+generatedAt: "2026-06-08T11:57:00Z"
+dutySlug: ceo-performance-review
+findings:
+  - id: staff-delivery-signal
+    severity: high
+    title: Only two staff have clear weekly delivery signal
+    data:
+      deliveredStaff: [ceo, tech-writer]
+      unclearStaff: [cto]
+      weakStaff: [qa]
+      idleStaff: [coo, kody, ux-designer]
+  - id: dev-ci-health-open-loop
+    severity: medium
+    title: CTO dev CI health duty still has no run signal
+    data:
+      duty: dev-ci-health
+      issue: no lastRunISO or progress markers
+  - id: qa-verdict-open-loop
+    severity: high
+    title: QA verify still stamps no UI verdicts
+    data:
+      duty: qa-verify
+      issue: zero recent UI verdict labels
+  - id: clear-empty-goals-unowned
+    severity: medium
+    title: clear-empty-goals duty has no owner
+    data:
+      duty: clear-empty-goals
+      issue: missing staff frontmatter
+---
+
 # Kody Performance Review
 
 _Cadence: weekly — delivery of owned responsibilities, not subjective quality._

@@ -1,0 +1,41 @@
+type: object
+required:
+  - generatedAt
+  - findings
+properties:
+  generatedAt:
+    type: string
+    format: date-time
+    description: ISO 8601 timestamp of when the report was produced.
+  dutySlug:
+    type: string
+    description: Which duty produced this report.
+  findings:
+    type: array
+    items:
+      type: object
+      required:
+        - id
+        - severity
+        - title
+      properties:
+        id:
+          type: string
+          description: Stable identifier for this finding.
+        severity:
+          type: string
+          enum:
+            - high
+            - medium
+            - low
+          description: Impact level.
+        title:
+          type: string
+          description: One-line summary of the finding.
+        data:
+          type: object
+          description: Structured data specific to this finding type.
+        linkedUrl:
+          type: string
+          format: uri
+          description: Optional link to the source.

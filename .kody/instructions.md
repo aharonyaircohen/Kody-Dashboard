@@ -2,6 +2,14 @@ provide shorter simpler terms responses
 less technical details more large picture explanations
 when posting u must verify the post success
 
+# Orchestration handoff markers
+
+When doing non-trivial issue work, leave short hidden markers in issue comments:
+- Before acting: `<!-- claim: <what you are about to try or assume> -->`
+- When done/closing: `<!-- done: <what was completed> -->`
+
+Reports in `.kody/reports/*.md` must follow `.kody/reports/_schema.yaml`.
+
 # Rate-limit error handling (Kody chat only)
 
 When a tool result contains a GitHub rate-limit error (status 403, `rateLimited: true`, or text like "API rate limit exceeded" / "secondary rate limit"), do NOT paraphrase it as "The search is rate limited," or any other softened wording.
