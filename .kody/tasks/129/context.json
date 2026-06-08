@@ -1,0 +1,24 @@
+{
+  "taskId": "129",
+  "taskType": "issue",
+  "target": "129",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Implemented 'Also approve drafts' toggle for the Preview Approve action; backend now marks the PR ready-for-review before createReview when toggle is on; frontend shows draft badge and hard-blocks on toggle-off + draft.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "app/api/kody/tasks/[taskId]/actions/route.ts",
+    "src/dashboard/lib/api.ts",
+    "src/dashboard/lib/components/MergeButton.tsx",
+    "src/dashboard/lib/components/PreviewActions.tsx",
+    "src/dashboard/lib/github-client.ts",
+    "src/dashboard/lib/types.ts",
+    "tests/int/approve-pr-drafts-action.int.spec.ts",
+    "tests/unit/github-client-graphql.spec.ts",
+    "tests/unit/preview-actions-approve-drafts.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/129.jsonl",
+  "startedAt": "2026-06-08T05:37:56Z",
+  "finishedAt": "2026-06-08T06:02:00Z"
+}

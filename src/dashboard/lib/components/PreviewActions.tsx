@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { KodyTask } from "../types";
 import { Button } from "@dashboard/ui/button";
+import { Checkbox } from "@dashboard/ui/checkbox";
 import { FixRequestDialog } from "./FixRequestDialog";
 import { ReportIssueDialog } from "./ReportIssueDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -21,6 +22,7 @@ import {
   Eye,
   Camera,
   AlertTriangle,
+  FileText,
 } from "lucide-react";
 import { tasksApi, prsApi } from "../api";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
@@ -87,6 +89,11 @@ export function PreviewActions({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+  // Issue #129: "Also approve drafts" toggle. Default ON so the
+  // existing one-click "Approve and forget" flow keeps working on
+  // draft PRs — when OFF, the user has explicitly opted into
+  // hard-blocking Approve on drafts.
+  const [alsoApproveDrafts, setAlsoApproveDrafts] = useState(true);
   const { githubUser } = useGitHubIdentity();
   const queryClient = useQueryClient();
 
@@ -162,13 +169,28 @@ export function PreviewActions({
    * then fires the merge if the PR is already mergeable. If CI is still
    * pending, the auto-merge effect below fires the merge as soon as
    * checks turn green — no separate manual merge button needed.
+   *
+   * Issue #129: when the PR is in draft state, the backend's
+   * `createReview({event:"APPROVE"})` is rejected by GitHub. The
+   * "Also approve drafts" toggle (default on) tells the backend to
+   * flip the PR to ready-for-review first. When the toggle is OFF
+   * and the PR is still a draft, hard-block with a clear error so
+   * the user knows the fix.
    */
   const handleApprove = async () => {
+    if (pr.isDraft && !alsoApproveDrafts) {
+      toast.error(
+        "This PR is a draft — turn on 'Also approve drafts' to continue.",
+      );
+      return;
+    }
     setIsApproving(true);
     try {
       await Promise.all([
         tasksApi.approveUI(task.issueNumber, actorLogin),
-        tasksApi.approvePR(task.issueNumber, actorLogin),
+        tasksApi.approvePR(task.issueNumber, actorLogin, {
+          approveDrafts: alsoApproveDrafts,
+        }),
       ]);
       applyOptimisticLabel(queryClient, task.issueNumber, "ui-approved");
       applyOptimisticLabel(queryClient, task.issueNumber, "pr-approved");
@@ -258,7 +280,37 @@ export function PreviewActions({
                 <CheckCircle className="w-3.5 h-3.5" />
               )}
               <span>{isApproving ? "Approving…" : "Approve"}</span>
+              {pr.isDraft && (
+                <span
+                  aria-label="Draft PR"
+                  className="ml-0.5 inline-flex items-center gap-0.5 rounded border border-amber-700/60 bg-amber-500/10 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300"
+                >
+                  <FileText className="h-2.5 w-2.5" />
+                  draft
+                </span>
+              )}
             </Button>
+          )}
+
+          {/* Issue #129: "Also approve drafts" toggle. Default ON — keeps the
+              one-click Approve-and-forget flow working on draft PRs by
+              asking the backend to mark the PR ready-for-review first.
+              GitHub rejects `createReview({event:"APPROVE"})` on drafts. */}
+          {!isUIApproved && (
+            <label
+              className="flex items-center gap-1.5 text-[11px] text-zinc-400 cursor-pointer select-none"
+              title="Mark the PR ready-for-review before approving (GitHub rejects approval on drafts)"
+            >
+              <Checkbox
+                checked={alsoApproveDrafts}
+                onCheckedChange={(checked) =>
+                  setAlsoApproveDrafts(checked === true)
+                }
+                aria-label="Also approve drafts"
+                className="h-3.5 w-3.5"
+              />
+              <span>Also approve drafts</span>
+            </label>
           )}
 
           {/* Report Issue — peer to Approve UI; visible until UI is approved.
@@ -293,6 +345,7 @@ export function PreviewActions({
               isMerging={isMerging}
               onMerge={onMerge}
               labels={task.labels ?? []}
+              prIsDraft={pr.isDraft ?? false}
             />
           )}
         </div>

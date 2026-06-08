@@ -60,6 +60,7 @@ function prNode(number: number) {
     mergeable: "MERGEABLE",
     mergeStateStatus: "CLEAN",
     labels: { nodes: [{ name: "kody:task" }] },
+    isDraft: false,
     closingIssuesReferences: { nodes: [{ number }] },
     commits: {
       nodes: [{ commit: { statusCheckRollup: { state: "SUCCESS" } } }],
