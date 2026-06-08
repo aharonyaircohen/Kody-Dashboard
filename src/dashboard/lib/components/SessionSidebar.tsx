@@ -7,6 +7,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { Plus } from "lucide-react";
 import { cn } from "@dashboard/lib/utils/ui";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { SessionMeta } from "../chat-types";
@@ -138,9 +139,11 @@ export function SessionSidebar({
         </div>
         <button
           onClick={onCreateSession}
-          className="w-full px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+          className="p-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          aria-label="New conversation"
+          title="New conversation"
         >
-          + New conversation
+          <Plus className="w-4 h-4" aria-hidden="true" />
         </button>
       </div>
 
