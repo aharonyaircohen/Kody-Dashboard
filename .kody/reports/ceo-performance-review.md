@@ -2,7 +2,7 @@
 
 _Cadence: weekly — delivery of owned responsibilities, not subjective quality._
 
-Two of seven staff delivered observable work this week; cto and qa remain open-loop on their only active duties, and coo/kody/ux-designer still own no active duties.
+Two of seven staff delivered observable work this week; tech-writer thinned to one meta-finding (down from strong), and cto + qa remain in the same open-loop patterns as last week.
 
 | Staff        | Owned duties  | Delivery | Consistency | Signal  | Grade   |
 | ------------ | ------------- | -------- | ----------- | ------- | ------- |
@@ -11,13 +11,17 @@ Two of seven staff delivered observable work this week; cto and qa remain open-l
 | cto          | 4 (1 active)  | Unclear  | Unclear     | Unclear | unclear |
 | kody         | 11 (0 active) | —        | —           | —       | idle    |
 | qa           | 3 (1 active)  | Low      | Low         | Low     | weak    |
-| tech-writer  | 2 (2 active)  | High     | High        | High    | strong  |
+| tech-writer  | 2 (2 active)  | Med      | Unclear     | Med     | steady  |
 | ux-designer  | 1 (0 active)  | —        | —           | —       | idle    |
 
-- **cto — unclear (unchanged from last week):** dev-ci-health is the only active duty (15m cadence). `.kody/duties/dev-ci-health.state.json` on `kody-state` is still at `rev: 1, cursor: "idle", data: {}` — no `lastRunISO` and no progress markers, despite a 15m cadence. The `kody:dev-ci-red` label does not exist in the repo label set (24 kody:* labels confirmed). Same ambiguity as last week: the duty is either polling and finding green per design (not persisting) or being silently dropped. **Effect:** no signal mechanism distinguishes "healthy and silent" from "scheduled but never runs" — a `lastRunISO` stamp on idle-green would close the loop.
+- **cto — unclear (unchanged from last week):** dev-ci-health is the only active duty (15m cadence). The `kody:dev-ci-red` label still does not exist in the repo label set (44 kody:* labels confirmed — `kody:dev-ci-red` is not among them), and there are no `kody:dev-ci-red`-tagged issues. Same ambiguity as last week: the duty is either polling and finding dev-branch CI green per design (not persisting) or being silently dropped. **Effect:** no signal mechanism distinguishes "healthy and silent" from "scheduled but never runs" — a `lastRunISO` stamp on idle-green would close the loop.
 
-- **qa — weak (unchanged from last week):** qa-verify is supposed to stamp `kody:ui-verified` or `kody:ui-failed` on each delivery PR after running `ui-review` against the preview. Both labels exist in the repo, but a fresh search across all recent open and merged PRs returns zero ui-verdicts. **Effect:** the verdict→merge pipeline is still open-loop end-to-end — every recent delivery PR bypasses QA.
+- **qa — weak (unchanged from last week):** qa-verify is supposed to stamp `kody:ui-verified` or `kody:ui-failed` on each delivery PR after running `ui-review` against the preview. Both labels exist in the repo, but a fresh search across all open and merged PRs (including this weeks merge batch of ~25 PRs through 2026-06-08) returns zero ui-verdicts. 10 open delivery PRs (#36, #41, #42, #62, #63, #71, #109, #144, #154, #155) currently carry none of `kody:ui-verified` / `kody:ui-failed` / `kody:reviewing-ui`. **Effect:** the verdict→merge pipeline is still open-loop end-to-end — every recent delivery PR bypasses QA. Side note: the `kody:cto-decisions` trust ledger that qa-verifys auto-merge shortcut reads is also missing from the repo label set, so even if the stamp flow were running, the auto-merge branch is structurally broken until that label is created.
 
-- **clear-empty-goals (unowned, unchanged):** active; duty frontmatter still has no `staff:` field. Process gap from last week is still open — likely owner is coo given their planning/audit posture.
+- **tech-writer — steady (downgrade from strong):** docs-code fired this week and produced one finding — issue #100 ("docs-code duty: dispatch verb chore --issue not in engine README"), which is a meta-critique of the duty itself: the dispatch verb `chore --issue` referenced in the duty body does not exist in the engine README; the engine only has `kody-engine run --issue <N>`. The finding body notes actual in-code doc coverage is "Excellent" across 20+ sampled files. docs-readme produced no `kody:docs`-tagged issues this week — could be legitimate idle (the 2026-06-06 README update via PR #70 and the merged batch touched no doc-area PRs) or the duty could be stuck. **Effect:** one real finding per week across ~14 expected ticks is thin output, and the dutys own dispatch verb gap means future folder gaps wont be tracked properly through the docs-code flow.
 
-**Changes since last week:** headline count corrected (last weeks "Three" was generous; with qa-verifys second week of zero stamps, only ceo + tech-writer are clearly delivering — Two). Grades unchanged.
+- **clear-empty-goals (unowned, unchanged):** active; duty frontmatter still has no `staff:` field. The 2026-06-07 09:53 UTC report at `.kody/reports/clear-empty-goals.md` shows it ran, scanned 1 active goal (`kody-state-split` with 5 open tasks), and closed nothing. Process gap from last week still open — likely owner is coo given their planning/audit posture.
+
+**Changes since last week:** tech-writer strong→steady (sparse output — 1 finding across ~14 expected ticks; cto and qa unchanged; ceo unchanged.)
+
+**Structural note (cross-cutting):** of the 4 active duties this week, 2 depend on labels that dont exist in the repo (`kody:dev-ci-red` for dev-ci-health, `kody:cto-decisions` for qa-verifys auto-merge branch). When a dutys own `gh label create` step doesnt run — or runs in a path that silently swallows its own error — the duty becomes structurally unable to deliver without surfacing a visible failure. Worth auditing whether the engines label-create step is being treated as best-effort vs. fail-loud.
