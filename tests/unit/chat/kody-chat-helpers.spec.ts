@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import {
   bootPhaseLabel,
+  buildUserTurnParts,
   formatElapsed,
   formatFileSize,
   getFileIcon,
@@ -79,5 +80,92 @@ describe("getFileIcon", () => {
       expect(el.type).toBeDefined();
       expect(el.props).toBeDefined();
     }
+  });
+});
+
+describe("buildUserTurnParts", () => {
+  it("returns the base message for both display and wire when no extras are attached", () => {
+    const { displayContent, wireContent } = buildUserTurnParts({
+      baseMessage: "what's going on?",
+    });
+    expect(displayContent).toBe("what's going on?");
+    expect(wireContent).toBe("what's going on?");
+  });
+
+  it("hides chip contexts from the visible bubble", () => {
+    // Mirrors issue #141: the Preview Inspector chips (picked elements,
+    // console errors, failed requests, perf snapshots) should not appear
+    // in the chat bubble. The model still receives the full payload.
+    const { displayContent, wireContent } = buildUserTurnParts({
+      baseMessage: "what's going on?",
+      chipContexts: [
+        "Picked element: <button#submit>Submit</button>",
+        "Console errors (2):\nError: foo\nError: bar",
+      ],
+    });
+    expect(displayContent).toBe("what's going on?");
+    expect(wireContent).toBe(
+      "what's going on?\n\n" +
+        "Picked element: <button#submit>Submit</button>\n\n" +
+        "Console errors (2):\nError: foo\nError: bar",
+    );
+  });
+
+  it("hides the auto-attached preview context from the visible bubble", () => {
+    // Mirrors the dc12fa8f split: the model sees the preview page
+    // context on the wire; the bubble shows only the typed text.
+    const { displayContent, wireContent } = buildUserTurnParts({
+      baseMessage: "what's going on?",
+      previewContext: "[Dashboard context] the /preview page",
+    });
+    expect(displayContent).toBe("what's going on?");
+    expect(wireContent).toBe(
+      "what's going on?\n\n[Dashboard context] the /preview page",
+    );
+  });
+
+  it("appends chips and preview context to the wire in stable order", () => {
+    const { displayContent, wireContent } = buildUserTurnParts({
+      baseMessage: "explain",
+      chipContexts: ["Picked element: <input>"],
+      previewContext: "[Dashboard context] the /preview page",
+    });
+    expect(displayContent).toBe("explain");
+    // Chips ride first (user-attached), then the auto-collected preview
+    // context. The order matters because some prompts are sensitive to
+    // which block comes first.
+    expect(wireContent).toBe(
+      "explain\n\nPicked element: <input>\n\n[Dashboard context] the /preview page",
+    );
+  });
+
+  it("skips blank chip entries", () => {
+    const { wireContent } = buildUserTurnParts({
+      baseMessage: "explain",
+      chipContexts: ["", "  ", "Picked element: <input>"],
+    });
+    expect(wireContent).toBe("explain\n\nPicked element: <input>");
+  });
+
+  it("treats a blank preview context as absent", () => {
+    const { displayContent, wireContent } = buildUserTurnParts({
+      baseMessage: "explain",
+      chipContexts: ["Picked element: <input>"],
+      previewContext: "   ",
+    });
+    expect(displayContent).toBe("explain");
+    expect(wireContent).toBe("explain\n\nPicked element: <input>");
+  });
+
+  it("is a no-op when chips and preview context are both absent", () => {
+    // Without the wire/display split, the existing #140 (preview-context)
+    // test for the no-extras path would have regressed. Lock it down.
+    const { displayContent, wireContent } = buildUserTurnParts({
+      baseMessage: "hi",
+      chipContexts: [],
+      previewContext: null,
+    });
+    expect(displayContent).toBe("hi");
+    expect(wireContent).toBe("hi");
   });
 });

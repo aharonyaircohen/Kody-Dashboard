@@ -1,0 +1,18 @@
+{
+  "taskId": "141",
+  "taskType": "issue",
+  "target": "141",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Mirrored the #140 preview-context display/wire split for the picker-attached chips; bubble now shows only the typed text while the model still receives baseMessage + chip contexts.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/kody-chat-helpers.tsx",
+    "src/dashboard/lib/components/KodyChat.tsx",
+    "tests/unit/chat/kody-chat-helpers.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/<id>.jsonl",
+  "startedAt": "2026-06-08T06:35:00Z",
+  "finishedAt": "2026-06-08T06:47:08Z"
+}

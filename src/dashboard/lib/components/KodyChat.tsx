@@ -69,6 +69,7 @@ import {
 } from "./kody-chat-live-session";
 import {
   bootPhaseLabel,
+  buildUserTurnParts,
   formatElapsed,
   formatFileSize,
   getFileIcon,
@@ -1692,6 +1693,7 @@ export function KodyChat({
         hidden?: boolean;
         onVoiceDelta?: (spokenSoFar: string) => void;
       } = {},
+      chipContexts: string[] = [],
     ): Promise<string | null> => {
       if (!messageContent.trim() && currentAttachments.length === 0)
         return null;
@@ -1729,16 +1731,19 @@ export function KodyChat({
 
       // The user's bubble shows just the typed text — the attachment chips
       // are rendered separately from `attachments`. No base64 in the text.
-      const displayContent = messageContent;
-
-      // Preview page context is appended INVISIBLY: the model sees it on the
-      // wire, but the chat UI still shows the user's clean message. Without
-      // this split the message bubble would balloon with the DOM outline on
-      // every send (the prior behavior the user pushed back on).
+      //
+      // Picker-attached chips (Preview Inspector: picked elements, console
+      // errors, failed requests, perf snapshots) and the auto-attached
+      // preview page context ride on the wire only — the model still sees
+      // the full payload, but the bubble shows just the user's typed text.
+      // Mirrors the #140 slash-command split (issue #141): both are sources
+      // of "text the user didn't type" that should not pollute the bubble.
       const previewContext = await collectPreviewContextRef.current();
-      const wireContent = previewContext
-        ? `${messageContent}\n\n${previewContext}`
-        : messageContent;
+      const { displayContent, wireContent } = buildUserTurnParts({
+        baseMessage: messageContent,
+        chipContexts,
+        previewContext,
+      });
 
       // Build the prior-conversation transcript for the Kody backend. It
       // gets the cleaned-up text only; older attachments are referenced by
@@ -3555,7 +3560,7 @@ export function KodyChat({
           ...prev,
           {
             role: "user" as const,
-            content: userMessage,
+            content: baseMessage,
             timestamp: new Date().toISOString(),
           },
           {
@@ -3570,7 +3575,15 @@ export function KodyChat({
       return;
     }
 
-    await sendText(userMessage, currentAttachments);
+    // The visible bubble shows just the typed text; the model still gets
+    // baseMessage + chip contexts. sendText builds the wire/display split
+    // (mirroring the auto-attached preview context split from #140).
+    await sendText(
+      baseMessage,
+      currentAttachments,
+      {},
+      currentChips.map((c) => c.context),
+    );
   };
 
   // ─── Voice chat integration ───
