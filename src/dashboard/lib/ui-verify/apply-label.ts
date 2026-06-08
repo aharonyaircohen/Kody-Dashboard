@@ -1,15 +1,40 @@
 /**
  * @fileType utility
  * @domain ui-verify
- * @pattern webhook-action
+ * @pattern folder-root
  *
- * Reads the verdict from a freshly posted kody review comment and
- * applies the corresponding label to the PR:
+ * Folder: `ui-verify/` — the auto UI-verification gate for PRs.
+ *
+ * Two halves: the PR-side trigger (`dispatch.ts` posts `@kody ui-review`
+ * so the engine runs ui-review) and the dashboard-side apply (this file
+ * + `verdict.ts`, called from the GitHub webhook receiver to translate
+ * a `## Verdict:` line in the review comment into a `kody:ui-verified` /
+ * `kody:ui-failed` PR label). Module map:
+ *   - `labels.ts`   — label constants + the guard set
+ *   - `verdict.ts`  — pure parser for `## Verdict: PASS|CONCERNS|FAIL`
+ *   - `dispatch.ts` — opt-in trigger for `@kody ui-review`
+ *   - this file    — webhook-side verdict → label application
+ *
+ * This file reads the verdict from a freshly posted kody review comment
+ * and applies the corresponding label to the PR:
  *   PASS / CONCERNS → kody:ui-verified
  *   FAIL            → kody:ui-failed
  *
  * Idempotent at the GitHub level — `addLabels` is a no-op if the
  * label is already present.
+ *
+ * @ai-summary ui-verify/ — the auto UI-verification gate for PRs. This
+ *   file is the only currently-wired entry point: the GitHub webhook
+ *   route calls `applyVerdictFromComment` on `issue_comment.created` for
+ *   comments on issues with a `pull_request` field whose body contains
+ *   "Verdict". The trigger half (`dispatch.ts`) is dead code in
+ *   production — auto-dispatch on Vercel preview-ready was disabled
+ *   after a re-fire loop (the per-PR guard label didn't hold because
+ *   SHA changes on every preview sync, jamming the Actions queue).
+ *   UI review is now opt-in via the "Request UI review" button in
+ *   PreviewActions. Trap: don't re-enable dispatch from the webhook
+ *   without SHA/preview-URL-keyed dedup — the label guard alone will
+ *   not save you.
  */
 
 import { addLabels, ensureLabel } from "../github-client";

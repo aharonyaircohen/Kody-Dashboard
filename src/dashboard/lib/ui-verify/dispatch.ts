@@ -12,6 +12,21 @@
  * label (kody:ui-verified / kody:ui-failed / kody:reviewing-ui /
  * kody:reviewing). The `kody:reviewing-ui` check is the in-flight
  * marker — set by ui-review's preflight (`setLifecycleLabel`).
+ *
+ * @ai-summary The trigger half of ui-verify/: posts `@kody ui-review` on
+ *   a PR so the engine's kody.yml dispatcher picks it up and runs the
+ *   ui-review executable. This module is currently dead code in
+ *   production — the webhook route's `check_run` handler stopped
+ *   auto-dispatching after a re-fire loop: with auto-sync re-pushing
+ *   ~30 open PRs every cycle, each rebuild produced a fresh
+ *   preview-ready check, so this re-fired endlessly (984 comments
+ *   observed) and jammed the Actions queue. The per-PR guard label
+ *   didn't hold because the SHA changes on every sync. UI review is
+ *   now opt-in only via the "Request UI review" button in
+ *   PreviewActions. Trap: if you re-enable auto-dispatch, the label
+ *   guard here is not enough — you also need SHA/preview-URL-keyed
+ *   dedup, otherwise a single PR rebuild triggers a fresh run every
+ *   time.
  */
 
 import { fetchIssue, postComment } from "../github-client";
