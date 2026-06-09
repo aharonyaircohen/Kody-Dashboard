@@ -1,0 +1,20 @@
+{
+  "taskId": "163",
+  "taskType": "issue",
+  "target": "163",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added folder-level README to src/dashboard/lib/runners/ with @ai-summary header, three-concern map, dispatch flow diagram, and the FLY_API_TOKEN vault gotcha. Also applied `prettier --write` to 4 pre-existing line-wrap failures in files unrelated to this issue to clear the format gate (verify ran clean after).",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/runners/README.md",
+    "app/api/kody/docs/route.ts",
+    "src/dashboard/lib/components/KodyChat.tsx",
+    "tests/unit/auth-me.spec.ts",
+    "tests/unit/files-page.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/163.jsonl",
+  "startedAt": "2026-06-09T21:17:00Z",
+  "finishedAt": "2026-06-09T21:18:30Z"
+}
