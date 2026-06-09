@@ -59,10 +59,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const status = (error as { status?: number }).status;
     const message = error instanceof Error ? error.message : String(error);
     if (message === "invalid_doc_path") {
-      return NextResponse.json(
-        { error: "invalid_doc_path" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "invalid_doc_path" }, { status: 400 });
     }
     if (status === 401) {
       return NextResponse.json(

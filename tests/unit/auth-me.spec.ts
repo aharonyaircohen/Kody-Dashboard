@@ -20,7 +20,9 @@ describe("GET /api/kody/auth/me", () => {
     vi.stubEnv("KODY_BOT_TOKEN", "bot-token");
     const { GET } = await import("../../app/api/kody/auth/me/route");
 
-    const res = await GET(new NextRequest("https://dash.test/api/kody/auth/me"));
+    const res = await GET(
+      new NextRequest("https://dash.test/api/kody/auth/me"),
+    );
     const json = await res.json();
 
     expect(res.status).toBe(200);

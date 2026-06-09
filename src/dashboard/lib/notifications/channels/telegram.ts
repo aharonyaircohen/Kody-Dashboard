@@ -1,8 +1,16 @@
 /**
- * Telegram bot adapter. POSTs to https://api.telegram.org/bot<token>/sendMessage
- * with `{ chat_id, text, parse_mode }`. The bot must already be added to
- * the target chat (group/channel) and the chatId is what `getUpdates`
- * returns or what @userinfobot reports.
+ * @fileType utility
+ * @domain kody
+ * @pattern telegram-channel-adapter
+ * @ai-summary Telegram bot adapter. POSTs `{ chat_id, text,
+ *   disable_web_page_preview }` to
+ *   `https://api.telegram.org/bot<token>/sendMessage`. The bot token is the
+ *   auth (carried in the URL path, URL-encoded defensively) and MUST be
+ *   treated as a secret. Trap: Telegram does NOT render Slack-flavoured
+ *   mrkdwn — text is sent plain; users wanting bold/links should use a
+ *   `generic-webhook` with `parse_mode: HTML` instead. The bot must already
+ *   be in the target chat or Telegram returns 400/403; validator can't catch
+ *   this, it only checks token shape and non-empty chatId.
  */
 import type { NotificationChannel } from "../../notifications";
 import type { SendContext } from "./index";
