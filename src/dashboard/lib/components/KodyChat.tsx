@@ -4467,7 +4467,9 @@ export function KodyChat({
           if (msg.hidden) return null;
 
           const parsedAssistant =
-            msg.role === "assistant" ? parseAssistantContent(msg.content) : null;
+            msg.role === "assistant"
+              ? parseAssistantContent(msg.content)
+              : null;
           const visibleText = parsedAssistant?.answer || msg.content;
           const messageDirection = getMessageDirection(visibleText);
 
@@ -4612,10 +4614,7 @@ export function KodyChat({
                       <MessageAttachments attachments={msg.attachments} />
                     )}
                     {msg.content && (
-                      <div
-                        dir={messageDirection}
-                        className="chat-message-text"
-                      >
+                      <div dir={messageDirection} className="chat-message-text">
                         {msg.content}
                       </div>
                     )}
