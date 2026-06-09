@@ -77,7 +77,7 @@ export function MessageActions({
     <>
       <div
         className={cn(
-          "absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 z-10",
+          "absolute top-1 end-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 z-10",
           className,
         )}
       >
@@ -135,7 +135,8 @@ export function MessageActions({
             <textarea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
-              className="w-full h-32 p-2 border rounded-md text-sm resize-none"
+              dir="auto"
+              className="w-full h-32 p-2 border rounded-md text-sm resize-none text-start"
               autoFocus
             />
             <div className="flex justify-end gap-2 mt-2">
