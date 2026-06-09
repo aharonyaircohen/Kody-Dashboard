@@ -24,6 +24,7 @@ import {
   Loader2,
   Pencil,
   Play,
+  Power,
   Plus,
   PowerOff,
   RefreshCw,
@@ -198,6 +199,10 @@ export function DutyControlInner() {
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteDuty(githubUser?.login);
   const runMutation = useRunDuty();
+  const updateMutation = useUpdateDuty(
+    selectedDuty?.slug ?? "",
+    githubUser?.login,
+  );
 
   // Push chat context up to the persistent rail in the root layout.
   // The chat's context follows the currently selected duty (or nothing).
@@ -261,10 +266,14 @@ export function DutyControlInner() {
               onRun={() =>
                 runMutation.mutate({ slug: selectedDuty.slug, force: true })
               }
+              onToggleEnabled={() =>
+                updateMutation.mutate({ disabled: !selectedDuty.disabled })
+              }
               isRunning={
                 runMutation.isPending &&
                 runMutation.variables?.slug === selectedDuty.slug
               }
+              isToggling={updateMutation.isPending}
             />
           ) : (
             <EmptyState
@@ -415,16 +424,21 @@ function DutyDetail({
   onEdit,
   onDelete,
   onRun,
+  onToggleEnabled,
   isRunning,
+  isToggling,
 }: {
   duty: Duty;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onRun: () => void;
+  onToggleEnabled: () => void;
   isRunning: boolean;
+  isToggling: boolean;
 }) {
   const hasBody = duty.body.trim().length > 0;
+  const toggleLabel = duty.disabled ? "Enable" : "Disable";
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -522,6 +536,24 @@ function DutyDetail({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant={duty.disabled ? "default" : "outline"}
+                size="sm"
+                onClick={onToggleEnabled}
+                disabled={isToggling}
+                className="gap-1.5"
+                title={`${toggleLabel} duty`}
+                aria-label={`${toggleLabel} duty`}
+              >
+                {isToggling ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : duty.disabled ? (
+                  <Power className="w-3.5 h-3.5" />
+                ) : (
+                  <PowerOff className="w-3.5 h-3.5" />
+                )}
+                {toggleLabel}
+              </Button>
               <Button
                 size="sm"
                 onClick={onRun}

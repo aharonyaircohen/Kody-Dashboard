@@ -105,6 +105,9 @@ export function useUpdateDuty(slug: string, actorLogin?: string) {
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: (duty) => {
+      queryClient.setQueryData<Duty[]>(dutyQueryKeys.list, (current) =>
+        current?.map((item) => (item.slug === duty.slug ? duty : item)),
+      );
       queryClient.invalidateQueries({ queryKey: dutyQueryKeys.list });
       queryClient.setQueryData(dutyQueryKeys.detail(slug), duty);
       toast.success("Duty updated");
