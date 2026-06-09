@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@dashboard/ui/button";
+import { Checkbox } from "@dashboard/ui/checkbox";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import {
@@ -616,6 +617,7 @@ function CreateDutyDialog({
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState(DUTY_TEMPLATE);
+  const [enabled, setEnabled] = useState(true);
   const [staff, setStaff] = useState<string | null>(null);
   const [mentions, setMentions] = useState("");
   const [executables, setExecutables] = useState<string[]>([]);
@@ -624,6 +626,7 @@ function CreateDutyDialog({
     if (open) {
       setTitle("");
       setBody(DUTY_TEMPLATE);
+      setEnabled(true);
       setStaff(null);
       setMentions("");
       setExecutables([]);
@@ -641,6 +644,7 @@ function CreateDutyDialog({
         // if needed. Omitting `every` entirely would make the engine tick
         // it every cron wake, the opposite of what we want.
         schedule: "manual",
+        disabled: !enabled,
         staff,
         mentions: parseMentionsInput(mentions),
         executables,
@@ -673,6 +677,7 @@ function CreateDutyDialog({
               autoFocus
             />
           </div>
+          <DutyEnabledCheckbox enabled={enabled} onChange={setEnabled} />
           <StaffSelect value={staff} onChange={setStaff} />
           <ExecutablesSelect value={executables} onChange={setExecutables} />
           <MentionsInput value={mentions} onChange={setMentions} />
@@ -713,6 +718,7 @@ function EditDutyDialog({
 
   const [title, setTitle] = useState(duty.title);
   const [body, setBody] = useState(duty.body || "");
+  const [enabled, setEnabled] = useState(!duty.disabled);
   const [schedule, setSchedule] = useState<DutySchedule | null>(duty.schedule);
   const [staff, setStaff] = useState<string | null>(duty.staff);
   const [mentions, setMentions] = useState(formatMentionsInput(duty.mentions));
@@ -721,6 +727,7 @@ function EditDutyDialog({
   useEffect(() => {
     setTitle(duty.title);
     setBody(duty.body || "");
+    setEnabled(!duty.disabled);
     setSchedule(duty.schedule);
     setStaff(duty.staff);
     setMentions(formatMentionsInput(duty.mentions));
@@ -732,6 +739,7 @@ function EditDutyDialog({
     const patch: {
       title?: string;
       body?: string;
+      disabled?: boolean;
       schedule?: DutySchedule | null;
       staff?: string | null;
       mentions?: string[];
@@ -739,6 +747,7 @@ function EditDutyDialog({
     } = {};
     if (title !== duty.title) patch.title = title.trim();
     if (body !== duty.body) patch.body = body;
+    if (enabled !== !duty.disabled) patch.disabled = !enabled;
     if (schedule !== duty.schedule) patch.schedule = schedule;
     if (staff !== duty.staff) patch.staff = staff;
     const nextMentions = parseMentionsInput(mentions);
@@ -774,6 +783,7 @@ function EditDutyDialog({
               autoFocus
             />
           </div>
+          <DutyEnabledCheckbox enabled={enabled} onChange={setEnabled} />
           <ScheduleSelect value={schedule} onChange={setSchedule} />
           <StaffSelect value={staff} onChange={setStaff} />
           <ExecutablesSelect value={executables} onChange={setExecutables} />
@@ -1028,6 +1038,31 @@ function LastTickDetail({
         <RunResultSuffix outcome={lastOutcome} durationMs={lastDurationMs} />
       </span>
     </>
+  );
+}
+
+function DutyEnabledCheckbox({
+  enabled,
+  onChange,
+}: {
+  enabled: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-2 text-sm text-foreground">
+      <Checkbox
+        id="duty-enabled"
+        checked={enabled}
+        onCheckedChange={(checked) => onChange(checked === true)}
+        className="mt-0.5"
+      />
+      <span className="space-y-1">
+        <span className="block font-medium">Enabled</span>
+        <span className="block text-xs text-muted-foreground">
+          Off stops scheduled runs. Manual Run still works.
+        </span>
+      </span>
+    </label>
   );
 }
 
