@@ -7,34 +7,12 @@
  * model and default executable.
  */
 
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   installEngine,
+  WORKFLOW_TEMPLATE_SOURCE,
   type InstallEngineInput,
 } from "@dashboard/lib/engine/install";
-
-// installEngine fetches the canonical kody.yml from unpkg. A unit test must
-// never hit the network, so stub global.fetch to return a valid template —
-// otherwise every test dies in fetchTemplate (404 / offline) before the
-// install logic under test even runs.
-const MOCK_TEMPLATE =
-  "# Kody engine workflow\nname: kody\non:\n  workflow_dispatch:\n";
-
-beforeEach(() => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      text: async () => MOCK_TEMPLATE,
-    }),
-  );
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Mock helpers
@@ -101,7 +79,7 @@ describe("installEngine", () => {
   describe("kody.config.json creation", () => {
     it("creates kody.config.json at the repo root after the workflow", async () => {
       const octokit = createMockOctokit();
-      const { calls, getByPath } = captureFileWrites(octokit);
+      const { getByPath } = captureFileWrites(octokit);
 
       const input: InstallEngineInput = {
         octokit,
@@ -114,10 +92,35 @@ describe("installEngine", () => {
       const result = await installEngine(input);
 
       expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.error);
+      expect(result.workflow.templateSource).toBe(WORKFLOW_TEMPLATE_SOURCE);
 
       // kody.config.json must be created
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
+    });
+
+    it("writes a kody.yml workflow that accepts dashboard chat inputs", async () => {
+      const octokit = createMockOctokit();
+      const { getByPath } = captureFileWrites(octokit);
+
+      const input: InstallEngineInput = {
+        octokit,
+        owner: "example",
+        repo: "my-repo",
+        token: "ghp_mocktoken",
+        hookUrl: "https://dashboard.example.com/api/webhooks/github",
+      };
+
+      await installEngine(input);
+
+      const workflowFile = getByPath(".github/workflows/kody.yml");
+      expect(workflowFile).toBeDefined();
+      expect(workflowFile!.content).toContain("sessionId:");
+      expect(workflowFile!.content).toContain("message:");
+      expect(workflowFile!.content).toContain("dashboardUrl:");
+      expect(workflowFile!.content).toContain("DASHBOARD_URL:");
+      expect(workflowFile!.content).toContain("kody-engine");
     });
 
     it("kody.config.json contains executables.default set to run", async () => {

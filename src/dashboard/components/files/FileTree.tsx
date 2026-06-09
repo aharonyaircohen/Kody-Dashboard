@@ -42,8 +42,11 @@ interface FileTreeProps {
   repo: string;
   refreshKey?: number;
   onRefresh: () => void;
-  onDelete?: (path: string) => void;
-  onRename?: (path: string) => void;
+  onDelete?: (path: string, pathType: FileEntry["type"]) => void;
+  onRename?: (path: string, pathType: FileEntry["type"]) => void;
+  onDuplicate?: (path: string, pathType: FileEntry["type"]) => void;
+  onDownload?: (path: string, pathType: FileEntry["type"]) => void;
+  onOpenOnGitHub?: (path: string, pathType: FileEntry["type"]) => void;
   onNewFile?: (dirPath: string) => void;
   onNewFolder?: (dirPath: string) => void;
   onCopyPath?: (path: string) => void;
@@ -139,7 +142,11 @@ interface TreeNodeRowProps {
   owner: string;
   repo: string;
   sortKey: SortKey;
-  onContextMenu: (e: React.MouseEvent, path: string) => void;
+  onContextMenu: (
+    e: React.MouseEvent,
+    path: string,
+    type: FileEntry["type"],
+  ) => void;
 }
 
 function TreeNodeRow({
@@ -179,7 +186,7 @@ function TreeNodeRow({
             onSelect(entry.path);
           }
         }}
-        onContextMenu={(e) => onContextMenu(e, entry.path)}
+        onContextMenu={(e) => onContextMenu(e, entry.path, entry.type)}
         role="treeitem"
         tabIndex={0}
         aria-expanded={isDir ? isOpen : undefined}
@@ -237,6 +244,9 @@ export function FileTree({
   onRefresh,
   onDelete,
   onRename,
+  onDuplicate,
+  onDownload,
+  onOpenOnGitHub,
   onNewFile,
   onNewFolder,
   onCopyPath,
@@ -253,6 +263,7 @@ export function FileTree({
     x: number;
     y: number;
     path: string;
+    type: FileEntry["type"];
   } | null>(null);
 
   // Load root directory
@@ -356,10 +367,13 @@ export function FileTree({
     [onFileSelect],
   );
 
-  const handleContextMenu = useCallback((e: React.MouseEvent, path: string) => {
-    e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, path });
-  }, []);
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, path: string, type: FileEntry["type"]) => {
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY, path, type });
+    },
+    [],
+  );
 
   const closeContextMenu = useCallback(() => {
     setContextMenu(null);
@@ -468,9 +482,13 @@ export function FileTree({
           x={contextMenu.x}
           y={contextMenu.y}
           path={contextMenu.path}
+          pathType={contextMenu.type}
           onClose={closeContextMenu}
           onDelete={onDelete}
           onRename={onRename}
+          onDuplicate={onDuplicate}
+          onDownload={onDownload}
+          onOpenOnGitHub={onOpenOnGitHub}
           onNewFile={onNewFile}
           onNewFolder={onNewFolder}
           onCopyPath={onCopyPath}

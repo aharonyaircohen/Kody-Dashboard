@@ -7,7 +7,7 @@
  */
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Upload, Loader2, File, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
@@ -40,6 +40,11 @@ export function UploadZone({
   const [destination, setDestination] = useState(destinationDir);
   const [showDestinationInput, setShowDestinationInput] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDestination(destinationDir);
+  }, [destinationDir]);
 
   const handleFiles = useCallback(
     async (files: FileList) => {
@@ -59,7 +64,7 @@ export function UploadZone({
         const { file } = uploadingFile;
 
         // Construct destination path
-        const baseName = file.name;
+        const baseName = file.webkitRelativePath || file.name;
         const destPath = destination
           ? `${destination.replace(/\/$/, "")}/${baseName}`
           : baseName;
@@ -71,10 +76,10 @@ export function UploadZone({
             repo,
             destPath,
             file,
-            `chore: upload ${baseName}`,
+            `chore: upload ${destPath}`,
           );
 
-          toast.success(`Uploaded ${baseName}`);
+          toast.success(`Uploaded ${file.name}`);
 
           // Mark as done
           setUploading((prev) =>
@@ -146,6 +151,12 @@ export function UploadZone({
     fileInputRef.current?.click();
   };
 
+  const handleFolderUploadClick = () => {
+    folderInputRef.current?.setAttribute("webkitdirectory", "");
+    folderInputRef.current?.setAttribute("directory", "");
+    folderInputRef.current?.click();
+  };
+
   const hasActiveUploads = uploading.some((u) => u.progress < 100);
 
   return (
@@ -209,18 +220,36 @@ export function UploadZone({
           {isDragging ? "Drop files here" : "Drag and drop files here"}
         </p>
         <p className="text-xs text-white/30 mb-4">or</p>
-        <button
-          onClick={handleUploadClick}
-          className={cn(
-            "text-sm px-4 py-2 rounded",
-            "bg-white/10 hover:bg-white/15 text-white/80",
-          )}
-        >
-          Browse files
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleUploadClick}
+            className={cn(
+              "text-sm px-4 py-2 rounded",
+              "bg-white/10 hover:bg-white/15 text-white/80",
+            )}
+          >
+            Browse files
+          </button>
+          <button
+            onClick={handleFolderUploadClick}
+            className={cn(
+              "text-sm px-4 py-2 rounded",
+              "bg-white/10 hover:bg-white/15 text-white/80",
+            )}
+          >
+            Browse folder
+          </button>
+        </div>
 
         <input
           ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileInputChange}
+        />
+        <input
+          ref={folderInputRef}
           type="file"
           multiple
           className="hidden"
