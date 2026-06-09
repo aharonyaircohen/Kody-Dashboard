@@ -112,6 +112,44 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("SSH shell did not answer");
   });
 
+  it("boots flyctl with WireGuard over WebSockets enabled", async () => {
+    const app = terminalBridgeAppName(CFG);
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith(`/apps/${app}`)) {
+        return { status: 404 };
+      }
+      if (call.method === "POST" && call.url.endsWith("/apps")) {
+        return { json: { name: app } };
+      }
+      if (call.method === "GET" && call.url.endsWith(`/apps/${app}/machines`)) {
+        return { status: 404 };
+      }
+      if (
+        call.method === "POST" &&
+        call.url.endsWith(`/apps/${app}/machines`)
+      ) {
+        return { json: { id: "bridge-1", state: "started", region: "fra" } };
+      }
+      throw new Error(`unexpected call: ${call.method} ${call.url}`);
+    });
+
+    await ensureTerminalBridge(CFG);
+
+    const createMachine = calls.find(
+      (call) =>
+        call.method === "POST" && call.url.endsWith(`/apps/${app}/machines`),
+    )!;
+    const startFile = (
+      createMachine.body as {
+        config: { files: Array<{ guest_path: string; raw_value: string }> };
+      }
+    ).config.files.find((file) => file.guest_path === "/app/start.sh")!;
+    const startScript = Buffer.from(startFile.raw_value, "base64").toString(
+      "utf8",
+    );
+    expect(startScript).toContain("wire_guard_websockets: true");
+  });
+
   it("creates the bridge app and machine when missing", async () => {
     const app = terminalBridgeAppName(CFG);
     const calls = installFetchStub((call) => {

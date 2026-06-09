@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-06-07.10";
+export const TERMINAL_BRIDGE_VERSION = "2026-06-09.1";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -38,6 +38,9 @@ if ! command -v flyctl >/dev/null 2>&1; then
   curl -L https://fly.io/install.sh | sh
   cp /root/.fly/bin/flyctl /usr/local/bin/flyctl
 fi
+
+mkdir -p /root/.fly
+printf 'wire_guard_websockets: true\n' > /root/.fly/config.yml
 
 exec node /app/bridge.mjs
 `;
