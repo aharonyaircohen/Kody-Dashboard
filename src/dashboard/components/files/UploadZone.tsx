@@ -18,7 +18,11 @@ interface UploadZoneProps {
   octokit: Octokit | null;
   owner: string;
   repo: string;
-  onUploadComplete?: () => void;
+  onUploadComplete?: (uploaded: {
+    path: string;
+    size: number;
+    sha: string;
+  }) => void;
   destinationDir?: string;
 }
 
@@ -70,7 +74,7 @@ export function UploadZone({
           : baseName;
 
         try {
-          await uploadFile(
+          const result = await uploadFile(
             octokit,
             owner,
             repo,
@@ -91,7 +95,11 @@ export function UploadZone({
             setUploading((prev) => prev.filter((u) => u.file !== file));
           }, 1500);
 
-          onUploadComplete?.();
+          onUploadComplete?.({
+            path: destPath,
+            size: file.size,
+            sha: result.sha,
+          });
         } catch (err) {
           const errorMessage =
             err instanceof Error ? err.message : "Upload failed";

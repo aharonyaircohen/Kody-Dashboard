@@ -129,6 +129,31 @@ import {
   type PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
 
+type MessageDirection = "ltr" | "rtl" | "auto";
+
+const LETTER_RE = /\p{L}/u;
+
+function isRtlCodePoint(codePoint: number): boolean {
+  return (
+    codePoint === 0x061c ||
+    codePoint === 0x200f ||
+    (codePoint >= 0x0590 && codePoint <= 0x08ff) ||
+    (codePoint >= 0xfb1d && codePoint <= 0xfdff) ||
+    (codePoint >= 0xfe70 && codePoint <= 0xfefc)
+  );
+}
+
+function getMessageDirection(text: string): MessageDirection {
+  for (const char of text) {
+    const codePoint = char.codePointAt(0);
+    if (!codePoint) continue;
+    if (isRtlCodePoint(codePoint)) return "rtl";
+    if (codePoint === 0x200e || LETTER_RE.test(char)) return "ltr";
+  }
+
+  return "auto";
+}
+
 export function KodyChat({
   context,
   actorLogin,
@@ -4438,15 +4463,22 @@ export function KodyChat({
           </div>
         )}
 
-        {messages.map((msg, i) =>
-          msg.hidden ? null : (
+        {messages.map((msg, i) => {
+          if (msg.hidden) return null;
+
+          const parsedAssistant =
+            msg.role === "assistant" ? parseAssistantContent(msg.content) : null;
+          const visibleText = parsedAssistant?.answer || msg.content;
+          const messageDirection = getMessageDirection(visibleText);
+
+          return (
             <div
               key={i}
               data-role={msg.role}
               className={`group flex ${msg.role === "user" ? "justify-end" : "justify-start"} relative`}
             >
               <div
-                dir="auto"
+                dir={messageDirection}
                 className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
                   msg.role === "user"
                     ? "bg-primary text-primary-foreground"
@@ -4518,9 +4550,10 @@ export function KodyChat({
                       // the ThinkingPanel above, and the raw XML in the
                       // text stream is just noise. Bare URLs get auto-linked
                       // by `remark-gfm` below.
-                      const { reasoning, answer } = parseAssistantContent(
-                        msg.content,
-                      );
+                      const { reasoning, answer } = parsedAssistant ?? {
+                        reasoning: "",
+                        answer: "",
+                      };
                       const isActive =
                         activeLoading && i === messages.length - 1;
                       const hasAnswer = answer.trim().length > 0;
@@ -4538,7 +4571,10 @@ export function KodyChat({
                             />
                           )}
                           {hasAnswer && (
-                            <div className="prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words">
+                            <div
+                              dir={messageDirection}
+                              className="chat-message-text prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
+                            >
                               <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
                                 components={{
@@ -4575,21 +4611,28 @@ export function KodyChat({
                     {msg.attachments && msg.attachments.length > 0 && (
                       <MessageAttachments attachments={msg.attachments} />
                     )}
-                    {msg.content}
+                    {msg.content && (
+                      <div
+                        dir={messageDirection}
+                        className="chat-message-text"
+                      >
+                        {msg.content}
+                      </div>
+                    )}
                   </>
                 )}
                 {activeLoading &&
                   i === messages.length - 1 &&
                   msg.role === "assistant" &&
-                  parseAssistantContent(msg.content).answer.trim() && (
+                  parsedAssistant?.answer.trim() && (
                     <span className="inline-block ml-2 animate-pulse text-primary">
                       ●
                     </span>
                   )}
               </div>
             </div>
-          ),
-        )}
+          );
+        })}
 
         {/* Typing indicator shown before an assistant placeholder exists.
             Covers the Kody-engine first-byte window where the placeholder is

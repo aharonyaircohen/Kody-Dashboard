@@ -826,6 +826,11 @@ math-field:focus-within {
   margin-bottom: 0.75rem;
 }
 
+.chat-message-text {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
 /* KaTeX math expression styling in chat */
 .chat-message-content .katex {
   @apply bg-muted text-foreground p-5 rounded-xl inline-block;

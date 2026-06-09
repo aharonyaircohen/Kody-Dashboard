@@ -20,8 +20,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
-import { canWrite } from "@dashboard/lib/repo-files-perms";
-import { useAuth } from "@dashboard/lib/auth-context";
 
 interface FileContextMenuProps {
   x: number;
@@ -33,14 +31,12 @@ interface FileContextMenuProps {
   onDelete?: (path: string, pathType: "file" | "dir" | "symlink") => void;
   onDuplicate?: (path: string, pathType: "file" | "dir" | "symlink") => void;
   onDownload?: (path: string, pathType: "file" | "dir" | "symlink") => void;
-  onOpenOnGitHub?: (
-    path: string,
-    pathType: "file" | "dir" | "symlink",
-  ) => void;
+  onOpenOnGitHub?: (path: string, pathType: "file" | "dir" | "symlink") => void;
   onNewFile?: (dirPath: string) => void;
   onNewFolder?: (dirPath: string) => void;
   onCopyPath?: (path: string) => void;
   onCreateSymlink?: (path: string) => void;
+  writeable?: boolean;
 }
 
 export function FileContextMenu({
@@ -58,10 +54,9 @@ export function FileContextMenu({
   onNewFolder,
   onCopyPath,
   onCreateSymlink,
+  writeable = false,
 }: FileContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const { auth } = useAuth();
-  const writeable = canWrite(auth);
 
   const dirPath =
     pathType === "dir"

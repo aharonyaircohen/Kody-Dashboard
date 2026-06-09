@@ -120,6 +120,65 @@ const SPECIAL_NAME_MAP: Record<string, LucideIcon> = {
   "yarn.lock": FileJson,
 };
 
+const EXT_COLOR_MAP: Record<string, string> = {
+  ts: "text-sky-400",
+  tsx: "text-sky-400",
+  js: "text-yellow-300",
+  jsx: "text-yellow-300",
+  mjs: "text-yellow-300",
+  cjs: "text-yellow-300",
+  css: "text-blue-400",
+  scss: "text-pink-400",
+  sass: "text-pink-400",
+  less: "text-blue-300",
+  html: "text-orange-400",
+  htm: "text-orange-400",
+  json: "text-amber-300",
+  jsonc: "text-amber-300",
+  json5: "text-amber-300",
+  yaml: "text-violet-300",
+  yml: "text-violet-300",
+  toml: "text-violet-300",
+  xml: "text-orange-300",
+  md: "text-white/70",
+  mdx: "text-white/70",
+  txt: "text-white/60",
+  sh: "text-emerald-400",
+  bash: "text-emerald-400",
+  zsh: "text-emerald-400",
+  fish: "text-emerald-400",
+  ps1: "text-emerald-400",
+  png: "text-fuchsia-300",
+  jpg: "text-fuchsia-300",
+  jpeg: "text-fuchsia-300",
+  gif: "text-fuchsia-300",
+  svg: "text-fuchsia-300",
+  webp: "text-fuchsia-300",
+  ico: "text-fuchsia-300",
+  zip: "text-zinc-400",
+  tar: "text-zinc-400",
+  gz: "text-zinc-400",
+  pem: "text-red-300",
+  crt: "text-red-300",
+  cer: "text-red-300",
+};
+
+const SPECIAL_COLOR_MAP: Record<string, string> = {
+  dockerfile: "text-cyan-400",
+  makefile: "text-emerald-400",
+  procfile: "text-emerald-400",
+  ".gitignore": "text-zinc-400",
+  ".gitattributes": "text-zinc-400",
+  ".env": "text-lime-300",
+  ".env.local": "text-lime-300",
+  ".env.development": "text-lime-300",
+  ".env.production": "text-lime-300",
+  "package.json": "text-emerald-300",
+  "package-lock.json": "text-emerald-300",
+  "pnpm-lock.yaml": "text-orange-300",
+  "yarn.lock": "text-blue-300",
+};
+
 /**
  * Get the icon component for a file path.
  */
@@ -143,6 +202,23 @@ export function getFileIcon(
 
   // Default
   return File;
+}
+
+export function getFileIconColor(
+  path: string,
+  isOpen = false,
+  isSymlink = false,
+  isDir = false,
+): string {
+  if (isDir) return isOpen ? "text-amber-300" : "text-amber-400";
+  if (isSymlink) return "text-cyan-300";
+
+  const name = path.split("/").pop() ?? path;
+  const specialKey = name.toLowerCase();
+  if (SPECIAL_COLOR_MAP[specialKey]) return SPECIAL_COLOR_MAP[specialKey];
+
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  return EXT_COLOR_MAP[ext] ?? "text-white/60";
 }
 
 /**
