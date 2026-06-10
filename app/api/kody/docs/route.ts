@@ -3,7 +3,7 @@
  * @domain docs
  * @pattern docs-api
  *
- * GET /api/kody/docs — Lists README.md + docs/*.md from the connected repo.
+ * GET /api/kody/docs — Lists README.md and nested docs markdown from the connected repo.
  * GET /api/kody/docs?path=<path> — Returns content + metadata for a single doc.
  * Read-only: docs are maintained in PRs. Returns an empty manifest when no
  * docs exist yet.
@@ -59,10 +59,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const status = (error as { status?: number }).status;
     const message = error instanceof Error ? error.message : String(error);
     if (message === "invalid_doc_path") {
-      return NextResponse.json(
-        { error: "invalid_doc_path" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "invalid_doc_path" }, { status: 400 });
     }
     if (status === 401) {
       return NextResponse.json(

@@ -12,6 +12,7 @@ import {
   Bell,
   Bot,
   Boxes,
+  Brain,
   Building2,
   Cpu,
   FileText,
@@ -240,6 +241,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description:
           "Curated markdown context you feed Kody — attach to staff; Kody's entries frame every chat turn.",
         tint: "text-teal-300 bg-teal-500/10",
+      },
+      {
+        href: "/memory",
+        label: "Memory",
+        icon: Brain,
+        description:
+          "Persistent facts and feedback Kody remembers across chat turns.",
+        tint: "text-fuchsia-300 bg-fuchsia-500/10",
       },
     ],
   },

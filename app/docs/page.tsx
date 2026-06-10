@@ -2,8 +2,8 @@
  * @fileType page
  * @domain docs
  * @pattern docs-page
- * @ai-summary Docs entry point. Renders README.md + docs/*.md from the
- *   connected repo, listed in a left sidebar with markdown rendering on
+ * @ai-summary Docs entry point. Renders README.md and nested docs markdown
+ *   from the connected repo, listed in a left sidebar tree with rendering on
  *   the right. Read-only; docs are maintained in PRs.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
