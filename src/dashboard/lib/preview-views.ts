@@ -30,13 +30,52 @@ function storageKey(owner: string, repo: string): string {
   return `${STORAGE_PREFIX}.${owner}/${repo}`;
 }
 
+function stripTrailingPathSlash(path: string): string {
+  const queryIndex = path.indexOf("?");
+  const hashIndex = path.indexOf("#");
+  const splitIndex =
+    queryIndex === -1
+      ? hashIndex
+      : hashIndex === -1
+        ? queryIndex
+        : Math.min(queryIndex, hashIndex);
+  const pathname = splitIndex === -1 ? path : path.slice(0, splitIndex);
+  const suffix = splitIndex === -1 ? "" : path.slice(splitIndex);
+
+  if (pathname.length > 1 && pathname.endsWith("/")) {
+    return `${pathname.slice(0, -1)}${suffix}`;
+  }
+
+  return path;
+}
+
+function splitViewPath(path: string): {
+  pathname: string;
+  search: string;
+  hash: string;
+} {
+  const hashIndex = path.indexOf("#");
+  const beforeHash = hashIndex === -1 ? path : path.slice(0, hashIndex);
+  const hash = hashIndex === -1 ? "" : path.slice(hashIndex);
+  const queryIndex = beforeHash.indexOf("?");
+
+  if (queryIndex === -1) {
+    return { pathname: beforeHash, search: "", hash };
+  }
+
+  return {
+    pathname: beforeHash.slice(0, queryIndex) || "/",
+    search: beforeHash.slice(queryIndex),
+    hash,
+  };
+}
+
 /** Normalize a user-entered path: must start with "/", no trailing slash. */
 export function normalizePath(input: string): string {
   let p = (input || "").trim();
   if (!p) return "/";
   if (!p.startsWith("/")) p = "/" + p;
-  if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
-  return p;
+  return stripTrailingPathSlash(p);
 }
 
 /**
@@ -48,16 +87,33 @@ export function joinPreviewUrl(baseUrl: string, path: string): string {
   if (!baseUrl) return "";
   const normalized = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   const tail = normalizePath(path);
-  if (tail === "/") return normalized || baseUrl;
+  const tailParts = splitViewPath(tail);
+  if (tailParts.pathname === "/" && !tailParts.search && !tailParts.hash) {
+    return normalized || baseUrl;
+  }
 
   try {
     const url = new URL(baseUrl);
-    const basePath =
-      url.pathname.length > 1 && url.pathname.endsWith("/")
-        ? url.pathname.slice(0, -1)
-        : url.pathname;
-    const prefix = basePath === "/" ? "" : basePath;
-    url.pathname = `${prefix}${tail}`;
+    if (tailParts.pathname !== "/") {
+      const basePath =
+        url.pathname.length > 1 && url.pathname.endsWith("/")
+          ? url.pathname.slice(0, -1)
+          : url.pathname;
+      const prefix = basePath === "/" ? "" : basePath;
+      url.pathname = `${prefix}${tailParts.pathname}`;
+    }
+
+    if (tailParts.search) {
+      const viewParams = new URLSearchParams(tailParts.search);
+      viewParams.forEach((value, key) => {
+        url.searchParams.append(key, value);
+      });
+    }
+
+    if (tailParts.hash) {
+      url.hash = tailParts.hash;
+    }
+
     return url.toString();
   } catch {
     // Preserve the historical string append behavior for non-absolute bases.

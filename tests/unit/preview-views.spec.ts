@@ -26,6 +26,9 @@ describe("normalizePath", () => {
     expect(normalizePath("/admin/")).toBe("/admin");
     expect(normalizePath("/")).toBe("/");
   });
+  it("strips trailing slashes before query params", () => {
+    expect(normalizePath("/study/?grade=7")).toBe("/study?grade=7");
+  });
   it("collapses blanks to root", () => {
     expect(normalizePath("")).toBe("/");
     expect(normalizePath("   ")).toBe("/");
@@ -59,6 +62,19 @@ describe("joinPreviewUrl", () => {
   it("preserves query params and hash when appending a path", () => {
     expect(joinPreviewUrl("https://x.dev/base?kp=ticket#top", "/study")).toBe(
       "https://x.dev/base/study?kp=ticket#top",
+    );
+  });
+  it("preserves query params from the selected view path", () => {
+    expect(
+      joinPreviewUrl(
+        "https://x.dev?kp=ticket",
+        "/study?grade=7&courseId=abc&locale=he",
+      ),
+    ).toBe("https://x.dev/study?kp=ticket&grade=7&courseId=abc&locale=he");
+  });
+  it("lets the selected view hash override the base hash", () => {
+    expect(joinPreviewUrl("https://x.dev?kp=ticket#old", "/study#topics")).toBe(
+      "https://x.dev/study?kp=ticket#topics",
     );
   });
   it("returns empty string for empty base", () => {
