@@ -22,6 +22,7 @@ import { requireKodyAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import { spawnRunner } from "@dashboard/lib/runners/fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+import { claimFromPool } from "@dashboard/lib/runners/pool-client";
 
 export const runtime = "nodejs";
 
@@ -93,6 +94,32 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const claim = await claimFromPool({
+      jobId: sessionId,
+      repo: `${owner}/${repo}`,
+      issueNumber,
+      ref,
+      sessionId,
+    });
+    if (claim.ok) {
+      logger.info(
+        { issueNumber, machineId: claim.machineId, owner, repo, sessionId },
+        "vibe-execute: claimed warm pool machine",
+      );
+      return NextResponse.json({
+        ok: true,
+        issueNumber,
+        runner: "pool",
+        machineId: claim.machineId,
+        sessionId,
+      });
+    }
+
+    logger.info(
+      { issueNumber, owner, repo, sessionId, ref, poolMiss: claim.reason },
+      "vibe-execute: pool miss — spawning fresh runner",
+    );
+
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
       githubToken,

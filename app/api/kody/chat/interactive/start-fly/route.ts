@@ -28,7 +28,7 @@ import {
 } from "@dashboard/lib/vibe/primer";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
-import { spawnFlyRunner } from "@dashboard/lib/runners/fly-run";
+import { claimOrSpawnFly } from "@dashboard/lib/runners/fly-run";
 
 export const runtime = "nodejs";
 
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
 
     // Shared with the GitHub→Fly fallback in /interactive/start so the two
     // paths can't drift.
-    const result = await spawnFlyRunner(ctxResult.context, {
+    const result = await claimOrSpawnFly(ctxResult.context, {
       taskId,
       idleExitMs,
       hardCapMs,

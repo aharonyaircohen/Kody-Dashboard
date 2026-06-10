@@ -12,7 +12,7 @@
  *     falls back to Fly with fellBackOnError;
  *   - no Fly token → stays on GitHub (dispatches) even when unhealthy.
  *
- * Collaborators (health probe, Fly context, Fly spawn) are mocked at their
+ * Collaborators (health probe, Fly context, claim/spawn) are mocked at their
  * module seams so the test is deterministic — the real glue under test is the
  * route handler + the dispatchRun orchestrator.
  */
@@ -31,7 +31,7 @@ import { NextRequest } from "next/server";
 // ── Mock collaborators ───────────────────────────────────────────────────────
 const checkGitHubActionsHealth = vi.fn();
 const resolveFlyContext = vi.fn();
-const spawnFlyRunner = vi.fn();
+const claimOrSpawnFly = vi.fn();
 
 vi.mock("@dashboard/lib/runners/github-health", () => ({
   checkGitHubActionsHealth: (...a: unknown[]) => checkGitHubActionsHealth(...a),
@@ -41,7 +41,7 @@ vi.mock("@dashboard/lib/runners/fly-context", () => ({
   resolveFlyContext: (...a: unknown[]) => resolveFlyContext(...a),
 }));
 vi.mock("@dashboard/lib/runners/fly-run", () => ({
-  spawnFlyRunner: (...a: unknown[]) => spawnFlyRunner(...a),
+  claimOrSpawnFly: (...a: unknown[]) => claimOrSpawnFly(...a),
 }));
 
 import { POST as startPOST } from "../../app/api/kody/chat/interactive/start/route";
@@ -106,7 +106,7 @@ afterEach(() => {
   nock.cleanAll();
   checkGitHubActionsHealth.mockReset();
   resolveFlyContext.mockReset();
-  spawnFlyRunner.mockReset();
+  claimOrSpawnFly.mockReset();
 });
 
 describe("POST /interactive/start — GitHub→Fly fallback", () => {
@@ -120,15 +120,15 @@ describe("POST /interactive/start — GitHub→Fly fallback", () => {
       reason: "actions status degraded_performance",
     });
     resolveFlyContext.mockResolvedValue({ ok: true, context: flyContext });
-    spawnFlyRunner.mockResolvedValue({ runner: "fly", machineId: "m-fly" });
+    claimOrSpawnFly.mockResolvedValue({ runner: "pool", machineId: "m-warm" });
 
     const res = await startPOST(makeRequest({ taskId: "sess-proactive" }));
     const json = await res.json();
 
     expect(res.status).toBe(200);
     expect(json.runner).toBe("fly");
-    expect(json.machineId).toBe("m-fly");
-    expect(spawnFlyRunner).toHaveBeenCalledOnce();
+    expect(json.machineId).toBe("m-warm");
+    expect(claimOrSpawnFly).toHaveBeenCalledOnce();
     expect(json.target.workflow).toBe("fly");
     // No nock for the dispatch endpoint — if the route had tried to dispatch,
     // disableNetConnect would have thrown and failed the test.
@@ -144,7 +144,7 @@ describe("POST /interactive/start — GitHub→Fly fallback", () => {
       reason: "healthy",
     });
     resolveFlyContext.mockResolvedValue({ ok: true, context: flyContext });
-    spawnFlyRunner.mockResolvedValue({ runner: "fly", machineId: "m-fresh" });
+    claimOrSpawnFly.mockResolvedValue({ runner: "fly", machineId: "m-fresh" });
     // GitHub healthy → route attempts the dispatch; make it 500.
     nock(GITHUB_API)
       .post(/\/repos\/acme\/widgets\/actions\/workflows\/kody\.yml\/dispatches/)
@@ -157,7 +157,7 @@ describe("POST /interactive/start — GitHub→Fly fallback", () => {
     expect(json.runner).toBe("fly");
     expect(json.fellBackOnError).toBe(true);
     expect(json.machineId).toBe("m-fresh");
-    expect(spawnFlyRunner).toHaveBeenCalledOnce();
+    expect(claimOrSpawnFly).toHaveBeenCalledOnce();
   });
 
   it("stays on GitHub when unhealthy but no Fly token is configured", async () => {
@@ -183,7 +183,7 @@ describe("POST /interactive/start — GitHub→Fly fallback", () => {
 
     expect(res.status).toBe(200);
     expect(json.runner).toBe("github");
-    expect(spawnFlyRunner).not.toHaveBeenCalled();
+    expect(claimOrSpawnFly).not.toHaveBeenCalled();
     expect(dispatch.isDone()).toBe(true);
   });
 });

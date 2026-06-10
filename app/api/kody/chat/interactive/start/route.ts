@@ -36,7 +36,7 @@ import {
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
-import { spawnFlyRunner } from "@dashboard/lib/runners/fly-run";
+import { claimOrSpawnFly } from "@dashboard/lib/runners/fly-run";
 import { checkGitHubActionsHealth } from "@dashboard/lib/runners/github-health";
 import { dispatchRun } from "@dashboard/lib/runners/runner-dispatch";
 
@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
           })
           .then(() => undefined),
       runFly: () =>
-        spawnFlyRunner(flyCtx!.ok ? flyCtx!.context : (null as never), {
+        claimOrSpawnFly(flyCtx!.ok ? flyCtx!.context : (null as never), {
           taskId,
           idleExitMs,
           hardCapMs,

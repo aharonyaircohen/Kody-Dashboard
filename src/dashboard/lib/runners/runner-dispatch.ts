@@ -13,7 +13,7 @@ import type { GitHubActionsHealth } from "./github-health";
 import { chooseRunner, type RunnerChoice } from "./runner-router";
 
 export interface FlyRunResult {
-  runner: "fly";
+  runner: "pool" | "fly";
   machineId: string;
 }
 

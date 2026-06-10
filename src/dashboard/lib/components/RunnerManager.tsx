@@ -7,8 +7,8 @@
  *   grouped BY FEATURE so each setting's owner + effect is obvious:
  *     • Previews — per-PR preview size, idle-suspend, expiry (PreviewsCard) +
  *       manual branch previews.
- *     • Runners — VM size (the per-user perf tier, this browser only,
- *       localStorage.kody_auth.flyPerf).
+ *     • Runners — warm-pool size (POOL_MIN vault, repo-wide) + VM size (the
+ *       per-user perf tier, this browser only, localStorage.kody_auth.flyPerf).
  *     • Brain — per-user Brain-on-Fly.
  *   Fly token status sits on top (gates everything); the token is set on
  *   /secrets. Health-check is deliberately not exposed (footgun — defeats
@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Brain,
+  Cpu,
   Globe,
   Info,
   KeyRound,
@@ -31,6 +32,7 @@ import {
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
+import { Input } from "@dashboard/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { BrainFlyCard, type BrainFlyState } from "./BrainFlyCard";
 import { FlyActivityTab } from "./FlyActivityTab";
@@ -44,6 +46,11 @@ import { getStoredAuth } from "../api";
 
 /** Vault key under which the project-scoped Fly Machines token is stored. */
 const FLY_VAULT_KEY = "FLY_API_TOKEN";
+/** Vault key sizing the per-repo warm pool. */
+const POOL_MIN_VAULT_KEY = "POOL_MIN";
+/** Default + ceiling mirror the engine clamp. */
+const POOL_MIN_DEFAULT = 2;
+const POOL_MIN_MAX = 10;
 
 const FLY_PERF_DEFAULT: FlyPerfTier = "medium";
 
@@ -80,6 +87,7 @@ function vaultHeaders(): Record<string, string> {
 /** Tooltip copy for the blast-radius chips. Kept in one place so the wording
  * stays consistent between the per-section chips and any future chips. */
 const SCOPE_CHIP_HINTS = {
+  wholeRepo: "Applies to everyone using the repo.",
   justYou: "Only affects this browser — not other users.",
 };
 
@@ -142,8 +150,11 @@ function GroupHeader({
 export function RunnerManager() {
   const { auth, updateIntegrations } = useAuth();
 
-  // ─── Repo-wide: FLY_API_TOKEN probe ─────────────────────────────────────
+  // ─── Repo-wide: FLY_API_TOKEN probe + warm pool size ───────────────────
   const [flyTokenConfigured, setFlyTokenConfigured] = useState(false);
+  const [poolMin, setPoolMin] = useState("");
+  const [poolMinSaved, setPoolMinSaved] = useState("");
+  const [poolMinSaving, setPoolMinSaving] = useState(false);
 
   // ─── Per-user: perf tier (VM size for THIS browser's runs) ──────────────
   const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT);
@@ -172,15 +183,43 @@ export function RunnerManager() {
     }
   }, []);
 
+  const loadPoolMin = useCallback(async () => {
+    const headers = vaultHeaders();
+    if (Object.keys(headers).length === 0) {
+      setPoolMin("");
+      setPoolMinSaved("");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/kody/secrets/${POOL_MIN_VAULT_KEY}/value`, {
+        headers,
+      });
+      if (!res.ok) {
+        setPoolMin("");
+        setPoolMinSaved("");
+        return;
+      }
+      const body = (await res.json()) as { value?: string };
+      const v = body.value ?? "";
+      setPoolMin(v);
+      setPoolMinSaved(v);
+    } catch {
+      setPoolMin("");
+      setPoolMinSaved("");
+    }
+  }, []);
+
   useEffect(() => {
     void probeFlyToken();
-  }, [probeFlyToken]);
+    void loadPoolMin();
+  }, [probeFlyToken, loadPoolMin]);
 
   // Seed the per-user perf tier from auth (or on repo switch).
   useEffect(() => {
     setFlyPerf(auth?.flyPerf ?? FLY_PERF_DEFAULT);
   }, [auth?.flyPerf]);
 
+  const poolMinHasChanges = poolMin.trim() !== poolMinSaved.trim();
   const flyHasChanges = flyPerf !== (auth?.flyPerf ?? FLY_PERF_DEFAULT);
 
   function saveFly() {
@@ -188,6 +227,37 @@ export function RunnerManager() {
       flyPerf: flyPerf === FLY_PERF_DEFAULT ? null : flyPerf,
     });
     toast.success("Fly performance tier saved");
+  }
+
+  async function savePoolMin() {
+    const n = Number(poolMin.trim());
+    if (!Number.isInteger(n) || n < 0 || n > POOL_MIN_MAX) {
+      toast.error(
+        `Warm pool size must be a whole number from 0 to ${POOL_MIN_MAX}`,
+      );
+      return;
+    }
+    setPoolMinSaving(true);
+    try {
+      const res = await fetch(`/api/kody/secrets`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...vaultHeaders() },
+        body: JSON.stringify({ name: POOL_MIN_VAULT_KEY, value: String(n) }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(body.message ?? `Save failed (${res.status})`);
+      }
+      setPoolMinSaved(String(n));
+      setPoolMin(String(n));
+      toast.success("Warm pool size saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setPoolMinSaving(false);
+    }
   }
 
   return (
@@ -307,6 +377,46 @@ export function RunnerManager() {
                   />
                   <Card className="border-white/[0.08] bg-white/[0.03]">
                     <CardContent className="p-4 space-y-3">
+                      {/* Warm pool — repo-wide */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Cpu className="w-4 h-4 text-sky-400" />
+                          <h2 className="text-sm font-semibold">
+                            Warm pool size
+                          </h2>
+                          <SimpleTooltip
+                            content="How many pre-warmed runner machines to keep ready for this repo."
+                            side="right"
+                          >
+                            <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
+                          </SimpleTooltip>
+                          <SimpleTooltip
+                            content={SCOPE_CHIP_HINTS.wholeRepo}
+                            side="bottom"
+                          >
+                            <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
+                              whole repo
+                            </span>
+                          </SimpleTooltip>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={poolMin}
+                            onChange={(e) => setPoolMin(e.target.value)}
+                            placeholder={String(POOL_MIN_DEFAULT)}
+                            inputMode="numeric"
+                            className="w-24"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={savePoolMin}
+                            disabled={!poolMinHasChanges || poolMinSaving}
+                          >
+                            Save pool
+                          </Button>
+                        </div>
+                      </div>
+
                       {/* Speed of my runs — per-user (this browser) */}
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
@@ -357,7 +467,6 @@ export function RunnerManager() {
                           Save my speed
                         </Button>
                       </div>
-
                     </CardContent>
                   </Card>
                 </section>

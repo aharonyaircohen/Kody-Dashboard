@@ -13,7 +13,7 @@ function health(over: Partial<GitHubActionsHealth>): GitHubActionsHealth {
   };
 }
 
-const FLY_OK = { runner: "fly" as const, machineId: "m-123" };
+const FLY_OK = { runner: "pool" as const, machineId: "m-123" };
 
 describe("dispatchRun", () => {
   it("dispatches to GitHub when healthy and never touches Fly", async () => {
