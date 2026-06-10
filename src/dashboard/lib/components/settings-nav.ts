@@ -98,6 +98,16 @@ export const VIBE_NAV_ITEM: SettingsNavItem = {
   tint: "text-fuchsia-300 bg-fuchsia-500/10",
 };
 
+export const PREVIEW_NAV_ITEM: SettingsNavItem = {
+  href: "/preview",
+  label: "Preview",
+  icon: MonitorPlay,
+  exact: true,
+  description:
+    "Live preview of any environment — Production, Staging, Dev — with views, device sizes, and element-pick into chat.",
+  tint: "text-sky-300 bg-sky-500/10",
+};
+
 /**
  * Primary view switch (Dashboard / Tasks / Vibe), rendered at the very top of
  * the sidebar rail and mobile menu. Replaces the old header ViewToggle +
@@ -117,27 +127,17 @@ export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
   {
-    href: "/terminal",
-    label: "Terminal",
-    icon: SquareTerminal,
-    exact: true,
-    description: "Interactive shell for live Fly runner and Brain machines.",
-    tint: "text-emerald-300 bg-emerald-500/10",
+    href: "/messages",
+    label: "Messages",
+    icon: MessageSquare,
+    description: "Team chat history.",
+    tint: "text-cyan-300 bg-cyan-500/10",
   },
   {
-    href: "/duties",
-    label: "Duties",
-    icon: Layers,
-    exact: true,
-    description: "Run and edit recurring duties.",
-    tint: "text-amber-300 bg-amber-500/10",
-  },
-  {
-    href: "/executables",
-    label: "Executables",
-    icon: Boxes,
-    exact: true,
-    description: "Manage custom @kody executables (folder duties).",
+    href: "/inbox",
+    label: "Inbox",
+    icon: Inbox,
+    description: "Durable list of @mentions and review requests.",
     tint: "text-amber-300 bg-amber-500/10",
   },
   {
@@ -147,59 +147,7 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     description: "Outputs from duty runs.",
     tint: "text-sky-300 bg-sky-500/10",
   },
-  {
-    href: "/staff",
-    label: "Staff",
-    icon: Users,
-    description: "Personas that execute your duties.",
-    tint: "text-violet-300 bg-violet-500/10",
-  },
-  {
-    href: "/trust",
-    label: "Trust",
-    icon: ShieldCheck,
-    exact: true,
-    description:
-      "How close each staff member is to acting on its own — grant or revoke autonomy per action.",
-    tint: "text-emerald-300 bg-emerald-500/10",
-  },
-  {
-    href: "/preview",
-    label: "Preview",
-    icon: MonitorPlay,
-    exact: true,
-    description:
-      "Live preview of any environment — Production, Staging, Dev — with views, device sizes, and element-pick into chat.",
-    tint: "text-sky-300 bg-sky-500/10",
-  },
-  {
-    href: "/messages",
-    label: "Messages",
-    icon: MessageSquare,
-    description: "Team chat history.",
-    tint: "text-cyan-300 bg-cyan-500/10",
-  },
-  {
-    href: "/activity",
-    label: "Activity",
-    icon: Activity,
-    description: "Engine run health — queue depth, throughput, failures.",
-    tint: "text-rose-300 bg-rose-500/10",
-  },
-  {
-    href: "/changelog",
-    label: "Changelog",
-    icon: History,
-    description: "What shipped, version by version.",
-    tint: "text-fuchsia-300 bg-fuchsia-500/10",
-  },
-  {
-    href: "/docs",
-    label: "Docs",
-    icon: FileText,
-    description: "README and docs folder from the repo.",
-    tint: "text-amber-300 bg-amber-500/10",
-  },
+  PREVIEW_NAV_ITEM,
 ] as const;
 
 export interface SettingsNavSection {
@@ -209,6 +157,77 @@ export interface SettingsNavSection {
 }
 
 export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
+  {
+    title: "Fly",
+    items: [
+      {
+        href: "/terminal",
+        label: "Terminal",
+        icon: SquareTerminal,
+        exact: true,
+        description:
+          "Interactive shell for live Fly runner and Brain machines.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
+      {
+        href: "/runner",
+        label: "Fly Runner",
+        icon: Rocket,
+        description:
+          "Per-repo Fly infra: machines, activity, warm-pool, LiteLLM, Brain.",
+        tint: "text-sky-300 bg-sky-500/10",
+      },
+    ],
+  },
+  {
+    title: "Monitoring",
+    items: [
+      {
+        href: "/activity",
+        label: "Activity",
+        icon: Activity,
+        description: "Engine run health — queue depth, throughput, failures.",
+        tint: "text-rose-300 bg-rose-500/10",
+      },
+    ],
+  },
+  {
+    title: "Automation",
+    items: [
+      {
+        href: "/duties",
+        label: "Duties",
+        icon: Layers,
+        exact: true,
+        description: "Run and edit recurring duties.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
+      {
+        href: "/staff",
+        label: "Staff",
+        icon: Users,
+        description: "Personas that execute your duties.",
+        tint: "text-violet-300 bg-violet-500/10",
+      },
+      {
+        href: "/executables",
+        label: "Executables",
+        icon: Boxes,
+        exact: true,
+        description: "Manage custom @kody executables (folder duties).",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
+      {
+        href: "/trust",
+        label: "Trust",
+        icon: ShieldCheck,
+        exact: true,
+        description:
+          "How close each staff member is to acting on its own — grant or revoke autonomy per action.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
+    ],
+  },
   {
     title: "Agent",
     items: [
@@ -277,14 +296,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Infrastructure",
     items: [
       {
-        href: "/runner",
-        label: "Fly Runner",
-        icon: Rocket,
-        description:
-          "Per-repo Fly infra: machines, activity, warm-pool, LiteLLM, Brain.",
-        tint: "text-sky-300 bg-sky-500/10",
-      },
-      {
         href: "/secrets",
         label: "Secrets",
         icon: KeyRound,
@@ -304,13 +315,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Alerts",
     items: [
       {
-        href: "/inbox",
-        label: "Inbox",
-        icon: Inbox,
-        description: "Durable list of @mentions and review requests.",
-        tint: "text-amber-300 bg-amber-500/10",
-      },
-      {
         href: "/notifications",
         label: "Notifications",
         icon: Bell,
@@ -328,6 +332,20 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: FolderOpen,
         description: "Browse and edit files in your repository.",
         tint: "text-amber-300 bg-amber-500/10",
+      },
+      {
+        href: "/docs",
+        label: "Docs",
+        icon: FileText,
+        description: "README and docs folder from the repo.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
+      {
+        href: "/changelog",
+        label: "Changelog",
+        icon: History,
+        description: "What shipped, version by version.",
+        tint: "text-fuchsia-300 bg-fuchsia-500/10",
       },
       {
         href: "/settings",

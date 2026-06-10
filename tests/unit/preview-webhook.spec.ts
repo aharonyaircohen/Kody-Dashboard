@@ -53,6 +53,9 @@ describe("preview webhook maintenance", () => {
       ttlDays: 14,
       inspected: 0,
       destroyed: [],
+      aligned: [],
+      unchanged: [],
+      skipped: [],
       errored: [],
     });
   });

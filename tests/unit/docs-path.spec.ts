@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isAllowedDocPath, listDocs } from "@dashboard/lib/docs/file";
+import {
+  createDoc,
+  deleteDoc,
+  isAllowedDocPath,
+  listDocs,
+  updateDoc,
+} from "@dashboard/lib/docs/file";
 import {
   buildDocTree,
   firstDocFilePath,
@@ -133,5 +139,106 @@ describe("docs tree", () => {
       "docs/architecture/state.md",
     ]);
     expect(firstDocFilePath(files)).toBe("README.md");
+  });
+});
+
+describe("docs mutations", () => {
+  function createMockOctokit(initial: Record<string, string> = {}) {
+    let next = 0;
+    const files = new Map(
+      Object.entries(initial).map(([path, content]) => [
+        path,
+        { content, sha: `sha-${++next}` },
+      ]),
+    );
+
+    const octokit = {
+      rest: {
+        repos: {
+          getContent: async ({ path }: { path: string }) => {
+            const file = files.get(path);
+            if (!file) {
+              throw Object.assign(new Error("not found"), { status: 404 });
+            }
+            return {
+              data: {
+                type: "file",
+                name: path.split("/").pop() ?? path,
+                path,
+                encoding: "base64",
+                content: Buffer.from(file.content, "utf8").toString("base64"),
+                sha: file.sha,
+                html_url: `https://example.com/${path}`,
+              },
+            };
+          },
+          createOrUpdateFileContents: async ({
+            path,
+            content,
+            sha,
+          }: {
+            path: string;
+            content: string;
+            sha?: string;
+          }) => {
+            const existing = files.get(path);
+            if (existing && existing.sha !== sha) {
+              throw Object.assign(new Error("sha mismatch"), { status: 409 });
+            }
+            const nextSha = `sha-${++next}`;
+            files.set(path, {
+              content: Buffer.from(content, "base64").toString("utf8"),
+              sha: nextSha,
+            });
+            return {
+              data: { content: { sha: nextSha }, commit: { sha: "commit" } },
+            };
+          },
+          deleteFile: async ({ path, sha }: { path: string; sha: string }) => {
+            const existing = files.get(path);
+            if (!existing || existing.sha !== sha) {
+              throw Object.assign(new Error("not found"), { status: 404 });
+            }
+            files.delete(path);
+          },
+        },
+      },
+    };
+
+    return { octokit, files };
+  }
+
+  it("creates, updates, renames, and deletes docs", async () => {
+    const { octokit, files } = createMockOctokit();
+
+    const created = await createDoc(
+      octokit as never,
+      "owner",
+      "repo",
+      "docs/new.md",
+      "# New\n",
+    );
+    expect(created.content).toBe("# New\n");
+
+    const updated = await updateDoc(
+      octokit as never,
+      "owner",
+      "repo",
+      "docs/new.md",
+      { content: "# Updated\n", newPath: "docs/renamed.md" },
+    );
+    expect(updated.path).toBe("docs/renamed.md");
+    expect(updated.content).toBe("# Updated\n");
+    expect(files.has("docs/new.md")).toBe(false);
+
+    await deleteDoc(octokit as never, "owner", "repo", "docs/renamed.md");
+    expect(files.has("docs/renamed.md")).toBe(false);
+  });
+
+  it("rejects unsafe write paths", async () => {
+    const { octokit } = createMockOctokit();
+    await expect(
+      createDoc(octokit as never, "owner", "repo", ".env", "secret"),
+    ).rejects.toThrow("invalid_doc_path");
   });
 });

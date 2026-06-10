@@ -23,6 +23,7 @@
 
 import { logger } from "@dashboard/lib/logger";
 import {
+  alignPreviewMachineSleep,
   destroyApp,
   listAppsByPrefix,
   listMachines,
@@ -43,6 +44,12 @@ export interface SweepResult {
   inspected: number;
   /** App names destroyed because they were past TTL. */
   destroyed: string[];
+  /** Machine refs updated so Fly can sleep them and wake them on request. */
+  aligned: string[];
+  /** Machine refs already matching the desired sleep/wake config. */
+  unchanged: string[];
+  /** Machine refs that could not be aligned because they lack services/config. */
+  skipped: string[];
   /** App names that errored during inspection/destroy (best-effort sweep). */
   errored: string[];
 }
@@ -64,13 +71,25 @@ export async function sweepExpiredPreviews(
       ttlDays: 0,
       inspected: 0,
       destroyed: [],
+      aligned: [],
+      unchanged: [],
+      skipped: [],
       errored: [],
     };
   }
 
   const [owner, name] = repo.split("/");
   if (!owner || !name) {
-    return { enabled: true, ttlDays, inspected: 0, destroyed: [], errored: [] };
+    return {
+      enabled: true,
+      ttlDays,
+      inspected: 0,
+      destroyed: [],
+      aligned: [],
+      unchanged: [],
+      skipped: [],
+      errored: [],
+    };
   }
   const cfg = await resolvePreviewConfigForRepo(owner, name);
   if (!cfg) {
@@ -78,7 +97,16 @@ export async function sweepExpiredPreviews(
       { repo },
       "preview-sweep: no Fly config (token missing) — skipping",
     );
-    return { enabled: true, ttlDays, inspected: 0, destroyed: [], errored: [] };
+    return {
+      enabled: true,
+      ttlDays,
+      inspected: 0,
+      destroyed: [],
+      aligned: [],
+      unchanged: [],
+      skipped: [],
+      errored: [],
+    };
   }
 
   const prefix = repoPreviewPrefix(repo);
@@ -88,6 +116,9 @@ export async function sweepExpiredPreviews(
 
   const cutoffMs = ttlDays * MS_PER_DAY;
   const destroyed: string[] = [];
+  const aligned: string[] = [];
+  const unchanged: string[] = [];
+  const skipped: string[] = [];
   const errored: string[] = [];
 
   for (const appName of apps) {
@@ -103,6 +134,23 @@ export async function sweepExpiredPreviews(
       if (ageMs > cutoffMs) {
         await destroyApp(appName, cfg);
         destroyed.push(appName);
+        continue;
+      }
+
+      for (const machine of machines) {
+        const ref = `${appName}/${machine.id}`;
+        const result = await alignPreviewMachineSleep(appName, machine.id, cfg, {
+          idleSuspend: previews.idleSuspend,
+          healthCheck: previews.healthCheck,
+          memoryMb: machine.guest?.memoryMb ?? previews.memoryMb,
+        });
+        if (result.changed) {
+          aligned.push(ref);
+        } else if (result.skipped) {
+          skipped.push(ref);
+        } else {
+          unchanged.push(ref);
+        }
       }
     } catch (err) {
       logger.warn(
@@ -114,7 +162,13 @@ export async function sweepExpiredPreviews(
   }
 
   logger.info(
-    { repo, ttlDays, inspected: apps.length, destroyed: destroyed.length },
+    {
+      repo,
+      ttlDays,
+      inspected: apps.length,
+      destroyed: destroyed.length,
+      aligned: aligned.length,
+    },
     "preview-sweep: complete",
   );
   return {
@@ -122,6 +176,9 @@ export async function sweepExpiredPreviews(
     ttlDays,
     inspected: apps.length,
     destroyed,
+    aligned,
+    unchanged,
+    skipped,
     errored,
   };
 }

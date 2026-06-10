@@ -2,31 +2,50 @@
  * @fileType component
  * @domain docs
  * @pattern docs-page
- * @ai-summary Renders README.md and nested markdown files under docs/ from
- *   the connected repo. Left sidebar renders a docs tree; selecting a file
- *   renders its markdown. Read-only UI; no edits from the dashboard.
+ * @ai-summary Renders and manages README.md plus nested markdown files under
+ *   docs/ from the connected repo. Left sidebar renders a docs tree; selecting
+ *   a file renders its markdown.
  */
 "use client";
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { toast } from "sonner";
 import {
   BookOpen,
   ChevronDown,
   ChevronRight,
+  Edit3,
   ExternalLink,
   FileText,
   Folder,
   FolderOpen,
+  Plus,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@dashboard/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@dashboard/ui/dialog";
+import { Input } from "@dashboard/ui/input";
+import { Textarea } from "@dashboard/ui/textarea";
 import { cn } from "@dashboard/lib/utils";
 import { AuthGuard } from "../auth-guard";
-import { useDocsManifest, useDoc } from "../hooks/useDocs";
+import {
+  useCreateDoc,
+  useDeleteDoc,
+  useDocsManifest,
+  useDoc,
+  useUpdateDoc,
+} from "../hooks/useDocs";
 import { PageHeader } from "./PageShell";
+import { ConfirmDialog } from "./ConfirmDialog";
 import type { DocManifestEntry } from "../api";
 
 interface DocsViewProps {
@@ -37,6 +56,13 @@ interface DocsViewProps {
 interface DocTreeNode {
   entry: DocManifestEntry;
   children: DocTreeNode[];
+}
+
+interface DocFormState {
+  mode: "create" | "edit";
+  originalPath: string | null;
+  path: string;
+  content: string;
 }
 
 export function firstDocFilePath(
@@ -52,6 +78,21 @@ function parentPath(path: string): string {
 
 function basename(path: string): string {
   return path.split("/").pop() ?? path;
+}
+
+function nextDocPath(files: DocManifestEntry[] | undefined): string {
+  const used = new Set(files?.map((file) => file.path) ?? []);
+  let candidate = "docs/new-doc.md";
+  let i = 2;
+  while (used.has(candidate)) {
+    candidate = `docs/new-doc-${i}.md`;
+    i += 1;
+  }
+  return candidate;
+}
+
+function mutationErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Docs update failed";
 }
 
 function addChild(
@@ -140,22 +181,104 @@ function DocsViewInner({ embedded = false }: DocsViewProps) {
     refetch: refetchDoc,
     error,
   } = useDoc(docPath ?? "");
+  const createDocMutation = useCreateDoc();
+  const updateDocMutation = useUpdateDoc();
+  const deleteDocMutation = useDeleteDoc();
+  const [docForm, setDocForm] = useState<DocFormState | null>(null);
+  const [deletePath, setDeletePath] = useState<string | null>(null);
 
   const content = doc?.content ?? "";
   const htmlUrl = doc?.htmlUrl ?? null;
   const docName = doc?.name ?? docPath ?? "Docs";
   const hasContent = content.trim().length > 0;
+  const isSaving = createDocMutation.isPending || updateDocMutation.isPending;
 
   const handleRefresh = () => {
     refetchManifest();
     if (docPath) refetchDoc();
   };
 
+  const openCreate = () => {
+    setDocForm({
+      mode: "create",
+      originalPath: null,
+      path: nextDocPath(manifest?.files),
+      content: "# New Doc\n",
+    });
+  };
+
+  const openEdit = () => {
+    if (!docPath) return;
+    setDocForm({
+      mode: "edit",
+      originalPath: docPath,
+      path: docPath,
+      content,
+    });
+  };
+
+  const submitDocForm = async () => {
+    if (!docForm) return;
+    const nextPath = docForm.path.trim();
+    if (!nextPath) {
+      toast.error("Path is required");
+      return;
+    }
+
+    try {
+      const saved =
+        docForm.mode === "create"
+          ? await createDocMutation.mutateAsync({
+              path: nextPath,
+              content: docForm.content,
+            })
+          : await updateDocMutation.mutateAsync({
+              path: docForm.originalPath ?? nextPath,
+              newPath:
+                docForm.originalPath && nextPath !== docForm.originalPath
+                  ? nextPath
+                  : undefined,
+              content: docForm.content,
+            });
+
+      setSelectedPath(saved.path);
+      setDocForm(null);
+      toast.success(docForm.mode === "create" ? "Doc created" : "Doc saved");
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deletePath) return;
+    try {
+      await deleteDocMutation.mutateAsync(deletePath);
+      if (selectedPath === deletePath) setSelectedPath(null);
+      setDeletePath(null);
+      toast.success("Doc deleted");
+      refetchManifest();
+    } catch (err) {
+      toast.error(mutationErrorMessage(err));
+    }
+  };
+
   const sidebar = (
     <div className="h-full flex flex-col overflow-hidden border-r border-white/[0.06]">
-      <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b border-white/[0.06] bg-black/30">
-        <BookOpen className="w-4 h-4 text-amber-400 shrink-0" />
-        <span className="text-sm font-medium">Docs</span>
+      <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-white/[0.06] bg-black/30">
+        <div className="flex items-center gap-2 min-w-0">
+          <BookOpen className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="text-sm font-medium truncate">Docs</span>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2 gap-1.5"
+          onClick={openCreate}
+        >
+          <Plus className="w-3.5 h-3.5" />
+          New
+        </Button>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto py-1">
         {manifestLoading ? (
@@ -185,6 +308,28 @@ function DocsViewInner({ embedded = false }: DocsViewProps) {
           <h2 className="text-sm font-medium truncate">{docName}</h2>
         </div>
         <div className="flex items-center gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={openEdit}
+            disabled={!docPath || docLoading}
+            className="gap-1.5"
+            aria-label="Edit doc"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Edit</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => docPath && setDeletePath(docPath)}
+            disabled={!docPath || deleteDocMutation.isPending}
+            className="gap-1.5 text-red-300 hover:text-red-200"
+            aria-label="Delete doc"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Delete</span>
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -252,12 +397,38 @@ function DocsViewInner({ embedded = false }: DocsViewProps) {
     </div>
   );
 
+  const dialogs = (
+    <>
+      <DocEditorDialog
+        state={docForm}
+        onChange={setDocForm}
+        onClose={() => setDocForm(null)}
+        onSubmit={submitDocForm}
+        isSaving={isSaving}
+      />
+      <ConfirmDialog
+        open={!!deletePath}
+        title="Delete doc"
+        description={deletePath ? `Delete ${deletePath}?` : "Delete this doc?"}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => {
+          void confirmDelete();
+        }}
+        onClose={() => setDeletePath(null)}
+      />
+    </>
+  );
+
   if (embedded) {
     return (
-      <div className="flex h-full overflow-hidden">
-        {sidebar}
-        <div className="flex-1 min-w-0 overflow-hidden">{main}</div>
-      </div>
+      <>
+        <div className="flex h-full overflow-hidden">
+          {sidebar}
+          <div className="flex-1 min-w-0 overflow-hidden">{main}</div>
+        </div>
+        {dialogs}
+      </>
     );
   }
 
@@ -268,7 +439,89 @@ function DocsViewInner({ embedded = false }: DocsViewProps) {
         {sidebar}
         <div className="flex-1 min-w-0 overflow-hidden">{main}</div>
       </div>
+      {dialogs}
     </div>
+  );
+}
+
+function DocEditorDialog({
+  state,
+  onChange,
+  onClose,
+  onSubmit,
+  isSaving,
+}: {
+  state: DocFormState | null;
+  onChange: (state: DocFormState | null) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+  isSaving: boolean;
+}) {
+  return (
+    <Dialog
+      open={!!state}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>
+            {state?.mode === "create" ? "New doc" : "Edit doc"}
+          </DialogTitle>
+        </DialogHeader>
+        {state ? (
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSubmit();
+            }}
+          >
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                Path
+              </span>
+              <Input
+                value={state.path}
+                onChange={(event) =>
+                  onChange({ ...state, path: event.target.value })
+                }
+                placeholder="docs/example.md"
+                disabled={isSaving}
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                Content
+              </span>
+              <Textarea
+                value={state.content}
+                onChange={(event) =>
+                  onChange({ ...state, content: event.target.value })
+                }
+                disabled={isSaving}
+                className="min-h-[50vh] font-mono text-xs leading-relaxed"
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={isSaving}>
+                {isSaving ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }
 

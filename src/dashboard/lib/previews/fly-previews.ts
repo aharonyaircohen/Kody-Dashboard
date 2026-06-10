@@ -73,6 +73,21 @@ export interface MachineInfo {
   name?: string;
   /** Guest sizing — populated for the machines-inventory view. */
   guest?: { cpuKind?: string; cpus?: number; memoryMb?: number };
+  /** Full Fly machine config, present on direct machine reads/list calls. */
+  config?: MachineConfig;
+}
+
+export type MachineServiceConfig = Record<string, unknown> & {
+  autostop?: boolean | "suspend";
+  autostart?: boolean;
+  min_machines_running?: number;
+};
+
+export interface MachineConfig {
+  checks?: unknown;
+  guest?: { cpu_kind?: string; cpus?: number; memory_mb?: number };
+  services?: MachineServiceConfig[];
+  [key: string]: unknown;
 }
 
 function autostopForMemory(memoryMb: number | undefined): "suspend" | true {
@@ -326,9 +341,7 @@ export async function listMachines(
     state: string;
     region: string;
     created_at?: string;
-    config?: {
-      guest?: { cpu_kind?: string; cpus?: number; memory_mb?: number };
-    };
+    config?: MachineConfig;
   }>;
   return data.map((m) => ({
     id: m.id,
@@ -343,7 +356,132 @@ export async function listMachines(
           memoryMb: m.config.guest.memory_mb,
         }
       : undefined,
+    config: m.config,
   }));
+}
+
+async function getMachine(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+): Promise<MachineInfo | null> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}`,
+    { method: "GET" },
+    cfg.token,
+  );
+  if (res.status === 404) return null;
+  await assertOk(res, "getMachine");
+  const data = (await res.json()) as {
+    id: string;
+    name?: string;
+    state: string;
+    region: string;
+    created_at?: string;
+    config?: MachineConfig;
+  };
+  return {
+    id: data.id,
+    name: data.name,
+    state: data.state,
+    region: data.region,
+    createdAt: data.created_at,
+    guest: data.config?.guest
+      ? {
+          cpuKind: data.config.guest.cpu_kind,
+          cpus: data.config.guest.cpus,
+          memoryMb: data.config.guest.memory_mb,
+        }
+      : undefined,
+    config: data.config,
+  };
+}
+
+async function updateMachineConfig(
+  appName: string,
+  machineId: string,
+  config: MachineConfig,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}`,
+    { method: "POST", body: JSON.stringify({ config }) },
+    cfg.token,
+  );
+  if (res.status === 404) return;
+  await assertOk(res, "updateMachineConfig");
+}
+
+export interface AlignPreviewMachineSleepOptions {
+  idleSuspend: boolean;
+  healthCheck: boolean;
+  memoryMb?: number;
+}
+
+export type AlignPreviewMachineSleepResult =
+  | { changed: true; skipped: false }
+  | { changed: false; skipped: false }
+  | { changed: false; skipped: true; reason: string };
+
+export function alignPreviewMachineSleepConfig(
+  config: MachineConfig | undefined,
+  options: AlignPreviewMachineSleepOptions,
+): AlignPreviewMachineSleepResult & { config?: MachineConfig } {
+  if (!config) {
+    return { changed: false, skipped: true, reason: "missing_config" };
+  }
+  if (!Array.isArray(config.services) || config.services.length === 0) {
+    return { changed: false, skipped: true, reason: "missing_services" };
+  }
+
+  const memoryMb =
+    options.memoryMb ??
+    (typeof config.guest?.memory_mb === "number"
+      ? config.guest.memory_mb
+      : undefined);
+  const targetAutostop = options.idleSuspend
+    ? autostopForMemory(memoryMb)
+    : false;
+
+  let changed = false;
+  const services = config.services.map((service) => {
+    const next = { ...service };
+    if (next.autostop !== targetAutostop) {
+      next.autostop = targetAutostop;
+      changed = true;
+    }
+    if (next.autostart !== true) {
+      next.autostart = true;
+      changed = true;
+    }
+    if (next.min_machines_running !== 0) {
+      next.min_machines_running = 0;
+      changed = true;
+    }
+    return next;
+  });
+
+  const nextConfig: MachineConfig = { ...config, services };
+  if (!options.healthCheck && "checks" in nextConfig) {
+    delete nextConfig.checks;
+    changed = true;
+  }
+
+  return { config: nextConfig, changed, skipped: false };
+}
+
+export async function alignPreviewMachineSleep(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+  options: AlignPreviewMachineSleepOptions,
+): Promise<AlignPreviewMachineSleepResult> {
+  const machine = await getMachine(appName, machineId, cfg);
+  const aligned = alignPreviewMachineSleepConfig(machine?.config, options);
+  if (aligned.skipped) return aligned;
+  if (!aligned.changed) return { changed: false, skipped: false };
+  await updateMachineConfig(appName, machineId, aligned.config!, cfg);
+  return { changed: true, skipped: false };
 }
 
 /**

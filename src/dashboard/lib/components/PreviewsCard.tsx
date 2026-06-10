@@ -58,6 +58,9 @@ interface SweepResult {
   ttlDays: number;
   inspected: number;
   destroyed: string[];
+  aligned?: string[];
+  unchanged?: string[];
+  skipped?: string[];
   errored: string[];
 }
 
@@ -192,13 +195,16 @@ export function PreviewsCard({
         return;
       }
       const body = (await res.json()) as SweepResult;
+      const aligned = body.aligned?.length ?? 0;
       if (!body.enabled) {
         toast.info(
           "Set a delete-after value first, then this clears old ones.",
         );
       } else {
         toast.success(
-          `Deleted ${body.destroyed.length} expired preview${
+          `Repaired ${aligned} preview machine${
+            aligned === 1 ? "" : "s"
+          }; deleted ${body.destroyed.length} expired preview${
             body.destroyed.length === 1 ? "" : "s"
           } (${body.inspected} checked).`,
         );
@@ -330,10 +336,10 @@ export function PreviewsCard({
                 onClick={sweepNow}
                 disabled={sweeping || !flyTokenConfigured}
                 className="text-rose-300 hover:text-rose-200 ml-auto"
-                title="Delete every preview already past its expiry"
+                title="Repair preview sleep settings and delete expired previews"
               >
                 <Trash2 className="w-3 h-3 mr-1" />
-                {sweeping ? "Deleting…" : "Delete expired now"}
+                {sweeping ? "Cleaning…" : "Clean up now"}
               </Button>
             </div>
 
