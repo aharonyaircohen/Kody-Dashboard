@@ -51,6 +51,16 @@ describe("joinPreviewUrl", () => {
       "https://x.dev/storybook",
     );
   });
+  it("inserts the view path before preview access query params", () => {
+    expect(joinPreviewUrl("https://x.dev?kp=ticket", "/study")).toBe(
+      "https://x.dev/study?kp=ticket",
+    );
+  });
+  it("preserves query params and hash when appending a path", () => {
+    expect(joinPreviewUrl("https://x.dev/base?kp=ticket#top", "/study")).toBe(
+      "https://x.dev/base/study?kp=ticket#top",
+    );
+  });
   it("returns empty string for empty base", () => {
     expect(joinPreviewUrl("", "/admin")).toBe("");
   });
