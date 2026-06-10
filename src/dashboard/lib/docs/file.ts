@@ -2,9 +2,8 @@
  * @fileType utility
  * @domain docs
  * @pattern github-contents
- * @ai-summary Read README.md and nested markdown files under docs/ in the
- *   target GitHub repo via the Contents API. Read-only; docs are maintained
- *   in PRs.
+ * @ai-summary Read and manage README.md plus nested markdown files under
+ *   docs/ in the target GitHub repo via the Contents API.
  */
 
 import { Octokit } from "@octokit/rest";
@@ -53,6 +52,10 @@ export function isAllowedDocPath(path: string): boolean {
   }
   if (path === README_PATH) return true;
   return /^docs\/.+\.md$/i.test(path);
+}
+
+export function normalizeDocPath(path: string): string {
+  return path.trim().replace(/^\/+/, "");
 }
 
 /**
@@ -188,7 +191,11 @@ export async function readDoc(
       headers: { "If-None-Match": "" },
     });
     const data = res.data as RawContents | RawContents[];
-    if (Array.isArray(data) || data.type !== "file" || !data.content) {
+    if (
+      Array.isArray(data) ||
+      data.type !== "file" ||
+      typeof data.content !== "string"
+    ) {
       return { name: path, path, content: "", sha: null, htmlUrl: null };
     }
     const buf = Buffer.from(
@@ -209,4 +216,125 @@ export async function readDoc(
     }
     throw err;
   }
+}
+
+export async function docExists(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  path: string,
+): Promise<boolean> {
+  const doc = await readDoc(octokit, owner, repo, path);
+  return !!doc.sha;
+}
+
+export async function createDoc(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  path: string,
+  content: string,
+): Promise<DocFile> {
+  const normalizedPath = normalizeDocPath(path);
+  if (!isAllowedDocPath(normalizedPath)) {
+    throw new Error("invalid_doc_path");
+  }
+  if (await docExists(octokit, owner, repo, normalizedPath)) {
+    throw new Error("doc_already_exists");
+  }
+
+  await octokit.rest.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: normalizedPath,
+    message: `docs: add ${normalizedPath}`,
+    content: Buffer.from(content, "utf-8").toString("base64"),
+  });
+
+  return readDoc(octokit, owner, repo, normalizedPath);
+}
+
+export async function updateDoc(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  path: string,
+  opts: { content?: string; newPath?: string },
+): Promise<DocFile> {
+  const normalizedPath = normalizeDocPath(path);
+  if (!isAllowedDocPath(normalizedPath)) {
+    throw new Error("invalid_doc_path");
+  }
+
+  const existing = await readDoc(octokit, owner, repo, normalizedPath);
+  if (!existing.sha) {
+    throw new Error("doc_not_found");
+  }
+
+  const nextPath = opts.newPath
+    ? normalizeDocPath(opts.newPath)
+    : normalizedPath;
+  if (!isAllowedDocPath(nextPath)) {
+    throw new Error("invalid_doc_path");
+  }
+
+  const nextContent = opts.content ?? existing.content;
+  if (nextPath === normalizedPath) {
+    await octokit.rest.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path: normalizedPath,
+      message: `docs: update ${normalizedPath}`,
+      content: Buffer.from(nextContent, "utf-8").toString("base64"),
+      sha: existing.sha,
+    });
+    return readDoc(octokit, owner, repo, normalizedPath);
+  }
+
+  if (await docExists(octokit, owner, repo, nextPath)) {
+    throw new Error("doc_already_exists");
+  }
+
+  await octokit.rest.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: nextPath,
+    message: `docs: rename ${normalizedPath} to ${nextPath}`,
+    content: Buffer.from(nextContent, "utf-8").toString("base64"),
+  });
+
+  await octokit.rest.repos.deleteFile({
+    owner,
+    repo,
+    path: normalizedPath,
+    message: `docs: remove ${normalizedPath}`,
+    sha: existing.sha,
+  });
+
+  return readDoc(octokit, owner, repo, nextPath);
+}
+
+export async function deleteDoc(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  path: string,
+): Promise<void> {
+  const normalizedPath = normalizeDocPath(path);
+  if (!isAllowedDocPath(normalizedPath)) {
+    throw new Error("invalid_doc_path");
+  }
+
+  const existing = await readDoc(octokit, owner, repo, normalizedPath);
+  if (!existing.sha) {
+    throw new Error("doc_not_found");
+  }
+
+  await octokit.rest.repos.deleteFile({
+    owner,
+    repo,
+    path: normalizedPath,
+    message: `docs: remove ${normalizedPath}`,
+    sha: existing.sha,
+  });
 }

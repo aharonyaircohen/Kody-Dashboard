@@ -4,12 +4,10 @@
  * @pattern app-sidebar
  * @ai-summary Persistent left navigation rail for the Kody dashboard.
  *   Desktop only (hidden below md). Collapsible (64px ↔ 220px) with
- *   localStorage persistence. Top-level entries are the primary surfaces
- *   (Dashboard, Duties, Staff); configuration screens are sourced from
- *   the shared `SETTINGS_NAV_SECTIONS` so new pages added there appear
- *   here automatically. Mobile keeps the existing in-header hamburger
- *   menu (MobileMenu) — this rail is the desktop replacement for the
- *   kebab-triggered SettingsDrawer.
+ *   localStorage persistence. Top-level entries come from the shared
+ *   workspace and settings nav lists, so desktop, mobile, and command palette
+ *   destinations stay discoverable. The desktop rail can regroup a few
+ *   repo-workspace pages without moving the underlying routes.
  */
 "use client";
 
@@ -38,6 +36,7 @@ import { ReportsBadge } from "./ReportsBadge";
 import {
   PRIMARY_NAV_ITEMS,
   PRIMARY_NAV_TITLE,
+  PREVIEW_NAV_ITEM,
   PRIMARY_VIEW_ITEMS,
   PRIMARY_VIEW_TITLE,
   SETTINGS_NAV_SECTIONS,
@@ -51,6 +50,7 @@ function iconTintClass(item: SettingsNavItem): string | undefined {
 }
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
+const SIDEBAR_WORKSPACE_HREFS = new Set(["/files", "/docs", "/changelog"]);
 
 type NavItem = SettingsNavItem;
 
@@ -107,10 +107,42 @@ export function Sidebar() {
   // the user types. Empty sections drop out so a query collapses the list to
   // just its matches.
   const filteredSections = useMemo(() => {
+    const automationSections = SETTINGS_NAV_SECTIONS.filter(
+      (section) => section.title === "Automation",
+    );
+    const flySections = SETTINGS_NAV_SECTIONS.filter(
+      (section) => section.title === "Fly",
+    );
+    const monitoringSections = SETTINGS_NAV_SECTIONS.filter(
+      (section) => section.title === "Monitoring",
+    );
+    const remainingSettingsSections = SETTINGS_NAV_SECTIONS.filter(
+      (section) =>
+        section.title !== "Automation" &&
+        section.title !== "Fly" &&
+        section.title !== "Monitoring",
+    )
+      .map((section) => ({
+        ...section,
+        items: section.items.filter(
+          (item) => !SIDEBAR_WORKSPACE_HREFS.has(item.href),
+        ),
+      }))
+      .filter((section) => section.items.length > 0);
+    const sidebarViewItems = [...PRIMARY_VIEW_ITEMS, PREVIEW_NAV_ITEM];
+    const repoWorkspaceItems = SETTINGS_NAV_SECTIONS.flatMap(
+      (section) => section.items,
+    ).filter((item) => SIDEBAR_WORKSPACE_HREFS.has(item.href));
+    const sidebarWorkspaceItems = PRIMARY_NAV_ITEMS.filter(
+      (item) => item.href !== PREVIEW_NAV_ITEM.href,
+    ).concat(repoWorkspaceItems);
     const all = [
-      { title: PRIMARY_VIEW_TITLE, items: PRIMARY_VIEW_ITEMS },
-      { title: PRIMARY_NAV_TITLE, items: PRIMARY_NAV_ITEMS },
-      ...SETTINGS_NAV_SECTIONS,
+      { title: PRIMARY_VIEW_TITLE, items: sidebarViewItems },
+      ...automationSections,
+      { title: PRIMARY_NAV_TITLE, items: sidebarWorkspaceItems },
+      ...monitoringSections,
+      ...flySections,
+      ...remainingSettingsSections,
     ];
     const q = query.trim().toLowerCase();
     if (!q) return all;
@@ -262,7 +294,7 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Nav sections — Views / Workspace / Configuration, sourced from the
+        {/* Nav sections — ordered by the main work loop, sourced from the
             shared settings-nav so new pages appear here automatically. Filtered
             live by the inline search; section headings show only when expanded,
             collapsed mode is a flat icon list. */}

@@ -16,6 +16,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  alignPreviewMachineSleep,
+  alignPreviewMachineSleepConfig,
   createMachine,
   type FlyPreviewConfig,
 } from "@dashboard/lib/previews/fly-previews";
@@ -31,7 +33,12 @@ interface CapturedRequest {
   parsedBody: {
     config: {
       checks?: unknown;
-      services?: Array<{ autostop?: unknown }>;
+      guest?: { memory_mb?: number };
+      services?: Array<{
+        autostop?: unknown;
+        autostart?: unknown;
+        min_machines_running?: unknown;
+      }>;
     } & Record<string, unknown>;
   } & Record<string, unknown>;
 }
@@ -158,5 +165,180 @@ describe("createMachine checks block", () => {
     );
 
     expect(captured[0].parsedBody.config.services?.[0]?.autostop).toBe(true);
+  });
+});
+
+describe("alignPreviewMachineSleepConfig", () => {
+  it("adds sleep/wake settings and removes health checks", () => {
+    const result = alignPreviewMachineSleepConfig(
+      {
+        image: "nginx:alpine",
+        guest: { memory_mb: 2048 },
+        checks: { old: true },
+        services: [
+          {
+            internal_port: 8080,
+            autostop: false,
+            autostart: false,
+            min_machines_running: 1,
+          },
+        ],
+      },
+      { idleSuspend: true, healthCheck: false },
+    );
+
+    expect(result).toMatchObject({ changed: true, skipped: false });
+    expect(result.config?.checks).toBeUndefined();
+    expect(result.config?.services?.[0]).toMatchObject({
+      internal_port: 8080,
+      autostop: "suspend",
+      autostart: true,
+      min_machines_running: 0,
+    });
+  });
+
+  it("uses cold stop for machines over Fly's suspend limit", () => {
+    const result = alignPreviewMachineSleepConfig(
+      {
+        guest: { memory_mb: 4096 },
+        services: [{ autostop: false, autostart: false }],
+      },
+      { idleSuspend: true, healthCheck: false },
+    );
+
+    expect(result.config?.services?.[0]).toMatchObject({
+      autostop: true,
+      autostart: true,
+    });
+  });
+
+  it("keeps checks only when the repo explicitly opts into health checks", () => {
+    const result = alignPreviewMachineSleepConfig(
+      {
+        checks: { httpget: { path: "/" } },
+        services: [{ autostop: "suspend", autostart: true }],
+      },
+      { idleSuspend: true, healthCheck: true, memoryMb: 2048 },
+    );
+
+    expect(result).toMatchObject({ changed: true, skipped: false });
+    expect(result.config?.checks).toEqual({ httpget: { path: "/" } });
+    expect(result.config?.services?.[0]?.min_machines_running).toBe(0);
+  });
+
+  it("skips machines without services because Fly cannot autowake them", () => {
+    const result = alignPreviewMachineSleepConfig(
+      { image: "busybox" },
+      { idleSuspend: true, healthCheck: false },
+    );
+
+    expect(result).toEqual({
+      changed: false,
+      skipped: true,
+      reason: "missing_services",
+    });
+  });
+});
+
+describe("alignPreviewMachineSleep", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("fetches a fresh machine config before posting the repaired config", async () => {
+    const requests: Array<{ url: string; method: string; body?: unknown }> = [];
+    globalThis.fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const method = init?.method ?? "GET";
+        requests.push({
+          url,
+          method,
+          body: init?.body ? JSON.parse(init.body as string) : undefined,
+        });
+
+        if (method === "GET") {
+          return new Response(
+            JSON.stringify({
+              id: "m-1",
+              state: "started",
+              region: "fra",
+              config: {
+                image: "nginx:alpine",
+                guest: { memory_mb: 2048 },
+                checks: { old: true },
+                services: [{ internal_port: 8080, autostart: false }],
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    ) as unknown as typeof fetch;
+
+    await expect(
+      alignPreviewMachineSleep("kp-test-app", "m-1", CFG, {
+        idleSuspend: true,
+        healthCheck: false,
+      }),
+    ).resolves.toEqual({ changed: true, skipped: false });
+
+    expect(requests.map((r) => r.method)).toEqual(["GET", "POST"]);
+    expect(requests[1].body).toEqual({
+      config: {
+        image: "nginx:alpine",
+        guest: { memory_mb: 2048 },
+        services: [
+          {
+            internal_port: 8080,
+            autostop: "suspend",
+            autostart: true,
+            min_machines_running: 0,
+          },
+        ],
+      },
+    });
+  });
+
+  it("does not post when the machine already matches", async () => {
+    const methods: string[] = [];
+    globalThis.fetch = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const method = init?.method ?? "GET";
+        methods.push(method);
+        return new Response(
+          JSON.stringify({
+            id: "m-1",
+            state: "suspended",
+            region: "fra",
+            config: {
+              guest: { memory_mb: 2048 },
+              services: [
+                {
+                  autostop: "suspend",
+                  autostart: true,
+                  min_machines_running: 0,
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      },
+    ) as unknown as typeof fetch;
+
+    await expect(
+      alignPreviewMachineSleep("kp-test-app", "m-1", CFG, {
+        idleSuspend: true,
+        healthCheck: false,
+      }),
+    ).resolves.toEqual({ changed: false, skipped: false });
+
+    expect(methods).toEqual(["GET"]);
   });
 });
