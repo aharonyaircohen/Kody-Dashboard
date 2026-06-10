@@ -49,6 +49,20 @@ export function joinPreviewUrl(baseUrl: string, path: string): string {
   const normalized = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   const tail = normalizePath(path);
   if (tail === "/") return normalized || baseUrl;
+
+  try {
+    const url = new URL(baseUrl);
+    const basePath =
+      url.pathname.length > 1 && url.pathname.endsWith("/")
+        ? url.pathname.slice(0, -1)
+        : url.pathname;
+    const prefix = basePath === "/" ? "" : basePath;
+    url.pathname = `${prefix}${tail}`;
+    return url.toString();
+  } catch {
+    // Preserve the historical string append behavior for non-absolute bases.
+  }
+
   return `${normalized}${tail}`;
 }
 
