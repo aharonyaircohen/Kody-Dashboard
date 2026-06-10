@@ -541,7 +541,7 @@ function DutyDetail({
                 size="sm"
                 onClick={onToggleEnabled}
                 disabled={isToggling}
-                className="gap-1.5"
+                className="w-9 px-0"
                 title={`${toggleLabel} duty`}
                 aria-label={`${toggleLabel} duty`}
               >
@@ -552,13 +552,12 @@ function DutyDetail({
                 ) : (
                   <PowerOff className="w-3.5 h-3.5" />
                 )}
-                {toggleLabel}
               </Button>
               <Button
                 size="sm"
                 onClick={onRun}
                 disabled={isRunning}
-                className="w-9 px-0"
+                className="w-9 px-0 bg-emerald-500 text-white hover:bg-emerald-600"
                 title="Run duty now"
                 aria-label="Run duty now"
               >
