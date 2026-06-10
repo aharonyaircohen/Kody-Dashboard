@@ -57,6 +57,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   invalidateDutiesCache: vi.fn(),
   invalidateStaffCache: vi.fn(),
   invalidateCommandsCache: vi.fn(),
+  fetchCompanyActivity: vi.fn(async () => []),
 }));
 
 import { applyCompanyBundle } from "@dashboard/lib/company/import";

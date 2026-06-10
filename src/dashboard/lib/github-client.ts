@@ -123,7 +123,7 @@ function revalidateTagSafe(tag: string): void {
     const { revalidateTag } =
       require("next/cache") as typeof import("next/cache");
     /* eslint-enable @typescript-eslint/no-require-imports */
-    revalidateTag(tag);
+    revalidateTag(tag, { expire: 0 });
   } catch {
     // Outside a request scope (e.g. tests, scripts) revalidateTag throws.
     // The in-process Map invalidation above is the authoritative path here.
