@@ -1,0 +1,18 @@
+{
+  "taskId": "159",
+  "taskType": "issue",
+  "target": "159",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added folder-level 'start here' header to runner-router.ts naming the entry point, GitHub→Fly fallback contract, warm-pool boundary, and load-bearing gotchas. All 15 modules already had @ai-summary, so that bullet was a no-op. After a format-only verify retry (fixed prettier in 2 pre-existing unrelated files), full quality gates pass.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/runners/runner-router.ts",
+    "app/api/kody/docs/route.ts",
+    "tests/unit/auth-me.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/kody-159-runner-docs.jsonl",
+  "startedAt": "2026-06-09T11:51:00Z",
+  "finishedAt": "2026-06-09T12:05:00Z"
+}
