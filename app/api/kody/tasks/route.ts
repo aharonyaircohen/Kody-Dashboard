@@ -48,11 +48,12 @@ import {
   deriveTaskColumn,
   getColumnForIssue,
 } from "@dashboard/lib/tasks/derive-column";
+import { isTaskListExcludedIssue } from "@dashboard/lib/tasks/visibility";
 import {
   parseKodyPhase,
   parseKodyFlow,
   TASK_ID_REGEX,
-  INTERNAL_ISSUE_LABELS,
+  TASK_LIST_EXCLUDED_LABELS,
 } from "@dashboard/lib/constants";
 
 /**
@@ -126,20 +127,27 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch issues, workflow runs, and open PRs in parallel (3 API calls, all cached)
-    const [issues, workflowRuns, openPRs] = await Promise.all([
+    const [rawIssues, workflowRuns, openPRs] = await Promise.all([
       fetchIssues({
         state: "open",
         perPage: 100,
         since: sinceDate,
-        // Dashboard infrastructure stored in issue bodies (manifest stores,
-        // the Run-now audit trail) — not real tasks. Single source of truth
-        // in constants; new infra issue types get `kody:internal` stamped at
-        // creation, so this site never needs editing again.
-        excludeLabels: [...INTERNAL_ISSUE_LABELS],
+        // Dashboard infrastructure and user-hidden tasks are not part of the
+        // main task list. Keep the source of truth in constants so every list
+        // reader applies the same exclusion set.
+        excludeLabels: [...TASK_LIST_EXCLUDED_LABELS],
       }),
       fetchWorkflowRuns({ perPage: 30 }),
       fetchOpenPRs(),
     ]);
+    const issues = rawIssues.filter(
+      (issue) =>
+        !isTaskListExcludedIssue({
+          labels: issue.labels.map((label) => label.name),
+          title: issue.title,
+          body: issue.body,
+        }),
+    );
 
     // Workflow runs are matched per-task below using matchWorkflowRunToTask()
     // which prefers active (in_progress/queued) runs over stale completed ones.

@@ -17,8 +17,17 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { getOctokit, getOwner, getRepo } from "../github-client";
+import {
+  fetchCompanyActivity,
+  getOctokit,
+  getOwner,
+  getRepo,
+} from "../github-client";
 import { STATE_BRANCH } from "../state-branch";
+import {
+  latestActivityByDuty,
+  type CompanyActivityRecord,
+} from "../activity/company";
 import {
   joinFrontmatter,
   splitFrontmatter,
@@ -38,23 +47,19 @@ export interface TickFile {
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
   /**
-   * Last commit timestamp of the sibling `<slug>.state.json` (ISO8601),
-   * or `null` if the state file does not exist yet (never run). The
-   * engine writes `<slug>.state.json` every tick that acts — see
-   * `dispatchJobFileTicks` in kody2.
+   * Last visible tick time (ISO8601), from the state file or newer activity
+   * log. `null` means the dashboard cannot see run proof.
    */
   lastTickAt: string | null;
   /**
    * UTC ISO timestamp at which this file will next be eligible to act,
-   * read from `data.nextEligibleISO` in the state JSON. Each body
-   * instructs the agent to emit this on every tick. `null` when it has
-   * never run, or its body doesn't yet emit the field.
+   * read from `data.nextEligibleISO` in the state JSON. Each body instructs
+   * the agent to emit this on every tick. `null` when unavailable.
    */
   nextEligibleAt: string | null;
   /**
-   * Coarse result of the most recent tick — `data.lastOutcome` in the state
-   * JSON, stamped by the engine from the agent result. `null` when never run
-   * or running an engine that predates the field.
+   * Coarse result of the most recent tick, from state or activity. `null`
+   * when unknown or running an engine that predates the field.
    */
   lastOutcome: "completed" | "failed" | null;
   /** Wall-clock of the most recent tick (ms) — `data.lastDurationMs`, or null. */
@@ -336,6 +341,32 @@ async function fetchTickState(
   }
 }
 
+const DUTY_ACTIVITY_DAY_FILES = 14;
+
+async function fetchRecentDutyActivity(): Promise<
+  Map<string, CompanyActivityRecord>
+> {
+  const records = await fetchCompanyActivity(1000, DUTY_ACTIVITY_DAY_FILES);
+  return latestActivityByDuty(records);
+}
+
+function activityOutcome(
+  rec: CompanyActivityRecord | undefined,
+): "completed" | "failed" | null {
+  if (rec?.outcome === "completed" || rec?.outcome === "failed")
+    return rec.outcome;
+  return null;
+}
+
+function isSameOrNewer(candidate: string, current: string | null): boolean {
+  if (!current) return true;
+  const candidateMs = new Date(candidate).getTime();
+  const currentMs = new Date(current).getTime();
+  if (Number.isNaN(candidateMs)) return false;
+  if (Number.isNaN(currentMs)) return true;
+  return candidateMs >= currentMs;
+}
+
 function buildFileContent(
   title: string,
   body: string,
@@ -432,6 +463,10 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         .map((e) => e.name.slice(0, -".state.json".length))
         .filter((s) => s.length > 0),
     );
+    const activityByDuty =
+      dir === ".kody/duties"
+        ? await fetchRecentDutyActivity()
+        : new Map<string, CompanyActivityRecord>();
 
     const files = await Promise.all(
       slugs.map(async ({ slug, sha, name }) => {
@@ -460,16 +495,23 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
               ? fetchTickState(octokit, dir, slug)
               : Promise.resolve(EMPTY_TICK_STATE),
           ]);
+          const activity = activityByDuty.get(slug);
+          const useActivity =
+            activity?.ts != null && isSameOrNewer(activity.ts, lastTickAt);
           return {
             slug,
             title,
             body,
             sha,
             updatedAt,
-            lastTickAt,
+            lastTickAt: useActivity ? activity.ts : lastTickAt,
             nextEligibleAt: tickState.nextEligibleAt,
-            lastOutcome: tickState.lastOutcome,
-            lastDurationMs: tickState.lastDurationMs,
+            lastOutcome: useActivity
+              ? activityOutcome(activity)
+              : tickState.lastOutcome,
+            lastDurationMs: useActivity
+              ? activity.durationMs
+              : tickState.lastDurationMs,
             schedule: frontmatter.every ?? null,
             disabled: frontmatter.disabled === true,
             staff: frontmatter.staff ?? null,
@@ -520,25 +562,36 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         return null;
       const raw = Buffer.from(data.content, "base64").toString("utf-8");
       const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
-      const [updatedAt, lastTickAt, tickState] = await Promise.all([
-        fetchLastCommitDate(octokit, filePath),
-        fetchLastCommitDateOrNull(
-          octokit,
-          `${dir}/${slug}.state.json`,
-          STATE_BRANCH,
-        ),
-        fetchTickState(octokit, dir, slug),
-      ]);
+      const [updatedAt, lastTickAt, tickState, activityByDuty] =
+        await Promise.all([
+          fetchLastCommitDate(octokit, filePath),
+          fetchLastCommitDateOrNull(
+            octokit,
+            `${dir}/${slug}.state.json`,
+            STATE_BRANCH,
+          ),
+          fetchTickState(octokit, dir, slug),
+          dir === ".kody/duties"
+            ? fetchRecentDutyActivity()
+            : Promise.resolve(new Map<string, CompanyActivityRecord>()),
+        ]);
+      const activity = activityByDuty.get(slug);
+      const useActivity =
+        activity?.ts != null && isSameOrNewer(activity.ts, lastTickAt);
       return {
         slug,
         title,
         body,
         sha: data.sha,
         updatedAt,
-        lastTickAt,
+        lastTickAt: useActivity ? activity.ts : lastTickAt,
         nextEligibleAt: tickState.nextEligibleAt,
-        lastOutcome: tickState.lastOutcome,
-        lastDurationMs: tickState.lastDurationMs,
+        lastOutcome: useActivity
+          ? activityOutcome(activity)
+          : tickState.lastOutcome,
+        lastDurationMs: useActivity
+          ? activity.durationMs
+          : tickState.lastDurationMs,
         schedule: frontmatter.every ?? null,
         disabled: frontmatter.disabled === true,
         staff: frontmatter.staff ?? null,

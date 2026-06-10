@@ -40,7 +40,6 @@ type FlyFeature =
   | "preview-base"
   | "runner"
   | "brain"
-  | "litellm"
   | "builder"
   | "other";
 

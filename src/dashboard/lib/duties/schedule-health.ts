@@ -6,23 +6,31 @@
  *   a coarse health signal. The Duties page already shows raw "last run" /
  *   "next run" timestamps; this turns them into an actionable status —
  *   "overdue" (a scheduled duty whose next-eligible time passed well beyond
- *   the cron window) or "never" (scheduled, old enough to have run, but the
- *   engine never wrote a state file). No GitHub calls — operates on fields
- *   already present on every TickFile/duty.
+ *   the cron window), "never" (scheduled, old enough to have run, but no run
+ *   proof is visible), or "skipped" (scheduled with no staff). No GitHub calls
+ *   — operates on fields already present on every TickFile/duty.
  */
 import { scheduleEveryToMs, type ScheduleEvery } from "../ticked/frontmatter";
 
-export type DutyHealth = "ok" | "overdue" | "never" | "manual" | "disabled";
+export type DutyHealth =
+  | "ok"
+  | "overdue"
+  | "never"
+  | "manual"
+  | "disabled"
+  | "skipped";
 
 export interface DutyHealthInput {
   /** Cadence; `null` = "every cron wake" (the engine's 15-minute cron). */
   schedule: ScheduleEvery | null;
-  /** Last commit time of `<slug>.state.json`, or null if never run. */
+  /** Last visible run proof, or null when none is visible. */
   lastTickAt: string | null;
   /** `data.nextEligibleISO` from the state file, or null. */
   nextEligibleAt: string | null;
   /** `disabled: true` in frontmatter — scheduler skips it. */
   disabled: boolean;
+  /** Missing staff means the engine scheduler skips this duty. */
+  staff?: string | null;
   /** Last commit time of the `.md` (proxy for "how long it's existed"). */
   updatedAt?: string | null;
 }
@@ -42,14 +50,15 @@ export function dutyScheduleHealth(
 ): DutyHealth {
   if (d.disabled) return "disabled";
   if (d.schedule === "manual") return "manual";
+  if (d.staff === null || d.staff === "") return "skipped";
 
   const cadenceMs = d.schedule
     ? scheduleEveryToMs(d.schedule)
     : DEFAULT_CADENCE_MS;
 
   if (!d.lastTickAt) {
-    // Never produced a state file. Only flag once it's existed long enough
-    // that it really should have ticked — a freshly-created duty isn't sick.
+    // No run proof. Only flag once it's existed long enough that it really
+    // should have ticked — a freshly-created duty isn't sick.
     const created = d.updatedAt ? new Date(d.updatedAt).getTime() : now;
     if (Number.isNaN(created)) return "ok";
     return now - created > cadenceMs + OVERDUE_GRACE_MS ? "never" : "ok";
@@ -65,6 +74,7 @@ export function dutyScheduleHealth(
 export interface DutyHealthSummary {
   overdue: number;
   never: number;
+  skipped: number;
 }
 
 /** Roll up the actionable states across a list of duties. */
@@ -74,10 +84,12 @@ export function summarizeDutyHealth(
 ): DutyHealthSummary {
   let overdue = 0;
   let never = 0;
+  let skipped = 0;
   for (const d of duties) {
     const h = dutyScheduleHealth(d, now);
     if (h === "overdue") overdue += 1;
     else if (h === "never") never += 1;
+    else if (h === "skipped") skipped += 1;
   }
-  return { overdue, never };
+  return { overdue, never, skipped };
 }

@@ -104,7 +104,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { KodyHeader } from "./KodyHeader";
 import { HeaderOverflowMenu } from "./HeaderOverflowMenu";
 import { MobileMenu } from "./MobileMenu";
-import { PRIORITY_LEVELS, PRIORITY_META } from "../constants";
+import {
+  HIDDEN_TASK_LABEL,
+  PRIORITY_LEVELS,
+  PRIORITY_META,
+} from "../constants";
+import {
+  filterVisibleTasks,
+  markTaskHiddenInList,
+  markTaskVisibleInList,
+} from "../tasks/visibility";
 
 interface KodyDashboardProps {
   initialIssueNumber?: number;
@@ -185,7 +194,12 @@ export function KodyDashboard({
 
   // Persistent chat lives in the root layout (ChatRailShell). We just
   // push our context up and read mobile-open from the shared rail API.
-  const { setScope, openMobileChat } = useChatScope();
+  const { setScope, openMobileChat, setPageOwnsHeader } = useChatScope();
+
+  useEffect(() => {
+    setPageOwnsHeader(true);
+    return () => setPageOwnsHeader(false);
+  }, [setPageOwnsHeader]);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -325,8 +339,9 @@ export function KodyDashboard({
   }, [selectedTask, selectedIssueNumber]);
 
   // GitHub identity — verified via OAuth session cookie
-  const { githubUser, connectedRepo, authError, clearGitHubUser } =
-    useGitHubIdentity();
+  const { githubUser, authError, clearGitHubUser } = useGitHubIdentity();
+
+  const visibleTasks = useMemo(() => filterVisibleTasks(tasks), [tasks]);
 
   // Auth presence — when no PAT is saved we render the dashboard chrome
   // normally but swap the task pane for `<RepoManager />` so the user
@@ -477,6 +492,73 @@ export function KodyDashboard({
     },
   });
 
+  const taskVisibilityMutation = useMutation({
+    mutationFn: ({
+      task,
+      hidden,
+    }: {
+      task: KodyTask;
+      hidden: boolean;
+    }) =>
+      hidden
+        ? kodyApi.tasks.addLabel(
+            task.issueNumber,
+            HIDDEN_TASK_LABEL,
+            githubUser?.login,
+          )
+        : kodyApi.tasks.removeLabel(
+            task.issueNumber,
+            HIDDEN_TASK_LABEL,
+            githubUser?.login,
+          ),
+    onMutate: async ({ task, hidden }) => {
+      await queryClient.cancelQueries({ queryKey: ["kody-tasks"] });
+      const previous = queryClient.getQueriesData<KodyTask[]>({
+        queryKey: ["kody-tasks"],
+      });
+      queryClient.setQueriesData<KodyTask[]>(
+        { queryKey: ["kody-tasks"] },
+        (old) => {
+          if (!old) return old;
+          return hidden
+            ? markTaskHiddenInList(old, task.issueNumber)
+            : markTaskVisibleInList(old, task.issueNumber);
+        },
+      );
+      return { previous };
+    },
+    onError: (error, _vars, context) => {
+      for (const [key, value] of context?.previous ?? []) {
+        queryClient.setQueryData(key, value);
+      }
+      if (!handleAuthError(error)) {
+        toast.error("Failed to update task visibility");
+      }
+    },
+    onSuccess: (_data, { task, hidden }) => {
+      if (hidden) {
+        toast.success("Task hidden from dashboard", {
+          action: {
+            label: "Undo",
+            onClick: () =>
+              taskVisibilityMutation.mutate({ task, hidden: false }),
+          },
+        });
+        if (selectedIssueNumber === task.issueNumber) {
+          setSelectedIssueNumber(null);
+          setShowMobileDetail(false);
+          window.history.pushState(null, "", "/");
+        }
+      } else {
+        toast.success("Task shown in dashboard");
+      }
+      queryClient.invalidateQueries({ queryKey: ["kody-tasks"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.taskDetails(task.issueNumber),
+      });
+    },
+  });
+
   const rerunMutation = useMutation({
     mutationFn: (task: KodyTask) =>
       tasksApi.rerun(task.issueNumber, githubUser?.login),
@@ -553,11 +635,11 @@ export function KodyDashboard({
 
   // Check for task changes when tasks update
   useEffect(() => {
-    if (tasks.length > 0) {
-      checkTaskChanges(tasks);
+    if (visibleTasks.length > 0) {
+      checkTaskChanges(visibleTasks);
       setErrorDismissed(false); // Reset banner dismissal on successful fetch
     }
-  }, [tasks, dataUpdatedAt, checkTaskChanges]);
+  }, [visibleTasks, dataUpdatedAt, checkTaskChanges]);
 
   // Persist filter state in URL params
   useEffect(() => {
@@ -588,7 +670,7 @@ export function KodyDashboard({
 
   // Get unique labels from tasks (excluding internal/system labels)
   const availableLabels = Array.from(
-    new Set(tasks.flatMap((task) => task.labels)),
+    new Set(visibleTasks.flatMap((task) => task.labels)),
   )
     .filter(
       (label) =>
@@ -608,7 +690,7 @@ export function KodyDashboard({
     .sort();
 
   // Calculate label counts
-  const labelCounts = tasks.reduce(
+  const labelCounts = visibleTasks.reduce(
     (acc, task) => {
       task.labels.forEach((label) => {
         acc[label] = (acc[label] || 0) + 1;
@@ -619,7 +701,7 @@ export function KodyDashboard({
   );
 
   // Calculate status counts
-  const statusCounts = tasks.reduce(
+  const statusCounts = visibleTasks.reduce(
     (acc, task) => {
       acc[task.column] = (acc[task.column] || 0) + 1;
       return acc;
@@ -627,10 +709,11 @@ export function KodyDashboard({
     {} as Record<string, number>,
   );
 
-  const totalCount = tasks.length;
+  const totalCount = visibleTasks.length;
 
   // View mode counts — backlog = open column, running = everything else
-  const { runningCount, backlogCount, queueCount } = getViewModeCounts(tasks);
+  const { runningCount, backlogCount, queueCount } =
+    getViewModeCounts(visibleTasks);
 
   // Filter tasks by view mode, then by status and label (combined with AND logic).
   // useMemo is load-bearing: without it the function returns a fresh array every
@@ -639,7 +722,7 @@ export function KodyDashboard({
   // fires every render once a goal is being planned and trips React error #185.
   const baseFilteredTasks = useMemo(
     () =>
-      filterTasksByView(tasks, {
+      filterTasksByView(visibleTasks, {
         viewMode,
         statusFilter,
         labelFilter,
@@ -649,7 +732,7 @@ export function KodyDashboard({
         showAllStates: taskListLayout === "grouped",
       }),
     [
-      tasks,
+      visibleTasks,
       viewMode,
       statusFilter,
       labelFilter,
@@ -1018,11 +1101,8 @@ export function KodyDashboard({
 
       const issueNum = getIssueFromUrl();
       if (issueNum) {
-        const match = tasks.find((t) => t.issueNumber === issueNum);
-        if (match) {
-          setSelectedIssueNumber(match.issueNumber);
-          if (!isDesktop) setShowMobileDetail(true);
-        }
+        setSelectedIssueNumber(issueNum);
+        if (!isDesktop) setShowMobileDetail(true);
       } else {
         setSelectedIssueNumber(null);
         setShowMobileDetail(false);
@@ -1031,7 +1111,7 @@ export function KodyDashboard({
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [tasks, isDesktop, openMobileChat]);
+  }, [isDesktop, openMobileChat]);
 
   // Mobile filter controls — rendered inside the mobile menu Sheet
   const mobileFilterControls = (
@@ -1295,6 +1375,16 @@ export function KodyDashboard({
         : null
     : null;
 
+  const visibilityActionPending =
+    taskVisibilityMutation.isPending &&
+    selectedTask &&
+    taskVisibilityMutation.variables?.task.issueNumber ===
+      selectedTask.issueNumber
+      ? taskVisibilityMutation.variables.hidden
+        ? "hide-from-dashboard"
+        : "show-in-dashboard"
+      : null;
+
   return (
     <ErrorBoundary>
       <div className="h-full flex flex-col overflow-hidden">
@@ -1325,6 +1415,13 @@ export function KodyDashboard({
               }
               onEditTask={setEditingTask}
               onDuplicate={handleDuplicateTask}
+              onHideTask={(task) =>
+                taskVisibilityMutation.mutate({ task, hidden: true })
+              }
+              onShowTask={(task) =>
+                taskVisibilityMutation.mutate({ task, hidden: false })
+              }
+              visibilityActionPending={visibilityActionPending}
             />
           ) : (
             <>
@@ -1406,7 +1503,7 @@ export function KodyDashboard({
 
               {/* Kody Status Banner */}
               <KodyStatusBanner
-                tasks={tasks}
+                tasks={visibleTasks}
                 mainCi={mainCi}
                 mainCiLoading={mainCiFetching}
                 isFetching={isFetching}
@@ -1529,6 +1626,12 @@ export function KodyDashboard({
                       onCreateTask={handleOpenCreate}
                       onEditTask={setEditingTask}
                       onDuplicate={handleDuplicateTask}
+                      onHideTask={(task) =>
+                        taskVisibilityMutation.mutate({ task, hidden: true })
+                      }
+                      onShowTask={(task) =>
+                        taskVisibilityMutation.mutate({ task, hidden: false })
+                      }
                       onRerun={(task) => rerunMutation.mutate(task)}
                       onToggleQueue={(task) => {
                         const isQueued = task.labels.includes("kody:queued");
@@ -1576,6 +1679,12 @@ export function KodyDashboard({
                     onCreateTask={handleOpenCreate}
                     onEditTask={setEditingTask}
                     onDuplicate={handleDuplicateTask}
+                    onHideTask={(task) =>
+                      taskVisibilityMutation.mutate({ task, hidden: true })
+                    }
+                    onShowTask={(task) =>
+                      taskVisibilityMutation.mutate({ task, hidden: false })
+                    }
                     onRerun={(task) => rerunMutation.mutate(task)}
                     onToggleQueue={(task) => {
                       const isQueued = task.labels.includes("kody:queued");
@@ -1745,6 +1854,13 @@ export function KodyDashboard({
                 onRefresh={refetch}
                 onEditTask={setEditingTask}
                 onDuplicate={handleDuplicateTask}
+                onHideTask={(task) =>
+                  taskVisibilityMutation.mutate({ task, hidden: true })
+                }
+                onShowTask={(task) =>
+                  taskVisibilityMutation.mutate({ task, hidden: false })
+                }
+                visibilityActionPending={visibilityActionPending}
               />
             </SheetContent>
           </Sheet>

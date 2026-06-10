@@ -54,7 +54,7 @@ describe("computeActivity", () => {
         {
           ts: 5_000,
           machines: [
-            { app: "kody-litellm", machineId: "z", state: "started", ...SIZE },
+            { app: "kody-brain-alice", machineId: "z", state: "started", ...SIZE },
           ],
         },
       ]),
@@ -63,7 +63,7 @@ describe("computeActivity", () => {
     expect(a.runningMs).toBe(0);
     expect(a.uptime).toBe(0);
     expect(a.estCostUsd).toBe(0);
-    expect(a.feature).toBe("litellm");
+    expect(a.feature).toBe("brain");
   });
 
   it("picks size from the most recent sized sample", () => {

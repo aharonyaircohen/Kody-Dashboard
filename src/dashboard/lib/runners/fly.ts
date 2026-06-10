@@ -28,9 +28,8 @@ const DEFAULT_REGION = process.env.FLY_REGION ?? "fra";
 /**
  * Hard ceiling on the machine-create call. The Fly Machines API normally
  * answers in a few seconds; without a bound, a hung API holds the whole
- * Vibe/start request open until the serverless runtime kills it (and the
- * pool-miss → spawn fallback never gets to surface a clean error). On
- * timeout the fetch rejects and the caller's catch returns 500 fast.
+ * Vibe/start request open until the serverless runtime kills it. On timeout
+ * the fetch rejects and the caller's catch returns 500 fast.
  */
 const SPAWN_TIMEOUT_MS = 30_000;
 
@@ -67,13 +66,6 @@ export interface SpawnRunnerInput {
    * shape (see PERF_GUEST). Omit to use the default ("medium").
    */
   perfTier?: PerfTier;
-  /**
-   * Optional always-on LiteLLM proxy URL (e.g. http://kody-litellm.internal:4000).
-   * When set, the runner's entrypoint forwards localhost:4000 to this URL via
-   * socat — the engine's existing health check then reuses the live proxy and
-   * skips its own ~24s startup. Omit for the per-session pre-warm path.
-   */
-  litellmUrl?: string;
   /**
    * GitHub issue number for agent (run-executable) mode. When set, the
    * runner's entrypoint invokes `kody run --issue N` instead of bare
@@ -149,7 +141,6 @@ function buildMachineEnv(input: SpawnRunnerInput): Record<string, string> {
   if (input.dashboardUrl) env.DASHBOARD_URL = input.dashboardUrl;
   if (input.idleExitMs) env.KODY_IDLE_EXIT_MS = String(input.idleExitMs);
   if (input.hardCapMs) env.KODY_HARD_CAP_MS = String(input.hardCapMs);
-  if (input.litellmUrl) env.KODY_LITELLM_URL = input.litellmUrl;
   if (input.issueNumber && input.issueNumber > 0) {
     env.ISSUE_NUMBER = String(input.issueNumber);
   }

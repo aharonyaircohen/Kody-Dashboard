@@ -34,7 +34,7 @@ describe("bootPhaseLabel — GitHub Actions timeline", () => {
     expect(bootPhaseLabel(0, "gh")).toBe("Queueing workflow run");
     expect(bootPhaseLabel(10, "gh")).toBe("Setting up GitHub Actions runner");
     expect(bootPhaseLabel(25, "gh")).toBe("Installing Kody engine");
-    expect(bootPhaseLabel(50, "gh")).toBe("Starting LiteLLM proxy");
+    expect(bootPhaseLabel(50, "gh")).toBe("Starting model proxy");
     expect(bootPhaseLabel(80, "gh")).toBe("Warming up model");
     expect(bootPhaseLabel(110, "gh")).toBe("Almost ready...");
     expect(bootPhaseLabel(999, "gh")).toBe("Almost ready...");

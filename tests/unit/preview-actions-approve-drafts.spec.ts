@@ -1,12 +1,12 @@
 /**
  * Source-level structural test for the "Also approve drafts" toggle
- * in `PreviewActions.tsx` (issue #129). The Approve button used to
+ * in the merge approval flow (issue #129). The Approve button used to
  * fail silently on draft PRs — `octokit.pulls.createReview({event:
  * "APPROVE"})` is rejected on drafts by GitHub. The fix:
  *
  *   1. Surface `pr.isDraft` (added to `GitHubPR` by the GraphQL query
  *      update in the same change set) so the UI can react.
- *   2. Add a checkbox (default on) in the action bar that, when on,
+ *   2. Add a checkbox (default on) in the merge modal that, when on,
  *      asks the backend to mark the PR ready-for-review before
  *      posting the approval.
  *   3. Show a "draft" badge on the Approve button whenever the PR
@@ -32,8 +32,13 @@ const PREVIEW_ACTIONS_PATH = resolve(
   __dirname,
   "../../src/dashboard/lib/components/PreviewActions.tsx",
 );
+const MERGE_APPROVAL_DIALOG_PATH = resolve(
+  __dirname,
+  "../../src/dashboard/lib/components/MergeApprovalDialog.tsx",
+);
 
 const SOURCE = readFileSync(PREVIEW_ACTIONS_PATH, "utf8");
+const DIALOG_SOURCE = readFileSync(MERGE_APPROVAL_DIALOG_PATH, "utf8");
 
 describe("PreviewActions — 'Also approve drafts' toggle (issue #129)", () => {
   it("reads the PR's draft status (isDraft) so the toggle is wired to real data", () => {
@@ -45,30 +50,47 @@ describe("PreviewActions — 'Also approve drafts' toggle (issue #129)", () => {
     );
   });
 
-  it("declares state for the 'also approve drafts' toggle", () => {
-    // useState for the checkbox's checked state — must default to `true`
-    // so the existing 'click Approve and forget' flow keeps working on
-    // draft PRs (the issue's default: ON contract).
-    expect(SOURCE, "useState for the drafts toggle must exist").toMatch(
-      /useState\s*\(\s*true\s*\)/,
-    );
-  });
-
-  it("renders a Checkbox bound to the toggle (issue #129 acceptance criteria)", () => {
-    // A Radix Checkbox is in the UI primitives and is the existing
-    // pattern in this codebase (e.g. notification prefs).
-    expect(SOURCE, "Checkbox primitive must be imported").toMatch(
+  it("does not render the toggle in the preview action bar", () => {
+    expect(SOURCE, "PreviewActions must not import the checkbox").not.toMatch(
       /import\s*\{[^}]*\bCheckbox\b[^}]*\}\s*from\s*["']@dashboard\/ui\/checkbox["']/,
     );
-    expect(SOURCE, "Checkbox must be rendered as a JSX element").toMatch(
+    expect(SOURCE, "PreviewActions must not render the checkbox").not.toMatch(
       /<Checkbox\b/,
     );
   });
 
-  it("labels the toggle 'Also approve drafts'", () => {
-    // The user-facing label has to match the issue's spec verbatim so the
-    // acceptance test for the message in the error path is meaningful.
-    expect(SOURCE).toMatch(/Also approve drafts/);
+  it("declares state for the modal's 'also approve drafts' toggle", () => {
+    // useState for the checkbox's checked state — must default to `true`
+    // so the existing 'click Approve and forget' flow keeps working on
+    // draft PRs (the issue's default: ON contract).
+    expect(DIALOG_SOURCE, "useState for the drafts toggle must exist").toMatch(
+      /useState\s*\(\s*true\s*\)/,
+    );
+  });
+
+  it("renders a Checkbox in the merge modal", () => {
+    // A Radix Checkbox is in the UI primitives and is the existing
+    // pattern in this codebase (e.g. notification prefs).
+    expect(DIALOG_SOURCE, "Checkbox primitive must be imported").toMatch(
+      /import\s*\{[^}]*\bCheckbox\b[^}]*\}\s*from\s*["']@dashboard\/ui\/checkbox["']/,
+    );
+    expect(DIALOG_SOURCE, "Checkbox must be rendered as a JSX element").toMatch(
+      /<Checkbox\b/,
+    );
+  });
+
+  it("labels the modal toggle 'Also approve drafts'", () => {
+    expect(DIALOG_SOURCE).toMatch(/Also approve drafts/);
+  });
+
+  it("opens the merge modal from the Approve button", () => {
+    expect(SOURCE).toMatch(/setShowMergeDialog\(true\)/);
+    expect(SOURCE).toMatch(/<MergeApprovalDialog\b/);
+    expect(SOURCE).toMatch(/onApprove=\{handleApprove\}/);
+  });
+
+  it("only shows the modal toggle when the PR is a draft", () => {
+    expect(DIALOG_SOURCE).toMatch(/isApprovalFlow\s*&&\s*prIsDraft\s*&&\s*\(/);
   });
 
   it("shows a 'draft' badge on the Approve button when the PR is in draft state", () => {
@@ -107,20 +129,15 @@ describe("PreviewActions — 'Also approve drafts' toggle (issue #129)", () => {
     ).toMatch(/This PR is a draft[\s\S]{0,80}Also approve drafts/i);
   });
 
-  it("forwards the draft + toggle state to MergeButton so the badge is consistent", () => {
-    // The standalone Merge button must know the PR is a draft (or
-    // has been marked ready by the new path) so its own visual state
-    // stays in sync. The cheapest way to keep the wiring explicit is
-    // to pass `prIsDraft` (or the toggle value) as a prop.
-    const mergeBlock = SOURCE.match(/<MergeButton\b[\s\S]*?\/>/);
+  it("forwards the draft state to the merge modal", () => {
+    const mergeBlock = SOURCE.match(/<MergeApprovalDialog\b[\s\S]*?\/>/);
     expect(
       mergeBlock,
-      "MergeButton element must still self-close",
+      "MergeApprovalDialog element must still self-close",
     ).not.toBeNull();
-    // Accept any one of the prop names that the fix might pick.
     expect(
       mergeBlock![0],
-      "MergeButton must receive the draft/toggle prop",
-    ).toMatch(/\b(prIsDraft|isDraft|approveDrafts)\s*=\s*\{/);
+      "MergeApprovalDialog must receive the draft prop",
+    ).toMatch(/\bprIsDraft=\{pr\.isDraft\s*\?\?\s*false\}/);
   });
 });

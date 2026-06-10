@@ -13,7 +13,7 @@ import type { GitHubActionsHealth } from "./github-health";
 import { chooseRunner, type RunnerChoice } from "./runner-router";
 
 export interface FlyRunResult {
-  runner: "pool" | "fly";
+  runner: "fly";
   machineId: string;
 }
 
@@ -24,7 +24,7 @@ export interface DispatchDeps {
   flyAvailable: boolean;
   /** Fire the GitHub workflow dispatch. Throws on API failure. */
   dispatchGitHub: () => Promise<void>;
-  /** Run the job on Fly (claim warm pool, else spawn fresh). */
+  /** Run the job on Fly. */
   runFly: () => Promise<FlyRunResult>;
 }
 

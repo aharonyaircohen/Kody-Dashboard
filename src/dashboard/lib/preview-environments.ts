@@ -30,6 +30,21 @@ export interface PreviewEnvironment {
    * environments never set this — they don't expire.
    */
   expiresAt?: number;
+  /**
+   * Small, non-secret summary of the uploaded source file. Stored with uploaded
+   * previews so chat can understand the page even when the inspector extension
+   * cannot read the iframe yet.
+   */
+  uploadContext?: PreviewUploadContext;
+}
+
+export interface PreviewUploadContext {
+  name: string;
+  mimeType?: string;
+  size?: number;
+  title?: string;
+  outline?: string;
+  textPreview?: string;
 }
 
 const ID_RAND_LEN = 4;
@@ -154,6 +169,7 @@ export function addUploadedEnvironment(
   url: string,
   staticId: string,
   expiresAt: number,
+  uploadContext?: PreviewUploadContext,
 ): PreviewEnvironment[] {
   const cleanLabel = label.trim().slice(0, MAX_LABEL);
   const cleanUrl = normalizeEnvUrl(url);
@@ -166,6 +182,7 @@ export function addUploadedEnvironment(
       url: cleanUrl,
       staticId,
       expiresAt,
+      ...(uploadContext ? { uploadContext } : {}),
     },
   ];
 }

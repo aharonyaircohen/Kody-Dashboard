@@ -123,7 +123,6 @@ export async function POST(req: NextRequest) {
       githubToken: ctx.context.githubToken,
       allSecrets: ctx.context.allSecrets,
       perfTier: ctx.context.perfTier,
-      litellmUrl: ctx.context.litellmUrl,
       ...(appNameOverride ? { appNameOverride } : {}),
     });
     provisioned = { url: result.url, apiKey: result.apiKey, app: result.app };
@@ -154,7 +153,7 @@ export async function POST(req: NextRequest) {
 
   // Provision returns when the Fly Machine API has accepted the create
   // call, but the Node server inside doesn't bind :8080 until the
-  // entrypoint finishes the repo clone + LiteLLM + brain-serve startup.
+  // entrypoint finishes the repo clone + model proxy + brain-serve startup.
   // Measured cold boot is ~105s and varies with git-clone time, so the
   // 120s default tipped over on normal variance. Budget 240s here (the
   // poll returns the instant /healthz is 200 — the larger number only

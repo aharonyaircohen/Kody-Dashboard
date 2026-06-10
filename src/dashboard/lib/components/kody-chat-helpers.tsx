@@ -14,7 +14,7 @@ import { Image as ImageIcon, FileText, FileCode } from "lucide-react";
  * two backends are wildly different — kody-live boots through GitHub
  * Actions (~90s, dominated by runner provisioning + npx install), while
  * kody-live-fly boots a Fly Machine (~45-60s, dominated by image pull
- * + repo clone + LiteLLM startup, with the last two running in parallel
+ * + repo clone + model proxy startup, with the last two running in parallel
  * via the runner entrypoint). Estimates only — no API calls.
  */
 export function bootPhaseLabel(elapsed: number, runtime: "gh" | "fly"): string {
@@ -27,7 +27,7 @@ export function bootPhaseLabel(elapsed: number, runtime: "gh" | "fly"): string {
   if (elapsed < 10) return "Queueing workflow run";
   if (elapsed < 25) return "Setting up GitHub Actions runner";
   if (elapsed < 50) return "Installing Kody engine";
-  if (elapsed < 80) return "Starting LiteLLM proxy";
+  if (elapsed < 80) return "Starting model proxy";
   if (elapsed < 110) return "Warming up model";
   return "Almost ready...";
 }

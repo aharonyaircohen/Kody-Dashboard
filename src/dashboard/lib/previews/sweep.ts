@@ -1,20 +1,21 @@
 /**
  * @fileType library
  * @domain previews
- * @pattern ttl-sweep
- * @ai-summary TTL-based garbage collection for per-PR preview apps —
- *   every open (and stale-bot) PR keeps a Fly app alive, and even
- *   suspended machines cost rootfs storage. Trap: TTL is opt-in via
- *   `fly.previews.ttlDays` (≤ 0 = no-op), and the per-repo BASE image
- *   (`kp-…-base`) is always exempt — destroying it would invalidate the
- *   build cache and re-cold-build every PR.
+ * @pattern preview-cleanup
+ * @ai-summary Cleanup for per-PR preview apps: repair old machines so they
+ *   sleep/wake correctly, actively sleep started previews, and garbage-collect
+ *   apps past TTL. Trap: the per-repo BASE image (`kp-…-base`) is always
+ *   exempt — destroying it would invalidate the build cache and re-cold-build
+ *   every PR.
  *
- * Destroy per-PR preview apps that have outlived their TTL.
+ * Repair and sweep per-PR preview apps.
  *
  * Previews accumulate: every open PR (and stale bot PRs never close) keeps a
  * Fly app alive. Even when machines suspend they still cost rootfs storage,
  * and the app count balloons. This sweep enumerates a repo's preview apps and
- * destroys any whose oldest machine is older than `fly.previews.ttlDays`.
+ * destroys any whose oldest machine is older than `fly.previews.ttlDays`. For
+ * the rest, it updates sleep/wake settings and puts started machines to sleep
+ * immediately when `fly.previews.idleSuspend` is enabled.
  *
  * TTL is opt-in: `ttlDays <= 0` (the default) sweeps nothing. The per-repo
  * BASE image (`kp-…-base`) is always skipped — it's the build cache, not a
@@ -27,6 +28,7 @@ import {
   destroyApp,
   listAppsByPrefix,
   listMachines,
+  sleepPreviewMachine,
 } from "@dashboard/lib/previews/fly-previews";
 import {
   resolveFlyPreviewsForRepo,
@@ -50,14 +52,16 @@ export interface SweepResult {
   unchanged: string[];
   /** Machine refs that could not be aligned because they lack services/config. */
   skipped: string[];
+  /** Machine refs actively put to sleep during cleanup. */
+  slept: string[];
   /** App names that errored during inspection/destroy (best-effort sweep). */
   errored: string[];
 }
 
 /**
- * Sweep one repo's expired preview apps. Best-effort: a failure on one app is
- * logged and recorded in `errored` but never aborts the rest. `now` is
- * injectable for tests; defaults to the current time.
+ * Clean one repo's preview apps. Best-effort: a failure on one app is logged
+ * and recorded in `errored` but never aborts the rest. `now` is injectable for
+ * tests; defaults to the current time.
  */
 export async function sweepExpiredPreviews(
   repo: string,
@@ -74,6 +78,7 @@ export async function sweepExpiredPreviews(
       aligned: [],
       unchanged: [],
       skipped: [],
+      slept: [],
       errored: [],
     };
   }
@@ -88,6 +93,7 @@ export async function sweepExpiredPreviews(
       aligned: [],
       unchanged: [],
       skipped: [],
+      slept: [],
       errored: [],
     };
   }
@@ -105,6 +111,7 @@ export async function sweepExpiredPreviews(
       aligned: [],
       unchanged: [],
       skipped: [],
+      slept: [],
       errored: [],
     };
   }
@@ -119,6 +126,7 @@ export async function sweepExpiredPreviews(
   const aligned: string[] = [];
   const unchanged: string[] = [];
   const skipped: string[] = [];
+  const slept: string[] = [];
   const errored: string[] = [];
 
   for (const appName of apps) {
@@ -139,17 +147,26 @@ export async function sweepExpiredPreviews(
 
       for (const machine of machines) {
         const ref = `${appName}/${machine.id}`;
+        const memoryMb = machine.guest?.memoryMb ?? previews.memoryMb;
         const result = await alignPreviewMachineSleep(appName, machine.id, cfg, {
           idleSuspend: previews.idleSuspend,
           healthCheck: previews.healthCheck,
-          memoryMb: machine.guest?.memoryMb ?? previews.memoryMb,
+          memoryMb,
         });
         if (result.changed) {
           aligned.push(ref);
         } else if (result.skipped) {
           skipped.push(ref);
+          continue;
         } else {
           unchanged.push(ref);
+        }
+        if (previews.idleSuspend) {
+          const sleep = await sleepPreviewMachine(appName, machine.id, cfg, {
+            state: machine.state,
+            memoryMb,
+          });
+          if (sleep.slept) slept.push(ref);
         }
       }
     } catch (err) {
@@ -168,6 +185,7 @@ export async function sweepExpiredPreviews(
       inspected: apps.length,
       destroyed: destroyed.length,
       aligned: aligned.length,
+      slept: slept.length,
     },
     "preview-sweep: complete",
   );
@@ -179,6 +197,7 @@ export async function sweepExpiredPreviews(
     aligned,
     unchanged,
     skipped,
+    slept,
     errored,
   };
 }

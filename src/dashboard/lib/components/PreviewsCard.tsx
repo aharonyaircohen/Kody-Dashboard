@@ -11,7 +11,8 @@
  *     "Advanced" for power users; an off-preset value shows as "Custom").
  *   - Sleep when idle — keep ON so idle previews cost ~$0.
  *   - Delete previews after N days — auto-cleanup (default 14).
- *   - "Delete expired now" — destroy past-expiry previews immediately.
+ *   - "Clean up now" — repair sleep/wake settings, sleep live previews, and
+ *     destroy past-expiry previews immediately.
  *   - Advanced — exact CPU/RAM + manual branch previews (BranchPreviewCard).
  *
  * Health check is intentionally NOT exposed (footgun — pinging defeats
@@ -61,6 +62,7 @@ interface SweepResult {
   aligned?: string[];
   unchanged?: string[];
   skipped?: string[];
+  slept?: string[];
   errored: string[];
 }
 
@@ -191,26 +193,27 @@ export function PreviewsCard({
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? `Delete failed (HTTP ${res.status})`);
+        toast.error(body.error ?? `Cleanup failed (HTTP ${res.status})`);
         return;
       }
       const body = (await res.json()) as SweepResult;
       const aligned = body.aligned?.length ?? 0;
+      const slept = body.slept?.length ?? 0;
       if (!body.enabled) {
         toast.info(
           "Set a delete-after value first, then this clears old ones.",
         );
       } else {
         toast.success(
-          `Repaired ${aligned} preview machine${
-            aligned === 1 ? "" : "s"
-          }; deleted ${body.destroyed.length} expired preview${
+          `Slept ${slept} preview machine${
+            slept === 1 ? "" : "s"
+          }; repaired ${aligned}; deleted ${body.destroyed.length} expired preview${
             body.destroyed.length === 1 ? "" : "s"
           } (${body.inspected} checked).`,
         );
       }
     } catch (err) {
-      toast.error(`Delete failed: ${(err as Error).message}`);
+      toast.error(`Cleanup failed: ${(err as Error).message}`);
     } finally {
       setSweeping(false);
     }
@@ -336,7 +339,7 @@ export function PreviewsCard({
                 onClick={sweepNow}
                 disabled={sweeping || !flyTokenConfigured}
                 className="text-rose-300 hover:text-rose-200 ml-auto"
-                title="Repair preview sleep settings and delete expired previews"
+                title="Sleep running previews, repair wake settings, and delete expired previews"
               >
                 <Trash2 className="w-3 h-3 mr-1" />
                 {sweeping ? "Cleaning…" : "Clean up now"}

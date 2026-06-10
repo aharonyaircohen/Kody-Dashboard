@@ -5,7 +5,7 @@
  *
  * GET /api/kody/fly/machines — the operator machine inventory: every
  * kody-managed Fly machine the connected repo's token can see, classified by
- * feature (preview / runner / brain / litellm / builder). Powers the Machines
+ * feature (preview / runner / brain / builder). Powers the Machines
  * table on /runner.
  *
  * Auth: requireKodyAuth. Fly token: the connected repo's vault FLY_API_TOKEN

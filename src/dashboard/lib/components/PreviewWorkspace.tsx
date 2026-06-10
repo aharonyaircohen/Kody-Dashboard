@@ -34,10 +34,12 @@ import {
   destroyStaticPreview,
   uploadStaticPreview,
 } from "../previews/static-preview-client";
+import { createUploadContext } from "../previews/upload-context";
 import {
   fetchDashboardConfig,
   saveDashboardConfig,
 } from "../dashboard-config/client";
+import { previewChatContextBlock } from "../chat/preview-context";
 import {
   getStoredAuth,
   RateLimitError,
@@ -52,7 +54,8 @@ function selectionKey(owner: string, repo: string): string {
 export function PreviewWorkspace() {
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
-  const { setComposerInjection, setAttachmentInjection } = useChatScope();
+  const { setComposerInjection, setAttachmentInjection, setPreviewContext } =
+    useChatScope();
 
   const owner = getStoredAuth()?.owner ?? "";
   const repo = getStoredAuth()?.repo ?? "";
@@ -108,6 +111,11 @@ export function PreviewWorkspace() {
     environments.find((e) => e.id === selectedId) ?? environments[0] ?? null;
   const baseUrl = selectedEnv?.url ?? null;
 
+  useEffect(() => {
+    setPreviewContext(previewChatContextBlock(selectedEnv));
+    return () => setPreviewContext(null);
+  }, [selectedEnv, setPreviewContext]);
+
   const saveMutation = useMutation({
     mutationFn: (next: PreviewEnvironment[]) =>
       saveDashboardConfig({
@@ -141,6 +149,7 @@ export function PreviewWorkspace() {
   // expiresAt so it auto-reaps after the TTL even if nobody deletes it.
   const uploadFile = async (file: File): Promise<void> => {
     try {
+      const uploadContext = await createUploadContext(file);
       const res = await uploadStaticPreview(file);
       const next = addUploadedEnvironment(
         environments,
@@ -148,6 +157,7 @@ export function PreviewWorkspace() {
         res.url,
         res.id,
         Date.now() + STATIC_PREVIEW_TTL_MS,
+        uploadContext,
       );
       await persist(next);
       const created = next[next.length - 1];

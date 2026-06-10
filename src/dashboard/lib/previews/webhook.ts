@@ -16,7 +16,7 @@
  * Two flows:
  *   - opened / synchronize / reopened → handlePrOpenedOrSynced
  *       Builds + boots the preview through the dedicated builder
- *       service. Tries the warm pool first; falls back to create-fresh.
+ *       service.
  *   - closed → handlePrClosed
  *       Destroys the per-PR Fly app + machine.
  *

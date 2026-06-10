@@ -4,7 +4,7 @@
  * @pattern fly-machines-table
  *
  * The operator's primary Fly view on /runner: every kody-managed machine the
- * repo's token can see, grouped by feature (preview / runner / brain / litellm
+ * repo's token can see, grouped by feature (preview / runner / brain
  * / builder), with inline Suspend / Resume / Destroy. Config lives in the
  * settings cards below — this table is "what's running right now, act on it".
  *
@@ -39,7 +39,6 @@ type FlyFeature =
   | "preview-base"
   | "runner"
   | "brain"
-  | "litellm"
   | "builder"
   | "other";
 
@@ -73,7 +72,6 @@ const FEATURE_ORDER: FlyFeature[] = [
   "preview",
   "runner",
   "brain",
-  "litellm",
   "builder",
   "preview-base",
   "other",
@@ -82,7 +80,6 @@ const FEATURE_TITLE: Record<FlyFeature, string> = {
   preview: "Previews",
   runner: "Runners",
   brain: "Brain",
-  litellm: "LiteLLM",
   builder: "Builders",
   "preview-base": "Preview base images",
   other: "Other",

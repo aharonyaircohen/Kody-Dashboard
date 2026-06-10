@@ -7,12 +7,21 @@
 "use client";
 
 import { memo, useCallback, useState, useEffect } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { cn, formatRelativeTime } from "../utils";
 import {
   getGitHubIssueUrl,
+  HIDDEN_TASK_LABEL,
   parsePriorityLabel,
   PRIORITY_META,
 } from "../constants";
+import { kodyApi } from "../api";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import {
+  markTaskHiddenInList,
+  markTaskVisibleInList,
+} from "../tasks/visibility";
 import { MiniPipelineProgress } from "./MiniPipelineProgress";
 import { AnimatedStatusBar } from "./v2/AnimatedStatusBar";
 import { SimpleTooltip } from "./SimpleTooltip";
@@ -55,6 +64,7 @@ import {
   AlertCircle,
   RefreshCw,
   Eye,
+  EyeOff,
   Inbox,
   Pencil,
   Copy,
@@ -79,6 +89,8 @@ interface TaskListProps {
   onCreateTask?: () => void;
   onEditTask?: (task: KodyTask) => void;
   onDuplicate?: (task: KodyTask) => void;
+  onHideTask?: (task: KodyTask) => void;
+  onShowTask?: (task: KodyTask) => void;
   onRerun?: (task: KodyTask) => void;
   onToggleQueue?: (task: KodyTask) => void;
   /** If true, each row is draggable (for goal-to-goal DnD). */
@@ -199,6 +211,8 @@ export function TaskList({
   onCreateTask,
   onEditTask,
   onDuplicate,
+  onHideTask,
+  onShowTask,
   onRerun,
   onToggleQueue,
   collaborators = [],
@@ -207,6 +221,70 @@ export function TaskList({
   onDragEndTask,
   accent,
 }: TaskListProps) {
+  const queryClient = useQueryClient();
+  const { githubUser } = useGitHubIdentity();
+  const visibilityMutation = useMutation({
+    mutationFn: ({
+      task,
+      hidden,
+    }: {
+      task: KodyTask;
+      hidden: boolean;
+    }) =>
+      hidden
+        ? kodyApi.tasks.addLabel(
+            task.issueNumber,
+            HIDDEN_TASK_LABEL,
+            githubUser?.login,
+          )
+        : kodyApi.tasks.removeLabel(
+            task.issueNumber,
+            HIDDEN_TASK_LABEL,
+            githubUser?.login,
+          ),
+    onMutate: async ({ task, hidden }) => {
+      await queryClient.cancelQueries({ queryKey: ["kody-tasks"] });
+      const previous = queryClient.getQueriesData<KodyTask[]>({
+        queryKey: ["kody-tasks"],
+      });
+      queryClient.setQueriesData<KodyTask[]>(
+        { queryKey: ["kody-tasks"] },
+        (old) => {
+          if (!old) return old;
+          return hidden
+            ? markTaskHiddenInList(old, task.issueNumber)
+            : markTaskVisibleInList(old, task.issueNumber);
+        },
+      );
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      for (const [key, value] of context?.previous ?? []) {
+        queryClient.setQueryData(key, value);
+      }
+      toast.error("Failed to update task visibility");
+    },
+    onSuccess: (_data, { task, hidden }) => {
+      toast.success(hidden ? "Task hidden from dashboard" : "Task shown");
+      queryClient.invalidateQueries({ queryKey: ["kody-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["kody-task", task.issueNumber] });
+    },
+  });
+  const handleHideTask = useCallback(
+    (task: KodyTask) => {
+      if (onHideTask) onHideTask(task);
+      else visibilityMutation.mutate({ task, hidden: true });
+    },
+    [onHideTask, visibilityMutation],
+  );
+  const handleShowTask = useCallback(
+    (task: KodyTask) => {
+      if (onShowTask) onShowTask(task);
+      else visibilityMutation.mutate({ task, hidden: false });
+    },
+    [onShowTask, visibilityMutation],
+  );
+
   const handleTaskClick = useCallback(
     (task: KodyTask) => {
       if (onTaskSelect) {
@@ -258,6 +336,8 @@ export function TaskList({
           onOpenPreview={onOpenPreview}
           onEditTask={onEditTask}
           onDuplicate={onDuplicate}
+          onHideTask={handleHideTask}
+          onShowTask={handleShowTask}
           onRerun={onRerun}
           onToggleQueue={onToggleQueue}
           collaborators={collaborators}
@@ -284,6 +364,8 @@ interface TaskRowProps {
   onOpenPreview?: (task: KodyTask) => void;
   onEditTask?: (task: KodyTask) => void;
   onDuplicate?: (task: KodyTask) => void;
+  onHideTask?: (task: KodyTask) => void;
+  onShowTask?: (task: KodyTask) => void;
   onRerun?: (task: KodyTask) => void;
   onToggleQueue?: (task: KodyTask) => void;
   collaborators: { login: string; avatar_url: string }[];
@@ -306,6 +388,8 @@ const TaskRow = memo(function TaskRow({
   onOpenPreview,
   onEditTask,
   onDuplicate,
+  onHideTask,
+  onShowTask,
   onRerun,
   onToggleQueue: _onToggleQueue,
   collaborators,
@@ -854,6 +938,29 @@ const TaskRow = memo(function TaskRow({
                   Duplicate task
                 </DropdownMenuItem>
               )}
+
+              {/* Hide / Show in dashboard */}
+              {task.labels.includes(HIDDEN_TASK_LABEL)
+                ? onShowTask && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        onShowTask(task);
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      Show in dashboard
+                    </DropdownMenuItem>
+                  )
+                : onHideTask && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        onHideTask(task);
+                      }}
+                    >
+                      <EyeOff className="w-4 h-4 mr-2" />
+                      Hide from dashboard
+                    </DropdownMenuItem>
+                  )}
 
               {/* Rerun */}
               {onRerun && (

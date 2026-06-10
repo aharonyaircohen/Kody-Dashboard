@@ -4,7 +4,7 @@
  * @pattern previews-sweep-api
  *
  * POST /api/kody/previews/sweep — repair preview machines so they sleep/wake
- * on traffic, and destroy connected-repo preview apps past
+ * on traffic, actively sleep started previews, and destroy apps past
  * `fly.previews.ttlDays` (kody.config.json). Powers the Fly panel's cleanup
  * button; the preview webhook also runs it opportunistically on each build.
  *

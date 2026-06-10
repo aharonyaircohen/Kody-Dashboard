@@ -844,21 +844,19 @@ export interface Duty {
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
   /**
-   * Last commit timestamp of the sibling `<slug>.state.json` (ISO8601),
-   * or `null` if the duty has never run. The engine writes
-   * `<slug>.state.json` on every tick that acts.
+   * Last visible run time (ISO8601), from the old state file or newer activity
+   * log. `null` means the dashboard cannot see run proof.
    */
   lastTickAt: string | null;
   /**
    * UTC ISO timestamp at which this duty will next be eligible to act —
-   * read from `data.nextEligibleISO` in the state JSON. `null` if the
-   * duty has never run, or its body doesn't yet emit the field.
+   * read from `data.nextEligibleISO` in the state JSON. `null` when
+   * unavailable, or its body doesn't yet emit the field.
    */
   nextEligibleAt: string | null;
   /**
-   * Coarse result of the most recent tick — `data.lastOutcome` in the state
-   * JSON, stamped by the engine from the agent result. `null` when never run
-   * or on an engine that predates the field.
+   * Coarse result of the most recent tick, from state or activity. `null` when
+   * unknown or on an engine that predates the field.
    */
   lastOutcome: "completed" | "failed" | null;
   /** Wall-clock of the most recent tick (ms) — `data.lastDurationMs`, or null. */

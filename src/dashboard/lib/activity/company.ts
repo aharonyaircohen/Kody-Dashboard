@@ -81,3 +81,14 @@ export function sortActivityNewestFirst(
 ): CompanyActivityRecord[] {
   return [...records].sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
 }
+
+/** Latest engine activity record per duty slug. */
+export function latestActivityByDuty(
+  records: CompanyActivityRecord[],
+): Map<string, CompanyActivityRecord> {
+  const latest = new Map<string, CompanyActivityRecord>();
+  for (const rec of sortActivityNewestFirst(records)) {
+    if (!latest.has(rec.duty)) latest.set(rec.duty, rec);
+  }
+  return latest;
+}

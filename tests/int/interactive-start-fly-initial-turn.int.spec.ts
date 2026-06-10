@@ -8,9 +8,9 @@
  * first read (no racy follow-up /interactive/append). The Actions `start`
  * route is covered by its own test — but Vibe mostly runs on the FLY path
  * (`kody-live-fly` → /interactive/start-fly), which has the identical fold.
- * This pins that path: a pool claim must not skip the turn write.
+ * This pins that path: spawning Fly must not skip the turn write.
  *
- * The pool client + Fly context are module-mocked (nothing boots); the octokit
+ * The Fly spawn + Fly context are module-mocked (nothing boots); the octokit
  * in the mocked context captures the session-file PUT so we can assert the
  * committed JSONL contains meta + the primed user turn.
  */
@@ -19,13 +19,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { Buffer } from "buffer";
 import { NextRequest } from "next/server";
 
-const claimFromPool = vi.fn();
 const spawnRunner = vi.fn();
 const resolveFlyContext = vi.fn();
 
-vi.mock("@dashboard/lib/runners/pool-client", () => ({
-  claimFromPool: (...args: unknown[]) => claimFromPool(...args),
-}));
 vi.mock("@dashboard/lib/runners/fly", () => ({
   spawnRunner: (...args: unknown[]) => spawnRunner(...args),
 }));
@@ -81,7 +77,6 @@ function capturingContext() {
       allSecrets: {},
       flyToken: "fly_test",
       perfTier: "medium",
-      litellmUrl: "https://kody-litellm.fly.dev",
     },
   };
   return { ctx, getWritten: () => written };
@@ -96,10 +91,10 @@ afterEach(() => {
 });
 
 describe("POST /api/kody/chat/interactive/start-fly — atomic initial turn", () => {
-  it("folds the primed first turn into the session commit even on a pool claim", async () => {
+  it("folds the primed first turn into the session commit before spawning Fly", async () => {
     const { ctx, getWritten } = capturingContext();
     resolveFlyContext.mockResolvedValue(ctx);
-    claimFromPool.mockResolvedValue({ ok: true, machineId: "pool-m-1" });
+    spawnRunner.mockResolvedValue({ machineId: "fly-m-1", region: "fra" });
 
     const res = await startFlyPOST(
       makeRequest({
@@ -111,9 +106,8 @@ describe("POST /api/kody/chat/interactive/start-fly — atomic initial turn", ()
     );
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data).toMatchObject({ ok: true, runner: "pool" });
-    // Claim path must not have skipped the turn write.
-    expect(spawnRunner).not.toHaveBeenCalled();
+    expect(data).toMatchObject({ ok: true, runner: "fly" });
+    expect(spawnRunner).toHaveBeenCalledOnce();
 
     const lines = getWritten()
       .split("\n")
@@ -135,7 +129,7 @@ describe("POST /api/kody/chat/interactive/start-fly — atomic initial turn", ()
   it("writes a meta-only session when no initial content is given (back-compat)", async () => {
     const { ctx, getWritten } = capturingContext();
     resolveFlyContext.mockResolvedValue(ctx);
-    claimFromPool.mockResolvedValue({ ok: true, machineId: "pool-m-2" });
+    spawnRunner.mockResolvedValue({ machineId: "fly-m-2", region: "fra" });
 
     const res = await startFlyPOST(makeRequest({ taskId: "plain-fly" }));
     expect(res.status).toBe(200);

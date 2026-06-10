@@ -455,6 +455,13 @@ export const INTERNAL_ISSUE_LABELS = [
   "kody:audit-log",
 ] as const;
 
+export const HIDDEN_TASK_LABEL = "kody:hidden";
+
+export const TASK_LIST_EXCLUDED_LABELS = [
+  ...INTERNAL_ISSUE_LABELS,
+  HIDDEN_TASK_LABEL,
+] as const;
+
 /**
  * Discovery label for the durable audit-log manifest issue (the "who did
  * what" trail surfaced on the Activity → Log tab). Stored in an issue body

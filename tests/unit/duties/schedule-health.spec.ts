@@ -33,6 +33,10 @@ describe("dutyScheduleHealth", () => {
     );
   });
 
+  it("reports scheduled duties with no staff as skipped", () => {
+    expect(dutyScheduleHealth(duty({ staff: null }), NOW)).toBe("skipped");
+  });
+
   it("is ok when the next-eligible time is still in the future", () => {
     expect(
       dutyScheduleHealth(duty({ nextEligibleAt: ahead(20 * MIN) }), NOW),
@@ -105,7 +109,12 @@ describe("summarizeDutyHealth", () => {
         updatedAt: ago(8 * HOUR),
       }), // never
       duty({ disabled: true }), // disabled (ignored)
+      duty({ staff: null }), // skipped
     ];
-    expect(summarizeDutyHealth(list, NOW)).toEqual({ overdue: 2, never: 1 });
+    expect(summarizeDutyHealth(list, NOW)).toEqual({
+      overdue: 2,
+      never: 1,
+      skipped: 1,
+    });
   });
 });

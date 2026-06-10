@@ -56,6 +56,7 @@ describe("preview webhook maintenance", () => {
       aligned: [],
       unchanged: [],
       skipped: [],
+      slept: [],
       errored: [],
     });
   });

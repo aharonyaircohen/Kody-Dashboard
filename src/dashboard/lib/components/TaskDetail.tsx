@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { formatRelativeTime, cn } from "../utils";
-import { getGitHubIssueUrl } from "../constants";
+import { getGitHubIssueUrl, HIDDEN_TASK_LABEL } from "../constants";
 import type {
   KodyTask,
   GitHubComment,
@@ -69,6 +69,7 @@ import {
   Timer,
   ArrowLeft,
   Eye,
+  EyeOff,
   Pencil,
   Copy,
   ListPlus,
@@ -91,6 +92,9 @@ interface TaskDetailProps {
   onOpenPreview?: () => void;
   onEditTask?: (task: KodyTask) => void;
   onDuplicate?: (task: KodyTask) => void;
+  onHideTask?: (task: KodyTask) => void;
+  onShowTask?: (task: KodyTask) => void;
+  visibilityActionPending?: "hide-from-dashboard" | "show-in-dashboard" | null;
   // When false, tab changes do NOT pushState/read window.location.
   // Used by hosts that own their own URL (e.g. Vibe overlay on `/vibe?detail=N`).
   // Defaults to true so the dashboard's path-based routing keeps working.
@@ -314,6 +318,8 @@ function getOverflowActions(
   completedActions: Set<string>,
   setCompletedActions: React.Dispatch<React.SetStateAction<Set<string>>>,
   onDuplicate?: (task: KodyTask) => void,
+  onHideTask?: (task: KodyTask) => void,
+  onShowTask?: (task: KodyTask) => void,
 ): Array<{
   icon: React.ElementType;
   label: string;
@@ -401,6 +407,25 @@ function getOverflowActions(
       pendingLabel: "Duplicating…",
       onClick: () => onDuplicate(task),
       pendingKey: "duplicate",
+    });
+  }
+
+  const hiddenFromDashboard = task.labels.includes(HIDDEN_TASK_LABEL);
+  if (hiddenFromDashboard && onShowTask) {
+    actions.push({
+      icon: Eye,
+      label: "Show in dashboard",
+      pendingLabel: "Showing…",
+      onClick: () => onShowTask(task),
+      pendingKey: "show-in-dashboard",
+    });
+  } else if (!hiddenFromDashboard && onHideTask) {
+    actions.push({
+      icon: EyeOff,
+      label: "Hide from dashboard",
+      pendingLabel: "Hiding…",
+      onClick: () => onHideTask(task),
+      pendingKey: "hide-from-dashboard",
     });
   }
 
@@ -653,6 +678,9 @@ export function TaskDetail({
   onOpenPreview,
   onEditTask,
   onDuplicate,
+  onHideTask,
+  onShowTask,
+  visibilityActionPending = null,
   syncTabToUrl = true,
 }: TaskDetailProps) {
   const { githubUser } = useGitHubIdentity();
@@ -803,6 +831,8 @@ export function TaskDetail({
     completedActions,
     setCompletedActions,
     onDuplicate,
+    onHideTask,
+    onShowTask,
   );
 
   // --- Shared markdown components ---
@@ -1356,8 +1386,10 @@ export function TaskDetail({
             {/* Overflow menu */}
             <OverflowMenu
               actions={overflowActions}
-              isPending={taskActions.isPending}
-              pendingAction={taskActions.pendingAction}
+              isPending={taskActions.isPending || !!visibilityActionPending}
+              pendingAction={
+                visibilityActionPending ?? taskActions.pendingAction
+              }
             />
 
             <span className="w-px h-5 bg-white/[0.06] mx-0.5" />
@@ -1912,8 +1944,8 @@ export function TaskDetail({
         <div className="ml-auto">
           <OverflowMenu
             actions={overflowActions}
-            isPending={taskActions.isPending}
-            pendingAction={taskActions.pendingAction}
+            isPending={taskActions.isPending || !!visibilityActionPending}
+            pendingAction={visibilityActionPending ?? taskActions.pendingAction}
             direction="up"
           />
         </div>

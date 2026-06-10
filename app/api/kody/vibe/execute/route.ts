@@ -22,7 +22,6 @@ import { requireKodyAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import { spawnRunner } from "@dashboard/lib/runners/fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
-import { claimFromPool } from "@dashboard/lib/runners/pool-client";
 
 export const runtime = "nodejs";
 
@@ -63,7 +62,6 @@ export async function POST(req: NextRequest) {
     allSecrets,
     flyToken,
     perfTier,
-    litellmUrl,
   } = ctxResult.context;
 
   // sessionId is traceable but unused by the engine in agent mode —
@@ -95,39 +93,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Fast path: claim a pre-booted, frozen runner from the warm pool. The
-    // pool owner wakes it (~1s) and hands it the job over HTTP. On any miss
-    // (empty pool, unreachable, unconfigured) claimFromPool returns ok:false
-    // and we fall through to create-fresh below — the pool is an accelerator,
-    // never a hard dependency.
-    // Slim request — the pool owner reads this repo's secrets from its vault
-    // and clones with the operator token, so no secrets cross the wire.
-    const claim = await claimFromPool({
-      jobId: sessionId,
-      repo: `${owner}/${repo}`,
-      issueNumber,
-      ref,
-      sessionId,
-    });
-    if (claim.ok) {
-      logger.info(
-        { issueNumber, machineId: claim.machineId, owner, repo, sessionId },
-        "vibe-execute: claimed warm pool machine",
-      );
-      return NextResponse.json({
-        ok: true,
-        issueNumber,
-        runner: "pool",
-        machineId: claim.machineId,
-        sessionId,
-      });
-    }
-
-    logger.info(
-      { issueNumber, owner, repo, sessionId, ref, poolMiss: claim.reason },
-      "vibe-execute: pool miss — spawning fresh runner",
-    );
-
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
       githubToken,
@@ -137,7 +102,6 @@ export async function POST(req: NextRequest) {
       allSecrets,
       flyToken,
       perfTier,
-      litellmUrl,
     });
 
     logger.info(

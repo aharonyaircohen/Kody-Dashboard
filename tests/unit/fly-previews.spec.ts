@@ -19,6 +19,7 @@ import {
   alignPreviewMachineSleep,
   alignPreviewMachineSleepConfig,
   createMachine,
+  sleepPreviewMachine,
   type FlyPreviewConfig,
 } from "@dashboard/lib/previews/fly-previews";
 
@@ -340,5 +341,84 @@ describe("alignPreviewMachineSleep", () => {
     ).resolves.toEqual({ changed: false, skipped: false });
 
     expect(methods).toEqual(["GET"]);
+  });
+});
+
+describe("sleepPreviewMachine", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("suspends started previews at or below Fly's suspend limit", async () => {
+    const requests: Array<{ url: string; method: string }> = [];
+    globalThis.fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({
+          url: typeof input === "string" ? input : input.toString(),
+          method: init?.method ?? "GET",
+        });
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    ) as unknown as typeof fetch;
+
+    await expect(
+      sleepPreviewMachine("kp-test-app", "m-1", CFG, {
+        state: "started",
+        memoryMb: 2048,
+      }),
+    ).resolves.toEqual({ slept: true, mode: "suspend" });
+
+    expect(requests).toEqual([
+      {
+        url: "https://api.machines.dev/v1/apps/kp-test-app/machines/m-1/suspend",
+        method: "POST",
+      },
+    ]);
+  });
+
+  it("stops started previews above Fly's suspend limit", async () => {
+    const requests: Array<{ url: string; method: string }> = [];
+    globalThis.fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({
+          url: typeof input === "string" ? input : input.toString(),
+          method: init?.method ?? "GET",
+        });
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    ) as unknown as typeof fetch;
+
+    await expect(
+      sleepPreviewMachine("kp-test-app", "m-1", CFG, {
+        state: "started",
+        memoryMb: 4096,
+      }),
+    ).resolves.toEqual({ slept: true, mode: "stop" });
+
+    expect(requests).toEqual([
+      {
+        url: "https://api.machines.dev/v1/apps/kp-test-app/machines/m-1/stop",
+        method: "POST",
+      },
+    ]);
+  });
+
+  it("skips machines that are already sleeping", async () => {
+    globalThis.fetch = vi.fn() as unknown as typeof fetch;
+
+    await expect(
+      sleepPreviewMachine("kp-test-app", "m-1", CFG, {
+        state: "suspended",
+        memoryMb: 2048,
+      }),
+    ).resolves.toEqual({ slept: false, reason: "not_started" });
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });

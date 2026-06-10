@@ -848,14 +848,14 @@ function EditDutyDialog({
 
 /**
  * Inline "last run" pill for use in the duty-list rows. Hidden when
- * the duty has never run — keeps the row dense. Refreshes every 30s.
- * Source is the commit timestamp of the sibling `<slug>.state.json`,
- * which the engine writes only when a tick actually acts.
+ * no run proof is visible — keeps the row dense. Refreshes every 30s.
+ * Source is the duty state file or the newer activity log fallback.
  */
 /**
  * Row pill that escalates a duty's raw timestamps into an actionable
- * warning: amber "Overdue" (next-eligible passed beyond the cron window) or
- * red "Never run" (scheduled, old enough to have run, no state file yet).
+ * warning: amber "Overdue" (next-eligible passed beyond the cron window),
+ * red "Never run" (scheduled, old enough to have run, no proof yet), or
+ * gray "No staff" (the scheduler skips it).
  * Renders nothing for healthy/manual duties.
  */
 function DutyHealthBadge({ duty }: { duty: Duty }) {
@@ -876,21 +876,35 @@ function DutyHealthBadge({ duty }: { duty: Duty }) {
     return (
       <span
         className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-rose-500/15 text-rose-300 border border-rose-500/25"
-        title="Scheduled and old enough to have run, but the engine has never recorded a tick."
+        title="Scheduled and old enough to have run, but the dashboard has no run proof."
       >
         <AlertTriangle className="w-2.5 h-2.5" />
         Never run
       </span>
     );
   }
+  if (health === "skipped") {
+    return (
+      <span
+        className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
+        title="No staff assigned — the engine scheduler skips this duty."
+      >
+        <User className="w-2.5 h-2.5" />
+        No staff
+      </span>
+    );
+  }
   return null;
 }
 
-/** Compact "N overdue · M never run" bar; hidden when everything is healthy. */
+/** Compact health bar; hidden when everything is healthy/runnable. */
 function DutyHealthSummaryBar({ duties }: { duties: Duty[] }) {
   const now = useNow(30_000);
-  const { overdue, never } = summarizeDutyHealth(duties, now.getTime());
-  if (overdue === 0 && never === 0) return null;
+  const { overdue, never, skipped } = summarizeDutyHealth(
+    duties,
+    now.getTime(),
+  );
+  if (overdue === 0 && never === 0 && skipped === 0) return null;
   return (
     <div className="mt-2 flex items-center gap-3 text-[11px]">
       {overdue > 0 ? (
@@ -905,10 +919,19 @@ function DutyHealthSummaryBar({ duties }: { duties: Duty[] }) {
       {never > 0 ? (
         <span
           className="inline-flex items-center gap-1 text-rose-300"
-          title="Scheduled duties that have never recorded a tick"
+          title="Scheduled duties with no visible run proof"
         >
           <AlertTriangle className="w-3 h-3" />
           {never} never run
+        </span>
+      ) : null}
+      {skipped > 0 ? (
+        <span
+          className="inline-flex items-center gap-1 text-muted-foreground"
+          title="Scheduled duties skipped because no staff is assigned"
+        >
+          <User className="w-3 h-3" />
+          {skipped} no staff
         </span>
       ) : null}
     </div>
@@ -1039,11 +1062,8 @@ function NextRunDetail({
 
 /**
  * Detail-header counterpart for `LastTickInline`. Hides when the value
- * is missing — `lastTickAt` is the commit timestamp of `<slug>.state.json`
- * on GitHub, which only exists for repos using the `contents-api` duty-state
- * backend. Repos on `local-file` keep state on the runner only, so a null
- * value means "the dashboard can't see it", not "never run". Saying "never
- * run" misleads more than it informs.
+ * is missing. A null value means the dashboard can't see run proof, not
+ * necessarily that the duty never ran.
  */
 function LastTickDetail({
   lastTickAt,
@@ -1426,9 +1446,10 @@ function MentionsInput({
 
 /**
  * Read-only timing readout shown inside the Edit dialog: last actual run
- * + next eligible run, both sourced from the duty's state file. Helpful
- * for duties whose cadence lives in the body prose (not frontmatter), so
- * the dropdown above can't honestly express it. Refreshes every 30s.
+ * + next eligible run. Last run can come from state or activity; next eligible
+ * still comes from state. Helpful for duties whose cadence lives in the body
+ * prose (not frontmatter), so the dropdown above can't honestly express it.
+ * Refreshes every 30s.
  */
 function DutyTimingReadout({
   lastTickAt,
@@ -1448,10 +1469,8 @@ function DutyTimingReadout({
           : "next run due now";
       })()
     : null;
-  // Both signals come from `<slug>.state.json` on GitHub, which only exists
-  // for repos on the `contents-api` duty-state backend. Hide the readout
-  // entirely when neither is reachable — saying "never run / next run
-  // unknown" on every duty misleads more than it informs.
+  // Hide the readout entirely when neither signal is reachable — saying
+  // "never run / next run unknown" on every duty misleads more than it informs.
   if (!last && !next) return null;
   return (
     <div className="flex items-center gap-3 text-xs text-muted-foreground">

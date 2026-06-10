@@ -20,9 +20,6 @@
  *   - previews need app creation + IP allocation per PR (each preview is
  *     its own app, so it gets its own <app>.fly.dev hostname).
  *   - runners share one `kody-runner` app; previews can't.
- *
- * The pool path (see `pool-claim.ts`) skips most of this — it claims a
- * pre-booted suspended machine and only swaps the image.
  */
 
 const FLY_MACHINES_BASE = "https://api.machines.dev/v1";
@@ -423,6 +420,10 @@ export type AlignPreviewMachineSleepResult =
   | { changed: false; skipped: false }
   | { changed: false; skipped: true; reason: string };
 
+export type SleepPreviewMachineResult =
+  | { slept: true; mode: "suspend" | "stop" }
+  | { slept: false; reason: string };
+
 export function alignPreviewMachineSleepConfig(
   config: MachineConfig | undefined,
   options: AlignPreviewMachineSleepOptions,
@@ -526,6 +527,21 @@ export async function destroyMachine(
   await assertOk(res, "destroyMachine");
 }
 
+/** Stop a machine: cold sleep, wakes on request when service autostart=true. */
+export async function stopMachine(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/stop`,
+    { method: "POST" },
+    cfg.token,
+  );
+  if (res.status === 404) return;
+  await assertOk(res, "stopMachine");
+}
+
 /** Suspend a machine: snapshot RAM to disk, ~$0 while idle, wakes on request
  * (or via {@link startMachine}). No-op (404 tolerated) if it's already gone. */
 export async function suspendMachine(
@@ -555,6 +571,26 @@ export async function startMachine(
   );
   if (res.status === 404) return;
   await assertOk(res, "startMachine");
+}
+
+/** Put a preview machine to sleep now. Uses suspend when Fly supports it and
+ * cold-stop for larger machines; both wake on request once autostart is set. */
+export async function sleepPreviewMachine(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+  input: { state: string; memoryMb?: number },
+): Promise<SleepPreviewMachineResult> {
+  if (input.state !== "started") {
+    return { slept: false, reason: "not_started" };
+  }
+  const effectiveMemoryMb = input.memoryMb ?? 512;
+  if (effectiveMemoryMb <= FLY_SUSPEND_MEMORY_LIMIT_MB) {
+    await suspendMachine(appName, machineId, cfg);
+    return { slept: true, mode: "suspend" };
+  }
+  await stopMachine(appName, machineId, cfg);
+  return { slept: true, mode: "stop" };
 }
 
 export async function destroyApp(

@@ -1,30 +1,21 @@
 /**
  * @fileoverview Integration tests for POST /api/kody/vibe/execute — the
- * endpoint that puts a runner on an issue. It tries the warm pool first and
- * falls back to spawning a fresh Fly Machine on any miss.
+ * endpoint that puts a runner on an issue by spawning a fresh Fly Machine.
  * @testFramework vitest
  * @domain vibe
  *
- * The thing under test is the DECISION logic, not the infra: pool-hit →
- * `runner: "pool"`, pool-miss → spawn → `runner: "fly"`, spawn error → 500,
- * bad input → 400, missing auth → 401. The pool client, the Fly spawn, and
- * the vault-backed Fly context are all module-mocked, so nothing real boots —
- * exactly per the brief ("don't care if it actually creates servers"). The
- * pool being an accelerator and never a hard dependency is the load-bearing
- * invariant here.
+ * The thing under test is the route glue, not the infra: valid input → fresh
+ * Fly spawn, spawn error → 500, bad input → 400, missing auth → 401. The Fly
+ * spawn and vault-backed Fly context are module-mocked, so nothing real boots.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 // ─── Mock the three external boundaries the route reaches for ────────────────
-const claimFromPool = vi.fn();
 const spawnRunner = vi.fn();
 const resolveFlyContext = vi.fn();
 
-vi.mock("@dashboard/lib/runners/pool-client", () => ({
-  claimFromPool: (...args: unknown[]) => claimFromPool(...args),
-}));
 vi.mock("@dashboard/lib/runners/fly", () => ({
   spawnRunner: (...args: unknown[]) => spawnRunner(...args),
 }));
@@ -71,7 +62,6 @@ function okContext(defaultBranch = "main") {
       allSecrets: {},
       flyToken: "fly_test",
       perfTier: "shared-1x",
-      litellmUrl: "https://kody-litellm.fly.dev",
     },
   };
 }
@@ -109,32 +99,12 @@ describe("POST /api/kody/vibe/execute", () => {
       const res = await vibeExecutePOST(makeRequest(bad));
       expect(res.status).toBe(400);
     }
-    // Bailed on validation — never reached the pool or a spawn.
-    expect(claimFromPool).not.toHaveBeenCalled();
+    // Bailed on validation — never reached a spawn.
     expect(spawnRunner).not.toHaveBeenCalled();
   });
 
-  it("claims a warm-pool machine when available and reports runner=pool", async () => {
+  it("spawns a fresh Fly machine and reports runner=fly", async () => {
     resolveFlyContext.mockResolvedValue(okContext());
-    claimFromPool.mockResolvedValue({ ok: true, machineId: "pool-machine-1" });
-
-    const res = await vibeExecutePOST(makeRequest({ issueNumber: 42 }));
-    expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(data).toMatchObject({
-      ok: true,
-      issueNumber: 42,
-      runner: "pool",
-      machineId: "pool-machine-1",
-    });
-    expect(String(data.sessionId)).toMatch(/^vibe-issue-42-\d+$/);
-    // Pool hit ⇒ we must NOT have paid for a fresh spawn.
-    expect(spawnRunner).not.toHaveBeenCalled();
-  });
-
-  it("falls back to a fresh Fly spawn on pool miss and reports runner=fly", async () => {
-    resolveFlyContext.mockResolvedValue(okContext());
-    claimFromPool.mockResolvedValue({ ok: false, reason: "empty-pool" });
     spawnRunner.mockResolvedValue({
       machineId: "fresh-machine-9",
       region: "iad",
@@ -149,20 +119,15 @@ describe("POST /api/kody/vibe/execute", () => {
       runner: "fly",
       machineId: "fresh-machine-9",
     });
-    expect(claimFromPool).toHaveBeenCalledTimes(1);
     expect(spawnRunner).toHaveBeenCalledTimes(1);
   });
 
   it("passes the repo's actual default branch as the spawn ref (not a hardcoded main)", async () => {
     resolveFlyContext.mockResolvedValue(okContext("develop"));
-    claimFromPool.mockResolvedValue({ ok: false, reason: "miss" });
     spawnRunner.mockResolvedValue({ machineId: "m", region: "iad" });
 
     await vibeExecutePOST(makeRequest({ issueNumber: 7 }));
 
-    expect(claimFromPool).toHaveBeenCalledWith(
-      expect.objectContaining({ ref: "develop", repo: "acme/widgets" }),
-    );
     expect(spawnRunner).toHaveBeenCalledWith(
       expect.objectContaining({
         ref: "develop",
@@ -184,9 +149,8 @@ describe("POST /api/kody/vibe/execute", () => {
           "The operation was aborted due to timeout",
           "TimeoutError",
         ),
-      );
+    );
     resolveFlyContext.mockResolvedValue(ctx);
-    claimFromPool.mockResolvedValue({ ok: false, reason: "miss" });
     spawnRunner.mockResolvedValue({ machineId: "m", region: "iad" });
 
     const res = await vibeExecutePOST(makeRequest({ issueNumber: 7 }));
@@ -194,9 +158,6 @@ describe("POST /api/kody/vibe/execute", () => {
     const data = await res.json();
     expect(data).toMatchObject({ ok: true, runner: "fly" });
     // ref omitted (undefined) → runner uses its hardcoded-main fallback.
-    expect(claimFromPool).toHaveBeenCalledWith(
-      expect.objectContaining({ ref: undefined }),
-    );
     expect(spawnRunner).toHaveBeenCalledWith(
       expect.objectContaining({ ref: undefined }),
     );
@@ -204,7 +165,6 @@ describe("POST /api/kody/vibe/execute", () => {
 
   it("returns 500 when the fallback spawn throws (surfaces the real error)", async () => {
     resolveFlyContext.mockResolvedValue(okContext());
-    claimFromPool.mockResolvedValue({ ok: false, reason: "miss" });
     spawnRunner.mockRejectedValue(new Error("Fly capacity exhausted"));
 
     const res = await vibeExecutePOST(makeRequest({ issueNumber: 7 }));
@@ -224,6 +184,5 @@ describe("POST /api/kody/vibe/execute", () => {
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(String(data.error)).toMatch(/FLY_API_TOKEN/);
-    expect(claimFromPool).not.toHaveBeenCalled();
   });
 });

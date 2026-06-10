@@ -213,8 +213,7 @@ function dispatch(
         );
       }
       // Build + boot a preview on PR open, sync (push to branch), or
-      // reopen. Same opt-in via vault FLY_API_TOKEN; the handler tries
-      // the warm pool first and falls back to create-fresh.
+      // reopen. Same opt-in via vault FLY_API_TOKEN.
       if (
         event === "pull_request" &&
         (p?.action === "opened" ||

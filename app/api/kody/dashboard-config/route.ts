@@ -32,6 +32,18 @@ const PreviewEnvironmentSchema = z.object({
   staticId: z.string().min(1).max(64).optional(),
   // Absolute expiry (ms epoch) for uploaded previews; reaped past this.
   expiresAt: z.number().int().nonnegative().optional(),
+  // Small, non-secret summary of uploaded files so chat can understand the
+  // preview even before the inspector extension can read the iframe.
+  uploadContext: z
+    .object({
+      name: z.string().min(1).max(255),
+      mimeType: z.string().max(120).optional(),
+      size: z.number().int().nonnegative().optional(),
+      title: z.string().max(200).optional(),
+      outline: z.string().max(4000).optional(),
+      textPreview: z.string().max(2000).optional(),
+    })
+    .optional(),
 });
 
 const UpsertSchema = z.object({

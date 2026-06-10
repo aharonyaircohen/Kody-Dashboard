@@ -15,7 +15,7 @@ export const fetchCache = "force-cache";
 export const metadata = buildKodyMetadata({
   title: "Fly Runner — Kody Operations Dashboard",
   description:
-    "Per-repo Fly infrastructure: warm-pool size, LiteLLM proxy, and Brain-on-Fly.",
+    "Per-repo Fly infrastructure: runner machines, previews, and Brain-on-Fly.",
   path: "/runner",
 });
 

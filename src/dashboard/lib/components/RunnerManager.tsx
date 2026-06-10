@@ -7,9 +7,9 @@
  *   grouped BY FEATURE so each setting's owner + effect is obvious:
  *     • Previews — per-PR preview size, idle-suspend, expiry (PreviewsCard) +
  *       manual branch previews.
- *     • Runners — warm-pool size (POOL_MIN vault, repo-wide) + VM size (the
- *       per-user perf tier, this browser only, localStorage.kody_auth.flyPerf).
- *     • Brain — per-user Brain-on-Fly. • LiteLLM — shared proxy status.
+ *     • Runners — VM size (the per-user perf tier, this browser only,
+ *       localStorage.kody_auth.flyPerf).
+ *     • Brain — per-user Brain-on-Fly.
  *   Fly token status sits on top (gates everything); the token is set on
  *   /secrets. Health-check is deliberately not exposed (footgun — defeats
  *   idle sleep); it defaults off in code.
@@ -21,7 +21,6 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Brain,
-  Cpu,
   Globe,
   Info,
   KeyRound,
@@ -32,12 +31,10 @@ import {
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
-import { Input } from "@dashboard/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { BrainFlyCard, type BrainFlyState } from "./BrainFlyCard";
 import { FlyActivityTab } from "./FlyActivityTab";
 import { FlyMachinesTable } from "./FlyMachinesTable";
-import { LitellmFlyCard, type LitellmStatus } from "./LitellmFlyCard";
 import { PreviewsCard } from "./PreviewsCard";
 import { PageShell } from "./PageShell";
 import { SimpleTooltip } from "./SimpleTooltip";
@@ -47,13 +44,6 @@ import { getStoredAuth } from "../api";
 
 /** Vault key under which the project-scoped Fly Machines token is stored. */
 const FLY_VAULT_KEY = "FLY_API_TOKEN";
-/** Vault key sizing the per-repo warm pool. Kept byte-identical to the engine
- * (kody2 src/pool/registry.ts POOL_MIN_VAULT_KEY) which reads it. */
-const POOL_MIN_VAULT_KEY = "POOL_MIN";
-/** Default + ceiling — mirror the engine's clamp so the UI rejects what the
- * pool would clamp anyway. */
-const POOL_MIN_DEFAULT = 2;
-const POOL_MIN_MAX = 10;
 
 const FLY_PERF_DEFAULT: FlyPerfTier = "medium";
 
@@ -90,9 +80,7 @@ function vaultHeaders(): Record<string, string> {
 /** Tooltip copy for the blast-radius chips. Kept in one place so the wording
  * stays consistent between the per-section chips and any future chips. */
 const SCOPE_CHIP_HINTS = {
-  wholeRepo: "Applies to everyone using the repo.",
   justYou: "Only affects this browser — not other users.",
-  readOnly: "Status display — you can't change it from here.",
 };
 
 const STATUS_DOT_COLORS: Record<string, string> = {
@@ -121,7 +109,7 @@ function StatusDot({ state }: { state: string }) {
 
 /** Group divider — labels each block by who it affects. The optional
  * `status` slot is for an at-a-glance live status pulled up from the
- * child card (e.g. "● Running · 3 ready" on the LiteLLM divider). */
+ * child card. */
 function GroupHeader({
   icon: Icon,
   label,
@@ -154,22 +142,14 @@ function GroupHeader({
 export function RunnerManager() {
   const { auth, updateIntegrations } = useAuth();
 
-  // ─── Repo-wide: FLY_API_TOKEN probe + warm pool size ────────────────────
+  // ─── Repo-wide: FLY_API_TOKEN probe ─────────────────────────────────────
   const [flyTokenConfigured, setFlyTokenConfigured] = useState(false);
-  const [poolMin, setPoolMin] = useState("");
-  const [poolMinSaved, setPoolMinSaved] = useState("");
-  const [poolMinSaving, setPoolMinSaving] = useState(false);
 
   // ─── Per-user: perf tier (VM size for THIS browser's runs) ──────────────
   const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT);
 
-  // ─── At-a-glance section status (lifted from the child cards so the
-  //     GroupHeader can show "● Running" / "● 3 ready" without scrolling). ─
+  // ─── At-a-glance section status lifted from child cards. ───────────────
   const [brainState, setBrainState] = useState<BrainFlyState>("unknown");
-  const [litellmStatus, setLitellmStatus] = useState<LitellmStatus>({
-    state: "unknown",
-    free: null,
-  });
 
   const probeFlyToken = useCallback(async () => {
     const headers = vaultHeaders();
@@ -192,43 +172,15 @@ export function RunnerManager() {
     }
   }, []);
 
-  const loadPoolMin = useCallback(async () => {
-    const headers = vaultHeaders();
-    if (Object.keys(headers).length === 0) {
-      setPoolMin("");
-      setPoolMinSaved("");
-      return;
-    }
-    try {
-      const res = await fetch(`/api/kody/secrets/${POOL_MIN_VAULT_KEY}/value`, {
-        headers,
-      });
-      if (!res.ok) {
-        setPoolMin("");
-        setPoolMinSaved("");
-        return;
-      }
-      const body = (await res.json()) as { value?: string };
-      const v = body.value ?? "";
-      setPoolMin(v);
-      setPoolMinSaved(v);
-    } catch {
-      setPoolMin("");
-      setPoolMinSaved("");
-    }
-  }, []);
-
   useEffect(() => {
     void probeFlyToken();
-    void loadPoolMin();
-  }, [probeFlyToken, loadPoolMin]);
+  }, [probeFlyToken]);
 
   // Seed the per-user perf tier from auth (or on repo switch).
   useEffect(() => {
     setFlyPerf(auth?.flyPerf ?? FLY_PERF_DEFAULT);
   }, [auth?.flyPerf]);
 
-  const poolMinHasChanges = poolMin.trim() !== poolMinSaved.trim();
   const flyHasChanges = flyPerf !== (auth?.flyPerf ?? FLY_PERF_DEFAULT);
 
   function saveFly() {
@@ -236,39 +188,6 @@ export function RunnerManager() {
       flyPerf: flyPerf === FLY_PERF_DEFAULT ? null : flyPerf,
     });
     toast.success("Fly performance tier saved");
-  }
-
-  async function savePoolMin() {
-    const n = Number(poolMin.trim());
-    if (!Number.isInteger(n) || n < 0 || n > POOL_MIN_MAX) {
-      toast.error(
-        `Warm pool size must be a whole number from 0 to ${POOL_MIN_MAX}`,
-      );
-      return;
-    }
-    setPoolMinSaving(true);
-    try {
-      const res = await fetch(`/api/kody/secrets`, {
-        method: "POST",
-        headers: { "content-type": "application/json", ...vaultHeaders() },
-        body: JSON.stringify({ name: POOL_MIN_VAULT_KEY, value: String(n) }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        throw new Error(body.message ?? `Save failed (${res.status})`);
-      }
-      setPoolMin(String(n));
-      setPoolMinSaved(String(n));
-      toast.success("Warm pool size saved");
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to save warm pool size",
-      );
-    } finally {
-      setPoolMinSaving(false);
-    }
   }
 
   return (
@@ -385,17 +304,9 @@ export function RunnerManager() {
                     icon={Server}
                     label="Task runners"
                     hint="machines that run chat & Vibe tasks"
-                    status={
-                      litellmStatus.free != null ? (
-                        <span className="flex items-center gap-1.5">
-                          <StatusDot state={litellmStatus.state} />
-                          {litellmStatus.free} ready
-                        </span>
-                      ) : null
-                    }
                   />
                   <Card className="border-white/[0.08] bg-white/[0.03]">
-                    <CardContent className="p-4 space-y-4">
+                    <CardContent className="p-4 space-y-3">
                       {/* Speed of my runs — per-user (this browser) */}
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
@@ -447,54 +358,6 @@ export function RunnerManager() {
                         </Button>
                       </div>
 
-                      <div className="border-t border-white/[0.06]" />
-
-                      {/* Keep machines ready — repo-wide (warm pool) */}
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Server className="w-4 h-4 text-sky-400" />
-                          <h2 className="text-sm font-semibold">
-                            Keep machines ready
-                          </h2>
-                          <SimpleTooltip
-                            content="Machines kept pre-booted so a run starts instantly instead of cold-starting. 0 = always cold-start. Each ready machine is a paid VM everyone shares."
-                            side="right"
-                          >
-                            <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
-                          </SimpleTooltip>
-                          <SimpleTooltip
-                            content={SCOPE_CHIP_HINTS.wholeRepo}
-                            side="bottom"
-                          >
-                            <span className="ml-auto text-[10px] text-white/35 uppercase tracking-wide cursor-help">
-                              whole repo
-                            </span>
-                          </SimpleTooltip>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            id="pool-min"
-                            type="number"
-                            min={0}
-                            max={POOL_MIN_MAX}
-                            step={1}
-                            placeholder={`${POOL_MIN_DEFAULT}`}
-                            value={poolMin}
-                            onChange={(e) => setPoolMin(e.target.value)}
-                            className="bg-black/30 border-white/10 w-24"
-                          />
-                          <span className="text-xs text-white/50">
-                            machines
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={savePoolMin}
-                          disabled={!poolMinHasChanges || poolMinSaving}
-                        >
-                          {poolMinSaving ? "Saving…" : "Save for everyone"}
-                        </Button>
-                      </div>
                     </CardContent>
                   </Card>
                 </section>
@@ -524,29 +387,6 @@ export function RunnerManager() {
                     headers={vaultHeaders()}
                     flyTokenConfigured={flyTokenConfigured}
                     onStatusChange={setBrainState}
-                  />
-                </section>
-
-                {/* ── LiteLLM ──────────────────────────────────────────────── */}
-                <section className="space-y-3">
-                  <GroupHeader
-                    icon={Cpu}
-                    label="LiteLLM"
-                    hint="shared model proxy"
-                    status={
-                      <span className="flex items-center gap-1.5">
-                        <StatusDot state={litellmStatus.state} />
-                        {STATUS_LABELS[litellmStatus.state]}
-                        {litellmStatus.free != null && (
-                          <span>· {litellmStatus.free} ready</span>
-                        )}
-                      </span>
-                    }
-                  />
-                  <LitellmFlyCard
-                    headers={vaultHeaders()}
-                    flyTokenConfigured={flyTokenConfigured}
-                    onStatusChange={setLitellmStatus}
                   />
                 </section>
               </>

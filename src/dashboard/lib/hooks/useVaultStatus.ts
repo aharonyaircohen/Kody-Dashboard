@@ -7,7 +7,7 @@
  *   (`vault_read_failed` when the master key can't decrypt the blob,
  *   `vault_not_configured` when KODY_MASTER_KEY is unset) — most callers throw
  *   that away and show "not configured". This hook keeps the raw error so the
- *   UI can present WHY a vault-backed feature (Fly previews, runners, LiteLLM)
+ *   UI can present WHY a vault-backed feature (Fly previews, runners, Brain)
  *   is unavailable instead of going silent.
  */
 "use client";

@@ -28,7 +28,7 @@ import {
 } from "@dashboard/lib/vibe/primer";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
-import { claimOrSpawnFly } from "@dashboard/lib/runners/fly-run";
+import { spawnFlyRunner } from "@dashboard/lib/runners/fly-run";
 
 export const runtime = "nodejs";
 
@@ -141,10 +141,9 @@ export async function POST(req: NextRequest) {
       )}&token=${token}`;
     }
 
-    // Claim a warm pool machine (~1s wake) else spawn a fresh one (~3min).
     // Shared with the GitHub→Fly fallback in /interactive/start so the two
     // paths can't drift.
-    const result = await claimOrSpawnFly(ctxResult.context, {
+    const result = await spawnFlyRunner(ctxResult.context, {
       taskId,
       idleExitMs,
       hardCapMs,

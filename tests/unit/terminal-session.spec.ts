@@ -57,7 +57,7 @@ describe("terminal session policy", () => {
     expect(isTerminalFeatureAllowed("runner")).toBe(true);
     expect(isTerminalFeatureAllowed("brain")).toBe(true);
     expect(isTerminalFeatureAllowed("preview")).toBe(false);
-    expect(isTerminalFeatureAllowed("litellm")).toBe(false);
+    expect(isTerminalFeatureAllowed("builder")).toBe(false);
   });
 
   it("selects a live runner machine", () => {

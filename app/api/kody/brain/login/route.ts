@@ -88,7 +88,6 @@ export async function POST(req: NextRequest) {
       githubToken: ctx.context.githubToken,
       allSecrets: ctx.context.allSecrets,
       perfTier: brainPerfFrom(req, ctx.context.perfTier),
-      litellmUrl: ctx.context.litellmUrl,
       appNameOverride: appName,
     });
 

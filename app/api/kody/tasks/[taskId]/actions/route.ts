@@ -41,6 +41,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { HIDDEN_TASK_LABEL } from "@dashboard/lib/constants";
 import { GOAL_LABEL_PREFIX } from "@dashboard/lib/goals";
 import { getOwner, getRepo } from "@dashboard/lib/github-client";
 import { isProtectedBranch } from "@dashboard/lib/branches";
@@ -442,12 +443,20 @@ export async function POST(
           );
         }
         // GitHub's addLabels endpoint 422s on unknown labels — auto-create
-        // goal:* labels defensively so attaches always succeed.
-        if (label.startsWith(GOAL_LABEL_PREFIX)) {
+        // dashboard-managed labels defensively so first use always succeeds.
+        if (label.startsWith(GOAL_LABEL_PREFIX) || label === HIDDEN_TASK_LABEL) {
           try {
             await ensureLabel(
               label,
-              { color: "38bdf8", description: `Tasks attached to ${label}` },
+              label === HIDDEN_TASK_LABEL
+                ? {
+                    color: "6b7280",
+                    description: "Hidden from the Kody dashboard task list",
+                  }
+                : {
+                    color: "38bdf8",
+                    description: `Tasks attached to ${label}`,
+                  },
               userOctokit ?? undefined,
             );
           } catch (labelErr) {

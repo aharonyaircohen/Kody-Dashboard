@@ -2070,6 +2070,7 @@ const ACTIVITY_DAY_FILES = 3;
 
 export async function fetchCompanyActivity(
   limit = 100,
+  dayFiles = ACTIVITY_DAY_FILES,
 ): Promise<CompanyActivityRecord[]> {
   const octokit = getOctokit();
   const owner = getOwner();
@@ -2112,7 +2113,7 @@ export async function fetchCompanyActivity(
   }
 
   // Newest day-files first (filenames are YYYY-MM-DD.jsonl → lexicographic).
-  const recent = [...files].sort().reverse().slice(0, ACTIVITY_DAY_FILES);
+  const recent = [...files].sort().reverse().slice(0, dayFiles);
 
   const perFile = await Promise.all(
     recent.map(async (name) => {

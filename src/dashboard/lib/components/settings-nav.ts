@@ -100,11 +100,11 @@ export const VIBE_NAV_ITEM: SettingsNavItem = {
 
 export const PREVIEW_NAV_ITEM: SettingsNavItem = {
   href: "/preview",
-  label: "Preview",
+  label: "Views",
   icon: MonitorPlay,
   exact: true,
   description:
-    "Live preview of any environment — Production, Staging, Dev — with views, device sizes, and element-pick into chat.",
+    "View any environment — Production, Staging, Dev — with saved paths, device sizes, and element-pick into chat.",
   tint: "text-sky-300 bg-sky-500/10",
 };
 
@@ -174,7 +174,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Fly Runner",
         icon: Rocket,
         description:
-          "Per-repo Fly infra: machines, activity, warm-pool, LiteLLM, Brain.",
+          "Per-repo Fly infra: machines, activity, previews, Brain.",
         tint: "text-sky-300 bg-sky-500/10",
       },
     ],

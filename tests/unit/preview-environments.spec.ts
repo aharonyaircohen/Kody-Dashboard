@@ -50,6 +50,28 @@ describe("addUploadedEnvironment", () => {
     });
   });
 
+  it("keeps a readable upload context for chat", () => {
+    const next = addUploadedEnvironment(
+      [],
+      "landing.html",
+      "https://kp-x.fly.dev",
+      "abc123",
+      NOW + STATIC_PREVIEW_TTL_MS,
+      {
+        name: "landing.html",
+        mimeType: "text/html",
+        size: 2048,
+        title: "Landing",
+        outline: "h1: Welcome\nbutton: Start",
+      },
+    );
+    expect(next[0].uploadContext).toMatchObject({
+      name: "landing.html",
+      title: "Landing",
+      outline: "h1: Welcome\nbutton: Start",
+    });
+  });
+
   it("is a no-op on a missing staticId or bad url", () => {
     expect(addUploadedEnvironment([], "x", "not-a-url", "id", NOW)).toEqual([]);
     expect(addUploadedEnvironment([], "x", "https://ok.dev", "", NOW)).toEqual(
@@ -94,5 +116,25 @@ describe("resolveEnvironments", () => {
       namedPreviews: [uploaded("up", NOW + DAY)],
     });
     expect(out[0]).toMatchObject({ staticId: "up", expiresAt: NOW + DAY });
+  });
+
+  it("preserves uploadContext through the read mapping", () => {
+    const out = resolveEnvironments({
+      namedPreviews: [
+        {
+          ...uploaded("up", NOW + DAY),
+          uploadContext: {
+            name: "up.html",
+            mimeType: "text/html",
+            size: 123,
+            outline: "h1: Uploaded",
+          },
+        },
+      ],
+    });
+    expect(out[0].uploadContext).toMatchObject({
+      name: "up.html",
+      outline: "h1: Uploaded",
+    });
   });
 });

@@ -178,6 +178,12 @@ export interface KodyChatProps {
     dataUrl: string;
     mimeType: string;
   } | null;
+  /**
+   * Ambient preview context supplied by the page shell. Used by the standalone
+   * Preview workspace so uploaded static pages are understood by chat even
+   * before the inspector extension can return a live DOM snapshot.
+   */
+  previewContext?: string | null;
 }
 
 /**

@@ -3,6 +3,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  latestActivityByDuty,
   parseActivityJsonl,
   sortActivityNewestFirst,
 } from "@dashboard/lib/activity/company";
@@ -81,5 +82,20 @@ describe("sortActivityNewestFirst", () => {
       "c",
       "a",
     ]);
+  });
+});
+
+describe("latestActivityByDuty", () => {
+  it("keeps the newest record per duty", () => {
+    const recs = parseActivityJsonl(
+      [
+        JSON.stringify({ ts: "2026-05-23T08:00:00Z", duty: "docs" }),
+        JSON.stringify({ ts: "2026-05-23T12:00:00Z", duty: "qa" }),
+        JSON.stringify({ ts: "2026-05-23T10:00:00Z", duty: "docs" }),
+      ].join("\n"),
+    );
+    const latest = latestActivityByDuty(recs);
+    expect(latest.get("docs")?.ts).toBe("2026-05-23T10:00:00Z");
+    expect(latest.get("qa")?.ts).toBe("2026-05-23T12:00:00Z");
   });
 });

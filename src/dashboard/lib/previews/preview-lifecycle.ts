@@ -42,10 +42,6 @@
 //     page; returns `null` on any Fly hiccup so the page falls back to the
 //     Vercel preview.
 //
-//   - `preview-pool.ts`          — optional warm-pool fast path
-//     (claim a pre-booted machine). Always no-throws; falls back to
-//     create-fresh.
-//
 //   - `sweep.ts`                 — TTL-based cleanup of expired preview
 //     apps. Opt-in via `fly.previews.ttlDays` (≤ 0 = no-op). Exempts the
 //     per-repo base image.
@@ -70,9 +66,9 @@
 //      app name. Storing a parallel preview state file would just drift.
 //
 //   3. **App-name stability is a contract.** Preview URLs, doorman ticket
-//      binding, the TTL sweep, and the warm pool all derive identity from
-//      `previewAppName(...)`. Changing the hash scheme invalidates every
-//      running preview + every open ticket.
+//      binding, and the TTL sweep derive identity from `previewAppName(...)`.
+//      Changing the hash scheme invalidates every running preview + every
+//      open ticket.
 //
 //   4. **Static previews are NOT git-backed.** Their `PreviewKey` has
 //      `staticId` not `pr`/`branch` — they're created/destroyed manually,

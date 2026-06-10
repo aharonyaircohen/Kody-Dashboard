@@ -168,6 +168,7 @@ export function KodyChat({
   onDirectToGoal,
   composerInjection,
   attachmentInjection,
+  previewContext,
 }: KodyChatProps) {
   // Current route — drives the page-aware composer placeholder AND tells the
   // model which dashboard page the user is looking at ("what am I viewing?").
@@ -338,12 +339,13 @@ export function KodyChat({
   const previewPicker = useElementPicker({ onSelect: () => {} });
   const previewPickerRef = useRef(previewPicker);
   previewPickerRef.current = previewPicker;
+  const previewContextRef = useRef<string | null>(null);
+  previewContextRef.current = previewContext?.trim() || null;
   const AUTO_CONTEXT_KEY = "kody:preview-auto-context";
   const collectPreviewContextRef = useRef<() => Promise<string | null>>(
     async () => null,
   );
   collectPreviewContextRef.current = async () => {
-    if (!previewPickerRef.current.available) return null;
     // Read the persisted flag fresh each send — the toggle lives on the
     // preview toolbar in another component tree, so we can't subscribe to
     // its state directly. Default ON when unset.
@@ -355,14 +357,19 @@ export function KodyChat({
       /* keep default */
     }
     if (!enabled) return null;
+    const parts: string[] = [];
+    if (previewContextRef.current) parts.push(previewContextRef.current);
+    if (!previewPickerRef.current.available) {
+      return parts.length > 0 ? parts.join("\n\n") : null;
+    }
     try {
       const info = await previewPickerRef.current.collectPage(300);
-      if (!info) return null;
+      if (!info) return parts.length > 0 ? parts.join("\n\n") : null;
       // Append the saved-macros catalog so the model can offer to run them
       // when the user mentions one by name ("run my Login macro"). Macros
       // now live in the repo (.kody/macros.json), so fetch per-send — newly
       // saved macros are visible immediately, and it works across devices.
-      const parts = [formatPageInfo(info)];
+      parts.push(formatPageInfo(info));
       try {
         const res = await fetch("/api/kody/macros", { headers: authHeaders() });
         if (res.ok) {
@@ -375,7 +382,7 @@ export function KodyChat({
       }
       return parts.join("\n\n");
     } catch {
-      return null;
+      return parts.length > 0 ? parts.join("\n\n") : null;
     }
   };
   // Depth counter for chained `preview_act` calls. The dashboard auto-feeds
@@ -4467,7 +4474,9 @@ export function KodyChat({
           if (msg.hidden) return null;
 
           const parsedAssistant =
-            msg.role === "assistant" ? parseAssistantContent(msg.content) : null;
+            msg.role === "assistant"
+              ? parseAssistantContent(msg.content)
+              : null;
           const visibleText = parsedAssistant?.answer || msg.content;
           const messageDirection = getMessageDirection(visibleText);
 
@@ -4612,10 +4621,7 @@ export function KodyChat({
                       <MessageAttachments attachments={msg.attachments} />
                     )}
                     {msg.content && (
-                      <div
-                        dir={messageDirection}
-                        className="chat-message-text"
-                      >
+                      <div dir={messageDirection} className="chat-message-text">
                         {msg.content}
                       </div>
                     )}

@@ -83,6 +83,8 @@ interface GoalGroupedViewProps {
   onCreateTask?: () => void;
   onEditTask?: (task: KodyTask) => void;
   onDuplicate?: (task: KodyTask) => void;
+  onHideTask?: (task: KodyTask) => void;
+  onShowTask?: (task: KodyTask) => void;
   onRerun?: (task: KodyTask) => void;
   onToggleQueue?: (task: KodyTask) => void;
   onCreateGoal?: () => void;
