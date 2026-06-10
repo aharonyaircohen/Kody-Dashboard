@@ -1,0 +1,21 @@
+{
+  "taskId": "161",
+  "taskType": "issue",
+  "target": "161",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added @ai-summary headers to 4 channel adapters (slack, discord, telegram, generic); index.ts already had the folder-level header. Ran prettier --write on the 2 files the verify gate was red on so the format check passes. Verify gate is now ok:true.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/notifications/channels/slack.ts",
+    "src/dashboard/lib/notifications/channels/discord.ts",
+    "src/dashboard/lib/notifications/channels/telegram.ts",
+    "src/dashboard/lib/notifications/channels/generic.ts",
+    "app/api/kody/docs/route.ts",
+    "tests/unit/auth-me.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/global-1780897261211-878cig.jsonl",
+  "startedAt": "2026-06-09T17:00:00Z",
+  "finishedAt": "2026-06-09T17:11:00Z"
+}

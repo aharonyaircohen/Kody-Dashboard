@@ -1,15 +1,21 @@
 /**
- * Generic webhook adapter. POSTs to an arbitrary URL with optional custom
- * headers. The body is either a user-supplied template (rendered with the
- * same `{{var}}` substitution) or a default `{ "text": "<rendered>" }`.
- *
- * Body format options:
- *   - "json" (default): rendered template must be valid JSON; sent with
- *     Content-Type: application/json.
- *   - "form": rendered template must be valid JSON of a flat object
- *     `{ key: "value", ... }`; each k/v pair is URL-form-encoded and sent
- *     with Content-Type: application/x-www-form-urlencoded. This is what
- *     Twilio (and most "old-school" REST APIs) want.
+ * @fileType utility
+ * @domain kody
+ * @pattern generic-webhook-adapter
+ * @ai-summary Generic outbound-webhook adapter — the "I just want to POST
+ *   to my own endpoint" escape hatch for channels Slack/Discord/Telegram
+ *   don't cover. Auth is whatever the user puts in the per-channel `headers`
+ *   (e.g. `Authorization: Bearer …`); the URL itself is `https:`-only.
+ *   Body is either a user-supplied `{{var}}` template or a default
+ *   `{ "text": <rendered> }`, with two formats:
+ *     - "json" (default) — sends `Content-Type: application/json`
+ *     - "form" — template must render to a flat JSON object, sent as
+ *       `application/x-www-form-urlencoded` (this is what Twilio and most
+ *       "old-school" REST APIs want).
+ *   Trap: `form` mode is the most error-prone — a nested object or
+ *   non-scalar value throws at send time, not at validation time, and
+ *   user-defined `Content-Type` headers silently win over the default.
+ *   No retry, no signing, no payload-size cap.
  */
 import type { NotificationChannel } from "../../notifications";
 import { renderTemplate } from "../../notifications";

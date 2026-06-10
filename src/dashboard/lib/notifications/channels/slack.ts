@@ -1,6 +1,13 @@
 /**
- * Slack incoming webhook adapter. POST JSON `{ text }` to the URL Slack
- * generated when "Add New Webhook to Workspace" was clicked.
+ * @fileType utility
+ * @domain kody
+ * @pattern slack-channel-adapter
+ * @ai-summary Slack incoming-webhook adapter. Single-shape POST `{ text }` to
+ *   the per-workspace URL Slack generated on "Add New Webhook to Workspace".
+ *   The URL is the auth — no headers, no body signing — so it MUST be treated
+ *   as a secret. Trap: the validator only enforces the `hooks.slack.com/`
+ *   prefix; a stolen URL posts to Slack until rotated. No retry, no rate-limit
+ *   handling, no truncation — Slack's own 429 surfaces as a thrown error.
  */
 import type { NotificationChannel } from "../../notifications";
 import type { SendContext } from "./index";
