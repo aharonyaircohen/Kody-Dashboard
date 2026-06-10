@@ -1,3 +1,8 @@
+# Conversation Rules
+
+- Every reply must end with a clear next-step question.
+- This is mandatory, even when the work seems complete.
+
 # Kody Dashboard — Agent Reference
 
 ## Architecture
