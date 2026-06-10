@@ -3,9 +3,9 @@
  * @domain kody
  * @pattern reports-page
  * @ai-summary Reports view — list and read system reports under
- *   `.kody/reports/<slug>.md`. Read-only. Mobile-first responsive layout
- *   that mirrors DutyControl: master/detail with a back button on small
- *   viewports.
+ *   `kody-state:.kody/reports/<slug>.md`. Read-only. Mobile-first responsive
+ *   layout that mirrors DutyControl: master/detail with a back button on
+ *   small viewports.
  */
 "use client";
 
@@ -193,7 +193,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
               <EmptyState
                 icon={<FileText />}
                 title="No reports yet"
-                hint="Reports appear here once Kody duties (doc-drift, coverage-floor, etc.) commit them under .kody/reports/."
+                hint="Reports appear here once Kody duties (doc-drift, coverage-floor, etc.) commit them to kody state."
               />
             ) : filtered.length === 0 ? (
               <EmptyState

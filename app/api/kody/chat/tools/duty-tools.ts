@@ -7,9 +7,10 @@
  *   dashboard's POST /api/kody/duties endpoint uses. Default body follows
  *   the report-producer template: each tick gathers inputs, composes a
  *   YAML findings report, and commits it to `.kody/reports/<slug>.md`
- *   via `gh api PUT`. Format mirrors existing duties (Job / Allowed
- *   Commands / Restrictions / State — the `## Job` heading is parsed by
- *   the engine's job-tick executor, so its text stays literal).
+ *   on the dedicated state branch via `gh api PUT`. Format mirrors existing
+ *   duties (Job / Allowed Commands / Restrictions / State — the `## Job`
+ *   heading is parsed by the engine's job-tick executor, so its text stays
+ *   literal).
  *
  *   The model should NOT call this on the first turn — it must gap-
  *   analyze and ask the user questions until the duty is well-specified.
@@ -19,6 +20,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@dashboard/lib/logger";
+import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 import {
   readDutyFile,
   writeDutyFile,
@@ -62,7 +64,8 @@ function bullets(items: string[]): string {
  * Render the default report-producer duty body. The model fills in the
  * variable parts (purpose, cadence, inputs, report schema). Commands and
  * restrictions match the engine's job-tick constraints (Bash + Read +
- * `gh` only — no Write tool, so the report is committed via `gh api PUT`).
+ * `gh` only — no Write tool, so the report is committed via `gh api PUT`
+ * to the state branch).
  */
 function buildDutyBody(slug: string, input: DutyInput): string {
   const cadence = Math.max(1, Math.round(input.cadenceHours));
@@ -97,26 +100,30 @@ function buildDutyBody(slug: string, input: DutyInput): string {
   body += `   \`\`\`\n\n`;
   body += `3. Look up the existing report's blob SHA (skip on 404 — first run):\n`;
   body += `   \`\`\`\n`;
-  body += `   gh api repos/{owner}/{repo}/contents/.kody/reports/${slug}.md \\\n`;
-  body += `     --jq .sha 2>/dev/null || echo ""\n`;
+  body += `   EXISTING_SHA="$(gh api -X GET repos/{owner}/{repo}/contents/.kody/reports/${slug}.md \\\n`;
+  body += `     -f ref=${STATE_BRANCH} \\\n`;
+  body += `     --jq .sha 2>/dev/null || true)"\n`;
   body += `   \`\`\`\n`;
-  body += `4. Commit the new report via the contents API (omit \`-f sha=...\` on first run):\n`;
+  body += `4. Commit the new report to the ${STATE_BRANCH} branch via the contents API (omit \`-f sha=...\` on first run):\n`;
   body += `   \`\`\`\n`;
+  body += `   SHA_ARG=()\n`;
+  body += `   if [ -n "$EXISTING_SHA" ]; then SHA_ARG=(-f "sha=$EXISTING_SHA"); fi\n`;
   body += `   gh api -X PUT repos/{owner}/{repo}/contents/.kody/reports/${slug}.md \\\n`;
   body += `     -f message="chore(reports): update ${slug}" \\\n`;
+  body += `     -f branch=${STATE_BRANCH} \\\n`;
   body += `     -f content="$(printf '%s' "$REPORT_BODY" | base64)" \\\n`;
-  body += `     -f sha="$EXISTING_SHA"\n`;
+  body += `     "\${SHA_ARG[@]}"\n`;
   body += `   \`\`\`\n`;
   body += `5. On success, stash \`data.lastReportISO = <now>\` and \`data.findingCount = <count>\`. On non-2xx, set \`cursor: error\` and narrate the status code.\n\n`;
 
   body += `## Allowed Commands\n\n`;
-  body += `- \`gh api\` — read + PUT contents on \`.kody/reports/${slug}.md\` only\n`;
+  body += `- \`gh api\` — read + PUT contents on \`${STATE_BRANCH}:.kody/reports/${slug}.md\` only\n`;
   for (const cmd of extraCmds) body += `- ${cmd.trim()}\n`;
   body += `\n`;
 
   body += `## Restrictions\n\n`;
   body += `- Never edit, create, or delete files in the working tree. The report is committed via the GitHub contents API, not the working tree.\n`;
-  body += `- Never push, never commit any path other than \`.kody/reports/${slug}.md\`.\n`;
+  body += `- Never push, never commit any branch/path other than \`${STATE_BRANCH}:.kody/reports/${slug}.md\`.\n`;
   body += `- Maximum **one** report write per tick.\n`;
   body += `- If the contents PUT fails with 409 (sha mismatch), re-read the SHA and retry once; otherwise emit \`cursor: error\` and exit.\n`;
   for (const r of extraRest) body += `- ${r.trim()}\n`;
@@ -201,7 +208,7 @@ export function createDutyTools(ctx: Ctx) {
         `Create a new Kody Duty in ${repoRef} by committing a markdown file at ` +
         "`.kody/duties/<slug>.md`. The default template is a REPORT-PRODUCER: each " +
         "tick gathers inputs, composes a YAML findings report, and commits it to " +
-        "`.kody/reports/<slug>.md` via `gh api PUT` (the engine's job-tick " +
+        `\`${STATE_BRANCH}:.kody/reports/<slug>.md\` via \`gh api PUT\` (the engine's job-tick ` +
         "executable only has Bash + Read, so reports are committed via API, not " +
         "the working tree). The kody engine's job-scheduler ticks every duty in " +
         "`.kody/duties/` on a 5-minute cron; each duty's own cadence guard decides " +

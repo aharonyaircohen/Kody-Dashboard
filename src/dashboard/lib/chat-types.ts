@@ -184,11 +184,11 @@ export type ChatContext =
   | {
       /**
        * Chat scoped to a system report (a markdown file at
-       * `.kody/reports/<slug>.md`, surfaced on `/reports`). The agent
-       * receives the report's title + body and is framed to advise
-       * whether the user should: (a) create an issue from this report,
-       * (b) attach it to a goal, or (c) take no action — sometimes a
-       * report is informational and needs no follow-up.
+       * `kody-state:.kody/reports/<slug>.md`, surfaced on `/reports`).
+       * The agent receives the report's title + body and is framed to
+       * advise whether the user should: (a) create an issue from this report,
+       * (b) attach it to a goal, or (c) take no action — sometimes a report
+       * is informational and needs no follow-up.
        */
       kind: "report";
       report: { slug: string; title: string; body: string };

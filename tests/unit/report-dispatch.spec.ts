@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   extractTouchedReportSlugs,
-  isPushToDefaultBranch,
+  isPushToStateBranch,
   stripVolatileLines,
 } from "../../src/dashboard/lib/push/report-dispatch";
 
@@ -88,15 +88,10 @@ describe("extractTouchedReportSlugs", () => {
   });
 });
 
-describe("isPushToDefaultBranch", () => {
-  it("is true only for a push to the repo default branch", () => {
-    const base = { repository: { default_branch: "main" } };
-    expect(isPushToDefaultBranch({ ...base, ref: "refs/heads/main" })).toBe(
-      true,
-    );
-    expect(isPushToDefaultBranch({ ...base, ref: "refs/heads/feature" })).toBe(
-      false,
-    );
-    expect(isPushToDefaultBranch({ ref: "refs/heads/main" })).toBe(false);
+describe("isPushToStateBranch", () => {
+  it("is true only for a push to the kody state branch", () => {
+    expect(isPushToStateBranch({ ref: "refs/heads/kody-state" })).toBe(true);
+    expect(isPushToStateBranch({ ref: "refs/heads/main" })).toBe(false);
+    expect(isPushToStateBranch({ ref: "refs/heads/feature" })).toBe(false);
   });
 });

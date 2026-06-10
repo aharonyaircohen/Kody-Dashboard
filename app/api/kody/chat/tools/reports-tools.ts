@@ -2,9 +2,10 @@
  * @fileType util
  * @domain reports
  * @pattern chat-tools
- * @ai-summary Read-only chat tools for duty reports (`.kody/reports/<slug>.md`)
- *   — list and read. Reports are the YAML-findings output that scheduled
- *   duties commit each tick; chat can surface and reason over them.
+ * @ai-summary Read-only chat tools for duty reports
+ *   (`kody-state:.kody/reports/<slug>.md`) — list and read. Reports are the
+ *   YAML-findings output that scheduled duties commit each tick; chat can
+ *   surface and reason over them.
  */
 import { tool } from "ai";
 import { z } from "zod";
@@ -18,7 +19,7 @@ export function createReportTools(opts: { owner: string; repo: string }) {
   const repoRef = `${opts.owner}/${opts.repo}`;
   return {
     list_reports: tool({
-      description: `List the duty reports in ${repoRef} (.kody/reports/). Returns slug, title, and last-updated for each report a scheduled duty has produced.`,
+      description: `List the duty reports in ${repoRef} (kody-state:.kody/reports/). Returns slug, title, and last-updated for each report a scheduled duty has produced.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {

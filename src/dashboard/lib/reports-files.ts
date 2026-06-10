@@ -3,13 +3,14 @@
  * @domain kody
  * @pattern reports-files
  * @ai-summary Read-only access to system reports under `.kody/reports/<slug>.md`
- *   in the connected repo. Reports are produced by Kody duties (doc-drift,
- *   coverage-floor, etc.) — the dashboard surfaces them as a health view.
- *   No write operations: the engine owns this directory.
+ *   on the connected repo's dedicated state branch. Reports are produced by
+ *   Kody duties (doc-drift, coverage-floor, etc.) — the dashboard surfaces
+ *   them as a health view. No write operations: the engine owns this directory.
  */
 
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "./github-client";
+import { STATE_BRANCH } from "./state-branch";
 
 export interface ReportFile {
   /** Filename without `.md` — stable identity. */
@@ -60,17 +61,8 @@ function stripLeadingH1(body: string): string {
   return trimmed;
 }
 
-function buildHtmlUrl(slug: string, branch: string | null): string {
-  const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/blob/${ref}/${REPORTS_DIR}/${slug}.md`;
-}
-
-async function getDefaultBranch(octokit: Octokit): Promise<string> {
-  const { data } = await octokit.repos.get({
-    owner: getOwner(),
-    repo: getRepo(),
-  });
-  return data.default_branch;
+function buildHtmlUrl(slug: string): string {
+  return `https://github.com/${getOwner()}/${getRepo()}/blob/${STATE_BRANCH}/${REPORTS_DIR}/${slug}.md`;
 }
 
 async function fetchLastCommitDate(
@@ -82,6 +74,7 @@ async function fetchLastCommitDate(
       owner: getOwner(),
       repo: getRepo(),
       path: filePath,
+      sha: STATE_BRANCH,
       per_page: 1,
     });
     return (
@@ -95,12 +88,11 @@ async function fetchLastCommitDate(
 }
 
 /**
- * List every report under `.kody/reports/`. Returns `[]` if the
- * directory does not exist (fresh repo).
+ * List every report under `.kody/reports/` on the state branch. Returns `[]`
+ * if the directory does not exist (fresh repo).
  */
 export async function listReportFiles(): Promise<ReportFile[]> {
   const octokit = getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
 
   let entries: Array<{
     name: string;
@@ -113,6 +105,7 @@ export async function listReportFiles(): Promise<ReportFile[]> {
       owner: getOwner(),
       repo: getRepo(),
       path: REPORTS_DIR,
+      ref: STATE_BRANCH,
     });
     if (!Array.isArray(data)) return [];
     entries = data as Array<{
@@ -141,6 +134,7 @@ export async function listReportFiles(): Promise<ReportFile[]> {
           owner: getOwner(),
           repo: getRepo(),
           path: filePath,
+          ref: STATE_BRANCH,
         });
         if (Array.isArray(data) || !("content" in data) || !data.content)
           return null;
@@ -153,7 +147,7 @@ export async function listReportFiles(): Promise<ReportFile[]> {
           title,
           body,
           updatedAt,
-          htmlUrl: buildHtmlUrl(slug, branch),
+          htmlUrl: buildHtmlUrl(slug),
           size,
         } satisfies ReportFile;
       } catch {
@@ -174,7 +168,6 @@ export async function listReportFiles(): Promise<ReportFile[]> {
 export async function readReportFile(slug: string): Promise<ReportFile | null> {
   if (!isValidSlug(slug)) return null;
   const octokit = getOctokit();
-  const branch = await getDefaultBranch(octokit).catch(() => null);
   const filePath = `${REPORTS_DIR}/${slug}.md`;
 
   try {
@@ -182,6 +175,7 @@ export async function readReportFile(slug: string): Promise<ReportFile | null> {
       owner: getOwner(),
       repo: getRepo(),
       path: filePath,
+      ref: STATE_BRANCH,
     });
     if (Array.isArray(data) || !("content" in data) || !data.content)
       return null;
@@ -194,7 +188,7 @@ export async function readReportFile(slug: string): Promise<ReportFile | null> {
       title,
       body,
       updatedAt,
-      htmlUrl: buildHtmlUrl(slug, branch),
+      htmlUrl: buildHtmlUrl(slug),
       size: typeof data.size === "number" ? data.size : raw.length,
     };
   } catch (error: unknown) {

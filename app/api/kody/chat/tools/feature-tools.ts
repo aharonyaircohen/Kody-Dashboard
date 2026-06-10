@@ -129,9 +129,10 @@ Format (must match existing duties in \`.kody/duties/\`):
 - \`## State\`
 
 Default template is REPORT-PRODUCER: each active tick gathers inputs, composes
-a YAML \`findings:\` report, and commits it to \`.kody/reports/<slug>.md\` via
-\`gh api PUT\` (the job-tick executable only has Bash + Read tools — reports
-are committed via the contents API, not the working tree).
+a YAML \`findings:\` report, and commits it to
+\`kody-state:.kody/reports/<slug>.md\` via \`gh api PUT\` (the job-tick
+executable only has Bash + Read tools — reports are committed via the contents
+API, not the working tree).
 
 The chat exposes the \`create_kody_duty\` tool to scaffold a new duty after a
 gap-analysis conversation.`,

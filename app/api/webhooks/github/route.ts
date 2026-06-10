@@ -431,7 +431,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         "dispatchDutyFailures threw — should have been caught internally",
       );
     });
-    // New report committed to .kody/reports/<slug>.md on the default branch →
+    // New report committed to .kody/reports/<slug>.md on the state branch →
     // broadcast browser banner to every subscribed device for the repo, so a
     // report landing feels like an inbox/mention ping. Awaited for the same
     // serverless reason as the entries above.

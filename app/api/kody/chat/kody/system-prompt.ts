@@ -268,7 +268,7 @@ If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create th
     const r = opts.report;
     const lines: string[] = ["## Current report"];
     lines.push(
-      `The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files at \`.kody/reports/<slug>.md\` produced by Kody duties and other engine pipelines — diagnostic output, never the source of truth for code.`,
+      `The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files at \`kody-state:.kody/reports/<slug>.md\` produced by Kody duties and other engine pipelines — diagnostic output, never the source of truth for code.`,
     );
     const bodyPreview =
       r.body.length > 4000 ? `${r.body.slice(0, 4000)}…` : r.body;

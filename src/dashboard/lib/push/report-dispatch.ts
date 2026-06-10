@@ -9,11 +9,10 @@
  *   the system on a schedule and are interesting to anyone who's enabled push
  *   for this repo, not just whoever was @-mentioned (nobody is).
  *
- *   Trigger: a `push` event to the **default branch** that adds or modifies
- *   one or more files under `.kody/reports/<slug>.md`. State-branch pushes
- *   are ignored (state lives there, not reports), and pushes that touch
- *   anything outside `.kody/reports/` are a cheap no-op so this stays off
- *   the hot path.
+ *   Trigger: a `push` event to the dedicated state branch that adds or
+ *   modifies one or more files under `.kody/reports/<slug>.md`. Pushes that
+ *   touch anything outside `.kody/reports/` are a cheap no-op so this stays
+ *   off the hot path.
  *
  *   Per affected report we send one push tagged with the report's dashboard
  *   URL so repeated updates to the same report collapse into a single banner
@@ -34,6 +33,7 @@ import { resolveBackgroundToken } from "../auth/background-token";
 import { readPushManifest } from "../push-server";
 import { deliverPush, ensureVapid } from "../notifications/channels/push-core";
 import { logger } from "../logger";
+import { STATE_BRANCH } from "../state-branch";
 
 const REPORTS_PATH_PREFIX = ".kody/reports/";
 
@@ -79,18 +79,10 @@ export function extractTouchedReportSlugs(
   return [...slugs];
 }
 
-/** True when the push targets the repo's default branch (reports live there). */
-export function isPushToDefaultBranch(
-  payload: Record<string, unknown>,
-): boolean {
+/** True when the push targets the branch where generated reports live. */
+export function isPushToStateBranch(payload: Record<string, unknown>): boolean {
   const ref = typeof payload.ref === "string" ? payload.ref : "";
-  const repository = payload.repository as Record<string, unknown> | undefined;
-  const def =
-    typeof repository?.default_branch === "string"
-      ? repository.default_branch
-      : "";
-  if (!def) return false;
-  return ref === `refs/heads/${def}`;
+  return ref === `refs/heads/${STATE_BRANCH}`;
 }
 
 /** Convert a slug to a human title for the banner ("ceo-performance-review" →
@@ -210,7 +202,7 @@ async function reportContentChanged(
 
 /**
  * Entry point — call from the webhook receiver on every event. Returns
- * early for anything that isn't a default-branch push touching
+ * early for anything that isn't a state-branch push touching
  * `.kody/reports/<slug>.md`, so it's a cheap noop on the hot
  * mention/comment path. Never throws.
  */
@@ -220,7 +212,7 @@ export async function dispatchReportPushes(
 ): Promise<void> {
   try {
     if (eventType !== "push") return;
-    if (!isPushToDefaultBranch(payload)) return;
+    if (!isPushToStateBranch(payload)) return;
 
     const slugs = extractTouchedReportSlugs(payload);
     if (slugs.length === 0) return;
