@@ -1,11 +1,11 @@
 ---
-name: repo-graph
-description: Derive the Kody orchestration graph from repo-owned .kody files and report structural gaps.
+name: company-graph
+description: Derive the Kody company graph from repo-owned .kody files and report structural gaps.
 ---
 
-# Repo Graph Skill
+# Company Graph Skill
 
-Use this skill when refreshing `.kody/reports/repo-graph.md`.
+Use this skill when refreshing `.kody/reports/company-graph.md`.
 
 ## Model
 
@@ -45,7 +45,7 @@ Report:
 
 ## Boundaries
 
-- Write only `.kody/reports/repo-graph.md`.
+- Write only `.kody/reports/company-graph.md`.
 - Do not edit the working tree.
 - Do not run `git`.
 - Do not post comments, labels, PRs, or inbox pings.
