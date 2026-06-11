@@ -3,7 +3,7 @@
  * @domain executables
  * @pattern chat-tools
  * @ai-summary In-process chat tools that let Kody build and manage custom
- *   executables (`.kody/duties/<slug>/`) by conversation — list, read,
+ *   executables (`.kody/executables/<slug>/`) by conversation — list, read,
  *   create/update, delete. Writes commit the whole folder atomically
  *   under the acting user's token. Mirrors the memory-tools shape; reads
  *   rely on the module-level GitHub context the chat route sets, writes
@@ -45,7 +45,7 @@ export function createExecutableTools(ctx: Ctx) {
 
   return {
     list_executables: tool({
-      description: `List the custom executables in ${repoRef} (the @kody <slug> actions stored at .kody/duties/<slug>/). Returns slug, description, and landing (opens a PR vs comments).`,
+      description: `List the custom executables in ${repoRef} (the @kody <slug> actions stored at .kody/executables/<slug>/). Returns slug, description, and landing (opens a PR vs comments).`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -75,7 +75,7 @@ export function createExecutableTools(ctx: Ctx) {
     }),
 
     create_or_update_executable: tool({
-      description: `Create or update a custom executable in ${repoRef}. Commits .kody/duties/<slug>/ (profile.json + prompt.md + any skills/scripts) as one commit. \`landing\` "pr" opens a pull request; "comment" posts a comment. Skills install via the names you give; each skill body is its SKILL.md. Shell scripts run as preflight steps.`,
+      description: `Create or update a custom executable in ${repoRef}. Commits .kody/executables/<slug>/ (profile.json + prompt.md + any skills/scripts) as one commit. \`landing\` "pr" opens a pull request; "comment" posts a comment. Skills install via the names you give; each skill body is its SKILL.md. Shell scripts run as preflight steps.`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         describe: z.string().default(""),
@@ -148,7 +148,7 @@ export function createExecutableTools(ctx: Ctx) {
     }),
 
     delete_executable: tool({
-      description: `Delete a custom executable from ${repoRef} (removes the whole .kody/duties/<slug>/ folder in one commit).`,
+      description: `Delete a custom executable from ${repoRef} (removes the whole .kody/executables/<slug>/ folder in one commit).`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
       }),

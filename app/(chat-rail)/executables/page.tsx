@@ -2,8 +2,8 @@
  * @fileType page
  * @domain executables
  * @pattern executables-page
- * @ai-summary Executables list — the folder-duty manager (`.kody/duties/<slug>/`)
- *   with run / set-default / edit / delete. Restored as its own page; "New duty"
+ * @ai-summary Executables list (`.kody/executables/<slug>/`) with run /
+ *   set-default / edit / delete. Restored as its own page; "New executable"
  *   and "Edit" route to `/executables/new` and `/executables/<slug>`.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
@@ -16,7 +16,7 @@ export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
   title: "Executables — Kody Operations Dashboard",
-  description: "Manage custom @kody executables (folder duties).",
+  description: "Manage custom @kody executables.",
   path: "/executables",
 });
 

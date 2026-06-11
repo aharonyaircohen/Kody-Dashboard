@@ -5,7 +5,7 @@
  * @ai-summary Executable detail API — GET reads one, PATCH updates it
  *   (re-generating profile.json + prompt.md and syncing skill/shell files,
  *   deleting any the editor removed), DELETE removes the whole folder.
- *   Backed by `.kody/duties/<slug>/` via the Git Data API.
+ *   Backed by `.kody/executables/<slug>/` via the Git Data API.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

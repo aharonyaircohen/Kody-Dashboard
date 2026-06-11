@@ -2,8 +2,8 @@
  * @fileType component
  * @domain executables
  * @pattern executables-manager
- * @ai-summary CRUD UI for custom executables (folder-duties) stored at
- *   `.kody/duties/<slug>/` in the connected repo. The engine resolves
+ * @ai-summary CRUD UI for custom executables stored at
+ *   `.kody/executables/<slug>/` in the connected repo. The engine resolves
  *   these before its own built-ins, so `@kody <slug>` runs them. The editor
  *   is a simple form (describe + prompt + model + tools), plus a skills tab
  *   (paste a `SKILL.md` or import one from a GitHub source) and a scripts tab
@@ -520,7 +520,7 @@ function ExecutablesManagerInner() {
           <EmptyState
             icon={<Sparkles />}
             title="No executables yet"
-            hint="An executable is a custom @kody <slug> action stored at .kody/duties/<slug>/. The engine resolves it before its built-ins."
+            hint="An executable is a custom @kody <slug> action stored at .kody/executables/<slug>/. The engine resolves it before its built-ins."
             action={
               <Button asChild size="sm" className="gap-1">
                 <Link href="/executables/new">
@@ -1368,7 +1368,7 @@ function ExecutableEditorForm({
               {isNew ? "New executable" : `Edit @kody ${initial?.slug}`}
             </h2>
             <p className="text-xs text-white/50">
-              Stored at .kody/duties/&lt;slug&gt;/. The engine runs it for
+              Stored at .kody/executables/&lt;slug&gt;/. The engine runs it for
               <code className="mx-1">@kody &lt;slug&gt;</code>.
             </p>
           </div>

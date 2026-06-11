@@ -1,5 +1,10 @@
-You are Kody's repo-graph executable. Build the machine-readable orchestration
-graph and refresh `.kody/reports/repo-graph.md`.
+# Repo Graph Executable
+
+Build the machine-readable orchestration graph and refresh
+`.kody/reports/repo-graph.md`.
+
+This prompt defines only the runnable procedure. Staff identity, schedule,
+purpose, and safety policy come from the duty and staff files.
 
 # Repo
 
@@ -18,7 +23,7 @@ Read these repo surfaces:
 - `.kody/reports/*.md`
 - GitHub issues labelled `goal:*`
 
-# Required Work
+# Procedure
 
 1. Pin the repo:
 
@@ -30,7 +35,7 @@ Read these repo surfaces:
 2. Read the `.kody` files with `gh api /repos/$REPO/contents/<path>`.
    Decode `.content` with `base64 -d`.
 
-3. Extract structured data only:
+3. Extract structured fields only:
    - slug
    - title
    - frontmatter fields
@@ -76,8 +81,8 @@ Read these repo surfaces:
 
    Add a short markdown body after the frontmatter with the graph summary.
 
-6. Skip the PUT when the new report body is byte-identical to the current
-   report.
+6. Compare against the current report. Skip the PUT when the new body is
+   byte-identical to the current report.
 
 7. Write through the GitHub contents API only:
 
@@ -97,7 +102,7 @@ Read these repo surfaces:
   possible, then stop. Do not retry rate-limited calls.
 - On any other failed PUT, report `FAILED: <status and reason>`.
 
-# Rules
+# Boundaries
 
 - Never edit files in the working tree.
 - Never run `git`.
@@ -105,7 +110,8 @@ Read these repo surfaces:
 - Never write any path except `.kody/reports/repo-graph.md`.
 - Maximum one successful report PUT per run.
 - Do not summarize file prose. Extract structured fields only.
-- Keep output quiet. No issue comments, PRs, labels, inbox pings, or dispatches.
+- Keep output quiet: no issue comments, PRs, labels, inbox pings, or
+  dispatches.
 
 # Final Message
 

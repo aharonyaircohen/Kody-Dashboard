@@ -2,14 +2,12 @@
  * @fileType util
  * @domain executables
  * @pattern executables-files
- * @ai-summary Read/write custom executables (folder-duties) under
- *   `.kody/duties/<slug>/` via GitHub. An executable is a *folder*
+ * @ai-summary Read/write custom executables under
+ *   `.kody/executables/<slug>/` via GitHub. An executable is a *folder*
  *   (profile.json + prompt.md + optional `*.sh` + optional
  *   `skills/<name>/SKILL.md`), so unlike the single-file commands/duties
  *   helpers this commits the whole folder atomically using the Git Data
- *   API (one blob per file → one tree → one commit). The engine reads
- *   `.kody/duties/` first when resolving `@kody <slug>`, with engine
- *   builtins as a fallback (kody2/src/registry.ts).
+ *   API (one blob per file → one tree → one commit).
  */
 
 import type { Octokit } from "@octokit/rest";
@@ -29,10 +27,10 @@ import {
 export { isValidSlug } from "./profile";
 
 /**
- * Folder-duties live at `.kody/duties/<slug>/`. All reads and writes go
- * through this single home.
+ * Custom executables live at `.kody/executables/<slug>/`. All reads and
+ * writes go through this single home.
  */
-const DUTIES_DIR = ".kody/duties";
+const EXECUTABLES_DIR = ".kody/executables";
 
 export interface ExecutableSkill {
   /** Skill folder name under `skills/`. */
@@ -57,7 +55,7 @@ export interface ExecutableSummary {
   htmlUrl: string;
   /** Staff member this duty runs as (profile.staff), or null. */
   staff: string | null;
-  /** Recurrence cadence from profile.every (scheduled folder-duty), or null. */
+  /** Recurrence cadence from profile.every, or null. */
   every?: string | null;
 }
 
@@ -84,7 +82,7 @@ async function getDefaultBranch(octokit: Octokit): Promise<string> {
 
 function buildHtmlUrl(slug: string, branch: string | null): string {
   const ref = branch ?? "HEAD";
-  return `https://github.com/${getOwner()}/${getRepo()}/tree/${ref}/${DUTIES_DIR}/${slug}`;
+  return `https://github.com/${getOwner()}/${getRepo()}/tree/${ref}/${EXECUTABLES_DIR}/${slug}`;
 }
 
 async function fetchLastCommitDate(
@@ -140,10 +138,10 @@ async function readFileText(
 }
 
 /**
- * List every folder-duty under `.kody/duties/`. Returns `[]` if the
+ * List every executable folder under `.kody/executables/`. Returns `[]` if the
  * directory does not exist (fresh repo).
  */
-async function listFolderDuties(
+async function listExecutableFolders(
   octokit: Octokit,
   branch: string | null,
 ): Promise<ExecutableSummary[]> {
@@ -152,7 +150,7 @@ async function listFolderDuties(
     const { data } = await octokit.repos.getContent({
       owner: getOwner(),
       repo: getRepo(),
-      path: DUTIES_DIR,
+      path: EXECUTABLES_DIR,
     });
     if (!Array.isArray(data)) return [];
     entries = data as Array<{ name: string; type: string }>;
@@ -167,7 +165,7 @@ async function listFolderDuties(
 
   const summaries = await Promise.all(
     slugs.map(async (slug): Promise<ExecutableSummary | null> => {
-      const profilePath = `${DUTIES_DIR}/${slug}/profile.json`;
+      const profilePath = `${EXECUTABLES_DIR}/${slug}/profile.json`;
       const raw = await readFileText(octokit, profilePath).catch(() => null);
       if (raw === null) return null; // folder without a profile.json — skip
       const profile = parseProfileJson(raw);
@@ -201,14 +199,12 @@ async function listFolderDuties(
   return summaries.filter((s): s is ExecutableSummary => s !== null);
 }
 
-/**
- * List every folder-duty under `.kody/duties/`, sorted by slug.
- */
+/** List every executable under `.kody/executables/`, sorted by slug. */
 export async function listExecutableFiles(): Promise<ExecutableSummary[]> {
   const octokit = getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);
 
-  const summaries = await listFolderDuties(octokit, branch);
+  const summaries = await listExecutableFolders(octokit, branch);
   return summaries.sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
@@ -221,7 +217,7 @@ export async function readExecutableFile(
   const octokit = octokitOverride ?? getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);
 
-  const base = `${DUTIES_DIR}/${slug}`;
+  const base = `${EXECUTABLES_DIR}/${slug}`;
   const profileRaw = await readFileText(octokit, `${base}/profile.json`);
   if (profileRaw === null) return null;
 
@@ -432,10 +428,10 @@ export async function writeExecutableFile(
   const profileJson =
     opts.profileJsonOverride ?? serializeProfile(composeProfile(syncedFields));
 
-  // All executables live under the duty home. `isUpdate` covers the
+  // All executables live under the executable home. `isUpdate` covers the
   // create-vs-update diff at the commit-message level; the file paths
   // are identical for both.
-  const base = `${DUTIES_DIR}/${fields.slug}`;
+  const base = `${EXECUTABLES_DIR}/${fields.slug}`;
   const changes: TreeChange[] = [
     { path: `${base}/profile.json`, content: profileJson },
     {
@@ -470,7 +466,7 @@ export async function writeExecutableFile(
   await commitChanges(
     opts.octokit,
     changes,
-    `${opts.isUpdate ? "chore" : "feat"}(duty): ${verb} ${fields.slug}`,
+    `${opts.isUpdate ? "chore" : "feat"}(executable): ${verb} ${fields.slug}`,
   );
 
   const refreshed = await readExecutableFile(fields.slug, opts.octokit);
@@ -490,12 +486,9 @@ export async function deleteExecutableFile(
   if (!isValidSlug(slug)) {
     throw new Error(`Invalid executable slug: "${slug}".`);
   }
-  // Read the current folder to enumerate skills/shells so we know which
-  // files to drop. After the migration, all executables live under the
-  // duty home — no dir lookup needed.
   const existing = await readExecutableFile(slug, octokit);
   if (!existing) return;
-  const base = `${DUTIES_DIR}/${slug}`;
+  const base = `${EXECUTABLES_DIR}/${slug}`;
   const changes: TreeChange[] = [
     { path: `${base}/profile.json`, content: null },
     { path: `${base}/prompt.md`, content: null },
@@ -504,7 +497,7 @@ export async function deleteExecutableFile(
     changes.push({ path: `${base}/${s.name}`, content: null });
   for (const s of existing.skills)
     changes.push({ path: `${base}/skills/${s.name}/SKILL.md`, content: null });
-  await commitChanges(octokit, changes, `chore(duty): remove ${slug}`);
+  await commitChanges(octokit, changes, `chore(executable): remove ${slug}`);
 }
 
 function ensureTrailingNewline(text: string): string {

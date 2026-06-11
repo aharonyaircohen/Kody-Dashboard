@@ -3,7 +3,7 @@
  * @domain executables
  * @pattern executables-api
  * @ai-summary Executables Control API — GET lists custom executables
- *   (folder-duties) stored at `.kody/duties/<slug>/`, POST creates a new
+ *   stored at `.kody/executables/<slug>/`, POST creates a new
  *   one. Each executable is a folder the engine resolves before its own
  *   built-ins (kody2/src/registry.ts).
  */
