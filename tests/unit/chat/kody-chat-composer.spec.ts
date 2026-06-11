@@ -33,31 +33,38 @@ const KODY_CHAT_PATH = resolve(
 );
 
 /**
- * Count net `<div …>` opens minus `</div>` closes on a line. Self-
- * closing `<div …/>` are explicitly excluded so they don't unbalance
- * the depth counter (the new hairline is `<div …/>`).
+ * Count net `<div …>` opens minus `</div>` closes on a line. Split JSX
+ * openings like `<div` count immediately; same-line self-closing
+ * `<div …/>` are excluded so the hairline does not unbalance depth.
  */
 function countDivs(line: string): { opens: number; closes: number } {
-  const opens = (line.match(/<div(?:\s[^/>]*)?>/g) ?? []).length;
+  const divStarts = (line.match(/<div\b/g) ?? []).length;
+  const selfClosing = (line.match(/<div\b[^>]*\/>/g) ?? []).length;
+  const opens = divStarts - selfClosing;
   const closes = (line.match(/<\/div>/g) ?? []).length;
   return { opens, closes };
 }
 
 /**
  * Find the line range of the composer container — the outermost
- * `<div className="px-1.5 py-2 sm:p-3 border-t">…</div>`. The opening
- * and closing tags both have 6 leading spaces (indent 6), so we scan
- * forward from the opening, tracking net `<div` opens vs. `</div>`
- * closes, and stop when depth returns to 0.
+ * `<div className={...}>…</div>` whose classes include the composer
+ * border and padding. The class may be a conditional template because
+ * AI and terminal modes have different backgrounds, so scan a small
+ * opening-tag window instead of matching one exact string.
  */
 function findComposerBlockRange(lines: string[]): {
   start: number;
   end: number;
 } {
-  const startMarker = '<div className="px-1.5 py-2 sm:p-3 border-t">';
   let start = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes(startMarker)) {
+    const openingTag = lines.slice(i, i + 5).join("\n");
+    if (
+      lines[i].includes("<div") &&
+      openingTag.includes("className=") &&
+      openingTag.includes("border-t") &&
+      openingTag.includes("px-1.5 py-2 sm:p-3")
+    ) {
       start = i;
       break;
     }
@@ -132,7 +139,7 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
     const internalBorderLines = COMPOSER_LINES.filter(
       (line) =>
         /\bborder-t\b/.test(line) &&
-        !line.includes("px-1.5 py-2 sm:p-3 border-t"),
+        !line.includes("px-1.5 py-2 sm:p-3"),
     );
     const hasInternalHairline = internalBorderLines.length > 0;
     expect(
