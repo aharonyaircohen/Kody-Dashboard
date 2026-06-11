@@ -1,3 +1,8 @@
+---
+every: manual
+staff: coo
+---
+
 # Repo Graph — derive and refresh the orchestration graph
 
 ## Job
