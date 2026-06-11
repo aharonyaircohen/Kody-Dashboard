@@ -19,9 +19,24 @@
     "maxThinkingTokens": 8000,
     "systemPromptAppend": null,
     "cacheable": true,
-    "tools": ["Read", "Grep", "Glob", "Bash", "Agent", "mcp__codegraph"],
-    "hooks": ["block-write"],
-    "skills": ["code-review"],
+    "tools": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash",
+      "Agent",
+      "mcp__codegraph"
+    ],
+    "hooks": [
+      "block-write"
+    ],
+    "skills": [
+      "code-review",
+      "design-system",
+      "vercel-react-best-practices",
+      "next-best-practices",
+      "web-design-guidelines"
+    ],
     "commands": [],
     "subagents": [
       "review-security",
@@ -34,7 +49,10 @@
       {
         "name": "codegraph",
         "command": "codegraph",
-        "args": ["serve", "--mcp"]
+        "args": [
+          "serve",
+          "--mcp"
+        ]
       }
     ]
   },

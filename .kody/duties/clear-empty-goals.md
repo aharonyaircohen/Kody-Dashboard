@@ -1,6 +1,6 @@
 ---
 every: 1d
-staff: kody
+staff: coo
 stage: simple-check
 executables: clear-empty-goals
 disabled: true

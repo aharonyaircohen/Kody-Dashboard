@@ -1,0 +1,76 @@
+{
+  "name": "skills-research",
+  "role": "primitive",
+  "kind": "oneshot",
+  "describe": "Research useful skills from skills.sh and recommend where they fit in Kody Dashboard.",
+  "inputs": [],
+  "claudeCode": {
+    "model": "inherit",
+    "permissionMode": "default",
+    "maxTurns": null,
+    "maxThinkingTokens": null,
+    "systemPromptAppend": null,
+    "cacheable": true,
+    "tools": [
+      "Read",
+      "Bash",
+      "Grep",
+      "Glob",
+      "mcp__playwright"
+    ],
+    "hooks": [],
+    "skills": [
+      "skills-research"
+    ],
+    "commands": [],
+    "subagents": [],
+    "plugins": [],
+    "mcpServers": [
+      {
+        "name": "playwright",
+        "command": "npx",
+        "args": [
+          "-y",
+          "--package=@playwright/mcp@latest",
+          "--",
+          "playwright-mcp"
+        ]
+      }
+    ]
+  },
+  "cliTools": [
+    "gh",
+    {
+      "name": "playwright",
+      "install": {
+        "required": false,
+        "checkCommand": "ls \"$HOME/.cache/ms-playwright\" 2>/dev/null | grep -q '^chromium' || ls \"$HOME/Library/Caches/ms-playwright\" 2>/dev/null | grep -q '^chromium'",
+        "installCommand": "npx --yes playwright install chromium"
+      },
+      "verify": "ls \"$HOME/.cache/ms-playwright\" 2>/dev/null | grep -q '^chromium' || ls \"$HOME/Library/Caches/ms-playwright\" 2>/dev/null | grep -q '^chromium'",
+      "usage": "Playwright MCP is used to browse skills.sh."
+    }
+  ],
+  "scripts": {
+    "preflight": [
+      {
+        "script": "buildSyntheticPlugin"
+      },
+      {
+        "script": "composePrompt"
+      }
+    ],
+    "postflight": [
+      {
+        "script": "parseAgentResult"
+      }
+    ]
+  },
+  "output": {
+    "actionTypes": [
+      "SKILLS_RESEARCH_COMPLETED",
+      "SKILLS_RESEARCH_FAILED",
+      "AGENT_NOT_RUN"
+    ]
+  }
+}

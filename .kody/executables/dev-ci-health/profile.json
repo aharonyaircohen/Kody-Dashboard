@@ -19,7 +19,8 @@
     ],
     "hooks": [],
     "skills": [
-      "dev-ci-health"
+      "dev-ci-health",
+      "github-actions-docs"
     ],
     "commands": [],
     "subagents": [],

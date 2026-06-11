@@ -1,6 +1,6 @@
 ---
 every: 1d
-staff: kody
+staff: cto
 stage: sweep
 executables: security-audit
 disabled: true

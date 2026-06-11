@@ -1,0 +1,34 @@
+{
+  "name": "docs-graph",
+  "role": "primitive",
+  "kind": "oneshot",
+  "describe": "Derive documentation topology from markdown files, then refresh .kody/reports/docs-graph.md.",
+  "inputs": [],
+  "claudeCode": {
+    "model": "inherit",
+    "permissionMode": "default",
+    "maxTurns": 0,
+    "maxThinkingTokens": null,
+    "systemPromptAppend": null,
+    "cacheable": true,
+    "tools": [],
+    "hooks": [],
+    "skills": ["docs-graph"],
+    "commands": [],
+    "subagents": [],
+    "plugins": [],
+    "mcpServers": []
+  },
+  "cliTools": ["gh", "jq", "node", "perl"],
+  "scripts": {
+    "preflight": [
+      { "script": "buildSyntheticPlugin" },
+      { "shell": "refresh-docs-graph.sh" },
+      { "script": "skipAgent" }
+    ],
+    "postflight": []
+  },
+  "output": {
+    "actionTypes": ["DOCS_GRAPH_REFRESHED", "DOCS_GRAPH_FAILED", "AGENT_NOT_RUN"]
+  }
+}

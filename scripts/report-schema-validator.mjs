@@ -7,6 +7,13 @@ import { pathToFileURL } from "node:url";
 const REQUIRED_REPORT_KEYS = ["generatedAt", "findings"];
 const REQUIRED_FINDING_KEYS = ["id", "severity", "title"];
 const ALLOWED_SEVERITIES = new Set(["high", "medium", "low"]);
+const ALLOWED_REVIEW_STATUSES = new Set([
+  "none",
+  "info",
+  "action-needed",
+  "assigned",
+  "reviewed",
+]);
 
 export function splitFrontmatter(raw) {
   const match = raw.match(/^---\n([\s\S]*?)\n---(?:\n|$)/);
@@ -79,6 +86,21 @@ export function validateReportText(file, text) {
   const dutySlug = topLevelValue(frontmatter, "dutySlug");
   if (dutySlug !== null && dutySlug.length === 0) {
     errors.push("dutySlug is empty");
+  }
+
+  const reviewStatus = topLevelValue(frontmatter, "reviewStatus");
+  if (
+    reviewStatus !== null &&
+    !ALLOWED_REVIEW_STATUSES.has(reviewStatus)
+  ) {
+    errors.push(
+      "reviewStatus must be none, info, action-needed, assigned, or reviewed",
+    );
+  }
+
+  const reviewArea = topLevelValue(frontmatter, "reviewArea");
+  if (reviewArea !== null && reviewArea.length === 0) {
+    errors.push("reviewArea is empty");
   }
 
   const findings = parseFindings(frontmatter);

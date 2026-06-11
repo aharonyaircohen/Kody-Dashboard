@@ -1,6 +1,6 @@
 ---
 every: manual
-staff: kody
+staff: coo
 stage: simple-check
 executables: publish-release
 disabled: true

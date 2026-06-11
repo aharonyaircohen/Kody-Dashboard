@@ -36,8 +36,13 @@
       "Glob",
       "mcp__kody-verify"
     ],
-    "hooks": ["block-git"],
-    "skills": ["ci-repair"],
+    "hooks": [
+      "block-git"
+    ],
+    "skills": [
+      "ci-repair",
+      "github-actions-docs"
+    ],
     "commands": [],
     "subagents": [],
     "plugins": [],
@@ -57,12 +62,20 @@
   },
   "scripts": {
     "preflight": [
-      { "script": "buildSyntheticPlugin" },
-      { "script": "fixCiFlow" }
+      {
+        "script": "buildSyntheticPlugin"
+      },
+      {
+        "script": "fixCiFlow"
+      }
     ],
     "postflight": []
   },
   "output": {
-    "actionTypes": ["FIX_CI_COMPLETED", "FIX_CI_FAILED", "AGENT_NOT_RUN"]
+    "actionTypes": [
+      "FIX_CI_COMPLETED",
+      "FIX_CI_FAILED",
+      "AGENT_NOT_RUN"
+    ]
   }
 }

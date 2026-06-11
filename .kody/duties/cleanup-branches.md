@@ -1,6 +1,6 @@
 ---
 every: manual
-staff: kody
+staff: coo
 stage: sweep
 executables: cleanup-branches
 disabled: true

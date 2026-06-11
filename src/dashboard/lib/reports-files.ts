@@ -25,9 +25,54 @@ export interface ReportFile {
   htmlUrl: string;
   /** Size in bytes (helps preview length without fetching body). */
   size: number;
+  /** Duty that produced this report, from report frontmatter. */
+  dutySlug: string | null;
+  /** Review routing status, from report frontmatter. */
+  reviewStatus: string | null;
+  /** Review routing area, from report frontmatter. */
+  reviewArea: string | null;
+  /** Count of structured findings declared in report frontmatter. */
+  findingCount: number;
 }
 
 const REPORTS_DIR = ".kody/reports";
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
+
+function splitReportFrontmatter(raw: string): {
+  frontmatter: string | null;
+  body: string;
+} {
+  const match = FRONTMATTER_RE.exec(raw);
+  if (!match) return { frontmatter: null, body: raw };
+  return {
+    frontmatter: match[1] ?? "",
+    body: raw.slice(match[0].length),
+  };
+}
+
+function unquote(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function topLevelValue(frontmatter: string | null, key: string): string | null {
+  if (!frontmatter) return null;
+  const match = frontmatter.match(new RegExp(`^${key}:\\s*(.*)$`, "m"));
+  if (!match) return null;
+  const value = unquote(match[1] ?? "");
+  return value.length > 0 ? value : null;
+}
+
+function countFindings(frontmatter: string | null): number {
+  if (!frontmatter) return 0;
+  return (frontmatter.match(/^\s{2}-\s+id:\s*/gm) ?? []).length;
+}
 
 function slugFromName(name: string): string | null {
   if (!name.endsWith(".md")) return null;
@@ -59,6 +104,18 @@ function stripLeadingH1(body: string): string {
     return lines.slice(1).join("\n").replace(/^\n+/, "");
   }
   return trimmed;
+}
+
+function parseReportMarkdown(raw: string, slug: string) {
+  const { frontmatter, body: afterFrontmatter } = splitReportFrontmatter(raw);
+  return {
+    title: deriveTitle(afterFrontmatter, slug),
+    body: stripLeadingH1(afterFrontmatter),
+    dutySlug: topLevelValue(frontmatter, "dutySlug"),
+    reviewStatus: topLevelValue(frontmatter, "reviewStatus"),
+    reviewArea: topLevelValue(frontmatter, "reviewArea"),
+    findingCount: countFindings(frontmatter),
+  };
 }
 
 function buildHtmlUrl(slug: string): string {
@@ -139,16 +196,19 @@ export async function listReportFiles(): Promise<ReportFile[]> {
         if (Array.isArray(data) || !("content" in data) || !data.content)
           return null;
         const raw = Buffer.from(data.content, "base64").toString("utf-8");
-        const body = stripLeadingH1(raw);
-        const title = deriveTitle(raw, slug);
+        const parsed = parseReportMarkdown(raw, slug);
         const updatedAt = await fetchLastCommitDate(octokit, filePath);
         return {
           slug,
-          title,
-          body,
+          title: parsed.title,
+          body: parsed.body,
           updatedAt,
           htmlUrl: buildHtmlUrl(slug),
           size,
+          dutySlug: parsed.dutySlug,
+          reviewStatus: parsed.reviewStatus,
+          reviewArea: parsed.reviewArea,
+          findingCount: parsed.findingCount,
         } satisfies ReportFile;
       } catch {
         return null;
@@ -180,16 +240,19 @@ export async function readReportFile(slug: string): Promise<ReportFile | null> {
     if (Array.isArray(data) || !("content" in data) || !data.content)
       return null;
     const raw = Buffer.from(data.content, "base64").toString("utf-8");
-    const body = stripLeadingH1(raw);
-    const title = deriveTitle(raw, slug);
+    const parsed = parseReportMarkdown(raw, slug);
     const updatedAt = await fetchLastCommitDate(octokit, filePath);
     return {
       slug,
-      title,
-      body,
+      title: parsed.title,
+      body: parsed.body,
       updatedAt,
       htmlUrl: buildHtmlUrl(slug),
       size: typeof data.size === "number" ? data.size : raw.length,
+      dutySlug: parsed.dutySlug,
+      reviewStatus: parsed.reviewStatus,
+      reviewArea: parsed.reviewArea,
+      findingCount: parsed.findingCount,
     };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return null;

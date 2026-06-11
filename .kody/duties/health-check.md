@@ -1,6 +1,6 @@
 ---
 every: 1d
-staff: kody
+staff: coo
 stage: report-refresh
 executables: health-check
 disabled: true

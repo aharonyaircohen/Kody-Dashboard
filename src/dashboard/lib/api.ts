@@ -1288,6 +1288,10 @@ export interface Report {
   htmlUrl: string;
   /** Size in bytes. */
   size: number;
+  dutySlug: string | null;
+  reviewStatus: string | null;
+  reviewArea: string | null;
+  findingCount: number;
 }
 
 export const reportsApi = {

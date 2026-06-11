@@ -1,6 +1,6 @@
 ---
 every: 7d
-staff: kody
+staff: coo
 stage: sweep
 executables: dependency-bump
 disabled: true
