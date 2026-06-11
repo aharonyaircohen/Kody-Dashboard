@@ -881,13 +881,17 @@ export interface Duty {
   staff: string | null;
   /** Friendly progress template slug from `stage:` frontmatter. */
   stage: DutyStageTemplateSlug | null;
+  /** Public `@kody <action>` name owned by this duty. */
+  action: string;
   /**
    * GitHub logins this duty's output should `@`-mention, parsed from the
    * `mentions:` frontmatter (comma-separated, no `@`). Empty array when the
    * key is absent.
    */
   mentions: string[];
-  /** Executable slugs assigned to this duty. Empty when unset. */
+  /** Primary implementation executable for this duty. */
+  executable: string | null;
+  /** Legacy/multi-run executable slugs assigned to this duty. */
   executables: string[];
   /** Engine-facing duty tool names from `tools:` frontmatter. */
   dutyTools: string[];
@@ -926,7 +930,9 @@ export const dutiesApi = {
     disabled?: boolean;
     staff?: string | null;
     stage?: DutyStageTemplateSlug | null;
+    action?: string | null;
     mentions?: string[];
+    executable?: string | null;
     executables?: string[];
     dutyTools?: string[];
     tickScript?: string | null;
@@ -950,7 +956,9 @@ export const dutiesApi = {
       disabled?: boolean;
       staff?: string | null;
       stage?: DutyStageTemplateSlug | null;
+      action?: string | null;
       mentions?: string[];
+      executable?: string | null;
       executables?: string[];
       dutyTools?: string[];
       tickScript?: string | null;
@@ -981,22 +989,18 @@ export const dutiesApi = {
   },
 
   /**
-   * Manually trigger a single duty by posting an `@kody job-tick` comment
-   * on the repo's "Kody control" issue. The engine's existing
-   * `issue_comment` trigger routes to job-tick. Defaults to `force: true`
-   * because the operator clicked "Run now" — they want it to run regardless
-   * of the body's cadence guard. Pass `force: false` to respect the guard.
-   *
-   * Replaces the legacy chat-trigger fake — no `KODY_MASTER_KEY` HMAC
-   * required, no fake chat session, no overloaded sessionId.
+   * Manually trigger a single duty by workflow_dispatch. The workflow input is
+   * still named `executable` for GitHub Actions compatibility, but the value
+   * is the duty-owned public action name.
    */
   run: async (
     duty: { slug: string },
     opts?: { force?: boolean },
   ): Promise<{
-    issueNumber: number;
-    commentId: number;
-    commentUrl: string;
+    workflowId: string;
+    ref: string;
+    action: string;
+    duty: string;
     force: boolean;
   }> => {
     const res = await fetch(

@@ -73,7 +73,9 @@ const updateDutySchema = z.object({
   disabled: z.boolean().optional(),
   staff: z.string().min(1).nullable().optional(),
   stage: z.enum(DUTY_STAGE_TEMPLATE_SLUGS).nullable().optional(),
+  action: z.string().min(1).max(64).nullable().optional(),
   mentions: z.array(z.string()).optional(),
+  executable: z.string().min(1).max(64).nullable().optional(),
   executables: z.array(z.string()).optional(),
   dutyTools: z.array(z.string()).optional(),
   tickScript: z.string().nullable().optional(),
@@ -92,6 +94,13 @@ function normalizeMentions(mentions: string[]): string[] {
 
 function normalizeList(values: string[]): string[] {
   return values.map((v) => v.trim()).filter((v) => v.length > 0);
+}
+
+function normalizeOptionalSlug(
+  value: string | null | undefined,
+): string | null {
+  const trimmed = value?.trim() ?? "";
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export async function PATCH(
@@ -124,7 +133,9 @@ export async function PATCH(
       disabled,
       staff,
       stage,
+      action,
       mentions,
+      executable,
       executables,
       dutyTools,
       tickScript,
@@ -133,6 +144,35 @@ export async function PATCH(
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
+
+    const nextAction =
+      action === undefined
+        ? (existing.action ?? slug)
+        : (normalizeOptionalSlug(action) ?? slug);
+    if (!isValidSlug(nextAction)) {
+      return NextResponse.json(
+        {
+          error: "invalid_action",
+          message:
+            "Duty action must be lowercase letters, digits, dashes, or underscores.",
+        },
+        { status: 400 },
+      );
+    }
+    const nextExecutable =
+      executable === undefined
+        ? existing.executable
+        : normalizeOptionalSlug(executable);
+    if (nextExecutable && !isValidSlug(nextExecutable)) {
+      return NextResponse.json(
+        {
+          error: "invalid_executable",
+          message:
+            "Executable slug must be lowercase letters, digits, dashes, or underscores.",
+        },
+        { status: 400 },
+      );
+    }
 
     const userOctokit = await getUserOctokit(req);
     if (!userOctokit) {
@@ -154,12 +194,14 @@ export async function PATCH(
       disabled: disabled === undefined ? existing.disabled : disabled,
       staff: staff === undefined ? existing.staff : staff,
       stage: stage === undefined ? existing.stage : stage,
+      action: nextAction,
       // Read-merge: omitting `mentions` preserves the existing list rather
       // than clearing it. An explicit `[]` clears it.
       mentions:
         mentions === undefined
           ? existing.mentions
           : normalizeMentions(mentions),
+      executable: nextExecutable,
       executables:
         executables === undefined
           ? existing.executables

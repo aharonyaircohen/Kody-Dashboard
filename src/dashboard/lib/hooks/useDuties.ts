@@ -62,7 +62,9 @@ export function useCreateDuty(actorLogin?: string) {
       disabled?: boolean;
       staff?: string | null;
       stage?: DutyStageTemplateSlug | null;
+      action?: string | null;
       mentions?: string[];
+      executable?: string | null;
       executables?: string[];
       dutyTools?: string[];
       tickScript?: string | null;
@@ -96,7 +98,9 @@ export function useUpdateDuty(slug: string, actorLogin?: string) {
       disabled?: boolean;
       staff?: string | null;
       stage?: DutyStageTemplateSlug | null;
+      action?: string | null;
       mentions?: string[];
+      executable?: string | null;
       executables?: string[];
       dutyTools?: string[];
       tickScript?: string | null;
@@ -124,9 +128,10 @@ export function useUpdateDuty(slug: string, actorLogin?: string) {
 export function useRunDuty() {
   return useMutation<
     {
-      issueNumber: number;
-      commentId: number;
-      commentUrl: string;
+      workflowId: string;
+      ref: string;
+      action: string;
+      duty: string;
       force: boolean;
     },
     Error,
@@ -135,8 +140,7 @@ export function useRunDuty() {
     mutationFn: ({ slug, force }) => kodyApi.duties.run({ slug }, { force }),
     onSuccess: (data) => {
       toast.success(data.force ? "Duty triggered (force)" : "Duty triggered", {
-        description:
-          "Dispatch comment posted — the engine starts a run now (not on the cron tick).",
+        description: `Workflow dispatched for @kody ${data.action}.`,
       });
     },
     onError: (error) => {

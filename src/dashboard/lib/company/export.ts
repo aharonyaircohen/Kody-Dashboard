@@ -40,7 +40,9 @@ function toTickEntry(file: TickFile): CompanyTickEntry {
     disabled: file.disabled,
     staff: file.staff,
     stage: file.stage,
+    action: file.action,
     mentions: file.mentions,
+    executable: file.executable,
     executables: file.executables,
     dutyTools: file.dutyTools,
     tickScript: file.tickScript,
@@ -126,16 +128,15 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
     executables,
     instructions,
     config,
-  ] =
-    await Promise.all([
-      listStaffFiles(),
-      listDutyFiles(),
-      listContextFiles(),
-      listRepoCommandFiles(),
-      buildExecutableEntries(),
-      readInstructionsFile(),
-      buildConfigBundle(),
-    ]);
+  ] = await Promise.all([
+    listStaffFiles(),
+    listDutyFiles(),
+    listContextFiles(),
+    listRepoCommandFiles(),
+    buildExecutableEntries(),
+    readInstructionsFile(),
+    buildConfigBundle(),
+  ]);
 
   return {
     kodyCompany: COMPANY_BUNDLE_VERSION,

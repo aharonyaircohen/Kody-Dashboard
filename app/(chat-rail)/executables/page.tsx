@@ -16,7 +16,7 @@ export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
   title: "Executables — Kody Operations Dashboard",
-  description: "Manage custom @kody executables.",
+  description: "Manage custom executable implementations.",
   path: "/executables",
 });
 

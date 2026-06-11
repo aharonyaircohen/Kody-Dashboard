@@ -59,6 +59,8 @@ interface Ctx {
 interface DutyInput {
   title: string;
   slug?: string;
+  action?: string;
+  executable?: string;
   staff: string;
   schedule: DutyScheduleToken;
   stage: DutyStageTemplateSlug;
@@ -92,7 +94,7 @@ async function readDutyGuide(): Promise<string> {
       "",
       "- Kody can create duties with `create_kody_duty`.",
       "- Duties live at `.kody/duties/<slug>.md`.",
-      "- A duty owns purpose, cadence, staff, progress type, and safety rules.",
+      "- A duty owns public action, purpose, cadence, staff, progress type, and safety rules.",
       "- Put staff persona in `.kody/staff/<slug>.md`.",
       "- Put reusable action logic in `.kody/executables/<slug>/`.",
       "- Do not put raw state keys in the duty body; use `stage:`.",
@@ -178,6 +180,18 @@ export const createKodyDutyInputSchema = z.object({
     .describe(
       "Optional file slug (lowercase letters, digits, dashes, underscores; max 64 chars). " +
         "If omitted, derived from the title.",
+    ),
+  action: z
+    .string()
+    .optional()
+    .describe(
+      "Optional public @kody action name. If omitted, defaults to the duty slug.",
+    ),
+  executable: z
+    .string()
+    .optional()
+    .describe(
+      "Optional implementation executable slug. Omit for normal markdown duties that the built-in duty runner should execute.",
     ),
   staff: z
     .string()
@@ -291,6 +305,24 @@ export function createDutyTools(ctx: Ctx) {
           }
 
           const body = buildDutyBody(slug, input);
+          const action = slugifyTitle(input.action ?? slug);
+          if (!isValidSlug(action)) {
+            return {
+              error: "invalid_action",
+              message:
+                "Duty action must be lowercase letters, digits, dashes, or underscores (max 64 chars). " +
+                `Got "${action}".`,
+            };
+          }
+          const executable = input.executable?.trim() || null;
+          if (executable && !isValidSlug(executable)) {
+            return {
+              error: "invalid_executable",
+              message:
+                "Executable slug must be lowercase letters, digits, dashes, or underscores (max 64 chars). " +
+                `Got "${executable}".`,
+            };
+          }
           const message = `feat(duties): add ${slug}${actorLogin ? ` (via chat by @${actorLogin})` : ""}`;
           const duty = await writeDutyFile({
             octokit,
@@ -300,6 +332,8 @@ export function createDutyTools(ctx: Ctx) {
             schedule: input.schedule,
             staff: input.staff,
             stage: input.stage,
+            action,
+            executable,
             message,
           });
 
@@ -308,6 +342,8 @@ export function createDutyTools(ctx: Ctx) {
               owner,
               repo,
               slug,
+              action,
+              executable,
               schedule: input.schedule,
               staff: input.staff,
               stage: input.stage,

@@ -88,7 +88,9 @@ async function importTickCollection(
         disabled: entry.disabled,
         staff: entry.staff,
         stage: entry.stage,
+        action: entry.action,
         mentions: entry.mentions,
+        executable: entry.executable,
         executables: entry.executables,
         dutyTools: entry.dutyTools,
         tickScript: entry.tickScript,
@@ -314,12 +316,7 @@ export async function applyCompanyBundle(
     { read: readDutyFile, write: writeDutyFile },
     notes,
   );
-  const contexts = await importContexts(
-    octokit,
-    bundle.contexts,
-    mode,
-    notes,
-  );
+  const contexts = await importContexts(octokit, bundle.contexts, mode, notes);
   const commands = await importCommands(octokit, bundle.commands, mode, notes);
   const executables = await importExecutables(
     octokit,

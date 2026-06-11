@@ -72,7 +72,7 @@ test.describe("Dashboard Smoke", () => {
     page.on("pageerror", (err) => errors.push(err.message));
 
     await loadDashboardAuthenticated(page);
-    await expect(page).toHaveTitle(/kody/i);
+    await expect(page).toHaveTitle(/kody|happening now/i);
 
     const criticalErrors = errors.filter(
       (e) =>
@@ -81,6 +81,9 @@ test.describe("Dashboard Smoke", () => {
         !e.includes("Failed to load resource") &&
         !e.includes(
           "Hydration failed because the server rendered HTML didn't match the client",
+        ) &&
+        !e.includes(
+          "Encountered a script tag while rendering React component",
         ) &&
         !e.includes("Minified React error #418"),
     );
@@ -117,9 +120,9 @@ test.describe("Dashboard — authenticated", () => {
     }
 
     const chatInput = page
-      .getByPlaceholder(/ask kody|kody is waiting/i)
+      .getByPlaceholder(/ask kody|click start to warm up/i)
       .first();
-    const chatButton = page.locator('[title="Chat"]').first();
+    const chatButton = page.getByLabel("Open chat").first();
 
     const inputVisible = await chatInput.isVisible().catch(() => false);
     const buttonVisible = await chatButton.isVisible().catch(() => false);

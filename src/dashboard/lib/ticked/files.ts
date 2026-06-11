@@ -88,13 +88,17 @@ export interface TickFile {
   staff: string | null;
   /** Friendly progress template slug (`stage:` frontmatter), or null. */
   stage: DutyStageTemplateSlug | null;
+  /** Public `@kody <action>` name for duties; null for staff files. */
+  action: string | null;
   /**
    * GitHub logins this file's output should `@`-mention, parsed from the
    * `mentions:` frontmatter (comma-separated, no `@`). Empty array when the
    * key is absent. The dashboard reads it to render/seed the mentions input.
    */
   mentions: string[];
-  /** Executable slugs assigned to this duty (`executables:` frontmatter). */
+  /** Primary implementation executable for this duty, or null when unset. */
+  executable: string | null;
+  /** Legacy/multi-run executable slugs (`executables:` frontmatter). */
   executables: string[];
   /** Duty tool names from the engine-facing `tools:` frontmatter line. */
   dutyTools: string[];
@@ -131,11 +135,18 @@ export interface TickWriteOptions {
   /** Friendly progress template slug to emit as `stage:` frontmatter. */
   stage?: DutyStageTemplateSlug | null;
   /**
+   * Public `@kody <action>` name to emit as `action:`. Duties should set this;
+   * staff files leave it absent.
+   */
+  action?: string | null;
+  /**
    * GitHub logins to emit as the `mentions:` frontmatter (comma-separated,
    * no `@`). Empty / absent writes no `mentions:` line.
    */
   mentions?: string[];
-  /** Executable slugs to emit as `executables:` frontmatter. */
+  /** Primary implementation executable to emit as `executable:`. */
+  executable?: string | null;
+  /** Legacy/multi-run executable slugs to emit as `executables:` frontmatter. */
   executables?: string[];
   /** Duty tools to emit as `tools:` frontmatter. */
   dutyTools?: string[];
@@ -163,7 +174,7 @@ export interface TickedFilesConfig {
 
 export interface TickedFilesApi {
   listFiles(): Promise<TickFile[]>;
-  readFile(slug: string): Promise<TickFile | null>;
+  readFile(slug: string, octokitOverride?: Octokit): Promise<TickFile | null>;
   writeFile(opts: TickWriteOptions): Promise<TickFile>;
   deleteFile(octokit: Octokit, slug: string): Promise<void>;
   isValidSlug(slug: string): boolean;
@@ -387,6 +398,8 @@ function buildFileContent(
   disabled: boolean,
   staff: string | null,
   stage: DutyStageTemplateSlug | null,
+  action: string | null,
+  executable: string | null,
   mentions: string[],
   executables: string[],
   dutyTools: string[],
@@ -402,6 +415,8 @@ function buildFileContent(
       ? `# ${title.trim()}\n\n${trimmedBody}${trimmedBody.endsWith("\n") ? "" : "\n"}`
       : `# ${title.trim()}\n`;
   const fm: TickFrontmatter = {};
+  if (action?.trim()) fm.action = action.trim();
+  if (executable?.trim()) fm.executable = executable.trim();
   if (schedule) fm.every = schedule;
   if (staff) fm.staff = staff;
   if (stage) fm.stage = stage;
@@ -413,6 +428,29 @@ function buildFileContent(
   if (writesTo.length > 0) fm.writesTo = writesTo;
   if (disabled) fm.disabled = true;
   return joinFrontmatter(fm, titled);
+}
+
+function effectiveAction(
+  dir: string,
+  slug: string,
+  frontmatter: TickFrontmatter,
+): string | null {
+  return frontmatter.action ?? (dir === ".kody/duties" ? slug : null);
+}
+
+function effectiveExecutable(frontmatter: TickFrontmatter): string | null {
+  return (
+    frontmatter.executable ??
+    (frontmatter.executables?.length === 1 ? frontmatter.executables[0]! : null)
+  );
+}
+
+function legacyExecutables(frontmatter: TickFrontmatter): string[] {
+  if (!frontmatter.executables?.length) return [];
+  if (!frontmatter.executable && frontmatter.executables.length === 1) {
+    return [];
+  }
+  return frontmatter.executables;
 }
 
 /**
@@ -535,8 +573,10 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
             disabled: frontmatter.disabled === true,
             staff: frontmatter.staff ?? null,
             stage: frontmatter.stage ?? null,
+            action: effectiveAction(dir, slug, frontmatter),
             mentions: frontmatter.mentions ?? [],
-            executables: frontmatter.executables ?? [],
+            executable: effectiveExecutable(frontmatter),
+            executables: legacyExecutables(frontmatter),
             dutyTools: frontmatter.dutyTools ?? [],
             tickScript: frontmatter.tickScript ?? null,
             readsFrom: frontmatter.readsFrom ?? [],
@@ -618,8 +658,10 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         disabled: frontmatter.disabled === true,
         staff: frontmatter.staff ?? null,
         stage: frontmatter.stage ?? null,
+        action: effectiveAction(dir, slug, frontmatter),
         mentions: frontmatter.mentions ?? [],
-        executables: frontmatter.executables ?? [],
+        executable: effectiveExecutable(frontmatter),
+        executables: legacyExecutables(frontmatter),
         dutyTools: frontmatter.dutyTools ?? [],
         tickScript: frontmatter.tickScript ?? null,
         readsFrom: frontmatter.readsFrom ?? [],
@@ -650,6 +692,8 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
       opts.disabled === true,
       opts.staff ?? null,
       opts.stage ?? null,
+      opts.action ?? null,
+      opts.executable ?? null,
       opts.mentions ?? [],
       opts.executables ?? [],
       opts.dutyTools ?? [],

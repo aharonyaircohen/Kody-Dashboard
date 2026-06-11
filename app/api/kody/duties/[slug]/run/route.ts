@@ -3,17 +3,10 @@
  * @domain kody
  * @pattern duty-run
  * @ai-summary POST /api/kody/duties/:slug/run — manually trigger a single
- *   duty by posting an `@kody job-tick --job <slug> [--force]` comment on
- *   the repo's "Kody control" issue. The engine's existing `issue_comment`
- *   trigger fires kody.yml; the dispatcher routes to `job-tick`. (The
- *   `job-tick` executable name and `--job` flag are an unchanged engine
- *   command contract — only the dashboard feature noun became "duty".)
- *
- *   Why a comment, not a chat-trigger fake: duties are autonomous primitives,
- *   not chat sessions. This path uses three established conventions
- *   (`@kody <subcommand>`, `job-tick --job <slug>`, `issue_comment` trigger)
- *   without overloading any of them — and crucially without needing
- *   `KODY_MASTER_KEY` for HMAC signing, since no chat session is being minted.
+ *   duty by dispatching `.github/workflows/kody.yml` with the duty-owned
+ *   public action name. The workflow input is still named `executable` for
+ *   GitHub Actions compatibility; the engine resolves that value as a duty
+ *   action before lowering to the implementation executable.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -23,8 +16,11 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
-import { isValidSlug } from "@dashboard/lib/duties-files";
-import { findOrCreateControlIssue } from "@dashboard/lib/control-issue";
+import { isValidSlug, readDutyFile } from "@dashboard/lib/duties-files";
+import {
+  setGitHubContext,
+  clearGitHubContext,
+} from "@dashboard/lib/github-client";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 const runSchema = z.object({
@@ -50,6 +46,7 @@ export async function POST(
   const { owner, repo } = headerAuth;
 
   let payload: { force: boolean };
+  setGitHubContext(owner, repo, headerAuth.token);
   try {
     const raw =
       req.headers.get("content-length") === "0"
@@ -72,34 +69,44 @@ export async function POST(
       {
         error: "no_user_token",
         message:
-          "A signed-in GitHub token is required to post the dispatch comment.",
+          "A signed-in GitHub token is required to dispatch the workflow.",
       },
       { status: 401 },
     );
   }
 
   try {
-    const issueNumber = await findOrCreateControlIssue(octokit, owner, repo);
-    const flags = payload.force ? `--job ${slug} --force` : `--job ${slug}`;
-    const body = `@kody job-tick ${flags}`;
-    const { data: comment } = await octokit.rest.issues.createComment({
+    const duty = await readDutyFile(slug, octokit);
+    if (!duty) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+    const action = duty.action ?? slug;
+    const repoMeta = await octokit.rest.repos.get({
       owner,
       repo,
-      issue_number: issueNumber,
-      body,
+    });
+    const ref = repoMeta.data.default_branch || "main";
+    await octokit.rest.actions.createWorkflowDispatch({
+      owner,
+      repo,
+      workflow_id: "kody.yml",
+      ref,
+      inputs: { executable: action },
     });
     recordAudit(req, {
       action: "duty.run",
       resource: slug,
       duty: slug,
-      resourceUrl: comment.html_url,
-      detail: payload.force ? "manual run (force)" : "manual run",
+      detail: payload.force
+        ? `manual workflow dispatch for @kody ${action} (force)`
+        : `manual workflow dispatch for @kody ${action}`,
     });
     return NextResponse.json({
       ok: true,
-      issueNumber,
-      commentId: comment.id,
-      commentUrl: comment.html_url,
+      workflowId: "kody.yml",
+      ref,
+      action,
+      duty: slug,
       force: payload.force,
     });
   } catch (err: any) {
@@ -107,9 +114,11 @@ export async function POST(
     return NextResponse.json(
       {
         error: "dispatch_failed",
-        message: err?.message ?? "Failed to post dispatch comment",
+        message: err?.message ?? "Failed to dispatch workflow",
       },
       { status: 500 },
     );
+  } finally {
+    clearGitHubContext();
   }
 }

@@ -42,8 +42,8 @@ One doc per dashboard-managed store / capability.
 ### Authoring & config
 
 - ✅ [Commands](commands.md) — slash commands, built-ins + repo commands.
-- ✅ [Executables](executables.md) — custom `.kody/duties/<slug>/`
-  folders (Git Data API CRUD), set-default, and the commit-skills caveat.
+- ✅ [Executables](executables.md) — custom `.kody/executables/<slug>/`
+  implementation folders (Git Data API CRUD), set-default, and the commit-skills caveat.
 - ✅ [Engine config](engine-config.md) — the `/config` page editing
   `kody.config.json` (operators, quality commands, access gate, aliases);
   why the model lives on `/models` via `agent.model`.

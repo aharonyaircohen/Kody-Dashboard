@@ -103,6 +103,8 @@ describe("splitFrontmatter", () => {
     const { frontmatter } = splitFrontmatter(
       [
         "---",
+        "action: repo-graph",
+        "executable: repo-graph-refresh",
         "executables: db-worker, api-worker, ui-worker",
         "tools: list_prs_to_repair, sync_pr",
         "tickScript: .kody/scripts/check-duty.sh",
@@ -112,6 +114,8 @@ describe("splitFrontmatter", () => {
         "body",
       ].join("\n"),
     );
+    expect(frontmatter.action).toBe("repo-graph");
+    expect(frontmatter.executable).toBe("repo-graph-refresh");
     expect(frontmatter.executables).toEqual([
       "db-worker",
       "api-worker",
@@ -186,6 +190,8 @@ describe("joinFrontmatter", () => {
 
   it("emits the full engine duty frontmatter shape in stable order", () => {
     const fm: TickFrontmatter = {
+      action: "repo-graph",
+      executable: "repo-graph-refresh",
       every: "1h",
       staff: "kody",
       stage: "sweep",
@@ -200,6 +206,8 @@ describe("joinFrontmatter", () => {
     expect(joinFrontmatter(fm, "body")).toBe(
       [
         "---",
+        "action: repo-graph",
+        "executable: repo-graph-refresh",
         "every: 1h",
         "staff: kody",
         "stage: sweep",

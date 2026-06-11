@@ -81,7 +81,9 @@ const createDutySchema = z.object({
   disabled: z.boolean().optional(),
   staff: z.string().min(1).nullable().optional(),
   stage: z.enum(DUTY_STAGE_TEMPLATE_SLUGS).nullable().optional(),
+  action: z.string().min(1).max(64).nullable().optional(),
   mentions: z.array(z.string()).optional(),
+  executable: z.string().min(1).max(64).nullable().optional(),
   executables: z.array(z.string()).optional(),
   dutyTools: z.array(z.string()).optional(),
   tickScript: z.string().nullable().optional(),
@@ -103,6 +105,13 @@ function normalizeMentions(mentions?: string[]): string[] {
 function normalizeList(values?: string[]): string[] {
   if (!values) return [];
   return values.map((v) => v.trim()).filter((v) => v.length > 0);
+}
+
+function normalizeOptionalSlug(
+  value: string | null | undefined,
+): string | null {
+  const trimmed = value?.trim() ?? "";
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function slugifyTitle(title: string): string {
@@ -133,7 +142,9 @@ export async function POST(req: NextRequest) {
       disabled,
       staff,
       stage,
+      action,
       mentions,
+      executable,
       executables,
       dutyTools,
       tickScript,
@@ -147,6 +158,28 @@ export async function POST(req: NextRequest) {
           error: "invalid_slug",
           message:
             "Duty slug must be lowercase letters, digits, dashes, or underscores.",
+        },
+        { status: 400 },
+      );
+    }
+    const actionSlug = normalizeOptionalSlug(action) ?? slug;
+    if (!isValidSlug(actionSlug)) {
+      return NextResponse.json(
+        {
+          error: "invalid_action",
+          message:
+            "Duty action must be lowercase letters, digits, dashes, or underscores.",
+        },
+        { status: 400 },
+      );
+    }
+    const executableSlug = normalizeOptionalSlug(executable);
+    if (executableSlug && !isValidSlug(executableSlug)) {
+      return NextResponse.json(
+        {
+          error: "invalid_executable",
+          message:
+            "Executable slug must be lowercase letters, digits, dashes, or underscores.",
         },
         { status: 400 },
       );
@@ -183,7 +216,9 @@ export async function POST(req: NextRequest) {
       disabled: disabled === true,
       staff: staff ?? null,
       stage: stage ?? DEFAULT_DUTY_STAGE_TEMPLATE,
+      action: actionSlug,
       mentions: normalizeMentions(mentions),
+      executable: executableSlug,
       executables: normalizeList(executables),
       dutyTools: normalizeList(dutyTools),
       tickScript: tickScript?.trim() ? tickScript.trim() : null,

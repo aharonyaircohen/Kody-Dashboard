@@ -114,11 +114,14 @@ function sameMentions(a: string[], b: string[]): boolean {
   return sortedA.every((v, i) => v === sortedB[i]);
 }
 
-function sameList(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((v, i) => v === sortedB[i]);
+function slugifyAction(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-")
+    .slice(0, 64);
 }
 
 interface ExecutableSummary {
@@ -129,6 +132,11 @@ interface ExecutableSummary {
 const NO_EXECUTABLE_VALUE = "__none__";
 const ALL_STAFF_FILTER = "__all_staff__";
 const NO_STAFF_FILTER = "__no_staff__";
+const ENABLED_STATUS_FILTER = "__enabled__";
+const DISABLED_STATUS_FILTER = "__disabled__";
+type DutyStatusFilterValue =
+  | typeof ENABLED_STATUS_FILTER
+  | typeof DISABLED_STATUS_FILTER;
 
 function useExecutableSummaries() {
   const { auth } = useAuth();
@@ -186,6 +194,9 @@ export function DutyControlInner() {
 
   const [search, setSearch] = useState("");
   const [staffFilter, setStaffFilter] = useState(ALL_STAFF_FILTER);
+  const [statusFilter, setStatusFilter] = useState<DutyStatusFilterValue>(
+    ENABLED_STATUS_FILTER,
+  );
   const { data: staffMembers = [] } = useStaff();
   const staffTitleBySlug = useMemo(
     () => new Map(staffMembers.map((s) => [s.slug, s.title])),
@@ -215,17 +226,24 @@ export function DutyControlInner() {
       if (staffFilter === NO_STAFF_FILTER) return !duty.staff;
       return duty.staff === staffFilter;
     };
+    const matchesStatusFilter = (duty: Duty) => {
+      if (statusFilter === ENABLED_STATUS_FILTER) return !duty.disabled;
+      return duty.disabled;
+    };
     return duties.filter(
       (d) =>
         matchesStaffFilter(d) &&
+        matchesStatusFilter(d) &&
         (!q ||
           d.slug.toLowerCase().includes(q) ||
           d.title.toLowerCase().includes(q) ||
           d.body.toLowerCase().includes(q) ||
+          d.action.toLowerCase().includes(q) ||
+          (d.executable?.toLowerCase().includes(q) ?? false) ||
           (d.staff?.toLowerCase().includes(q) ?? false) ||
           d.executables.some((e) => e.toLowerCase().includes(q))),
     );
-  }, [duties, search, staffFilter]);
+  }, [duties, search, staffFilter, statusFilter]);
 
   useEffect(() => {
     if (filtered.length === 0) {
@@ -273,13 +291,19 @@ export function DutyControlInner() {
         listAside={
           duties.length > 0 ? (
             <div className="mt-2 space-y-2">
-              <DutyStaffFilter
-                value={staffFilter}
-                onChange={setStaffFilter}
-                staffSlugs={staffFilterOptions}
-                staffTitleBySlug={staffTitleBySlug}
-                hasUnassignedDuties={hasUnassignedDuties}
-              />
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <DutyStaffFilter
+                  value={staffFilter}
+                  onChange={setStaffFilter}
+                  staffSlugs={staffFilterOptions}
+                  staffTitleBySlug={staffTitleBySlug}
+                  hasUnassignedDuties={hasUnassignedDuties}
+                />
+                <DutyStatusToggle
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                />
+              </div>
               <DutyHealthSummaryBar duties={duties} />
             </div>
           ) : null
@@ -398,6 +422,23 @@ export function DutyControlInner() {
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                       <span className="font-mono opacity-80">{duty.slug}</span>
+                      <span>·</span>
+                      <span className="inline-flex items-center gap-1">
+                        <AtSign className="w-3 h-3" />
+                        {duty.action}
+                      </span>
+                      {duty.executable ? (
+                        <>
+                          <span>·</span>
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title="Implementation executable"
+                          >
+                            <Boxes className="w-3 h-3" />
+                            {duty.executable}
+                          </span>
+                        </>
+                      ) : null}
                       <span>·</span>
                       <span className="inline-flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
@@ -522,6 +563,38 @@ function DutyDetail({
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span className="font-mono opacity-80">{duty.slug}</span>
                 <span>·</span>
+                <span
+                  className="inline-flex items-center gap-1"
+                  title="Public duty action"
+                >
+                  <AtSign className="w-3 h-3" />
+                  {duty.action}
+                </span>
+                {duty.executable ? (
+                  <>
+                    <span>·</span>
+                    <span
+                      className="inline-flex items-center gap-1"
+                      title="Implementation executable"
+                    >
+                      <Boxes className="w-3 h-3" />
+                      {duty.executable}
+                    </span>
+                  </>
+                ) : null}
+                {duty.executables.length > 0 ? (
+                  <>
+                    <span>·</span>
+                    <span
+                      className="inline-flex items-center gap-1"
+                      title="Legacy or multi-run executables"
+                    >
+                      <Boxes className="w-3 h-3" />
+                      {duty.executables.join(", ")}
+                    </span>
+                  </>
+                ) : null}
+                <span>·</span>
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
                   updated {new Date(duty.updatedAt).toLocaleDateString()}
@@ -551,15 +624,6 @@ function DutyDetail({
                   >
                     <AtSign className="w-3 h-3" />
                     {duty.mentions.map((m) => `@${m}`).join(", ")}
-                  </span>
-                ) : null}
-                {duty.executables.length > 0 ? (
-                  <span
-                    className="inline-flex items-center gap-1"
-                    title="Executables assigned to this duty"
-                  >
-                    <Boxes className="w-3 h-3" />
-                    {duty.executables.join(", ")}
                   </span>
                 ) : null}
                 {duty.stage ? (
@@ -714,8 +778,10 @@ function CreateDutyDialog({
   const [stage, setStage] = useState<DutyStageTemplateSlug>(
     DEFAULT_DUTY_STAGE_TEMPLATE,
   );
+  const [action, setAction] = useState("");
+  const [actionTouched, setActionTouched] = useState(false);
   const [mentions, setMentions] = useState("");
-  const [executables, setExecutables] = useState<string[]>([]);
+  const [executable, setExecutable] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -724,10 +790,17 @@ function CreateDutyDialog({
       setEnabled(true);
       setStaff(null);
       setStage(DEFAULT_DUTY_STAGE_TEMPLATE);
+      setAction("");
+      setActionTouched(false);
       setMentions("");
-      setExecutables([]);
+      setExecutable(null);
     }
   }, [open]);
+
+  const updateTitle = (next: string) => {
+    setTitle(next);
+    if (!actionTouched) setAction(slugifyAction(next));
+  };
 
   const handleSubmit = () => {
     if (!title.trim() || createMutation.isPending) return;
@@ -743,8 +816,9 @@ function CreateDutyDialog({
         disabled: !enabled,
         staff,
         stage,
+        action: action.trim() || undefined,
         mentions: parseMentionsInput(mentions),
-        executables,
+        executable,
       },
       {
         onSuccess: (duty) => onCreated(duty),
@@ -769,15 +843,27 @@ function CreateDutyDialog({
             <Input
               id="duty-title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => updateTitle(e.target.value)}
               placeholder="e.g. Release notes manager"
               autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="duty-action">Action</Label>
+            <Input
+              id="duty-action"
+              value={action}
+              onChange={(e) => {
+                setActionTouched(true);
+                setAction(slugifyAction(e.target.value));
+              }}
+              placeholder="release-notes-manager"
             />
           </div>
           <DutyEnabledCheckbox enabled={enabled} onChange={setEnabled} />
           <StaffSelect value={staff} onChange={setStaff} />
           <StageTemplateSelect value={stage} onChange={setStage} />
-          <ExecutablesSelect value={executables} onChange={setExecutables} />
+          <ExecutableSelect value={executable} onChange={setExecutable} />
           <MentionsInput value={mentions} onChange={setMentions} />
           <div className="space-y-1.5">
             <Label>Body</Label>
@@ -820,8 +906,9 @@ function EditDutyDialog({
   const [schedule, setSchedule] = useState<DutySchedule | null>(duty.schedule);
   const [staff, setStaff] = useState<string | null>(duty.staff);
   const [stage, setStage] = useState<DutyStageTemplateSlug | null>(duty.stage);
+  const [action, setAction] = useState(duty.action);
   const [mentions, setMentions] = useState(formatMentionsInput(duty.mentions));
-  const [executables, setExecutables] = useState<string[]>(duty.executables);
+  const [executable, setExecutable] = useState<string | null>(duty.executable);
 
   useEffect(() => {
     setTitle(duty.title);
@@ -830,8 +917,9 @@ function EditDutyDialog({
     setSchedule(duty.schedule);
     setStaff(duty.staff);
     setStage(duty.stage);
+    setAction(duty.action);
     setMentions(formatMentionsInput(duty.mentions));
-    setExecutables(duty.executables);
+    setExecutable(duty.executable);
   }, [duty]);
 
   const handleSubmit = () => {
@@ -843,8 +931,9 @@ function EditDutyDialog({
       schedule?: DutySchedule | null;
       staff?: string | null;
       stage?: DutyStageTemplateSlug | null;
+      action?: string | null;
       mentions?: string[];
-      executables?: string[];
+      executable?: string | null;
     } = {};
     if (title !== duty.title) patch.title = title.trim();
     if (body !== duty.body) patch.body = body;
@@ -852,11 +941,11 @@ function EditDutyDialog({
     if (schedule !== duty.schedule) patch.schedule = schedule;
     if (staff !== duty.staff) patch.staff = staff;
     if (stage !== duty.stage) patch.stage = stage;
+    if (action !== duty.action) patch.action = action.trim() || null;
     const nextMentions = parseMentionsInput(mentions);
     if (!sameMentions(nextMentions, duty.mentions))
       patch.mentions = nextMentions;
-    if (!sameList(executables, duty.executables))
-      patch.executables = executables;
+    if (executable !== duty.executable) patch.executable = executable;
     if (Object.keys(patch).length === 0) {
       onSaved();
       return;
@@ -885,11 +974,19 @@ function EditDutyDialog({
               autoFocus
             />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-duty-action">Action</Label>
+            <Input
+              id="edit-duty-action"
+              value={action}
+              onChange={(e) => setAction(slugifyAction(e.target.value))}
+            />
+          </div>
           <DutyEnabledCheckbox enabled={enabled} onChange={setEnabled} />
           <ScheduleSelect value={schedule} onChange={setSchedule} />
           <StaffSelect value={staff} onChange={setStaff} />
           <StageTemplateSelect value={stage} onChange={setStage} />
-          <ExecutablesSelect value={executables} onChange={setExecutables} />
+          <ExecutableSelect value={executable} onChange={setExecutable} />
           <MentionsInput value={mentions} onChange={setMentions} />
           <DutyTimingReadout
             lastTickAt={duty.lastTickAt}
@@ -1010,6 +1107,45 @@ function DutyHealthSummaryBar({ duties }: { duties: Duty[] }) {
   );
 }
 
+function DutyStatusToggle({
+  value,
+  onChange,
+}: {
+  value: DutyStatusFilterValue;
+  onChange: (next: DutyStatusFilterValue) => void;
+}) {
+  const options: Array<{ label: string; value: DutyStatusFilterValue }> = [
+    { label: "Enabled", value: ENABLED_STATUS_FILTER },
+    { label: "Disabled", value: DISABLED_STATUS_FILTER },
+  ];
+  return (
+    <div
+      className="grid h-9 grid-cols-2 gap-0.5 rounded-md border border-border bg-background/40 p-0.5"
+      role="group"
+      aria-label="Filter duties by status"
+    >
+      {options.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded px-2.5 text-xs font-medium transition-colors",
+              active
+                ? "bg-white/10 text-white"
+                : "text-muted-foreground hover:bg-white/[0.06] hover:text-white/85",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 function DutyStaffFilter({
   value,
   onChange,
@@ -1027,7 +1163,7 @@ function DutyStaffFilter({
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
         aria-label="Filter duties by staff"
-        className="h-9 w-full bg-background/40"
+        className="h-9 w-full min-w-0 bg-background/40"
       >
         <SelectValue />
       </SelectTrigger>
@@ -1385,12 +1521,12 @@ function StaffSelect({
   );
 }
 
-function ExecutablesSelect({
+function ExecutableSelect({
   value,
   onChange,
 }: {
-  value: string[];
-  onChange: (next: string[]) => void;
+  value: string | null;
+  onChange: (next: string | null) => void;
 }) {
   const {
     data: executables = [],
@@ -1398,10 +1534,10 @@ function ExecutablesSelect({
     isError,
     isLoading,
   } = useExecutableSummaries();
-  const selected = value[0] ?? NO_EXECUTABLE_VALUE;
+  const selected = value ?? NO_EXECUTABLE_VALUE;
   const options =
-    value[0] && !executables.some((exec) => exec.slug === value[0])
-      ? [{ slug: value[0] }, ...executables]
+    value && !executables.some((exec) => exec.slug === value)
+      ? [{ slug: value }, ...executables]
       : executables;
 
   return (
@@ -1410,7 +1546,7 @@ function ExecutablesSelect({
       <Select
         value={selected}
         onValueChange={(next) =>
-          onChange(next === NO_EXECUTABLE_VALUE ? [] : [next])
+          onChange(next === NO_EXECUTABLE_VALUE ? null : next)
         }
         disabled={isLoading || isError || options.length === 0}
       >

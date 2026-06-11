@@ -50,6 +50,16 @@ const SCHEDULE_EVERY_VALUES: readonly ScheduleEvery[] = [
 ] as const;
 
 export interface TickFrontmatter {
+  /**
+   * Public `@kody <action>` name for a duty. Duties own the command surface;
+   * executables remain implementation units.
+   */
+  action?: string;
+  /**
+   * Primary implementation executable for a duty. This is the normal
+   * duty→executable link; `executables:` remains for legacy/multi-run duties.
+   */
+  executable?: string;
   /** Cadence between ticks. Absent = "every cron wake" (legacy default). */
   every?: ScheduleEvery;
   /**
@@ -79,9 +89,8 @@ export interface TickFrontmatter {
    */
   mentions?: string[];
   /**
-   * Executable slugs this duty can dispatch. Stored as one comma-separated
-   * line (`executables: bug, qa-engineer`). Empty / absent = no explicit
-   * executable assignment.
+   * Legacy or multi-run executable slugs this duty can dispatch. New single
+   * implementation duties should use `executable: <slug>`.
    */
   executables?: string[];
   /**
@@ -214,7 +223,11 @@ function parseFlatYaml(text: string): TickFrontmatter {
     if (colon < 0) continue;
     const key = line.slice(0, colon).trim();
     const value = stripQuotes(line.slice(colon + 1).trim());
-    if (key === "every" && isScheduleEvery(value)) {
+    if (key === "action" && value.length > 0) {
+      out.action = value;
+    } else if (key === "executable" && value.length > 0) {
+      out.executable = value;
+    } else if (key === "every" && isScheduleEvery(value)) {
       out.every = value;
     } else if (key === "disabled") {
       // Accept true/false (any case); anything else stays absent.
@@ -254,6 +267,9 @@ function parseFlatYaml(text: string): TickFrontmatter {
 
 function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
   const lines: string[] = [];
+  if (frontmatter.action) lines.push(`action: ${frontmatter.action}`);
+  if (frontmatter.executable)
+    lines.push(`executable: ${frontmatter.executable}`);
   if (frontmatter.every) lines.push(`every: ${frontmatter.every}`);
   if (frontmatter.staff) lines.push(`staff: ${frontmatter.staff}`);
   if (frontmatter.stage) lines.push(`stage: ${frontmatter.stage}`);

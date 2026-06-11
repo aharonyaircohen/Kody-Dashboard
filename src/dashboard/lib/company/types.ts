@@ -55,9 +55,13 @@ export interface CompanyTickEntry {
   staff: string | null;
   /** Friendly progress template slug — duties only; staff entries are null. */
   stage: DutyStageTemplateSlug | null;
+  /** Public `@kody <action>` name — duties only; staff entries are null. */
+  action: string | null;
   /** GitHub logins to mention from duty output. */
   mentions: string[];
-  /** Executable slugs assigned to a duty. */
+  /** Primary implementation executable assigned to a duty. */
+  executable: string | null;
+  /** Legacy/multi-run executable slugs assigned to a duty. */
   executables: string[];
   /** Duty tool names exposed to the tick runner. */
   dutyTools: string[];
@@ -186,7 +190,9 @@ const tickEntrySchema = z.object({
   disabled: z.boolean().default(false),
   staff: z.string().min(1).nullable().default(null),
   stage: z.enum(DUTY_STAGE_TEMPLATE_SLUGS).nullable().default(null),
+  action: slugSchema.nullable().default(null),
   mentions: z.array(z.string().min(1)).default([]),
+  executable: slugSchema.nullable().default(null),
   executables: z.array(slugSchema).default([]),
   dutyTools: z.array(z.string().min(1)).default([]),
   tickScript: z.string().min(1).nullable().default(null),

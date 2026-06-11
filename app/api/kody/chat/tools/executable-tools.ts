@@ -43,7 +43,10 @@ const shellSchema = z.object({
 
 async function readExecutableGuide(): Promise<string> {
   try {
-    return await readFile(path.join(process.cwd(), "docs/executables.md"), "utf8");
+    return await readFile(
+      path.join(process.cwd(), "docs/executables.md"),
+      "utf8",
+    );
   } catch {
     return [
       "# How to create a proper executable",
@@ -75,7 +78,7 @@ export function createExecutableTools(ctx: Ctx) {
     }),
 
     list_executables: tool({
-      description: `List the custom executables in ${repoRef} (the @kody <slug> actions stored at .kody/executables/<slug>/). Returns slug, description, and landing (opens a PR vs comments).`,
+      description: `List the custom executable implementations in ${repoRef} stored at .kody/executables/<slug>/. Duties own public @kody action names. Returns slug, description, and landing (opens a PR vs comments).`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
