@@ -102,7 +102,10 @@ const mcpServerSchema = z.object({
 const createExecutableSchema = z.object({
   slug: z.string().min(1).max(64),
   describe: z.string().default(""),
-  prompt: z.string().min(1, "prompt is required"),
+  instructions: z.string().min(1, "instructions are required").optional(),
+  // Backward-compatible alias for older dashboard builds/API callers. The
+  // authored concept is instructions; the engine storage file is prompt.md.
+  prompt: z.string().min(1).optional(),
   model: z.string().default("inherit"),
   permissionMode: z.enum(PERMISSION_MODES).default("acceptEdits"),
   tools: z.array(z.string()).default([]),
@@ -112,6 +115,9 @@ const createExecutableSchema = z.object({
   landing: z.enum(["pr", "comment"]).default("pr"),
   profileJsonOverride: z.string().optional(),
   actorLogin: z.string().optional(),
+}).refine((input) => input.instructions || input.prompt, {
+  message: "instructions are required",
+  path: ["instructions"],
 });
 
 export async function POST(req: NextRequest) {
@@ -125,6 +131,7 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
     const input = createExecutableSchema.parse(payload);
+    const instructions = input.instructions ?? input.prompt ?? "";
 
     if (!isValidSlug(input.slug)) {
       return NextResponse.json(
@@ -168,7 +175,7 @@ export async function POST(req: NextRequest) {
       fields: {
         slug: input.slug,
         describe: input.describe,
-        prompt: input.prompt,
+        prompt: instructions,
         model: input.model,
         permissionMode: input.permissionMode,
         tools: input.tools,

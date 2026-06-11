@@ -5,8 +5,8 @@
  * @ai-summary CRUD UI for custom executables stored at
  *   `.kody/executables/<slug>/` in the connected repo. The engine resolves
  *   these before its own built-ins, so `@kody <slug>` runs them. The editor
- *   is a simple form (describe + prompt + model + tools), plus a skills tab
- *   (paste a `SKILL.md` or import one from a GitHub source) and a scripts tab
+ *   is a simple form (describe + instructions + model + tools), plus a skills
+ *   tab (paste a `SKILL.md` or import one from a GitHub source) and a scripts tab
  *   (one `*.sh` each). A
  *   Validate button checks the generated profile.json before saving;
  *   "Set default" writes the bare-`@kody` default into kody.config.json.
@@ -104,6 +104,7 @@ interface ExecutableSummary {
   staff?: string | null;
 }
 interface ExecutableDetail extends ExecutableSummary {
+  /** Engine file is still prompt.md; product concept is "instructions". */
   prompt: string;
   model: string;
   permissionMode: PermissionMode;
@@ -175,6 +176,7 @@ async function readApi(
 interface SavePayload {
   slug: string;
   describe: string;
+  /** Engine file is still prompt.md; product concept is "instructions". */
   prompt: string;
   model: string;
   permissionMode: PermissionMode;
@@ -191,16 +193,15 @@ async function saveApi(
   payload: SavePayload,
   actorLogin?: string,
 ): Promise<void> {
-  const { slug, isUpdate, ...rest } = payload;
+  const { slug, isUpdate, prompt, ...rest } = payload;
+  const body = { ...rest, instructions: prompt, actorLogin };
   const url = isUpdate
     ? `/api/kody/executables/${encodeURIComponent(slug)}`
     : "/api/kody/executables";
   const res = await fetch(url, {
     method: isUpdate ? "PATCH" : "POST",
     headers,
-    body: JSON.stringify(
-      isUpdate ? { ...rest, actorLogin } : { slug, ...rest, actorLogin },
-    ),
+    body: JSON.stringify(isUpdate ? body : { slug, ...body }),
   });
   const json = (await res.json().catch(() => ({}))) as {
     error?: string;
@@ -403,7 +404,7 @@ function ExecutablesManagerInner() {
   }, [executables, selectedSlug]);
 
   // The list query only returns summaries (slug/describe/landing/etc.) — the
-  // detail pane needs prompt, model, tools, skills, scripts, MCP servers to
+  // detail pane needs instructions, model, tools, skills, scripts, MCP servers to
   // actually show "the executable content", so load the full record for the
   // selected slug and refetch on selection change.
   const selectedFull = useQuery({
@@ -633,7 +634,7 @@ function ExecutableRow({
   );
 }
 
-/** Detail pane for one executable — hero + actual content (prompt, model,
+/** Detail pane for one executable — hero + actual content (instructions, model,
  * tools, skills, scripts, MCP servers). Legacy .md duties render the hero
  * only and link out to the file on GitHub. */
 function ExecutableDetail({
@@ -787,10 +788,10 @@ function ExecutableDetail({
   );
 }
 
-/** The non-hero body of the detail pane: prompt, model, tools, skills,
+/** The non-hero body of the detail pane: instructions, model, tools, skills,
  * shell scripts, MCP servers. Skeleton while loading, an explicit error
  * block if the read fails, and an "empty" hint when there is genuinely
- * nothing configured (the file just has a description and a prompt). */
+ * nothing configured (the file just has a description and instructions). */
 function ExecutableContentBody({
   detail,
   loading,
@@ -831,12 +832,11 @@ function ExecutableContentBody({
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
-      {/* Prompt — the actual prompt the engine runs. Markdown source, scroll
-          and select-friendly. */}
+      {/* Instructions — glue that tells the runner which skills/scripts to use. */}
       <ContentSection
         icon={FileCode}
-        title="Prompt"
-        subtitle="prompt.md — what the agent sees"
+        title="Instructions"
+        subtitle="prompt.md — glue for skills, scripts, and output"
         count={detail.prompt ? 1 : 0}
       >
         {detail.prompt ? (
@@ -844,7 +844,7 @@ function ExecutableContentBody({
             {detail.prompt}
           </pre>
         ) : (
-          <EmptyHint text="No prompt written yet." />
+          <EmptyHint text="No instructions written yet." />
         )}
       </ContentSection>
 
@@ -1034,22 +1034,11 @@ interface EditorProps {
   showHeader?: boolean;
 }
 
-const DEFAULT_PROMPT = `# Responsibility
+const DEFAULT_INSTRUCTIONS = `# Instructions
 
-You are running a reusable unit of action.
+Use the configured skills, tools, and scripts.
 
-This executable has one specific responsibility.
-
-## Do
-
-- Understand the current run context.
-- Do only this executable's responsibility.
-- Use the available tools, skills, and scripts.
-- Keep the work focused and complete.
-
-## Finish
-
-Report what you did and anything that still needs attention.
+Return the required final result.
 `;
 
 function ExecutableEditor({
@@ -1167,7 +1156,7 @@ function ExecutableEditorForm({
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [touchedSlug, setTouchedSlug] = useState(false);
   const [describe, setDescribe] = useState(initial?.describe ?? "");
-  const [prompt, setPrompt] = useState(initial?.prompt ?? DEFAULT_PROMPT);
+  const [prompt, setPrompt] = useState(initial?.prompt ?? DEFAULT_INSTRUCTIONS);
   const [model, setModel] = useState(initial?.model ?? "inherit");
   // Not user-tunable: the engine runs headless (no human to approve tool
   // prompts), so "accept edits" is the only workable mode — exposing the
@@ -1298,7 +1287,8 @@ function ExecutableEditorForm({
     if (existingSlugs.has(slug)) return `"${slug}" already exists`;
     return null;
   })();
-  const promptError = prompt.trim().length === 0 ? "Prompt is required" : null;
+  const promptError =
+    prompt.trim().length === 0 ? "Instructions are required" : null;
 
   // Live validation of the profile the form will generate.
   const validation = useMemo(() => {
@@ -1346,7 +1336,7 @@ function ExecutableEditorForm({
   ]);
 
   // Block save when the composed profile fails the engine invariants or a
-  // referenced skill/shell file is malformed — not just slug/prompt.
+  // referenced skill/shell file is malformed — not just slug/instructions.
   const canSave =
     !saving &&
     !slugError &&
@@ -1388,7 +1378,7 @@ function ExecutableEditorForm({
       <Tabs defaultValue="config" className="mt-2">
         <TabsList>
           <TabsTrigger value="config">Config</TabsTrigger>
-          <TabsTrigger value="prompt">Prompt</TabsTrigger>
+          <TabsTrigger value="prompt">Instructions</TabsTrigger>
           <TabsTrigger value="skills">Skills ({skills.length})</TabsTrigger>
           <TabsTrigger value="tools">Tools ({mcpServers.length})</TabsTrigger>
           <TabsTrigger value="scripts">
@@ -1489,10 +1479,10 @@ function ExecutableEditorForm({
 
         <TabsContent value="prompt" className="space-y-2">
           <p className="text-[11px] text-white/40">
-            Markdown with <code>{"{{issue.number}}"}</code>,{" "}
+            Glue only: name which skills/scripts to use, and how to return the
+            result. Markdown supports <code>{"{{issue.number}}"}</code>,{" "}
             <code>{"{{issue.title}}"}</code>, <code>{"{{issue.body}}"}</code>{" "}
-            tokens. Saved as prompt.md. The required output format is appended
-            automatically.
+            tokens. Saved as prompt.md for engine compatibility.
           </p>
           <Textarea
             value={prompt}

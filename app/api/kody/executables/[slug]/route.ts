@@ -82,6 +82,9 @@ const mcpServerSchema = z.object({
 
 const updateExecutableSchema = z.object({
   describe: z.string().optional(),
+  instructions: z.string().min(1).optional(),
+  // Backward-compatible alias for older dashboard builds/API callers. The
+  // authored concept is instructions; the engine storage file is prompt.md.
   prompt: z.string().min(1).optional(),
   model: z.string().optional(),
   permissionMode: z.enum(PERMISSION_MODES).optional(),
@@ -131,6 +134,7 @@ export async function PATCH(
     const existing = await readExecutableFile(slug, userOctokit);
     if (!existing)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
+    const instructions = input.instructions ?? input.prompt;
 
     const skills = input.skills ?? existing.skills;
     const shellScripts = input.shellScripts ?? existing.shellScripts;
@@ -147,7 +151,7 @@ export async function PATCH(
       fields: {
         slug,
         describe: input.describe ?? existing.describe,
-        prompt: input.prompt ?? existing.prompt,
+        prompt: instructions ?? existing.prompt,
         model: input.model ?? existing.model,
         permissionMode: input.permissionMode ?? existing.permissionMode,
         tools: input.tools ?? existing.tools,

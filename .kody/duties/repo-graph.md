@@ -2,6 +2,8 @@
 every: manual
 staff: coo
 executables: repo-graph
+reads_from: orchestration-conventions
+writes_to: repo-graph
 ---
 
 # Repo Graph — derive and refresh the orchestration graph

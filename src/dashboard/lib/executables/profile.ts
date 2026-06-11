@@ -7,8 +7,8 @@
  *   executables from `.kody/executables/<slug>/profile.json`.
  *   We generate the same shape the built-in `feature` executable uses for
  *   the "opens a PR" landing (the `pr-branch` lifecycle wraps context-load
- *   → composePrompt → agent → verify → commit → PR → comment). The prompt
- *   the user writes lives in `prompt.md`, which the lifecycle's
+ *   → composePrompt → agent → verify → commit → PR → comment). The
+ *   instructions the user writes live in `prompt.md`, which the lifecycle's
  *   `composePrompt` step reads.
  *
  *   No engine call is made here — this is the contract, kept in sync with
@@ -67,7 +67,7 @@ export interface ExecutableFields {
   slug: string;
   /** One-line human description (`profile.describe`). */
   describe: string;
-  /** The prompt template — written to `prompt.md`, read by `composePrompt`. */
+  /** Glue instructions — written to `prompt.md`, read by `composePrompt`. */
   prompt: string;
   /** `claudeCode.model`: "inherit" or "provider/model". */
   model: string;

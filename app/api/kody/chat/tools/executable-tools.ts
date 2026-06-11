@@ -58,7 +58,7 @@ export function createExecutableTools(ctx: Ctx) {
     }),
 
     read_executable: tool({
-      description: `Read one custom executable from ${repoRef} in full (prompt, model, tools, skills, shell scripts, and raw profile.json).`,
+      description: `Read one custom executable from ${repoRef} in full (instructions, model, tools, skills, shell scripts, and raw profile.json).`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
       }),
@@ -79,7 +79,7 @@ export function createExecutableTools(ctx: Ctx) {
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         describe: z.string().default(""),
-        prompt: z.string().min(1),
+        instructions: z.string().min(1),
         landing: z.enum(["pr", "comment"]).default("pr"),
         model: z.string().default("inherit"),
         permissionMode: z.enum(PERMISSION_MODES).default("acceptEdits"),
@@ -96,7 +96,7 @@ export function createExecutableTools(ctx: Ctx) {
         const fields = {
           slug: input.slug,
           describe: input.describe,
-          prompt: input.prompt,
+          prompt: input.instructions,
           model: input.model,
           permissionMode: input.permissionMode,
           tools: input.tools,

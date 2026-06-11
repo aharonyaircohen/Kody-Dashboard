@@ -60,6 +60,7 @@ export interface ExecutableSummary {
 }
 
 export interface ExecutableDetail extends ExecutableSummary {
+  /** Engine file is still prompt.md; product concept is "instructions". */
   prompt: string;
   model: string;
   permissionMode: ExecutableFields["permissionMode"];
@@ -229,7 +230,7 @@ export async function readExecutableFile(
       : null;
 
   // The stored prompt.md ends with the managed output-format contract;
-  // strip it so the editor shows only the user-authored part.
+  // strip it so the editor shows only the user-authored instructions.
   const prompt = stripContract(
     (await readFileText(octokit, `${base}/prompt.md`)) ?? "",
   );
