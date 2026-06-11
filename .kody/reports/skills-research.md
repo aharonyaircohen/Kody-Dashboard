@@ -1,3 +1,15 @@
+---
+generatedAt: "2026-06-11T16:23:58Z"
+dutySlug: skills-research
+reviewStatus: action-needed
+reviewArea: engineering-capability
+findings:
+  - id: missing-vitest-skill
+    severity: medium
+    title: Add Vitest skill to test-writing executables
+    linkedUrl: https://www.skills.sh/antfu/skills/vitest
+---
+
 # Skills Research
 
 _Cadence: weekly. Source: skills.sh._
