@@ -1,10 +1,10 @@
 # Custom executables
 
 A **custom executable** is a new `@kody <slug>` action you define from the
-dashboard — its own prompt, model, tools, skills, and shell preflight — stored
+dashboard — its own instructions, model, tools, skills, and shell preflight — stored
 as a folder in your repo. The dashboard never invents a new engine concept for
 this: it writes a normal engine `profile.json` (the same shape the built-in
-`feature` and `fix` executables use) into `.kody/duties/<slug>/`, and the
+`feature` and `fix` executables use) into `.kody/executables/<slug>/`, and the
 engine resolves that folder **before** its own built-ins. So "build me a
 custom action" is really "commit a known-good profile to a folder the engine
 already reads."
@@ -20,8 +20,8 @@ files through the GitHub Git Data API.
 
 | Piece                     | What it is                                                                                                                                                                                                                                                                           | Where                                                                                                              |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| The executable **folder** | `.kody/duties/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first (consumer duties override builtins on name clash — except duties can't shadow a builtin, per kody2/src/registry.ts). | the connected repo                                                                                                 |
-| **File layer**            | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. Reads strip the managed prompt contract; writes re-append it.                                                                                                             | [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           |
+| The executable **folder** | `.kody/executables/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first. | the connected repo                                                                                                 |
+| **File layer**            | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. Reads strip the managed output contract; writes re-append it.                                                                                                             | [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           |
 | **Profile helpers**       | Pure form-fields ↔ `profile.json` translation, slug validation, and engine-mirroring profile validation. No I/O.                                                                                                                                                                     | [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       |
 | The **/executables page** | CRUD UI: list, create, edit, validate, run, delete, set-default, import a skill.                                                                                                                                                                                                     | [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) |
 | **Control API**           | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/default`, `/run`, and `/import-skill` sub-routes.                                                                                                                                                                        | [`../app/api/kody/executables/`](../app/api/kody/executables/)                                                     |
@@ -37,15 +37,19 @@ single-file `createOrUpdateFileContents` the commands/duties helpers use.
 | File                     | Purpose                                                                                                       | Generated from                                |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | `profile.json`           | The engine manifest — role, inputs, `claudeCode` (model/tools/skills/permission), lifecycle, preflight chain. | the form fields (or a raw override you paste) |
-| `prompt.md`              | The user-authored prompt, with the managed **output-format contract** appended after a sentinel.              | the prompt field + the landing                |
+| `prompt.md`              | Engine storage for user-authored instructions, with the managed **output-format contract** appended after a sentinel when an agent runs. | the instructions field + the landing |
 | `skills/<name>/SKILL.md` | Each declared skill's body. Committed _into_ the folder — see [Skills](#skills).                              | the skills list                               |
 | `*.sh`                   | Optional shell scripts run as preflight steps (setup work) before the agent.                                  | the shell-scripts list                        |
 
 On **read**, the file layer strips the managed contract from `prompt.md` so the
-editor shows only your part; on **write** it re-appends the right contract for
+editor shows only the instructions; on **write** it re-appends the right contract for
 the landing. The `claudeCode.skills` array and the preflight `shell` steps are
 always re-synced to the actual files being written, so the engine never points
 at a skill or script that isn't there.
+
+Some executables are deterministic. They can run a preflight script/tool and
+then use `skipAgent`; in that case `prompt.md` is only a small note, not a work
+plan.
 
 ## Landing: PR vs comment
 
@@ -118,18 +122,18 @@ a `buildSyntheticPlugin` preflight step whenever the skills list is non-empty
    ┌──────────────────────────────────────────┐
    │ files.ts (Git Data API)                   │
    │  fields → composeProfile → profile.json   │
-   │  prompt + appendContract → prompt.md      │
+   │  instructions + contract → prompt.md       │
    │  skills/<name>/SKILL.md, *.sh             │
    │  → 1 tree → 1 commit on default branch    │
    └───────────────┬──────────────────────────┘
-                   │  .kody/duties/<slug>/ committed
+                   │  .kody/executables/<slug>/ committed
                    ▼
    ┌──────────────────────────────────────────┐
    │ Run: POST /run → comment "@kody <slug>"   │
    │ (or "Set default" → kody.config.json)     │
    └───────────────┬──────────────────────────┘
                    │ engine resolves <slug> against
-                   │ .kody/duties/ FIRST, then built-ins
+                   │ .kody/executables/ FIRST, then built-ins
                    ▼
    ┌──────────────────────────────────────────┐
    │ engine runs the executable                │
@@ -182,7 +186,7 @@ the company files in [`../src/dashboard/lib/company/`](../src/dashboard/lib/comp
 
 **How does the engine find my custom executable instead of a built-in?**
 
-The engine's executable registry checks `.kody/duties/` **before** its own
+The engine's executable registry checks `.kody/executables/` **before** its own
 `src/executables/`, so a folder whose `profile.json` `name` matches `<slug>`
 wins for `@kody <slug>`. Same lookup the dashboard relies on for every action.
 

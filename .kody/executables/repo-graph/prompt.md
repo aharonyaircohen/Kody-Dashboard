@@ -1,11 +1,7 @@
 # Instructions
 
-Run:
+Use the repo-graph skill.
 
-```bash
-bash .kody/executables/repo-graph/refresh-repo-graph.sh
-```
-
-Return the script's final `DONE` or `FAILED` block exactly.
+The profile runs the refresh tool in preflight and skips the agent.
 
 <!-- kody:output-format (managed - edit above this line only) -->
