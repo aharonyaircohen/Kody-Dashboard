@@ -1,14 +1,14 @@
 ---
 slug: memory-compaction
 dutySlug: memory-compaction
-generatedAt: "2026-06-11T20:07:06Z"
+generatedAt: "2026-06-11T20:13:47Z"
 reviewStatus: info
 reviewArea: memory
 findings:
   - id: memory-compaction.snapshot
     severity: low
     title: "Memory compaction snapshot emitted"
-    data: {"raw":"{\"summary\":{\"memoryFiles\":6,\"memoryBytes\":6817,\"recommendationFiles\":5,\"recommendations\":7,\"highConfidenceRecommendations\":6,\"recommendationBytes\":5779},\"snapshotHash\":\"193a3ed3ded2b73c1d327c4430ba33643b6852fbdfc4e08fea0312e7e697dd89\"}}"}
+    data: {"raw":"{\"summary\":{\"memoryFiles\":6,\"memoryBytes\":6817,\"recommendationFiles\":5,\"recommendations\":7,\"highConfidenceRecommendations\":6,\"recommendationBytes\":5779},\"snapshotHash\":\"f246950fb21a8ba38d46685bb1f066a794314af0e2b1195295a0aad699fc09b4\"}}"}
   - id: memory-compaction.recommendation-backlog
     severity: medium
     title: "High-confidence task memory recommendations exist"
@@ -26,13 +26,13 @@ findings:
 | Permanent memory | 6 | 6817 |
 | Task recommendations | 7 | 5779 |
 
-Snapshot hash: `193a3ed3ded2b73c1d327c4430ba33643b6852fbdfc4e08fea0312e7e697dd89`
+Snapshot hash: `f246950fb21a8ba38d46685bb1f066a794314af0e2b1195295a0aad699fc09b4`
 
 ## Recommendation
 
 - Keep memory split by purpose.
 - Do not compact all memory into one file.
-- Run `task-memory-extractor` before deleting or archiving task recommendation files.
+- Run `task-memorize` before deleting or archiving task recommendation files.
 - Apply compaction only after a human reviews this proposal.
 
 ## Current Memory Types
@@ -208,6 +208,9 @@ Snapshot hash: `193a3ed3ded2b73c1d327c4430ba33643b6852fbdfc4e08fea0312e7e697dd89
     "architecture",
     "workflow",
     "open-questions"
-  ]
+  ],
+  "actions": {
+    "memorizeExecutable": "task-memorize"
+  }
 }
 ```
