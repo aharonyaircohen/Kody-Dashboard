@@ -134,6 +134,7 @@ export function ChatTerminalSurface({
   const flySocketRef = useRef<WebSocket | null>(null);
   const flyConnectionStateRef = useRef<ChatTerminalConnectionState>("idle");
   const flyTargetKeyRef = useRef<string | null>(null);
+  const localStartFailureKeyRef = useRef<string | null>(null);
   const activeRef = useRef(active);
   const outputCaptureRef = useRef("");
   const pollBusyRef = useRef(false);
@@ -145,6 +146,10 @@ export function ChatTerminalSurface({
     useState<ChatTerminalConnectionState>("idle");
 
   const currentTransportKey = transportKey(transport);
+
+  useEffect(() => {
+    localStartFailureKeyRef.current = null;
+  }, [chatSessionId, currentTransportKey]);
 
   useEffect(() => {
     sessionRef.current = session;
@@ -290,6 +295,9 @@ export function ChatTerminalSurface({
     if (transportRef.current.type !== "local") return;
     if (!terminal || connecting || sessionRef.current?.alive) return;
 
+    const startKey = `local:${chatSessionId}`;
+    if (localStartFailureKeyRef.current === startKey) return;
+
     setConnecting(true);
     setError(null);
     try {
@@ -311,6 +319,7 @@ export function ChatTerminalSurface({
       if (!res.ok || !data.session) {
         throw new Error(data.message ?? data.error ?? `HTTP ${res.status}`);
       }
+      localStartFailureKeyRef.current = null;
       sessionRef.current = data.session;
       setSession(data.session);
       onConnectionStateChange?.("connected");
@@ -318,6 +327,7 @@ export function ChatTerminalSurface({
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to start terminal";
+      localStartFailureKeyRef.current = startKey;
       setError(message);
       onConnectionStateChange?.("error");
       terminal.writeln(`\x1b[31m${message}\x1b[0m`);
@@ -602,6 +612,7 @@ export function ChatTerminalSurface({
       void connectFly({ force: true, resetSession: true });
       return;
     }
+    localStartFailureKeyRef.current = null;
     void stop().then(() => start());
   }, [connectFly, start, stop]);
 

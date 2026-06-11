@@ -46,13 +46,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const session = await startLocalTerminalSession({
-    owner: auth.owner,
-    repo: auth.repo,
-    chatSessionId: parsed.data.chatSessionId,
-    cols: parsed.data.cols,
-    rows: parsed.data.rows,
-  });
+  let session: Awaited<ReturnType<typeof startLocalTerminalSession>>;
+  try {
+    session = await startLocalTerminalSession({
+      owner: auth.owner,
+      repo: auth.repo,
+      chatSessionId: parsed.data.chatSessionId,
+      cols: parsed.data.cols,
+      rows: parsed.data.rows,
+    });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to start terminal";
+    return NextResponse.json(
+      { error: "terminal_start_failed", message },
+      { status: 503 },
+    );
+  }
 
   return NextResponse.json({ ok: true, session });
 }
