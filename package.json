@@ -1,6 +1,6 @@
 {
   "name": "kody-dashboard",
-  "version": "0.1.1072",
+  "version": "0.1.1073",
   "private": true,
   "license": "MIT",
   "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
@@ -56,6 +56,7 @@
     "libsodium-wrappers": "^0.8.4",
     "lucide-react": "^0.562.0",
     "next": "16.2.9",
+    "node-pty": "^1.1.0",
     "pino": "^10.1.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
@@ -98,5 +99,10 @@
     "tailwindcss": "^4.1.18",
     "typescript": "5.9.3",
     "vitest": "4.0.16"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "node-pty"
+    ]
   }
 }

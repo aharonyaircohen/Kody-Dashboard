@@ -24,14 +24,18 @@ import {
   MessageSquare,
   History,
   Target,
-  Loader2,
   ChevronDown,
+  Loader2,
   PanelLeftClose,
   Maximize2,
   Minimize2,
   MousePointerClick,
   Plus,
+  Power,
+  RefreshCw,
   Square,
+  SquareTerminal,
+  Unplug,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import { buildAgentList, type ChatModelEntry } from "../chat/agent-entries";
@@ -43,6 +47,11 @@ import { getStoredAuth, getStoredBrainConfig, getStoredFlyPerf } from "../api";
 import { useAuth } from "../auth-context";
 import { toast } from "sonner";
 import type { KodyTask } from "../types";
+import {
+  terminalFlyMachineKey,
+  terminalMachineIdShort,
+  useChatTerminalRegistry,
+} from "../hooks/useChatTerminalRegistry";
 import {
   useSlashCommands,
   parseSlashTrigger,
@@ -84,6 +93,7 @@ import {
 } from "./kody-chat-types";
 import { MessageAttachments } from "./MessageAttachments";
 import { TypingIndicator } from "./TypingIndicator";
+import { ChatTerminalSurface } from "./ChatTerminalSurface";
 
 import { flushSync } from "react-dom";
 import type {
@@ -869,11 +879,38 @@ export function KodyChat({
     return () => clearTimeout(t);
   }, [desiredSessionScope, sessionStoreScope]);
   const sessionHook = useChatSessions(sessionStoreScope);
+  const createChatSession = sessionHook.createSession;
 
   // Reset the visible stream state on agent switch. Session switches are
   // intentionally allowed while a reply is running; each send now writes
   // back to the session id it started from.
   const activeSessionIdForReset = sessionHook.activeSession?.id ?? null;
+  const terminalRegistry = useChatTerminalRegistry({
+    activeSessionId: activeSessionIdForReset,
+    createSession: createChatSession,
+    sessions: sessionHook.sessions,
+    storageScope: sessionStoreScope,
+  });
+  const chatMode = terminalRegistry.mode;
+  const terminalMachines = terminalRegistry.terminalMachines;
+  const activeTerminalTransport = terminalRegistry.activeTransport;
+  const activeTerminalInstanceId = terminalRegistry.activeInstanceId;
+  const activeTerminalValue = terminalRegistry.activeTargetValue;
+  const activeTerminalConnectionState = terminalRegistry.activeConnectionState;
+  const mountedChatTerminals = terminalRegistry.mountedTerminals;
+  const terminalConnectNonceByInstanceId =
+    terminalRegistry.connectNonceByInstanceId;
+  const flyInventoryLoading = terminalRegistry.flyInventoryLoading;
+  const flyInventoryError = terminalRegistry.flyInventoryError;
+  const setActiveChatMode = terminalRegistry.setActiveMode;
+  const refreshChatTerminalFlyMachines = terminalRegistry.refreshFlyMachines;
+  const handleTerminalTargetChange = terminalRegistry.selectTarget;
+  const handleTerminalFlyConnectToggle = terminalRegistry.toggleFlyConnection;
+  const recordTerminalConnectionState = terminalRegistry.recordConnectionState;
+  const activeSessionHasLiveTerminal = terminalRegistry.hasLiveTerminal(
+    activeSessionIdForReset,
+  );
+
   const prevAgentIdRef = useRef<string>(selectedAgentId);
   useEffect(() => {
     const agentChanged = selectedAgentId !== prevAgentIdRef.current;
@@ -944,6 +981,27 @@ export function KodyChat({
     [sessionHook],
   );
   const activeLoading = messages.some((m) => m.isLoading);
+
+  const addTerminalContextToChat = useCallback(
+    (context: string) => {
+      setContextChips((prev) => [
+        ...prev,
+        {
+          id: `terminal-output-${Date.now()}`,
+          label: "Terminal output",
+          context,
+        },
+      ]);
+      setActiveChatMode("ai");
+      toast.success("Terminal output added to next chat message");
+    },
+    [setActiveChatMode],
+  );
+
+  const openTerminalMode = useCallback(() => {
+    terminalRegistry.openTerminalMode();
+    setSlashMenuOpen(false);
+  }, [terminalRegistry]);
 
   // ─── Polling for Kody Live ─────────────────────────────────────────────────
   // Plain fixed-interval poll of /api/kody/events/poll. We tried real-time
@@ -3973,10 +4031,6 @@ export function KodyChat({
           ? `Ask about duty \`${selectedDuty?.slug ?? ""}\`...`
           : genericPlaceholder;
 
-  // Send is always enabled for Kody Live (button morphs into start/stop on
-  // empty input). For other agents, only enabled when there's content.
-  const canSend = hasComposerContent || isKodyLive;
-
   return (
     <div
       className="relative flex flex-col h-full md:border-l bg-background"
@@ -4360,9 +4414,13 @@ export function KodyChat({
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 overflow-auto px-1.5 py-2 sm:p-4 space-y-4 relative"
+        className={`flex-1 relative ${
+          chatMode === "terminal"
+            ? "overflow-hidden bg-[#050608]"
+            : "overflow-auto px-1.5 py-2 sm:p-4 space-y-4"
+        }`}
       >
-        {messages.length === 0 && !activeLoading && (
+        {chatMode === "ai" && messages.length === 0 && !activeLoading && (
           <div className="text-center text-muted-foreground text-base py-8">
             {isTaskMode ? (
               <>
@@ -4470,180 +4528,212 @@ export function KodyChat({
           </div>
         )}
 
-        {messages.map((msg, i) => {
-          if (msg.hidden) return null;
-
-          const parsedAssistant =
-            msg.role === "assistant"
-              ? parseAssistantContent(msg.content)
-              : null;
-          const visibleText = parsedAssistant?.answer || msg.content;
-          const messageDirection = getMessageDirection(visibleText);
-
+        {mountedChatTerminals.map((terminal) => {
+          const isActiveTerminal =
+            chatMode === "terminal" &&
+            activeSessionIdForReset === terminal.sessionId &&
+            activeTerminalInstanceId === terminal.id;
           return (
             <div
-              key={i}
-              data-role={msg.role}
-              className={`group flex ${msg.role === "user" ? "justify-end" : "justify-start"} relative`}
+              key={terminal.id}
+              className={isActiveTerminal ? "h-full min-h-0" : "hidden"}
             >
-              <div
-                dir={messageDirection}
-                className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
-                  msg.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
-                }`}
-              >
-                {/* Message Actions */}
-                <MessageActions
-                  role={msg.role}
-                  content={msg.content}
-                  isLast={i === messages.length - 1}
-                  isLoading={!!msg.isLoading}
-                  hasToolCalls={!!msg.toolCalls && msg.toolCalls.length > 0}
-                  onCopy={() => msg.content}
-                  onRetry={
-                    msg.role === "assistant" && i === messages.length - 1
-                      ? () => {
-                          // Walk back to the last user message. Drop both that
-                          // user turn AND the failed assistant reply — sendText
-                          // pushes a fresh user bubble, so trimming both keeps
-                          // the transcript intact (no duplicate user msg).
-                          let userIdx = -1;
-                          for (let j = i - 1; j >= 0; j--) {
-                            if (messages[j].role === "user") {
-                              userIdx = j;
-                              break;
-                            }
-                          }
-                          if (userIdx < 0) return;
-                          const lastUserContent = messages[userIdx].content;
-                          setMessages((prev) => prev.slice(0, userIdx));
-                          void sendText(lastUserContent, []);
-                        }
-                      : undefined
-                  }
-                  onEdit={
-                    msg.role === "user"
-                      ? (content) => {
-                          // Drop the edited user msg + everything after it,
-                          // then resubmit. sendText repushes the user bubble
-                          // with the new content, so we don't keep the old one.
-                          setMessages((prev) => prev.slice(0, i));
-                          void sendText(content, []);
-                        }
-                      : undefined
-                  }
-                  onDelete={() => {
-                    setMessages((prev) => prev.filter((_, idx) => idx !== i));
-                  }}
-                />
-
-                {msg.role === "assistant" ? (
-                  <>
-                    {msg.toolCalls && msg.toolCalls.length > 0 && (
-                      <ThinkingPanel
-                        toolCalls={msg.toolCalls}
-                        isStreaming={!!msg.isLoading}
-                        persistKey={
-                          sessionHook.activeSession?.id && !msg.isLoading
-                            ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
-                            : undefined
-                        }
-                      />
-                    )}
-                    {(() => {
-                      // Strip model-emitted tool-call markup (`<kody_run_issue />`
-                      // and `<tool_call>…</tool_call>` blocks) from the visible
-                      // answer — the structured call is already surfaced via
-                      // the ThinkingPanel above, and the raw XML in the
-                      // text stream is just noise. Bare URLs get auto-linked
-                      // by `remark-gfm` below.
-                      const { reasoning, answer } = parsedAssistant ?? {
-                        reasoning: "",
-                        answer: "",
-                      };
-                      const isActive =
-                        activeLoading && i === messages.length - 1;
-                      const hasAnswer = answer.trim().length > 0;
-                      return (
-                        <>
-                          {reasoning && (
-                            <ReasoningPanel
-                              content={reasoning}
-                              isStreaming={!!msg.isLoading}
-                              persistKey={
-                                sessionHook.activeSession?.id && !msg.isLoading
-                                  ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
-                                  : undefined
-                              }
-                            />
-                          )}
-                          {hasAnswer && (
-                            <div
-                              dir={messageDirection}
-                              className="chat-message-text prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
-                            >
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                components={{
-                                  a: ({ href, children, ...props }) => (
-                                    <a
-                                      href={href}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-primary hover:underline break-all"
-                                      {...props}
-                                    >
-                                      {children}
-                                    </a>
-                                  ),
-                                }}
-                              >
-                                {answer}
-                              </ReactMarkdown>
-                            </div>
-                          )}
-                          {/* Never a blank bubble: while the turn is in flight and
-                            no visible answer text has arrived yet, show the
-                            thinking indicator. Covers the reasoning-only /
-                            tool-call phase where content is just <think> blocks. */}
-                          {isActive && !hasAnswer && (
-                            <TypingIndicator label={currentAgent.name} />
-                          )}
-                        </>
-                      );
-                    })()}
-                  </>
-                ) : (
-                  <>
-                    {msg.attachments && msg.attachments.length > 0 && (
-                      <MessageAttachments attachments={msg.attachments} />
-                    )}
-                    {msg.content && (
-                      <div dir={messageDirection} className="chat-message-text">
-                        {msg.content}
-                      </div>
-                    )}
-                  </>
-                )}
-                {activeLoading &&
-                  i === messages.length - 1 &&
-                  msg.role === "assistant" &&
-                  parsedAssistant?.answer.trim() && (
-                    <span className="inline-block ml-2 animate-pulse text-primary">
-                      ●
-                    </span>
-                  )}
-              </div>
+              <ChatTerminalSurface
+                active={isActiveTerminal}
+                chatSessionId={terminal.sessionId}
+                connectNonce={
+                  terminalConnectNonceByInstanceId[terminal.id] ?? 0
+                }
+                transport={terminal.transport}
+                onAddToChat={addTerminalContextToChat}
+                onConnectionStateChange={(state) =>
+                  recordTerminalConnectionState(terminal.id, state)
+                }
+              />
             </div>
           );
         })}
 
+        {chatMode === "ai" &&
+          messages.map((msg, i) => {
+            if (msg.hidden) return null;
+
+            const parsedAssistant =
+              msg.role === "assistant"
+                ? parseAssistantContent(msg.content)
+                : null;
+            const visibleText = parsedAssistant?.answer || msg.content;
+            const messageDirection = getMessageDirection(visibleText);
+
+            return (
+              <div
+                key={i}
+                data-role={msg.role}
+                className={`group flex ${msg.role === "user" ? "justify-end" : "justify-start"} relative`}
+              >
+                <div
+                  dir={messageDirection}
+                  className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
+                    msg.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted"
+                  }`}
+                >
+                  {/* Message Actions */}
+                  <MessageActions
+                    role={msg.role}
+                    content={msg.content}
+                    isLast={i === messages.length - 1}
+                    isLoading={!!msg.isLoading}
+                    hasToolCalls={!!msg.toolCalls && msg.toolCalls.length > 0}
+                    onCopy={() => msg.content}
+                    onRetry={
+                      msg.role === "assistant" && i === messages.length - 1
+                        ? () => {
+                            // Walk back to the last user message. Drop both that
+                            // user turn AND the failed assistant reply — sendText
+                            // pushes a fresh user bubble, so trimming both keeps
+                            // the transcript intact (no duplicate user msg).
+                            let userIdx = -1;
+                            for (let j = i - 1; j >= 0; j--) {
+                              if (messages[j].role === "user") {
+                                userIdx = j;
+                                break;
+                              }
+                            }
+                            if (userIdx < 0) return;
+                            const lastUserContent = messages[userIdx].content;
+                            setMessages((prev) => prev.slice(0, userIdx));
+                            void sendText(lastUserContent, []);
+                          }
+                        : undefined
+                    }
+                    onEdit={
+                      msg.role === "user"
+                        ? (content) => {
+                            // Drop the edited user msg + everything after it,
+                            // then resubmit. sendText repushes the user bubble
+                            // with the new content, so we don't keep the old one.
+                            setMessages((prev) => prev.slice(0, i));
+                            void sendText(content, []);
+                          }
+                        : undefined
+                    }
+                    onDelete={() => {
+                      setMessages((prev) => prev.filter((_, idx) => idx !== i));
+                    }}
+                  />
+
+                  {msg.role === "assistant" ? (
+                    <>
+                      {msg.toolCalls && msg.toolCalls.length > 0 && (
+                        <ThinkingPanel
+                          toolCalls={msg.toolCalls}
+                          isStreaming={!!msg.isLoading}
+                          persistKey={
+                            sessionHook.activeSession?.id && !msg.isLoading
+                              ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
+                              : undefined
+                          }
+                        />
+                      )}
+                      {(() => {
+                        // Strip model-emitted tool-call markup (`<kody_run_issue />`
+                        // and `<tool_call>…</tool_call>` blocks) from the visible
+                        // answer — the structured call is already surfaced via
+                        // the ThinkingPanel above, and the raw XML in the
+                        // text stream is just noise. Bare URLs get auto-linked
+                        // by `remark-gfm` below.
+                        const { reasoning, answer } = parsedAssistant ?? {
+                          reasoning: "",
+                          answer: "",
+                        };
+                        const isActive =
+                          activeLoading && i === messages.length - 1;
+                        const hasAnswer = answer.trim().length > 0;
+                        return (
+                          <>
+                            {reasoning && (
+                              <ReasoningPanel
+                                content={reasoning}
+                                isStreaming={!!msg.isLoading}
+                                persistKey={
+                                  sessionHook.activeSession?.id &&
+                                  !msg.isLoading
+                                    ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
+                                    : undefined
+                                }
+                              />
+                            )}
+                            {hasAnswer && (
+                              <div
+                                dir={messageDirection}
+                                className="chat-message-text prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
+                              >
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    a: ({ href, children, ...props }) => (
+                                      <a
+                                        href={href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-primary hover:underline break-all"
+                                        {...props}
+                                      >
+                                        {children}
+                                      </a>
+                                    ),
+                                  }}
+                                >
+                                  {answer}
+                                </ReactMarkdown>
+                              </div>
+                            )}
+                            {/* Never a blank bubble: while the turn is in flight and
+                            no visible answer text has arrived yet, show the
+                            thinking indicator. Covers the reasoning-only /
+                            tool-call phase where content is just <think> blocks. */}
+                            {isActive && !hasAnswer && (
+                              <TypingIndicator label={currentAgent.name} />
+                            )}
+                          </>
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <>
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <MessageAttachments attachments={msg.attachments} />
+                      )}
+                      {msg.content && (
+                        <div
+                          dir={messageDirection}
+                          className="chat-message-text"
+                        >
+                          {msg.content}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {activeLoading &&
+                    i === messages.length - 1 &&
+                    msg.role === "assistant" &&
+                    parsedAssistant?.answer.trim() && (
+                      <span className="inline-block ml-2 animate-pulse text-primary">
+                        ●
+                      </span>
+                    )}
+                </div>
+              </div>
+            );
+          })}
+
         {/* Typing indicator shown before an assistant placeholder exists.
             Covers the Kody-engine first-byte window where the placeholder is
             only pushed once the first SSE event arrives. */}
-        {activeLoading &&
+        {chatMode === "ai" &&
+          activeLoading &&
           messages.length > 0 &&
           messages[messages.length - 1]?.role === "user" && (
             <div className="flex justify-start">
@@ -4654,7 +4744,7 @@ export function KodyChat({
           )}
 
         {/* Tool calls display - using ToolCallList component */}
-        {toolCalls.length > 0 && (
+        {chatMode === "ai" && toolCalls.length > 0 && (
           <div className="flex justify-start">
             <ToolCallList
               toolCalls={toolCalls.map((tc) => ({
@@ -4690,7 +4780,7 @@ export function KodyChat({
       )}
 
       {/* Attachments preview */}
-      {attachments.length > 0 && (
+      {chatMode === "ai" && attachments.length > 0 && (
         <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
           {attachments.map((attachment) => (
             <div
@@ -4716,7 +4806,7 @@ export function KodyChat({
 
       {/* Context chips (e.g. picked preview elements) — compact removable
           pills; the full element details ride along on send, not in the box. */}
-      {contextChips.length > 0 && (
+      {chatMode === "ai" && contextChips.length > 0 && (
         <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
           {contextChips.map((chip) => (
             <div
@@ -4740,256 +4830,397 @@ export function KodyChat({
       )}
 
       {/* Input area */}
-      <div className="px-1.5 py-2 sm:p-3 border-t">
-        {/* Vibe mode: explicit one-shot execution action. Sits with the
-            composer so the executor handoff feels like a chat affordance
-            rather than a UI button parked elsewhere. Hides itself once
-            any work has started. */}
-        {vibeMode && context?.kind === "task" && !isKodyLive ? (
-          <VibeRunButton task={context.task} />
-        ) : null}
-        {/* Kody Live status dot — compact indicator above the composer.
-            Color encodes state; hover for full detail + links. Restart
-            affordance only surfaces on stuck/error. */}
-        {isKodyLive ? (
-          <div className="mb-1 flex items-center gap-2">
-            <SimpleTooltip
-              content={(() => {
-                if (interactiveState === "booting") {
-                  const phase = bootPhaseLabel(
-                    bootElapsed,
-                    selectedAgentId === "kody-live-fly" ? "fly" : "gh",
-                  );
-                  const elapsed = formatElapsed(bootElapsed);
-                  const watch =
-                    interactiveTarget && selectedAgentId !== "kody-live-fly"
-                      ? ` · watching ${interactiveTarget.owner}/${interactiveTarget.repo}`
-                      : "";
-                  return `${phase} · ${elapsed} elapsed${watch}`;
-                }
-                if (interactiveState === "ready") {
-                  return "Live runner ready. Chat normally — clear the box and hit Stop to end.";
-                }
-                if (interactiveState === "awaiting") {
-                  return "Live runner is processing — waiting for reply...";
-                }
-                if (
-                  interactiveState === "stuck" ||
-                  interactiveState === "error"
-                ) {
-                  return liveState.errorMessage
-                    ? `Runner stuck — ${liveState.errorMessage}`
-                    : "Runner stuck — click Restart.";
-                }
-                if (interactiveState === "ended") {
-                  return "Live runner ended. Start a new session to chat.";
-                }
-                return "Live runner is offline. Start it to enable chat.";
-              })()}
-            >
-              <span
-                className={`inline-block h-2.5 w-2.5 rounded-full ${
-                  interactiveState === "ready"
-                    ? "bg-green-500"
-                    : interactiveState === "booting" ||
-                        interactiveState === "awaiting"
-                      ? "animate-pulse bg-yellow-500"
-                      : interactiveState === "stuck" ||
-                          interactiveState === "error"
-                        ? "bg-red-500"
-                        : "bg-muted-foreground/50"
-                }`}
-                aria-label={`Live runner: ${interactiveState}`}
-              />
-            </SimpleTooltip>
-            {interactiveState === "stuck" || interactiveState === "error" ? (
-              <button
-                type="button"
-                onClick={() => void restartInteractiveSession()}
-                className="rounded-md bg-red-600/90 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-red-700"
-              >
-                Restart
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        {/* Composer input row (issue #131): the textarea and a single
-            trailing send/stop icon button share this row, with the
-            button swapped by state. The action row below (Paperclip,
-            VoiceButton) no longer hosts the send affordance — the
-            hairline separates input from action rows. */}
-        <div className="flex gap-2 items-center">
-          <div className="flex-1 relative">
-            {slashMenuOpen && (
-              <SlashCommandMenu
-                commands={slashCommands}
-                filter={parseSlashTrigger(input).filter}
-                selectedIndex={slashSelectedIndex}
-                onSelect={applySlashSelection}
-                onHover={setSlashSelectedIndex}
-              />
-            )}
-            <textarea
-              value={input}
-              onChange={(e) => {
-                const next = e.target.value;
-                setInput(next);
-                // Slash menu opens on `/` at line start, stays open while
-                // the user types the slug, closes when they add a space
-                // or clear the slash.
-                const trigger = parseSlashTrigger(next);
-                setSlashMenuOpen(trigger.active && slashCommands.length > 0);
-                if (trigger.active) setSlashSelectedIndex(0);
-                // Auto-expand height
-                e.target.style.height = "auto";
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-              }}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              onBlur={() => {
-                // Small delay so the menu's onMouseDown can fire before
-                // close — onMouseDown uses preventDefault to avoid blur,
-                // but defensive close keeps stale menus from hanging.
-                setTimeout(() => setSlashMenuOpen(false), 120);
-              }}
-              placeholder={placeholder}
-              rows={1}
-              dir="auto"
-              className="w-full px-3 py-2 text-base rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={
-                activeLoading || (isKodyLive && interactiveState !== "ready")
-              }
-              style={{ height: "auto" }}
-            />
-          </div>
-          {/* Trailing send/stop icon button — single role that swaps by
-              state (issue #131 refinement):
-                * Idle / no in-flight run → paper-plane Send icon
-                * In-flight run (loading or stop/cancel) → Square stop icon
-              Replaces both the old red `bg-destructive` Stop text button
-              in the input row and the inline Send button that used to
-              live in the action row below. The button is hidden when
-              there's no content and the agent isn't Kody-Live, matching
-              the previous "no send affordance when empty" behavior. */}
-          {(() => {
-            const isInFlight =
-              activeLoading ||
-              composerAction === "stop" ||
-              composerAction === "cancel";
-            const showTrailingButton = isInFlight
-              ? true
-              : hasComposerContent || isKodyLive;
-            if (!showTrailingButton) return null;
-            const title = isInFlight
-              ? composerAction === "cancel"
-                ? "Cancel boot"
-                : "Stop run"
-              : composerAction === "start"
-                ? "Boot runner"
-                : "Send message";
-            return (
-              <button
-                type="button"
-                onClick={() => {
-                  if (activeLoading) {
-                    handleStop();
-                  } else if (
-                    composerAction === "stop" ||
-                    composerAction === "cancel"
+      <div
+        className={`border-t px-1.5 py-2 sm:p-3 ${
+          chatMode === "terminal"
+            ? "border-white/10 bg-[#050608]"
+            : "bg-background"
+        }`}
+      >
+        <div
+          className={chatMode === "ai" ? "" : "invisible pointer-events-none"}
+          aria-hidden={chatMode !== "ai"}
+        >
+          {/* Vibe mode: explicit one-shot execution action. Sits with the
+              composer so the executor handoff feels like a chat affordance
+              rather than a UI button parked elsewhere. Hides itself once
+              any work has started. */}
+          {vibeMode && context?.kind === "task" && !isKodyLive ? (
+            <VibeRunButton task={context.task} />
+          ) : null}
+          {/* Kody Live status dot — compact indicator above the composer.
+              Color encodes state; hover for full detail + links. Restart
+              affordance only surfaces on stuck/error. */}
+          {isKodyLive ? (
+            <div className="mb-1 flex items-center gap-2">
+              <SimpleTooltip
+                content={(() => {
+                  if (interactiveState === "booting") {
+                    const phase = bootPhaseLabel(
+                      bootElapsed,
+                      selectedAgentId === "kody-live-fly" ? "fly" : "gh",
+                    );
+                    const elapsed = formatElapsed(bootElapsed);
+                    const watch =
+                      interactiveTarget && selectedAgentId !== "kody-live-fly"
+                        ? ` · watching ${interactiveTarget.owner}/${interactiveTarget.repo}`
+                        : "";
+                    return `${phase} · ${elapsed} elapsed${watch}`;
+                  }
+                  if (interactiveState === "ready") {
+                    return "Live runner ready. Chat normally — clear the box and hit Stop to end.";
+                  }
+                  if (interactiveState === "awaiting") {
+                    return "Live runner is processing — waiting for reply...";
+                  }
+                  if (
+                    interactiveState === "stuck" ||
+                    interactiveState === "error"
                   ) {
-                    endInteractiveSession();
-                  } else if (composerAction === "start") {
-                    void startInteractiveSession();
+                    return liveState.errorMessage
+                      ? `Runner stuck — ${liveState.errorMessage}`
+                      : "Runner stuck — click Restart.";
+                  }
+                  if (interactiveState === "ended") {
+                    return "Live runner ended. Start a new session to chat.";
+                  }
+                  return "Live runner is offline. Start it to enable chat.";
+                })()}
+              >
+                <span
+                  className={`inline-block h-2.5 w-2.5 rounded-full ${
+                    interactiveState === "ready"
+                      ? "bg-green-500"
+                      : interactiveState === "booting" ||
+                          interactiveState === "awaiting"
+                        ? "animate-pulse bg-yellow-500"
+                        : interactiveState === "stuck" ||
+                            interactiveState === "error"
+                          ? "bg-red-500"
+                          : "bg-muted-foreground/50"
+                  }`}
+                  aria-label={`Live runner: ${interactiveState}`}
+                />
+              </SimpleTooltip>
+              {interactiveState === "stuck" || interactiveState === "error" ? (
+                <button
+                  type="button"
+                  onClick={() => void restartInteractiveSession()}
+                  className="rounded-md bg-red-600/90 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-red-700"
+                >
+                  Restart
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          {/* Composer input row (issue #131): the textarea and a single
+              trailing send/stop icon button share this row, with the
+              button swapped by state. The action row below (Paperclip,
+              VoiceButton) no longer hosts the send affordance — the
+              hairline separates input from action rows. */}
+          <div className="flex gap-2 items-center">
+            <div className="flex-1 relative">
+              {slashMenuOpen && (
+                <SlashCommandMenu
+                  commands={slashCommands}
+                  filter={parseSlashTrigger(input).filter}
+                  selectedIndex={slashSelectedIndex}
+                  onSelect={applySlashSelection}
+                  onHover={setSlashSelectedIndex}
+                />
+              )}
+              <textarea
+                value={input}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setInput(next);
+                  // Slash menu opens on `/` at line start, stays open while
+                  // the user types the slug, closes when they add a space
+                  // or clear the slash.
+                  const trigger = parseSlashTrigger(next);
+                  setSlashMenuOpen(trigger.active && slashCommands.length > 0);
+                  if (trigger.active) setSlashSelectedIndex(0);
+                  // Auto-expand height
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+                }}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                onBlur={() => {
+                  // Small delay so the menu's onMouseDown can fire before
+                  // close — onMouseDown uses preventDefault to avoid blur,
+                  // but defensive close keeps stale menus from hanging.
+                  setTimeout(() => setSlashMenuOpen(false), 120);
+                }}
+                placeholder={placeholder}
+                rows={1}
+                dir="auto"
+                className="w-full px-3 py-2 text-base rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={
+                  activeLoading || (isKodyLive && interactiveState !== "ready")
+                }
+                style={{ height: "auto" }}
+              />
+            </div>
+            {/* Trailing send/stop icon button — single role that swaps by
+                state (issue #131 refinement):
+                  * Idle / no in-flight run → paper-plane Send icon
+                  * In-flight run (loading or stop/cancel) → Square stop icon
+                Replaces both the old red `bg-destructive` Stop text button
+                in the input row and the inline Send button that used to
+                live in the action row below. The button is hidden when
+                there's no content and the agent isn't Kody-Live, matching
+                the previous "no send affordance when empty" behavior. */}
+            {(() => {
+              const isInFlight =
+                activeLoading ||
+                composerAction === "stop" ||
+                composerAction === "cancel";
+              const showTrailingButton = isInFlight
+                ? true
+                : hasComposerContent || isKodyLive;
+              if (!showTrailingButton) return null;
+              const title = isInFlight
+                ? composerAction === "cancel"
+                  ? "Cancel boot"
+                  : "Stop run"
+                : composerAction === "start"
+                  ? "Boot runner"
+                  : "Send message";
+              return (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeLoading) {
+                      handleStop();
+                    } else if (
+                      composerAction === "stop" ||
+                      composerAction === "cancel"
+                    ) {
+                      endInteractiveSession();
+                    } else if (composerAction === "start") {
+                      void startInteractiveSession();
+                    } else {
+                      void sendMessage();
+                    }
+                  }}
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                  title={title}
+                  aria-label={title}
+                >
+                  {isInFlight ? (
+                    <Square className="w-5 h-5" fill="currentColor" />
+                  ) : (
+                    <Send className="w-5 h-5" />
+                  )}
+                </button>
+              );
+            })()}
+          </div>
+          <div className="border-t border-border/40" />
+        </div>
+        <div className="flex min-h-10 gap-2 items-center">
+          {chatMode === "ai" && (
+            <>
+              {/* Attachment button — hidden file input lives alongside the
+                  Paperclip so the picker click handler still targets the
+                  same ref. */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,.txt,.md,.json,.js,.ts,.jsx,.tsx,.html,.css,.scss,.yaml,.yml,.sh"
+                onChange={handleFileSelect}
+                className="hidden"
+                disabled={activeLoading}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={activeLoading}
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                title="Attach files"
+              >
+                <Paperclip className="w-5 h-5" />
+              </button>
+
+              {/* Voice button — gated on `agent.supportsVoice`. Each agent
+                  declares whether its backend can honor the voice overlay
+                  (see AgentConfig.supportsVoice). Brain agents support it
+                  once the brain server applies the overlay server-side;
+                  kody-live/engine agents don't (latency). The mic stays
+                  hidden for unsupported agents so the dropdown never lies. */}
+              <VoiceButton
+                isActive={voiceOverlayOpen}
+                isSupported={
+                  voiceChat.isSupported && currentAgent.supportsVoice
+                }
+                onTap={() => {
+                  // Handle tap based on current voice state:
+                  // - If AI is speaking: interrupt and start listening (voice interrupt)
+                  // - If listening/processing: stop conversation
+                  // - If idle: start conversation
+                  if (voiceChat.state === "speaking") {
+                    // Voice interrupt: cancel AI speech and start listening
+                    voiceChat.interruptConversation();
+                    setVoiceOverlayOpen(true);
+                    setVoiceMuted(false);
+                  } else if (voiceOverlayOpen) {
+                    // Already in voice mode - stop it
+                    voiceChat.stopConversation();
+                    setVoiceOverlayOpen(false);
+                    setVoiceMuted(false);
                   } else {
-                    void sendMessage();
+                    // Not in voice mode - start it
+                    voiceChat.startConversation();
+                    setVoiceOverlayOpen(true);
                   }
                 }}
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-                title={title}
-                aria-label={title}
+                onLongPressStart={() => {
+                  voiceChat.startConversation();
+                  setVoiceOverlayOpen(true);
+                }}
+                onLongPressEnd={() => {
+                  /* let conversation handle it */
+                }}
+                disabled={activeLoading}
+              />
+            </>
+          )}
+          {chatMode === "terminal" && (
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <select
+                value={activeTerminalValue}
+                onChange={(event) =>
+                  handleTerminalTargetChange(event.target.value)
+                }
+                className="h-8 min-w-0 max-w-[260px] flex-1 rounded-md border bg-background px-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
+                title="Terminal target"
+                aria-label="Terminal target"
               >
-                {isInFlight ? (
-                  <Square className="w-5 h-5" fill="currentColor" />
+                <option value="local">Local terminal</option>
+                {activeTerminalTransport.type === "fly" &&
+                  !terminalMachines.some(
+                    (machine) =>
+                      terminalFlyMachineKey(machine) === activeTerminalValue,
+                  ) && (
+                    <option value={activeTerminalValue}>
+                      {activeTerminalTransport.label ??
+                        activeTerminalTransport.app}{" "}
+                      · selected
+                    </option>
+                  )}
+                {terminalMachines.map((machine) => (
+                  <option
+                    key={terminalFlyMachineKey(machine)}
+                    value={terminalFlyMachineKey(machine)}
+                  >
+                    {machine.label} · {machine.state} · {machine.region} ·{" "}
+                    {terminalMachineIdShort(machine.machineId)}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => void refreshChatTerminalFlyMachines()}
+                disabled={flyInventoryLoading}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                title="Refresh Fly machines"
+                aria-label="Refresh Fly machines"
+              >
+                {flyInventoryLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Send className="w-5 h-5" />
+                  <RefreshCw className="h-4 w-4" />
                 )}
               </button>
-            );
-          })()}
+              {activeTerminalTransport.type === "fly" && (
+                <button
+                  type="button"
+                  onClick={handleTerminalFlyConnectToggle}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  title={
+                    activeTerminalConnectionState === "connected" ||
+                    activeTerminalConnectionState === "connecting"
+                      ? "Disconnect Fly terminal"
+                      : "Connect Fly terminal"
+                  }
+                  aria-label={
+                    activeTerminalConnectionState === "connected" ||
+                    activeTerminalConnectionState === "connecting"
+                      ? "Disconnect Fly terminal"
+                      : "Connect Fly terminal"
+                  }
+                >
+                  {activeTerminalConnectionState === "connecting" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : activeTerminalConnectionState === "connected" ? (
+                    <Unplug className="h-4 w-4" />
+                  ) : (
+                    <Power className="h-4 w-4" />
+                  )}
+                </button>
+              )}
+              {flyInventoryError && (
+                <span className="min-w-0 truncate text-[11px] text-destructive">
+                  {flyInventoryError}
+                </span>
+              )}
+            </div>
+          )}
+          {chatMode === "ai" && <div className="flex-1" />}
+          {!lockedAgentId && (
+            <div
+              className={`inline-flex items-center rounded-md border p-0.5 ${
+                chatMode === "terminal"
+                  ? "border-white/10 bg-white/5"
+                  : "bg-background/70"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => setActiveChatMode("ai")}
+                className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                  chatMode === "ai"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+                aria-pressed={chatMode === "ai"}
+                title="AI chat"
+                aria-label="AI chat"
+              >
+                <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={openTerminalMode}
+                className={`relative inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                  chatMode === "terminal"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+                aria-pressed={chatMode === "terminal"}
+                title="Terminal"
+                aria-label="Terminal"
+              >
+                <SquareTerminal className="w-3.5 h-3.5" aria-hidden="true" />
+                {activeSessionHasLiveTerminal && chatMode === "ai" && (
+                  <span
+                    className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
+            </div>
+          )}
         </div>
-        <div className="border-t border-border/40" />
-        <div className="flex gap-2 items-center">
-          {/* Attachment button — hidden file input lives alongside the
-              Paperclip so the picker click handler still targets the
-              same ref. */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*,.txt,.md,.json,.js,.ts,.jsx,.tsx,.html,.css,.scss,.yaml,.yml,.sh"
-            onChange={handleFileSelect}
-            className="hidden"
-            disabled={activeLoading}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={activeLoading}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-            title="Attach files"
-          >
-            <Paperclip className="w-5 h-5" />
-          </button>
-
-          {/* Voice button — gated on `agent.supportsVoice`. Each agent
-              declares whether its backend can honor the voice overlay
-              (see AgentConfig.supportsVoice). Brain agents support it
-              once the brain server applies the overlay server-side;
-              kody-live/engine agents don't (latency). The mic stays
-              hidden for unsupported agents so the dropdown never lies. */}
-          <VoiceButton
-            isActive={voiceOverlayOpen}
-            isSupported={voiceChat.isSupported && currentAgent.supportsVoice}
-            onTap={() => {
-              // Handle tap based on current voice state:
-              // - If AI is speaking: interrupt and start listening (voice interrupt)
-              // - If listening/processing: stop conversation
-              // - If idle: start conversation
-              if (voiceChat.state === "speaking") {
-                // Voice interrupt: cancel AI speech and start listening
-                voiceChat.interruptConversation();
-                setVoiceOverlayOpen(true);
-                setVoiceMuted(false);
-              } else if (voiceOverlayOpen) {
-                // Already in voice mode - stop it
-                voiceChat.stopConversation();
-                setVoiceOverlayOpen(false);
-                setVoiceMuted(false);
-              } else {
-                // Not in voice mode - start it
-                voiceChat.startConversation();
-                setVoiceOverlayOpen(true);
-              }
-            }}
-            onLongPressStart={() => {
-              voiceChat.startConversation();
-              setVoiceOverlayOpen(true);
-            }}
-            onLongPressEnd={() => {
-              /* let conversation handle it */
-            }}
-            disabled={activeLoading}
-          />
-          {/* Reserved slot for future widget actions (slash-command
-              trigger, attachment previews inline, mode toggles, etc.).
-              flex-1 keeps the row visually left-anchored with breathing
-              room on the right. */}
-          <div className="flex-1" />
-        </div>
-        {/* Clear history link */}
         {messages.length > 0 && !activeLoading && (
           <button
             onClick={() => setShowClearConfirm(true)}
-            className="mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className={`mt-1 text-xs text-muted-foreground transition-colors hover:text-foreground ${
+              chatMode === "ai" ? "" : "invisible pointer-events-none"
+            }`}
+            aria-hidden={chatMode !== "ai"}
+            tabIndex={chatMode === "ai" ? undefined : -1}
           >
             Clear history
           </button>

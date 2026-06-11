@@ -24,6 +24,7 @@ import { Button } from "@dashboard/ui/button";
 import { Textarea } from "@dashboard/ui/textarea";
 import { cn } from "@dashboard/lib/utils/ui";
 import { EMOJI_LIST } from "../constants";
+import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 
 interface MarkdownEditorProps {
   value: string;
@@ -155,7 +156,13 @@ export function MarkdownEditor({
 
       {/* Editor / preview */}
       {showPreview ? (
-        <div className="min-h-[120px] max-h-[50vh] min-w-0 w-full overflow-auto p-3 border border-border rounded-md bg-background prose prose-sm dark:prose-invert max-w-none prose-pre:whitespace-pre-wrap prose-pre:break-words prose-code:break-words">
+        <div
+          {...autoDirProps}
+          className={cn(
+            "min-h-[120px] max-h-[50vh] min-w-0 w-full overflow-auto p-3 border border-border rounded-md bg-background prose prose-sm dark:prose-invert max-w-none prose-pre:whitespace-pre-wrap prose-pre:break-words prose-code:break-words text-start",
+            rtlAwareMarkdownClassName,
+          )}
+        >
           <ReactMarkdown>{value || emptyPreview}</ReactMarkdown>
         </div>
       ) : (
@@ -166,7 +173,8 @@ export function MarkdownEditor({
           placeholder={placeholder}
           rows={rows}
           disabled={disabled}
-          className="font-mono text-sm resize-y max-h-[50vh]"
+          dir="auto"
+          className="font-mono text-sm resize-y max-h-[50vh] text-start"
         />
       )}
     </div>

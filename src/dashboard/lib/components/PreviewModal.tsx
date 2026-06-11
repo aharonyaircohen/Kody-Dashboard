@@ -32,6 +32,7 @@ import {
 import { cn, getPreviewBypassUrl } from "../utils";
 import { PreviewInspector } from "../picker/PreviewInspector";
 import { PreviewViewsBar } from "./PreviewViewsBar";
+import { autoDirProps } from "../text-direction";
 import {
   DEFAULT_PREVIEW_VIEWS,
   joinPreviewUrl,
@@ -297,7 +298,10 @@ export function PreviewModal({
         </a>
         <CIStatusBadge prNumber={pr.number} />
         <ActionStatusBadge taskId={task.id} />
-        <span className="text-sm text-zinc-500 truncate hidden sm:inline">
+        <span
+          {...autoDirProps}
+          className="text-sm text-zinc-500 truncate hidden sm:inline text-start"
+        >
           {pr.title}
         </span>
 

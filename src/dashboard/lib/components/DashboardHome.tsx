@@ -59,6 +59,7 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { CreateGoalDialog } from "./GoalControl";
 import { cn } from "../utils";
+import { autoDirProps } from "../text-direction";
 import type { ColumnId, KodyTask } from "../types";
 import type { HealthLevel } from "../health/types";
 import type { Goal, Report } from "../api";
@@ -382,7 +383,12 @@ function FailingCard({
                   #{t.issueNumber}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm truncate">{t.title}</div>
+                  <div
+                    {...autoDirProps}
+                    className="text-sm truncate text-start"
+                  >
+                    {t.title}
+                  </div>
                   {t.failureReason && (
                     <div className="text-xs text-rose-300/80 truncate">
                       {t.failureReason}

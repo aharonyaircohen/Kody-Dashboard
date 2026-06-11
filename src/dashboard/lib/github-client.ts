@@ -3057,7 +3057,13 @@ export async function uploadIssueAttachment(
 export async function uploadCommentAttachment(
   file: { name: string; contentBase64: string },
   userOctokit?: Octokit,
-): Promise<{ url: string; name: string; isImage: boolean; markdown: string }> {
+): Promise<{
+  url: string;
+  path: string;
+  name: string;
+  isImage: boolean;
+  markdown: string;
+}> {
   const octokit = userOctokit ?? getOctokit();
   const owner = getOwner();
   const repo = getRepo();
@@ -3084,7 +3090,13 @@ export async function uploadCommentAttachment(
     ? `![${safeName}](${rawUrl})`
     : `[📎 ${safeName}](${blobUrl})`;
 
-  return { url: isImage ? rawUrl : blobUrl, name: safeName, isImage, markdown };
+  return {
+    path,
+    url: isImage ? rawUrl : blobUrl,
+    name: safeName,
+    isImage,
+    markdown,
+  };
 }
 
 /**

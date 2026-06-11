@@ -13,6 +13,7 @@ import { MarkdownViewer } from "./MarkdownViewer";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { Loader2, MessageSquare } from "lucide-react";
 import { formatRelativeTime } from "../utils";
+import { autoDirProps } from "../text-direction";
 
 interface PRCommentListProps {
   prNumber: number;
@@ -110,7 +111,7 @@ export function PRCommentList({
                 {formatRelativeTime(comment.created_at)}
               </span>
             </div>
-            <div className="text-sm">
+            <div {...autoDirProps} className="text-sm text-start">
               <MarkdownViewer content={comment.body} title="" />
             </div>
           </div>

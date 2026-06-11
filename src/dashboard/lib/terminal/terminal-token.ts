@@ -18,6 +18,8 @@ export interface TerminalBridgeClaims {
   repo: string;
   app: string;
   machineId: string;
+  chatSessionId?: string;
+  resetSession?: boolean;
   flyToken: string;
   cols: number;
   rows: number;
@@ -30,6 +32,8 @@ export interface MintTerminalBridgeTokenInput {
   repo: string;
   app: string;
   machineId: string;
+  chatSessionId?: string;
+  resetSession?: boolean;
   flyToken: string;
   cols?: number;
   rows?: number;
@@ -96,6 +100,8 @@ export function mintTerminalBridgeToken(
     repo: input.repo,
     app: input.app,
     machineId: input.machineId,
+    chatSessionId: input.chatSessionId,
+    resetSession: input.resetSession,
     flyToken: input.flyToken,
     cols: input.cols ?? 120,
     rows: input.rows ?? 36,

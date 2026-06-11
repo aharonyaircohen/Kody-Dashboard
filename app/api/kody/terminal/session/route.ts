@@ -38,6 +38,8 @@ export const dynamic = "force-dynamic";
 const Body = z.object({
   app: z.string().min(1).max(120),
   machineId: z.string().min(1).max(120),
+  chatSessionId: z.string().min(1).max(160).optional(),
+  resetSession: z.boolean().optional(),
   cols: z.number().int().min(20).max(300).optional(),
   rows: z.number().int().min(8).max(120).optional(),
 });
@@ -158,6 +160,8 @@ export async function POST(req: NextRequest) {
       repo: auth.repo,
       app: parsed.data.app,
       machineId: parsed.data.machineId,
+      chatSessionId: parsed.data.chatSessionId,
+      resetSession: parsed.data.resetSession,
       flyToken: cfg.token,
       cols: parsed.data.cols,
       rows: parsed.data.rows,

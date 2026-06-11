@@ -27,6 +27,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { useGoals } from "../hooks/useGoals";
 import { GOAL_LABEL_PREFIX } from "../goals";
+import { autoDirProps } from "../text-direction";
 import type { ColumnId } from "../constants";
 
 // Per-column row-background tint. Subtle by default (~4% alpha) so titles
@@ -327,8 +328,9 @@ export function VibeIssueList({
               >
                 {/* Title row — full width, wraps; line-clamp-3 as a sanity bound */}
                 <div
+                  {...autoDirProps}
                   className={cn(
-                    "text-sm leading-snug line-clamp-3 break-words",
+                    "text-sm leading-snug line-clamp-3 break-words text-start",
                     isSelected
                       ? "text-white font-medium"
                       : "text-zinc-200 group-hover:text-white",

@@ -59,6 +59,7 @@ import {
 } from "@dashboard/ui/dialog";
 import { AuthGuard } from "../auth-guard";
 import { cn } from "../utils";
+import { autoDirProps } from "../text-direction";
 import {
   useCreateGoal,
   useDeleteGoal,
@@ -816,7 +817,12 @@ export function AttachTasksDialog({
                   <span className="font-mono text-xs text-muted-foreground shrink-0">
                     #{task.issueNumber}
                   </span>
-                  <span className="text-sm truncate flex-1">{task.title}</span>
+                  <span
+                    {...autoDirProps}
+                    className="text-sm truncate flex-1 text-start"
+                  >
+                    {task.title}
+                  </span>
                 </button>
               );
             })
@@ -875,8 +881,9 @@ function TaskGroup({ heading, tasks }: { heading: string; tasks: KodyTask[] }) {
                 #{task.issueNumber}
               </span>
               <Link
+                {...autoDirProps}
                 href={`/${task.issueNumber}`}
-                className="truncate flex-1 hover:text-sky-400 transition-colors"
+                className="truncate flex-1 hover:text-sky-400 transition-colors text-start"
                 title={task.title}
               >
                 {task.title}

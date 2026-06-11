@@ -25,6 +25,7 @@ import {
 import { MiniPipelineProgress } from "./MiniPipelineProgress";
 import { AnimatedStatusBar } from "./v2/AnimatedStatusBar";
 import { SimpleTooltip } from "./SimpleTooltip";
+import { autoDirProps } from "../text-direction";
 import {
   StatusTooltipContent,
   SubStatusTooltipContent,
@@ -224,13 +225,7 @@ export function TaskList({
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
   const visibilityMutation = useMutation({
-    mutationFn: ({
-      task,
-      hidden,
-    }: {
-      task: KodyTask;
-      hidden: boolean;
-    }) =>
+    mutationFn: ({ task, hidden }: { task: KodyTask; hidden: boolean }) =>
       hidden
         ? kodyApi.tasks.addLabel(
             task.issueNumber,
@@ -267,7 +262,9 @@ export function TaskList({
     onSuccess: (_data, { task, hidden }) => {
       toast.success(hidden ? "Task hidden from dashboard" : "Task shown");
       queryClient.invalidateQueries({ queryKey: ["kody-tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["kody-task", task.issueNumber] });
+      queryClient.invalidateQueries({
+        queryKey: ["kody-task", task.issueNumber],
+      });
     },
   });
   const handleHideTask = useCallback(
@@ -498,8 +495,9 @@ const TaskRow = memo(function TaskRow({
           {/* Title row */}
           <div className="flex items-center gap-2.5">
             <h3
+              {...autoDirProps}
               className={cn(
-                "text-[15px] font-medium truncate flex-1",
+                "text-[15px] font-medium truncate flex-1 text-start",
                 isClosed ? "text-slate-300 line-through" : "text-zinc-100",
               )}
             >
@@ -629,21 +627,43 @@ const TaskRow = memo(function TaskRow({
                     </a>
                   </SimpleTooltip>
 
-                  <SimpleTooltip
-                    content={
-                      <StatusTooltipContent
-                        column={task.column}
-                        gateType={task.gateType}
-                      />
-                    }
-                    side="bottom"
-                  >
-                    <span
-                      className={cn("font-medium cursor-default", colors.text)}
+                  {hasPR && task.associatedPR && (
+                    <SimpleTooltip
+                      content="View pull request on GitHub"
+                      side="bottom"
                     >
-                      {gateLabel}
-                    </span>
-                  </SimpleTooltip>
+                      <a
+                        href={task.associatedPR.html_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-mono font-semibold text-purple-400 hover:underline"
+                      >
+                        #{task.associatedPR.number}
+                      </a>
+                    </SimpleTooltip>
+                  )}
+
+                  {task.column !== "done" && (
+                    <SimpleTooltip
+                      content={
+                        <StatusTooltipContent
+                          column={task.column}
+                          gateType={task.gateType}
+                        />
+                      }
+                      side="bottom"
+                    >
+                      <span
+                        className={cn(
+                          "font-medium cursor-default",
+                          colors.text,
+                        )}
+                      >
+                        {gateLabel}
+                      </span>
+                    </SimpleTooltip>
+                  )}
 
                   {task.isKodyAssigned && (
                     <SimpleTooltip

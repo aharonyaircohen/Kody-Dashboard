@@ -43,6 +43,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "../utils";
+import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 import type { KodyTask } from "../types";
 
 interface EditTaskDialogProps {
@@ -193,6 +194,8 @@ export function EditTaskDialog({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Task title"
+              dir="auto"
+              className="text-start"
               required
             />
           </div>
@@ -305,7 +308,13 @@ export function EditTaskDialog({
 
             {/* Editor / Preview */}
             {showPreview ? (
-              <div className="min-h-[150px] p-3 border border-border rounded-md bg-muted/20 prose prose-sm dark:prose-invert max-w-none">
+              <div
+                {...autoDirProps}
+                className={cn(
+                  "min-h-[150px] p-3 border border-border rounded-md bg-muted/20 prose prose-sm dark:prose-invert max-w-none text-start",
+                  rtlAwareMarkdownClassName,
+                )}
+              >
                 <ReactMarkdown>{body || "*No description*"}</ReactMarkdown>
               </div>
             ) : (
@@ -315,7 +324,8 @@ export function EditTaskDialog({
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 placeholder="Describe the task in markdown..."
-                className="min-h-[150px]"
+                dir="auto"
+                className="min-h-[150px] text-start"
               />
             )}
             <p className="text-xs text-muted-foreground">

@@ -19,6 +19,7 @@ import { Card } from "@dashboard/ui/card";
 import { COLUMN_DEFS } from "../constants";
 import { useNow } from "../hooks/useNow";
 import { cn } from "../utils";
+import { autoDirProps } from "../text-direction";
 import type { ColumnId, KodyTask } from "../types";
 
 // In-flight = not a terminal/parked lane. These are the tasks "in motion".
@@ -151,7 +152,12 @@ export function HappeningNow({
                   <span className="text-xs text-muted-foreground tabular-nums shrink-0 w-10">
                     #{task.issueNumber}
                   </span>
-                  <span className="text-sm truncate">{task.title}</span>
+                  <span
+                    {...autoDirProps}
+                    className="text-sm truncate text-start"
+                  >
+                    {task.title}
+                  </span>
                 </Link>
 
                 <span className="text-xs text-muted-foreground shrink-0">

@@ -9,6 +9,8 @@
 import ReactMarkdown from "react-markdown";
 import { Copy, Check } from "lucide-react";
 import { useState } from "react";
+import { cn } from "@dashboard/lib/utils/ui";
+import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 
 interface MarkdownViewerProps {
   content: string;
@@ -44,7 +46,13 @@ export function MarkdownViewer({ content, title }: MarkdownViewerProps) {
 
       {/* Content */}
       <div className="p-4 overflow-y-auto max-h-[600px]">
-        <article className="prose prose-sm dark:prose-invert max-w-none">
+        <article
+          {...autoDirProps}
+          className={cn(
+            "prose prose-sm dark:prose-invert max-w-none text-start",
+            rtlAwareMarkdownClassName,
+          )}
+        >
           <ReactMarkdown>{content}</ReactMarkdown>
         </article>
       </div>

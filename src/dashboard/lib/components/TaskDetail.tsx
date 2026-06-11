@@ -28,10 +28,12 @@ import { TaskRunsList } from "./TaskRunsList";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CommentEditor } from "./CommentEditor";
 import { CommentList } from "./CommentList";
+import { IssueAttachmentButton } from "./IssueAttachmentButton";
 import { AssigneePicker, type AssigneeChangeEvent } from "./AssigneePicker";
 import { GoalPicker } from "./GoalPicker";
 import { useGoals } from "../hooks/useGoals";
 import { GOAL_LABEL_PREFIX } from "../goals";
+import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 import { KodyPhaseChip, KodyFlowChip } from "./KodyLabelChips";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { WorkflowRunsPopover } from "./WorkflowRunsPopover";
@@ -276,8 +278,8 @@ function getPrimaryAction(
   task: KodyTask,
   fullDetails: FullTaskDetails | null,
   taskActions: ReturnType<typeof useTaskActions>,
-  completedActions: Set<string>,
-  setCompletedActions: React.Dispatch<React.SetStateAction<Set<string>>>,
+  _completedActions: Set<string>,
+  _setCompletedActions: React.Dispatch<React.SetStateAction<Set<string>>>,
 ): {
   icon: React.ElementType;
   label: string;
@@ -315,8 +317,8 @@ function getPrimaryAction(
 function getOverflowActions(
   task: KodyTask,
   taskActions: ReturnType<typeof useTaskActions>,
-  completedActions: Set<string>,
-  setCompletedActions: React.Dispatch<React.SetStateAction<Set<string>>>,
+  _completedActions: Set<string>,
+  _setCompletedActions: React.Dispatch<React.SetStateAction<Set<string>>>,
   onDuplicate?: (task: KodyTask) => void,
   onHideTask?: (task: KodyTask) => void,
   onShowTask?: (task: KodyTask) => void,
@@ -838,7 +840,10 @@ export function TaskDetail({
   // --- Shared markdown components ---
   const markdownComponents = {
     p: ({ children }: { children?: React.ReactNode }) => (
-      <p className="mb-3 last:mb-0 text-base text-muted-foreground leading-relaxed break-words">
+      <p
+        {...autoDirProps}
+        className="mb-3 last:mb-0 text-base text-muted-foreground leading-relaxed break-words text-start"
+      >
         {children}
       </p>
     ),
@@ -883,42 +888,60 @@ export function TaskDetail({
       </pre>
     ),
     ul: ({ children }: { children?: React.ReactNode }) => (
-      <ul className="list-disc pl-6 space-y-1 text-base text-muted-foreground my-2">
+      <ul className="list-disc ps-6 space-y-1 text-base text-muted-foreground my-2">
         {children}
       </ul>
     ),
     ol: ({ children }: { children?: React.ReactNode }) => (
-      <ol className="list-decimal pl-6 space-y-1 text-base text-muted-foreground my-2">
+      <ol className="list-decimal ps-6 space-y-1 text-base text-muted-foreground my-2">
         {children}
       </ol>
     ),
     li: ({ children }: { children?: React.ReactNode }) => (
-      <li className="text-base text-muted-foreground leading-relaxed break-words">
+      <li
+        {...autoDirProps}
+        className="text-base text-muted-foreground leading-relaxed break-words text-start"
+      >
         {children}
       </li>
     ),
     h1: ({ children }: { children?: React.ReactNode }) => (
-      <h1 className="text-xl font-bold text-foreground mt-6 mb-2 first:mt-0 border-b border-border pb-1">
+      <h1
+        {...autoDirProps}
+        className="text-xl font-bold text-foreground mt-6 mb-2 first:mt-0 border-b border-border pb-1 text-start"
+      >
         {children}
       </h1>
     ),
     h2: ({ children }: { children?: React.ReactNode }) => (
-      <h2 className="text-lg font-bold text-foreground mt-5 mb-2 first:mt-0">
+      <h2
+        {...autoDirProps}
+        className="text-lg font-bold text-foreground mt-5 mb-2 first:mt-0 text-start"
+      >
         {children}
       </h2>
     ),
     h3: ({ children }: { children?: React.ReactNode }) => (
-      <h3 className="text-base font-semibold text-foreground mt-4 mb-1.5">
+      <h3
+        {...autoDirProps}
+        className="text-base font-semibold text-foreground mt-4 mb-1.5 text-start"
+      >
         {children}
       </h3>
     ),
     h4: ({ children }: { children?: React.ReactNode }) => (
-      <h4 className="text-base font-medium text-foreground mt-3 mb-1">
+      <h4
+        {...autoDirProps}
+        className="text-base font-medium text-foreground mt-3 mb-1 text-start"
+      >
         {children}
       </h4>
     ),
     blockquote: ({ children }: { children?: React.ReactNode }) => (
-      <blockquote className="border-l-3 border-blue-500/40 pl-4 my-3 text-base italic text-muted-foreground bg-muted/20 py-2 rounded-r-md">
+      <blockquote
+        {...autoDirProps}
+        className="border-s-3 border-blue-500/40 ps-4 my-3 text-base italic text-muted-foreground bg-muted/20 py-2 rounded-e-md text-start"
+      >
         {children}
       </blockquote>
     ),
@@ -932,12 +955,18 @@ export function TaskDetail({
       <thead className="bg-muted/40">{children}</thead>
     ),
     th: ({ children }: { children?: React.ReactNode }) => (
-      <th className="border-b border-border px-3 py-2 text-left font-semibold text-foreground text-xs">
+      <th
+        {...autoDirProps}
+        className="border-b border-border px-3 py-2 text-start font-semibold text-foreground text-xs"
+      >
         {children}
       </th>
     ),
     td: ({ children }: { children?: React.ReactNode }) => (
-      <td className="border-b border-border/50 px-3 py-2 text-muted-foreground text-xs">
+      <td
+        {...autoDirProps}
+        className="border-b border-border/50 px-3 py-2 text-muted-foreground text-xs text-start"
+      >
         {children}
       </td>
     ),
@@ -972,7 +1001,8 @@ export function TaskDetail({
             value={retryContext}
             onChange={(e) => setRetryContext(e.target.value)}
             placeholder="Add context for the retry…"
-            className="w-full h-20 px-3 py-2 text-base bg-background border border-border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50 placeholder:text-muted-foreground"
+            dir="auto"
+            className="w-full h-20 px-3 py-2 text-base bg-background border border-border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50 placeholder:text-muted-foreground text-start"
           />
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
@@ -1085,7 +1115,13 @@ export function TaskDetail({
           aria-labelledby="task-tab-description"
           className="p-5 md:p-6 overflow-y-auto overflow-x-hidden h-full bg-white/[0.03]"
         >
-          <div className="max-w-3xl min-w-0">
+          <div
+            {...autoDirProps}
+            className={cn(
+              "max-w-3xl min-w-0 text-start",
+              rtlAwareMarkdownClassName,
+            )}
+          >
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={markdownComponents}
@@ -1320,7 +1356,10 @@ export function TaskDetail({
         </div>
 
         {/* Row 2: Title */}
-        <h2 className="text-base font-bold text-white leading-snug tracking-tight pl-1">
+        <h2
+          {...autoDirProps}
+          className="text-base font-bold text-white leading-snug tracking-tight ps-1 text-start"
+        >
           {task.title}
         </h2>
 
@@ -1439,7 +1478,10 @@ export function TaskDetail({
         </div>
 
         {/* Row 2: Title — prominent */}
-        <h2 className="text-xl font-bold text-white leading-tight tracking-tight mb-3">
+        <h2
+          {...autoDirProps}
+          className="text-xl font-bold text-white leading-tight tracking-tight mb-3 text-start"
+        >
           {task.title}
         </h2>
 
@@ -1590,21 +1632,29 @@ export function TaskDetail({
                 !l.startsWith("priority:") &&
                 !l.startsWith(GOAL_LABEL_PREFIX),
             );
-            if (rest.length === 0) return null;
             return (
               <div className="space-y-2">
                 <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-0.5">
                   Labels
                 </h4>
-                <div className="flex flex-wrap gap-1 px-0.5">
-                  {rest.map((label) => (
-                    <span
-                      key={label}
-                      className="inline-flex px-2 py-0.5 text-[11px] font-medium rounded-md bg-white/[0.08] text-zinc-300 border border-white/[0.1]"
-                    >
-                      {label}
-                    </span>
-                  ))}
+                <div className="space-y-2 px-0.5">
+                  {rest.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {rest.map((label) => (
+                        <span
+                          key={label}
+                          className="inline-flex px-2 py-0.5 text-[11px] font-medium rounded-md bg-white/[0.08] text-zinc-300 border border-white/[0.1]"
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <IssueAttachmentButton
+                    issueNumber={task.issueNumber}
+                    onAttachmentAdded={() => refetch()}
+                    className="w-full justify-start text-muted-foreground"
+                  />
                 </div>
               </div>
             );

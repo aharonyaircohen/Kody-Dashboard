@@ -18,6 +18,7 @@ import { Wrench, Loader2, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { prsApi } from "../api";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 
 interface CommentListProps {
   comments: GitHubComment[];
@@ -375,8 +376,11 @@ function CommentItem({ comment }: { comment: GitHubComment }) {
 
       {/* Body - Rendered markdown */}
       <div
-        dir="auto"
-        className="prose prose-sm dark:prose-invert max-w-none text-sm"
+        {...autoDirProps}
+        className={cn(
+          "prose prose-sm dark:prose-invert max-w-none text-sm text-start",
+          rtlAwareMarkdownClassName,
+        )}
       >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
