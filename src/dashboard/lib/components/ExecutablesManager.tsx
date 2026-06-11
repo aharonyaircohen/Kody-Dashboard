@@ -4,8 +4,8 @@
  * @pattern executables-manager
  * @ai-summary CRUD UI for custom executables stored at
  *   `.kody/executables/<slug>/` in the connected repo. The engine resolves
- *   these before its own built-ins, so `@kody <slug>` runs them. The editor
- *   is a simple form (describe + instructions + model + tools), plus a skills
+ *   these before its own built-ins when a duty lowers to an implementation.
+ *   The editor is a simple form (describe + instructions + model + tools), plus a skills
  *   tab (paste a `SKILL.md` or import one from a GitHub source) and a scripts tab
  *   (one `*.sh` each). A
  *   Validate button checks the generated profile.json before saving;
@@ -521,7 +521,7 @@ function ExecutablesManagerInner() {
           <EmptyState
             icon={<Sparkles />}
             title="No executables yet"
-            hint="An executable is a custom @kody <slug> action stored at .kody/executables/<slug>/. The engine resolves it before its built-ins."
+            hint="An executable is an implementation folder stored at .kody/executables/<slug>/. Duties own public @kody action names."
             action={
               <Button asChild size="sm" className="gap-1">
                 <Link href="/executables/new">

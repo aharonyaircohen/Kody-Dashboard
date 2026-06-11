@@ -15,12 +15,13 @@ Kody chat can create one too: it should first read this guide, then use the
 
 A duty owns:
 
+- **Action name**: the public `@kody <action>` token that runs this duty.
 - **Purpose**: what should be watched or maintained.
 - **Cadence**: how often it is allowed to act.
 - **Staff**: which staff persona should run it.
 - **Progress type**: the simple stage template shown in the dashboard.
 - **Safety rules**: what it may and may not do.
-- **Executable link**: which executable performs the work.
+- **Executable link**: the implementation executable, when the duty needs one.
 
 A duty does **not** own:
 
@@ -38,11 +39,13 @@ Use this shape:
 
 ```md
 ---
+action: broken-links
+executable: broken-link-report
 every: 1d
 staff: qa
 stage: report-refresh
-executables: broken-link-report
 ---
+
 # Broken link report
 
 ## Job
@@ -70,24 +73,26 @@ Refresh `.kody/reports/broken-link-report.md`.
 
 ## Frontmatter
 
-| Field | Meaning |
-| --- | --- |
-| `every` | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc. |
-| `staff` | Staff persona slug. A duty without staff should not auto-run. |
-| `stage` | Progress type. Use one of the built-in templates below. |
-| `mentions` | Optional GitHub logins to notify. |
-| `executables` | Optional executable slugs the duty may dispatch or depend on. |
-| `disabled` | `true` pauses the duty. |
+| Field         | Meaning                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------ |
+| `action`      | Public action token. `@kody <action>` runs this duty. Usually the duty slug.                     |
+| `executable`  | Optional implementation executable slug. Use this for the one executable that performs the work. |
+| `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                               |
+| `staff`       | Staff persona slug. A duty without staff should not auto-run.                                    |
+| `stage`       | Progress type. Use one of the built-in templates below.                                          |
+| `mentions`    | Optional GitHub logins to notify.                                                                |
+| `executables` | Legacy or multi-run executable list. Prefer singular `executable` for normal duties.             |
+| `disabled`    | `true` pauses the duty.                                                                          |
 
 ## Progress types
 
-| Stage | Use when |
-| --- | --- |
-| `simple-check` | The duty runs and finishes. |
-| `report-refresh` | The duty updates a report or result file. |
-| `sweep` | The duty scans many things and records findings. |
-| `approval-gate` | The duty waits for review, then approves or blocks. |
-| `review-loop` | The duty reviews items again and again over time. |
+| Stage            | Use when                                            |
+| ---------------- | --------------------------------------------------- |
+| `simple-check`   | The duty runs and finishes.                         |
+| `report-refresh` | The duty updates a report or result file.           |
+| `sweep`          | The duty scans many things and records findings.    |
+| `approval-gate`  | The duty waits for review, then approves or blocks. |
+| `review-loop`    | The duty reviews items again and again over time.   |
 
 ## Body sections
 
@@ -129,8 +134,8 @@ Examples:
 
 Use a **duty** when the work is recurring.
 
-Use an **executable** when you are defining an action someone can run, like
-`@kody refresh-graph`.
+Use an **executable** when you are defining implementation that a duty action
+can run, such as a deterministic graph refresh or an agent workflow.
 
 Use **staff** when you are defining who performs the work.
 
@@ -139,10 +144,11 @@ Use **staff** when you are defining who performs the work.
 Before creating a duty, Kody should know:
 
 - What should happen.
+- Which public action runs it. Usually this should match the slug.
 - How often it should happen.
 - Which staff member runs it.
 - Which progress type fits.
-- Which executable runs the work.
+- Which implementation executable runs the work, if needed.
 - Which actions are forbidden.
 
 If any of those are unclear, Kody should ask before creating the duty.

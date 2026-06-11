@@ -56,6 +56,7 @@ const IGNORED = [
   "Failed to load resource",
   "Hydration failed",
   "Minified React error #418",
+  "Encountered a script tag while rendering React component",
   "502",
   "Bad Gateway",
   "503",

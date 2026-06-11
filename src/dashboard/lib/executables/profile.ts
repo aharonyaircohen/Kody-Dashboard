@@ -63,7 +63,7 @@ export const COMMON_TOOLS = [
 
 /** Dashboard-facing description of an executable, independent of GitHub I/O. */
 export interface ExecutableFields {
-  /** Folder name under `.kody/executables/`. Becomes the `@kody <slug>` action. */
+  /** Folder name under `.kody/executables/`. Duties reference this as implementation. */
   slug: string;
   /** One-line human description (`profile.describe`). */
   describe: string;

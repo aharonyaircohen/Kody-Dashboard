@@ -173,8 +173,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/runner",
         label: "Fly Runner",
         icon: Rocket,
-        description:
-          "Per-repo Fly infra: machines, activity, previews, Brain.",
+        description: "Per-repo Fly infra: machines, activity, previews, Brain.",
         tint: "text-sky-300 bg-sky-500/10",
       },
     ],
@@ -214,7 +213,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Executables",
         icon: Boxes,
         exact: true,
-        description: "Manage custom @kody executables (folder duties).",
+        description: "Manage custom executable implementations.",
         tint: "text-amber-300 bg-amber-500/10",
       },
       {

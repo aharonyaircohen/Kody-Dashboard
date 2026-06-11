@@ -1,13 +1,12 @@
 # Custom executables
 
-A **custom executable** is a new `@kody <slug>` action you define from the
-dashboard — its own instructions, model, tools, skills, and shell preflight — stored
-as a folder in your repo. The dashboard never invents a new engine concept for
-this: it writes a normal engine `profile.json` (the same shape the built-in
-`feature` and `fix` executables use) into `.kody/executables/<slug>/`, and the
-engine resolves that folder **before** its own built-ins. So "build me a
-custom action" is really "commit a known-good profile to a folder the engine
-already reads."
+A **custom executable** is an implementation unit stored as a folder in your
+repo: its own instructions, model, tools, skills, and shell preflight. Duties
+own the public `@kody <action>` names; a duty can point at an executable with
+`executable: <slug>`. The dashboard writes a normal engine `profile.json` (the
+same shape the built-in `feature` and `fix` executables use) into
+`.kody/executables/<slug>/`, and the engine resolves that folder **before** its
+own built-ins.
 
 Everything is repo-stored and per-repo. There is no separate registry, no
 database row — the folder _is_ the executable, and the latest commit on the
@@ -21,15 +20,15 @@ use the `create_or_update_executable` tool.
 
 ## The pieces
 
-| Piece                     | What it is                                                                                                                                                                                                                                                                           | Where                                                                                                              |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| The executable **folder** | `.kody/executables/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first. | the connected repo                                                                                                 |
-| **File layer**            | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. For simple generated executables, reads strip the generated output contract and writes re-append it.                                                                        | [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           |
-| **Profile helpers**       | Pure form-fields ↔ `profile.json` translation, slug validation, and engine-mirroring profile validation. No I/O.                                                                                                                                                                     | [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       |
-| The **/executables page** | CRUD UI: list, create, edit, validate, run, delete, set-default, import a skill.                                                                                                                                                                                                     | [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) |
-| **Control API**           | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/default`, `/run`, and `/import-skill` sub-routes.                                                                                                                                                                        | [`../app/api/kody/executables/`](../app/api/kody/executables/)                                                     |
-| **Chat tools**            | In-process tools that let Kody build/manage executables by conversation — same file layer, same atomic commit.                                                                                                                                                                       | [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)                 |
-| **Company bundle**        | Export/import flattens each folder into a portable path→content map, so executables travel with the rest of a company profile.                                                                                                                                                       | [`../src/dashboard/lib/company/`](../src/dashboard/lib/company/)                                                   |
+| Piece                     | What it is                                                                                                                                                                                                      | Where                                                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| The executable **folder** | `.kody/executables/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first when a duty lowers to that implementation. | the connected repo                                                                                                 |
+| **File layer**            | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. For simple generated executables, reads strip the generated output contract and writes re-append it. | [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           |
+| **Profile helpers**       | Pure form-fields ↔ `profile.json` translation, slug validation, and engine-mirroring profile validation. No I/O.                                                                                                | [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       |
+| The **/executables page** | CRUD UI: list, create, edit, validate, run, delete, set-default, import a skill.                                                                                                                                | [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) |
+| **Control API**           | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/default`, `/run`, and `/import-skill` sub-routes.                                                                                                   | [`../app/api/kody/executables/`](../app/api/kody/executables/)                                                     |
+| **Chat tools**            | In-process tools that let Kody build/manage executables by conversation — same file layer, same atomic commit.                                                                                                  | [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)                 |
+| **Company bundle**        | Export/import flattens each folder into a portable path→content map, so executables travel with the rest of a company profile.                                                                                  | [`../src/dashboard/lib/company/`](../src/dashboard/lib/company/)                                                   |
 
 ## What a folder contains
 
@@ -37,12 +36,12 @@ Every executable is a folder, not a single file — which is why the file layer
 commits it through the Git Data API (one tree, one commit) rather than the
 single-file `createOrUpdateFileContents` the commands/duties helpers use.
 
-| File                     | Purpose                                                                                                       | Generated from                                |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `profile.json`           | The engine manifest — role, inputs, `claudeCode` (model/tools/skills/permission), lifecycle, preflight chain. | the form fields (or a raw override you paste) |
-| `prompt.md`              | Engine storage for user-authored instructions. It should be glue plus runtime context; reusable method goes in skills. Simple generated executables also get a generated output contract. | the instructions field + the landing |
-| `skills/<name>/SKILL.md` | Each declared skill's body. Committed _into_ the folder — see [Skills](#skills).                              | the skills list                               |
-| `*.sh`                   | Optional shell scripts run as preflight steps (setup work) before the agent.                                  | the shell-scripts list                        |
+| File                     | Purpose                                                                                                                                                                                   | Generated from                                |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `profile.json`           | The engine manifest — role, inputs, `claudeCode` (model/tools/skills/permission), lifecycle, preflight chain.                                                                             | the form fields (or a raw override you paste) |
+| `prompt.md`              | Engine storage for user-authored instructions. It should be glue plus runtime context; reusable method goes in skills. Simple generated executables also get a generated output contract. | the instructions field + the landing          |
+| `skills/<name>/SKILL.md` | Each declared skill's body. Committed _into_ the folder — see [Skills](#skills).                                                                                                          | the skills list                               |
+| `*.sh`                   | Optional shell scripts run as preflight steps (setup work) before the agent.                                                                                                              | the shell-scripts list                        |
 
 On **read**, the file layer strips the generated contract from `prompt.md` so
 the editor shows only the instructions; on **write** it re-appends the right
@@ -58,11 +57,11 @@ plan.
 
 Start by deciding what kind of executable you are building:
 
-| Kind | Use when | Shape |
-| ---- | -------- | ----- |
-| **Agent executable** | The work needs judgment, reading, editing, planning, or tool choice. | `profile.json` wires an agent run; `prompt.md` gives short glue instructions; skills carry reusable method. |
-| **Deterministic executable** | The work is mechanical and repeatable: parse files, call APIs, generate a report. | `profile.json` runs a shell preflight, then `skipAgent`; `prompt.md` is only a small note. |
-| **Orchestrator executable** | The work is routing or sequencing other executables. | `profile.json` uses postflight/preflight transitions; usually `skipAgent`. |
+| Kind                         | Use when                                                                          | Shape                                                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Agent executable**         | The work needs judgment, reading, editing, planning, or tool choice.              | `profile.json` wires an agent run; `prompt.md` gives short glue instructions; skills carry reusable method. |
+| **Deterministic executable** | The work is mechanical and repeatable: parse files, call APIs, generate a report. | `profile.json` runs a shell preflight, then `skipAgent`; `prompt.md` is only a small note.                  |
+| **Orchestrator executable**  | The work is routing or sequencing other executables.                              | `profile.json` uses postflight/preflight transitions; usually `skipAgent`.                                  |
 
 Keep the executable folder easy for an operator to inspect:
 
@@ -83,7 +82,7 @@ Use these rules:
 - `skills/<name>/SKILL.md` is reusable method or domain knowledge. Put rules, rubrics, definitions, and repeatable reasoning there.
 - `*.sh` files are deterministic executable-owned scripts. Put setup, parsing, API calls, report generation, and other mechanical work there.
 - The **Tools** tab means MCP tool servers, not local helper scripts. Use it for things like Playwright MCP or codegraph MCP.
-- Duties own cadence, staff assignment, purpose, and safety bounds. Do not put recurring-job policy in an executable.
+- Duties own public action names, cadence, staff assignment, purpose, and safety bounds. Do not put recurring-job policy in an executable.
 - Staff files own persona. Do not redescribe staff identity in an executable.
 
 Use `skipAgent` when the script does all the work:
@@ -238,10 +237,11 @@ a `buildSyntheticPlugin` preflight step whenever the skills list is non-empty
                    │  .kody/executables/<slug>/ committed
                    ▼
    ┌──────────────────────────────────────────┐
-   │ Run: POST /run → comment "@kody <slug>"   │
+   │ Duty action dispatches workflow          │
+   │ action → duty → executable implementation │
    │ (or "Set default" → kody.config.json)     │
    └───────────────┬──────────────────────────┘
-                   │ engine resolves <slug> against
+                   │ engine resolves executable slug against
                    │ .kody/executables/ FIRST, then built-ins
                    ▼
    ┌──────────────────────────────────────────┐
@@ -251,9 +251,9 @@ a `buildSyntheticPlugin` preflight step whenever the skills list is non-empty
    └──────────────────────────────────────────┘
 ```
 
-Execution assignment is owned by **Duties** — a duty binds intent, staff,
-cadence, and the executables it may run. The `/executables` page is edit-only;
-run dispatch lives on the duty.
+Execution assignment is owned by **Duties** — a duty binds public action, intent,
+staff, cadence, and the implementation executable it may run. The
+`/executables` page is edit-only; run dispatch lives on the duty.
 
 ## Writes need a signed-in user token
 
@@ -296,8 +296,8 @@ the company files in [`../src/dashboard/lib/company/`](../src/dashboard/lib/comp
 **How does the engine find my custom executable instead of a built-in?**
 
 The engine's executable registry checks `.kody/executables/` **before** its own
-`src/executables/`, so a folder whose `profile.json` `name` matches `<slug>`
-wins for `@kody <slug>`. Same lookup the dashboard relies on for every action.
+`src/executables/`, so a folder whose `profile.json` `name` matches the
+implementation slug wins when a duty lowers to that executable.
 
 **What's the difference between "PR" and "comment" landing?**
 
