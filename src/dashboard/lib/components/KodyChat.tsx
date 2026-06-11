@@ -5084,6 +5084,7 @@ export function KodyChat({
                 }}
                 disabled={activeLoading}
               />
+              <div className="flex-1" />
             </>
           )}
           {chatMode === "terminal" && (
