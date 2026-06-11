@@ -329,6 +329,14 @@ function ReportRow({
           />
         ) : null}
       </div>
+      {report.reviewStatus ? (
+        <div className="mt-1">
+          <span className="inline-flex items-center rounded border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">
+            {report.reviewStatus}
+            {report.reviewArea ? ` · ${report.reviewArea}` : ""}
+          </span>
+        </div>
+      ) : null}
       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
         <span className="font-mono opacity-80 truncate">{report.slug}</span>
         <span aria-hidden>·</span>
@@ -376,6 +384,15 @@ function ReportDetail({
               <Calendar className="w-3 h-3" />
               updated {formatRelative(report.updatedAt)}
             </span>
+            {report.reviewStatus ? (
+              <>
+                <span aria-hidden>·</span>
+                <span>
+                  review {report.reviewStatus}
+                  {report.reviewArea ? ` (${report.reviewArea})` : ""}
+                </span>
+              </>
+            ) : null}
             <span aria-hidden>·</span>
             <a
               href={report.htmlUrl}

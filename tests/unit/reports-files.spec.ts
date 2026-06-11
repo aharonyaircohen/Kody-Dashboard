@@ -115,4 +115,46 @@ describe("report files", () => {
       }),
     );
   });
+
+  it("strips report frontmatter and exposes review metadata", async () => {
+    const octokit = wireOctokit();
+    octokit.repos.getContent.mockResolvedValue({
+      data: {
+        content: b64(
+          [
+            "---",
+            'generatedAt: "2026-06-08T12:00:00Z"',
+            "dutySlug: skills-research",
+            "reviewStatus: action-needed",
+            "reviewArea: engineering-capability",
+            "findings:",
+            "  - id: missing-vitest",
+            "    severity: medium",
+            "    title: Add Vitest skill",
+            "---",
+            "# Skills Research",
+            "",
+            "Only Vitest is missing.",
+          ].join("\n"),
+        ),
+        size: 128,
+      },
+    });
+    octokit.repos.listCommits.mockResolvedValue({
+      data: [{ commit: { author: { date: "2026-06-02T09:00:00Z" } } }],
+    });
+
+    const report = await readReportFile("skills-research");
+
+    expect(report).toEqual(
+      expect.objectContaining({
+        title: "Skills Research",
+        body: "Only Vitest is missing.",
+        dutySlug: "skills-research",
+        reviewStatus: "action-needed",
+        reviewArea: "engineering-capability",
+        findingCount: 1,
+      }),
+    );
+  });
 });

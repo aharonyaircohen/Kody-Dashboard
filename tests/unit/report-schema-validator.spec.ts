@@ -32,6 +32,8 @@ describe("validate-reports", () => {
         "---",
         'generatedAt: "2026-06-08T12:00:00Z"',
         "dutySlug: health-check",
+        "reviewStatus: action-needed",
+        "reviewArea: operations",
         "findings:",
         "  - id: all-clear",
         "    severity: low",
@@ -46,6 +48,27 @@ describe("validate-reports", () => {
     );
 
     expect(runValidator(root)).toContain("Validated 1 report file(s).");
+  });
+
+  it("rejects unknown review status values", () => {
+    const { root, reports } = makeReportsDir();
+    writeFileSync(join(reports, "_schema.yaml"), "type: object\n");
+    writeFileSync(
+      join(reports, "bad-review.md"),
+      [
+        "---",
+        'generatedAt: "2026-06-08T12:00:00Z"',
+        "reviewStatus: urgent",
+        "findings:",
+        "  - id: all-clear",
+        "    severity: low",
+        "    title: All checks are green",
+        "---",
+        "# Bad Review",
+      ].join("\n"),
+    );
+
+    expect(() => runValidator(root)).toThrow(/reviewStatus must be/);
   });
 
   it("rejects reports without required finding fields", () => {

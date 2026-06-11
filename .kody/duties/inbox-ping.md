@@ -1,6 +1,6 @@
 ---
 every: 15m
-staff: kody
+staff: coo
 stage: simple-check
 mentions: aguyaharonyair
 executables: inbox-ping

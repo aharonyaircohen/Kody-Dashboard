@@ -10,6 +10,18 @@ properties:
   dutySlug:
     type: string
     description: Which duty produced this report.
+  reviewStatus:
+    type: string
+    enum:
+      - none
+      - info
+      - action-needed
+      - assigned
+      - reviewed
+    description: Whether another duty should triage or review the report.
+  reviewArea:
+    type: string
+    description: Routing area used by report review assignment.
   findings:
     type: array
     items:

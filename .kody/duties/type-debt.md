@@ -1,6 +1,6 @@
 ---
 every: 7d
-staff: kody
+staff: cto
 stage: sweep
 executables: type-debt
 disabled: true

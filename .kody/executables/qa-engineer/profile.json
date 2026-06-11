@@ -55,8 +55,13 @@
       "Edit",
       "mcp__playwright"
     ],
-    "hooks": ["block-git"],
-    "skills": ["qa-session"],
+    "hooks": [
+      "block-git"
+    ],
+    "skills": [
+      "qa-session",
+      "webapp-testing"
+    ],
     "commands": [],
     "subagents": [],
     "plugins": [],
@@ -84,22 +89,44 @@
       },
       "verify": "ls \"$HOME/.cache/ms-playwright\" 2>/dev/null | grep -q '^chromium' || ls \"$HOME/Library/Caches/ms-playwright\" 2>/dev/null | grep -q '^chromium'",
       "usage": "The Playwright MCP server uses Chromium under the hood. Preflight ensures it is installed. Save screenshots under `.kody/qa-reports/<run>/` if you take any — that directory is gitignored.",
-      "allowedUses": ["--version"]
+      "allowedUses": [
+        "--version"
+      ]
     }
   ],
   "inputArtifacts": [],
   "outputArtifacts": [],
   "scripts": {
     "preflight": [
-      { "script": "deriveQaScopeFromIssue" },
-      { "script": "resolveQaUrl" },
-      { "script": "discoverQaContext" },
-      { "script": "loadQaContext" },
-      { "script": "loadConventions" },
-      { "script": "warmupMcp" },
-      { "script": "buildSyntheticPlugin" },
-      { "script": "composePrompt" }
+      {
+        "script": "deriveQaScopeFromIssue"
+      },
+      {
+        "script": "resolveQaUrl"
+      },
+      {
+        "script": "discoverQaContext"
+      },
+      {
+        "script": "loadQaContext"
+      },
+      {
+        "script": "loadConventions"
+      },
+      {
+        "script": "warmupMcp"
+      },
+      {
+        "script": "buildSyntheticPlugin"
+      },
+      {
+        "script": "composePrompt"
+      }
     ],
-    "postflight": [{ "script": "createQaGoal" }]
+    "postflight": [
+      {
+        "script": "createQaGoal"
+      }
+    ]
   }
 }

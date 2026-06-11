@@ -1,6 +1,6 @@
 ---
 every: 1h
-staff: kody
+staff: coo
 stage: sweep
 executables: redispatch
 disabled: true
