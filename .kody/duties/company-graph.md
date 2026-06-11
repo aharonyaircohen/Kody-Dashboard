@@ -1,33 +1,25 @@
 ---
 every: manual
 staff: coo
+stage: report-refresh
 executables: company-graph
-reads_from: orchestration-conventions
+reads_from: orchestration-conventions, company-graph
 writes_to: company-graph
 ---
 
-# Company Graph — derive and refresh the orchestration graph
+# Company Graph - derive and refresh the orchestration graph
 
 ## Job
 
-Refresh a machine-readable graph of the company's orchestration surface: context,
-duties, staff, executables, goals, reports, and the issue edges attached to
-them.
+Refresh the machine-readable graph of context, duties, staff, executables, reports, goals, and issue edges.
 
-The graph is written to `.kody/reports/company-graph.md`. Chat and other duties can
-read that report instead of walking `.kody/` every time.
+## Executable
 
-This duty owns the purpose, schedule, staff assignment, and safety limits. The
-mechanical derivation and report write live in the `company-graph` executable.
+Run the `company-graph` executable. Its skill owns the detailed method and runtime state handling.
 
-The report should show:
+## Output
 
-- a snapshot count for each node type
-- orphan staff
-- stale context
-- disabled-but-referenced duties
-- `.kody/` coverage gaps
-- rate-limit skips, when the executable cannot safely refresh
+Refresh `.kody/reports/company-graph.md`.
 
 ## Allowed Commands
 
@@ -36,15 +28,6 @@ The report should show:
 ## Restrictions
 
 - Read-only on the working tree.
-- The only repo write is `.kody/reports/company-graph.md`.
-- No issue comments, inbox pings, PRs, labels, or task dispatches.
-- No LLM summaries of file contents. The graph is structured data, not prose.
-- Quiet on success: no comments, no inbox pings, no PRs, no labels. The report file is the only output.
-
-## State
-
-- `cursor`: `idle` | `producing` | `error`
-- `data.lastRunISO`: ISO timestamp of the last tick that ran
-- `data.lastReportISO`: ISO timestamp of the last successful report write
-- `data.findingCount`: count of findings in the last report (informational)
-- `done`: always `false`
+- Only write the company graph report.
+- Do not post comments, labels, PRs, or inbox messages.
+- Do not summarize file prose; derive structure.

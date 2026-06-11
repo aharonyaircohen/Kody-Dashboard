@@ -34,6 +34,7 @@ import {
   type TickFrontmatter,
   type ScheduleEvery,
 } from "./frontmatter";
+import type { DutyStageTemplateSlug } from "../duties/stage-templates";
 
 export interface TickFile {
   /** Filename without `.md` — stable identity. */
@@ -85,6 +86,8 @@ export interface TickFile {
    * duty's staff picker; the engine scheduler skips duties with no staff.
    */
   staff: string | null;
+  /** Friendly progress template slug (`stage:` frontmatter), or null. */
+  stage: DutyStageTemplateSlug | null;
   /**
    * GitHub logins this file's output should `@`-mention, parsed from the
    * `mentions:` frontmatter (comma-separated, no `@`). Empty array when the
@@ -121,6 +124,8 @@ export interface TickWriteOptions {
    * writes no `staff:` line. Only duties set this; staff files never do.
    */
   staff?: string | null;
+  /** Friendly progress template slug to emit as `stage:` frontmatter. */
+  stage?: DutyStageTemplateSlug | null;
   /**
    * GitHub logins to emit as the `mentions:` frontmatter (comma-separated,
    * no `@`). Empty / absent writes no `mentions:` line.
@@ -373,6 +378,7 @@ function buildFileContent(
   schedule: ScheduleEvery | null,
   disabled: boolean,
   staff: string | null,
+  stage: DutyStageTemplateSlug | null,
   mentions: string[],
   executables: string[],
   dutyTools: string[],
@@ -388,6 +394,7 @@ function buildFileContent(
   const fm: TickFrontmatter = {};
   if (schedule) fm.every = schedule;
   if (staff) fm.staff = staff;
+  if (stage) fm.stage = stage;
   if (mentions.length > 0) fm.mentions = mentions;
   if (executables.length > 0) fm.executables = executables;
   if (dutyTools.length > 0) fm.dutyTools = dutyTools;
@@ -515,6 +522,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
             schedule: frontmatter.every ?? null,
             disabled: frontmatter.disabled === true,
             staff: frontmatter.staff ?? null,
+            stage: frontmatter.stage ?? null,
             mentions: frontmatter.mentions ?? [],
             executables: frontmatter.executables ?? [],
             dutyTools: frontmatter.dutyTools ?? [],
@@ -595,6 +603,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         schedule: frontmatter.every ?? null,
         disabled: frontmatter.disabled === true,
         staff: frontmatter.staff ?? null,
+        stage: frontmatter.stage ?? null,
         mentions: frontmatter.mentions ?? [],
         executables: frontmatter.executables ?? [],
         dutyTools: frontmatter.dutyTools ?? [],
@@ -624,6 +633,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
       opts.schedule ?? null,
       opts.disabled === true,
       opts.staff ?? null,
+      opts.stage ?? null,
       opts.mentions ?? [],
       opts.executables ?? [],
       opts.dutyTools ?? [],

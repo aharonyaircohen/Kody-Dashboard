@@ -21,7 +21,7 @@
     "cacheable": true,
     "tools": ["Read", "Grep", "Glob", "Bash", "Agent", "mcp__codegraph"],
     "hooks": ["block-write"],
-    "skills": [],
+    "skills": ["code-review"],
     "commands": [],
     "subagents": [
       "review-security",
@@ -60,6 +60,9 @@
       },
       {
         "script": "loadConventions"
+      },
+      {
+        "script": "buildSyntheticPlugin"
       },
       {
         "script": "composePrompt"

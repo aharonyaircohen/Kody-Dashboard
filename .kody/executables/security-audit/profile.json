@@ -1,0 +1,54 @@
+{
+  "name": "security-audit",
+  "role": "primitive",
+  "kind": "oneshot",
+  "describe": "Coordinate a security posture sweep covering dependencies, application code, and supply chain risks.",
+  "inputs": [],
+  "claudeCode": {
+    "model": "inherit",
+    "permissionMode": "default",
+    "maxTurns": null,
+    "maxThinkingTokens": null,
+    "systemPromptAppend": null,
+    "cacheable": true,
+    "tools": [
+      "Read",
+      "Bash",
+      "Grep",
+      "Glob"
+    ],
+    "hooks": [],
+    "skills": [
+      "security-audit"
+    ],
+    "commands": [],
+    "subagents": [],
+    "plugins": [],
+    "mcpServers": []
+  },
+  "cliTools": [
+    "gh"
+  ],
+  "scripts": {
+    "preflight": [
+      {
+        "script": "buildSyntheticPlugin"
+      },
+      {
+        "script": "composePrompt"
+      }
+    ],
+    "postflight": [
+      {
+        "script": "parseAgentResult"
+      }
+    ]
+  },
+  "output": {
+    "actionTypes": [
+      "SECURITY_AUDIT_COMPLETED",
+      "SECURITY_AUDIT_FAILED",
+      "AGENT_NOT_RUN"
+    ]
+  }
+}

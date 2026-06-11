@@ -107,6 +107,7 @@ const bundle = {
       schedule: null,
       disabled: false,
       staff: null,
+      stage: null,
     },
   ],
   duties: [
@@ -117,6 +118,7 @@ const bundle = {
       schedule: "1d" as const,
       disabled: false,
       staff: "cto",
+      stage: "report-refresh" as const,
     },
   ],
   commands: [{ slug: "review", description: "d", argumentHint: "", body: "B" }],

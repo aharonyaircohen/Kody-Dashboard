@@ -27,7 +27,7 @@
     "cacheable": true,
     "tools": ["Read", "Bash"],
     "hooks": [],
-    "skills": [],
+    "skills": ["issue-classification"],
     "commands": [],
     "subagents": [],
     "plugins": [],
@@ -48,6 +48,7 @@
       { "script": "loadTaskState" },
       { "script": "classifyByLabel" },
       { "script": "loadConventions" },
+      { "script": "buildSyntheticPlugin" },
       { "script": "composePrompt" }
     ],
     "postflight": [

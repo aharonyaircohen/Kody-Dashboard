@@ -1,0 +1,54 @@
+{
+  "name": "cleanup-branches",
+  "role": "primitive",
+  "kind": "oneshot",
+  "describe": "Delete stale task branches whose linked task is closed, done, or failed.",
+  "inputs": [],
+  "claudeCode": {
+    "model": "inherit",
+    "permissionMode": "default",
+    "maxTurns": null,
+    "maxThinkingTokens": null,
+    "systemPromptAppend": null,
+    "cacheable": true,
+    "tools": [
+      "Read",
+      "Bash",
+      "Grep",
+      "Glob"
+    ],
+    "hooks": [],
+    "skills": [
+      "cleanup-branches"
+    ],
+    "commands": [],
+    "subagents": [],
+    "plugins": [],
+    "mcpServers": []
+  },
+  "cliTools": [
+    "gh"
+  ],
+  "scripts": {
+    "preflight": [
+      {
+        "script": "buildSyntheticPlugin"
+      },
+      {
+        "script": "composePrompt"
+      }
+    ],
+    "postflight": [
+      {
+        "script": "parseAgentResult"
+      }
+    ]
+  },
+  "output": {
+    "actionTypes": [
+      "CLEANUP_BRANCHES_COMPLETED",
+      "CLEANUP_BRANCHES_FAILED",
+      "AGENT_NOT_RUN"
+    ]
+  }
+}

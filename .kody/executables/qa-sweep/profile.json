@@ -1,0 +1,54 @@
+{
+  "name": "qa-sweep",
+  "role": "primitive",
+  "kind": "oneshot",
+  "describe": "Run broad exploratory QA against the live app and summarize actionable findings.",
+  "inputs": [],
+  "claudeCode": {
+    "model": "inherit",
+    "permissionMode": "default",
+    "maxTurns": null,
+    "maxThinkingTokens": null,
+    "systemPromptAppend": null,
+    "cacheable": true,
+    "tools": [
+      "Read",
+      "Bash",
+      "Grep",
+      "Glob"
+    ],
+    "hooks": [],
+    "skills": [
+      "qa-sweep"
+    ],
+    "commands": [],
+    "subagents": [],
+    "plugins": [],
+    "mcpServers": []
+  },
+  "cliTools": [
+    "gh"
+  ],
+  "scripts": {
+    "preflight": [
+      {
+        "script": "buildSyntheticPlugin"
+      },
+      {
+        "script": "composePrompt"
+      }
+    ],
+    "postflight": [
+      {
+        "script": "parseAgentResult"
+      }
+    ]
+  },
+  "output": {
+    "actionTypes": [
+      "QA_SWEEP_COMPLETED",
+      "QA_SWEEP_FAILED",
+      "AGENT_NOT_RUN"
+    ]
+  }
+}

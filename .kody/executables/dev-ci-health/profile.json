@@ -1,0 +1,54 @@
+{
+  "name": "dev-ci-health",
+  "role": "primitive",
+  "kind": "oneshot",
+  "describe": "Watch the `dev` branch CI and open or reuse one tracking issue when the branch is red.",
+  "inputs": [],
+  "claudeCode": {
+    "model": "inherit",
+    "permissionMode": "default",
+    "maxTurns": null,
+    "maxThinkingTokens": null,
+    "systemPromptAppend": null,
+    "cacheable": true,
+    "tools": [
+      "Read",
+      "Bash",
+      "Grep",
+      "Glob"
+    ],
+    "hooks": [],
+    "skills": [
+      "dev-ci-health"
+    ],
+    "commands": [],
+    "subagents": [],
+    "plugins": [],
+    "mcpServers": []
+  },
+  "cliTools": [
+    "gh"
+  ],
+  "scripts": {
+    "preflight": [
+      {
+        "script": "buildSyntheticPlugin"
+      },
+      {
+        "script": "composePrompt"
+      }
+    ],
+    "postflight": [
+      {
+        "script": "parseAgentResult"
+      }
+    ]
+  },
+  "output": {
+    "actionTypes": [
+      "DEV_CI_HEALTH_COMPLETED",
+      "DEV_CI_HEALTH_FAILED",
+      "AGENT_NOT_RUN"
+    ]
+  }
+}

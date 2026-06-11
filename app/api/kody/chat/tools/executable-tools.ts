@@ -9,6 +9,8 @@
  *   rely on the module-level GitHub context the chat route sets, writes
  *   pass the per-request octokit explicitly.
  */
+import { readFile } from "fs/promises";
+import path from "path";
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
@@ -39,11 +41,39 @@ const shellSchema = z.object({
   content: z.string(),
 });
 
+async function readExecutableGuide(): Promise<string> {
+  try {
+    return await readFile(path.join(process.cwd(), "docs/executables.md"), "utf8");
+  } catch {
+    return [
+      "# How to create a proper executable",
+      "",
+      "- Kody can create or update custom executables with `create_or_update_executable`.",
+      "- Keep `prompt.md` as small operator-owned instructions.",
+      "- Put reusable method/rules in `skills/<name>/SKILL.md`.",
+      "- Put deterministic work in executable-owned `*.sh` scripts.",
+      "- Use MCP tools only for external callable tool servers.",
+      "- Use `skipAgent` when the script does all the work.",
+      "- Duties own cadence, staff, purpose, and safety bounds.",
+    ].join("\n");
+  }
+}
+
 export function createExecutableTools(ctx: Ctx) {
   const { octokit, owner, repo } = ctx;
   const repoRef = `${owner}/${repo}`;
 
   return {
+    read_executable_creation_guide: tool({
+      description: `Read the required guide for creating or editing custom executables. Call this before designing or using create_or_update_executable. Also confirms Kody can create/update executables through chat.`,
+      inputSchema: z.object({}),
+      execute: async () => ({
+        canCreateExecutable: true,
+        creationTool: "create_or_update_executable",
+        guide: await readExecutableGuide(),
+      }),
+    }),
+
     list_executables: tool({
       description: `List the custom executables in ${repoRef} (the @kody <slug> actions stored at .kody/executables/<slug>/). Returns slug, description, and landing (opens a PR vs comments).`,
       inputSchema: z.object({}),
@@ -75,7 +105,7 @@ export function createExecutableTools(ctx: Ctx) {
     }),
 
     create_or_update_executable: tool({
-      description: `Create or update a custom executable in ${repoRef}. Commits .kody/executables/<slug>/ (profile.json + prompt.md + any skills/scripts) as one commit. \`landing\` "pr" opens a pull request; "comment" posts a comment. Skills install via the names you give; each skill body is its SKILL.md. Shell scripts run as preflight steps.`,
+      description: `Create or update a custom executable in ${repoRef}. Kody can use this tool to create one. Before calling it, call read_executable_creation_guide and follow that guide. Commits .kody/executables/<slug>/ (profile.json + prompt.md + any skills/scripts) as one commit. \`landing\` "pr" opens a pull request; "comment" posts a comment. Skills install via the names you give; each skill body is its SKILL.md. Shell scripts run as preflight steps.`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         describe: z.string().default(""),

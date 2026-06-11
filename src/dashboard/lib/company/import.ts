@@ -86,6 +86,7 @@ async function importTickCollection(
         schedule: entry.schedule,
         disabled: entry.disabled,
         staff: entry.staff,
+        stage: entry.stage,
         sha: existing?.sha,
       });
       if (existing) counts.updated++;

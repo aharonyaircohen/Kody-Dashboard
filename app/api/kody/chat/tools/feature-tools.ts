@@ -126,7 +126,6 @@ Format (must match existing duties in \`.kody/duties/\`):
 - \`## Job\` — purpose (the engine's job-tick executor parses this heading, so its text stays literal)
 - \`## Allowed Commands\`
 - \`## Restrictions\`
-- \`## State\`
 
 Default template is REPORT-PRODUCER: each active tick gathers inputs, composes
 a YAML \`findings:\` report, and commits it to
@@ -134,8 +133,11 @@ a YAML \`findings:\` report, and commits it to
 executable only has Bash + Read tools — reports are committed via the contents
 API, not the working tree).
 
-The chat exposes the \`create_kody_duty\` tool to scaffold a new duty after a
-gap-analysis conversation.`,
+Do not put raw state keys in the duty body. Use the \`stage:\` frontmatter
+template so progress/state stays engine-owned.
+
+The chat exposes \`read_duty_creation_guide\` and \`create_kody_duty\` to
+scaffold a new duty after a gap-analysis conversation.`,
   },
   {
     id: "kody-staff",

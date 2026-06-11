@@ -1,17 +1,4 @@
-<!--
-Placeholder. The spec sub-orchestrator runs with maxTurns: 0 and a
-`skipAgent` preflight, so this prompt is never sent to Claude. The
-transition logic lives entirely in profile.json's postflight entries.
--->
+The spec executable is a no-agent orchestrator.
 
-<!-- kody:output-format (managed — edit above this line only) -->
-
-# Final message format (required)
-
-Your FINAL message MUST be exactly this block, with nothing before it:
-
-DONE
-PR_SUMMARY:
-<your complete answer to the issue — this text is posted verbatim as a comment>
-
-If you cannot answer, output a single line instead: FAILED: <reason>
+It advances the spec workflow through `profile.json` postflight transitions.
+No model prompt is sent for this executable.

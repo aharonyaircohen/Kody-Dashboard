@@ -1,0 +1,54 @@
+{
+  "name": "dead-code-sweep",
+  "role": "primitive",
+  "kind": "oneshot",
+  "describe": "Coordinate monthly cleanup of unused exports, files, and dependencies.",
+  "inputs": [],
+  "claudeCode": {
+    "model": "inherit",
+    "permissionMode": "default",
+    "maxTurns": null,
+    "maxThinkingTokens": null,
+    "systemPromptAppend": null,
+    "cacheable": true,
+    "tools": [
+      "Read",
+      "Bash",
+      "Grep",
+      "Glob"
+    ],
+    "hooks": [],
+    "skills": [
+      "dead-code-sweep"
+    ],
+    "commands": [],
+    "subagents": [],
+    "plugins": [],
+    "mcpServers": []
+  },
+  "cliTools": [
+    "gh"
+  ],
+  "scripts": {
+    "preflight": [
+      {
+        "script": "buildSyntheticPlugin"
+      },
+      {
+        "script": "composePrompt"
+      }
+    ],
+    "postflight": [
+      {
+        "script": "parseAgentResult"
+      }
+    ]
+  },
+  "output": {
+    "actionTypes": [
+      "DEAD_CODE_SWEEP_COMPLETED",
+      "DEAD_CODE_SWEEP_FAILED",
+      "AGENT_NOT_RUN"
+    ]
+  }
+}

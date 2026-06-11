@@ -5,17 +5,19 @@
  * @ai-summary Duty-creation tool for the kody-direct chat agent. Writes a
  *   `.kody/duties/<slug>.md` file via the same `writeDutyFile` helper the
  *   dashboard's POST /api/kody/duties endpoint uses. Default body follows
- *   the report-producer template: each tick gathers inputs, composes a
- *   YAML findings report, and commits it to `.kody/reports/<slug>.md`
- *   on the dedicated state branch via `gh api PUT`. Format mirrors existing
- *   duties (Job / Allowed Commands / Restrictions / State — the `## Job`
- *   heading is parsed by the engine's job-tick executor, so its text stays
- *   literal).
+ *   the report-producer template: each scheduled run gathers inputs,
+ *   composes a YAML findings report, and commits it to
+ *   `.kody/reports/<slug>.md` on the dedicated state branch via `gh api PUT`.
+ *   Format mirrors the duty contract (Job / Allowed Commands / Restrictions —
+ *   the `## Job` heading is parsed by the engine's job-tick executor, so its
+ *   text stays literal).
  *
  *   The model should NOT call this on the first turn — it must gap-
  *   analyze and ask the user questions until the duty is well-specified.
- *   See the "Creating Kody duties" block in AGENT_KODY.systemPrompt.
+ *   It should call read_duty_creation_guide first.
  */
+import { readFile } from "fs/promises";
+import path from "path";
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
@@ -26,6 +28,25 @@ import {
   writeDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
+import {
+  DUTY_STAGE_TEMPLATE_SLUGS,
+  type DutyStageTemplateSlug,
+} from "@dashboard/lib/duties/stage-templates";
+
+const DUTY_SCHEDULE_VALUES = [
+  "15m",
+  "30m",
+  "1h",
+  "2h",
+  "6h",
+  "12h",
+  "1d",
+  "3d",
+  "7d",
+  "manual",
+] as const;
+
+type DutyScheduleToken = (typeof DUTY_SCHEDULE_VALUES)[number];
 
 interface Ctx {
   octokit: Octokit;
@@ -38,8 +59,10 @@ interface Ctx {
 interface DutyInput {
   title: string;
   slug?: string;
+  staff: string;
+  schedule: DutyScheduleToken;
+  stage: DutyStageTemplateSlug;
   purpose: string;
-  cadenceHours: number;
   inputs: string[];
   reportSchema: string;
   extraAllowedCommands?: string[];
@@ -60,15 +83,30 @@ function bullets(items: string[]): string {
   return items.map((s) => `- ${s.trim()}`).join("\n");
 }
 
+async function readDutyGuide(): Promise<string> {
+  try {
+    return await readFile(path.join(process.cwd(), "docs/duties.md"), "utf8");
+  } catch {
+    return [
+      "# Kody duties",
+      "",
+      "- Kody can create duties with `create_kody_duty`.",
+      "- Duties live at `.kody/duties/<slug>.md`.",
+      "- A duty owns purpose, cadence, staff, progress type, and safety rules.",
+      "- Put staff persona in `.kody/staff/<slug>.md`.",
+      "- Put reusable action logic in `.kody/executables/<slug>/`.",
+      "- Do not put raw state keys in the duty body; use `stage:`.",
+    ].join("\n");
+  }
+}
+
 /**
  * Render the default report-producer duty body. The model fills in the
- * variable parts (purpose, cadence, inputs, report schema). Commands and
- * restrictions match the engine's job-tick constraints (Bash + Read +
- * `gh` only — no Write tool, so the report is committed via `gh api PUT`
- * to the state branch).
+ * variable parts (purpose, inputs, report schema). Cadence, staff, and
+ * progress live in frontmatter so the operator does not have to author raw
+ * runtime state rules.
  */
 function buildDutyBody(slug: string, input: DutyInput): string {
-  const cadence = Math.max(1, Math.round(input.cadenceHours));
   const inputBullets =
     input.inputs.length > 0 ? bullets(input.inputs) : "- _Not specified_";
   const reportSchemaBlock = input.reportSchema.trim() || "_Not specified_";
@@ -80,9 +118,7 @@ function buildDutyBody(slug: string, input: DutyInput): string {
   body += `## Job\n\n`;
   body += `${input.purpose.trim()}\n\n`;
 
-  body += `**Cadence guard.** If \`data.lastRunISO\` is set and within the last ${cadence} hours, emit unchanged state and exit. Otherwise proceed and update \`data.lastRunISO\` to now (UTC ISO).\n\n`;
-
-  body += `**Per tick (one action max):**\n\n`;
+  body += `**Per scheduled run:**\n\n`;
   body += `1. Gather inputs:\n`;
   body += `${inputBullets
     .split("\n")
@@ -114,7 +150,7 @@ function buildDutyBody(slug: string, input: DutyInput): string {
   body += `     -f content="$(printf '%s' "$REPORT_BODY" | base64)" \\\n`;
   body += `     "\${SHA_ARG[@]}"\n`;
   body += `   \`\`\`\n`;
-  body += `5. On success, stash \`data.lastReportISO = <now>\` and \`data.findingCount = <count>\`. On non-2xx, set \`cursor: error\` and narrate the status code.\n\n`;
+  body += `5. On success, stop. On non-2xx, report the status code and stop.\n\n`;
 
   body += `## Allowed Commands\n\n`;
   body += `- \`gh api\` — read + PUT contents on \`${STATE_BRANCH}:.kody/reports/${slug}.md\` only\n`;
@@ -125,16 +161,8 @@ function buildDutyBody(slug: string, input: DutyInput): string {
   body += `- Never edit, create, or delete files in the working tree. The report is committed via the GitHub contents API, not the working tree.\n`;
   body += `- Never push, never commit any branch/path other than \`${STATE_BRANCH}:.kody/reports/${slug}.md\`.\n`;
   body += `- Maximum **one** report write per tick.\n`;
-  body += `- If the contents PUT fails with 409 (sha mismatch), re-read the SHA and retry once; otherwise emit \`cursor: error\` and exit.\n`;
+  body += `- If the contents PUT fails with 409 (sha mismatch), re-read the SHA and retry once; otherwise report the error and exit.\n`;
   for (const r of extraRest) body += `- ${r.trim()}\n`;
-  body += `\n`;
-
-  body += `## State\n\n`;
-  body += `- \`cursor\`: \`idle\` | \`producing\` | \`error\`\n`;
-  body += `- \`data.lastRunISO\`: ISO timestamp of the last tick that ran (used by the cadence guard)\n`;
-  body += `- \`data.lastReportISO\`: ISO timestamp of the last successful report write\n`;
-  body += `- \`data.findingCount\`: count of findings in the last report (informational)\n`;
-  body += `- \`done\`: always \`false\`\n`;
 
   return body;
 }
@@ -151,20 +179,30 @@ export const createKodyDutyInputSchema = z.object({
       "Optional file slug (lowercase letters, digits, dashes, underscores; max 64 chars). " +
         "If omitted, derived from the title.",
     ),
+  staff: z
+    .string()
+    .min(1)
+    .describe(
+      "Staff persona slug that will run this duty, e.g. `qa` or `cto`. A duty without staff should not auto-run.",
+    ),
+  schedule: z
+    .enum(DUTY_SCHEDULE_VALUES)
+    .default("1d")
+    .describe(
+      "Frontmatter cadence for `every:`. Use `manual` for run-button only, or values like `1h`, `1d`, `7d` for auto-run.",
+    ),
+  stage: z
+    .enum(DUTY_STAGE_TEMPLATE_SLUGS)
+    .default("report-refresh")
+    .describe(
+      "Progress type for `stage:`. For this report-producing tool, `report-refresh` is usually correct.",
+    ),
   purpose: z
     .string()
     .min(1)
     .describe(
       "One to three sentences describing what the duty scans/observes and what report it produces. " +
         "No implementation details — those go in `inputs` and `reportSchema`.",
-    ),
-  cadenceHours: z
-    .number()
-    .int()
-    .min(1)
-    .max(720)
-    .describe(
-      "Minimum hours between active ticks (cadence guard). Daily = 24, weekly = 168, hourly = 1.",
     ),
   inputs: z
     .array(z.string().min(1))
@@ -203,17 +241,27 @@ export function createDutyTools(ctx: Ctx) {
   const repoRef = `${owner}/${repo}`;
 
   return {
+    read_duty_creation_guide: tool({
+      description:
+        "Read the required guide for creating Kody duties. Call this before designing or using create_kody_duty. Also confirms Kody can create duties through chat.",
+      inputSchema: z.object({}),
+      execute: async () => ({
+        canCreateDuty: true,
+        creationTool: "create_kody_duty",
+        guide: await readDutyGuide(),
+      }),
+    }),
+
     create_kody_duty: tool({
       description:
-        `Create a new Kody Duty in ${repoRef} by committing a markdown file at ` +
+        `Create a new Kody Duty in ${repoRef}. Before calling it, call read_duty_creation_guide and follow that guide. Commits a markdown file at ` +
         "`.kody/duties/<slug>.md`. The default template is a REPORT-PRODUCER: each " +
-        "tick gathers inputs, composes a YAML findings report, and commits it to " +
+        "scheduled run gathers inputs, composes a YAML findings report, and commits it to " +
         `\`${STATE_BRANCH}:.kody/reports/<slug>.md\` via \`gh api PUT\` (the engine's job-tick ` +
         "executable only has Bash + Read, so reports are committed via API, not " +
         "the working tree). The kody engine's job-scheduler ticks every duty in " +
-        "`.kody/duties/` on a 5-minute cron; each duty's own cadence guard decides " +
-        "whether to take action.\n\n" +
-        "BEFORE CALLING: gather title, purpose, cadenceHours, inputs (data sources " +
+        "`.kody/duties/`; the duty's `every:` frontmatter decides how often it may run.\n\n" +
+        "BEFORE CALLING: gather title, purpose, staff, schedule, stage, inputs (data sources " +
         "as concrete `gh` commands), and reportSchema (YAML fragment for the " +
         "`findings:` array). Ask the user clarifying questions in small batches " +
         "until each field is well-specified — never invent inputs or schema. Show " +
@@ -249,11 +297,22 @@ export function createDutyTools(ctx: Ctx) {
             slug,
             title: input.title,
             body,
+            schedule: input.schedule,
+            staff: input.staff,
+            stage: input.stage,
             message,
           });
 
           logger.info(
-            { owner, repo, slug, cadenceHours: input.cadenceHours, actorLogin },
+            {
+              owner,
+              repo,
+              slug,
+              schedule: input.schedule,
+              staff: input.staff,
+              stage: input.stage,
+              actorLogin,
+            },
             "create_kody_duty: created duty file",
           );
 
@@ -263,7 +322,7 @@ export function createDutyTools(ctx: Ctx) {
             htmlUrl: duty.htmlUrl,
             note:
               "Duty file committed. The kody engine's job-scheduler will pick it up on the next " +
-              "5-min cron tick. The first action runs once the cadence guard allows it.",
+              "5-min cron tick. The `every:` frontmatter controls how often it may run.",
           };
         } catch (err) {
           logger.warn(

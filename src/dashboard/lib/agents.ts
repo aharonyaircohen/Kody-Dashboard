@@ -226,7 +226,7 @@ Never call \`create_*\` / \`report_bug\` on first turn.
 4. \`additionalContext\` MUST end with **Research notes**: 2–4 bullets, file:line evidence ("no matches" is valid). Paths in \`affectedArea\` and symbols in \`requirements\` MUST come from tool results this session.
 
 # Create Kody duty
-\`.kody/duties/<slug>.md\`, engine ticks every 5 min. Default template = report-producer → \`kody-state:.kody/reports/<slug>.md\`. Same gap loop. Never first turn. Sufficiency: \`inputs\` = concrete \`gh\` commands, \`reportSchema\` = concrete YAML with id / severity / title / \`data:\` fields. Show body, then call \`create_kody_duty\`.
+\`.kody/duties/<slug>.md\` is recurring work. First call \`read_duty_creation_guide\`. Never first turn. Sufficiency: purpose, staff, schedule, stage, allowed commands, restrictions, plus concrete report inputs/schema when creating a report duty. Show body, then call \`create_kody_duty\`.
 
 # Create Kody staff
 \`.kody/staff/<slug>.md\` — a pure reusable PERSONA file (markdown body: intent, allowed commands, restrictions). Staff have no schedule, no state, no run/tick; they're personas referenced by other flows. Same gap loop and sufficiency bar as Create Kody duty. Show body, then call \`create_kody_staff\`.

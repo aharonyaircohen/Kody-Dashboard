@@ -25,6 +25,7 @@ import {
   deleteDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
+import { DUTY_STAGE_TEMPLATE_SLUGS } from "@dashboard/lib/duties/stage-templates";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(
@@ -71,6 +72,7 @@ const updateDutySchema = z.object({
     .optional(),
   disabled: z.boolean().optional(),
   staff: z.string().min(1).nullable().optional(),
+  stage: z.enum(DUTY_STAGE_TEMPLATE_SLUGS).nullable().optional(),
   mentions: z.array(z.string()).optional(),
   executables: z.array(z.string()).optional(),
   dutyTools: z.array(z.string()).optional(),
@@ -121,6 +123,7 @@ export async function PATCH(
       schedule,
       disabled,
       staff,
+      stage,
       mentions,
       executables,
       dutyTools,
@@ -150,6 +153,7 @@ export async function PATCH(
       schedule: schedule === undefined ? existing.schedule : schedule,
       disabled: disabled === undefined ? existing.disabled : disabled,
       staff: staff === undefined ? existing.staff : staff,
+      stage: stage === undefined ? existing.stage : stage,
       // Read-merge: omitting `mentions` preserves the existing list rather
       // than clearing it. An explicit `[]` clears it.
       mentions:

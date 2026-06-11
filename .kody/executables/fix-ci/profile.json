@@ -37,7 +37,7 @@
       "mcp__kody-verify"
     ],
     "hooks": ["block-git"],
-    "skills": [],
+    "skills": ["ci-repair"],
     "commands": [],
     "subagents": [],
     "plugins": [],
@@ -56,7 +56,10 @@
     "finalize": true
   },
   "scripts": {
-    "preflight": [{ "script": "fixCiFlow" }],
+    "preflight": [
+      { "script": "buildSyntheticPlugin" },
+      { "script": "fixCiFlow" }
+    ],
     "postflight": []
   },
   "output": {

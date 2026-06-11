@@ -102,6 +102,7 @@ function tickFile(over: Record<string, unknown> = {}) {
     schedule: null,
     disabled: false,
     staff: null,
+    stage: null,
     htmlUrl: "https://gh/x",
     ...over,
   };
@@ -156,6 +157,7 @@ describe("companyBundleSchema", () => {
           body: "do it",
           schedule: "1d",
           staff: "cto",
+          stage: "report-refresh",
         },
         { slug: "ad-hoc", title: "Ad hoc" },
       ],
@@ -185,6 +187,7 @@ describe("buildCompanyBundle", () => {
         title: "Nightly",
         schedule: "1d",
         staff: "cto",
+        stage: "report-refresh",
       }),
     ]);
     h.listRepoCommandFiles.mockResolvedValue({
@@ -231,12 +234,14 @@ describe("buildCompanyBundle", () => {
         schedule: null,
         disabled: false,
         staff: null,
+        stage: null,
       },
     ]);
     expect(bundle.duties[0]).toMatchObject({
       slug: "nightly",
       schedule: "1d",
       staff: "cto",
+      stage: "report-refresh",
     });
     // built-in command filtered out; only the repo one survives
     expect(bundle.commands).toHaveLength(1);
@@ -273,6 +278,7 @@ describe("applyCompanyBundle", () => {
         schedule: null,
         disabled: false,
         staff: null,
+        stage: null,
       },
     ],
     duties: [
@@ -283,6 +289,7 @@ describe("applyCompanyBundle", () => {
         schedule: "1d" as const,
         disabled: false,
         staff: "cto",
+        stage: "report-refresh" as const,
       },
     ],
     commands: [
@@ -320,6 +327,7 @@ describe("applyCompanyBundle", () => {
         slug: "nightly",
         staff: "cto",
         schedule: "1d",
+        stage: "report-refresh",
       }),
     );
   });

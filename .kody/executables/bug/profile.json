@@ -71,6 +71,9 @@
         "shell": "install-codegraph.sh"
       },
       {
+        "script": "buildSyntheticPlugin"
+      },
+      {
         "script": "runFlow"
       }
     ],

@@ -18,6 +18,10 @@
 
 import { z } from "zod";
 import type { ScheduleEvery } from "../ticked/frontmatter";
+import {
+  DUTY_STAGE_TEMPLATE_SLUGS,
+  type DutyStageTemplateSlug,
+} from "../duties/stage-templates";
 
 /** Bump when the on-disk bundle shape changes incompatibly. */
 export const COMPANY_BUNDLE_VERSION = 1 as const;
@@ -49,6 +53,8 @@ export interface CompanyTickEntry {
   disabled: boolean;
   /** Executor persona slug — duties only; staff entries are always null. */
   staff: string | null;
+  /** Friendly progress template slug — duties only; staff entries are null. */
+  stage: DutyStageTemplateSlug | null;
 }
 
 /** A slash-command entry. */
@@ -159,6 +165,7 @@ const tickEntrySchema = z.object({
   schedule: z.enum(SCHEDULE_TOKENS).nullable().default(null),
   disabled: z.boolean().default(false),
   staff: z.string().min(1).nullable().default(null),
+  stage: z.enum(DUTY_STAGE_TEMPLATE_SLUGS).nullable().default(null),
 });
 
 const commandEntrySchema = z.object({

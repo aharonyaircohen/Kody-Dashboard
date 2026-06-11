@@ -14,6 +14,11 @@
  *   over this single implementation.
  */
 
+import {
+  isDutyStageTemplateSlug,
+  type DutyStageTemplateSlug,
+} from "../duties/stage-templates";
+
 /** Allowed cadence tokens. Engine cron fires every 15 min; finer values round up. */
 export type ScheduleEvery =
   | "15m"
@@ -61,6 +66,11 @@ export interface TickFrontmatter {
    * carry it. A duty with no `staff:` is skipped by the engine scheduler.
    */
   staff?: string;
+  /**
+   * Friendly progress template slug. The duty author chooses a simple stage
+   * pattern; runtime state values stay in the engine-owned state file.
+   */
+  stage?: DutyStageTemplateSlug;
   /**
    * GitHub logins this file's output should `@`-mention. Stored as a
    * comma-separated list on one line (`mentions: alice, bob`), no leading
@@ -209,6 +219,8 @@ function parseFlatYaml(text: string): TickFrontmatter {
       else if (lower === "false") out.disabled = false;
     } else if (key === "staff" && value.length > 0) {
       out.staff = value;
+    } else if (key === "stage" && isDutyStageTemplateSlug(value)) {
+      out.stage = value;
     } else if (key === "mentions") {
       // Comma-separated logins on one line; trim, strip an optional leading
       // `@`, drop empties. Only set the field when at least one login remains.
@@ -234,6 +246,7 @@ function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
   const lines: string[] = [];
   if (frontmatter.every) lines.push(`every: ${frontmatter.every}`);
   if (frontmatter.staff) lines.push(`staff: ${frontmatter.staff}`);
+  if (frontmatter.stage) lines.push(`stage: ${frontmatter.stage}`);
   // Comma-separated logins on one line, no leading `@`. Omitted when empty
   // so an unchanged file stays byte-identical.
   if (frontmatter.mentions?.length)

@@ -71,6 +71,12 @@ import {
   summarizeDutyHealth,
 } from "../duties/schedule-health";
 import {
+  DEFAULT_DUTY_STAGE_TEMPLATE,
+  DUTY_STAGE_TEMPLATES,
+  getDutyStageTemplate,
+  type DutyStageTemplateSlug,
+} from "../duties/stage-templates";
+import {
   scheduleEveryLabel,
   ALL_SCHEDULE_EVERY_OPTIONS,
 } from "../duties-frontmatter";
@@ -121,6 +127,8 @@ interface ExecutableSummary {
 }
 
 const NO_EXECUTABLE_VALUE = "__none__";
+const ALL_STAFF_FILTER = "__all_staff__";
+const NO_STAFF_FILTER = "__no_staff__";
 
 function useExecutableSummaries() {
   const { auth } = useAuth();
@@ -177,24 +185,57 @@ export function DutyControlInner() {
   );
 
   const [search, setSearch] = useState("");
+  const [staffFilter, setStaffFilter] = useState(ALL_STAFF_FILTER);
+  const { data: staffMembers = [] } = useStaff();
+  const staffTitleBySlug = useMemo(
+    () => new Map(staffMembers.map((s) => [s.slug, s.title])),
+    [staffMembers],
+  );
+  const staffFilterOptions = useMemo(() => {
+    const slugs = new Set<string>();
+    staffMembers.forEach((s) => slugs.add(s.slug));
+    duties.forEach((d) => {
+      if (d.staff) slugs.add(d.staff);
+    });
+    return [...slugs].sort((a, b) =>
+      (staffTitleBySlug.get(a) ?? a).localeCompare(
+        staffTitleBySlug.get(b) ?? b,
+      ),
+    );
+  }, [duties, staffMembers, staffTitleBySlug]);
+  const hasUnassignedDuties = useMemo(
+    () => duties.some((d) => !d.staff),
+    [duties],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return duties;
+    const matchesStaffFilter = (duty: Duty) => {
+      if (staffFilter === ALL_STAFF_FILTER) return true;
+      if (staffFilter === NO_STAFF_FILTER) return !duty.staff;
+      return duty.staff === staffFilter;
+    };
     return duties.filter(
       (d) =>
-        d.slug.toLowerCase().includes(q) ||
-        d.title.toLowerCase().includes(q) ||
-        d.body.toLowerCase().includes(q) ||
-        (d.staff?.toLowerCase().includes(q) ?? false) ||
-        d.executables.some((e) => e.toLowerCase().includes(q)),
+        matchesStaffFilter(d) &&
+        (!q ||
+          d.slug.toLowerCase().includes(q) ||
+          d.title.toLowerCase().includes(q) ||
+          d.body.toLowerCase().includes(q) ||
+          (d.staff?.toLowerCase().includes(q) ?? false) ||
+          d.executables.some((e) => e.toLowerCase().includes(q))),
     );
-  }, [duties, search]);
+  }, [duties, search, staffFilter]);
 
   useEffect(() => {
-    if (!selectedSlug && duties.length > 0) {
-      setSelectedSlug(duties[0].slug);
+    if (filtered.length === 0) {
+      if (selectedSlug) setSelectedSlug(null);
+      return;
     }
-  }, [duties, selectedSlug]);
+    if (!selectedSlug || !filtered.some((duty) => duty.slug === selectedSlug)) {
+      setSelectedSlug(filtered[0].slug);
+    }
+  }, [filtered, selectedSlug]);
 
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteDuty(githubUser?.login);
@@ -230,7 +271,18 @@ export function DutyControlInner() {
         accent="emerald"
         hasSelection={!!selectedDuty}
         listAside={
-          duties.length > 0 ? <DutyHealthSummaryBar duties={duties} /> : null
+          duties.length > 0 ? (
+            <div className="mt-2 space-y-2">
+              <DutyStaffFilter
+                value={staffFilter}
+                onChange={setStaffFilter}
+                staffSlugs={staffFilterOptions}
+                staffTitleBySlug={staffTitleBySlug}
+                hasUnassignedDuties={hasUnassignedDuties}
+              />
+              <DutyHealthSummaryBar duties={duties} />
+            </div>
+          ) : null
         }
         actions={
           <>
@@ -296,7 +348,7 @@ export function DutyControlInner() {
           <EmptyState
             icon={<Target />}
             title="No matching duties"
-            hint="No duty matches your search. Try a different term."
+            hint="No duty matches the current filters."
           />
         ) : (
           <ul className="divide-y divide-border">
@@ -510,6 +562,15 @@ function DutyDetail({
                     {duty.executables.join(", ")}
                   </span>
                 ) : null}
+                {duty.stage ? (
+                  <span
+                    className="inline-flex items-center gap-1"
+                    title="Progress template"
+                  >
+                    <Target className="w-3 h-3" />
+                    {getDutyStageTemplate(duty.stage)?.label ?? duty.stage}
+                  </span>
+                ) : null}
                 <ScheduleInline schedule={duty.schedule} />
                 <LastTickDetail
                   lastTickAt={duty.lastTickAt}
@@ -650,6 +711,9 @@ function CreateDutyDialog({
   const [body, setBody] = useState(DUTY_TEMPLATE);
   const [enabled, setEnabled] = useState(true);
   const [staff, setStaff] = useState<string | null>(null);
+  const [stage, setStage] = useState<DutyStageTemplateSlug>(
+    DEFAULT_DUTY_STAGE_TEMPLATE,
+  );
   const [mentions, setMentions] = useState("");
   const [executables, setExecutables] = useState<string[]>([]);
 
@@ -659,6 +723,7 @@ function CreateDutyDialog({
       setBody(DUTY_TEMPLATE);
       setEnabled(true);
       setStaff(null);
+      setStage(DEFAULT_DUTY_STAGE_TEMPLATE);
       setMentions("");
       setExecutables([]);
     }
@@ -677,6 +742,7 @@ function CreateDutyDialog({
         schedule: "manual",
         disabled: !enabled,
         staff,
+        stage,
         mentions: parseMentionsInput(mentions),
         executables,
       },
@@ -710,6 +776,7 @@ function CreateDutyDialog({
           </div>
           <DutyEnabledCheckbox enabled={enabled} onChange={setEnabled} />
           <StaffSelect value={staff} onChange={setStaff} />
+          <StageTemplateSelect value={stage} onChange={setStage} />
           <ExecutablesSelect value={executables} onChange={setExecutables} />
           <MentionsInput value={mentions} onChange={setMentions} />
           <div className="space-y-1.5">
@@ -752,6 +819,7 @@ function EditDutyDialog({
   const [enabled, setEnabled] = useState(!duty.disabled);
   const [schedule, setSchedule] = useState<DutySchedule | null>(duty.schedule);
   const [staff, setStaff] = useState<string | null>(duty.staff);
+  const [stage, setStage] = useState<DutyStageTemplateSlug | null>(duty.stage);
   const [mentions, setMentions] = useState(formatMentionsInput(duty.mentions));
   const [executables, setExecutables] = useState<string[]>(duty.executables);
 
@@ -761,6 +829,7 @@ function EditDutyDialog({
     setEnabled(!duty.disabled);
     setSchedule(duty.schedule);
     setStaff(duty.staff);
+    setStage(duty.stage);
     setMentions(formatMentionsInput(duty.mentions));
     setExecutables(duty.executables);
   }, [duty]);
@@ -773,6 +842,7 @@ function EditDutyDialog({
       disabled?: boolean;
       schedule?: DutySchedule | null;
       staff?: string | null;
+      stage?: DutyStageTemplateSlug | null;
       mentions?: string[];
       executables?: string[];
     } = {};
@@ -781,6 +851,7 @@ function EditDutyDialog({
     if (enabled !== !duty.disabled) patch.disabled = !enabled;
     if (schedule !== duty.schedule) patch.schedule = schedule;
     if (staff !== duty.staff) patch.staff = staff;
+    if (stage !== duty.stage) patch.stage = stage;
     const nextMentions = parseMentionsInput(mentions);
     if (!sameMentions(nextMentions, duty.mentions))
       patch.mentions = nextMentions;
@@ -817,6 +888,7 @@ function EditDutyDialog({
           <DutyEnabledCheckbox enabled={enabled} onChange={setEnabled} />
           <ScheduleSelect value={schedule} onChange={setSchedule} />
           <StaffSelect value={staff} onChange={setStaff} />
+          <StageTemplateSelect value={stage} onChange={setStage} />
           <ExecutablesSelect value={executables} onChange={setExecutables} />
           <MentionsInput value={mentions} onChange={setMentions} />
           <DutyTimingReadout
@@ -935,6 +1007,45 @@ function DutyHealthSummaryBar({ duties }: { duties: Duty[] }) {
         </span>
       ) : null}
     </div>
+  );
+}
+
+function DutyStaffFilter({
+  value,
+  onChange,
+  staffSlugs,
+  staffTitleBySlug,
+  hasUnassignedDuties,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  staffSlugs: string[];
+  staffTitleBySlug: Map<string, string>;
+  hasUnassignedDuties: boolean;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger
+        aria-label="Filter duties by staff"
+        className="h-9 w-full bg-background/40"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL_STAFF_FILTER}>All staff</SelectItem>
+        {hasUnassignedDuties ? (
+          <SelectItem value={NO_STAFF_FILTER}>No staff</SelectItem>
+        ) : null}
+        {staffSlugs.map((slug) => {
+          const title = staffTitleBySlug.get(slug);
+          return (
+            <SelectItem key={slug} value={slug}>
+              {title ? `${title} (${slug})` : slug}
+            </SelectItem>
+          );
+        })}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -1168,6 +1279,52 @@ function ScheduleSelect({
         <strong>Auto</strong> — the body&apos;s cadence guard decides when to
         run. A <strong>fixed cadence</strong> caps how often it can act.{" "}
         <strong>Manual only</strong> — never auto-runs; click Run to trigger.
+      </p>
+    </div>
+  );
+}
+
+function StageTemplateSelect({
+  value,
+  onChange,
+}: {
+  value: DutyStageTemplateSlug | null;
+  onChange: (next: DutyStageTemplateSlug) => void;
+}) {
+  const selected = getDutyStageTemplate(value ?? DEFAULT_DUTY_STAGE_TEMPLATE);
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="duty-stage">Progress</Label>
+      <Select
+        value={value ?? DEFAULT_DUTY_STAGE_TEMPLATE}
+        onValueChange={(v) => onChange(v as DutyStageTemplateSlug)}
+      >
+        <SelectTrigger id="duty-stage" className="w-full">
+          <span className="truncate">
+            {selected?.label ?? "Select progress"}
+          </span>
+        </SelectTrigger>
+        <SelectContent>
+          {DUTY_STAGE_TEMPLATES.map((template) => (
+            <SelectItem
+              key={template.slug}
+              value={template.slug}
+              textValue={template.label}
+              className="items-start py-2"
+            >
+              <span className="flex flex-col gap-0.5">
+                <span>{template.label}</span>
+                <span className="text-xs leading-snug text-muted-foreground">
+                  {template.description}
+                </span>
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {selected?.description ??
+          "Choose how the dashboard should describe progress for this duty."}
       </p>
     </div>
   );

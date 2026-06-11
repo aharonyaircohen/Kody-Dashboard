@@ -38,7 +38,7 @@
       "mcp__codegraph"
     ],
     "hooks": ["block-git"],
-    "skills": [],
+    "skills": ["implementation-session"],
     "commands": [],
     "subagents": [],
     "plugins": [],
@@ -69,6 +69,9 @@
     "preflight": [
       {
         "shell": "install-codegraph.sh"
+      },
+      {
+        "script": "buildSyntheticPlugin"
       },
       {
         "script": "runFlow"

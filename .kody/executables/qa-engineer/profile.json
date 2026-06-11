@@ -56,7 +56,7 @@
       "mcp__playwright"
     ],
     "hooks": ["block-git"],
-    "skills": [],
+    "skills": ["qa-session"],
     "commands": [],
     "subagents": [],
     "plugins": [],
@@ -97,6 +97,7 @@
       { "script": "loadQaContext" },
       { "script": "loadConventions" },
       { "script": "warmupMcp" },
+      { "script": "buildSyntheticPlugin" },
       { "script": "composePrompt" }
     ],
     "postflight": [{ "script": "createQaGoal" }]

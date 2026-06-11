@@ -37,7 +37,7 @@
       "mcp__kody-verify"
     ],
     "hooks": ["block-git"],
-    "skills": [],
+    "skills": ["chore-session"],
     "commands": [],
     "subagents": [],
     "plugins": [],
@@ -59,7 +59,10 @@
     "finalize": true
   },
   "scripts": {
-    "preflight": [{ "script": "runFlow" }],
+    "preflight": [
+      { "script": "buildSyntheticPlugin" },
+      { "script": "runFlow" }
+    ],
     "postflight": []
   },
   "output": {

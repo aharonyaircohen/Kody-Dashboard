@@ -16,12 +16,15 @@ default branch is the source of truth. That's why three different surfaces
 the same executable without coordinating: they all read and write the same
 files through the GitHub Git Data API.
 
+Kody chat can create or update one too: it should first read this guide, then
+use the `create_or_update_executable` tool.
+
 ## The pieces
 
 | Piece                     | What it is                                                                                                                                                                                                                                                                           | Where                                                                                                              |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | The executable **folder** | `.kody/executables/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first. | the connected repo                                                                                                 |
-| **File layer**            | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. Reads strip the managed output contract; writes re-append it.                                                                                                             | [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           |
+| **File layer**            | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. For simple generated executables, reads strip the generated output contract and writes re-append it.                                                                        | [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           |
 | **Profile helpers**       | Pure form-fields ↔ `profile.json` translation, slug validation, and engine-mirroring profile validation. No I/O.                                                                                                                                                                     | [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       |
 | The **/executables page** | CRUD UI: list, create, edit, validate, run, delete, set-default, import a skill.                                                                                                                                                                                                     | [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) |
 | **Control API**           | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/default`, `/run`, and `/import-skill` sub-routes.                                                                                                                                                                        | [`../app/api/kody/executables/`](../app/api/kody/executables/)                                                     |
@@ -37,19 +40,116 @@ single-file `createOrUpdateFileContents` the commands/duties helpers use.
 | File                     | Purpose                                                                                                       | Generated from                                |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | `profile.json`           | The engine manifest — role, inputs, `claudeCode` (model/tools/skills/permission), lifecycle, preflight chain. | the form fields (or a raw override you paste) |
-| `prompt.md`              | Engine storage for user-authored instructions, with the managed **output-format contract** appended after a sentinel when an agent runs. | the instructions field + the landing |
+| `prompt.md`              | Engine storage for user-authored instructions. It should be glue plus runtime context; reusable method goes in skills. Simple generated executables also get a generated output contract. | the instructions field + the landing |
 | `skills/<name>/SKILL.md` | Each declared skill's body. Committed _into_ the folder — see [Skills](#skills).                              | the skills list                               |
 | `*.sh`                   | Optional shell scripts run as preflight steps (setup work) before the agent.                                  | the shell-scripts list                        |
 
-On **read**, the file layer strips the managed contract from `prompt.md` so the
-editor shows only the instructions; on **write** it re-appends the right contract for
-the landing. The `claudeCode.skills` array and the preflight `shell` steps are
-always re-synced to the actual files being written, so the engine never points
-at a skill or script that isn't there.
+On **read**, the file layer strips the generated contract from `prompt.md` so
+the editor shows only the instructions; on **write** it re-appends the right
+default contract for the landing. The `claudeCode.skills` array and the
+preflight `shell` steps are always re-synced to the actual files being written,
+so the engine never points at a skill or script that isn't there.
 
 Some executables are deterministic. They can run a preflight script/tool and
 then use `skipAgent`; in that case `prompt.md` is only a small note, not a work
 plan.
+
+## How to create a proper executable
+
+Start by deciding what kind of executable you are building:
+
+| Kind | Use when | Shape |
+| ---- | -------- | ----- |
+| **Agent executable** | The work needs judgment, reading, editing, planning, or tool choice. | `profile.json` wires an agent run; `prompt.md` gives short glue instructions; skills carry reusable method. |
+| **Deterministic executable** | The work is mechanical and repeatable: parse files, call APIs, generate a report. | `profile.json` runs a shell preflight, then `skipAgent`; `prompt.md` is only a small note. |
+| **Orchestrator executable** | The work is routing or sequencing other executables. | `profile.json` uses postflight/preflight transitions; usually `skipAgent`. |
+
+Keep the executable folder easy for an operator to inspect:
+
+```text
+.kody/executables/<slug>/
+  profile.json
+  prompt.md
+  run-or-setup.sh
+  skills/
+    <skill-name>/
+      SKILL.md
+```
+
+Use these rules:
+
+- `profile.json` is the wiring: name, inputs, model, allowed tools, skills, scripts, lifecycle, output action types.
+- `prompt.md` is operator-owned instructions. Keep it small. It should say which skills/scripts/tools matter and how to finish.
+- `skills/<name>/SKILL.md` is reusable method or domain knowledge. Put rules, rubrics, definitions, and repeatable reasoning there.
+- `*.sh` files are deterministic executable-owned scripts. Put setup, parsing, API calls, report generation, and other mechanical work there.
+- The **Tools** tab means MCP tool servers, not local helper scripts. Use it for things like Playwright MCP or codegraph MCP.
+- Duties own cadence, staff assignment, purpose, and safety bounds. Do not put recurring-job policy in an executable.
+- Staff files own persona. Do not redescribe staff identity in an executable.
+
+Use `skipAgent` when the script does all the work:
+
+```json
+{
+  "claudeCode": {
+    "maxTurns": 0,
+    "tools": [],
+    "skills": ["company-graph"]
+  },
+  "scripts": {
+    "preflight": [
+      { "script": "buildSyntheticPlugin" },
+      { "shell": "refresh-company-graph.sh" },
+      { "script": "skipAgent" }
+    ],
+    "postflight": []
+  }
+}
+```
+
+In a `skipAgent` executable, the shell script must print the final result
+itself:
+
+```text
+DONE
+COMMIT_MSG: chore(reports): refresh company-graph
+PR_SUMMARY:
+- Refreshed .kody/reports/company-graph.md.
+```
+
+Use an agent when the executable needs judgment:
+
+```text
+# Instructions
+
+Use the systematic-debugging skill.
+Read the issue, reproduce the failure, make the smallest fix, and verify it.
+```
+
+Then the profile should allow only the tools that work needs, for example
+`Read`, `Edit`, `Bash`, `Grep`, and `mcp__kody-verify`.
+
+Avoid these mistakes:
+
+- Do not put a long manual in `prompt.md`.
+- Do not redescribe the staff member in `prompt.md`.
+- Do not put deterministic code in prose instructions.
+- Do not move executable-owned scripts to repo-global paths unless they are genuinely shared.
+- Do not call a local shell script a "tool"; in this dashboard, tools are MCP servers.
+- Do not add extra script runner types (`node`, `python`, etc.) unless the engine supports them. Use one `.sh` script and call what you need inside it.
+- Do not leave engine metadata in operator-facing instructions when the executable does not need it.
+
+`company-graph` is the reference deterministic executable:
+
+```text
+.kody/executables/company-graph/
+  profile.json
+  prompt.md
+  refresh-company-graph.sh
+  skills/company-graph/SKILL.md
+```
+
+The profile wires the run. The shell script refreshes the report. The skill
+documents what the graph means. The instructions stay tiny.
 
 ## Landing: PR vs comment
 
@@ -61,17 +161,26 @@ drives the whole profile shape:
 | **PR**      | `lifecycle: "pr-branch"` (mirrors the built-in `feature`): context-load → composePrompt → agent → verify → commit → PR → comment. Gets the `block-git` hook and the verify tool. | The agent works a branch and opens a pull request. Final message must be `DONE` + `COMMIT_MSG` + `PR_SUMMARY`.                                                                                                         |
 | **Comment** | No lifecycle. Preflight `loadIssueContext` → `composePrompt`; postflight `parseAgentResult` → `postAgentComment`.                                                                | The agent answers and the engine's generic **`postAgentComment`** posts that answer verbatim as an issue comment — no branch, no PR. Comment-landing is **live**. Final message is `DONE` + `PR_SUMMARY` (the answer). |
 
-### The output-format contract (why it's appended, not in the system prompt)
+### The output-format contract
 
 The engine parses the agent's **final message** for `DONE` / `COMMIT_MSG` /
 `PR_SUMMARY` / `FAILED` markers (`parseAgentResult`). Live testing showed the
 agent only reliably emits those markers when the contract is the **last**
 instruction it sees — a `systemPromptAppend`-only contract gets ignored. So the
-file layer appends the contract to the end of `prompt.md` (after a managed
-sentinel) and strips it on read. Without the markers, `parseAgentResult`
-reports `markerMissing` → no commit and no comment. This is a deliberate
-work-around baked into [`profile.ts`](../src/dashboard/lib/executables/profile.ts),
-not an engine field.
+generic dashboard writer appends the contract to the end of `prompt.md` for
+agent executables and strips it on read. Without the markers,
+`parseAgentResult` reports `markerMissing` → no commit and no comment.
+
+No-agent executables that use `skipAgent` do not need that marker or contract in
+`prompt.md`, because no agent reads the file. Their script prints the final
+`DONE` / `FAILED` block itself.
+
+Existing engine executables that have custom postflight parsers are another
+exception. Examples: `fix` requires `FEEDBACK_ACTIONS`, `research` requires
+`PRIOR_ART`, `reproduce` requires `TEST_PATH` and `FAILURE_SIGNATURE`, and
+review/QA executables post raw markdown instead of `DONE` blocks. For these,
+the executable-owned contract must be the final instruction in `prompt.md`; do
+not append the generic generated contract after it.
 
 ## Set default — the bare-`@kody` action
 

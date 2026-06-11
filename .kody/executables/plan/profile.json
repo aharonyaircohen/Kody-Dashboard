@@ -22,7 +22,7 @@
     "verifyAttempts": 4,
     "tools": ["Read", "Grep", "Glob", "Bash", "Agent", "mcp__codegraph"],
     "hooks": [],
-    "skills": [],
+    "skills": ["implementation-planning"],
     "commands": [],
     "subagents": [],
     "plugins": [],
@@ -42,6 +42,9 @@
       },
       {
         "script": "loadIssueContext"
+      },
+      {
+        "script": "buildSyntheticPlugin"
       },
       {
         "script": "composePrompt"

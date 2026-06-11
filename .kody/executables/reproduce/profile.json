@@ -19,7 +19,7 @@
     "systemPromptAppend": null,
     "tools": ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
     "hooks": ["block-git"],
-    "skills": [],
+    "skills": ["bug-reproduction"],
     "commands": [],
     "subagents": [],
     "plugins": [],
@@ -40,6 +40,7 @@
       { "script": "loadTaskState" },
       { "script": "loadConventions" },
       { "script": "loadCoverageRules" },
+      { "script": "buildSyntheticPlugin" },
       { "script": "composePrompt" }
     ],
     "postflight": [

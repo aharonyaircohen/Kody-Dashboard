@@ -26,6 +26,10 @@ import {
   writeDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
+import {
+  DEFAULT_DUTY_STAGE_TEMPLATE,
+  DUTY_STAGE_TEMPLATE_SLUGS,
+} from "@dashboard/lib/duties/stage-templates";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(req: NextRequest) {
@@ -76,6 +80,7 @@ const createDutySchema = z.object({
     .optional(),
   disabled: z.boolean().optional(),
   staff: z.string().min(1).nullable().optional(),
+  stage: z.enum(DUTY_STAGE_TEMPLATE_SLUGS).nullable().optional(),
   mentions: z.array(z.string()).optional(),
   executables: z.array(z.string()).optional(),
   dutyTools: z.array(z.string()).optional(),
@@ -127,6 +132,7 @@ export async function POST(req: NextRequest) {
       schedule,
       disabled,
       staff,
+      stage,
       mentions,
       executables,
       dutyTools,
@@ -176,6 +182,7 @@ export async function POST(req: NextRequest) {
       schedule: schedule ?? null,
       disabled: disabled === true,
       staff: staff ?? null,
+      stage: stage ?? DEFAULT_DUTY_STAGE_TEMPLATE,
       mentions: normalizeMentions(mentions),
       executables: normalizeList(executables),
       dutyTools: normalizeList(dutyTools),

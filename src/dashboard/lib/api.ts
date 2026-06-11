@@ -18,6 +18,7 @@ import type {
   PRComment,
   WorkflowRun,
 } from "./types";
+import type { DutyStageTemplateSlug } from "./duties/stage-templates";
 
 const API_BASE = "/api/kody";
 
@@ -878,6 +879,8 @@ export interface Duty {
    * scheduler skips such duties (every duty must name an executor).
    */
   staff: string | null;
+  /** Friendly progress template slug from `stage:` frontmatter. */
+  stage: DutyStageTemplateSlug | null;
   /**
    * GitHub logins this duty's output should `@`-mention, parsed from the
    * `mentions:` frontmatter (comma-separated, no `@`). Empty array when the
@@ -918,6 +921,7 @@ export const dutiesApi = {
     schedule?: DutySchedule | null;
     disabled?: boolean;
     staff?: string | null;
+    stage?: DutyStageTemplateSlug | null;
     mentions?: string[];
     executables?: string[];
     dutyTools?: string[];
@@ -941,6 +945,7 @@ export const dutiesApi = {
       schedule?: DutySchedule | null;
       disabled?: boolean;
       staff?: string | null;
+      stage?: DutyStageTemplateSlug | null;
       mentions?: string[];
       executables?: string[];
       dutyTools?: string[];

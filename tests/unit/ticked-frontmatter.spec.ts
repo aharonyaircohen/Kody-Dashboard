@@ -118,6 +118,15 @@ describe("splitFrontmatter", () => {
     expect(frontmatter.dutyTools).toEqual(["list_prs_to_repair", "sync_pr"]);
     expect(frontmatter.tickScript).toBe(".kody/scripts/check-duty.sh");
   });
+
+  it("parses a valid duty stage template and drops unknown stages", () => {
+    expect(
+      splitFrontmatter("---\nstage: report-refresh\n---\nx").frontmatter.stage,
+    ).toBe("report-refresh");
+    expect(
+      splitFrontmatter("---\nstage: make-it-so\n---\nx").frontmatter.stage,
+    ).toBeUndefined();
+  });
 });
 
 describe("joinFrontmatter", () => {
@@ -175,6 +184,7 @@ describe("joinFrontmatter", () => {
     const fm: TickFrontmatter = {
       every: "1h",
       staff: "kody",
+      stage: "sweep",
       mentions: ["alice"],
       executables: ["db-worker", "api-worker"],
       dutyTools: ["list_prs_to_repair", "sync_pr"],
@@ -186,6 +196,7 @@ describe("joinFrontmatter", () => {
         "---",
         "every: 1h",
         "staff: kody",
+        "stage: sweep",
         "mentions: alice",
         "executables: db-worker, api-worker",
         "tools: list_prs_to_repair, sync_pr",

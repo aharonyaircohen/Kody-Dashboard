@@ -1,0 +1,54 @@
+{
+  "name": "inbox-ping",
+  "role": "primitive",
+  "kind": "oneshot",
+  "describe": "Post a heartbeat recommendation proving that duty mentions reach the dashboard inbox.",
+  "inputs": [],
+  "claudeCode": {
+    "model": "inherit",
+    "permissionMode": "default",
+    "maxTurns": null,
+    "maxThinkingTokens": null,
+    "systemPromptAppend": null,
+    "cacheable": true,
+    "tools": [
+      "Read",
+      "Bash",
+      "Grep",
+      "Glob"
+    ],
+    "hooks": [],
+    "skills": [
+      "inbox-ping"
+    ],
+    "commands": [],
+    "subagents": [],
+    "plugins": [],
+    "mcpServers": []
+  },
+  "cliTools": [
+    "gh"
+  ],
+  "scripts": {
+    "preflight": [
+      {
+        "script": "buildSyntheticPlugin"
+      },
+      {
+        "script": "composePrompt"
+      }
+    ],
+    "postflight": [
+      {
+        "script": "parseAgentResult"
+      }
+    ]
+  },
+  "output": {
+    "actionTypes": [
+      "INBOX_PING_COMPLETED",
+      "INBOX_PING_FAILED",
+      "AGENT_NOT_RUN"
+    ]
+  }
+}

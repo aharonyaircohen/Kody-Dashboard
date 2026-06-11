@@ -27,7 +27,7 @@
       "mcp__codegraph"
     ],
     "hooks": ["block-write"],
-    "skills": [],
+    "skills": ["issue-research"],
     "commands": [],
     "subagents": ["research-scout"],
     "plugins": [],
@@ -88,6 +88,9 @@
       },
       {
         "script": "loadPriorArt"
+      },
+      {
+        "script": "buildSyntheticPlugin"
       },
       {
         "script": "composePrompt"

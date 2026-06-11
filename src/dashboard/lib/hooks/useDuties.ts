@@ -18,6 +18,7 @@ import {
   SessionExpiredError,
   getStoredAuth,
 } from "../api";
+import type { DutyStageTemplateSlug } from "../duties/stage-templates";
 
 export const dutyQueryKeys = {
   list: ["kody-duties"] as const,
@@ -60,6 +61,7 @@ export function useCreateDuty(actorLogin?: string) {
       schedule?: DutySchedule | null;
       disabled?: boolean;
       staff?: string | null;
+      stage?: DutyStageTemplateSlug | null;
       mentions?: string[];
       executables?: string[];
       dutyTools?: string[];
@@ -93,6 +95,7 @@ export function useUpdateDuty(slug: string, actorLogin?: string) {
       schedule?: DutySchedule | null;
       disabled?: boolean;
       staff?: string | null;
+      stage?: DutyStageTemplateSlug | null;
       mentions?: string[];
       executables?: string[];
       dutyTools?: string[];

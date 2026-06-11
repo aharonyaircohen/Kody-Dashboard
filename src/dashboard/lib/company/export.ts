@@ -37,6 +37,7 @@ function toTickEntry(file: TickFile): CompanyTickEntry {
     schedule: file.schedule,
     disabled: file.disabled,
     staff: file.staff,
+    stage: file.stage,
   };
 }
 

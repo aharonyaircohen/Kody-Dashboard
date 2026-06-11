@@ -7,6 +7,7 @@ if [[ "${1:-}" == "--dry-run" ]]; then
 fi
 
 REPORT_PATH=".kody/reports/company-graph.md"
+STATE_BRANCH="kody-state"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -400,7 +401,7 @@ while IFS=$'\t' read -r id slug; do
   if ! jq -e --arg id "$id" '
     any(.[]; .to == $id and (.relation == "assigned_to" or .relation == "runs_as" or .relation == "audience"))
   ' "$EDGES" >/dev/null; then
-    add_finding "company-graph.orphan-staff" "medium" \
+    add_finding "company-graph.orphan-staff.$slug" "medium" \
       "$slug - no duty, context, or executable references it" \
       "$(jq -nc --arg staff "$slug" '{staff: $staff}')"
   fi
@@ -408,7 +409,7 @@ done < <(jq -r '.[] | select(.type == "staff") | [.id, .slug] | @tsv' "$NODES")
 
 while IFS=$'\t' read -r id slug; do
   if ! jq -e --arg id "$id" 'any(.[]; .to == $id and .relation == "reads_from")' "$EDGES" >/dev/null; then
-    add_finding "company-graph.stale-context" "low" \
+    add_finding "company-graph.stale-context.$slug" "low" \
       "$slug - not declared as reads_from by any duty" \
       "$(jq -nc --arg context "$slug" '{context: $context}')"
   fi
@@ -423,7 +424,7 @@ while IFS=$'\t' read -r id slug; do
   if [[ -n "$referenced_by" ]]; then
     data="$(jq -nc --arg slug "$slug" --arg refs "$referenced_by" \
       '{slug: $slug, referencedBy: ($refs | split(",") | map(select(length > 0)))}')"
-    add_finding "company-graph.disabled-but-referenced" "high" \
+    add_finding "company-graph.disabled-but-referenced.$slug" "high" \
       "$slug - disabled but named in another duty's reads_from" \
       "$data"
   fi
@@ -431,7 +432,7 @@ done < <(jq -r '.[] | select(.type == "duty" and .disabled == true) | [.id, .slu
 
 while IFS= read -r subfolder; do
   [[ -n "$subfolder" ]] || continue
-  add_finding "company-graph.coverage-gap" "low" \
+  add_finding "company-graph.coverage-gap.$subfolder" "low" \
     "$subfolder - present in .kody/ but has no nodes" \
     "$(jq -nc --arg subfolder ".kody/$subfolder" '{subfolder: $subfolder}')"
 done < <(jq -r '.[]' <<<"$coverage_gaps")
@@ -470,10 +471,10 @@ fi
 
 command -v gh >/dev/null 2>&1 || fail "gh is required"
 repo="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
-branch="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)"
+branch="$STATE_BRANCH"
 
 read_remote_report() {
-  gh api "/repos/$repo/contents/$REPORT_PATH" 2>/dev/null || true
+  gh api "/repos/$repo/contents/$REPORT_PATH?ref=$branch" 2>/dev/null || true
 }
 
 remote_json="$(read_remote_report)"

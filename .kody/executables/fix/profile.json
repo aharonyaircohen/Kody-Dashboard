@@ -39,7 +39,7 @@
       "mcp__kody-verify"
     ],
     "hooks": ["block-git"],
-    "skills": ["systematic-debugging"],
+    "skills": ["feedback-application"],
     "commands": [],
     "subagents": [],
     "plugins": [],
@@ -79,7 +79,10 @@
     "finalize": true
   },
   "scripts": {
-    "preflight": [{ "script": "fixFlow" }],
+    "preflight": [
+      { "script": "buildSyntheticPlugin" },
+      { "script": "fixFlow" }
+    ],
     "postflight": [{ "script": "requireFeedbackActions" }]
   },
   "output": {
