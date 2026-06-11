@@ -7,22 +7,26 @@
   "claudeCode": {
     "model": "inherit",
     "permissionMode": "default",
-    "maxTurns": null,
+    "maxTurns": 0,
     "maxThinkingTokens": null,
     "systemPromptAppend": null,
     "cacheable": true,
-    "tools": ["Bash"],
-    "hooks": ["block-git"],
-    "skills": [],
+    "tools": [],
+    "hooks": [],
+    "skills": ["repo-graph"],
     "commands": [],
     "subagents": [],
     "plugins": [],
     "mcpServers": []
   },
-  "cliTools": [],
+  "cliTools": ["node", "gh"],
   "scripts": {
-    "preflight": [{ "script": "loadConventions" }, { "script": "composePrompt" }],
-    "postflight": [{ "script": "parseAgentResult" }, { "script": "writeRunSummary" }]
+    "preflight": [
+      { "script": "buildSyntheticPlugin" },
+      { "shell": "refresh-repo-graph.sh" },
+      { "script": "skipAgent" }
+    ],
+    "postflight": []
   },
   "output": {
     "actionTypes": ["REPO_GRAPH_REFRESHED", "REPO_GRAPH_FAILED", "AGENT_NOT_RUN"]
