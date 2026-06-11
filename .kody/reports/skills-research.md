@@ -4,7 +4,7 @@ _Cadence: weekly. Source: skills.sh._
 
 ## Summary
 
-The first report was too broad. After checking the current executable skills, most recommendations are already covered. Only one clear gap remains: `vitest`.
+After checking the current executable skills, most useful skills are already covered. The only clear missing recommendation is still `vitest`.
 
 ## Existing Coverage
 
