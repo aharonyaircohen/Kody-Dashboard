@@ -4,7 +4,7 @@
  * @pattern company-bundle
  * @ai-summary Portable "Company" bundle — the repo-agnostic operating
  *   manual of an org: its staff (personas), duties (recurring work),
- *   commands (slash-command SOPs), and instructions (tone/behaviour).
+ *   context, commands (slash-command SOPs), and instructions (tone/behaviour).
  *   Deliberately excludes repo-specific state (memory, secrets,
  *   variables, dashboard config, goals, inbox, notifications) — those
  *   belong to the repo, not the company, and a company may span repos.
@@ -55,6 +55,18 @@ export interface CompanyTickEntry {
   staff: string | null;
   /** Friendly progress template slug — duties only; staff entries are null. */
   stage: DutyStageTemplateSlug | null;
+  /** GitHub logins to mention from duty output. */
+  mentions: string[];
+  /** Executable slugs assigned to a duty. */
+  executables: string[];
+  /** Duty tool names exposed to the tick runner. */
+  dutyTools: string[];
+  /** Optional tick script path for the duty runner. */
+  tickScript: string | null;
+  /** Context/report/duty slugs read by the duty. */
+  readsFrom: string[];
+  /** Report/context slugs written by the duty. */
+  writesTo: string[];
 }
 
 /** A slash-command entry. */
@@ -65,11 +77,17 @@ export interface CompanyCommandEntry {
   body: string;
 }
 
+/** A company context entry under `.kody/context/<slug>.md`. */
+export interface CompanyContextEntry {
+  slug: string;
+  body: string;
+  staff: string[];
+}
+
 /**
  * A custom executable. Unlike the single-file concepts above, an executable
  * is a *folder*, so it ships as a path→content map of every file under
- * `.kody/executables/<slug>/` (profile.json + prompt.md + optional `*.sh` +
- * optional `skills/<name>/SKILL.md`). Paths are relative to the folder.
+ * `.kody/executables/<slug>/`. Paths are relative to the folder.
  */
 export interface CompanyExecutableEntry {
   slug: string;
@@ -107,6 +125,7 @@ export interface CompanyBundle {
   exportedFrom: string;
   staff: CompanyTickEntry[];
   duties: CompanyTickEntry[];
+  contexts: CompanyContextEntry[];
   commands: CompanyCommandEntry[];
   executables: CompanyExecutableEntry[];
   /** Repo instructions body, or `null` when the source repo had none. */
@@ -143,6 +162,7 @@ export interface CompanyImportResult {
   mode: CompanyImportMode;
   staff: CompanyImportCounts;
   duties: CompanyImportCounts;
+  contexts: CompanyImportCounts;
   commands: CompanyImportCounts;
   executables: CompanyImportCounts;
   instructions: CompanyInstructionsOutcome;
@@ -166,6 +186,12 @@ const tickEntrySchema = z.object({
   disabled: z.boolean().default(false),
   staff: z.string().min(1).nullable().default(null),
   stage: z.enum(DUTY_STAGE_TEMPLATE_SLUGS).nullable().default(null),
+  mentions: z.array(z.string().min(1)).default([]),
+  executables: z.array(slugSchema).default([]),
+  dutyTools: z.array(z.string().min(1)).default([]),
+  tickScript: z.string().min(1).nullable().default(null),
+  readsFrom: z.array(z.string().min(1)).default([]),
+  writesTo: z.array(z.string().min(1)).default([]),
 });
 
 const commandEntrySchema = z.object({
@@ -173,6 +199,12 @@ const commandEntrySchema = z.object({
   description: z.string().default(""),
   argumentHint: z.string().default(""),
   body: z.string().min(1),
+});
+
+const contextEntrySchema = z.object({
+  slug: slugSchema,
+  body: z.string().default(""),
+  staff: z.array(z.string().min(1)).default([]),
 });
 
 const executableEntrySchema = z.object({
@@ -210,6 +242,7 @@ export const companyBundleSchema = z
     exportedFrom: z.string().optional(),
     staff: z.array(tickEntrySchema).default([]),
     duties: z.array(tickEntrySchema).default([]),
+    contexts: z.array(contextEntrySchema).default([]),
     commands: z.array(commandEntrySchema).optional(),
     /**
      * Legacy alias: bundles exported before the Prompts→Commands rename

@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern company-export
  * @ai-summary Build a portable Company bundle from the connected repo.
- *   Reads the four company-level artifact types (staff, duties, commands,
- *   instructions) via their existing file helpers and maps each to the
+ *   Reads the company-level artifact types (staff, duties, commands,
+ *   executables, instructions) via their existing file helpers and maps each to the
  *   repo-agnostic shape in `types.ts` — dropping sha/html_url/commit and
  *   tick timestamps, which are meaningless in another repo. Runs inside
  *   an established GitHub context (see the API route).
@@ -14,8 +14,9 @@ import { getOctokit, getOwner, getRepo } from "../github-client";
 import { listDutyFiles } from "../duties-files";
 import { listStaffFiles } from "../staff-files";
 import { listRepoCommandFiles } from "../commands/files";
+import { listContextFiles } from "../context/files";
 import { readInstructionsFile } from "../instructions/files";
-import { listExecutableFiles, readExecutableFile } from "../executables";
+import { listExecutableFiles, readExecutableFolderFiles } from "../executables";
 import { getEngineConfig } from "../engine/config";
 import {
   COMPANY_BUNDLE_VERSION,
@@ -24,10 +25,11 @@ import {
   type CompanyTickEntry,
   type CompanyCommandEntry,
   type CompanyExecutableEntry,
+  type CompanyContextEntry,
 } from "./types";
 import type { TickFile } from "../ticked/files";
 import type { CommandFile } from "../commands/files";
-import type { ExecutableDetail } from "../executables";
+import type { ContextFile } from "../context/files";
 
 function toTickEntry(file: TickFile): CompanyTickEntry {
   return {
@@ -38,6 +40,12 @@ function toTickEntry(file: TickFile): CompanyTickEntry {
     disabled: file.disabled,
     staff: file.staff,
     stage: file.stage,
+    mentions: file.mentions,
+    executables: file.executables,
+    dutyTools: file.dutyTools,
+    tickScript: file.tickScript,
+    readsFrom: file.readsFrom,
+    writesTo: file.writesTo,
   };
 }
 
@@ -50,26 +58,24 @@ function toCommandEntry(file: CommandFile): CompanyCommandEntry {
   };
 }
 
-/** Flatten an executable folder into a portable path→content map. */
-function toExecutableEntry(detail: ExecutableDetail): CompanyExecutableEntry {
-  const files: Record<string, string> = {
-    "profile.json": detail.profileJson,
-    "prompt.md": detail.prompt,
+function toContextEntry(file: ContextFile): CompanyContextEntry {
+  return {
+    slug: file.slug,
+    body: file.body,
+    staff: file.staff,
   };
-  for (const s of detail.shellScripts) files[s.name] = s.content;
-  for (const s of detail.skills) files[`skills/${s.name}/SKILL.md`] = s.body;
-  return { slug: detail.slug, files };
 }
 
-/** Read every executable folder into portable entries. */
+/** Read every executable folder into portable path→content maps. */
 async function buildExecutableEntries(): Promise<CompanyExecutableEntry[]> {
   const summaries = await listExecutableFiles();
-  const details = await Promise.all(
-    summaries.map((s) => readExecutableFile(s.slug)),
+  const entries = await Promise.all(
+    summaries.map(async (s) => {
+      const files = await readExecutableFolderFiles(s.slug);
+      return files ? { slug: s.slug, files } : null;
+    }),
   );
-  return details
-    .filter((d): d is ExecutableDetail => d !== null)
-    .map(toExecutableEntry);
+  return entries.filter((e): e is NonNullable<typeof e> => e !== null);
 }
 
 /**
@@ -112,10 +118,19 @@ async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
  * dashboard, so re-importing them would be redundant).
  */
 export async function buildCompanyBundle(): Promise<CompanyBundle> {
-  const [staff, duties, commandsResult, executables, instructions, config] =
+  const [
+    staff,
+    duties,
+    contexts,
+    commandsResult,
+    executables,
+    instructions,
+    config,
+  ] =
     await Promise.all([
       listStaffFiles(),
       listDutyFiles(),
+      listContextFiles(),
       listRepoCommandFiles(),
       buildExecutableEntries(),
       readInstructionsFile(),
@@ -128,6 +143,7 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
     exportedFrom: `${getOwner()}/${getRepo()}`,
     staff: staff.map(toTickEntry),
     duties: duties.map(toTickEntry),
+    contexts: contexts.map(toContextEntry),
     commands: commandsResult.commands
       .filter((p) => p.source === "repo")
       .map(toCommandEntry),

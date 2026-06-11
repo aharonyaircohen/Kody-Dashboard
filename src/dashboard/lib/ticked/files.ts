@@ -100,6 +100,10 @@ export interface TickFile {
   dutyTools: string[];
   /** Optional tick script path (`tickScript:` frontmatter). */
   tickScript: string | null;
+  /** Context/report/duty slugs this duty reads (`reads_from:` frontmatter). */
+  readsFrom: string[];
+  /** Report/context slugs this duty writes (`writes_to:` frontmatter). */
+  writesTo: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
 }
@@ -137,6 +141,10 @@ export interface TickWriteOptions {
   dutyTools?: string[];
   /** Optional tick script path to emit as `tickScript:` frontmatter. */
   tickScript?: string | null;
+  /** Context/report/duty slugs to emit as `reads_from:` frontmatter. */
+  readsFrom?: string[];
+  /** Report/context slugs to emit as `writes_to:` frontmatter. */
+  writesTo?: string[];
   /** SHA of the existing blob; omit on create. */
   sha?: string;
   /** Commit message override. */
@@ -383,6 +391,8 @@ function buildFileContent(
   executables: string[],
   dutyTools: string[],
   tickScript: string | null,
+  readsFrom: string[],
+  writesTo: string[],
 ): string {
   // Strip any leading H1 the caller's body already carries so we never
   // double the title — `# ${title}` is the single canonical heading.
@@ -399,6 +409,8 @@ function buildFileContent(
   if (executables.length > 0) fm.executables = executables;
   if (dutyTools.length > 0) fm.dutyTools = dutyTools;
   if (tickScript?.trim()) fm.tickScript = tickScript.trim();
+  if (readsFrom.length > 0) fm.readsFrom = readsFrom;
+  if (writesTo.length > 0) fm.writesTo = writesTo;
   if (disabled) fm.disabled = true;
   return joinFrontmatter(fm, titled);
 }
@@ -527,6 +539,8 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
             executables: frontmatter.executables ?? [],
             dutyTools: frontmatter.dutyTools ?? [],
             tickScript: frontmatter.tickScript ?? null,
+            readsFrom: frontmatter.readsFrom ?? [],
+            writesTo: frontmatter.writesTo ?? [],
             htmlUrl: buildHtmlUrl(slug, branch),
           } satisfies TickFile;
         } catch {
@@ -608,6 +622,8 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         executables: frontmatter.executables ?? [],
         dutyTools: frontmatter.dutyTools ?? [],
         tickScript: frontmatter.tickScript ?? null,
+        readsFrom: frontmatter.readsFrom ?? [],
+        writesTo: frontmatter.writesTo ?? [],
         htmlUrl: buildHtmlUrl(slug, branch),
       };
     } catch (error: unknown) {
@@ -638,6 +654,8 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
       opts.executables ?? [],
       opts.dutyTools ?? [],
       opts.tickScript ?? null,
+      opts.readsFrom ?? [],
+      opts.writesTo ?? [],
     );
     const message =
       opts.message ??

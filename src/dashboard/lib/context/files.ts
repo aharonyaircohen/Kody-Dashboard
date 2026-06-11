@@ -19,8 +19,8 @@
  *   Entries owned by the built-in chat staff (`kody`) are injected into the
  *   kody-direct chat system prompt under a `## Context` heading (see
  *   `loadContextForPrompt`), so every persona inherits the facts without
- *   restating them. Deliberately NOT part of the Company export/import
- *   bundle (that decision is still open).
+ *   restating them. Context entries are included in the Company bundle because
+ *   duties and staff may depend on them.
  *
  *   Hot-path loader mirrors the instructions/memory-index pattern: a
  *   60s in-process per-repo cache, invalidated by the write/delete

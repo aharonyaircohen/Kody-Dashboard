@@ -893,6 +893,10 @@ export interface Duty {
   dutyTools: string[];
   /** Optional tick script path, or null when unset. */
   tickScript: string | null;
+  /** Context/report/duty slugs read by this duty. */
+  readsFrom: string[];
+  /** Report/context slugs written by this duty. */
+  writesTo: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
   /** Legacy folder-duty flag; current executable files live under `.kody/executables/`. */

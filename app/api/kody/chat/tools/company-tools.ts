@@ -57,7 +57,7 @@ export function createCompanyTools(ctx: Ctx) {
     }),
 
     export_company: tool({
-      description: `Export ${repoRef}'s company bundle — all staff, duties, commands, executables, instructions, and config — as a portable JSON object the user can save or import into another repo.`,
+      description: `Export ${repoRef}'s company bundle — all staff, duties, context, commands, executables, instructions, and config — as a portable JSON object the user can save or import into another repo.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {

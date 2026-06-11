@@ -28,13 +28,21 @@ const h = vi.hoisted(() => ({
   listRepoCommandFiles: vi.fn(),
   readCommandFile: vi.fn(),
   writeCommandFile: vi.fn(),
+  // context/files
+  listContextFiles: vi.fn(async () => [] as Array<Record<string, unknown>>),
+  readContextFile: vi.fn(async () => null as Record<string, unknown> | null),
+  writeContextFile: vi.fn(),
   // instructions/files
   readInstructionsFile: vi.fn(),
   writeInstructionsFile: vi.fn(),
   // executables
-  listExecutableFiles: vi.fn(async () => []),
+  listExecutableFiles: vi.fn(async () => [] as Array<Record<string, unknown>>),
   readExecutableFile: vi.fn(async () => null),
   writeExecutableFile: vi.fn(),
+  readExecutableFolderFiles: vi.fn(
+    async () => null as Record<string, string> | null,
+  ),
+  writeExecutableFolderFiles: vi.fn(),
   fieldsFromProfile: vi.fn(() => ({})),
   // github-client
   getOwner: vi.fn(() => "acme"),
@@ -60,6 +68,11 @@ vi.mock("@dashboard/lib/commands/files", () => ({
   readCommandFile: h.readCommandFile,
   writeCommandFile: h.writeCommandFile,
 }));
+vi.mock("@dashboard/lib/context/files", () => ({
+  listContextFiles: h.listContextFiles,
+  readContextFile: h.readContextFile,
+  writeContextFile: h.writeContextFile,
+}));
 vi.mock("@dashboard/lib/instructions/files", () => ({
   readInstructionsFile: h.readInstructionsFile,
   writeInstructionsFile: h.writeInstructionsFile,
@@ -68,6 +81,8 @@ vi.mock("@dashboard/lib/executables", () => ({
   listExecutableFiles: h.listExecutableFiles,
   readExecutableFile: h.readExecutableFile,
   writeExecutableFile: h.writeExecutableFile,
+  readExecutableFolderFiles: h.readExecutableFolderFiles,
+  writeExecutableFolderFiles: h.writeExecutableFolderFiles,
   fieldsFromProfile: h.fieldsFromProfile,
 }));
 vi.mock("@dashboard/lib/github-client", () => ({
@@ -103,6 +118,12 @@ function tickFile(over: Record<string, unknown> = {}) {
     disabled: false,
     staff: null,
     stage: null,
+    mentions: [],
+    executables: [],
+    dutyTools: [],
+    tickScript: null,
+    readsFrom: [],
+    writesTo: [],
     htmlUrl: "https://gh/x",
     ...over,
   };
@@ -119,6 +140,7 @@ describe("companyBundleSchema", () => {
     exportedFrom: "acme/widgets",
     staff: [],
     duties: [],
+    contexts: [],
     commands: [],
     executables: [],
     instructions: null,
@@ -129,6 +151,7 @@ describe("companyBundleSchema", () => {
     const parsed = companyBundleSchema.parse({ kodyCompany: 1 });
     expect(parsed.staff).toEqual([]);
     expect(parsed.duties).toEqual([]);
+    expect(parsed.contexts).toEqual([]);
     expect(parsed.commands).toEqual([]);
     expect(parsed.instructions).toBeNull();
   });
@@ -172,6 +195,12 @@ describe("companyBundleSchema", () => {
       staff: null,
       disabled: false,
       body: "",
+      mentions: [],
+      executables: [],
+      dutyTools: [],
+      tickScript: null,
+      readsFrom: [],
+      writesTo: [],
     });
   });
 });
@@ -188,7 +217,23 @@ describe("buildCompanyBundle", () => {
         schedule: "1d",
         staff: "cto",
         stage: "report-refresh",
+        mentions: ["alice"],
+        executables: ["ci-health-graph"],
+        dutyTools: ["read_report"],
+        tickScript: ".kody/scripts/nightly.sh",
+        readsFrom: ["company-graph"],
+        writesTo: ["ci-health-graph"],
       }),
+    ]);
+    h.listContextFiles.mockResolvedValue([
+      {
+        slug: "reports",
+        body: "Read generated reports.",
+        staff: ["*"],
+        sha: "ctx",
+        updatedAt: "",
+        htmlUrl: "",
+      },
     ]);
     h.listRepoCommandFiles.mockResolvedValue({
       commands: [
@@ -235,6 +280,12 @@ describe("buildCompanyBundle", () => {
         disabled: false,
         staff: null,
         stage: null,
+        mentions: [],
+        executables: [],
+        dutyTools: [],
+        tickScript: null,
+        readsFrom: [],
+        writesTo: [],
       },
     ]);
     expect(bundle.duties[0]).toMatchObject({
@@ -242,7 +293,20 @@ describe("buildCompanyBundle", () => {
       schedule: "1d",
       staff: "cto",
       stage: "report-refresh",
+      mentions: ["alice"],
+      executables: ["ci-health-graph"],
+      dutyTools: ["read_report"],
+      tickScript: ".kody/scripts/nightly.sh",
+      readsFrom: ["company-graph"],
+      writesTo: ["ci-health-graph"],
     });
+    expect(bundle.contexts).toEqual([
+      {
+        slug: "reports",
+        body: "Read generated reports.",
+        staff: ["*"],
+      },
+    ]);
     // built-in command filtered out; only the repo one survives
     expect(bundle.commands).toHaveLength(1);
     expect(bundle.commands[0].slug).toBe("review");
@@ -255,6 +319,7 @@ describe("buildCompanyBundle", () => {
   it("emits null instructions when the file is blank/absent", async () => {
     h.listStaffFiles.mockResolvedValue([]);
     h.listDutyFiles.mockResolvedValue([]);
+    h.listContextFiles.mockResolvedValue([]);
     h.listRepoCommandFiles.mockResolvedValue({
       commands: [],
       builtinsDisabled: false,
@@ -262,6 +327,42 @@ describe("buildCompanyBundle", () => {
     h.readInstructionsFile.mockResolvedValue(null);
     const bundle = await buildCompanyBundle();
     expect(bundle.instructions).toBeNull();
+  });
+
+  it("exports executable folders recursively", async () => {
+    h.listStaffFiles.mockResolvedValue([]);
+    h.listDutyFiles.mockResolvedValue([]);
+    h.listContextFiles.mockResolvedValue([]);
+    h.listRepoCommandFiles.mockResolvedValue({
+      commands: [],
+      builtinsDisabled: false,
+    });
+    h.readInstructionsFile.mockResolvedValue(null);
+    h.listExecutableFiles.mockResolvedValue([
+      { slug: "repo-graph", describe: "", landing: "comment" },
+    ]);
+    h.readExecutableFolderFiles.mockResolvedValue({
+      "profile.json": '{"name":"repo-graph"}\n',
+      "prompt.md": "# Instructions\n",
+      "scripts/refresh.cjs": "console.log('ok');\n",
+      "skills/repo-graph/SKILL.md": "# Skill\n",
+      "templates/report.md": "# Report\n",
+    });
+
+    const bundle = await buildCompanyBundle();
+
+    expect(bundle.executables).toEqual([
+      {
+        slug: "repo-graph",
+        files: {
+          "profile.json": '{"name":"repo-graph"}\n',
+          "prompt.md": "# Instructions\n",
+          "scripts/refresh.cjs": "console.log('ok');\n",
+          "skills/repo-graph/SKILL.md": "# Skill\n",
+          "templates/report.md": "# Report\n",
+        },
+      },
+    ]);
   });
 });
 
@@ -279,6 +380,12 @@ describe("applyCompanyBundle", () => {
         disabled: false,
         staff: null,
         stage: null,
+        mentions: [],
+        executables: [],
+        dutyTools: [],
+        tickScript: null,
+        readsFrom: [],
+        writesTo: [],
       },
     ],
     duties: [
@@ -290,10 +397,23 @@ describe("applyCompanyBundle", () => {
         disabled: false,
         staff: "cto",
         stage: "report-refresh" as const,
+        mentions: ["alice"],
+        executables: ["ci-health-graph"],
+        dutyTools: ["read_report"],
+        tickScript: ".kody/scripts/nightly.sh",
+        readsFrom: ["company-graph"],
+        writesTo: ["ci-health-graph"],
       },
     ],
     commands: [
       { slug: "review", description: "d", argumentHint: "", body: "B" },
+    ],
+    contexts: [
+      {
+        slug: "reports",
+        body: "Read generated reports.",
+        staff: ["*"],
+      },
     ],
     executables: [],
     instructions: "Be terse.",
@@ -304,10 +424,12 @@ describe("applyCompanyBundle", () => {
     h.readStaffFile.mockResolvedValue(null);
     h.readDutyFile.mockResolvedValue(null);
     h.readCommandFile.mockResolvedValue(null);
+    h.readContextFile.mockResolvedValue(null);
     h.readInstructionsFile.mockResolvedValue(null);
     h.writeStaffFile.mockResolvedValue({});
     h.writeDutyFile.mockResolvedValue({});
     h.writeCommandFile.mockResolvedValue({});
+    h.writeContextFile.mockResolvedValue({});
     h.writeInstructionsFile.mockResolvedValue({});
 
     const result = await applyCompanyBundle(octokit, bundle, "skip");
@@ -320,6 +442,7 @@ describe("applyCompanyBundle", () => {
     });
     expect(result.duties).toMatchObject({ created: 1, skipped: 0 });
     expect(result.commands).toMatchObject({ created: 1 });
+    expect(result.contexts).toMatchObject({ created: 1 });
     expect(result.instructions).toBe("created");
     // a duty carries its staff slug through to the writer
     expect(h.writeDutyFile).toHaveBeenCalledWith(
@@ -328,6 +451,12 @@ describe("applyCompanyBundle", () => {
         staff: "cto",
         schedule: "1d",
         stage: "report-refresh",
+        mentions: ["alice"],
+        executables: ["ci-health-graph"],
+        dutyTools: ["read_report"],
+        tickScript: ".kody/scripts/nightly.sh",
+        readsFrom: ["company-graph"],
+        writesTo: ["ci-health-graph"],
       }),
     );
   });
@@ -336,11 +465,13 @@ describe("applyCompanyBundle", () => {
     h.readStaffFile.mockResolvedValue({ sha: "a" });
     h.readDutyFile.mockResolvedValue({ sha: "b" });
     h.readCommandFile.mockResolvedValue({ sha: "c" });
+    h.readContextFile.mockResolvedValue({ sha: "ctx" });
     h.readInstructionsFile.mockResolvedValue({ sha: "d" });
 
     const result = await applyCompanyBundle(octokit, bundle, "skip");
 
     expect(result.staff).toMatchObject({ created: 0, updated: 0, skipped: 1 });
+    expect(result.contexts).toMatchObject({ skipped: 1 });
     expect(result.instructions).toBe("skipped");
     expect(h.writeStaffFile).not.toHaveBeenCalled();
     expect(h.writeInstructionsFile).not.toHaveBeenCalled();
@@ -350,10 +481,12 @@ describe("applyCompanyBundle", () => {
     h.readStaffFile.mockResolvedValue({ sha: "staff-sha" });
     h.readDutyFile.mockResolvedValue({ sha: "duty-sha" });
     h.readCommandFile.mockResolvedValue({ sha: "command-sha" });
+    h.readContextFile.mockResolvedValue({ sha: "ctx-sha" });
     h.readInstructionsFile.mockResolvedValue({ sha: "instr-sha" });
     h.writeStaffFile.mockResolvedValue({});
     h.writeDutyFile.mockResolvedValue({});
     h.writeCommandFile.mockResolvedValue({});
+    h.writeContextFile.mockResolvedValue({});
     h.writeInstructionsFile.mockResolvedValue({});
 
     const result = await applyCompanyBundle(octokit, bundle, "overwrite");
@@ -371,7 +504,9 @@ describe("applyCompanyBundle", () => {
     h.readDutyFile.mockResolvedValue(null);
     h.writeDutyFile.mockResolvedValue({});
     h.readCommandFile.mockResolvedValue(null);
+    h.readContextFile.mockResolvedValue(null);
     h.writeCommandFile.mockResolvedValue({});
+    h.writeContextFile.mockResolvedValue({});
     h.readInstructionsFile.mockResolvedValue(null);
     h.writeInstructionsFile.mockResolvedValue({});
 
@@ -386,9 +521,11 @@ describe("applyCompanyBundle", () => {
     h.readStaffFile.mockResolvedValue(null);
     h.readDutyFile.mockResolvedValue(null);
     h.readCommandFile.mockResolvedValue(null);
+    h.readContextFile.mockResolvedValue(null);
     h.writeStaffFile.mockResolvedValue({});
     h.writeDutyFile.mockResolvedValue({});
     h.writeCommandFile.mockResolvedValue({});
+    h.writeContextFile.mockResolvedValue({});
     const result = await applyCompanyBundle(
       octokit,
       { ...bundle, instructions: null },
@@ -396,5 +533,40 @@ describe("applyCompanyBundle", () => {
     );
     expect(result.instructions).toBe("absent");
     expect(h.writeInstructionsFile).not.toHaveBeenCalled();
+  });
+
+  it("imports executable folders exactly, including nested dependencies", async () => {
+    const files = {
+      "profile.json": '{"name":"repo-graph"}\n',
+      "prompt.md": "# Instructions\n",
+      "scripts/refresh.cjs": "console.log('ok');\n",
+      "skills/repo-graph/SKILL.md": "# Skill\n",
+      "templates/report.md": "# Report\n",
+    };
+    h.readExecutableFolderFiles.mockResolvedValue(null);
+    h.writeExecutableFolderFiles.mockResolvedValue(undefined);
+
+    const result = await applyCompanyBundle(
+      octokit,
+      {
+        ...bundle,
+        staff: [],
+        duties: [],
+        contexts: [],
+        commands: [],
+        executables: [{ slug: "repo-graph", files }],
+        instructions: null,
+      },
+      "skip",
+    );
+
+    expect(result.executables).toMatchObject({ created: 1, failed: 0 });
+    expect(h.writeExecutableFolderFiles).toHaveBeenCalledWith({
+      octokit,
+      slug: "repo-graph",
+      files,
+      isUpdate: false,
+    });
+    expect(h.writeExecutableFile).not.toHaveBeenCalled();
   });
 });

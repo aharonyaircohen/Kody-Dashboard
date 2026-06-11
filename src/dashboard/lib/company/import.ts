@@ -16,14 +16,14 @@ import type { Octokit } from "@octokit/rest";
 import { readDutyFile, writeDutyFile } from "../duties-files";
 import { readStaffFile, writeStaffFile } from "../staff-files";
 import { readCommandFile, writeCommandFile } from "../commands/files";
+import { readContextFile, writeContextFile } from "../context/files";
 import {
   readInstructionsFile,
   writeInstructionsFile,
 } from "../instructions/files";
 import {
-  readExecutableFile,
-  writeExecutableFile,
-  fieldsFromProfile,
+  readExecutableFolderFiles,
+  writeExecutableFolderFiles,
 } from "../executables";
 import { getOwner, getRepo } from "../github-client";
 import {
@@ -40,6 +40,7 @@ import type {
   CompanyImportMode,
   CompanyImportResult,
   CompanyCommandEntry,
+  CompanyContextEntry,
   CompanyExecutableEntry,
   CompanyTickEntry,
   ParsedCompanyBundle,
@@ -87,6 +88,12 @@ async function importTickCollection(
         disabled: entry.disabled,
         staff: entry.staff,
         stage: entry.stage,
+        mentions: entry.mentions,
+        executables: entry.executables,
+        dutyTools: entry.dutyTools,
+        tickScript: entry.tickScript,
+        readsFrom: entry.readsFrom,
+        writesTo: entry.writesTo,
         sha: existing?.sha,
       });
       if (existing) counts.updated++;
@@ -133,11 +140,41 @@ async function importCommands(
   return counts;
 }
 
+async function importContexts(
+  octokit: Octokit,
+  entries: CompanyContextEntry[],
+  mode: CompanyImportMode,
+  notes: string[],
+): Promise<CompanyImportCounts> {
+  const counts = emptyCounts();
+  for (const entry of entries) {
+    try {
+      const existing = await readContextFile(entry.slug, octokit);
+      if (existing && mode === "skip") {
+        counts.skipped++;
+        continue;
+      }
+      await writeContextFile({
+        octokit,
+        slug: entry.slug,
+        body: entry.body,
+        staff: entry.staff,
+        sha: existing?.sha,
+      });
+      if (existing) counts.updated++;
+      else counts.created++;
+    } catch (err) {
+      counts.failed++;
+      const msg = err instanceof Error ? err.message : String(err);
+      notes.push(`context "${entry.slug}" failed: ${msg}`);
+    }
+  }
+  return counts;
+}
+
 /**
- * Import executables. Each entry is a folder (a path→content map); we
- * reconstruct the writer inputs from it and commit the whole folder
- * atomically via `writeExecutableFile`, preserving the original
- * profile.json verbatim (`profileJsonOverride`).
+ * Import executables. Each entry is a folder (a path→content map); write the
+ * whole folder exactly so nested scripts, templates, and helper files survive.
  */
 async function importExecutables(
   octokit: Octokit,
@@ -154,47 +191,16 @@ async function importExecutables(
         notes.push(`executable "${entry.slug}" failed: missing profile.json`);
         continue;
       }
-      const existing = await readExecutableFile(entry.slug, octokit);
+      const existing = await readExecutableFolderFiles(entry.slug, octokit);
       if (existing && mode === "skip") {
         counts.skipped++;
         continue;
       }
 
-      const prompt = entry.files["prompt.md"] ?? "";
-      const shellScripts = Object.entries(entry.files)
-        .filter(([p]) => /^[^/]+\.sh$/.test(p))
-        .map(([name, content]) => ({ name, content }));
-      const skills = Object.entries(entry.files)
-        .map(([p, body]) => {
-          const m = p.match(/^skills\/([^/]+)\/SKILL\.md$/);
-          return m ? { name: m[1], body } : null;
-        })
-        .filter((s): s is { name: string; body: string } => s !== null);
-
-      let parsed: Record<string, unknown> = {};
-      try {
-        parsed = JSON.parse(profileJson) as Record<string, unknown>;
-      } catch {
-        parsed = {};
-      }
-      const fields = fieldsFromProfile(entry.slug, parsed);
-
-      await writeExecutableFile({
+      await writeExecutableFolderFiles({
         octokit,
-        fields: { ...fields, prompt },
-        skills,
-        shellScripts,
-        profileJsonOverride: profileJson,
-        removedSkills: existing
-          ? existing.skills
-              .map((s) => s.name)
-              .filter((n) => !skills.some((s) => s.name === n))
-          : [],
-        removedShellScripts: existing
-          ? existing.shellScripts
-              .map((s) => s.name)
-              .filter((n) => !shellScripts.some((s) => s.name === n))
-          : [],
+        slug: entry.slug,
+        files: entry.files,
         isUpdate: !!existing,
       });
       if (existing) counts.updated++;
@@ -308,6 +314,12 @@ export async function applyCompanyBundle(
     { read: readDutyFile, write: writeDutyFile },
     notes,
   );
+  const contexts = await importContexts(
+    octokit,
+    bundle.contexts,
+    mode,
+    notes,
+  );
   const commands = await importCommands(octokit, bundle.commands, mode, notes);
   const executables = await importExecutables(
     octokit,
@@ -344,6 +356,7 @@ export async function applyCompanyBundle(
     mode,
     staff,
     duties,
+    contexts,
     commands,
     executables,
     instructions,

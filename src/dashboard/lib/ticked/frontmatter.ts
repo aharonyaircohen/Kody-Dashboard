@@ -94,6 +94,10 @@ export interface TickFrontmatter {
    * no line; a non-empty string emits `tickScript: <path>`.
    */
   tickScript?: string | null;
+  /** Context/report/duty slugs this duty reads. */
+  readsFrom?: string[];
+  /** Report/context slugs this duty writes. */
+  writesTo?: string[];
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -234,6 +238,12 @@ function parseFlatYaml(text: string): TickFrontmatter {
       if (tools.length > 0) out.dutyTools = tools;
     } else if (key === "tickScript" && value.length > 0) {
       out.tickScript = value;
+    } else if (key === "reads_from") {
+      const readsFrom = parseCommaList(value);
+      if (readsFrom.length > 0) out.readsFrom = readsFrom;
+    } else if (key === "writes_to") {
+      const writesTo = parseCommaList(value);
+      if (writesTo.length > 0) out.writesTo = writesTo;
     }
     // Unknown keys silently dropped on read — they round-trip via the
     // raw body if callers preserve it. We don't surface them on the
@@ -257,6 +267,10 @@ function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
     lines.push(`tools: ${frontmatter.dutyTools.join(", ")}`);
   if (frontmatter.tickScript?.trim())
     lines.push(`tickScript: ${frontmatter.tickScript.trim()}`);
+  if (frontmatter.readsFrom?.length)
+    lines.push(`reads_from: ${frontmatter.readsFrom.join(", ")}`);
+  if (frontmatter.writesTo?.length)
+    lines.push(`writes_to: ${frontmatter.writesTo.join(", ")}`);
   // Only emit `disabled: true` — the default (enabled) leaves the line
   // out so an unchanged ticked file stays byte-identical.
   if (frontmatter.disabled === true) lines.push(`disabled: true`);

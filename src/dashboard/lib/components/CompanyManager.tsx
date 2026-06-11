@@ -23,6 +23,7 @@ import {
   Boxes,
   ScrollText,
   SlidersHorizontal,
+  BookOpenText,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
 import { Button } from "@dashboard/ui/button";
@@ -76,12 +77,13 @@ function CompanyManagerInner() {
       const total =
         bundle.staff.length +
         bundle.duties.length +
+        bundle.contexts.length +
         bundle.commands.length +
         bundle.executables.length +
         (bundle.instructions ? 1 : 0) +
         (bundle.config ? 1 : 0);
       toast.success(
-        `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.commands.length} commands, ${bundle.executables.length} executables${
+        `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.contexts.length} contexts, ${bundle.commands.length} commands, ${bundle.executables.length} executables${
           bundle.instructions ? ", instructions" : ""
         }${bundle.config ? ", config" : ""} (${total} items)`,
       );
@@ -106,7 +108,11 @@ function CompanyManagerInner() {
       const result = await kodyApi.company.import(bundle, mode, actorLogin);
       setLastImport(result);
       const failed =
-        result.staff.failed + result.duties.failed + result.commands.failed;
+        result.staff.failed +
+        result.duties.failed +
+        result.contexts.failed +
+        result.commands.failed +
+        result.executables.failed;
       if (failed > 0) {
         toast.warning(`Imported with ${failed} failure(s) — see details below`);
       } else {
@@ -133,6 +139,7 @@ function CompanyManagerInner() {
           portable operating manual — its{" "}
           <span className="text-white/80">staff</span>,{" "}
           <span className="text-white/80">duties</span>,{" "}
+          <span className="text-white/80">context</span>,{" "}
           <span className="text-white/80">commands</span>,{" "}
           <span className="text-white/80">instructions</span>, and portable{" "}
           <span className="text-white/80">config</span> (quality commands,
@@ -152,7 +159,7 @@ function CompanyManagerInner() {
               </p>
               <p className="text-xs text-white/50 mt-1">
                 Download a JSON bundle of this repo&apos;s staff, duties,
-                repo-defined commands, and instructions.
+                context, repo-defined commands, executables, and instructions.
               </p>
             </div>
             <Button size="sm" onClick={handleExport} disabled={exporting}>
@@ -231,6 +238,7 @@ function CompanyManagerInner() {
               <div className="text-xs text-white/60 border-t border-white/[0.06] pt-3 space-y-1">
                 <p>{countLine("Staff", lastImport.staff)}</p>
                 <p>{countLine("Duties", lastImport.duties)}</p>
+                <p>{countLine("Contexts", lastImport.contexts)}</p>
                 <p>{countLine("Commands", lastImport.commands)}</p>
                 <p>{countLine("Executables", lastImport.executables)}</p>
                 <p>Instructions: {lastImport.instructions}</p>
@@ -251,6 +259,7 @@ function CompanyManagerInner() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-white/45">
           <Included icon={Users} label="Staff" />
           <Included icon={ListChecks} label="Duties" />
+          <Included icon={BookOpenText} label="Context" />
           <Included icon={Bot} label="Commands" />
           <Included icon={Boxes} label="Executables" />
           <Included icon={ScrollText} label="Instructions" />

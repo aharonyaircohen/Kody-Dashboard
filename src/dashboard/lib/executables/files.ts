@@ -73,6 +73,13 @@ export interface ExecutableDetail extends ExecutableSummary {
   profileJson: string;
 }
 
+export interface WriteExecutableFolderFilesOptions {
+  octokit: Octokit;
+  slug: string;
+  files: Record<string, string>;
+  isUpdate?: boolean;
+}
+
 async function getDefaultBranch(octokit: Octokit): Promise<string> {
   const { data } = await octokit.repos.get({
     owner: getOwner(),
@@ -314,6 +321,85 @@ async function readSkills(
   return skills.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function assertSafeExecutablePath(path: string): void {
+  if (
+    !path ||
+    path.startsWith("/") ||
+    path.includes("\\") ||
+    path.includes("\0")
+  ) {
+    throw new Error(`Invalid executable file path: "${path}"`);
+  }
+  const parts = path.split("/");
+  if (parts.some((part) => !part || part === "." || part === "..")) {
+    throw new Error(`Invalid executable file path: "${path}"`);
+  }
+}
+
+async function readDirectoryEntries(
+  octokit: Octokit,
+  path: string,
+): Promise<Array<{ name: string; type: string }> | null> {
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner: getOwner(),
+      repo: getRepo(),
+      path,
+    });
+    if (!Array.isArray(data)) return null;
+    return data as Array<{ name: string; type: string }>;
+  } catch (error: unknown) {
+    if ((error as { status?: number })?.status === 404) return null;
+    throw error;
+  }
+}
+
+async function readFolderFilesRecursive(
+  octokit: Octokit,
+  absolutePath: string,
+  relativePath: string,
+  out: Record<string, string>,
+): Promise<boolean> {
+  const entries = await readDirectoryEntries(octokit, absolutePath);
+  if (entries === null) return false;
+
+  for (const entry of entries) {
+    const childAbsolutePath = `${absolutePath}/${entry.name}`;
+    const childRelativePath = relativePath
+      ? `${relativePath}/${entry.name}`
+      : entry.name;
+    if (entry.type === "dir") {
+      await readFolderFilesRecursive(
+        octokit,
+        childAbsolutePath,
+        childRelativePath,
+        out,
+      );
+    } else if (entry.type === "file") {
+      const content = await readFileText(octokit, childAbsolutePath);
+      if (content !== null) out[childRelativePath] = content;
+    }
+  }
+  return true;
+}
+
+/** Read every text file under `.kody/executables/<slug>/`, recursively. */
+export async function readExecutableFolderFiles(
+  slug: string,
+  octokitOverride?: Octokit,
+): Promise<Record<string, string> | null> {
+  if (!isValidSlug(slug)) return null;
+  const octokit = octokitOverride ?? getOctokit();
+  const files: Record<string, string> = {};
+  const exists = await readFolderFilesRecursive(
+    octokit,
+    `${EXECUTABLES_DIR}/${slug}`,
+    "",
+    files,
+  );
+  return exists ? files : null;
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Atomic folder write/delete via the Git Data API.
 // ────────────────────────────────────────────────────────────────────────────
@@ -477,6 +563,40 @@ export async function writeExecutableFile(
     );
   }
   return refreshed;
+}
+
+/** Write an executable folder exactly from a path→content map. */
+export async function writeExecutableFolderFiles(
+  opts: WriteExecutableFolderFilesOptions,
+): Promise<void> {
+  if (!isValidSlug(opts.slug)) {
+    throw new Error(`Invalid executable slug: "${opts.slug}".`);
+  }
+
+  const base = `${EXECUTABLES_DIR}/${opts.slug}`;
+  const nextPaths = Object.keys(opts.files).sort();
+  for (const path of nextPaths) assertSafeExecutablePath(path);
+
+  const existing = await readExecutableFolderFiles(opts.slug, opts.octokit);
+  const existingPaths = existing ? Object.keys(existing) : [];
+  const nextPathSet = new Set(nextPaths);
+
+  const changes: TreeChange[] = nextPaths.map((path) => ({
+    path: `${base}/${path}`,
+    content: opts.files[path] ?? "",
+  }));
+  for (const path of existingPaths.sort()) {
+    if (!nextPathSet.has(path)) {
+      changes.push({ path: `${base}/${path}`, content: null });
+    }
+  }
+
+  const verb = opts.isUpdate ? "update" : "add";
+  await commitChanges(
+    opts.octokit,
+    changes,
+    `${opts.isUpdate ? "chore" : "feat"}(executable): ${verb} ${opts.slug}`,
+  );
 }
 
 /** Delete an executable folder (every file under it) in one commit. */

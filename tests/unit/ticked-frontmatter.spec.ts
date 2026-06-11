@@ -106,6 +106,8 @@ describe("splitFrontmatter", () => {
         "executables: db-worker, api-worker, ui-worker",
         "tools: list_prs_to_repair, sync_pr",
         "tickScript: .kody/scripts/check-duty.sh",
+        "reads_from: company-graph, reports",
+        "writes_to: ci-health-graph",
         "---",
         "body",
       ].join("\n"),
@@ -117,6 +119,8 @@ describe("splitFrontmatter", () => {
     ]);
     expect(frontmatter.dutyTools).toEqual(["list_prs_to_repair", "sync_pr"]);
     expect(frontmatter.tickScript).toBe(".kody/scripts/check-duty.sh");
+    expect(frontmatter.readsFrom).toEqual(["company-graph", "reports"]);
+    expect(frontmatter.writesTo).toEqual(["ci-health-graph"]);
   });
 
   it("parses a valid duty stage template and drops unknown stages", () => {
@@ -189,6 +193,8 @@ describe("joinFrontmatter", () => {
       executables: ["db-worker", "api-worker"],
       dutyTools: ["list_prs_to_repair", "sync_pr"],
       tickScript: ".kody/scripts/check-duty.sh",
+      readsFrom: ["company-graph", "reports"],
+      writesTo: ["ci-health-graph"],
       disabled: true,
     };
     expect(joinFrontmatter(fm, "body")).toBe(
@@ -201,6 +207,8 @@ describe("joinFrontmatter", () => {
         "executables: db-worker, api-worker",
         "tools: list_prs_to_repair, sync_pr",
         "tickScript: .kody/scripts/check-duty.sh",
+        "reads_from: company-graph, reports",
+        "writes_to: ci-health-graph",
         "disabled: true",
         "---",
         "",
