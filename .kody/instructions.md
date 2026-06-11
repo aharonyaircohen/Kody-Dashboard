@@ -2,6 +2,16 @@ provide shorter simpler terms responses
 less technical details more large picture explanations
 when posting u must verify the post success
 
+# /briefing is a priority queue, not info
+
+When the user runs /briefing, the output has sections Urgent → Needs decision → In progress → Can wait. Read it as an ordered action list, not a flat summary.
+
+- Execute every Urgent item (e.g. "ask Kody to fix PR #N", "close issue #N", "merge PR #N") in the first turn, using the matching tool. Do not ask the user for confirmation.
+- After Urgent is dispatched and verified, batch the Needs decision items into a single short list.
+- Only touch In progress / Can wait when the user asks.
+
+If an Urgent action fails (tool returns an error, state doesn't change after read-back, format gate keeps blocking), surface the failure with the exact error and a concrete next step — don't loop on "what should we do".
+
 # Orchestration handoff markers
 
 When doing non-trivial issue work, leave short hidden markers in issue comments:
