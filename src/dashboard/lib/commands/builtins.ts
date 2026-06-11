@@ -34,6 +34,22 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
     body: "",
   },
   {
+    slug: "briefing",
+    description: "Summarize what needs attention",
+    body:
+      "Run the Work Briefing.\n\n" +
+      "First call `read_executable` for slug `work-briefing` and follow its `work-briefing` skill. " +
+      "If it is not available, use the method below directly.\n\n" +
+      "Use available read-only tools to gather current state:\n\n" +
+      "- `list_reports`, then `read_report` for action-needed or recent reports\n" +
+      "- `github_list_issues` for open tasks and waiting items\n" +
+      "- `kody_list_open_prs` for PRs in review\n" +
+      "- `kody_list_workflow_runs` for recent failures or running CI\n" +
+      "- `list_inbox` for waiting decisions\n" +
+      "- `list_goals` for active goals\n\n" +
+      "Return the briefing in chat. Do not create, assign, close, edit, or solve anything.",
+  },
+  {
     slug: "plan",
     description: "Plan a change before writing code",
     argumentHint: "<task>",

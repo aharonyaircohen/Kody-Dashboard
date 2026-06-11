@@ -1,8 +1,8 @@
 # Instructions
 
-Use the `report-review-assignment` skill.
+Use the `work-briefing` skill.
 
-Assign action-needed reports to the right reviewer. Do not solve the findings.
+Create the briefing only. Do not create, assign, edit, close, or solve work.
 
 # Final message format (required)
 
@@ -11,7 +11,7 @@ Your final message must use this exact shape:
 ```
 DONE
 PR_SUMMARY:
-- <short summary of what happened>
+<the briefing>
 ```
 
 If you cannot complete the run, output one line instead:

@@ -1,8 +1,8 @@
 {
-  "name": "report-review-assignment",
+  "name": "work-briefing",
   "role": "primitive",
   "kind": "oneshot",
-  "describe": "Scan action-needed reports and assign each one to the right reviewer.",
+  "describe": "Summarize current reports, tasks, reviews, running work, and waiting decisions by importance.",
   "inputs": [],
   "claudeCode": {
     "model": "inherit",
@@ -19,7 +19,7 @@
     ],
     "hooks": [],
     "skills": [
-      "report-review-assignment"
+      "work-briefing"
     ],
     "commands": [],
     "subagents": [],
@@ -46,8 +46,8 @@
   },
   "output": {
     "actionTypes": [
-      "REPORT_REVIEW_ASSIGNMENT_COMPLETED",
-      "REPORT_REVIEW_ASSIGNMENT_FAILED",
+      "WORK_BRIEFING_COMPLETED",
+      "WORK_BRIEFING_FAILED",
       "AGENT_NOT_RUN"
     ]
   }
