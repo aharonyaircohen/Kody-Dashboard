@@ -4,41 +4,30 @@ _Cadence: weekly. Source: skills.sh._
 
 ## Summary
 
-Best current additions for Kody Dashboard are UI/design, Next.js/React, QA/browser testing, and CI skills. Most high-priority skills should be attached to existing executables, not made into new executables.
+The first report was too broad. After checking the current executable skills, most recommendations are already covered. Only one clear gap remains: `vitest`.
 
-## Recommended Skills
+## Existing Coverage
+
+- UI build/design is already covered by `design-system`, `frontend-design`, `shadcn`, `vercel-react-best-practices`, and `next-best-practices` on `feature` / `plan`.
+- UI review is already covered by `design-system`, `web-design-guidelines`, and `webapp-testing` on `ui-review` / `review`.
+- Browser QA is already covered by `webapp-testing` on `qa-engineer` / `ui-review`.
+- CI repair is already covered by `github-actions-docs` on `fix-ci` / `dev-ci-health`.
+- Design extraction already has a separate `extract-design-system` executable.
+
+## New Recommendations
 
 | Skill | Priority | Add to | Why |
 | --- | --- | --- | --- |
-| `design-system` | high | `feature`, `plan`, `ui-review`, `review` | Local skill for Kody Dashboard theme, shadcn usage, layout rules, and product-specific UI standards. |
-| `frontend-design` | high | `feature`, `plan` | Helps build polished production UI; keep scoped by our dashboard design rules. Source: https://www.skills.sh/anthropics/skills/frontend-design |
-| `shadcn` | high | `feature`, `plan` | Useful for shadcn component search, composition, styling, and fixes. Review command behavior before broad use. Source: https://www.skills.sh/shadcn/ui/shadcn |
-| `vercel-react-best-practices` | high | `feature`, `plan`, `review` | React/Next performance guidance from Vercel Engineering. Source: https://www.skills.sh/vercel-labs/agent-skills/vercel-react-best-practices |
-| `next-best-practices` | high | `feature`, `plan`, `review` | Next.js App Router, RSC boundaries, route handlers, metadata, images/fonts, and bundling. Source: https://www.skills.sh/vercel-labs/next-skills/next-best-practices |
-| `web-design-guidelines` | high | `ui-review`, `review` | Good for UI/UX/accessibility audits and concrete review findings. Source: https://www.skills.sh/vercel-labs/agent-skills/web-design-guidelines |
-| `webapp-testing` | high | `qa-engineer`, `ui-review` | Playwright workflow for local app testing, screenshots, logs, and UI debugging. Source: https://www.skills.sh/anthropics/skills/webapp-testing |
-| `github-actions-docs` | high | `fix-ci`, `dev-ci-health` | Grounds CI repair in GitHub Actions syntax, runners, artifacts, caching, secrets, OIDC, and workflow docs. Source: https://www.skills.sh/xixu-me/skills/github-actions-docs |
-| `vitest` | medium | `feature`, `bug`, `reproduce`, `fix-ci` | Useful when adding or repairing unit tests in this repo. Source: https://www.skills.sh/antfu/skills/vitest |
-| `e2e-testing-patterns` | medium | `qa-engineer`, `ui-review` | Deeper E2E testing guidance; overlaps with `webapp-testing`, so add only if QA needs more test-suite structure. Source: https://www.skills.sh/wshobson/agents/e2e-testing-patterns |
-| `code-review-excellence` | medium | `review` | Could strengthen PR review quality, but may overlap with existing `code-review`. Source: https://www.skills.sh/wshobson/agents/code-review-excellence |
-| `nextjs-app-router-patterns` | medium | `feature`, `plan`, `review` | Useful for advanced App Router/RSC patterns; overlaps with `next-best-practices`. Source: https://www.skills.sh/wshobson/agents/nextjs-app-router-patterns |
-| `extract-design-system` | low | separate `extract-design-system` executable only | Good one-time action to extract tokens from a public site; not an always-on skill. Source: https://www.skills.sh/arvindrk/extract-design-system/extract-design-system |
+| `vitest` | high | `bug`, `feature`, `reproduce` | This repo uses Vitest, and these executables write or repair tests. Source: https://www.skills.sh/antfu/skills/vitest |
 
-## Current Placement Check
+## Skipped As Duplicates
 
-The working tree already wires many of the high-priority skills into the right executables:
-
-- `feature`: `implementation-session`, `design-system`, `frontend-design`, `shadcn`, `vercel-react-best-practices`, `next-best-practices`
-- `plan`: `implementation-planning`, `design-system`, `frontend-design`, `shadcn`, `vercel-react-best-practices`, `next-best-practices`
-- `review`: `code-review`, `design-system`, `vercel-react-best-practices`, `next-best-practices`, `web-design-guidelines`
-- `ui-review`: `ui-review`, `design-system`, `web-design-guidelines`, `webapp-testing`
-- `qa-engineer`: `qa-session`, `webapp-testing`
-- `fix-ci`: `ci-repair`, `github-actions-docs`
-- `dev-ci-health`: `dev-ci-health`, `github-actions-docs`
+- `e2e-testing-patterns` overlaps `webapp-testing`; skip until QA needs deeper test-suite structure.
+- `code-review-excellence` overlaps existing `code-review`; skip unless review quality is still weak.
+- `nextjs-app-router-patterns` overlaps `next-best-practices`; skip unless advanced App Router work becomes a common failure mode.
+- `frontend-design`, `shadcn`, `vercel-react-best-practices`, `next-best-practices`, `web-design-guidelines`, `webapp-testing`, and `github-actions-docs` are already installed where they belong.
 
 ## Notes
 
-- Do not create separate executables for method/context skills like `frontend-design`, `shadcn`, or `next-best-practices`.
-- Do create a separate executable only when the action itself is the product, like `extract-design-system`.
-- Prefer repo-owned `design-system` as the anchor skill so external design skills follow Kody Dashboard's actual theme and UI rules.
-- Before installing `shadcn`, inspect the skill body because it may include shell command behavior.
+- Future runs should report deltas only: missing skills, duplicates skipped, and changed recommendations.
+- Do not turn every useful skill into an install request.
