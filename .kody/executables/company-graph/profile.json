@@ -1,8 +1,8 @@
 {
-  "name": "repo-graph",
+  "name": "company-graph",
   "role": "primitive",
   "kind": "oneshot",
-  "describe": "Derive the repo orchestration graph from .kody files and refresh .kody/reports/repo-graph.md.",
+  "describe": "Derive the company orchestration graph from .kody files and refresh .kody/reports/company-graph.md.",
   "inputs": [],
   "claudeCode": {
     "model": "inherit",
@@ -13,22 +13,22 @@
     "cacheable": true,
     "tools": [],
     "hooks": [],
-    "skills": ["repo-graph"],
+    "skills": ["company-graph"],
     "commands": [],
     "subagents": [],
     "plugins": [],
     "mcpServers": []
   },
-  "cliTools": ["node", "gh"],
+  "cliTools": ["gh", "jq"],
   "scripts": {
     "preflight": [
       { "script": "buildSyntheticPlugin" },
-      { "shell": "refresh-repo-graph.sh" },
+      { "shell": "refresh-company-graph.sh" },
       { "script": "skipAgent" }
     ],
     "postflight": []
   },
   "output": {
-    "actionTypes": ["REPO_GRAPH_REFRESHED", "REPO_GRAPH_FAILED", "AGENT_NOT_RUN"]
+    "actionTypes": ["COMPANY_GRAPH_REFRESHED", "COMPANY_GRAPH_FAILED", "AGENT_NOT_RUN"]
   }
 }
