@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern duty-control-hooks
  * @ai-summary React Query hooks for the Duty Control page.
- *   Backed by `.kody/duties/<slug>.md` files in the connected repo via the
+ *   Backed by `.kody/duties/<slug>/` folders in the connected repo via the
  *   contents API; duties are no longer GitHub issues.
  */
 "use client";

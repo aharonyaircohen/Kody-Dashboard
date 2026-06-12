@@ -823,7 +823,7 @@ export const remoteApi = {
 
 // ============ Duties API ============
 
-/** Per-duty cadence tokens; mirrors `ScheduleEvery` in duties-frontmatter.ts. */
+/** Per-duty cadence tokens; mirrors `ScheduleEvery` accepted by duty profiles. */
 export type DutySchedule =
   | "15m"
   | "30m"
@@ -838,7 +838,7 @@ export type DutySchedule =
   | "manual";
 
 export interface Duty {
-  /** Filename without `.md` — stable identity. */
+  /** Duty folder name under `.kody/duties/`; stable identity. */
   slug: string;
   title: string;
   body: string;
@@ -863,37 +863,36 @@ export interface Duty {
   /** Wall-clock of the most recent tick (ms) — `data.lastDurationMs`, or null. */
   lastDurationMs: number | null;
   /**
-   * Per-duty cadence parsed from frontmatter. `null` = global cron wake
+   * Per-duty cadence parsed from `profile.json`. `null` = global cron wake
    * (every 15 min). Engine-side gating ships separately.
    */
   schedule: DutySchedule | null;
   /**
-   * Mirrors `disabled: true` in the frontmatter. When `true` the engine
+   * Mirrors `disabled: true` in `profile.json`. When `true` the engine
    * scheduler skips this duty; manual "Run now" still fires.
    */
   disabled: boolean;
   /**
-   * Slug of the staff member (persona) that executes this duty, from the
-   * `staff:` frontmatter. The duty owns the schedule; the staff member is
+   * Slug of the staff member (persona) that executes this duty, from
+   * `profile.json.staff`. The duty owns the schedule; the staff member is
    * *who* the engine tick runs as. `null` = no staff assigned — the engine
    * scheduler skips such duties (every duty must name an executor).
    */
   staff: string | null;
-  /** Friendly progress template slug from `stage:` frontmatter. */
+  /** Friendly progress template slug from `profile.json.stage`. */
   stage: DutyStageTemplateSlug | null;
   /** Public `@kody <action>` name owned by this duty. */
   action: string;
   /**
-   * GitHub logins this duty's output should `@`-mention, parsed from the
-   * `mentions:` frontmatter (comma-separated, no `@`). Empty array when the
-   * key is absent.
+   * GitHub logins this duty's output should `@`-mention, parsed from
+   * `profile.json.mentions`. Empty array when the key is absent.
    */
   mentions: string[];
   /** Primary implementation executable for this duty. */
   executable: string | null;
   /** Legacy/multi-run executable slugs assigned to this duty. */
   executables: string[];
-  /** Engine-facing duty tool names from `tools:` frontmatter. */
+  /** Engine-facing duty tool names from `profile.json.tools`. */
   dutyTools: string[];
   /** Optional tick script path, or null when unset. */
   tickScript: string | null;

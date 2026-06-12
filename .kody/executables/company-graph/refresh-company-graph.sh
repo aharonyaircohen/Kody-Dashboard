@@ -114,7 +114,7 @@ add_finding() {
 ref_id() {
   local ref="${1:-}"
   local preferred="${2:-}"
-  local clean slug
+  local clean slug rest
   clean="$(printf '%s' "$ref" | sed -E 's/^[[:space:]"'\'']+//; s/[[:space:]"'\'']+$//')"
   [[ -n "$clean" ]] || return 0
   if [[ "$clean" == goal:* ]]; then
@@ -123,8 +123,14 @@ ref_id() {
   fi
   slug="$(basename "${clean%.md}")"
   case "$clean" in
+    .kody/duties/*|duties/*)
+      rest="${clean#./}"
+      rest="${rest#.kody/duties/}"
+      rest="${rest#duties/}"
+      printf 'duty:%s' "${rest%%/*}"
+      return 0
+      ;;
     .kody/context/*|context/*) printf 'context:%s' "$slug"; return 0 ;;
-    .kody/duties/*|duties/*) printf 'duty:%s' "$slug"; return 0 ;;
     .kody/staff/*|staff/*) printf 'staff:%s' "$slug"; return 0 ;;
     .kody/executables/*|executables/*) printf 'executable:%s' "$slug"; return 0 ;;
     .kody/scripts/*|scripts/*) printf 'script:%s' "$slug"; return 0 ;;
@@ -202,15 +208,42 @@ if compgen -G ".kody/context/*.md" >/dev/null; then
   done
 fi
 
-if compgen -G ".kody/duties/*.md" >/dev/null; then
-  for file in .kody/duties/*.md; do
-    slug="$(slug_of "$file")"
-    staff="$(fm_value "$file" staff)"
-    executables="$(list_json "$(fm_value "$file" executables)")"
-    reads_from="$(list_json "$(fm_value "$file" reads_from)")"
-    writes_to="$(list_json "$(fm_value "$file" writes_to)")"
-    disabled="false"
-    [[ "$(fm_value "$file" disabled)" == "true" ]] && disabled="true"
+if [[ -d ".kody/duties" ]]; then
+  while IFS= read -r dir; do
+    slug="$(basename "$dir")"
+    profile="$dir/profile.json"
+    body="$dir/duty.md"
+    [[ -f "$profile" && -f "$body" ]] || continue
+    if ! jq empty "$profile" >/dev/null 2>&1; then
+      continue
+    fi
+
+    staff="$(jq -r '.staff // ""' "$profile")"
+    executables="$(jq -c '
+      def list($x):
+        if $x == null then []
+        elif ($x | type) == "array" then [$x[] | select(type == "string" and length > 0)]
+        elif ($x | type) == "string" and ($x | length) > 0 then [$x]
+        else [] end;
+      (list(.executable) + list(.executables)) | unique
+    ' "$profile")"
+    reads_from="$(jq -c '
+      def list($x):
+        if $x == null then []
+        elif ($x | type) == "array" then [$x[] | select(type == "string" and length > 0)]
+        elif ($x | type) == "string" and ($x | length) > 0 then [$x]
+        else [] end;
+      (list(.readsFrom) + list(.reads_from)) | unique
+    ' "$profile")"
+    writes_to="$(jq -c '
+      def list($x):
+        if $x == null then []
+        elif ($x | type) == "array" then [$x[] | select(type == "string" and length > 0)]
+        elif ($x | type) == "string" and ($x | length) > 0 then [$x]
+        else [] end;
+      (list(.writesTo) + list(.writes_to)) | unique
+    ' "$profile")"
+    disabled="$(jq -r 'if .disabled == true then "true" else "false" end' "$profile")"
 
     add_node "$(jq -nc \
       --arg id "duty:$slug" \
@@ -232,7 +265,7 @@ if compgen -G ".kody/duties/*.md" >/dev/null; then
     while IFS= read -r target; do
       [[ -n "$target" ]] && add_edge "duty:$slug" "$(ref_id "$target" report)" "writes_to"
     done < <(jq -r '.[]' <<<"$writes_to")
-  done
+  done < <(find .kody/duties -mindepth 1 -maxdepth 1 -type d | sort)
 fi
 
 if [[ -d ".kody/scripts" ]]; then

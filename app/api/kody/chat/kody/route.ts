@@ -372,7 +372,7 @@ export async function POST(req: NextRequest) {
     task?: TaskContext;
     /** GitHub login of the requester — gates remote_* tools. Optional. */
     actorLogin?: string;
-    /** Current duty context — scopes the chat to a specific duty file. */
+    /** Current duty context — scopes the chat to a specific duty folder. */
     duty?: DutyContext;
     /**
      * When true, append the goal-planning block to the system prompt and

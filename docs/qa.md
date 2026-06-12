@@ -17,8 +17,8 @@ just hits a login wall. Flip the duties on once you've done the one-time
 | Piece                        | What it is                                                                                                                                                                          | Where                                                        |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | `qa` **staff**               | Identity only — a senior quality advocate who trusts what it has _seen_ over what a diff claims, flags but never fixes, never rubber-stamps. No tasks, verbs, or cadence live here. | [`../.kody/staff/qa.md`](../.kody/staff/qa.md)               |
-| `qa` **duty**                | Changelog verification (`every: 30m`, `disabled: true`).                                                                                                                            | [`../.kody/duties/qa.md`](../.kody/duties/qa.md)             |
-| `qa-sweep` **duty**          | Broad exploratory smoke (`every: 1h`, ~once/day, `disabled: true`).                                                                                                                 | [`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md) |
+| `qa` **duty**                | Changelog verification (`every: 30m`, `disabled: true` in the profile).                                                                                                             | [`../.kody/duties/qa/duty.md`](../.kody/duties/qa/duty.md)             |
+| `qa-sweep` **duty**          | Broad exploratory smoke (`every: 1h`, ~once/day, `disabled: true` in the profile).                                                                                                  | [`../.kody/duties/qa-sweep/duty.md`](../.kody/duties/qa-sweep/duty.md) |
 | `qa-engineer` **executable** | The browser. Playwright MCP (headless Chromium), read-only on the repo, emits one structured report.                                                                                | engine: `src/executables/qa-engineer/`                       |
 
 Neither duty browses anything itself. Each one opens a tracking issue and
@@ -46,7 +46,7 @@ is in flight, picks the oldest untested bullet, opens a tracking issue,
 dispatches the pass, and marks the bullet `🔄`. A `🔄` older than 2h with no
 report is treated as stuck: the marker is stripped back to untested so QA
 never wedges. There is no separate ledger; the marker swap is what stops an
-entry being re-processed. Full body: [`../.kody/duties/qa.md`](../.kody/duties/qa.md).
+entry being re-processed. Full body: [`../.kody/duties/qa/duty.md`](../.kody/duties/qa/duty.md).
 
 ## The `qa-sweep` duty — broad exploratory pass
 
@@ -57,7 +57,7 @@ every discovered route against the live deployment — catching regressions in
 already-shipped features that the changelog duty (which only tests _new_
 entries) never revisits. One inbox rec per sweep: `fix` if it opened
 findings, `note` for a clean run. Full body:
-[`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md).
+[`../.kody/duties/qa-sweep/duty.md`](../.kody/duties/qa-sweep/duty.md).
 
 ## What `qa-engineer` does
 
@@ -164,8 +164,8 @@ needed.
 4. **Scenarios** — write QA scenarios and notes as Company Profile files
    (`.kody/profile/*.md`). See [./profile.md](./profile.md).
 5. **Enable** — flip `disabled: false` in
-   [`../.kody/duties/qa.md`](../.kody/duties/qa.md) and
-   [`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md).
+   [`../.kody/duties/qa/profile.json`](../.kody/duties/qa/profile.json) and
+   [`../.kody/duties/qa-sweep/profile.json`](../.kody/duties/qa-sweep/profile.json).
 
 You can enable one duty without the other — the changelog duty alone gives
 per-PR verification; add the sweep for periodic broad coverage.
@@ -175,8 +175,8 @@ per-PR verification; add the sweep for periodic broad coverage.
 | File                                                         | Purpose                                              |
 | ------------------------------------------------------------ | ---------------------------------------------------- |
 | [`../.kody/staff/qa.md`](../.kody/staff/qa.md)               | QA persona (identity only)                           |
-| [`../.kody/duties/qa.md`](../.kody/duties/qa.md)             | Changelog-verification duty                          |
-| [`../.kody/duties/qa-sweep.md`](../.kody/duties/qa-sweep.md) | Broad exploratory sweep duty                         |
+| [`../.kody/duties/qa/duty.md`](../.kody/duties/qa/duty.md)             | Changelog-verification duty                          |
+| [`../.kody/duties/qa-sweep/duty.md`](../.kody/duties/qa-sweep/duty.md) | Broad exploratory sweep duty                         |
 | `src/executables/qa-engineer/profile.json` (engine)          | Executable manifest — inputs, tools, preflight chain |
 | `src/executables/qa-engineer/prompt.md` (engine)             | The QA engineer's browsing prompt + report format    |
 | `src/scripts/resolveQaUrl.ts` (engine)                       | Base-URL resolution preflight                        |

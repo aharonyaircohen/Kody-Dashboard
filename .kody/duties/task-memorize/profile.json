@@ -1,0 +1,9 @@
+{
+  "name": "task-memorize",
+  "describe": "Task Memorize",
+  "every": "30m",
+  "staff": "coo",
+  "executables": [
+    "task-memorize"
+  ]
+}

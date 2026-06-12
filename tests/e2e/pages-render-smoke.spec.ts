@@ -31,6 +31,7 @@ const ROUTES = [
   "/changelog",
   "/chat",
   "/duties",
+  "/context",
   "/inbox",
   "/instructions",
   "/messages",

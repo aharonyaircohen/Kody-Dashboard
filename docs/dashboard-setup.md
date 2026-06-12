@@ -16,7 +16,7 @@ through the dashboard once you're logged in.
 | Store         | Page         | In the repo            | Secret?               | Doc                                          |
 | ------------- | ------------ | ---------------------- | --------------------- | -------------------------------------------- |
 | **Staff**     | `/staff`     | `.kody/staff/*.md`     | No (plaintext)        | [Staff & Duties](./concepts/staff-duties.md) |
-| **Duties**    | `/duties`    | `.kody/duties/*.md`    | No (plaintext)        | [Staff & Duties](./concepts/staff-duties.md) |
+| **Duties**    | `/duties`    | `.kody/duties/<slug>/` | No (plaintext)        | [Staff & Duties](./concepts/staff-duties.md) |
 | **Commands**  | `/commands`  | `.kody/commands/*.md`  | No (plaintext)        | [Commands](./commands.md)                    |
 | **Secrets**   | `/secrets`   | `.kody/secrets.enc`    | **Yes** (AES-256-GCM) | [Secrets vault](./secrets-vault.md)          |
 | **Variables** | `/variables` | `.kody/variables.json` | No (plaintext)        | [Variables](./variables.md)                  |
@@ -39,9 +39,10 @@ identity — no tasks or domains. See
 
 ### Duties — `/duties`
 
-Scheduled jobs: a duty file describes intent, system prompt, allowed
-commands, and restrictions, names a `staff:` persona, and is ticked by
-the engine every ~5 min. Toggle a duty off with `disabled: true`. See
+Scheduled jobs: a duty folder describes intent, allowed commands, and
+restrictions in `duty.md`, stores staff/cadence/action metadata in
+`profile.json`, and is ticked by the engine scheduler. Toggle a duty off
+with `disabled: true`. See
 [Staff & Duties](./concepts/staff-duties.md).
 
 ### Commands — `/commands`

@@ -183,7 +183,7 @@ export function formatDutyContext(
     parts.push(`\n[Duty body]\n${truncated}`);
   }
   parts.push(
-    "\nThe user is chatting about this specific duty. A Kody duty is a markdown file at `.kody/duties/<slug>.md` whose body describes intent, system prompt, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the duty does not exist.",
+    "\nThe user is chatting about this specific duty. A Kody duty is a folder at `.kody/duties/<slug>/`: `profile.json` holds action/cadence/staff metadata, and `duty.md` describes purpose, output, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the duty does not exist.",
   );
   return parts.join("\n");
 }

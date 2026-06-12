@@ -69,7 +69,7 @@ export function createDutyAdminTools(ctx: Ctx) {
     }),
 
     delete_duty: tool({
-      description: `Delete a scheduled duty from ${repoRef} (removes .kody/duties/<slug>.md). It stops ticking immediately.`,
+      description: `Delete a scheduled duty from ${repoRef} (removes .kody/duties/<slug>/). It stops ticking immediately.`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };

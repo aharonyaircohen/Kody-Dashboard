@@ -1,0 +1,10 @@
+{
+  "name": "security-audit",
+  "describe": "Security Audit",
+  "every": "1d",
+  "staff": "cto",
+  "executables": [
+    "security-audit"
+  ],
+  "disabled": true
+}

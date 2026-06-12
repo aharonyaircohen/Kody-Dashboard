@@ -1,0 +1,16 @@
+{
+  "name": "docs-graph",
+  "describe": "Docs Graph",
+  "every": "1d",
+  "staff": "tech-writer",
+  "stage": "report-refresh",
+  "executables": [
+    "docs-graph"
+  ],
+  "readsFrom": [
+    "docs-graph"
+  ],
+  "writesTo": [
+    "docs-graph"
+  ]
+}

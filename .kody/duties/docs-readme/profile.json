@@ -1,0 +1,12 @@
+{
+  "name": "docs-readme",
+  "describe": "Docs Drift - README / markdown",
+  "every": "1d",
+  "staff": "tech-writer",
+  "mentions": [
+    "aguyaharonyair"
+  ],
+  "executables": [
+    "docs-readme"
+  ]
+}

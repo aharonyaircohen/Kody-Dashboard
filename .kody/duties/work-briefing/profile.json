@@ -1,0 +1,9 @@
+{
+  "name": "work-briefing",
+  "describe": "Work Briefing",
+  "every": "manual",
+  "staff": "coo",
+  "executables": [
+    "work-briefing"
+  ]
+}

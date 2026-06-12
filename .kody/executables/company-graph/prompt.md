@@ -2,7 +2,7 @@
 
 Use the `company-graph` skill.
 
-Run only the work requested by the matching duty. Follow the duty frontmatter for cadence, staff, mentions, and safety limits.
+Run only the work requested by the matching duty. Follow the duty profile metadata for cadence, staff, mentions, and safety limits.
 
 # Final message format (required)
 

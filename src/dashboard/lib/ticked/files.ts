@@ -2,13 +2,9 @@
  * @fileType util
  * @domain kody
  * @pattern ticked-files
- * @ai-summary One implementation of the "ticked markdown file" store —
- *   read/write `<dir>/<slug>.md` via the GitHub contents API. Duties and
- *   staff are the same mechanism (a markdown file the engine's
- *   job-tick chain enumerates and ticks); they differ only by directory,
- *   commit scope, and which cache to invalidate. `createTickedFiles`
- *   binds those three and returns the file API; `duties-files.ts` /
- *   `staff-files.ts` are thin presets over it.
+ * @ai-summary Markdown-backed store for ticked-file shaped records.
+ *   Staff still use `<dir>/<slug>.md`; duties use folder-backed storage in
+ *   `duties-files.ts` and share only the exported `TickFile` UI shape.
  *
  *   One file per definition. Path is the source of truth for identity
  *   (slug), file body is the markdown. Metadata (title, lastModified,
@@ -37,7 +33,7 @@ import {
 import type { DutyStageTemplateSlug } from "../duties/stage-templates";
 
 export interface TickFile {
-  /** Filename without `.md` — stable identity. */
+  /** Stable identity slug. */
   slug: string;
   /** First H1 of the body, or humanized slug fallback. */
   title: string;
@@ -66,47 +62,47 @@ export interface TickFile {
   /** Wall-clock of the most recent tick (ms) — `data.lastDurationMs`, or null. */
   lastDurationMs: number | null;
   /**
-   * Per-file cadence, parsed from the frontmatter `every:` field.
+   * Per-record cadence, parsed from metadata.
    * `null` means "every cron wake" (the engine's 15-minute cron).
    * Engine-side gating ships separately — the dashboard always shows
    * whatever the file declares.
    */
   schedule: ScheduleEvery | null;
   /**
-   * Mirrors `disabled: true` in the frontmatter. When `true` the engine
+   * Mirrors `disabled: true` in metadata. When `true` the engine
    * skips this file on every cron wake; manual triggers still fire. The
    * dashboard reads this to render the enable/disable toggle and the
    * "disabled" pill in list rows.
    */
   disabled: boolean;
   /**
-   * Assigned staff member (persona) slug from the `staff:` frontmatter, or
+   * Assigned staff member (persona) slug from metadata, or
    * `null` if none. Duty-only in practice — staff are personas and never
    * declare a staff member. The dashboard reads this to render/seed the
    * duty's staff picker; the engine scheduler skips duties with no staff.
    */
   staff: string | null;
-  /** Friendly progress template slug (`stage:` frontmatter), or null. */
+  /** Friendly progress template slug, or null. */
   stage: DutyStageTemplateSlug | null;
   /** Public `@kody <action>` name for duties; null for staff files. */
   action: string | null;
   /**
-   * GitHub logins this file's output should `@`-mention, parsed from the
-   * `mentions:` frontmatter (comma-separated, no `@`). Empty array when the
-   * key is absent. The dashboard reads it to render/seed the mentions input.
+   * GitHub logins this file's output should `@`-mention, parsed from metadata.
+   * Empty array when the key is absent. The dashboard reads it to render/seed
+   * the mentions input.
    */
   mentions: string[];
   /** Primary implementation executable for this duty, or null when unset. */
   executable: string | null;
-  /** Legacy/multi-run executable slugs (`executables:` frontmatter). */
+  /** Multi-run executable slugs. */
   executables: string[];
-  /** Duty tool names from the engine-facing `tools:` frontmatter line. */
+  /** Duty tool names from engine-facing metadata. */
   dutyTools: string[];
-  /** Optional tick script path (`tickScript:` frontmatter). */
+  /** Optional tick script path. */
   tickScript: string | null;
-  /** Context/report/duty slugs this duty reads (`reads_from:` frontmatter). */
+  /** Context/report/duty slugs this duty reads. */
   readsFrom: string[];
-  /** Report/context slugs this duty writes (`writes_to:` frontmatter). */
+  /** Report/context slugs this duty writes. */
   writesTo: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
@@ -118,43 +114,43 @@ export interface TickWriteOptions {
   title: string;
   body: string;
   /**
-   * Per-file cadence to emit in frontmatter. `null` (or absent) writes
-   * no `every:` line, leaving the file on the global cron tick.
+   * Per-record cadence to persist. `null` (or absent) leaves the record on the
+   * global cron tick.
    */
   schedule?: ScheduleEvery | null;
   /**
-   * When `true`, emits `disabled: true` in frontmatter so the scheduler
-   * skips this file on every cron wake. Absent or `false` keeps it active.
+   * When `true`, persists disabled metadata so the scheduler skips this record
+   * on every cron wake. Absent or `false` keeps it active.
    */
   disabled?: boolean;
   /**
-   * Staff member (persona) slug to emit as `staff:` frontmatter. `null`/absent
-   * writes no `staff:` line. Only duties set this; staff files never do.
+   * Staff member (persona) slug. `null`/absent writes no staff assignment. Only
+   * duties set this; staff files never do.
    */
   staff?: string | null;
-  /** Friendly progress template slug to emit as `stage:` frontmatter. */
+  /** Friendly progress template slug to persist. */
   stage?: DutyStageTemplateSlug | null;
   /**
-   * Public `@kody <action>` name to emit as `action:`. Duties should set this;
-   * staff files leave it absent.
+   * Public `@kody <action>` name. Duties should set this; staff files leave it
+   * absent.
    */
   action?: string | null;
   /**
-   * GitHub logins to emit as the `mentions:` frontmatter (comma-separated,
-   * no `@`). Empty / absent writes no `mentions:` line.
+   * GitHub logins to persist as mentions (without `@`). Empty / absent writes
+   * no mentions metadata.
    */
   mentions?: string[];
-  /** Primary implementation executable to emit as `executable:`. */
+  /** Primary implementation executable to persist. */
   executable?: string | null;
-  /** Legacy/multi-run executable slugs to emit as `executables:` frontmatter. */
+  /** Multi-run executable slugs to persist. */
   executables?: string[];
-  /** Duty tools to emit as `tools:` frontmatter. */
+  /** Duty tools to persist. */
   dutyTools?: string[];
-  /** Optional tick script path to emit as `tickScript:` frontmatter. */
+  /** Optional tick script path to persist. */
   tickScript?: string | null;
-  /** Context/report/duty slugs to emit as `reads_from:` frontmatter. */
+  /** Context/report/duty slugs to persist as reads-from metadata. */
   readsFrom?: string[];
-  /** Report/context slugs to emit as `writes_to:` frontmatter. */
+  /** Report/context slugs to persist as writes-to metadata. */
   writesTo?: string[];
   /** SHA of the existing blob; omit on create. */
   sha?: string;
@@ -164,7 +160,7 @@ export interface TickWriteOptions {
 
 /** Config that distinguishes one ticked-file kind (e.g. duties) from another. */
 export interface TickedFilesConfig {
-  /** Repo-relative directory holding the `.md` definitions. */
+  /** Repo-relative directory holding markdown definitions. */
   dir: string;
   /** Conventional-commit scope used in generated commit messages. */
   commitScope: string;
@@ -455,11 +451,16 @@ function legacyExecutables(frontmatter: TickFrontmatter): string[] {
 
 /**
  * Bind a directory, commit scope, and cache invalidator to produce the
- * file API for one ticked-file kind. Duties and staff each call this
- * once with their own config.
+ * file API for one ticked-file kind. Do not use this for duties; duties are
+ * folder-backed and must go through `duties-files.ts`.
  */
 export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
   const { dir, commitScope, invalidateCache } = config;
+  if (dir === ".kody/duties") {
+    throw new Error(
+      "createTickedFiles: duties are folder-backed; use duties-files.ts",
+    );
+  }
 
   function buildHtmlUrl(slug: string, branch: string | null): string {
     const ref = branch ?? "HEAD";

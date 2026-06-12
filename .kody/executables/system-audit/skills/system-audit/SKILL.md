@@ -19,7 +19,7 @@ only when findings exist.
 
 Check:
 
-- duties in `.kody/duties/*.md`
+- duties in `.kody/duties/<slug>/` (`profile.json` plus `duty.md`)
 - staff in `.kody/staff/*.md`
 - executables in `.kody/executables/*/`
 - reports in `.kody/reports/*.md`
@@ -28,9 +28,9 @@ Check:
 
 ## Checks
 
-1. **Broken staff reference:** A duty names `staff: <slug>` but `.kody/staff/<slug>.md` does not exist.
-2. **Missing executable reference:** A duty names `executables: <slug>` but `.kody/executables/<slug>/profile.json` does not exist.
-3. **Invalid stage:** A duty has no `stage:` or uses a stage outside the built-in templates.
+1. **Broken staff reference:** A duty profile names `"staff": "<slug>"` but `.kody/staff/<slug>.md` does not exist.
+2. **Missing executable reference:** A duty profile names an executable but `.kody/executables/<slug>/profile.json` does not exist.
+3. **Invalid stage:** A duty profile has no `stage` or uses a stage outside the built-in templates.
 4. **Old duty shape:** A duty body contains raw state schemas, `kody-job-next-state`, long shell recipes, or staff/persona prompts.
 5. **Broken executable shape:** An executable has invalid `profile.json`, a large explanatory `prompt.md`, missing declared skills, or shell steps pointing to missing files.
 6. **Stale report:** A report-refresh duty has no report, an empty report, or a report older than expected for its cadence.

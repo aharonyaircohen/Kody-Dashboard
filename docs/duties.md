@@ -1,14 +1,16 @@
 # Kody duties
 
-A **duty** is recurring work Kody checks on a schedule.
+A **duty** is recurring work Kody can schedule, display, and run.
 
-It is stored as one markdown file:
+A duty is stored as one folder:
 
 ```text
-.kody/duties/<slug>.md
+.kody/duties/<slug>/
+  profile.json
+  duty.md
 ```
 
-Kody chat can create one too: it should first read this guide, then use the
+Kody chat can create one too. It must first read this guide, then use the
 `create_kody_duty` tool.
 
 ## What a duty owns
@@ -16,8 +18,8 @@ Kody chat can create one too: it should first read this guide, then use the
 A duty owns:
 
 - **Action name**: the public `@kody <action>` token that runs this duty.
-- **Purpose**: what should be watched or maintained.
-- **Cadence**: how often it is allowed to act.
+- **Purpose**: why the work exists and what outcome it maintains.
+- **Cadence**: how often the scheduler may run it.
 - **Staff**: which staff persona should run it.
 - **Progress type**: the simple stage template shown in the dashboard.
 - **Safety rules**: what it may and may not do.
@@ -27,25 +29,40 @@ A duty does **not** own:
 
 - A long staff/persona prompt. Put that in `.kody/staff/<slug>.md`.
 - A reusable action implementation. Put that in `.kody/executables/<slug>/`.
-- A long step-by-step runbook. Put that in the executable skill.
+- A long step-by-step runbook. Put reusable method in executable skills.
 - Bash, Python, or API recipes. Put deterministic work in executable-owned
   scripts, or method details in executable skills.
 - Raw state keys. Runtime state is engine-owned and hidden behind the selected
   progress type.
 
-## File shape
+## Folder shape
 
 Use this shape:
 
-```md
----
-action: broken-links
-executable: broken-link-report
-every: 1d
-staff: qa
-stage: report-refresh
----
+```text
+.kody/duties/broken-links/
+  profile.json
+  duty.md
+```
 
+`profile.json` stores machine-readable metadata:
+
+```json
+{
+  "name": "broken-links",
+  "describe": "Broken link report",
+  "action": "broken-links",
+  "executable": "broken-link-report",
+  "every": "1d",
+  "staff": "qa",
+  "stage": "report-refresh",
+  "writesTo": ["broken-link-report"]
+}
+```
+
+`duty.md` stores the human-readable purpose and limits:
+
+```md
 # Broken link report
 
 ## Job
@@ -71,18 +88,27 @@ Refresh `.kody/reports/broken-link-report.md`.
 - Only update the generated report.
 ```
 
-## Frontmatter
+Do not put metadata frontmatter in `duty.md`. Metadata belongs in
+`profile.json`; prose belongs in `duty.md`.
+
+## Profile fields
 
 | Field         | Meaning                                                                                          |
 | ------------- | ------------------------------------------------------------------------------------------------ |
+| `name`        | Duty slug. Must match the folder name.                                                           |
+| `describe`    | Human-readable title shown in the dashboard.                                                     |
 | `action`      | Public action token. `@kody <action>` runs this duty. Usually the duty slug.                     |
 | `executable`  | Optional implementation executable slug. Use this for the one executable that performs the work. |
 | `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                               |
 | `staff`       | Staff persona slug. A duty without staff should not auto-run.                                    |
 | `stage`       | Progress type. Use one of the built-in templates below.                                          |
-| `mentions`    | Optional GitHub logins to notify.                                                                |
-| `executables` | Legacy or multi-run executable list. Prefer singular `executable` for normal duties.             |
-| `disabled`    | `true` pauses the duty.                                                                          |
+| `mentions`    | Optional GitHub logins to notify, without `@`.                                                   |
+| `executables` | Multi-run executable list. Prefer singular `executable` for normal duties.                       |
+| `tools`       | Optional duty tool names exposed to the tick runner.                                             |
+| `tickScript`  | Optional deterministic script path for a scripted duty runner.                                   |
+| `readsFrom`   | Context, report, or duty slugs this duty reads.                                                  |
+| `writesTo`    | Report or context slugs this duty writes.                                                        |
+| `disabled`    | `true` pauses autonomous scheduling.                                                             |
 
 ## Progress types
 
@@ -112,6 +138,11 @@ Bad:
 You are a senior engineering manager...
 ```
 
+### `## Executable`
+
+For executable-backed duties, name the executable and explain what outcome it
+must produce. Keep the implementation details in the executable folder.
+
 ### `## Allowed Commands`
 
 For executable-backed duties, list only the executable.
@@ -132,7 +163,7 @@ Examples:
 
 ## Choosing between duty, executable, and staff
 
-Use a **duty** when the work is recurring.
+Use a **duty** when the work is recurring or public as an `@kody <action>`.
 
 Use an **executable** when you are defining implementation that a duty action
 can run, such as a deterministic graph refresh or an agent workflow.
@@ -149,6 +180,7 @@ Before creating a duty, Kody should know:
 - Which staff member runs it.
 - Which progress type fits.
 - Which implementation executable runs the work, if needed.
+- Which reports or context entries it reads or writes, if any.
 - Which actions are forbidden.
 
 If any of those are unclear, Kody should ask before creating the duty.

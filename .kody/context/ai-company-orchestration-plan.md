@@ -22,7 +22,7 @@ Agents act on stale/invisible claims and there's no shared state between them. C
    - **MVP:** One shared schema with `id`, `severity`, `title`, `data` fields
    - **Done when:** All existing reports validate against schema without errors
 
-3. **Duty contracts** — structured `reads_from` / `writes_to` / `done_when` in duty frontmatter
+3. **Duty contracts** — structured `readsFrom` / `writesTo` / `doneWhen` in duty profiles
    - **Cost if skipped:** Unclear what a duty owns vs consumes; circular dependencies grow silently
    - **MVP:** `reads_from` and `writes_to` on all scheduled duties
    - **Done when:** No orphan reads (a duty only reads what another duty writes)

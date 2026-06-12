@@ -1,0 +1,10 @@
+{
+  "name": "architecture-audit",
+  "describe": "Architecture Audit",
+  "every": "7d",
+  "staff": "cto",
+  "executables": [
+    "architecture-audit"
+  ],
+  "disabled": true
+}

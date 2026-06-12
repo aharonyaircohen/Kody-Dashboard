@@ -1,0 +1,14 @@
+{
+  "name": "pr-health-triage",
+  "describe": "PR Health Triage",
+  "every": "15m",
+  "staff": "cto",
+  "stage": "approval-gate",
+  "mentions": [
+    "aguyaharonyair"
+  ],
+  "executables": [
+    "pr-health-triage"
+  ],
+  "disabled": true
+}

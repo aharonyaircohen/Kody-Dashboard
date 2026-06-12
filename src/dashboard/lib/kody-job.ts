@@ -99,7 +99,7 @@ export function resolveJobProfile(job: KodyJob): string | undefined {
  * Render an INSTANT job as the `@kody` dispatch comment the engine resolves —
  * the same path the executable "Run" button and chat tools use. `why` is
  * appended as free text (the engine surfaces it as the operator request).
- * Scheduled jobs are not dispatched this way; they persist as a duty file.
+ * Scheduled jobs are not dispatched this way; they persist as a duty folder.
  */
 export function renderInstantJobComment(job: KodyJob): string {
   const verb = resolveJobProfile(job);

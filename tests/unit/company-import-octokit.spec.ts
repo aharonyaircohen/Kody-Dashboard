@@ -65,11 +65,17 @@ import { COMPANY_BUNDLE_VERSION } from "@dashboard/lib/company/types";
 
 /**
  * A stateful fake of the user's (valid) Octokit. Tracks files written via
- * createOrUpdateFileContents so a subsequent getContent on the same path
- * returns them — mirroring real GitHub: 404 before write, content after.
+ * createOrUpdateFileContents and git tree commits so a subsequent getContent
+ * on the same path returns them — mirroring real GitHub: 404 before write,
+ * content after.
  */
 function makeGoodOctokit() {
   const written = new Map<string, string>(); // path -> base64 content
+  const blobs = new Map<string, string>(); // blob sha -> raw utf-8 content
+  const trees = new Map<string, Array<{ path?: string; sha?: string | null }>>();
+  let blobId = 0;
+  let treeId = 0;
+  let commitId = 0;
   const nf = () => {
     const e = new Error("Not Found") as Error & { status: number };
     e.status = 404;
@@ -90,6 +96,41 @@ function makeGoodOctokit() {
         const c = written.get(path);
         if (!c) return nf();
         return { data: { content: c, sha: `sha-${path}` } };
+      }),
+    },
+    git: {
+      getRef: vi.fn(async () => ({ data: { object: { sha: "commit-base" } } })),
+      getCommit: vi.fn(async () => ({ data: { tree: { sha: "tree-base" } } })),
+      createBlob: vi.fn(async ({ content }: { content: string }) => {
+        const sha = `blob-${++blobId}`;
+        blobs.set(sha, content);
+        return { data: { sha } };
+      }),
+      createTree: vi.fn(
+        async ({ tree }: { tree: Array<{ path?: string; sha?: string | null }> }) => {
+          const sha = `tree-${++treeId}`;
+          trees.set(sha, tree);
+          return { data: { sha } };
+        },
+      ),
+      createCommit: vi.fn(async ({ tree }: { tree: string }) => {
+        const sha = `commit-${++commitId}`;
+        trees.set(sha, trees.get(tree) ?? []);
+        return { data: { sha } };
+      }),
+      updateRef: vi.fn(async ({ sha }: { sha: string }) => {
+        for (const entry of trees.get(sha) ?? []) {
+          if (!entry.path) continue;
+          if (entry.sha === null) {
+            written.delete(entry.path);
+            continue;
+          }
+          const content = blobs.get(entry.sha ?? "");
+          if (content !== undefined) {
+            written.set(entry.path, Buffer.from(content, "utf-8").toString("base64"));
+          }
+        }
+        return { data: {} };
       }),
     },
   };
@@ -164,6 +205,7 @@ describe("company import survives a cleared/bad request-context octokit", () => 
 
     // The writes really went through the GOOD octokit...
     expect(good.repos.createOrUpdateFileContents).toHaveBeenCalled();
+    expect(good.git.createTree).toHaveBeenCalled();
     // ...and the bad global octokit was never touched.
     expect(badOctokit.repos.getContent).not.toHaveBeenCalled();
     expect(badOctokit.repos.createOrUpdateFileContents).not.toHaveBeenCalled();

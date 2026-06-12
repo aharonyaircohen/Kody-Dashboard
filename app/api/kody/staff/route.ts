@@ -5,7 +5,7 @@
  * @ai-summary Staff Control API — GET lists staff, POST creates one.
  *   A staff member is a markdown file at `.kody/staff/<slug>.md` in the
  *   connected repo. Duplicated from the duties API; the manual "Run now"
- *   path reuses the engine's `job-tick` plumbing verbatim.
+ *   path reuses the engine's `duty-tick` plumbing.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

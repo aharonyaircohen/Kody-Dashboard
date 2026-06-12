@@ -1,0 +1,16 @@
+{
+  "name": "ci-health-graph",
+  "describe": "CI Health Graph - refresh CI health map",
+  "every": "1h",
+  "staff": "qa",
+  "stage": "report-refresh",
+  "executables": [
+    "ci-health-graph"
+  ],
+  "readsFrom": [
+    "ci-health-graph"
+  ],
+  "writesTo": [
+    "ci-health-graph"
+  ]
+}

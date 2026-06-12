@@ -117,8 +117,8 @@ is always `@kody <verb> --pr <n>`.
 
 ## Comment formats
 
-**Operator handle.** The engine substitutes `{{mentions}}` (the duty's
-`mentions:` frontmatter) on the recommendation's first line. Use the literal
+**Operator handle.** The engine substitutes `{{mentions}}` (the duty profile's
+`mentions` list) on the recommendation's first line. Use the literal
 token `{{mentions}}` below — never hardcode a handle or read it from config;
 future operators only change the duty's `mentions:` list in the dashboard.
 

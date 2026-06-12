@@ -27,17 +27,17 @@ export interface DutyHealthInput {
   lastTickAt: string | null;
   /** `data.nextEligibleISO` from the state file, or null. */
   nextEligibleAt: string | null;
-  /** `disabled: true` in frontmatter — scheduler skips it. */
+  /** `disabled: true` in the duty profile; scheduler skips it. */
   disabled: boolean;
   /** Missing staff means the engine scheduler skips this duty. */
   staff?: string | null;
-  /** Last commit time of the `.md` (proxy for "how long it's existed"). */
+  /** Last commit time of the duty body/profile (proxy for "how long it's existed"). */
   updatedAt?: string | null;
 }
 
 /** The 15-minute cron plus jitter — don't cry "overdue" within one wake. */
 const OVERDUE_GRACE_MS = 20 * 60 * 1000;
-/** Cron cadence used when a duty declares no explicit `every:`. */
+/** Cron cadence used when a duty declares no explicit `every`. */
 const DEFAULT_CADENCE_MS = 15 * 60 * 1000;
 
 /**

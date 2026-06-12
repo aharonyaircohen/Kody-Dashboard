@@ -56,7 +56,7 @@ Daily digest of **tasks already assigned to Kody** — any open issue carrying a
 ## Allowed Commands
 
 - `gh issue list`, `gh issue view` — to read scan input.
-- `gh api -X PUT` against `.kody/reports/health-check.md` only — to write the report. Permitted by the global job-tick contract.
+- `gh api -X PUT` against `.kody/reports/health-check.md` only — to write the report. Permitted by the global duty-tick contract.
 
 ## Restrictions
 

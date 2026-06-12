@@ -198,7 +198,7 @@ export function invalidateIssueCache(issueNumber?: number): void {
 }
 
 /**
- * Invalidate cache entries for duty files. Pass a slug to scope to one
+ * Invalidate cache entries for duty folders. Pass a slug to scope to one
  * duty, or omit to clear the listing cache (e.g. on bulk changes).
  */
 export function invalidateDutiesCache(slug?: string): void {

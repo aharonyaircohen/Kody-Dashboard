@@ -1,0 +1,13 @@
+{
+  "name": "qa-sweep",
+  "describe": "QA Sweep",
+  "every": "1h",
+  "staff": "qa",
+  "mentions": [
+    "aguyaharonyair"
+  ],
+  "executables": [
+    "qa-sweep"
+  ],
+  "disabled": true
+}

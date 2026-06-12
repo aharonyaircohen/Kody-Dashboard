@@ -110,7 +110,7 @@ it'll comment why and you'll retry on a later tick.
 ## Comment formats
 
 **Operator handle.** The engine substitutes `{{mentions}}` (this duty's
-`mentions:` frontmatter) on the first line. Use the literal `{{mentions}}`
+profile `mentions` list) on the first line. Use the literal `{{mentions}}`
 token — never hardcode a handle.
 
 **Recommendation** (`approve` — verb not graduated). MUST `@`-mention the

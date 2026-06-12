@@ -1,10 +1,8 @@
 /**
- * Unit tests for the ticked-markdown frontmatter parser
- * (src/dashboard/lib/ticked/frontmatter.ts). Every duty/staff file's
- * schedule + staff binding is decoded here; a parse bug silently changes
- * whether (and as whom) a duty auto-fires. The persona-binding key on the
- * wire is `staff:` — that's what the engine reads (loadJobFromFile,
- * dispatchJobFileTicks). Pure logic.
+ * Unit tests for the legacy ticked-markdown frontmatter parser
+ * (src/dashboard/lib/ticked/frontmatter.ts). Folder-backed duties use
+ * profile.json; these helpers remain for markdown records and shared cadence
+ * validation.
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -188,7 +186,7 @@ describe("joinFrontmatter", () => {
     expect(frontmatter).toEqual(fm);
   });
 
-  it("emits the full engine duty frontmatter shape in stable order", () => {
+  it("emits the legacy duty metadata shape in stable order", () => {
     const fm: TickFrontmatter = {
       action: "repo-graph",
       executable: "repo-graph-refresh",

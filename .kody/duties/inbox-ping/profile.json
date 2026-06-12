@@ -1,0 +1,14 @@
+{
+  "name": "inbox-ping",
+  "describe": "Inbox Ping",
+  "every": "15m",
+  "staff": "coo",
+  "stage": "simple-check",
+  "mentions": [
+    "aguyaharonyair"
+  ],
+  "executables": [
+    "inbox-ping"
+  ],
+  "disabled": true
+}

@@ -1,0 +1,16 @@
+{
+  "name": "pr-graph",
+  "describe": "PR Graph",
+  "every": "1h",
+  "staff": "coo",
+  "stage": "report-refresh",
+  "executables": [
+    "pr-graph"
+  ],
+  "readsFrom": [
+    "pr-graph"
+  ],
+  "writesTo": [
+    "pr-graph"
+  ]
+}

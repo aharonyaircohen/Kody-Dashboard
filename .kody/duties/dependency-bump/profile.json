@@ -1,0 +1,10 @@
+{
+  "name": "dependency-bump",
+  "describe": "Dependency Bump",
+  "every": "7d",
+  "staff": "coo",
+  "executables": [
+    "dependency-bump"
+  ],
+  "disabled": true
+}

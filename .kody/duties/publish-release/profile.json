@@ -1,0 +1,11 @@
+{
+  "name": "publish-release",
+  "describe": "Publish Release",
+  "every": "manual",
+  "staff": "coo",
+  "stage": "simple-check",
+  "executables": [
+    "publish-release"
+  ],
+  "disabled": true
+}

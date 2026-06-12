@@ -8,7 +8,7 @@
  * Three empty H2 sections — no hints, no placeholders. Authors type content
  * under each heading without ever deleting filler. The `## Job` /
  * `## Allowed Commands` / `## Restrictions` headings are parsed by the
- * engine's job-tick executor, so their text is a contract — do not rename.
+ * engine's duty-tick executor, so their text is a contract — do not rename.
  */
 export const DUTY_TEMPLATE = `## Job
 

@@ -1,0 +1,10 @@
+{
+  "name": "system-audit",
+  "describe": "System Audit",
+  "every": "30m",
+  "staff": "coo",
+  "executables": [
+    "system-audit"
+  ],
+  "disabled": true
+}

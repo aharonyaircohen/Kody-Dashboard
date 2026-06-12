@@ -129,7 +129,7 @@ not behavior bugs — but two are real seams worth a look.
 
 - **Chat default**: ✅ `KodyChat.tsx` initializes `selectedAgentId` to
   `lockedAgentId ?? "kody-live"`, so the default agent is `kody-live`.
-- **Cron cadence**: ✅ the wake is `*/15`; `job-scheduler`'s `*/5` is a _max
+- **Cron cadence**: ✅ the wake is `*/15`; `duty-scheduler`'s `*/5` is a _max
   eligible_ cadence. The only stale artifact is a `templates/kody.yml` comment
   (engine repo; not edited here per the no-touch-kody.yml rule). See
   [Staff & Duties → cron cadence](concepts/staff-duties.md).

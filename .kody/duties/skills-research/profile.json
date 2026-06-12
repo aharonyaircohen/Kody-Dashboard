@@ -1,0 +1,10 @@
+{
+  "name": "skills-research",
+  "describe": "Skills Research",
+  "every": "7d",
+  "staff": "cto",
+  "stage": "report-refresh",
+  "executables": [
+    "skills-research"
+  ]
+}

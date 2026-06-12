@@ -3,9 +3,9 @@
  * @domain kody
  * @pattern duties-api
  * @ai-summary Duty Control API — GET lists duties, POST creates one.
- *   A duty is a markdown file at `.kody/duties/<slug>.md` in the
- *   connected repo. The kody engine's job-scheduler enumerates the same
- *   directory and ticks each file every cron wake.
+ *   A duty is a folder at `.kody/duties/<slug>/` in the connected repo:
+ *   `profile.json` holds metadata and `duty.md` holds the readable body.
+ *   The kody engine's scheduler enumerates those folders.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -91,9 +91,8 @@ const createDutySchema = z.object({
 });
 
 /**
- * Clean a client-supplied mentions list before it hits the frontmatter
- * serializer: drop a leading `@`, trim whitespace, drop empties. Keeps the
- * stored `mentions:` line in the exact format the engine expects.
+ * Clean a client-supplied mentions list before it hits profile metadata:
+ * drop a leading `@`, trim whitespace, drop empties.
  */
 function normalizeMentions(mentions?: string[]): string[] {
   if (!mentions) return [];
@@ -201,7 +200,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "no_user_token",
-          message: "A signed-in GitHub token is required to commit duty files.",
+          message: "A signed-in GitHub token is required to commit duty folders.",
         },
         { status: 401 },
       );

@@ -24,7 +24,7 @@ persona/scheduled-work split is new to you.
 | Piece               | What travels                                                                                                                                                | Source on export                                                                  |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | **Staff**           | Each persona's slug, title, body, `disabled`. Schedule is always `null` and `staff` always `null` (staff don't run on their own).                           | `.kody/staff/*.md` via `listStaffFiles()`                                         |
-| **Duties**          | Each duty's slug, title, body, `schedule` (`every:` cadence), `disabled`, and the `staff` slug it runs as.                                                  | `.kody/duties/*.md` via `listDutyFiles()`                                         |
+| **Duties**          | Each duty's slug, title, body, action, executable link, cadence, `disabled`, `stage`, data contracts, and the `staff` slug it runs as.                       | `.kody/duties/<slug>/{profile.json,duty.md}` via `listDutyFiles()`                |
 | **Commands**        | Repo-defined slash commands only — slug, description, argument hint, body. Built-ins ship with the dashboard, so they're never exported.                    | `.kody/commands/*.md` via `listRepoCommandFiles()` (filtered `source === "repo"`) |
 | **Executables**     | Each custom executable as a folder map: `profile.json` + `prompt.md` + any `*.sh` shell scripts + any `skills/<name>/SKILL.md`.                             | `.kody/executables/<slug>/` via `listExecutableFiles()` / `readExecutableFile()`  |
 | **Instructions**    | The single repo behavioral overlay (tone/length/formatting), or `null` if the repo has none.                                                                | `.kody/instructions.md` via `readInstructionsFile()`                              |
@@ -46,8 +46,8 @@ even though the rest of `kody.config.json` is partly portable. The
 
 One JSON document, `kodyCompany: 1` as its format discriminator, plus
 provenance (`exportedAt`, `exportedFrom: "owner/repo"`). Each entry stores
-only what round-trips through the existing file helpers — slug,
-frontmatter, body — and **drops repo-specific fields** (`sha`,
+only what round-trips through the existing file helpers - slug,
+metadata, body - and **drops repo-specific fields** (`sha`,
 `html_url`, commit/tick timestamps) on export, re-deriving them on import.
 The downloaded filename is `kody-company-<owner>-<repo>-<YYYY-MM-DD>.json`.
 

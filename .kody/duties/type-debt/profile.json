@@ -1,0 +1,10 @@
+{
+  "name": "type-debt",
+  "describe": "Type Debt Tracker",
+  "every": "7d",
+  "staff": "cto",
+  "executables": [
+    "type-debt"
+  ],
+  "disabled": true
+}

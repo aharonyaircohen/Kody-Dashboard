@@ -2,9 +2,9 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern duties-api
- * @ai-summary Duty detail API — GET reads a single duty file, PATCH
- *   updates metadata/body/executable assignment, DELETE removes the file.
- *   Backed by `.kody/duties/<slug>.md` via the GitHub contents API.
+ * @ai-summary Duty detail API — GET reads a single duty folder, PATCH
+ *   updates metadata/body/executable assignment, DELETE removes the folder.
+ *   Backed by `.kody/duties/<slug>/{profile.json,duty.md}` via GitHub.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -83,8 +83,8 @@ const updateDutySchema = z.object({
 });
 
 /**
- * Clean a client-supplied mentions list before it hits the frontmatter
- * serializer: drop a leading `@`, trim whitespace, drop empties.
+ * Clean a client-supplied mentions list before it hits profile metadata:
+ * drop a leading `@`, trim whitespace, drop empties.
  */
 function normalizeMentions(mentions: string[]): string[] {
   return mentions
@@ -179,7 +179,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           error: "no_user_token",
-          message: "A signed-in GitHub token is required to commit duty files.",
+          message: "A signed-in GitHub token is required to commit duty folders.",
         },
         { status: 401 },
       );
@@ -286,7 +286,7 @@ export async function DELETE(
       return NextResponse.json(
         {
           error: "no_user_token",
-          message: "A signed-in GitHub token is required to delete duty files.",
+          message: "A signed-in GitHub token is required to delete duty folders.",
         },
         { status: 401 },
       );

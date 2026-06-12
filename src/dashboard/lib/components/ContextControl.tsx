@@ -51,6 +51,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@dashboard/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dashboard/ui/select";
 import { AuthGuard } from "../auth-guard";
 import { cn } from "../utils";
 import {
@@ -71,6 +78,9 @@ import { PageHeader } from "./PageShell";
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 type StaffOption = { slug: string; label: string; hint: string };
+
+const ALL_STAFF_FILTER = "__all_staff_filter__";
+const NO_STAFF_FILTER = "__no_staff_filter__";
 
 /** The all-staff wildcard, offered as the first toggle in the picker. */
 const ALL_STAFF_OPTION: StaffOption = {
@@ -193,14 +203,50 @@ export function ContextControlInner({
   );
 
   const [search, setSearch] = useState("");
+  const [staffFilter, setStaffFilter] = useState(ALL_STAFF_FILTER);
+  const staffOptions = useStaffOptions();
+  const staffTitleBySlug = useMemo(
+    () => new Map(staffOptions.map((s) => [s.slug, s.label])),
+    [staffOptions],
+  );
+  const staffFilterOptions = useMemo(() => {
+    const slugs = new Set<string>();
+    for (const option of staffOptions) {
+      if (option.slug !== ALL_STAFF) slugs.add(option.slug);
+    }
+    for (const entry of entries) {
+      for (const slug of entry.staff) {
+        if (slug !== ALL_STAFF) slugs.add(slug);
+      }
+    }
+    return [...slugs].sort((a, b) =>
+      (staffTitleBySlug.get(a) ?? a).localeCompare(
+        staffTitleBySlug.get(b) ?? b,
+      ),
+    );
+  }, [entries, staffOptions, staffTitleBySlug]);
+  const hasUnassignedEntries = useMemo(
+    () => entries.some((entry) => entry.staff.length === 0),
+    [entries],
+  );
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return entries;
+    const matchesStaffFilter = (entry: ContextEntry) => {
+      if (staffFilter === ALL_STAFF_FILTER) return true;
+      if (staffFilter === NO_STAFF_FILTER) return entry.staff.length === 0;
+      return (
+        entry.staff.includes(ALL_STAFF) || entry.staff.includes(staffFilter)
+      );
+    };
     return entries.filter(
-      (s) =>
-        s.slug.toLowerCase().includes(q) || s.body.toLowerCase().includes(q),
+      (entry) =>
+        matchesStaffFilter(entry) &&
+        (!q ||
+          entry.slug.toLowerCase().includes(q) ||
+          entry.body.toLowerCase().includes(q) ||
+          entry.staff.some((slug) => slug.toLowerCase().includes(q))),
     );
-  }, [entries, search]);
+  }, [entries, search, staffFilter]);
 
   const existingSlugs = useMemo(
     () => new Set(entries.map((s) => s.slug)),
@@ -208,10 +254,17 @@ export function ContextControlInner({
   );
 
   useEffect(() => {
-    if (!selectedSlug && entries.length > 0) {
-      setSelectedSlug(entries[0].slug);
+    if (filtered.length === 0) {
+      if (selectedSlug) setSelectedSlug(null);
+      return;
     }
-  }, [entries, selectedSlug]);
+    if (
+      !selectedSlug ||
+      !filtered.some((entry) => entry.slug === selectedSlug)
+    ) {
+      setSelectedSlug(filtered[0].slug);
+    }
+  }, [filtered, selectedSlug]);
 
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteContextEntry(githubUser?.login);
@@ -271,13 +324,20 @@ export function ContextControlInner({
             )}
           >
             {entries.length > 0 ? (
-              <div className="sticky top-0 z-10 bg-background/95 backdrop-blur px-3 md:px-4 py-2 md:py-3 border-b border-border">
+              <div className="sticky top-0 z-10 space-y-2 bg-background/95 backdrop-blur px-3 md:px-4 py-2 md:py-3 border-b border-border">
                 <ListSearch
                   value={search}
                   onChange={setSearch}
                   placeholder="Search context…"
                   ariaLabel="Search context"
                   accent="teal"
+                />
+                <ContextStaffFilter
+                  value={staffFilter}
+                  onChange={setStaffFilter}
+                  staffSlugs={staffFilterOptions}
+                  staffTitleBySlug={staffTitleBySlug}
+                  hasUnassignedEntries={hasUnassignedEntries}
                 />
               </div>
             ) : null}
@@ -526,6 +586,45 @@ function EntryDetail({
         </div>
       ) : null}
     </article>
+  );
+}
+
+function ContextStaffFilter({
+  value,
+  onChange,
+  staffSlugs,
+  staffTitleBySlug,
+  hasUnassignedEntries,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  staffSlugs: string[];
+  staffTitleBySlug: Map<string, string>;
+  hasUnassignedEntries: boolean;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger
+        aria-label="Filter context by staff"
+        className="h-9 w-full min-w-0 bg-background/40"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL_STAFF_FILTER}>All staff</SelectItem>
+        {hasUnassignedEntries ? (
+          <SelectItem value={NO_STAFF_FILTER}>Unassigned</SelectItem>
+        ) : null}
+        {staffSlugs.map((slug) => {
+          const title = staffTitleBySlug.get(slug);
+          return (
+            <SelectItem key={slug} value={slug}>
+              {title ? `${title} (${slug})` : slug}
+            </SelectItem>
+          );
+        })}
+      </SelectContent>
+    </Select>
   );
 }
 

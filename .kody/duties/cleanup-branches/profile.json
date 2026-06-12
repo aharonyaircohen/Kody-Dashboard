@@ -1,0 +1,10 @@
+{
+  "name": "cleanup-branches",
+  "describe": "Clean Up Branches",
+  "every": "manual",
+  "staff": "coo",
+  "executables": [
+    "cleanup-branches"
+  ],
+  "disabled": true
+}

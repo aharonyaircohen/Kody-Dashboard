@@ -1,0 +1,10 @@
+{
+  "name": "flaky-test-quarantine",
+  "describe": "Flaky Test Quarantine",
+  "every": "1d",
+  "staff": "cto",
+  "executables": [
+    "flaky-test-quarantine"
+  ],
+  "disabled": true
+}

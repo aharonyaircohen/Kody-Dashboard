@@ -2,11 +2,10 @@
  * @fileType util
  * @domain kody
  * @pattern ticked-frontmatter
- * @ai-summary Tiny YAML-frontmatter parser/serializer shared by every
- *   "ticked markdown" feature (duties, staff, and any future kind). A
- *   ticked file is allowed to start with a `---\n…\n---\n` block carrying
- *   flat scalar key/value pairs (no nesting). The parser recognizes the
- *   duty fields the dashboard edits and silently drops unknown keys.
+ * @ai-summary Tiny YAML-frontmatter parser/serializer for legacy
+ *   "ticked markdown" records. Duties now store metadata in
+ *   `.kody/duties/<slug>/profile.json`; this module remains for staff and
+ *   for schedule/type helpers reused by the folder-backed duty UI.
  *
  *   No `gray-matter` dep on purpose — the format is intentionally
  *   restricted (flat, scalar values only) and a 30-line parser keeps
@@ -31,7 +30,7 @@ export type ScheduleEvery =
   | "3d"
   | "7d"
   /**
-   * Sentinel: the scheduler never auto-fires this file. Only manual triggers
+   * Sentinel: the scheduler never auto-fires this record. Only manual triggers
    * (workflow_dispatch via the dashboard "Run now" button) execute it.
    */
   | "manual";
@@ -63,7 +62,7 @@ export interface TickFrontmatter {
   /** Cadence between ticks. Absent = "every cron wake" (legacy default). */
   every?: ScheduleEvery;
   /**
-   * When `true`, the scheduler skips this file on every cron wake. Manual
+   * When `true`, the scheduler skips this record on every cron wake. Manual
    * triggers (the dashboard "Run now" button) still fire — disabling only
    * blocks autonomous execution, not deliberate user action. Absent or
    * `false` keeps the file active.
@@ -71,9 +70,8 @@ export interface TickFrontmatter {
   disabled?: boolean;
   /**
    * Slug of the staff member (persona) under `.kody/staff/<staff>.md` that
-   * executes this duty. Duties own the schedule; the staff member is *who*
-   * the tick runs as. Only meaningful on duty files — staff files never
-   * carry it. A duty with no `staff:` is skipped by the engine scheduler.
+   * executes this duty in legacy markdown metadata. Folder-backed duties store
+   * the same value in `profile.json.staff`.
    */
   staff?: string;
   /**
@@ -95,7 +93,7 @@ export interface TickFrontmatter {
   executables?: string[];
   /**
    * Tool names exposed to the duty tick runner. Stored on the engine-facing
-   * `tools:` frontmatter line.
+   * `tools:` metadata line in legacy markdown records.
    */
   dutyTools?: string[];
   /**

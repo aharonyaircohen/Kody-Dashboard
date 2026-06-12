@@ -3,14 +3,9 @@
  * @domain kody
  * @pattern ai-sdk-tool
  * @ai-summary Duty-creation tool for the kody-direct chat agent. Writes a
- *   `.kody/duties/<slug>.md` file via the same `writeDutyFile` helper the
- *   dashboard's POST /api/kody/duties endpoint uses. Default body follows
- *   the report-producer template: each scheduled run gathers inputs,
- *   composes a YAML findings report, and commits it to
- *   `.kody/reports/<slug>.md` on the dedicated state branch via `gh api PUT`.
- *   Format mirrors the duty contract (Job / Allowed Commands / Restrictions —
- *   the `## Job` heading is parsed by the engine's job-tick executor, so its
- *   text stays literal).
+ *   `.kody/duties/<slug>/` folder via the same `writeDutyFile` helper the
+ *   dashboard's POST /api/kody/duties endpoint uses. Metadata lands in
+ *   `profile.json`; human-readable purpose and limits land in `duty.md`.
  *
  *   The model should NOT call this on the first turn — it must gap-
  *   analyze and ask the user questions until the duty is well-specified.
@@ -93,11 +88,11 @@ async function readDutyGuide(): Promise<string> {
       "# Kody duties",
       "",
       "- Kody can create duties with `create_kody_duty`.",
-      "- Duties live at `.kody/duties/<slug>.md`.",
+      "- Duties live at `.kody/duties/<slug>/profile.json` plus `duty.md`.",
       "- A duty owns public action, purpose, cadence, staff, progress type, and safety rules.",
       "- Put staff persona in `.kody/staff/<slug>.md`.",
       "- Put reusable action logic in `.kody/executables/<slug>/`.",
-      "- Do not put raw state keys in the duty body; use `stage:`.",
+      "- Do not put metadata or raw state keys in `duty.md`; use `profile.json.stage`.",
     ].join("\n");
   }
 }
@@ -105,7 +100,7 @@ async function readDutyGuide(): Promise<string> {
 /**
  * Render the default report-producer duty body. The model fills in the
  * variable parts (purpose, inputs, report schema). Cadence, staff, and
- * progress live in frontmatter so the operator does not have to author raw
+ * progress live in profile.json so the operator does not have to author raw
  * runtime state rules.
  */
 function buildDutyBody(slug: string, input: DutyInput): string {
@@ -114,56 +109,43 @@ function buildDutyBody(slug: string, input: DutyInput): string {
   const reportSchemaBlock = input.reportSchema.trim() || "_Not specified_";
   const extraCmds = input.extraAllowedCommands ?? [];
   const extraRest = input.extraRestrictions ?? [];
+  const executable = input.executable?.trim();
 
   let body = "";
 
   body += `## Job\n\n`;
   body += `${input.purpose.trim()}\n\n`;
 
-  body += `**Per scheduled run:**\n\n`;
-  body += `1. Gather inputs:\n`;
-  body += `${inputBullets
-    .split("\n")
-    .map((l) => `   ${l}`)
-    .join("\n")}\n`;
-  body += `2. Compose the report findings as YAML frontmatter following this schema:\n\n`;
-  body += `   \`\`\`yaml\n`;
-  body += `   slug: ${slug}\n`;
-  body += `   generatedAt: <ISO 8601 timestamp>\n`;
-  body += `   findings:\n`;
-  body += `${reportSchemaBlock
-    .split("\n")
-    .map((l) => `   ${l}`)
-    .join("\n")}\n`;
-  body += `   \`\`\`\n\n`;
-  body += `3. Look up the existing report's blob SHA (skip on 404 — first run):\n`;
-  body += `   \`\`\`\n`;
-  body += `   EXISTING_SHA="$(gh api -X GET repos/{owner}/{repo}/contents/.kody/reports/${slug}.md \\\n`;
-  body += `     -f ref=${STATE_BRANCH} \\\n`;
-  body += `     --jq .sha 2>/dev/null || true)"\n`;
-  body += `   \`\`\`\n`;
-  body += `4. Commit the new report to the ${STATE_BRANCH} branch via the contents API (omit \`-f sha=...\` on first run):\n`;
-  body += `   \`\`\`\n`;
-  body += `   SHA_ARG=()\n`;
-  body += `   if [ -n "$EXISTING_SHA" ]; then SHA_ARG=(-f "sha=$EXISTING_SHA"); fi\n`;
-  body += `   gh api -X PUT repos/{owner}/{repo}/contents/.kody/reports/${slug}.md \\\n`;
-  body += `     -f message="chore(reports): update ${slug}" \\\n`;
-  body += `     -f branch=${STATE_BRANCH} \\\n`;
-  body += `     -f content="$(printf '%s' "$REPORT_BODY" | base64)" \\\n`;
-  body += `     "\${SHA_ARG[@]}"\n`;
-  body += `   \`\`\`\n`;
-  body += `5. On success, stop. On non-2xx, report the status code and stop.\n\n`;
+  if (executable) {
+    body += `## Executable\n\n`;
+    body += `Run the \`${executable}\` executable. Its skills and scripts own the implementation details.\n\n`;
+  }
+
+  body += `## Inputs\n\n`;
+  body += `${inputBullets}\n\n`;
+
+  body += `## Output\n\n`;
+  body += `Refresh \`${STATE_BRANCH}:.kody/reports/${slug}.md\` with a report that follows this findings shape:\n\n`;
+  body += `\`\`\`yaml\n`;
+  body += `slug: ${slug}\n`;
+  body += `generatedAt: <ISO 8601 timestamp>\n`;
+  body += `findings:\n`;
+  body += `${reportSchemaBlock}\n`;
+  body += `\`\`\`\n\n`;
 
   body += `## Allowed Commands\n\n`;
-  body += `- \`gh api\` — read + PUT contents on \`${STATE_BRANCH}:.kody/reports/${slug}.md\` only\n`;
+  if (executable) {
+    body += `- Run the \`${executable}\` executable.\n`;
+  } else {
+    body += `- Use only the minimum read/write tools needed to refresh \`${STATE_BRANCH}:.kody/reports/${slug}.md\`.\n`;
+  }
   for (const cmd of extraCmds) body += `- ${cmd.trim()}\n`;
   body += `\n`;
 
   body += `## Restrictions\n\n`;
-  body += `- Never edit, create, or delete files in the working tree. The report is committed via the GitHub contents API, not the working tree.\n`;
-  body += `- Never push, never commit any branch/path other than \`${STATE_BRANCH}:.kody/reports/${slug}.md\`.\n`;
-  body += `- Maximum **one** report write per tick.\n`;
-  body += `- If the contents PUT fails with 409 (sha mismatch), re-read the SHA and retry once; otherwise report the error and exit.\n`;
+  body += `- Never edit source files from this duty.\n`;
+  body += `- Never write outside \`${STATE_BRANCH}:.kody/reports/${slug}.md\` unless the user changes the duty contract.\n`;
+  body += `- Maximum one report refresh per tick.\n`;
   for (const r of extraRest) body += `- ${r.trim()}\n`;
 
   return body;
@@ -173,12 +155,12 @@ export const createKodyDutyInputSchema = z.object({
   title: z
     .string()
     .min(1)
-    .describe("Human-readable duty title. Becomes the H1 of the duty file."),
+    .describe("Human-readable duty title. Becomes the H1 of duty.md."),
   slug: z
     .string()
     .optional()
     .describe(
-      "Optional file slug (lowercase letters, digits, dashes, underscores; max 64 chars). " +
+      "Optional duty slug (lowercase letters, digits, dashes, underscores; max 64 chars). " +
         "If omitted, derived from the title.",
     ),
   action: z
@@ -191,7 +173,7 @@ export const createKodyDutyInputSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Optional implementation executable slug. Omit for normal markdown duties that the built-in duty runner should execute.",
+      "Optional implementation executable slug. Omit for normal folder duties that the built-in duty runner should execute.",
     ),
   staff: z
     .string()
@@ -203,20 +185,20 @@ export const createKodyDutyInputSchema = z.object({
     .enum(DUTY_SCHEDULE_VALUES)
     .default("1d")
     .describe(
-      "Frontmatter cadence for `every:`. Use `manual` for run-button only, or values like `1h`, `1d`, `7d` for auto-run.",
+      "Duty profile cadence for `every`. Use `manual` for run-button only, or values like `1h`, `1d`, `7d` for auto-run.",
     ),
   stage: z
     .enum(DUTY_STAGE_TEMPLATE_SLUGS)
     .default("report-refresh")
     .describe(
-      "Progress type for `stage:`. For this report-producing tool, `report-refresh` is usually correct.",
+      "Duty profile progress type for `stage`. For this report-producing tool, `report-refresh` is usually correct.",
     ),
   purpose: z
     .string()
     .min(1)
     .describe(
       "One to three sentences describing what the duty scans/observes and what report it produces. " +
-        "No implementation details — those go in `inputs` and `reportSchema`.",
+        "No implementation details; those go in an executable skill/script when needed.",
     ),
   inputs: z
     .array(z.string().min(1))
@@ -231,7 +213,7 @@ export const createKodyDutyInputSchema = z.object({
     .min(1)
     .describe(
       "YAML fragment describing the `findings:` array shape that the duty will produce. Indented as it " +
-        'will appear inside the YAML frontmatter — e.g. "  - id: <stable id>\\n    severity: ' +
+        'will appear inside the report YAML frontmatter — e.g. "  - id: <stable id>\\n    severity: ' +
         '<high|medium|low>\\n    title: \\"...\\"\\n    data: { ... }". Do NOT include the slug or ' +
         "generatedAt fields — those are added automatically.",
     ),
@@ -239,7 +221,7 @@ export const createKodyDutyInputSchema = z.object({
     .array(z.string().min(1))
     .optional()
     .describe(
-      "Optional additional shell commands the duty may run beyond `gh api` (e.g. " +
+      "Optional additional allowed commands for the duty body (e.g. " +
         '"`gh pr list`", "`gh run list`"). Each item becomes a bullet under "Allowed Commands".',
     ),
   extraRestrictions: z
@@ -268,20 +250,18 @@ export function createDutyTools(ctx: Ctx) {
 
     create_kody_duty: tool({
       description:
-        `Create a new Kody Duty in ${repoRef}. Before calling it, call read_duty_creation_guide and follow that guide. Commits a markdown file at ` +
-        "`.kody/duties/<slug>.md`. The default template is a REPORT-PRODUCER: each " +
-        "scheduled run gathers inputs, composes a YAML findings report, and commits it to " +
-        `\`${STATE_BRANCH}:.kody/reports/<slug>.md\` via \`gh api PUT\` (the engine's job-tick ` +
-        "executable only has Bash + Read, so reports are committed via API, not " +
-        "the working tree). The kody engine's job-scheduler ticks every duty in " +
-        "`.kody/duties/`; the duty's `every:` frontmatter decides how often it may run.\n\n" +
+        `Create a new Kody Duty in ${repoRef}. Before calling it, call read_duty_creation_guide and follow that guide. Commits a duty folder at ` +
+        "`.kody/duties/<slug>/` (`profile.json` + `duty.md`). The default template is a REPORT-PRODUCER: each " +
+        "scheduled run gathers inputs, composes a YAML findings report, and refreshes " +
+        `\`${STATE_BRANCH}:.kody/reports/<slug>.md\`. The kody engine's duty-scheduler ticks every duty folder in ` +
+        "`.kody/duties/`; the duty profile's `every` value decides how often it may run.\n\n" +
         "BEFORE CALLING: gather title, purpose, staff, schedule, stage, inputs (data sources " +
         "as concrete `gh` commands), and reportSchema (YAML fragment for the " +
         "`findings:` array). Ask the user clarifying questions in small batches " +
         "until each field is well-specified — never invent inputs or schema. Show " +
-        "the proposed markdown body for approval before calling.\n\n" +
-        "Returns the new file's slug, title, and html URL on success. The duty " +
-        "starts ticking on the next 5-min cron wake; no manual dispatch required.",
+        "the proposed profile JSON and markdown body for approval before calling.\n\n" +
+        "Returns the new duty slug, title, and html URL on success. The duty " +
+        "starts ticking on the next scheduler wake; no manual dispatch required.",
       inputSchema: createKodyDutyInputSchema,
       execute: async (input) => {
         const slug = (input.slug ?? slugifyTitle(input.title)).toLowerCase();
@@ -349,7 +329,7 @@ export function createDutyTools(ctx: Ctx) {
               stage: input.stage,
               actorLogin,
             },
-            "create_kody_duty: created duty file",
+            "create_kody_duty: created duty folder",
           );
 
           return {
@@ -357,8 +337,8 @@ export function createDutyTools(ctx: Ctx) {
             title: duty.title,
             htmlUrl: duty.htmlUrl,
             note:
-              "Duty file committed. The kody engine's job-scheduler will pick it up on the next " +
-              "5-min cron tick. The `every:` frontmatter controls how often it may run.",
+              "Duty folder committed. The kody engine's duty-scheduler will pick it up on the next " +
+              "scheduler wake. The profile `every` value controls how often it may run.",
           };
         } catch (err) {
           logger.warn(
@@ -368,7 +348,7 @@ export function createDutyTools(ctx: Ctx) {
           return {
             error: "create_failed",
             message:
-              err instanceof Error ? err.message : "Failed to create duty file",
+              err instanceof Error ? err.message : "Failed to create duty folder",
           };
         }
       },

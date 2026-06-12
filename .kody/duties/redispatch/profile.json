@@ -1,0 +1,10 @@
+{
+  "name": "redispatch",
+  "describe": "Redispatch",
+  "every": "1h",
+  "staff": "coo",
+  "executables": [
+    "redispatch"
+  ],
+  "disabled": true
+}

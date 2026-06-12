@@ -3,9 +3,9 @@
  * @domain kody
  * @pattern duty-control-page
  * @ai-summary Duty Control — list, view, create, edit, and delete duties.
- *   A duty is a markdown file at `.kody/duties/<slug>.md` in the
- *   connected repo whose body describes the duty's intent, allowed
- *   commands, and restrictions.
+ *   A duty is a folder at `.kody/duties/<slug>/` in the connected repo:
+ *   `profile.json` stores metadata and `duty.md` describes intent,
+ *   allowed commands, and restrictions.
  */
 "use client";
 
@@ -92,7 +92,7 @@ import { buildAuthHeaders, useAuth } from "../auth-context";
 /**
  * Parse the raw "Mentions" text field into a clean login list: split on
  * commas, trim, strip an optional leading `@`, drop empties. Matches the
- * frontmatter serializer's contract so the stored `mentions:` line is exact.
+ * profile serializer's contract so the stored `mentions` list is exact.
  */
 function parseMentionsInput(raw: string): string[] {
   return raw
@@ -1367,7 +1367,7 @@ function DutyEnabledCheckbox({
 /**
  * Schedule dropdown. Options, in order:
  *
- * - **Auto** (sentinel `null`, no frontmatter): the engine ticks the duty
+ * - **Auto** (sentinel `null`, no explicit `every` in profile): the engine ticks the duty
  *   on every cron wake; the body's cadence guard decides whether to act.
  *   This is the default for every new duty.
  * - **Fixed cadences** (`every: 15m` … `every: 7d`): the engine gates the
@@ -1377,8 +1377,8 @@ function DutyEnabledCheckbox({
  *   duty runs only when the Run button is clicked.
  *
  * `ALL_SCHEDULE_EVERY_OPTIONS` is the single source of truth (`15m`…`7d`,
- * then `manual`); the API schema and frontmatter serializer accept the
- * same set, so every value here round-trips to `every:` in the file.
+ * then `manual`); the API schema and profile serializer accept the
+ * same set, so every value here round-trips to `profile.json`.
  */
 function ScheduleSelect({
   value,
@@ -1577,8 +1577,8 @@ function ExecutableSelect({
 
 /**
  * "Mentions" input — a comma-separated list of GitHub logins the duty's
- * output should `@`-mention. Stored as the `mentions:` frontmatter line
- * (no `@`); the engine pings the listed users in the duty's report. The
+ * output should `@`-mention. Stored as the `mentions` profile list (no
+ * `@`); the engine pings the listed users in the duty's report. The
  * raw text is normalized on save (split, trim, strip leading `@`, drop
  * empties) so users can type `@alice, bob` freely.
  */
@@ -1740,8 +1740,8 @@ function MentionsInput({
 /**
  * Read-only timing readout shown inside the Edit dialog: last actual run
  * + next eligible run. Last run can come from state or activity; next eligible
- * still comes from state. Helpful for duties whose cadence lives in the body
- * prose (not frontmatter), so the dropdown above can't honestly express it.
+ * still comes from state. Helpful for duties whose eligibility has runtime
+ * evidence beyond the static profile cadence.
  * Refreshes every 30s.
  */
 function DutyTimingReadout({

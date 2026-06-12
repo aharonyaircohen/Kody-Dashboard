@@ -13,7 +13,7 @@
  */
 
 export type ActivityCategory =
-  | "scheduled" // job-scheduler / memorize fan-out (event=schedule)
+  | "scheduled" // duty-scheduler / memorize fan-out (event=schedule)
   | "dispatch" // manual duty/staff "Run now" via the kody:control issue
   | "command" // a user @kody command on a real issue/PR (event=issue_comment)
   | "manual" // workflow_dispatch

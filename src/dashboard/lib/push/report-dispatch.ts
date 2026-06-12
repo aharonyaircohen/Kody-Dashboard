@@ -129,8 +129,8 @@ function buildPayload(slug: string, repoFullName: string): string {
  * Drop lines that change every tick without the report's meaning changing.
  * The engine stamps `_Last updated: <ISO>_` into every report on every rerun,
  * so a re-save with no real change still differs by exactly this one line
- * (this is ~68% of report pushes — e.g. job-gap-scan re-proposing the same
- * duty hourly). Stripping it before comparison is what separates "genuinely
+ * (this is ~68% of report pushes — e.g. duty-call re-proposing the same duty
+ * hourly). Stripping it before comparison is what separates "genuinely
  * new/updated report" from "same report, fresh timestamp". Matches the line
  * however it's wrapped in markdown emphasis (`_..._`, `*..*`, blockquote).
  * Exported for tests.

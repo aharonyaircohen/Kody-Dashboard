@@ -1,0 +1,10 @@
+{
+  "name": "design-review",
+  "describe": "Design Review",
+  "every": "7d",
+  "staff": "ux-designer",
+  "executables": [
+    "design-review"
+  ],
+  "disabled": true
+}

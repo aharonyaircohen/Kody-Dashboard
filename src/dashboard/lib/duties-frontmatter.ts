@@ -2,11 +2,9 @@
  * @fileType util
  * @domain kody
  * @pattern duties-frontmatter
- * @ai-summary Duty preset over the shared ticked-frontmatter parser.
- *   Duties and staff use the identical flat-YAML frontmatter format;
- *   the one implementation lives in `ticked/frontmatter.ts`. This file
- *   re-exports it under the `DutyFrontmatter` name so importers stay
- *   stable.
+ * @ai-summary Compatibility re-export for duty schedule helpers. Duties now
+ *   store metadata in `profile.json`; older imports still use these cadence
+ *   helpers and `DutyFrontmatter` types while the UI API shape stays stable.
  */
 
 export {

@@ -11,7 +11,7 @@
  *
  *   The bundle is a single JSON document the user exports from one repo
  *   and imports into another. Each entry stores only what round-trips
- *   through the existing file helpers (slug + frontmatter + body);
+ *   through the existing file helpers (slug + metadata + body);
  *   repo-specific fields (sha, html_url, commit/tick timestamps) are
  *   dropped on export and re-derived on import.
  */
@@ -26,7 +26,7 @@ import {
 /** Bump when the on-disk bundle shape changes incompatibly. */
 export const COMPANY_BUNDLE_VERSION = 1 as const;
 
-/** Cadence tokens accepted in a ticked-file's `every:` frontmatter. */
+/** Cadence tokens accepted in a duty profile's `every` field. */
 const SCHEDULE_TOKENS = [
   "15m",
   "30m",
@@ -41,8 +41,8 @@ const SCHEDULE_TOKENS = [
 ] as const;
 
 /**
- * A staff member or duty entry — both are "ticked markdown" files and
- * share the same portable shape. `staff` (the executor persona slug) is
+ * A staff member or duty entry. They share the same portable API shape even
+ * though staff are markdown files and duties are folders. `staff` (the executor persona slug) is
  * only ever set on duties; staff files always carry `null`.
  */
 export interface CompanyTickEntry {

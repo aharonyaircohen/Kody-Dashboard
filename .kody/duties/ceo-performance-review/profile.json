@@ -1,0 +1,10 @@
+{
+  "name": "ceo-performance-review",
+  "describe": "CEO Performance Review",
+  "every": "7d",
+  "staff": "ceo",
+  "stage": "report-refresh",
+  "executables": [
+    "ceo-performance-review"
+  ]
+}

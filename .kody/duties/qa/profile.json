@@ -1,0 +1,13 @@
+{
+  "name": "qa",
+  "describe": "QA Changelog Verification",
+  "every": "30m",
+  "staff": "qa",
+  "mentions": [
+    "aguyaharonyair"
+  ],
+  "executables": [
+    "qa"
+  ],
+  "disabled": true
+}

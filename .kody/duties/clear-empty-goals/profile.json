@@ -1,0 +1,11 @@
+{
+  "name": "clear-empty-goals",
+  "describe": "Clear Empty Goals",
+  "every": "1d",
+  "staff": "coo",
+  "stage": "simple-check",
+  "executables": [
+    "clear-empty-goals"
+  ],
+  "disabled": true
+}

@@ -1,0 +1,16 @@
+{
+  "name": "dependency-graph",
+  "describe": "Dependency Graph",
+  "every": "1d",
+  "staff": "cto",
+  "stage": "report-refresh",
+  "executables": [
+    "dependency-graph"
+  ],
+  "readsFrom": [
+    "dependency-graph"
+  ],
+  "writesTo": [
+    "dependency-graph"
+  ]
+}

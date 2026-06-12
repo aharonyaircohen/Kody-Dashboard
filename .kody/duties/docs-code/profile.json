@@ -1,0 +1,12 @@
+{
+  "name": "docs-code",
+  "describe": "Docs Coverage - in-code / folder headers",
+  "every": "1d",
+  "staff": "tech-writer",
+  "mentions": [
+    "aguyaharonyair"
+  ],
+  "executables": [
+    "docs-code"
+  ]
+}

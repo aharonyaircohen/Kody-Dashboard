@@ -13,5 +13,6 @@ Use this index to choose which report to read:
 - `pr-graph`: PR flow, review state, labels, branches, stale PRs, and blocked PRs.
 - `dependency-graph`: package manifests, lockfiles, dependency ranges, and version conflicts.
 - `docs-graph`: markdown docs, links, broken local links, missing headings, and TODO markers.
+- `memory-compaction`: memory footprint, task recommendation backlog, and safe compaction proposals.
 
 Do not hand-edit reports. Refresh them through their matching duty.

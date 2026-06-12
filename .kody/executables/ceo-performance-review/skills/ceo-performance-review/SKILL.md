@@ -19,8 +19,8 @@ task — `duty-review` (COO) grades whether each _duty_ is well designed;
 this grades whether each _employee_ is actually **delivering the
 responsibilities they own**.
 
-An employee's "work" is the set of duties that name them
-(`staff: <slug>`). Their delivery quality is read from the **evidence those
+An employee's "work" is the set of duties whose profile names them
+(`"staff": "<slug>"`). Their delivery quality is read from the **evidence those
 duties leave behind**: state files advancing on cadence, reports/comments
 that aren't stale or empty, output that's useful rather than churn or noise.
 
@@ -37,7 +37,7 @@ Reports page surfaces. Past weeks live in that file's git history.
 
 ## Tick procedure (all staff, one report write)
 
-Cadence is the `every: 7d` frontmatter — the engine enforces it. Do **not**
+Cadence is the `"every": "7d"` duty profile value — the engine enforces it. Do **not**
 add a prose "skip if within 7 days" guard (that duplicates the schedule and
 has caused regressions). State is recorded only for the dashboard "next run"
 readout and the week-over-week delta.
@@ -58,15 +58,15 @@ readout and the week-over-week delta.
 
    Drop non-`.md` files. Each remaining slug is one employee.
 
-3. **Map duties to employees.** List the duties and read each one's
-   `staff:` frontmatter so you know who owns what:
+3. **Map duties to employees.** List the duty folders and read each one's
+   `profile.json.staff` value so you know who owns what:
 
    ```
    gh api "/repos/$REPO/contents/.kody/duties" -q '.[].name'
    ```
 
-   For each `<duty>.md`, fetch its body and read the `staff:` field. Group
-   duties by owner. A duty with `disabled: true` is **owned but parked** —
+   For each `<duty>/profile.json`, read `staff` and `disabled`. Group
+   duties by owner. A duty with `"disabled": true` is **owned but parked** —
    list it under the employee, but don't penalize the employee for its
    idleness (disabled is the operator's choice, not the employee's miss).
 
@@ -129,7 +129,7 @@ subjective quality._` line (**no timestamp** — `lastRunISO` lives in
   `.state.json` files, `.kody/reports/*`, and
   `/repos/$REPO/commits?path=...` for run history.
 - `gh api -X PUT` against `.kody/reports/ceo-performance-review.md` **only** —
-  to write the report. Permitted by the global job-tick contract.
+  to write the report. Permitted by the global duty-tick contract.
 
 ## Restrictions
 

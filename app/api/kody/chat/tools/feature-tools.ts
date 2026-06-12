@@ -114,27 +114,32 @@ Each stage's status is committed to a per-task \`status.json\` on the work branc
   },
   {
     id: "kody-duties",
-    name: "Kody Duties (scheduled markdown duties)",
+    name: "Kody Duties (scheduled duty folders)",
     summary:
-      "Markdown files at .kody/duties/<slug>.md that the engine job-scheduler ticks every 5 minutes.",
-    details: `A Kody Duty is a markdown file at \`.kody/duties/<slug>.md\` that the engine's
-job-scheduler ticks every 5 minutes. Each duty's own \`Cadence guard\` decides
-whether to take action on a given tick.
+      "Folders at .kody/duties/<slug>/ that the engine duty-scheduler ticks.",
+    details: `A Kody Duty is a folder at \`.kody/duties/<slug>/\`:
+
+- \`profile.json\` stores action, executable, cadence, staff, stage, mentions, and data-contract metadata.
+- \`duty.md\` stores the human-readable purpose, output, allowed commands, and restrictions.
+
+The engine duty-scheduler enumerates duty folders and ticks due duties. Each
+duty profile's \`every\` value decides whether it may take action on a given tick.
 
 Format (must match existing duties in \`.kody/duties/\`):
-- H1 title
-- \`## Job\` — purpose (the engine's job-tick executor parses this heading, so its text stays literal)
+- \`profile.json\` metadata
+- \`duty.md\` with an H1 title
+- \`## Job\` — purpose and outcome
+- \`## Executable\` when relevant
+- \`## Output\`
 - \`## Allowed Commands\`
 - \`## Restrictions\`
 
-Default template is REPORT-PRODUCER: each active tick gathers inputs, composes
-a YAML \`findings:\` report, and commits it to
-\`kody-state:.kody/reports/<slug>.md\` via \`gh api PUT\` (the job-tick
-executable only has Bash + Read tools — reports are committed via the contents
-API, not the working tree).
+Default chat template is REPORT-PRODUCER: each active tick gathers inputs,
+composes a YAML \`findings:\` report, and refreshes
+\`kody-state:.kody/reports/<slug>.md\`.
 
-Do not put raw state keys in the duty body. Use the \`stage:\` frontmatter
-template so progress/state stays engine-owned.
+Do not put metadata or raw state keys in \`duty.md\`. Use \`profile.json.stage\`
+so progress/state stays engine-owned.
 
 The chat exposes \`read_duty_creation_guide\` and \`create_kody_duty\` to
 scaffold a new duty after a gap-analysis conversation.`,

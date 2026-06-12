@@ -47,7 +47,7 @@ no linked issue.
 
 Live (no `disabled` flag) — this repo is already set up (`LOGIN_USER` +
 `LOGIN_PASSWORD`, `.kody/context/*.md` QA flows). Add `disabled: true` to the
-frontmatter to pause it.
+duty profile to pause it.
 
 **Per tick (one action max):**
 
