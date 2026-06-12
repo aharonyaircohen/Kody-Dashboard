@@ -12,8 +12,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { AGENT_KODY } from "@dashboard/lib/agents";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
-  return NextResponse.json({ prompt: AGENT_KODY.systemPrompt });
+  return NextResponse.json(
+    { prompt: AGENT_KODY.systemPrompt },
+    { headers: NO_STORE_HEADERS },
+  );
 }

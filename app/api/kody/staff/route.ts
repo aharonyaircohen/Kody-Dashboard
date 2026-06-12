@@ -28,6 +28,11 @@ import {
 } from "@dashboard/lib/staff-files";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -38,26 +43,26 @@ export async function GET(req: NextRequest) {
 
   try {
     const staff = await listStaffFiles();
-    return NextResponse.json({ staff });
+    return NextResponse.json({ staff }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Staff] Error fetching staff:", error);
 
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
-        { status: 401 },
+        { status: 401, headers: NO_STORE_HEADERS },
       );
     }
     if (error?.status === 403 || error?.message?.includes("rate limit")) {
       return NextResponse.json(
         { error: "rate_limited", message: "GitHub API rate limit exceeded" },
-        { status: 429 },
+        { status: 429, headers: NO_STORE_HEADERS },
       );
     }
 
     return NextResponse.json(
       { staff: [], error: error?.message || "Failed to fetch staff" },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   } finally {
     clearGitHubContext();

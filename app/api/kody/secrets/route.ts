@@ -25,6 +25,11 @@ import { isVaultConfigured } from "@dashboard/lib/vault/crypto";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import { logger } from "@dashboard/lib/logger";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
 const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
 
 const UpsertSchema = z.object({
@@ -46,7 +51,7 @@ function vaultUnconfiguredResponse() {
       message:
         "KODY_MASTER_KEY is not set on the server. Run `pnpm vault:init` and add the key to Vercel env.",
     },
-    { status: 503 },
+    { status: 503, headers: NO_STORE_HEADERS },
   );
 }
 
@@ -57,16 +62,25 @@ export async function GET(req: NextRequest) {
 
   const auth = getRequestAuth(req);
   if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+    return NextResponse.json(
+      { error: "no_repo_context" },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
   }
 
   const octokit = await getUserOctokit(req);
   if (!octokit)
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
+    return NextResponse.json(
+      { error: "no_octokit" },
+      { status: 401, headers: NO_STORE_HEADERS },
+    );
 
   try {
     const { doc } = await readVault(octokit, auth.owner, auth.repo);
-    return NextResponse.json({ secrets: listSecretMetadata(doc) });
+    return NextResponse.json(
+      { secrets: listSecretMetadata(doc) },
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (err) {
     logger.error(
       { err, owner: auth.owner, repo: auth.repo },
@@ -74,7 +88,7 @@ export async function GET(req: NextRequest) {
     );
     return NextResponse.json(
       { error: "vault_read_failed", message: (err as Error).message },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   }
 }

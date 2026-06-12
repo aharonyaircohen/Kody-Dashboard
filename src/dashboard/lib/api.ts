@@ -908,7 +908,10 @@ export interface Duty {
 
 export const dutiesApi = {
   list: async (): Promise<Duty[]> => {
-    const res = await fetch(`${API_BASE}/duties`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/duties`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
     const data = await handleResponse<{ duties: Duty[] }>(res);
     return data.duties;
   },
@@ -1029,7 +1032,10 @@ export interface Staff {
 
 export const staffApi = {
   list: async (): Promise<Staff[]> => {
-    const res = await fetch(`${API_BASE}/staff`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/staff`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
     const data = await handleResponse<{ staff: Staff[] }>(res);
     return data.staff;
   },
@@ -1133,7 +1139,10 @@ export interface ContextEntry {
 
 export const contextApi = {
   list: async (): Promise<ContextEntry[]> => {
-    const res = await fetch(`${API_BASE}/context`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/context`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
     const data = await handleResponse<{ entries: ContextEntry[] }>(res);
     return data.entries ?? [];
   },
@@ -1218,7 +1227,10 @@ export interface MemoryFile {
 
 export const memoryApi = {
   list: async (): Promise<MemoryFile[]> => {
-    const res = await fetch(`${API_BASE}/memory`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/memory`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
     const data = await handleResponse<{ memories: MemoryFile[] }>(res);
     return data.memories ?? [];
   },
@@ -1303,7 +1315,10 @@ export interface Report {
 
 export const reportsApi = {
   list: async (): Promise<Report[]> => {
-    const res = await fetch(`${API_BASE}/reports`, { headers: buildHeaders() });
+    const res = await fetch(`${API_BASE}/reports`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
     const data = await handleResponse<{ reports: Report[] }>(res);
     return data.reports;
   },

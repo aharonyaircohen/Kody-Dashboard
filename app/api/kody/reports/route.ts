@@ -15,6 +15,11 @@ import {
 } from "@dashboard/lib/github-client";
 import { listReportFiles } from "@dashboard/lib/reports-files";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -25,26 +30,26 @@ export async function GET(req: NextRequest) {
 
   try {
     const reports = await listReportFiles();
-    return NextResponse.json({ reports });
+    return NextResponse.json({ reports }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Reports] Error fetching reports:", error);
 
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
-        { status: 401 },
+        { status: 401, headers: NO_STORE_HEADERS },
       );
     }
     if (error?.status === 403 || error?.message?.includes("rate limit")) {
       return NextResponse.json(
         { error: "rate_limited", message: "GitHub API rate limit exceeded" },
-        { status: 429 },
+        { status: 429, headers: NO_STORE_HEADERS },
       );
     }
 
     return NextResponse.json(
       { reports: [], error: error?.message || "Failed to fetch reports" },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   } finally {
     clearGitHubContext();

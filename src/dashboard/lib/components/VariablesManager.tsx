@@ -40,7 +40,25 @@ interface VariableRow {
 
 const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
 
-const variablesQueryKey = ["kody-variables"] as const;
+export interface VariablesQueryScope {
+  owner?: string | null;
+  repo?: string | null;
+}
+
+function variablesQueryScopeFromAuth(
+  auth: { owner?: string | null; repo?: string | null } | null | undefined,
+): VariablesQueryScope {
+  return {
+    owner: auth?.owner ?? null,
+    repo: auth?.repo ?? null,
+  };
+}
+
+export const variablesQueryKeys = {
+  all: ["kody-variables"] as const,
+  list: (scope: VariablesQueryScope = {}) =>
+    ["kody-variables", scope.owner ?? null, scope.repo ?? null] as const,
+};
 
 function formatRelative(iso: string): string {
   try {
@@ -63,7 +81,10 @@ function formatRelative(iso: string): string {
 async function listVariables(
   headers: Record<string, string>,
 ): Promise<VariableRow[]> {
-  const res = await fetch("/api/kody/variables", { headers });
+  const res = await fetch("/api/kody/variables", {
+    headers,
+    cache: "no-store",
+  });
   const json = (await res.json().catch(() => ({}))) as {
     variables?: VariableRow[];
     error?: string;
@@ -127,10 +148,12 @@ function VariablesManagerInner() {
     ...buildAuthHeaders(auth),
   };
   const actorLogin = auth?.user.login;
+  const queryScope = variablesQueryScopeFromAuth(auth);
+  const listQueryKey = variablesQueryKeys.list(queryScope);
 
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery<VariableRow[]>({
-    queryKey: variablesQueryKey,
+    queryKey: listQueryKey,
     queryFn: () => listVariables(headers),
     enabled: !!auth,
     staleTime: 30_000,
@@ -141,7 +164,8 @@ function VariablesManagerInner() {
     mutationFn: (input: { name: string; value: string }) =>
       upsertVariable(headers, input.name, input.value, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: variablesQueryKey });
+      queryClient.invalidateQueries({ queryKey: variablesQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       toast.success("Variable saved");
     },
     onError: (err: Error) =>
@@ -151,7 +175,8 @@ function VariablesManagerInner() {
   const remove = useMutation({
     mutationFn: (name: string) => deleteVariable(headers, name),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: variablesQueryKey });
+      queryClient.invalidateQueries({ queryKey: variablesQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       toast.success("Variable deleted");
     },
     onError: (err: Error) =>

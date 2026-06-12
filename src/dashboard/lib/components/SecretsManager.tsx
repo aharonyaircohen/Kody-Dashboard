@@ -76,7 +76,25 @@ async function unlockVault(
 
 const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
 
-const secretsQueryKey = ["kody-secrets"] as const;
+export interface SecretsQueryScope {
+  owner?: string | null;
+  repo?: string | null;
+}
+
+function secretsQueryScopeFromAuth(
+  auth: { owner?: string | null; repo?: string | null } | null | undefined,
+): SecretsQueryScope {
+  return {
+    owner: auth?.owner ?? null,
+    repo: auth?.repo ?? null,
+  };
+}
+
+export const secretsQueryKeys = {
+  all: ["kody-secrets"] as const,
+  list: (scope: SecretsQueryScope = {}) =>
+    ["kody-secrets", scope.owner ?? null, scope.repo ?? null] as const,
+};
 
 function formatRelative(iso: string): string {
   try {
@@ -99,7 +117,10 @@ function formatRelative(iso: string): string {
 async function listSecrets(
   headers: Record<string, string>,
 ): Promise<SecretRow[]> {
-  const res = await fetch("/api/kody/secrets", { headers });
+  const res = await fetch("/api/kody/secrets", {
+    headers,
+    cache: "no-store",
+  });
   const json = (await res.json().catch(() => ({}))) as {
     secrets?: SecretRow[];
     error?: string;
@@ -163,10 +184,12 @@ function SecretsManagerInner() {
     ...buildAuthHeaders(auth),
   };
   const actorLogin = auth?.user.login;
+  const queryScope = secretsQueryScopeFromAuth(auth);
+  const listQueryKey = secretsQueryKeys.list(queryScope);
 
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery<SecretRow[]>({
-    queryKey: secretsQueryKey,
+    queryKey: listQueryKey,
     queryFn: () => listSecrets(headers),
     enabled: !!auth,
     staleTime: 30_000,
@@ -178,7 +201,8 @@ function SecretsManagerInner() {
     mutationFn: (input: { name: string; value: string }) =>
       upsertSecret(headers, input.name, input.value, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: secretsQueryKey });
+      queryClient.invalidateQueries({ queryKey: secretsQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       toast.success("Secret saved");
     },
     onError: (err: Error) =>
@@ -188,7 +212,8 @@ function SecretsManagerInner() {
   const remove = useMutation({
     mutationFn: (name: string) => deleteSecret(headers, name),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: secretsQueryKey });
+      queryClient.invalidateQueries({ queryKey: secretsQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       toast.success("Secret deleted");
     },
     onError: (err: Error) =>

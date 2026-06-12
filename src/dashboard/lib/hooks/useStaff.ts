@@ -17,17 +17,45 @@ import {
   SessionExpiredError,
   getStoredAuth,
 } from "../api";
+import { useAuth } from "../auth-context";
+
+export interface StaffQueryScope {
+  owner?: string | null;
+  repo?: string | null;
+}
+
+export function staffQueryScopeFromAuth(
+  auth: { owner?: string | null; repo?: string | null } | null | undefined,
+): StaffQueryScope {
+  return {
+    owner: auth?.owner ?? null,
+    repo: auth?.repo ?? null,
+  };
+}
 
 export const staffQueryKeys = {
-  list: ["kody-staff"] as const,
-  detail: (slug: string) => ["kody-staff-member", slug] as const,
+  all: ["kody-staff"] as const,
+  list: (scope: StaffQueryScope = {}) =>
+    ["kody-staff", scope.owner ?? null, scope.repo ?? null] as const,
+  detail: (slug: string, scope: StaffQueryScope = {}) =>
+    ["kody-staff-member", scope.owner ?? null, scope.repo ?? null, slug] as const,
 };
 
+function useStaffQueryScope() {
+  const { auth } = useAuth();
+  const currentAuth = auth ?? getStoredAuth();
+  return {
+    currentAuth,
+    scope: staffQueryScopeFromAuth(currentAuth),
+  };
+}
+
 export function useStaff() {
+  const { currentAuth, scope } = useStaffQueryScope();
   return useQuery({
-    queryKey: staffQueryKeys.list,
+    queryKey: staffQueryKeys.list(scope),
     queryFn: () => kodyApi.staff.list(),
-    enabled: !!getStoredAuth(),
+    enabled: !!currentAuth,
     staleTime: 30_000,
     retry: (failureCount, error) => {
       if (error instanceof SessionExpiredError) return false;
@@ -38,16 +66,18 @@ export function useStaff() {
 }
 
 export function useStaffMember(slug: string | null) {
+  const { currentAuth, scope } = useStaffQueryScope();
   return useQuery({
-    queryKey: staffQueryKeys.detail(slug ?? ""),
+    queryKey: staffQueryKeys.detail(slug ?? "", scope),
     queryFn: () => kodyApi.staff.get(slug!),
-    enabled: !!getStoredAuth() && !!slug,
+    enabled: !!currentAuth && !!slug,
     staleTime: 30_000,
   });
 }
 
 export function useCreateStaff(actorLogin?: string) {
   const queryClient = useQueryClient();
+  const { scope } = useStaffQueryScope();
 
   return useMutation<
     Staff,
@@ -64,7 +94,8 @@ export function useCreateStaff(actorLogin?: string) {
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: staffQueryKeys.list });
+      queryClient.invalidateQueries({ queryKey: staffQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: staffQueryKeys.list(scope) });
       toast.success("Staff member created");
     },
     onError: (error) => {
@@ -77,6 +108,7 @@ export function useCreateStaff(actorLogin?: string) {
 
 export function useUpdateStaff(slug: string, actorLogin?: string) {
   const queryClient = useQueryClient();
+  const { scope } = useStaffQueryScope();
 
   return useMutation<
     Staff,
@@ -92,8 +124,12 @@ export function useUpdateStaff(slug: string, actorLogin?: string) {
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: (staffMember) => {
-      queryClient.invalidateQueries({ queryKey: staffQueryKeys.list });
-      queryClient.setQueryData(staffQueryKeys.detail(slug), staffMember);
+      queryClient.invalidateQueries({ queryKey: staffQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: staffQueryKeys.list(scope) });
+      queryClient.setQueryData(
+        staffQueryKeys.detail(slug, scope),
+        staffMember,
+      );
       toast.success("Staff member updated");
     },
     onError: (error) => {
@@ -106,12 +142,16 @@ export function useUpdateStaff(slug: string, actorLogin?: string) {
 
 export function useDeleteStaff(actorLogin?: string) {
   const queryClient = useQueryClient();
+  const { scope } = useStaffQueryScope();
 
   return useMutation<void, Error, string>({
     mutationFn: (slug) => kodyApi.staff.remove(slug, actorLogin),
     onSuccess: (_, slug) => {
-      queryClient.invalidateQueries({ queryKey: staffQueryKeys.list });
-      queryClient.removeQueries({ queryKey: staffQueryKeys.detail(slug) });
+      queryClient.invalidateQueries({ queryKey: staffQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: staffQueryKeys.list(scope) });
+      queryClient.removeQueries({
+        queryKey: staffQueryKeys.detail(slug, scope),
+      });
       toast.success("Staff member deleted");
     },
     onError: (error) => {

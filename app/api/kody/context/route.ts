@@ -28,6 +28,11 @@ import {
 } from "@dashboard/lib/context/files";
 import { KODY_CHAT_STAFF } from "@dashboard/lib/context/frontmatter";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
 /** A staff slug (entry slug shape) or the `*` all-staff wildcard. */
 const STAFF_TOKEN_RE = /^(\*|[a-z0-9][a-z0-9_-]{0,63})$/;
 
@@ -41,24 +46,24 @@ export async function GET(req: NextRequest) {
 
   try {
     const entries = await listContextFiles();
-    return NextResponse.json({ entries });
+    return NextResponse.json({ entries }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Context] Error listing context:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
-        { status: 401 },
+        { status: 401, headers: NO_STORE_HEADERS },
       );
     }
     if (error?.status === 403 || error?.message?.includes("rate limit")) {
       return NextResponse.json(
         { error: "rate_limited", message: "GitHub API rate limit exceeded" },
-        { status: 429 },
+        { status: 429, headers: NO_STORE_HEADERS },
       );
     }
     return NextResponse.json(
       { entries: [], error: error?.message || "Failed to list context" },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   } finally {
     clearGitHubContext();

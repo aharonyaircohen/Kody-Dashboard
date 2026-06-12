@@ -119,7 +119,27 @@ interface DefaultsState {
   pr: string | null;
 }
 
-const queryKey = ["kody-executables"] as const;
+export interface ExecutableQueryScope {
+  owner?: string | null;
+  repo?: string | null;
+}
+
+function executableQueryScopeFromAuth(
+  auth: { owner?: string | null; repo?: string | null } | null | undefined,
+): ExecutableQueryScope {
+  return {
+    owner: auth?.owner ?? null,
+    repo: auth?.repo ?? null,
+  };
+}
+
+export const executableQueryKeys = {
+  all: ["kody-executables"] as const,
+  list: (scope: ExecutableQueryScope = {}) =>
+    ["kody-executables", scope.owner ?? null, scope.repo ?? null] as const,
+  detail: (slug: string | null, scope: ExecutableQueryScope = {}) =>
+    ["kody-executable", scope.owner ?? null, scope.repo ?? null, slug] as const,
+};
 
 function formatRelative(iso: string): string {
   if (!iso) return "";
@@ -141,7 +161,10 @@ function formatRelative(iso: string): string {
 async function listApi(
   headers: Record<string, string>,
 ): Promise<{ executables: ExecutableSummary[]; defaults: DefaultsState }> {
-  const res = await fetch("/api/kody/executables", { headers });
+  const res = await fetch("/api/kody/executables", {
+    headers,
+    cache: "no-store",
+  });
   const json = (await res.json().catch(() => ({}))) as {
     executables?: ExecutableSummary[];
     defaults?: DefaultsState;
@@ -162,6 +185,7 @@ async function readApi(
 ): Promise<ExecutableDetail> {
   const res = await fetch(`/api/kody/executables/${encodeURIComponent(slug)}`, {
     headers,
+    cache: "no-store",
   });
   const json = (await res.json().catch(() => ({}))) as {
     executable?: ExecutableDetail;
@@ -281,9 +305,11 @@ function ExecutableEditorPageInner({ slug }: { slug: string | null }) {
     ...buildAuthHeaders(auth),
   };
   const actorLogin = auth?.user.login;
+  const queryScope = executableQueryScopeFromAuth(auth);
+  const listQueryKey = executableQueryKeys.list(queryScope);
 
   const { data } = useQuery({
-    queryKey,
+    queryKey: listQueryKey,
     queryFn: () => listApi(headers),
     enabled: !!auth,
     staleTime: 30_000,
@@ -293,7 +319,8 @@ function ExecutableEditorPageInner({ slug }: { slug: string | null }) {
   const save = useMutation({
     mutationFn: (payload: SavePayload) => saveApi(headers, payload, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: executableQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       toast.success("Executable saved");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to save"),
@@ -312,6 +339,7 @@ function ExecutableEditorPageInner({ slug }: { slug: string | null }) {
       <ExecutableEditor
         slug={slug}
         headers={headers}
+        queryScope={queryScope}
         existingSlugs={existingSlugs}
         saving={save.isPending}
         onClose={back}
@@ -331,10 +359,12 @@ function ExecutablesManagerInner() {
     ...buildAuthHeaders(auth),
   };
   const actorLogin = auth?.user.login;
+  const queryScope = executableQueryScopeFromAuth(auth);
+  const listQueryKey = executableQueryKeys.list(queryScope);
   const queryClient = useQueryClient();
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey,
+    queryKey: listQueryKey,
     queryFn: () => listApi(headers),
     enabled: !!auth,
     staleTime: 30_000,
@@ -345,7 +375,8 @@ function ExecutablesManagerInner() {
   const remove = useMutation({
     mutationFn: (slug: string) => deleteApi(headers, slug),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: executableQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       toast.success("Executable deleted");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to delete"),
@@ -355,7 +386,8 @@ function ExecutablesManagerInner() {
     mutationFn: (v: { slug: string; target: "issue" | "pr"; clear: boolean }) =>
       setDefaultApi(headers, v.slug, v.target, v.clear, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: executableQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       toast.success("Default updated");
     },
     onError: (err: Error) =>
@@ -408,7 +440,7 @@ function ExecutablesManagerInner() {
   // actually show "the executable content", so load the full record for the
   // selected slug and refetch on selection change.
   const selectedFull = useQuery({
-    queryKey: ["kody-executable", selected?.slug ?? null] as const,
+    queryKey: executableQueryKeys.detail(selected?.slug ?? null, queryScope),
     queryFn: () => readApi(headers, selected!.slug),
     enabled: !!selected,
     staleTime: 30_000,
@@ -417,9 +449,10 @@ function ExecutablesManagerInner() {
   const save = useMutation({
     mutationFn: (payload: SavePayload) => saveApi(headers, payload, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: executableQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       queryClient.invalidateQueries({
-        queryKey: ["kody-executable", selected?.slug ?? null],
+        queryKey: executableQueryKeys.detail(selected?.slug ?? null, queryScope),
       });
       toast.success("Executable saved");
       setEditingSlug(null);
@@ -476,6 +509,7 @@ function ExecutablesManagerInner() {
               <ExecutableInlineEditor
                 slug={selected.slug}
                 headers={headers}
+                queryScope={queryScope}
                 existingSlugs={existingSlugs}
                 saving={save.isPending}
                 onClose={() => setEditingSlug(null)}
@@ -1025,6 +1059,7 @@ function EmptyHint({ text }: { text: string }) {
 interface EditorProps {
   slug: string | null;
   headers: Record<string, string>;
+  queryScope: ExecutableQueryScope;
   existingSlugs: Set<string>;
   saving: boolean;
   onClose: () => void;
@@ -1044,6 +1079,7 @@ Return the required final result.
 function ExecutableEditor({
   slug,
   headers,
+  queryScope,
   existingSlugs,
   saving,
   onClose,
@@ -1052,7 +1088,7 @@ function ExecutableEditor({
 }: EditorProps) {
   const isNew = slug === null;
   const detail = useQuery({
-    queryKey: ["kody-executable", slug],
+    queryKey: executableQueryKeys.detail(slug, queryScope),
     queryFn: () => readApi(headers, slug as string),
     enabled: !isNew,
   });
@@ -1087,6 +1123,7 @@ function ExecutableEditor({
 function ExecutableInlineEditor({
   slug,
   headers,
+  queryScope,
   existingSlugs,
   saving,
   onClose,
@@ -1123,6 +1160,7 @@ function ExecutableInlineEditor({
         <ExecutableEditor
           slug={slug}
           headers={headers}
+          queryScope={queryScope}
           existingSlugs={existingSlugs}
           saving={saving}
           onClose={onClose}

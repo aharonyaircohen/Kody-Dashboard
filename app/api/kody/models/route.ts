@@ -38,6 +38,11 @@ import {
 } from "@dashboard/lib/engine/config";
 import { logger } from "@dashboard/lib/logger";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
 const PutSchema = z.object({
   models: ChatModelsSchema,
   actorLogin: z.string().optional(),
@@ -49,23 +54,33 @@ export async function GET(req: NextRequest) {
 
   const auth = getRequestAuth(req);
   if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+    return NextResponse.json(
+      { error: "no_repo_context" },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
   }
 
   const octokit = await getUserOctokit(req);
   if (!octokit)
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
+    return NextResponse.json(
+      { error: "no_octokit" },
+      { status: 401, headers: NO_STORE_HEADERS },
+    );
 
   try {
     const { doc } = await readVariables(octokit, auth.owner, auth.repo);
     const raw = doc.variables[VAR_LLM_MODELS]?.value;
-    if (!raw) return NextResponse.json({ models: [] });
+    if (!raw)
+      return NextResponse.json({ models: [] }, { headers: NO_STORE_HEADERS });
     try {
       const parsed = JSON.parse(raw);
       const result = ChatModelsSchema.safeParse(parsed);
-      return NextResponse.json({ models: result.success ? result.data : [] });
+      return NextResponse.json(
+        { models: result.success ? result.data : [] },
+        { headers: NO_STORE_HEADERS },
+      );
     } catch {
-      return NextResponse.json({ models: [] });
+      return NextResponse.json({ models: [] }, { headers: NO_STORE_HEADERS });
     }
   } catch (err) {
     logger.error(
@@ -74,7 +89,7 @@ export async function GET(req: NextRequest) {
     );
     return NextResponse.json(
       { error: "models_read_failed", message: (err as Error).message },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   }
 }

@@ -28,6 +28,11 @@ import {
   type MemoryType,
 } from "@dashboard/lib/memory-files";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
 const memoryTypeSchema = z.enum(MEMORY_TYPES);
 
 const createMemorySchema = z.object({
@@ -49,24 +54,24 @@ export async function GET(req: NextRequest) {
 
   try {
     const memories = await listMemoryFiles();
-    return NextResponse.json({ memories });
+    return NextResponse.json({ memories }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Memory] Error listing memories:", error);
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },
-        { status: 401 },
+        { status: 401, headers: NO_STORE_HEADERS },
       );
     }
     if (error?.status === 403 || error?.message?.includes("rate limit")) {
       return NextResponse.json(
         { error: "rate_limited", message: "GitHub API rate limit exceeded" },
-        { status: 429 },
+        { status: 429, headers: NO_STORE_HEADERS },
       );
     }
     return NextResponse.json(
       { memories: [], error: error?.message || "Failed to list memories" },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   } finally {
     clearGitHubContext();

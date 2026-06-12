@@ -52,13 +52,35 @@ import {
   type ProviderPreset,
 } from "../variables/models";
 
-const modelsQueryKey = ["kody-chat-models"] as const;
+export interface ModelsQueryScope {
+  owner?: string | null;
+  repo?: string | null;
+}
+
+function modelsQueryScopeFromAuth(
+  auth: { owner?: string | null; repo?: string | null } | null | undefined,
+): ModelsQueryScope {
+  return {
+    owner: auth?.owner ?? null,
+    repo: auth?.repo ?? null,
+  };
+}
+
+export const modelsQueryKeys = {
+  all: ["kody-chat-models"] as const,
+  list: (scope: ModelsQueryScope = {}) =>
+    ["kody-chat-models", scope.owner ?? null, scope.repo ?? null] as const,
+};
+
 const SECRET_NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
 
 async function fetchModels(
   headers: Record<string, string>,
 ): Promise<ChatModel[]> {
-  const res = await fetch("/api/kody/models", { headers });
+  const res = await fetch("/api/kody/models", {
+    headers,
+    cache: "no-store",
+  });
   const json = (await res.json().catch(() => ({}))) as {
     models?: ChatModel[];
     error?: string;
@@ -127,10 +149,12 @@ function ModelsManagerInner() {
     ...buildAuthHeaders(auth),
   };
   const actorLogin = auth?.user.login;
+  const queryScope = modelsQueryScopeFromAuth(auth);
+  const listQueryKey = modelsQueryKeys.list(queryScope);
 
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery<ChatModel[]>({
-    queryKey: modelsQueryKey,
+    queryKey: listQueryKey,
     queryFn: () => fetchModels(headers),
     enabled: !!auth,
     staleTime: 30_000,
@@ -140,7 +164,8 @@ function ModelsManagerInner() {
   const save = useMutation({
     mutationFn: (list: ChatModel[]) => saveModels(headers, list, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: modelsQueryKey });
+      queryClient.invalidateQueries({ queryKey: modelsQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
     },
     onError: (err: Error) =>
       toast.error(err.message || "Failed to save models"),

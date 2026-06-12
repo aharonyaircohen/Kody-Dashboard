@@ -56,7 +56,25 @@ interface CommandRow {
 
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
-const commandsQueryKey = ["kody-commands"] as const;
+export interface CommandsQueryScope {
+  owner?: string | null;
+  repo?: string | null;
+}
+
+function commandsQueryScopeFromAuth(
+  auth: { owner?: string | null; repo?: string | null } | null | undefined,
+): CommandsQueryScope {
+  return {
+    owner: auth?.owner ?? null,
+    repo: auth?.repo ?? null,
+  };
+}
+
+export const commandsQueryKeys = {
+  all: ["kody-commands"] as const,
+  list: (scope: CommandsQueryScope = {}) =>
+    ["kody-commands", scope.owner ?? null, scope.repo ?? null] as const,
+};
 
 function formatRelative(iso: string): string {
   if (!iso) return "";
@@ -80,7 +98,7 @@ function formatRelative(iso: string): string {
 async function listCommandsApi(
   headers: Record<string, string>,
 ): Promise<CommandRow[]> {
-  const res = await fetch("/api/kody/commands", { headers });
+  const res = await fetch("/api/kody/commands", { headers, cache: "no-store" });
   const json = (await res.json().catch(() => ({}))) as {
     commands?: CommandRow[];
     error?: string;
@@ -155,10 +173,12 @@ function CommandsManagerInner() {
     ...buildAuthHeaders(auth),
   };
   const actorLogin = auth?.user.login;
+  const queryScope = commandsQueryScopeFromAuth(auth);
+  const listQueryKey = commandsQueryKeys.list(queryScope);
 
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery<CommandRow[]>({
-    queryKey: commandsQueryKey,
+    queryKey: listQueryKey,
     queryFn: () => listCommandsApi(headers),
     enabled: !!auth,
     staleTime: 30_000,
@@ -169,7 +189,8 @@ function CommandsManagerInner() {
     mutationFn: (payload: SavePayload) =>
       saveCommandApi(headers, payload, actorLogin),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: commandsQueryKey });
+      queryClient.invalidateQueries({ queryKey: commandsQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       toast.success("Command saved");
     },
     onError: (err: Error) =>
@@ -179,7 +200,8 @@ function CommandsManagerInner() {
   const remove = useMutation({
     mutationFn: (slug: string) => deleteCommandApi(headers, slug),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: commandsQueryKey });
+      queryClient.invalidateQueries({ queryKey: commandsQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: listQueryKey });
       toast.success("Command deleted");
     },
     onError: (err: Error) =>

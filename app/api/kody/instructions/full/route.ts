@@ -22,6 +22,11 @@ import { buildSystemPrompt } from "../../chat/kody/system-prompt";
 import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files";
 import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -30,7 +35,7 @@ export async function GET(req: NextRequest) {
   if (!repo) {
     return NextResponse.json(
       { prompt: AGENT_KODY.systemPrompt },
-      { status: 200 },
+      { status: 200, headers: NO_STORE_HEADERS },
     );
   }
 
@@ -49,12 +54,12 @@ export async function GET(req: NextRequest) {
         userInstructions,
       },
     );
-    return NextResponse.json({ prompt });
+    return NextResponse.json({ prompt }, { headers: NO_STORE_HEADERS });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
       { error: message || "Failed to assemble prompt" },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   } finally {
     clearGitHubContext();

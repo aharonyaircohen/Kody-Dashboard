@@ -18,18 +18,46 @@ import {
   SessionExpiredError,
   getStoredAuth,
 } from "../api";
+import { useAuth } from "../auth-context";
 import type { DutyStageTemplateSlug } from "../duties/stage-templates";
 
+export interface DutyQueryScope {
+  owner?: string | null;
+  repo?: string | null;
+}
+
+export function dutyQueryScopeFromAuth(
+  auth: { owner?: string | null; repo?: string | null } | null | undefined,
+): DutyQueryScope {
+  return {
+    owner: auth?.owner ?? null,
+    repo: auth?.repo ?? null,
+  };
+}
+
 export const dutyQueryKeys = {
-  list: ["kody-duties"] as const,
-  detail: (slug: string) => ["kody-duty", slug] as const,
+  all: ["kody-duties"] as const,
+  list: (scope: DutyQueryScope = {}) =>
+    ["kody-duties", scope.owner ?? null, scope.repo ?? null] as const,
+  detail: (slug: string, scope: DutyQueryScope = {}) =>
+    ["kody-duty", scope.owner ?? null, scope.repo ?? null, slug] as const,
 };
 
+function useDutyQueryScope() {
+  const { auth } = useAuth();
+  const currentAuth = auth ?? getStoredAuth();
+  return {
+    currentAuth,
+    scope: dutyQueryScopeFromAuth(currentAuth),
+  };
+}
+
 export function useDuties() {
+  const { currentAuth, scope } = useDutyQueryScope();
   return useQuery({
-    queryKey: dutyQueryKeys.list,
+    queryKey: dutyQueryKeys.list(scope),
     queryFn: () => kodyApi.duties.list(),
-    enabled: !!getStoredAuth(),
+    enabled: !!currentAuth,
     staleTime: 30_000,
     retry: (failureCount, error) => {
       if (error instanceof SessionExpiredError) return false;
@@ -40,16 +68,18 @@ export function useDuties() {
 }
 
 export function useDuty(slug: string | null) {
+  const { currentAuth, scope } = useDutyQueryScope();
   return useQuery({
-    queryKey: dutyQueryKeys.detail(slug ?? ""),
+    queryKey: dutyQueryKeys.detail(slug ?? "", scope),
     queryFn: () => kodyApi.duties.get(slug!),
-    enabled: !!getStoredAuth() && !!slug,
+    enabled: !!currentAuth && !!slug,
     staleTime: 30_000,
   });
 }
 
 export function useCreateDuty(actorLogin?: string) {
   const queryClient = useQueryClient();
+  const { scope } = useDutyQueryScope();
 
   return useMutation<
     Duty,
@@ -76,7 +106,8 @@ export function useCreateDuty(actorLogin?: string) {
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: dutyQueryKeys.list });
+      queryClient.invalidateQueries({ queryKey: dutyQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: dutyQueryKeys.list(scope) });
       toast.success("Duty created");
     },
     onError: (error) => {
@@ -87,6 +118,7 @@ export function useCreateDuty(actorLogin?: string) {
 
 export function useUpdateDuty(slug: string, actorLogin?: string) {
   const queryClient = useQueryClient();
+  const { scope } = useDutyQueryScope();
 
   return useMutation<
     Duty,
@@ -112,11 +144,12 @@ export function useUpdateDuty(slug: string, actorLogin?: string) {
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: (duty) => {
-      queryClient.setQueryData<Duty[]>(dutyQueryKeys.list, (current) =>
+      queryClient.setQueryData<Duty[]>(dutyQueryKeys.list(scope), (current) =>
         current?.map((item) => (item.slug === duty.slug ? duty : item)),
       );
-      queryClient.invalidateQueries({ queryKey: dutyQueryKeys.list });
-      queryClient.setQueryData(dutyQueryKeys.detail(slug), duty);
+      queryClient.invalidateQueries({ queryKey: dutyQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: dutyQueryKeys.list(scope) });
+      queryClient.setQueryData(dutyQueryKeys.detail(slug, scope), duty);
       toast.success("Duty updated");
     },
     onError: (error) => {
@@ -151,12 +184,14 @@ export function useRunDuty() {
 
 export function useDeleteDuty(actorLogin?: string) {
   const queryClient = useQueryClient();
+  const { scope } = useDutyQueryScope();
 
   return useMutation<void, Error, string>({
     mutationFn: (slug) => kodyApi.duties.remove(slug, actorLogin),
     onSuccess: (_, slug) => {
-      queryClient.invalidateQueries({ queryKey: dutyQueryKeys.list });
-      queryClient.removeQueries({ queryKey: dutyQueryKeys.detail(slug) });
+      queryClient.invalidateQueries({ queryKey: dutyQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: dutyQueryKeys.list(scope) });
+      queryClient.removeQueries({ queryKey: dutyQueryKeys.detail(slug, scope) });
       toast.success("Duty deleted");
     },
     onError: (error) => {
