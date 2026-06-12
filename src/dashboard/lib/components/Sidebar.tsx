@@ -21,7 +21,9 @@ import {
   LogOut,
   Moon,
   Search,
+  Sparkles,
   Sun,
+  Wrench,
   X,
 } from "lucide-react";
 
@@ -40,6 +42,7 @@ import {
   PRIMARY_VIEW_ITEMS,
   PRIMARY_VIEW_TITLE,
   SETTINGS_NAV_SECTIONS,
+  VIBE_NAV_ITEM,
   type SettingsNavItem,
 } from "./settings-nav";
 
@@ -53,8 +56,11 @@ const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
 const SIDEBAR_WORKSPACE_HREFS = new Set(["/files", "/docs", "/changelog"]);
 
 type NavItem = SettingsNavItem;
+type SidebarMode = "vibe" | "engineer";
 
 const COLLAPSED_KEY = "kody.sidebar.collapsed";
+const VIBE_MODE_SECTIONS: Array<{ title: string; items: readonly NavItem[] }> =
+  [{ title: "Vibe", items: [VIBE_NAV_ITEM] }];
 
 function isActive(pathname: string, search: string, item: NavItem): boolean {
   // Hrefs may include a query string (e.g. "/reports"). Compare the
@@ -79,6 +85,9 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [hydrated, setHydrated] = useState<boolean>(false);
   const [query, setQuery] = useState<string>("");
+  const isVibeRoute =
+    pathname === "/vibe" || (pathname?.startsWith("/vibe/") ?? false);
+  const sidebarMode: SidebarMode = isVibeRoute ? "vibe" : "engineer";
 
   useEffect(() => {
     try {
@@ -103,10 +112,22 @@ export function Sidebar() {
     });
   };
 
+  const selectSidebarMode = (next: SidebarMode) => {
+    if (next === sidebarMode) return;
+    setQuery("");
+    router.push(next === "vibe" ? "/vibe" : "/");
+  };
+
+  useEffect(() => {
+    if (sidebarMode === "vibe") setQuery("");
+  }, [sidebarMode]);
+
   // Inline filter — narrows the rail's own sections by label/description as
   // the user types. Empty sections drop out so a query collapses the list to
   // just its matches.
   const filteredSections = useMemo(() => {
+    if (sidebarMode === "vibe") return VIBE_MODE_SECTIONS;
+
     const automationSections = SETTINGS_NAV_SECTIONS.filter(
       (section) => section.title === "Automation",
     );
@@ -154,7 +175,7 @@ export function Sidebar() {
         ),
       }))
       .filter((section) => section.items.length > 0);
-  }, [query]);
+  }, [query, sidebarMode]);
 
   const firstMatch = filteredSections[0]?.items[0];
 
@@ -255,44 +276,114 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {/* Inline search — filters the rail's own items as you type. Collapsed
-            mode shows an icon that expands the rail so there's room to type. */}
-        <div className="pb-1">
+        <div className="pb-2">
           {collapsed ? (
-            <SimpleTooltip content="Search" side="right">
+            <SimpleTooltip
+              content={
+                sidebarMode === "vibe"
+                  ? "Switch to Engineer"
+                  : "Switch to Vibe"
+              }
+              side="right"
+            >
               <button
                 type="button"
-                onClick={toggleCollapsed}
-                aria-label="Search"
+                onClick={() =>
+                  selectSidebarMode(
+                    sidebarMode === "vibe" ? "engineer" : "vibe",
+                  )
+                }
+                aria-label={
+                  sidebarMode === "vibe"
+                    ? "Switch to Engineer"
+                    : "Switch to Vibe"
+                }
                 className="flex items-center justify-center w-full rounded-md h-9 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
               >
-                <Search className="w-4 h-4 shrink-0" />
+                {sidebarMode === "vibe" ? (
+                  <Wrench className="w-4 h-4 shrink-0" />
+                ) : (
+                  <Sparkles className="w-4 h-4 shrink-0" />
+                )}
               </button>
             </SimpleTooltip>
           ) : (
-            <div className="flex items-center gap-2 w-full rounded-md h-9 px-3 text-sm border border-white/[0.08] bg-black/20 transition-colors focus-within:border-white/[0.18]">
-              <Search className="w-4 h-4 shrink-0 text-muted-foreground" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={onSearchKeyDown}
-                placeholder="Search…"
-                aria-label="Search navigation"
-                className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  aria-label="Clear search"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X className="w-3.5 h-3.5 shrink-0" />
-                </button>
-              )}
+            <div
+              className="grid grid-cols-2 gap-1 rounded-md border border-white/[0.08] bg-black/20 p-1"
+              aria-label="Sidebar mode"
+            >
+              <button
+                type="button"
+                onClick={() => selectSidebarMode("vibe")}
+                aria-pressed={sidebarMode === "vibe"}
+                className={cn(
+                  "flex h-8 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
+                  sidebarMode === "vibe"
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                )}
+              >
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                <span>Vibe</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => selectSidebarMode("engineer")}
+                aria-pressed={sidebarMode === "engineer"}
+                className={cn(
+                  "flex h-8 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
+                  sidebarMode === "engineer"
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                )}
+              >
+                <Wrench className="w-3.5 h-3.5 shrink-0" />
+                <span>Engineer</span>
+              </button>
             </div>
           )}
         </div>
+
+        {/* Inline search — filters the rail's own items as you type. Collapsed
+            mode shows an icon that expands the rail so there's room to type. */}
+        {sidebarMode === "engineer" && (
+          <div className="pb-1">
+            {collapsed ? (
+              <SimpleTooltip content="Search" side="right">
+                <button
+                  type="button"
+                  onClick={toggleCollapsed}
+                  aria-label="Search"
+                  className="flex items-center justify-center w-full rounded-md h-9 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+                >
+                  <Search className="w-4 h-4 shrink-0" />
+                </button>
+              </SimpleTooltip>
+            ) : (
+              <div className="flex items-center gap-2 w-full rounded-md h-9 px-3 text-sm border border-white/[0.08] bg-black/20 transition-colors focus-within:border-white/[0.18]">
+                <Search className="w-4 h-4 shrink-0 text-muted-foreground" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={onSearchKeyDown}
+                  placeholder="Search…"
+                  aria-label="Search navigation"
+                  className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="Clear search"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-3.5 h-3.5 shrink-0" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Nav sections — ordered by the main work loop, sourced from the
             shared settings-nav so new pages appear here automatically. Filtered

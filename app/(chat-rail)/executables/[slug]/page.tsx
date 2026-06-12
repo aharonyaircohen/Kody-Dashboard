@@ -2,7 +2,7 @@
  * @fileType page
  * @domain executables
  * @pattern executables-page
- * @ai-summary Edit one duty at `/executables/<slug>`. Its own
+ * @ai-summary Edit one executable implementation at `/executables/<slug>`. Its own
  *   route so the browser Back button returns to the executables list.
  *   Rendered dynamically — slugs are repo-defined, so they can't be
  *   pre-generated.
@@ -14,8 +14,8 @@ import { buildKodyMetadata } from "../../../metadata";
 export const dynamic = "force-dynamic";
 
 export const metadata = buildKodyMetadata({
-  title: "Edit duty — Kody Operations Dashboard",
-  description: "Edit a duty.",
+  title: "Edit executable — Kody Operations Dashboard",
+  description: "Edit an executable implementation.",
   path: "/executables",
 });
 

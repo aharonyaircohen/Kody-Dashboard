@@ -1311,6 +1311,7 @@ export interface Report {
   reviewStatus: string | null;
   reviewArea: string | null;
   findingCount: number;
+  suggestedActions: import("./report-suggested-actions").ReportSuggestedAction[];
 }
 
 export const reportsApi = {

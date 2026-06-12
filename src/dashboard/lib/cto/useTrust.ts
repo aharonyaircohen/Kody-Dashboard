@@ -37,7 +37,10 @@ export interface UseTrustResult {
   /** Recent decision log (most recent last), bounded server-side. */
   log: TrustDecisionLogEntry[];
   isLoading: boolean;
+  isFetching: boolean;
   error: Error | null;
+  /** Refresh trust stats and the duty roster used to label them. */
+  refetch: () => Promise<void>;
   /** Apply one whole-duty trust override; resolves once the write lands. */
   setTrust: (input: { duty: string; op: TrustOp }) => Promise<void>;
   /** True while a `setTrust` mutation is in flight. */
@@ -94,7 +97,11 @@ export function useTrust(): UseTrustResult {
     groups,
     log: trustQuery.data?.log ?? [],
     isLoading: trustQuery.isLoading,
+    isFetching: trustQuery.isFetching || dutiesQuery.isFetching,
     error: (trustQuery.error as Error | null) ?? null,
+    refetch: async () => {
+      await Promise.all([trustQuery.refetch(), dutiesQuery.refetch()]);
+    },
     setTrust: async (input) => {
       await mutation.mutateAsync(input);
     },

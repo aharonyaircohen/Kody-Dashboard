@@ -117,6 +117,65 @@ function collapseBlankLines(text: string): string {
   return text.replace(/\n{3,}/g, "\n\n");
 }
 
+const FINAL_ANSWER_MARKER_RE =
+  /(?:^|\n)\s*(?:final\s+answer|final|answer)\s*:\s*/i;
+const LEADING_ANSWER_MARKER_RE =
+  /^\s*(?:final\s+answer|final|answer)\s*:\s*/i;
+const SCRATCHPAD_LABEL_RE =
+  /^\s*(?:analysis|reasoning|thinking|thoughts?|scratchpad)\s*[:.-]/i;
+
+function stripLeadingAnswerMarker(text: string): string {
+  return text.replace(LEADING_ANSWER_MARKER_RE, "").trim();
+}
+
+function looksLikeLeakedReasoning(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (SCRATCHPAD_LABEL_RE.test(trimmed)) return true;
+
+  return (
+    /^(?:the user|user|they)\b/i.test(trimmed) &&
+    /\bI\s+(?:need|should|will|must|can|have to)\b/i.test(trimmed)
+  );
+}
+
+function stripDuplicatedReasoningPrefix(
+  answer: string,
+  reasoning: string,
+): { text: string; stripped: boolean } {
+  const trimmedReasoning = reasoning.trim();
+  if (!trimmedReasoning) return { text: answer, stripped: false };
+
+  const leadingWhitespace = answer.match(/^\s*/)?.[0] ?? "";
+  const rest = answer.slice(leadingWhitespace.length);
+  if (!rest.startsWith(trimmedReasoning)) {
+    return { text: answer, stripped: false };
+  }
+
+  return {
+    text: rest.slice(trimmedReasoning.length).trim(),
+    stripped: true,
+  };
+}
+
+function stripLeakedReasoning(answer: string, reasoning: string): string {
+  const duplicate = stripDuplicatedReasoningPrefix(answer, reasoning);
+  if (duplicate.stripped) {
+    return stripLeadingAnswerMarker(duplicate.text);
+  }
+
+  const trimmed = duplicate.text.trim();
+  const marker = FINAL_ANSWER_MARKER_RE.exec(trimmed);
+  if (marker && marker.index > 0) {
+    const beforeMarker = trimmed.slice(0, marker.index);
+    if (looksLikeLeakedReasoning(beforeMarker)) {
+      return trimmed.slice(marker.index + marker[0].length).trim();
+    }
+  }
+
+  return trimmed;
+}
+
 /**
  * Remove the model-emitted tool-call markup from `text` so the visible
  * answer bubble shows prose only. Safe on empty / plain input (returns
@@ -146,6 +205,6 @@ export function parseAssistantContent(raw: string): {
   const { reasoning, answer } = parseReasoning(raw);
   return {
     reasoning,
-    answer: stripToolCallMarkup(answer),
+    answer: stripLeakedReasoning(stripToolCallMarkup(answer), reasoning),
   };
 }

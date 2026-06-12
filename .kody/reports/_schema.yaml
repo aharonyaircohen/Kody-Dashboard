@@ -51,3 +51,44 @@ properties:
           type: string
           format: uri
           description: Optional link to the source.
+  suggestedActions:
+    type: array
+    description: Optional actions the dashboard can render on the report.
+    items:
+      type: object
+      required:
+        - id
+        - type
+        - label
+      properties:
+        id:
+          type: string
+          description: Stable identifier for this suggested action.
+        type:
+          type: string
+          enum:
+            - dispatch
+            - create-task
+            - dismiss
+          description: Dashboard action type.
+        label:
+          type: string
+          description: Button/display label.
+        reason:
+          type: string
+          description: Short explanation for why this action is suggested.
+        executable:
+          type: string
+          description: Required for dispatch actions.
+        target:
+          type: integer
+          description: Required issue/PR number for dispatch actions.
+        title:
+          type: string
+          description: Required task title for create-task actions.
+        body:
+          type: string
+          description: Optional task body for create-task actions.
+        labels:
+          type: string
+          description: Optional comma-separated task labels.

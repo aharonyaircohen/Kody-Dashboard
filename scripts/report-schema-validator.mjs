@@ -14,6 +14,11 @@ const ALLOWED_REVIEW_STATUSES = new Set([
   "assigned",
   "reviewed",
 ]);
+const ALLOWED_SUGGESTED_ACTION_TYPES = new Set([
+  "dispatch",
+  "create-task",
+  "dismiss",
+]);
 
 export function splitFrontmatter(raw) {
   const match = raw.match(/^---\n([\s\S]*?)\n---(?:\n|$)/);
@@ -38,20 +43,26 @@ function topLevelValue(frontmatter, key) {
 }
 
 function parseFindings(frontmatter) {
-  const lines = frontmatter.split("\n");
-  const findingsStart = lines.findIndex((line) => /^findings:\s*$/.test(line));
-  if (findingsStart < 0) return [];
+  return parseObjectList(frontmatter, "findings");
+}
 
-  const findings = [];
+function parseObjectList(frontmatter, key) {
+  const lines = frontmatter.split("\n");
+  const start = lines.findIndex((line) =>
+    new RegExp(`^${key}:\\s*$`).test(line),
+  );
+  if (start < 0) return [];
+
+  const items = [];
   let current = null;
 
-  for (const line of lines.slice(findingsStart + 1)) {
+  for (const line of lines.slice(start + 1)) {
     if (/^\S/.test(line)) break;
 
     const firstKey = line.match(/^\s{2}-\s+([A-Za-z][\w-]*):\s*(.*)$/);
     if (firstKey) {
       current = { [firstKey[1]]: unquote(firstKey[2]) };
-      findings.push(current);
+      items.push(current);
       continue;
     }
 
@@ -61,7 +72,12 @@ function parseFindings(frontmatter) {
     }
   }
 
-  return findings;
+  return items;
+}
+
+function parsePositiveInteger(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 export function validateReportText(file, text) {
@@ -115,6 +131,31 @@ export function validateReportText(file, text) {
 
     if (finding.severity && !ALLOWED_SEVERITIES.has(finding.severity)) {
       errors.push(`findings[${index}] severity must be high, medium, or low`);
+    }
+  }
+
+  const suggestedActions = parseObjectList(frontmatter, "suggestedActions");
+  for (const [index, action] of suggestedActions.entries()) {
+    if (!action.id) errors.push(`suggestedActions[${index}] missing id`);
+    if (!action.type) errors.push(`suggestedActions[${index}] missing type`);
+    if (!action.label) errors.push(`suggestedActions[${index}] missing label`);
+    if (action.type && !ALLOWED_SUGGESTED_ACTION_TYPES.has(action.type)) {
+      errors.push(
+        `suggestedActions[${index}] type must be dispatch, create-task, or dismiss`,
+      );
+    }
+    if (action.type === "dispatch") {
+      if (!action.executable) {
+        errors.push(
+          `suggestedActions[${index}] dispatch requires executable`,
+        );
+      }
+      if (!parsePositiveInteger(action.target)) {
+        errors.push(`suggestedActions[${index}] dispatch requires target`);
+      }
+    }
+    if (action.type === "create-task" && !action.title) {
+      errors.push(`suggestedActions[${index}] create-task requires title`);
     }
   }
 

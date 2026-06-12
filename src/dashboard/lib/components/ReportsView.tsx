@@ -9,28 +9,37 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Calendar,
+  CheckCircle2,
   ExternalLink,
   FileText,
   GitPullRequest,
+  Loader2,
+  Play,
   RefreshCw,
   Target,
+  XCircle,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { toast } from "sonner";
 import { Button } from "@dashboard/ui/button";
 import { AuthGuard } from "../auth-guard";
+import { useAuth } from "../auth-context";
 import { cn } from "../utils";
 import { useReports } from "../hooks/useReports";
 import { useReportsUnread } from "../hooks/useReportsUnread";
-import type { Report } from "../api";
+import { kodyApi, type Report } from "../api";
+import type { ReportSuggestedAction } from "../report-suggested-actions";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { CreateGoalDialog } from "./GoalControl";
 import { useChatScope } from "./ChatRailShell";
 import { PageHeader } from "./PageShell";
+
+const DISMISSED_REPORT_ACTIONS_KEY = "kody.report-actions.dismissed";
 
 interface ReportsViewProps {
   /** Render without the built-in PageHeader (e.g. when hosted in DutiesPageTabs). */
@@ -46,6 +55,7 @@ export function ReportsView({ embedded = false }: ReportsViewProps = {}) {
 }
 
 export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
+  const { auth } = useAuth();
   const {
     data: reports = [],
     isLoading,
@@ -60,6 +70,11 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
   // Resource generators — pop dialogs prefilled from the active report.
   const [issueFromReport, setIssueFromReport] = useState<Report | null>(null);
   const [goalFromReport, setGoalFromReport] = useState<Report | null>(null);
+  const [taskFromAction, setTaskFromAction] = useState<{
+    report: Report;
+    action: ReportSuggestedAction;
+  } | null>(null);
+  const [runningActionKey, setRunningActionKey] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -68,7 +83,13 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
       (r) =>
         r.slug.toLowerCase().includes(q) ||
         r.title.toLowerCase().includes(q) ||
-        r.body.toLowerCase().includes(q),
+        r.body.toLowerCase().includes(q) ||
+        (r.suggestedActions ?? []).some((a) =>
+          [a.label, a.reason ?? "", a.executable ?? "", a.title ?? ""]
+            .join(" ")
+            .toLowerCase()
+            .includes(q),
+        ),
     );
   }, [reports, search]);
 
@@ -114,6 +135,41 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
     }
     return () => setScope(null);
   }, [selected, setScope]);
+
+  const runSuggestedAction = async (
+    report: Report,
+    action: ReportSuggestedAction,
+  ) => {
+    if (
+      action.type !== "dispatch" ||
+      !action.executable ||
+      typeof action.target !== "number"
+    ) {
+      toast.error("This report action cannot be dispatched");
+      return;
+    }
+    const key = `${report.slug}:${action.id}`;
+    setRunningActionKey(key);
+    try {
+      await kodyApi.jobs.run(
+        {
+          executable: action.executable,
+          target: action.target,
+          flavor: "instant",
+          cliArgs: {},
+          why: `from report ${report.slug}: ${action.reason ?? action.label}`,
+        },
+        auth?.user?.login,
+      );
+      toast.success(`Dispatched ${action.executable} on #${action.target}`);
+    } catch (err) {
+      toast.error("Dispatch failed", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
+    } finally {
+      setRunningActionKey(null);
+    }
+  };
 
   return (
     <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
@@ -232,6 +288,11 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
               onBack={() => setSelectedSlug(null)}
               onCreateIssue={() => setIssueFromReport(selected)}
               onPlanGoal={() => setGoalFromReport(selected)}
+              onCreateTaskFromAction={(action) =>
+                setTaskFromAction({ report: selected, action })
+              }
+              onRunAction={(action) => void runSuggestedAction(selected, action)}
+              runningActionKey={runningActionKey}
             />
           ) : (
             <EmptyState
@@ -249,7 +310,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
       <CreateTaskDialog
         open={!!issueFromReport}
         onClose={() => setIssueFromReport(null)}
-        initialData={
+        prefill={
           issueFromReport
             ? {
                 title: `Address: ${issueFromReport.title}`,
@@ -261,6 +322,20 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
             : undefined
         }
         onCreated={() => setIssueFromReport(null)}
+      />
+
+      <CreateTaskDialog
+        open={!!taskFromAction}
+        onClose={() => setTaskFromAction(null)}
+        prefill={
+          taskFromAction
+            ? buildTaskPrefillFromAction(
+                taskFromAction.report,
+                taskFromAction.action,
+              )
+            : undefined
+        }
+        onCreated={() => setTaskFromAction(null)}
       />
 
       {/* Generate a goal from the report. Description seeds the goal
@@ -340,6 +415,17 @@ function ReportRow({
       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
         <span className="font-mono opacity-80 truncate">{report.slug}</span>
         <span aria-hidden>·</span>
+        {(report.suggestedActions ?? []).length > 0 ? (
+          <>
+            <span>
+              {(report.suggestedActions ?? []).length} suggested{" "}
+              {(report.suggestedActions ?? []).length === 1
+                ? "action"
+                : "actions"}
+            </span>
+            <span aria-hidden>·</span>
+          </>
+        ) : null}
         <span className="inline-flex items-center gap-1">
           <Calendar className="w-3 h-3" />
           {formatRelative(report.updatedAt)}
@@ -354,13 +440,23 @@ function ReportDetail({
   onBack,
   onCreateIssue,
   onPlanGoal,
+  onCreateTaskFromAction,
+  onRunAction,
+  runningActionKey,
 }: {
   report: Report;
   onBack: () => void;
   onCreateIssue: () => void;
   onPlanGoal: () => void;
+  onCreateTaskFromAction: (action: ReportSuggestedAction) => void;
+  onRunAction: (action: ReportSuggestedAction) => void;
+  runningActionKey: string | null;
 }) {
   const hasBody = report.body.trim().length > 0;
+  const dismissed = useDismissedReportActions(report.slug);
+  const visibleActions = (report.suggestedActions ?? []).filter(
+    (action) => !dismissed.ids.has(action.id),
+  );
   return (
     <article className="h-full flex flex-col">
       <div className="shrink-0 px-3 md:px-6 py-3 md:py-4 border-b border-border bg-black/10 flex items-start gap-3">
@@ -431,7 +527,18 @@ function ReportDetail({
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="max-w-4xl mx-auto p-4 md:p-8">
+        <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+          {visibleActions.length > 0 ? (
+            <SuggestedActions
+              report={report}
+              actions={visibleActions}
+              runningActionKey={runningActionKey}
+              onRun={onRunAction}
+              onCreateTask={onCreateTaskFromAction}
+              onDismiss={dismissed.dismiss}
+            />
+          ) : null}
+
           {hasBody ? (
             <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -452,6 +559,114 @@ function ReportDetail({
         </div>
       </div>
     </article>
+  );
+}
+
+function SuggestedActions({
+  report,
+  actions,
+  runningActionKey,
+  onRun,
+  onCreateTask,
+  onDismiss,
+}: {
+  report: Report;
+  actions: ReportSuggestedAction[];
+  runningActionKey: string | null;
+  onRun: (action: ReportSuggestedAction) => void;
+  onCreateTask: (action: ReportSuggestedAction) => void;
+  onDismiss: (actionId: string) => void;
+}) {
+  return (
+    <section className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+        <h2 className="text-sm font-semibold text-white/90">
+          Suggested actions
+        </h2>
+        <span className="ml-auto text-xs text-muted-foreground">
+          {actions.length}
+        </span>
+      </div>
+      <ul className="space-y-2">
+        {actions.map((action) => {
+          const key = `${report.slug}:${action.id}`;
+          const running = runningActionKey === key;
+          return (
+            <li
+              key={action.id}
+              className="flex flex-col gap-3 rounded-md border border-white/[0.06] bg-black/20 px-3 py-3 sm:flex-row sm:items-center"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-white/90">
+                    {action.label}
+                  </span>
+                  <span className="rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/50">
+                    {action.type}
+                  </span>
+                </div>
+                {action.reason ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {action.reason}
+                  </p>
+                ) : null}
+                {action.type === "dispatch" && action.executable ? (
+                  <p className="mt-1 font-mono text-[11px] text-white/45">
+                    {action.executable}
+                    {typeof action.target === "number"
+                      ? ` on #${action.target}`
+                      : ""}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                {action.type === "dispatch" ? (
+                  <Button
+                    size="sm"
+                    disabled={
+                      running ||
+                      !action.executable ||
+                      typeof action.target !== "number"
+                    }
+                    onClick={() => onRun(action)}
+                    className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    {running ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Play className="h-3.5 w-3.5" />
+                    )}
+                    Run
+                  </Button>
+                ) : action.type === "create-task" ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onCreateTask(action)}
+                    className="gap-1.5"
+                  >
+                    <GitPullRequest className="h-3.5 w-3.5" />
+                    Create task
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onDismiss(action.id)}
+                    className="gap-1.5"
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                    Dismiss
+                  </Button>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -485,4 +700,77 @@ function formatRelative(iso: string): string {
   const d = Math.round(hr / 24);
   if (d < 7) return `${d}d ago`;
   return new Date(iso).toLocaleDateString();
+}
+
+function buildTaskPrefillFromAction(
+  report: Report,
+  action: ReportSuggestedAction,
+) {
+  return {
+    title: action.title ?? action.label,
+    body:
+      (action.body ?? action.reason ?? action.label) +
+      `\n\n---\n\nSource report: [\`.kody/reports/${report.slug}.md\`](${report.htmlUrl})`,
+    labels: [`from-report:${report.slug}`, ...(action.labels ?? [])],
+  };
+}
+
+function readDismissedActions(slug: string): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(DISMISSED_REPORT_ACTIONS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return new Set();
+    }
+    const values = (parsed as Record<string, unknown>)[slug];
+    return new Set(Array.isArray(values) ? values.filter(isString) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeDismissedActions(slug: string, ids: Set<string>): void {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = window.localStorage.getItem(DISMISSED_REPORT_ACTIONS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    const map =
+      parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? { ...(parsed as Record<string, unknown>) }
+        : {};
+    map[slug] = [...ids];
+    window.localStorage.setItem(
+      DISMISSED_REPORT_ACTIONS_KEY,
+      JSON.stringify(map),
+    );
+  } catch {
+    // Ignore private-mode/quota failures; the in-memory state still updates.
+  }
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function useDismissedReportActions(slug: string) {
+  const [ids, setIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setIds(readDismissedActions(slug));
+  }, [slug]);
+
+  const dismiss = useCallback(
+    (actionId: string) => {
+      setIds((prev) => {
+        const next = new Set(prev);
+        next.add(actionId);
+        writeDismissedActions(slug, next);
+        return next;
+      });
+    },
+    [slug],
+  );
+
+  return { ids, dismiss };
 }

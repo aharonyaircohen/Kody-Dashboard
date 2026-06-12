@@ -4,7 +4,7 @@
  * @domain e2e
  *
  * The deep e2e suite is concentrated on chat + vibe; whole feature pages
- * (Activity, Inbox, Duties, Staff, Secrets, Notifications, Models, Prompts,
+ * (Activity, Duties, Staff, Secrets, Notifications, Models, Prompts,
  * Reports, Settings, Runner, …) had no "does it even mount" guard. This
  * parametrized smoke visits each authenticated route and asserts the page
  * renders without a crash or a critical console error — the cheapest broad
@@ -31,8 +31,8 @@ const ROUTES = [
   "/changelog",
   "/chat",
   "/duties",
+  "/executables",
   "/context",
-  "/inbox",
   "/instructions",
   "/messages",
   "/models",

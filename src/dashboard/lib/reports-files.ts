@@ -10,6 +10,10 @@
 
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "./github-client";
+import {
+  parseReportSuggestedActions,
+  type ReportSuggestedAction,
+} from "./report-suggested-actions";
 import { STATE_BRANCH } from "./state-branch";
 
 export interface ReportFile {
@@ -33,6 +37,8 @@ export interface ReportFile {
   reviewArea: string | null;
   /** Count of structured findings declared in report frontmatter. */
   findingCount: number;
+  /** Action buttons suggested by report frontmatter. */
+  suggestedActions: ReportSuggestedAction[];
 }
 
 const REPORTS_DIR = ".kody/reports";
@@ -115,6 +121,7 @@ function parseReportMarkdown(raw: string, slug: string) {
     reviewStatus: topLevelValue(frontmatter, "reviewStatus"),
     reviewArea: topLevelValue(frontmatter, "reviewArea"),
     findingCount: countFindings(frontmatter),
+    suggestedActions: parseReportSuggestedActions(frontmatter),
   };
 }
 
@@ -209,6 +216,7 @@ export async function listReportFiles(): Promise<ReportFile[]> {
           reviewStatus: parsed.reviewStatus,
           reviewArea: parsed.reviewArea,
           findingCount: parsed.findingCount,
+          suggestedActions: parsed.suggestedActions,
         } satisfies ReportFile;
       } catch {
         return null;
@@ -253,6 +261,7 @@ export async function readReportFile(slug: string): Promise<ReportFile | null> {
       reviewStatus: parsed.reviewStatus,
       reviewArea: parsed.reviewArea,
       findingCount: parsed.findingCount,
+      suggestedActions: parsed.suggestedActions,
     };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return null;

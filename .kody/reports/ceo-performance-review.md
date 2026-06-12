@@ -1,3 +1,12 @@
+---
+dutySlug: ceo-performance-review
+generatedAt: "2026-06-11T17:14:00Z"
+findings:
+  - id: ceo-performance-review.weekly-signal
+    severity: low
+    title: "Weekly staff performance review emitted"
+---
+
 # Kody Performance Review
 
 _Cadence: weekly — delivery of owned responsibilities, not subjective quality._

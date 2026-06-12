@@ -19,6 +19,7 @@ import {
   Check,
   CheckCheck,
   ExternalLink,
+  FileText,
   Inbox as InboxIcon,
   Link2,
   Loader2,
@@ -38,7 +39,6 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { useAuth } from "../auth-context";
 import { useInbox } from "../inbox/useInbox";
 import { cn } from "../utils";
-import { kodyApi } from "../api";
 import {
   ctoCleanSnippet,
   detectCtoRecommendation,
@@ -273,7 +273,6 @@ interface RowProps {
   isMuted: (category: ServerNotificationType) => boolean;
   /** Toggle the mute state of a notification category. */
   onToggleMute: (category: ServerNotificationType) => void;
-  onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
   verdictFor: (
     staff: string,
     taskNumber: number,
@@ -290,7 +289,6 @@ function Row({
   onDelete,
   isMuted,
   onToggleMute,
-  onCtoDecision,
   verdictFor,
 }: RowProps) {
   const unread = entry.readAt === null;
@@ -331,16 +329,6 @@ function Row({
   const ctoVerdict = cto
     ? verdictFor(cto.duty, cto.taskNumber, cto.action, entry.sentAt)
     : null;
-  const [ctoBusy, setCtoBusy] = useState<CtoVerdict | null>(null);
-
-  const decide = async (verdict: CtoVerdict) => {
-    setCtoBusy(verdict);
-    try {
-      await onCtoDecision(entry, verdict);
-    } finally {
-      setCtoBusy(null);
-    }
-  };
   return (
     <li
       className={cn(
@@ -503,64 +491,17 @@ function Row({
                 {VERDICT_LABEL[ctoVerdict]}
               </span>
             ) : (
-              <>
-                {cto.dispatchable ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={ctoBusy !== null}
-                    onClick={() => void decide("approve")}
-                    className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
-                  >
-                    {ctoBusy === "approve" ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Check className="w-3.5 h-3.5" />
-                    )}
-                    Approve
-                  </Button>
-                ) : (
-                  <a
-                    href={entry.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={`'${cto.action}' has no dashboard action — the CTO is advising; act on it in GitHub`}
-                    className="inline-flex h-7 items-center gap-1 rounded-md border border-white/15 bg-white/[0.04] px-2 text-[11px] font-medium text-white/70 hover:bg-white/[0.08]"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    Review on GitHub
-                  </a>
-                )}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={ctoBusy !== null}
-                  onClick={() => void decide("reject")}
-                  className="h-7 gap-1 border border-rose-500/30 bg-rose-500/[0.06] text-rose-200 hover:bg-rose-500/15"
-                >
-                  {ctoBusy === "reject" ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <X className="w-3.5 h-3.5" />
-                  )}
-                  Reject
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={ctoBusy !== null}
-                  onClick={() => void decide("dismiss")}
-                  title="Drain this from the inbox without approving or rejecting (no effect on graduation)"
-                  className="h-7 gap-1 border border-white/15 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
-                >
-                  {ctoBusy === "dismiss" ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <MinusCircle className="w-3.5 h-3.5" />
-                  )}
-                  Dismiss
-                </Button>
-              </>
+              <Button
+                asChild
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 border border-amber-500/30 bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/15"
+              >
+                <Link href="/reports">
+                  <FileText className="w-3.5 h-3.5" />
+                  Review reports
+                </Link>
+              </Button>
             )}
           </div>
           {cto.command && (
@@ -592,8 +533,7 @@ export function InboxList() {
     clearAll,
     remove,
   } = useInbox();
-  const { verdictFor, invalidate: invalidateTrustDecisions } =
-    useTrustDecisions();
+  const { verdictFor } = useTrustDecisions();
   const { prefs: notifPrefs, updatePrefs: updateNotifPrefs } =
     useNotificationStore();
   // Latest muted list, kept in a ref so the toast "Undo" callback (created at
@@ -755,54 +695,6 @@ export function InboxList() {
   );
 
   const subtitle = auth ? `${auth.owner}/${auth.repo}` : undefined;
-
-  // One-tap verdict on a CTO recommendation. Approve runs the action;
-  // both verdicts are tallied server-side (the trust ledger). On success
-  // we mark the entry read so the inbox reflects the decision immediately.
-  const handleCtoDecision = async (
-    entry: InboxEntry,
-    verdict: CtoVerdict,
-  ): Promise<void> => {
-    const rec = detectCtoRecommendation(entry);
-    if (!rec) return;
-    try {
-      const res = await kodyApi.cto.decide({
-        staff: rec.staff,
-        duty: rec.duty,
-        taskNumber: rec.taskNumber,
-        action: rec.action,
-        ...(rec.command ? { command: rec.command } : {}),
-        decision: verdict,
-        ...(auth?.user?.login ? { actorLogin: auth.user.login } : {}),
-      });
-      if (verdict === "approve") {
-        toast.success(
-          res.executed
-            ? `Approved — ${rec.action} dispatched on #${rec.taskNumber}`
-            : `Recorded — ${rec.action} on #${rec.taskNumber} (no dashboard action; act on GitHub)`,
-          {
-            description: res.stats
-              ? `${res.stats.consecutiveApprovals} in a row · ${res.stats.approvals}✓ / ${res.stats.rejections}✗`
-              : undefined,
-          },
-        );
-      } else if (verdict === "reject") {
-        toast.success(`Rejected — #${rec.taskNumber} left as-is`);
-      } else {
-        toast.success(`Dismissed — #${rec.taskNumber} drained from inbox`, {
-          description: "No effect on graduation",
-        });
-      }
-      if (entry.readAt === null) await markRead(entry.id);
-      // Flip the row to its verdict badge immediately (and on every other
-      // open tab/device on next poll) — the ledger now has this decision.
-      await Promise.all([refetch(), invalidateTrustDecisions()]);
-    } catch (err) {
-      toast.error("CTO decision failed", {
-        description: err instanceof Error ? err.message : "Unknown error",
-      });
-    }
-  };
 
   const openEntry = async (entry: InboxEntry) => {
     // Issues/PRs in the connected repo render inline; everything else
@@ -994,7 +886,6 @@ export function InboxList() {
         onDelete={(id) => void remove(id)}
         isMuted={(c) => notifPrefs.disabledTypes.includes(c)}
         onToggleMute={toggleCategoryMute}
-        onCtoDecision={handleCtoDecision}
         verdictFor={verdictFor}
         readSection={false}
       />
@@ -1012,7 +903,6 @@ export function InboxList() {
             onDelete={(id) => void remove(id)}
             isMuted={(c) => notifPrefs.disabledTypes.includes(c)}
             onToggleMute={toggleCategoryMute}
-            onCtoDecision={handleCtoDecision}
             verdictFor={verdictFor}
             readSection
           />
@@ -1038,15 +928,12 @@ export function InboxList() {
           return (
             <CtoDialogActions
               action={rec.action}
-              dispatchable={rec.dispatchable}
               verdict={verdictFor(
                 rec.duty,
                 rec.taskNumber,
                 rec.action,
                 activeEntry.sentAt,
               )}
-              githubUrl={activeEntry.url}
-              onDecide={(v) => handleCtoDecision(activeEntry, v)}
             />
           );
         })()}
@@ -1067,34 +954,16 @@ export function InboxList() {
 }
 
 /**
- * CTO Approve/Reject controls rendered into the thread dialog footer when
- * the opened entry is a recommendation. Mirrors the in-row CTO buttons —
- * same verdicts, same trust ledger — but lives at the bottom of the open
- * item so the operator can decide after reading the full thread.
+ * Recommendation footer for opened inbox threads. Decisions now live on
+ * /reports; Inbox keeps the notification and links the operator there.
  */
 function CtoDialogActions({
   action,
-  dispatchable,
   verdict,
-  githubUrl,
-  onDecide,
 }: {
   action: string;
-  dispatchable: boolean;
   verdict: CtoVerdict | null;
-  githubUrl: string;
-  onDecide: (verdict: CtoVerdict) => Promise<void>;
 }) {
-  const [busy, setBusy] = useState<CtoVerdict | null>(null);
-  const decide = async (v: CtoVerdict) => {
-    setBusy(v);
-    try {
-      await onDecide(v);
-    } finally {
-      setBusy(null);
-    }
-  };
-
   return (
     <>
       <span className="mr-auto text-[10px] uppercase tracking-wider text-amber-300/70">
@@ -1118,64 +987,17 @@ function CtoDialogActions({
           {VERDICT_LABEL[verdict]}
         </span>
       ) : (
-        <>
-          {dispatchable ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy !== null}
-              onClick={() => void decide("approve")}
-              className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
-            >
-              {busy === "approve" ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Check className="w-3.5 h-3.5" />
-              )}
-              Approve
-            </Button>
-          ) : (
-            <a
-              href={githubUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={`'${action}' has no dashboard action — the CTO is advising; act on it in GitHub`}
-              className="inline-flex h-7 items-center gap-1 rounded-md border border-white/15 bg-white/[0.04] px-2 text-[11px] font-medium text-white/70 hover:bg-white/[0.08]"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              Review on GitHub
-            </a>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy !== null}
-            onClick={() => void decide("reject")}
-            className="h-7 gap-1 border border-rose-500/30 bg-rose-500/[0.06] text-rose-200 hover:bg-rose-500/15"
-          >
-            {busy === "reject" ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <X className="w-3.5 h-3.5" />
-            )}
-            Reject
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy !== null}
-            onClick={() => void decide("dismiss")}
-            title="Drain this from the inbox without approving or rejecting (no effect on graduation)"
-            className="h-7 gap-1 border border-white/15 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
-          >
-            {busy === "dismiss" ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <MinusCircle className="w-3.5 h-3.5" />
-            )}
-            Dismiss
-          </Button>
-        </>
+        <Button
+          asChild
+          size="sm"
+          variant="ghost"
+          className="h-7 gap-1 border border-amber-500/30 bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/15"
+        >
+          <Link href="/reports">
+            <FileText className="w-3.5 h-3.5" />
+            Review reports
+          </Link>
+        </Button>
       )}
     </>
   );
@@ -1192,7 +1014,6 @@ interface SectionProps {
   onDelete: (id: string) => void;
   isMuted: (category: ServerNotificationType) => boolean;
   onToggleMute: (category: ServerNotificationType) => void;
-  onCtoDecision: (entry: InboxEntry, verdict: CtoVerdict) => Promise<void>;
   verdictFor: (
     staff: string,
     taskNumber: number,
@@ -1213,7 +1034,6 @@ function Section({
   onDelete,
   isMuted,
   onToggleMute,
-  onCtoDecision,
   verdictFor,
   readSection,
 }: SectionProps) {
@@ -1244,7 +1064,6 @@ function Section({
                     onDelete={() => onDelete(e.id)}
                     isMuted={isMuted}
                     onToggleMute={onToggleMute}
-                    onCtoDecision={onCtoDecision}
                     verdictFor={verdictFor}
                   />
                 ))}

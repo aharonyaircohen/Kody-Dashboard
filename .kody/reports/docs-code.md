@@ -1,3 +1,15 @@
+---
+dutySlug: docs-code
+generatedAt: "2026-06-09T00:00:00Z"
+findings:
+  - id: docs-code.no-under-documented-folder
+    severity: low
+    title: "No under-documented source folder qualifies this tick"
+  - id: docs-code.missing-chore-executable
+    severity: medium
+    title: "Configured chore executable is not available in the engine"
+---
+
 # docs-code — setup check (2026-06-09)
 
 Duty prerequisites checked on first tick (state was `seed`, no prior
@@ -161,4 +173,3 @@ the job"), per the writers "document the why and the trap" doctrine.
    hard-codes the wrong verb for future ticks.
 3. **Flip the `disabled` flag** in `.kody/duties/docs-code.md` from
    `true` to `false` once satisfied with the verb fix.
-

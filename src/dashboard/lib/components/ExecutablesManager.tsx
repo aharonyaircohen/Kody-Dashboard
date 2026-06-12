@@ -7,9 +7,7 @@
  *   these before its own built-ins when a duty lowers to an implementation.
  *   The editor is a simple form (describe + instructions + model + tools), plus a skills
  *   tab (paste a `SKILL.md` or import one from a GitHub source) and a scripts tab
- *   (one `*.sh` each). A
- *   Validate button checks the generated profile.json before saving;
- *   "Set default" writes the bare-`@kody` default into kody.config.json.
+ *   (one `*.sh` each). A Validate button checks the generated profile.json before saving.
  *   Execution assignment is owned by Duties — this page only edits.
  */
 "use client";
@@ -33,7 +31,6 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
-  Star,
   Terminal,
   Trash2,
   User,
@@ -100,7 +97,7 @@ interface ExecutableSummary {
   landing: ExecutableLanding;
   updatedAt: string | null;
   htmlUrl: string;
-  /** Staff member this duty runs as, or null. */
+  /** Legacy/profile staff field, if present. Duties normally own staff. */
   staff?: string | null;
 }
 interface ExecutableDetail extends ExecutableSummary {
@@ -113,10 +110,6 @@ interface ExecutableDetail extends ExecutableSummary {
   shellScripts: ExecutableShellScript[];
   mcpServers: McpServerSpec[];
   profileJson: string;
-}
-interface DefaultsState {
-  issue: string | null;
-  pr: string | null;
 }
 
 export interface ExecutableQueryScope {
@@ -160,14 +153,13 @@ function formatRelative(iso: string): string {
 
 async function listApi(
   headers: Record<string, string>,
-): Promise<{ executables: ExecutableSummary[]; defaults: DefaultsState }> {
+): Promise<{ executables: ExecutableSummary[] }> {
   const res = await fetch("/api/kody/executables", {
     headers,
     cache: "no-store",
   });
   const json = (await res.json().catch(() => ({}))) as {
     executables?: ExecutableSummary[];
-    defaults?: DefaultsState;
     error?: string;
     message?: string;
   };
@@ -175,7 +167,6 @@ async function listApi(
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
   return {
     executables: json.executables ?? [],
-    defaults: json.defaults ?? { issue: null, pr: null },
   };
 }
 
@@ -251,29 +242,6 @@ async function deleteApi(
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
 }
 
-async function setDefaultApi(
-  headers: Record<string, string>,
-  slug: string,
-  target: "issue" | "pr",
-  clear: boolean,
-  actorLogin?: string,
-): Promise<void> {
-  const res = await fetch(
-    `/api/kody/executables/${encodeURIComponent(slug)}/default`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ target, clear, actorLogin }),
-    },
-  );
-  const json = (await res.json().catch(() => ({}))) as {
-    error?: string;
-    message?: string;
-  };
-  if (!res.ok)
-    throw new Error(json.message || json.error || `HTTP ${res.status}`);
-}
-
 export function ExecutablesManager() {
   return (
     <AuthGuard>
@@ -330,7 +298,7 @@ function ExecutableEditorPageInner({ slug }: { slug: string | null }) {
 
   return (
     <PageShell
-      title={slug ? `Edit @kody ${slug}` : "New executable"}
+      title={slug ? `Edit implementation ${slug}` : "New executable"}
       icon={Boxes}
       iconClassName="text-amber-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
@@ -370,7 +338,6 @@ function ExecutablesManagerInner() {
     staleTime: 30_000,
   });
   const executables = useMemo(() => data?.executables ?? [], [data]);
-  const defaults = data?.defaults ?? { issue: null, pr: null };
 
   const remove = useMutation({
     mutationFn: (slug: string) => deleteApi(headers, slug),
@@ -380,18 +347,6 @@ function ExecutablesManagerInner() {
       toast.success("Executable deleted");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to delete"),
-  });
-
-  const setDefault = useMutation({
-    mutationFn: (v: { slug: string; target: "issue" | "pr"; clear: boolean }) =>
-      setDefaultApi(headers, v.slug, v.target, v.clear, actorLogin),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: executableQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: listQueryKey });
-      toast.success("Default updated");
-    },
-    onError: (err: Error) =>
-      toast.error(err.message || "Failed to set default"),
   });
 
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -529,15 +484,9 @@ function ExecutablesManagerInner() {
                       : "Failed to load"
                     : null
                 }
-                isIssueDefault={defaults.issue === selected.slug}
-                isPrDefault={defaults.pr === selected.slug}
                 onBack={() => setSelectedSlug(null)}
                 onEdit={() => setEditingSlug(selected.slug)}
                 onDelete={() => setDeleting(selected.slug)}
-                onSetDefault={(target, clear) =>
-                  setDefault.mutate({ slug: selected.slug, target, clear })
-                }
-                settingDefault={setDefault.isPending}
               />
             )
           ) : (
@@ -578,8 +527,6 @@ function ExecutablesManagerInner() {
                 <ExecutableRow
                   exec={e}
                   isActive={selectedSlug === e.slug}
-                  isIssueDefault={defaults.issue === e.slug}
-                  isPrDefault={defaults.pr === e.slug}
                   onSelect={() => setSelectedSlug(e.slug)}
                 />
               </li>
@@ -590,7 +537,7 @@ function ExecutablesManagerInner() {
 
       <ConfirmDialog
         open={deleting !== null}
-        title={`Delete @kody ${deleting}?`}
+        title={`Delete executable ${deleting}?`}
         description="The whole executable folder is removed from the repo."
         confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
@@ -607,14 +554,10 @@ function ExecutablesManagerInner() {
 function ExecutableRow({
   exec: e,
   isActive,
-  isIssueDefault,
-  isPrDefault,
   onSelect,
 }: {
   exec: ExecutableSummary;
   isActive: boolean;
-  isIssueDefault: boolean;
-  isPrDefault: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -637,22 +580,12 @@ function ExecutableRow({
           )}
         />
         <span className="font-mono text-sm truncate flex-1 text-white/90">
-          @kody {e.slug}
+          {e.slug}
         </span>
-        {isIssueDefault ? (
-          <span className="shrink-0 text-[10px] uppercase tracking-wide text-amber-400/80">
-            issue
-          </span>
-        ) : null}
-        {isPrDefault ? (
-          <span className="shrink-0 text-[10px] uppercase tracking-wide text-sky-400/80">
-            PR
-          </span>
-        ) : null}
       </div>
       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
         <span className="inline-flex items-center gap-1">
-          {e.landing === "pr" ? "opens PR" : "comments"}
+          {e.landing === "pr" ? "PR result" : "comment result"}
         </span>
         {e.staff ? (
           <span className="inline-flex items-center gap-1">
@@ -676,25 +609,17 @@ function ExecutableDetail({
   detail,
   detailLoading,
   detailError,
-  isIssueDefault,
-  isPrDefault,
   onBack,
   onEdit,
   onDelete,
-  onSetDefault,
-  settingDefault,
 }: {
   exec: ExecutableSummary;
   detail: ExecutableDetail | null;
   detailLoading: boolean;
   detailError: string | null;
-  isIssueDefault: boolean;
-  isPrDefault: boolean;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onSetDefault: (target: "issue" | "pr", clear: boolean) => void;
-  settingDefault: boolean;
 }) {
   return (
     <article className="min-h-full">
@@ -712,16 +637,16 @@ function ExecutableDetail({
           <header className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words font-mono inline-flex items-center gap-3 flex-wrap">
-                <span>@kody {e.slug}</span>
+                <span>{e.slug}</span>
                 <span className="text-[11px] font-sans uppercase tracking-wide bg-white/[0.06] text-white/50 px-2 py-0.5 rounded">
-                  {e.landing === "pr" ? "opens PR" : "comments"}
+                  {e.landing === "pr" ? "PR result" : "comment result"}
                 </span>
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 {e.staff ? (
                   <span className="inline-flex items-center gap-1">
                     <User className="w-3 h-3" />
-                    runs as {e.staff}
+                    profile staff: {e.staff}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1">
@@ -734,12 +659,6 @@ function ExecutableDetail({
                     <span>·</span>
                     <span>updated {formatRelative(e.updatedAt)}</span>
                   </>
-                ) : null}
-                {isIssueDefault ? (
-                  <span className="text-amber-400">· issue default</span>
-                ) : null}
-                {isPrDefault ? (
-                  <span className="text-sky-400">· PR default</span>
                 ) : null}
                 <span>·</span>
                 <a
@@ -755,21 +674,6 @@ function ExecutableDetail({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onSetDefault("issue", isIssueDefault)}
-                disabled={settingDefault}
-                className={cn("w-9 px-0", isIssueDefault && "text-amber-400")}
-                title={
-                  isIssueDefault
-                    ? "Clear issue default"
-                    : "Make this the issue default (bare @kody on an issue)"
-                }
-                aria-label="Toggle issue default"
-              >
-                <Star className="w-3.5 h-3.5" />
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -797,18 +701,6 @@ function ExecutableDetail({
             <p className="text-sm text-white/80">
               {e.describe || "No description yet."}
             </p>
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
-              <Button
-                size="sm"
-                variant={isPrDefault ? "secondary" : "outline"}
-                className="h-7 gap-1 text-[11px] px-2"
-                disabled={settingDefault}
-                onClick={() => onSetDefault("pr", isPrDefault)}
-              >
-                <Star className="w-3 h-3" />
-                {isPrDefault ? "PR default ✓" : "Set PR default"}
-              </Button>
-            </div>
           </div>
         </div>
       </div>
@@ -1136,7 +1028,7 @@ function ExecutableInlineEditor({
           <header className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words font-mono">
-                @kody {slug}
+                {slug}
               </h1>
               <p className="text-xs text-muted-foreground">
                 Editing inline — Cancel reverts, Update commits to the repo.
@@ -1393,11 +1285,13 @@ function ExecutableEditorForm({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-white/90">
-              {isNew ? "New executable" : `Edit @kody ${initial?.slug}`}
+              {isNew
+                ? "New executable"
+                : `Edit implementation ${initial?.slug}`}
             </h2>
             <p className="text-xs text-white/50">
-              Stored at .kody/executables/&lt;slug&gt;/. The engine runs it for
-              <code className="mx-1">@kody &lt;slug&gt;</code>.
+              Stored at .kody/executables/&lt;slug&gt;/. Duties reference this
+              slug as their implementation.
             </p>
           </div>
           <Button
@@ -1428,7 +1322,7 @@ function ExecutableEditorForm({
         <TabsContent value="config" className="space-y-3">
           <div>
             <Label htmlFor="exec-slug" className="text-xs">
-              Slug (becomes @kody slug)
+              Implementation slug
             </Label>
             <Input
               id="exec-slug"
@@ -1456,7 +1350,7 @@ function ExecutableEditorForm({
             />
           </div>
           <div>
-            <Label className="text-xs">Landing</Label>
+            <Label className="text-xs">Result mode</Label>
             <Select
               value={landing}
               onValueChange={(v) => setLanding(v as ExecutableLanding)}

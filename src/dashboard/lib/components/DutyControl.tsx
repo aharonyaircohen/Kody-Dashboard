@@ -9,7 +9,6 @@
  */
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -173,7 +172,6 @@ export function DutyControl() {
 }
 
 export function DutyControlInner() {
-  const router = useRouter();
   const {
     data: duties = [],
     isLoading,
@@ -382,11 +380,7 @@ export function DutyControlInner() {
                 <li key={duty.slug}>
                   <button
                     type="button"
-                    onClick={() =>
-                      duty.folder
-                        ? router.push(`/executables/${duty.slug}`)
-                        : setSelectedSlug(duty.slug)
-                    }
+                    onClick={() => setSelectedSlug(duty.slug)}
                     className={cn(
                       "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                       isActive && "bg-accent/70",
@@ -465,8 +459,7 @@ export function DutyControlInner() {
         )}
       </MasterDetailShell>
 
-      {/* Create — the simple markdown duty dialog. The full folder-duty editor
-          lives at /executables. */}
+      {/* Create — writes the folder-backed duty structure. */}
       <CreateDutyDialog
         open={creating}
         onClose={() => setCreating(false)}

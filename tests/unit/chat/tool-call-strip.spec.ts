@@ -122,6 +122,35 @@ describe("parseAssistantContent", () => {
     expect(answer).toBe("Done .");
   });
 
+  it("removes leaked reasoning copied into the visible answer", () => {
+    const leaked =
+      "The user is asking whether thinking leaks. I need to inspect the render path.";
+    const { reasoning, answer } = parseAssistantContent(
+      `<think>${leaked}</think>\n\n${leaked}\n\nFinal answer: Yes, it can leak.`,
+    );
+
+    expect(reasoning).toBe(leaked);
+    expect(answer).toBe("Yes, it can leak.");
+  });
+
+  it("removes an untagged reasoning preamble before a final answer", () => {
+    const { answer } = parseAssistantContent(
+      "Analysis: The user asked for verification. I should answer from the code.\n\nFinal answer: It is verified.",
+    );
+
+    expect(answer).toBe("It is verified.");
+  });
+
+  it("keeps normal assistant answers that start with first-person wording", () => {
+    const { answer } = parseAssistantContent(
+      "I need one detail before I can run this safely: which branch should I use?",
+    );
+
+    expect(answer).toBe(
+      "I need one detail before I can run this safely: which branch should I use?",
+    );
+  });
+
   it("returns empty answer for empty input", () => {
     expect(parseAssistantContent("")).toEqual({ reasoning: "", answer: "" });
   });

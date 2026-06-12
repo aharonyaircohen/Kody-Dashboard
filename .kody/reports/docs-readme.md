@@ -1,3 +1,15 @@
+---
+dutySlug: docs-readme
+generatedAt: "2026-06-10T00:00:00Z"
+findings:
+  - id: docs-readme.area-map-in-sync
+    severity: low
+    title: "Area to docs map is in sync"
+  - id: docs-readme.missing-chore-executable
+    severity: medium
+    title: "Configured chore executable is not available in the engine"
+---
+
 # docs-readme — recheck (2026-06-10)
 
 Duty is `disabled: true` in the body; prerequisites re-verified on this tick.

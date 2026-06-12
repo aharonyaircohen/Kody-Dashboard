@@ -2,9 +2,8 @@
  * @fileType page
  * @domain executables
  * @pattern executables-page
- * @ai-summary Executables list (`.kody/executables/<slug>/`) with run /
- *   set-default / edit / delete. Restored as its own page; "New executable"
- *   and "Edit" route to `/executables/new` and `/executables/<slug>`.
+ * @ai-summary Executables list (`.kody/executables/<slug>/`) with create /
+ *   edit / delete. Duties own public actions and execution assignment.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { ExecutablesManager } from "@dashboard/lib/components/ExecutablesManager";

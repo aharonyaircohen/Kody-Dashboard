@@ -30,14 +30,14 @@ One doc per dashboard-managed store / capability.
 - ✅ [Tasks board](tasks.md) — the lanes, what drives a card's column
   (engine `kodyState` comment, **not** `kody:*` labels), and the
   feature/bug/chore/spec/goal lifecycle.
-- ✅ [Inbox & approvals](inbox.md) — how a staff recommendation reaches the
-  operator (mention-routed) and how Approve / Reject / Fix / Dismiss / Merge
-  work. Approve/reject/dismiss are dashboard gates, not engine verbs.
+- ✅ [Reports](reports.md) — markdown reports from duties, including
+  structured findings and optional suggested actions (`dispatch`,
+  `create-task`, `dismiss`).
 - ✅ [Activity & audit](activity.md) — the Log / Auto / Runs / Feed timeline;
   merges `recordAudit`, engine `.kody/activity` events, and GitHub artifacts.
 - ✅ [Messages & mentions](messages-and-mentions.md) — `#`-channel team chat
   (GitHub Discussions) plus the `dispatchMentionPushes` spine that fans
-  @mentions out to the inbox and push.
+  @mentions out to notifications and push.
 
 ### Authoring & config
 

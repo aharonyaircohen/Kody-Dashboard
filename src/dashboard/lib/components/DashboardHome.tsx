@@ -4,7 +4,7 @@
  * @pattern dashboard-overview
  * @ai-summary The operations overview rendered at `/` (the "Dashboard" view).
  *   An at-a-glance control panel built top-to-bottom around "what needs me,
- *   what's broken": an attention row (inbox approvals + failures), a task
+ *   what's broken": an attention row (reports + failures), a task
  *   pulse, duties health, latest reports, and engine health. Every section
  *   rides a hook the rest of the dashboard already polls, so it adds no new
  *   GitHub load — it just composes existing caches into one screen. `/` used
@@ -48,7 +48,6 @@ import { useGoalState, useSetGoalState } from "../hooks/useGoalState";
 import { useMessageChannels } from "../hooks/useMessages";
 import { useChannelsUnread } from "../hooks/useChannelsUnread";
 import { useActivityLog } from "../hooks/useActivityLog";
-import { useInbox } from "../inbox/useInbox";
 import {
   useAcknowledgeHealthSignal,
   useCreateFixCITask,
@@ -178,28 +177,31 @@ function AllClear({ message }: { message: string }) {
 // ── attention cards ─────────────────────────────────────────────────────────
 
 /**
- * "Needs you" — unread inbox count plus a breakdown by what kind of thing is
- * waiting (approvals / mentions / reviews / other). Stats, not a scrolling list
- * of items — the full items live one click away on /inbox.
+ * "Needs you" — reports with review status or suggested actions. Stats, not a
+ * scrolling list of items; the full reports live one click away on /reports.
  */
 function NeedsYouCard() {
-  const { unread, unreadCount, isLoading } = useInbox();
-
-  const approvals = unread.filter((e) => e.ctoAction).length;
-  const mentions = unread.filter(
-    (e) =>
-      !e.ctoAction && (e.source === "mention" || e.source === "team_mention"),
+  const { data: reports = [], isLoading } = useReports();
+  const needsReview = reports.filter(
+    (r) =>
+      r.reviewStatus === "action-needed" ||
+      r.reviewStatus === "assigned" ||
+      (r.suggestedActions ?? []).length > 0,
+  );
+  const actionNeeded = reports.filter(
+    (r) => r.reviewStatus === "action-needed",
   ).length;
-  const reviews = unread.filter(
-    (e) => !e.ctoAction && e.source === "review_requested",
-  ).length;
-  const other = unreadCount - approvals - mentions - reviews;
+  const assigned = reports.filter((r) => r.reviewStatus === "assigned").length;
+  const suggestedActions = reports.reduce(
+    (sum, report) => sum + (report.suggestedActions ?? []).length,
+    0,
+  );
 
   const stats = [
-    { label: "Approvals", value: approvals, tone: "text-amber-300" },
-    { label: "Mentions", value: mentions, tone: "text-sky-300" },
-    { label: "Reviews", value: reviews, tone: "text-violet-300" },
-    { label: "Other", value: other, tone: "text-foreground" },
+    { label: "Reports", value: needsReview.length, tone: "text-sky-300" },
+    { label: "Actions", value: suggestedActions, tone: "text-amber-300" },
+    { label: "Assigned", value: assigned, tone: "text-violet-300" },
+    { label: "Action needed", value: actionNeeded, tone: "text-rose-300" },
   ].filter((s) => s.value > 0);
 
   return (
@@ -209,36 +211,38 @@ function NeedsYouCard() {
           <span
             className={cn(
               "inline-flex h-8 w-8 items-center justify-center rounded-md",
-              unreadCount > 0
-                ? "text-amber-300 bg-amber-500/10"
+              needsReview.length > 0
+                ? "text-sky-300 bg-sky-500/10"
                 : "text-emerald-300 bg-emerald-500/10",
             )}
           >
-            <Inbox className="w-4 h-4" />
+            <FileText className="w-4 h-4" />
           </span>
           <div>
             <div className="text-sm font-medium">Needs you</div>
             <div className="text-xs text-muted-foreground">
-              {isLoading ? "Loading…" : `${unreadCount} awaiting your decision`}
+              {isLoading
+                ? "Loading…"
+                : `${needsReview.length} report${needsReview.length === 1 ? "" : "s"} need review`}
             </div>
           </div>
         </div>
         <Link
-          href="/inbox"
+          href="/reports"
           className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
         >
-          Inbox <ArrowRight className="w-3 h-3" />
+          Reports <ArrowRight className="w-3 h-3" />
         </Link>
       </div>
 
-      {!isLoading && unreadCount === 0 ? (
-        <AllClear message="You're all caught up." />
+      {!isLoading && needsReview.length === 0 ? (
+        <AllClear message="No reports need review." />
       ) : (
         <div className="flex flex-wrap gap-x-5 gap-y-2">
           {stats.map((s) => (
             <Link
               key={s.label}
-              href="/inbox"
+              href="/reports"
               className="flex items-baseline gap-1.5"
             >
               <span

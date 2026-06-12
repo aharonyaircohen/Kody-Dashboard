@@ -25,8 +25,8 @@ use the `create_or_update_executable` tool.
 | The executable **folder** | `.kody/executables/<slug>/` — `profile.json` + `prompt.md` + optional `*.sh` preflight scripts + optional `skills/<name>/SKILL.md`. The engine reads this path first when a duty lowers to that implementation. | the connected repo                                                                                                 |
 | **File layer**            | Reads/writes the whole folder atomically (one blob per file → one tree → one commit) via the Git Data API. For simple generated executables, reads strip the generated output contract and writes re-append it. | [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           |
 | **Profile helpers**       | Pure form-fields ↔ `profile.json` translation, slug validation, and engine-mirroring profile validation. No I/O.                                                                                                | [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       |
-| The **/executables page** | CRUD UI: list, create, edit, validate, run, delete, set-default, import a skill.                                                                                                                                | [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) |
-| **Control API**           | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/default`, `/run`, and `/import-skill` sub-routes.                                                                                                   | [`../app/api/kody/executables/`](../app/api/kody/executables/)                                                     |
+| The **/executables page** | CRUD UI: list, create, edit, validate, delete, import a skill, and wire scripts/tools. It does not own public action names.                                                                                     | [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) |
+| **Control API**           | `GET`/`POST` collection, `GET`/`PATCH`/`DELETE` one, plus `/import-skill` and `/analyze-tool` helpers.                                                                                                          | [`../app/api/kody/executables/`](../app/api/kody/executables/)                                                     |
 | **Chat tools**            | In-process tools that let Kody build/manage executables by conversation — same file layer, same atomic commit.                                                                                                  | [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)                 |
 | **Company bundle**        | Export/import flattens each folder into a portable path→content map, so executables travel with the rest of a company profile.                                                                                  | [`../src/dashboard/lib/company/`](../src/dashboard/lib/company/)                                                   |
 
@@ -181,22 +181,6 @@ review/QA executables post raw markdown instead of `DONE` blocks. For these,
 the executable-owned contract must be the final instruction in `prompt.md`; do
 not append the generic generated contract after it.
 
-## Set default — the bare-`@kody` action
-
-"Set default" is the only thing that doesn't write the executable folder — it
-writes two top-level fields in **`kody.config.json`**:
-
-| Target | Field written         | Engine reads it when…                               | Built-in fallback when cleared |
-| ------ | --------------------- | --------------------------------------------------- | ------------------------------ |
-| issue  | `defaultExecutable`   | a comment on an **issue** is bare `@kody` (no verb) | `classify`                     |
-| PR     | `defaultPrExecutable` | a comment on a **PR** is bare `@kody` (no verb)     | `fix`                          |
-
-`POST /api/kody/executables/<slug>/default` with `{ target, clear? }` calls
-`writeDefaultExecutable`, which merges the field into `kody.config.json`
-(never clobbering other keys) and commits. Clearing reverts to the engine's
-built-in default. The collection `GET` returns the current defaults alongside
-the list so the page can badge which executable is the issue/PR default.
-
 ## Skills
 
 A skill is a `skills/<name>/SKILL.md` file **committed into the executable's
@@ -218,7 +202,7 @@ a `buildSyntheticPlugin` preflight step whenever the skills list is non-empty
 (the built-in `probe-skill` declares it the same way). The file layer keeps
 `claudeCode.skills` in sync with the committed `skills/` folders automatically.
 
-## CRUD + run flow
+## CRUD + duty flow
 
 ```
 ┌────────────────────────────────────────────────────────────┐
@@ -239,7 +223,6 @@ a `buildSyntheticPlugin` preflight step whenever the skills list is non-empty
    ┌──────────────────────────────────────────┐
    │ Duty action dispatches workflow          │
    │ action → duty → executable implementation │
-   │ (or "Set default" → kody.config.json)     │
    └───────────────┬──────────────────────────┘
                    │ engine resolves executable slug against
                    │ .kody/executables/ FIRST, then built-ins
@@ -258,11 +241,11 @@ staff, cadence, and the implementation executable it may run. The
 ## Writes need a signed-in user token
 
 Listing and reading an executable run under the shared polling token (the
-module-level GitHub context), but **every write — create, update, delete,
-set-default — requires a signed-in GitHub user token** (`getUserOctokit`),
+module-level GitHub context), but **every write — create, update, delete —
+requires a signed-in GitHub user token** (`getUserOctokit`),
 because the commit/comment must be attributed to a real actor. Each write also
 verifies the claimed `actorLogin` and records an audit entry
-(`executable.create` / `.update` / `.delete` / `.set_default`).
+(`executable.create` / `.update` / `.delete`).
 The slug is validated everywhere (`^[a-z0-9][a-z0-9_-]{0,63}$`) and the
 generated profile is validated against the engine's invariants before commit.
 
@@ -272,8 +255,7 @@ Executables are part of a portable **company** export/import. Export reads every
 folder into a `CompanyExecutableEntry` — a flat `path → content` map plus the
 slug — and import re-commits each one through the same `writeExecutableFile`,
 preserving the original prompt contract. The bundle also carries the
-`defaultExecutable` / `defaultPrExecutable` / `agent.perExecutable` config so a
-company's default-action and per-executable model routing travel with it. See
+`agent.perExecutable` config so per-executable model routing travels with it. See
 the company files in [`../src/dashboard/lib/company/`](../src/dashboard/lib/company/).
 
 ## File reference
@@ -286,10 +268,8 @@ the company files in [`../src/dashboard/lib/company/`](../src/dashboard/lib/comp
 | [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) | The /executables CRUD UI                                              |
 | [`../app/api/kody/executables/route.ts`](../app/api/kody/executables/route.ts)                                     | List (`GET`) + create (`POST`)                                        |
 | [`../app/api/kody/executables/[slug]/route.ts`](../app/api/kody/executables/[slug]/route.ts)                       | Read (`GET`) / update (`PATCH`) / delete (`DELETE`) one               |
-| [`../app/api/kody/executables/[slug]/default/route.ts`](../app/api/kody/executables/[slug]/default/route.ts)       | Set/clear the bare-`@kody` default executable                         |
 | [`../app/api/kody/executables/import-skill/route.ts`](../app/api/kody/executables/import-skill/route.ts)           | Fetch a skill's `SKILL.md` from a GitHub source                       |
 | [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)                 | Chat tools for conversational CRUD                                    |
-| `kody.config.json` (consumer repo)                                                                                 | `defaultExecutable` / `defaultPrExecutable` (set-default writes here) |
 
 ## FAQ
 
@@ -329,5 +309,5 @@ attributed to your signed-in user token, not the shared polling token.
 **Do executables travel between repos?**
 
 Yes — they're part of the Company export/import bundle, flattened to a
-path→content map and re-committed on import, along with the default-executable
-and per-executable model config.
+path→content map and re-committed on import, along with per-executable model
+config.
