@@ -4,8 +4,8 @@
     "approval-gate": {
       "approvals": 0,
       "rejections": 0,
-      "consecutiveApprovals": 10,
-      "mode": "auto"
+      "consecutiveApprovals": 0,
+      "mode": "ask"
     }
   },
   "log": []
