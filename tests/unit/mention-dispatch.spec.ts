@@ -66,17 +66,17 @@ vi.mock("@dashboard/lib/inbox/types", () => ({
   buildSnippet: (b: string) => b.slice(0, 80),
 }));
 vi.mock("@dashboard/lib/cto/recommendation", () => ({
+  DEFAULT_STAFF_SLUG: "cto",
   parseCtoAction: () => undefined,
   parseCtoCommand: () => undefined,
   parseCtoStaff: () => undefined,
   parseCtoDuty: () => null,
 }));
-vi.mock("@dashboard/lib/cto/decisions-server", () => ({
-  readCtoDecisions: vi.fn().mockResolvedValue([]),
+vi.mock("@dashboard/lib/cto/trust-store", () => ({
+  readTrust: vi.fn().mockResolvedValue({ version: 1, duties: {}, log: [] }),
 }));
-vi.mock("@dashboard/lib/cto/decisions", () => ({
-  latestCtoDecisions: () => [],
-  CTO_DECISIONS_ISSUE_TITLE: "kody:cto-decisions",
+vi.mock("@dashboard/lib/cto/trust-state", () => ({
+  latestTrustDecisions: () => ({}),
 }));
 vi.mock("@dashboard/lib/cto/backpressure", () => ({
   applyCtoBackpressure: (_feed: unknown, entries: unknown[]) => ({

@@ -19,10 +19,12 @@ import {
   degradeDuty,
   graduateDuty,
   isGraduated,
+  latestTrustDecisions,
   parseTrustManifest,
   resetDuty,
   serializeTrustManifest,
   summarizeTrust,
+  trustDecisionKey,
   type TrustManifest,
 } from "@dashboard/lib/cto/trust-state";
 
@@ -100,6 +102,32 @@ describe("parse/serialize", () => {
     expect(parseTrustManifest(serializeTrustManifest(m))).toEqual(m);
     expect(parseTrustManifest("not json")).toEqual(EMPTY_TRUST_MANIFEST);
     expect(parseTrustManifest(null)).toEqual(EMPTY_TRUST_MANIFEST);
+  });
+});
+
+describe("latestTrustDecisions", () => {
+  it("keys the latest verdict by duty+task+action", () => {
+    let m = applyTrustDecision(EMPTY_TRUST_MANIFEST, {
+      duty: "qa-verify",
+      taskNumber: 1574,
+      action: "sync",
+      decision: "reject",
+      at: "2026-01-01T00:00:00.000Z",
+    });
+    m = applyTrustDecision(m, {
+      duty: "qa-verify",
+      taskNumber: 1574,
+      action: "sync",
+      decision: "approve",
+      at: "2026-01-02T00:00:00.000Z",
+    });
+
+    expect(
+      latestTrustDecisions(m)[trustDecisionKey("qa-verify", 1574, "sync")],
+    ).toEqual({ decision: "approve", at: "2026-01-02T00:00:00.000Z" });
+    expect(
+      latestTrustDecisions(m)[trustDecisionKey("cto", 1574, "sync")],
+    ).toBeUndefined();
   });
 });
 

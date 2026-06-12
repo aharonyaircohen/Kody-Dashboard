@@ -2,8 +2,8 @@
  * COMPLETE live verification of all five real manifest helpers against the
  * tester sandbox repo. Unlike manifest-store-live.int.spec.ts (which drives
  * the generic core with a throwaway label), this exercises the actual
- * exported helpers — goals / push / notifications / cto-decisions /
- * inbox-feed — through their real `kody:*` labels, every scenario, end to
+ * exported helpers — goals / push / notifications / inbox-feed — through
+ * their real `kody:*` labels, every scenario, end to
  * end against the live GitHub API.
  *
  * Safety: each helper's real manifest issue is snapshotted before the run
@@ -34,14 +34,6 @@ import {
   readNotificationsManifestFresh,
 } from "@dashboard/lib/notifications-server";
 import { NOTIFICATIONS_MANIFEST_LABEL } from "@dashboard/lib/notifications";
-import {
-  mutateCtoDecisions,
-  readCtoDecisions,
-} from "@dashboard/lib/cto/decisions-server";
-import {
-  applyDecision,
-  CTO_DECISIONS_LABEL,
-} from "@dashboard/lib/cto/decisions";
 import {
   appendInboxFeed,
   readInboxFeed,
@@ -106,7 +98,6 @@ describe.skipIf(!enabled)(
         GOALS_MANIFEST_LABEL,
         PUSH_SUBSCRIPTIONS_LABEL,
         NOTIFICATIONS_MANIFEST_LABEL,
-        CTO_DECISIONS_LABEL,
         INBOX_FEED_LABEL,
       ]) {
         await snapshot(label);
@@ -229,23 +220,6 @@ describe.skipIf(!enabled)(
       }));
       const ref = await readNotificationsManifestFresh();
       expect(ref.manifest.rules.some((r) => r.id === ruleId)).toBe(true);
-    }, 90_000);
-
-    it("cto-decisions: approve tallies and is visible via cached read", async () => {
-      const action = `livetest-${tag}`;
-      const out = await mutateCtoDecisions((cur) => {
-        const next = applyDecision(cur, {
-          taskNumber: 1,
-          action,
-          decision: "approve",
-        });
-        return { next, result: next.staff.cto[action].approvals };
-      });
-      expect(out.result).toBe(1);
-      expect("kind" in out).toBe(false); // never a noop union
-
-      const ledger = await readCtoDecisions();
-      expect(ledger.staff.cto[action]?.approvals).toBe(1);
     }, 90_000);
 
     it("inbox-feed: append adds; dup append returns 0; empty returns 0", async () => {

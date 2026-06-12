@@ -21,7 +21,8 @@
  *   approving can never silently post the wrong command.
  */
 import type { InboxEntry } from "../inbox/types";
-import { DEFAULT_STAFF_SLUG } from "./decisions";
+
+export const DEFAULT_STAFF_SLUG = "cto";
 
 /**
  * Every action the CTO staff member may emit (see cto.md "Restrictions"), plus

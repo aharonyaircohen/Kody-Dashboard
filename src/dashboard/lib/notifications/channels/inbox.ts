@@ -7,7 +7,7 @@
  *   event and its resolved recipients, it appends one feed entry per recipient
  *   to the shared inbox-feed manifest. The CTO backpressure cap lives here as a
  *   post-resolve admission filter (it gates which recommendation entries are
- *   admitted, per-staff, at this single write point). Best-effort: never throws
+ *   admitted, per-duty, at this single write point). Best-effort: never throws
  *   so a feed-write failure can't stop the push fan-out or break the webhook ACK.
  */
 import "server-only";
@@ -21,8 +21,8 @@ import {
   parseCtoStaff,
   parseCtoDuty,
 } from "../../cto/recommendation";
-import { readCtoDecisions } from "../../cto/decisions-server";
-import { latestCtoDecisions } from "../../cto/decisions";
+import { readTrust } from "../../cto/trust-store";
+import { latestTrustDecisions } from "../../cto/trust-state";
 import { applyCtoBackpressure } from "../../cto/backpressure";
 import { dashboardChannelUrl } from "../../thread-link";
 import { logger } from "../../logger";
@@ -86,12 +86,12 @@ export async function deliverInbox(
     try {
       const [feed, ledger] = await Promise.all([
         readInboxFeed(),
-        readCtoDecisions(),
+        readTrust(),
       ]);
       const { admitted, withheld } = applyCtoBackpressure(
         feed.entries,
         entries,
-        latestCtoDecisions(ledger),
+        latestTrustDecisions(ledger),
       );
       toAppend = admitted;
       if (withheld.length > 0) {

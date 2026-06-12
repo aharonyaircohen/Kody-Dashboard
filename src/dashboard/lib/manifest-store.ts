@@ -4,7 +4,7 @@
  * @pattern manifest-issue-cas
  * @ai-summary Generic "manifest stored in a GitHub issue body" store. One
  *   factory replaces the five hand-copied helpers (goals / push /
- *   notifications / cto-decisions / inbox-feed) that each carried an
+ *   notifications / inbox-feed) that each carried an
  *   identical read → mutate → write → verify cycle wrapped in an
  *   in-process per-repo mutex.
  *
@@ -148,7 +148,7 @@ export interface ManifestStoreConfig<M> {
   /**
    * Per-store last-chance trim invoked right before write. Use it to drop
    * oldest entries so the serialized body stays under `maxBodyBytes` for
-   * unbounded growth stores (push subs, cto-decisions log, …). Curated lists
+   * unbounded growth stores (push subs, inbox feed, …). Curated lists
    * (goals, notification rules) can omit it — the byte guard will throw a
    * clean `ManifestBodyTooLargeError` instead of silently looping.
    */
@@ -169,7 +169,7 @@ export interface ManifestStore<M> {
   readFresh(): Promise<ManifestRef<M>>;
   /**
    * Cached read (ETag/304) for poll/read-only callers that don't need the
-   * issue number. Used by cto-decisions + inbox-feed.
+   * issue number. Used by inbox-feed.
    */
   readCached(): Promise<M>;
   /**

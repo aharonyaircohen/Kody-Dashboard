@@ -10,8 +10,8 @@
  *   single write path, via the shared `postWithFallback` helper). For
  *   non-dispatchable verbs (`qa-review`/`approve`/`comment`) there is no
  *   dashboard executor, so approve only records the verdict — it never
- *   silently reroutes to `@kody`. Either way the verdict lands in the
- *   `kody:cto-decisions` ledger.
+ *   silently reroutes to `@kody`. Either way the verdict lands in the duty
+ *   trust ledger.
  *
  *   `reject` → records the rejection only (and resets that action's
  *   consecutive-approval streak, so a single "no" blocks graduation).
@@ -22,8 +22,8 @@
  *   operator doesn't want to act on but also doesn't want to penalise
  *   the CTO over. Never dispatches a command.
  *
- *   The ledger is what makes automation *evolve*: Phase 2 has the CTO read
- *   it each tick and stop asking once an action clears the trust threshold.
+ *   The ledger is what makes automation evolve: once a duty clears the trust
+ *   threshold, the engine gate may let it self-dispatch.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -42,23 +42,18 @@ import {
 } from "@dashboard/lib/github-client";
 import { postWithFallback } from "@dashboard/lib/kody-command";
 import { attemptSquashMerge, isMerged } from "@dashboard/lib/kody/squash-merge";
+import { mutateTrust, readTrust } from "@dashboard/lib/cto/trust-store";
 import {
-  mutateCtoDecisions,
-  readCtoDecisions,
-} from "@dashboard/lib/cto/decisions-server";
-import { mutateTrust } from "@dashboard/lib/cto/trust-store";
-import { applyTrustDecision } from "@dashboard/lib/cto/trust-state";
-import {
-  applyDecision,
-  latestCtoDecisions,
-  DEFAULT_STAFF_SLUG,
-} from "@dashboard/lib/cto/decisions";
+  applyTrustDecision,
+  latestTrustDecisions,
+} from "@dashboard/lib/cto/trust-state";
 import {
   CTO_ACTIONS,
   isDispatchable,
   isDashboardAction,
   dispatchCommand,
   isNonEngineCommand,
+  DEFAULT_STAFF_SLUG,
 } from "@dashboard/lib/cto/recommendation";
 
 const bodySchema = z.object({
@@ -66,9 +61,8 @@ const bodySchema = z.object({
   action: z.enum(CTO_ACTIONS).default("execute"),
   decision: z.enum(["approve", "reject", "dismiss"]),
   /**
-   * Slug of the staff member whose rec this verdict decides. Scopes the trust
-   * ledger per staff. Defaults to the CTO so legacy clients (which don't send
-   * it) keep landing under the CTO's ledger slice.
+   * Slug of the staff member whose rec this verdict decides. Kept for display
+   * and legacy clients. Trust itself is keyed by duty.
    */
   staff: z
     .string()
@@ -120,6 +114,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { taskNumber, action, decision, actorLogin, staff } = payload;
+    const duty = payload.duty ?? staff;
     const requested = payload.command?.trim();
 
     if (actorLogin) {
@@ -184,46 +179,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { manifest } = await mutateCtoDecisions(
-      (current) => ({
-        next: applyDecision(current, {
-          staff,
-          taskNumber,
-          action,
-          decision,
-          ...(actorLogin ? { by: actorLogin } : {}),
-        }),
-        result: null,
+    const manifest = await mutateTrust((current) =>
+      applyTrustDecision(current, {
+        duty,
+        action,
+        decision,
+        taskNumber,
+        ...(actorLogin ? { by: actorLogin } : {}),
       }),
-      { userOctokit },
     );
-
-    // Record the verdict in the duty-keyed trust ledger (kody-state file) too —
-    // the new source of truth for the /trust page and the engine's gate. Keyed
-    // by duty (falls back to persona). Best-effort: a failure here must not
-    // undo an approve that already dispatched.
-    const duty = payload.duty ?? staff;
-    try {
-      await mutateTrust((current) =>
-        applyTrustDecision(current, {
-          duty,
-          action,
-          decision,
-          taskNumber,
-          ...(actorLogin ? { by: actorLogin } : {}),
-        }),
-      );
-    } catch (trustErr) {
-      console.error("[cto/decision] trust ledger write failed", trustErr);
-    }
 
     return NextResponse.json({
       ok: true,
       executed,
       staff,
+      duty,
       action,
       decision,
-      stats: manifest.staff[staff]?.[action] ?? null,
+      stats: manifest.duties[duty] ?? null,
     });
   } catch (err: unknown) {
     const message =
@@ -241,8 +214,8 @@ export async function POST(req: NextRequest) {
 /**
  * GET /api/kody/cto/decision — the latest verdict per task+action, so the
  * inbox can render a verdict badge instead of Approve/Reject for
- * recommendations that were already decided (on any device). Cached read
- * (ETag/304); POST invalidates the ledger issue so this stays fresh.
+ * recommendations that were already decided (on any device). Cached trust read
+ * uses ETag/304 when unchanged.
  */
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -254,12 +227,12 @@ export async function GET(req: NextRequest) {
   }
   setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
   try {
-    const manifest = await readCtoDecisions();
-    return NextResponse.json({ decided: latestCtoDecisions(manifest) });
+    const manifest = await readTrust();
+    return NextResponse.json({ decided: latestTrustDecisions(manifest) });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "read failed";
     return NextResponse.json(
-      { error: "decisions_read_failed", message },
+      { error: "trust_decisions_read_failed", message },
       { status: 500 },
     );
   } finally {

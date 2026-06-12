@@ -1798,13 +1798,12 @@ export const vibeApi = {
 /**
  * One-tap operator verdict on a CTO recommendation surfaced in the inbox.
  * `approve` runs the recommended action for dispatchable verbs
- * (`execute`/`fix`); non-dispatchable verbs are recorded only. Both
- * verdicts are tallied in the `kody:cto-decisions` ledger that drives
- * graduation.
+ * (`execute`/`fix`); non-dispatchable verbs are recorded only. Verdicts are
+ * tallied in the duty trust ledger that drives graduation.
  */
 export const ctoApi = {
   decide: async (input: {
-    /** Emitting staff slug; scopes the trust ledger per staff (default "cto"). */
+    /** Emitting staff slug; kept for display and legacy entries. */
     staff?: string;
     /** Emitting duty slug — the trust key (falls back to staff server-side). */
     duty?: string;
@@ -1818,6 +1817,7 @@ export const ctoApi = {
     ok: true;
     executed: boolean;
     staff: string;
+    duty: string;
     action: string;
     decision: "approve" | "reject" | "dismiss";
     stats: {
@@ -1836,11 +1836,11 @@ export const ctoApi = {
   },
 
   /**
-   * Latest verdict per `${staff}:${taskNumber}:${action}` from the trust
+   * Latest verdict per `${duty}:${taskNumber}:${action}` from the trust
    * ledger, carrying the timestamp it was recorded so the inbox can scope the
    * badge to recs that pre-date the decision (a dismiss on yesterday's
    * `sync` rec must not silently dismiss today's fresh one). Used by
-   * `verdictFor(staff, taskNumber, action, sinceIso)`.
+   * `verdictFor(duty, taskNumber, action, sinceIso)`.
    */
   decisions: async (): Promise<{
     decided: Record<

@@ -44,7 +44,7 @@ import {
   detectCtoRecommendation,
   type CtoAction,
 } from "../cto/recommendation";
-import { useCtoDecisions } from "../cto/useCtoDecisions";
+import { useTrustDecisions } from "../cto/useTrustDecisions";
 import { useNotificationStore } from "../notifications/useNotificationStore";
 import { NOTIFICATION_META } from "../notifications/types";
 import { syncMutedTypes } from "../notifications/sync-prefs";
@@ -329,7 +329,7 @@ function Row({
   // this fresh one. Without the gate every re-post of a sync/fix-ci rec
   // shows pre-stamped Dismissed once any past rec for that PR was dismissed.
   const ctoVerdict = cto
-    ? verdictFor(cto.staff, cto.taskNumber, cto.action, entry.sentAt)
+    ? verdictFor(cto.duty, cto.taskNumber, cto.action, entry.sentAt)
     : null;
   const [ctoBusy, setCtoBusy] = useState<CtoVerdict | null>(null);
 
@@ -592,7 +592,8 @@ export function InboxList() {
     clearAll,
     remove,
   } = useInbox();
-  const { verdictFor, invalidate: invalidateCtoDecisions } = useCtoDecisions();
+  const { verdictFor, invalidate: invalidateTrustDecisions } =
+    useTrustDecisions();
   const { prefs: notifPrefs, updatePrefs: updateNotifPrefs } =
     useNotificationStore();
   // Latest muted list, kept in a ref so the toast "Undo" callback (created at
@@ -795,7 +796,7 @@ export function InboxList() {
       if (entry.readAt === null) await markRead(entry.id);
       // Flip the row to its verdict badge immediately (and on every other
       // open tab/device on next poll) — the ledger now has this decision.
-      await Promise.all([refetch(), invalidateCtoDecisions()]);
+      await Promise.all([refetch(), invalidateTrustDecisions()]);
     } catch (err) {
       toast.error("CTO decision failed", {
         description: err instanceof Error ? err.message : "Unknown error",
@@ -1039,7 +1040,7 @@ export function InboxList() {
               action={rec.action}
               dispatchable={rec.dispatchable}
               verdict={verdictFor(
-                rec.staff,
+                rec.duty,
                 rec.taskNumber,
                 rec.action,
                 activeEntry.sentAt,

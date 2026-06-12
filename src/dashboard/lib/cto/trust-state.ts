@@ -59,6 +59,11 @@ export interface TrustManifest {
   log: TrustDecisionLogEntry[];
 }
 
+export interface TrustLatestDecision {
+  decision: TrustDecision;
+  at: string;
+}
+
 export const EMPTY_TRUST_MANIFEST: TrustManifest = {
   version: TRUST_MANIFEST_VERSION,
   duties: {},
@@ -129,6 +134,28 @@ export function applyTrustDecision(
     ...(entry.by ? { by: entry.by } : {}),
   };
   return { ...next, log: [...manifest.log, logEntry].slice(-TRUST_LOG_MAX) };
+}
+
+export function trustDecisionKey(
+  duty: string,
+  taskNumber: number,
+  action: string,
+): string {
+  return `${duty}:${taskNumber}:${action}`;
+}
+
+export function latestTrustDecisions(
+  manifest: TrustManifest,
+): Record<string, TrustLatestDecision> {
+  const out: Record<string, TrustLatestDecision> = {};
+  for (const e of manifest.log) {
+    if (!e.action) continue;
+    out[trustDecisionKey(e.duty, e.taskNumber, e.action)] = {
+      decision: e.decision,
+      at: e.at,
+    };
+  }
+  return out;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

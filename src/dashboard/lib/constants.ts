@@ -449,7 +449,6 @@ export const INTERNAL_ISSUE_LABELS = [
   INTERNAL_ISSUE_LABEL,
   "kody:control",
   "kody:inbox-feed",
-  "kody:cto-decisions",
   "kody:goals-manifest",
   "kody:push-subscriptions",
   "kody:audit-log",

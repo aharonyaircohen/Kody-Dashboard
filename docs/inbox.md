@@ -34,8 +34,8 @@ Two facts shape everything below:
 | **Inbox gist** (per user)   | Each user's private per-repo gist (`kody-inbox:<owner>/<repo>`). The client watcher pulls _its own_ slice of the feed down into here — the inbox the operator actually reads.                  | [types.ts](../src/dashboard/lib/inbox/types.ts), [useInboxWatcher.tsx](../src/dashboard/lib/inbox/useInboxWatcher.tsx) |
 | **Recommendation detector** | Pure: decides whether an entry is a staff recommendation and extracts the emitting staff slug, task number, action verb, and the exact `@kody …` command to post on Approve.                   | [recommendation.ts](../src/dashboard/lib/cto/recommendation.ts)                                                        |
 | **Decision route**          | `POST /api/kody/cto/decision`. The operator's Approve/Reject/Dismiss verdict. Approve dispatches dispatchable verbs (or squash-merges); all three record to the trust ledger.                  | [decision/route.ts](../app/api/kody/cto/decision/route.ts)                                                             |
-| **Trust ledger**            | `kody:cto-decisions` manifest issue. Tallies approvals/rejections per staff+action. Phase 2 reads it for "graduation" — stop asking once an action clears the threshold with zero rejections.  | [decisions.ts](../src/dashboard/lib/cto/decisions.ts)                                                                  |
-| **Backpressure gate**       | Code-enforced cap of **10 pending** undecided recommendations per staff member, applied at the single feed-write point so a chatty staff member can't flood (or crowd out) the queue.          | [backpressure.ts](../src/dashboard/lib/cto/backpressure.ts)                                                            |
+| **Trust ledger**            | `.kody/state/trust.json` on the `kody-state` branch. Tallies approvals/rejections per duty. The engine reads it to decide whether a duty may self-dispatch.                                    | [trust-state.ts](../src/dashboard/lib/cto/trust-state.ts), [trust-store.ts](../src/dashboard/lib/cto/trust-store.ts)    |
+| **Backpressure gate**       | Code-enforced cap of **10 pending** undecided recommendations per duty, applied at the single feed-write point so a chatty duty can't flood the queue.                                         | [backpressure.ts](../src/dashboard/lib/cto/backpressure.ts)                                                            |
 | **Approve-gate route**      | `POST /api/kody/tasks/approve` — the human merge gate for a PR. Atomic approve-review → squash-merge → (only if merged) delete branch + close issue. Distinct from the recommendation verdict. | [tasks/approve/route.ts](../app/api/kody/tasks/approve/route.ts)                                                       |
 | **Inbox UI**                | Two sections (Unread / Read); each recommendation row carries Approve/Reject/Dismiss + the literal command preview. Same controls in the thread dialog footer.                                 | [InboxList.tsx](../src/dashboard/lib/components/InboxList.tsx)                                                         |
 
@@ -51,9 +51,9 @@ Two facts shape everything below:
 ┌─────────────────────────────────────────────┐
 │ webhook receiver → dispatchMentionPushes      │
 │  • extractMentions(body) → operator logins    │
-│  • parse ctoAction / ctoCommand / ctoStaff    │
+│  • parse ctoAction / ctoCommand / ctoDuty     │
 │    from the *raw* body (backticks intact)     │
-│  • applyCtoBackpressure (≤10 pending / staff) │
+│  • applyCtoBackpressure (≤10 pending / duty)  │
 │  • appendInboxFeed (bot token)                │
 └───────────────────┬───────────────────────────┘
                     │ per-user client watcher, 60s poll
@@ -79,9 +79,10 @@ literal `@login` in the posted body, and that login has to be in
 machine-readable signals ride along in the raw body, parsed at feed-write time
 while backticks are still intact (the 240-char snippet collapses them):
 
-- `<!-- kody-staff: <slug> -->` — the emitting staff member, so the trust
-  ledger and the backpressure cap are scoped per staff. Legacy recs without it
-  default to `cto`.
+- `<!-- kody-staff: <slug> -->` — the emitting staff member, kept for display
+  and legacy fallback.
+- `<!-- kody-duty: <slug> -->` — the duty that emitted the recommendation.
+  This is the trust key. Legacy recs without it fall back to staff, then `cto`.
 - `<!-- kody-cmd: @kody … -->` — the **exact** command Approve will post.
 - The prose marker (`🧭 **CTO recommendation** — \`<action>\``) — the action
   verb, and the legacy fallback for recs that predate the slug line.
@@ -118,16 +119,16 @@ silently post the wrong command.
 
 ### Reject
 
-Records the rejection and **resets that action's consecutive-approval streak to
+Records the rejection and **resets that duty's consecutive-approval streak to
 zero** — a single "no" blocks graduation and de-graduates an already-trusted
-action back to "ask". This is the kill switch. No command is dispatched.
+duty back to "ask". This is the kill switch. No command is dispatched.
 
 ### Dismiss
 
 A neutral verdict: it marks the recommendation _decided_ (so the backpressure
 slot frees) **without** touching approvals/rejections/streak/mode. Use it to
 drain stale recs the operator doesn't want to act on but doesn't want to
-penalise the staff member over. Never dispatches a command, and can't be used
+penalise the duty over. Never dispatches a command, and can't be used
 to game graduation by mass-dismissing.
 
 ### Approve-gate (PR merge)
@@ -172,19 +173,17 @@ into the inbox as a normal entry, but `detectCtoRecommendation` only renders
 Approve/Reject controls for issue/PR threads — a Discussion mention surfaces as
 a plain mention, never misrouted as a dispatchable recommendation.
 
-## Trust ledger & graduation (Phase 2)
+## Trust ledger & graduation
 
-Every verdict is tallied in the `kody:cto-decisions` manifest, nested by staff
-slug → action verb (`approvals`, `rejections`, `consecutiveApprovals`, `mode`).
-Phase 1 only _writes_ it. Phase 2 (graduation) has each staff member read its
-own slice each tick and flip an action from `ask` → `auto` once
-`consecutiveApprovals` clears `CTO_GRADUATION_THRESHOLD` (10) with zero
-rejections. A single reject resets the streak and de-graduates the action back
-to `ask`. Trust is per-staff: a chatty CTO graduating `execute` never grants QA
-autonomy on its own `execute`.
+Every verdict is tallied in `.kody/state/trust.json` on the `kody-state` branch,
+keyed by duty slug (`approvals`, `rejections`, `consecutiveApprovals`, `mode`).
+Once a duty clears `TRUST_GRADUATION_THRESHOLD` (10), its mode becomes `auto`.
+A single reject resets the streak and de-graduates the duty back to `ask`.
+Trust is per duty: one trusted duty never grants autonomy to another duty, even
+if both run as the same staff persona.
 
 The ledger doubles as the **verdict badge** source. `GET /api/kody/cto/decision`
-returns the latest verdict per `staff:task:action`, and the inbox shows
+returns the latest verdict per `duty:task:action`, and the inbox shows
 "Approved / Rejected / Dismissed" instead of buttons for a rec already decided
 on any device — gated by the entry's `sentAt` so a verdict recorded _before_ a
 fresh re-post of the same `(task, action)` rec doesn't stamp the new one.
@@ -194,10 +193,10 @@ fresh re-post of the same `(task, action)` rec doesn't stamp the new one.
 | File                                                                                                | Purpose                                                          |
 | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | [recommendation.ts](../src/dashboard/lib/cto/recommendation.ts)                                     | Pure detector — staff slug, task#, action verb, command to post  |
-| [decisions.ts](../src/dashboard/lib/cto/decisions.ts)                                               | Trust-ledger types + `applyDecision` (graduation lives here)     |
-| [decisions-server.ts](../src/dashboard/lib/cto/decisions-server.ts)                                 | Server read/mutate over the `kody:cto-decisions` manifest issue  |
-| [backpressure.ts](../src/dashboard/lib/cto/backpressure.ts)                                         | Per-staff ≤10-pending cap, applied at the feed-write point       |
-| [useCtoDecisions.ts](../src/dashboard/lib/cto/useCtoDecisions.ts)                                   | Client query for the verdict badge (`sentAt`-gated)              |
+| [trust-state.ts](../src/dashboard/lib/cto/trust-state.ts)                                           | Trust-ledger types + pure transforms                             |
+| [trust-store.ts](../src/dashboard/lib/cto/trust-store.ts)                                           | Server read/CAS-write over `.kody/state/trust.json`              |
+| [backpressure.ts](../src/dashboard/lib/cto/backpressure.ts)                                         | Per-duty ≤10-pending cap, applied at the feed-write point        |
+| [useTrustDecisions.ts](../src/dashboard/lib/cto/useTrustDecisions.ts)                               | Client query for the verdict badge (`sentAt`-gated)              |
 | [inbox/feed.ts](../src/dashboard/lib/inbox/feed.ts)                                                 | Feed manifest types, parse/serialize, byte-cap, CTO collapse key |
 | [inbox/feed-server.ts](../src/dashboard/lib/inbox/feed-server.ts)                                   | CAS read/append over the `kody:inbox-feed` issue (bot token)     |
 | [inbox/types.ts](../src/dashboard/lib/inbox/types.ts)                                               | Per-user gist manifest types + `buildSnippet`                    |
