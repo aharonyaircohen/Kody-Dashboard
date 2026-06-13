@@ -846,12 +846,21 @@ export function KodyChat({
 
   // Session sidebar state (for session management feature)
   const [showSessionSidebar, setShowSessionSidebar] = useState(false);
+  const previousRailFullscreenRef = useRef(railFullscreen);
   const [sessionSidebarPinned, setSessionSidebarPinned] = useState(() => {
     if (typeof window === "undefined") return false;
     return (
       window.localStorage.getItem("kody-chat:sessions-panel-pinned") === "1"
     );
   });
+  useEffect(() => {
+    const wasRailFullscreen = previousRailFullscreenRef.current;
+    previousRailFullscreenRef.current = railFullscreen;
+
+    if (wasRailFullscreen && !railFullscreen) {
+      setShowSessionSidebar(false);
+    }
+  }, [railFullscreen]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(
@@ -952,6 +961,12 @@ export function KodyChat({
   const isDutyMode = !!selectedDuty;
   const isPlannerMode = !!plannerGoal && !!plannerSessionId;
   const isGlobalMode = !isTaskMode && !isDutyMode && !isPlannerMode;
+
+  useEffect(() => {
+    if (railFullscreen && isGlobalMode) {
+      setShowSessionSidebar(true);
+    }
+  }, [railFullscreen, isGlobalMode]);
 
   // All chat messages live in the global session store. The sessionHook
   // owns a single `messages` list per active session; the page/scope
@@ -4085,7 +4100,7 @@ export function KodyChat({
 
   return (
     <div
-      className="relative flex flex-col h-full md:border-l bg-background"
+      className="relative flex h-full overflow-hidden md:border-l bg-background"
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -4100,7 +4115,10 @@ export function KodyChat({
         </div>
       )}
       {/* Session Sidebar */}
-      {showSessionSidebar && isGlobalMode && !sessionSidebarPinned && (
+      {showSessionSidebar &&
+        isGlobalMode &&
+        !sessionSidebarPinned &&
+        !railFullscreen && (
         <button
           type="button"
           aria-label="Close conversations"
@@ -4121,12 +4139,19 @@ export function KodyChat({
           onDeleteSession={sessionHook.deleteSession}
           onRenameSession={sessionHook.renameSession}
           onPinSession={sessionHook.pinSession}
+          modeBySessionId={terminalRegistry.modeBySessionId}
           pinnedOpen={sessionSidebarPinned}
           onTogglePinnedOpen={() => setSessionSidebarPinned((prev) => !prev)}
           onClose={() => setShowSessionSidebar(false)}
-          className="absolute left-0 top-0 bottom-0 w-full sm:w-72 z-50 shadow-lg"
+          className={
+            railFullscreen
+              ? "relative z-10 w-80 shrink-0 shadow-none"
+              : "absolute left-0 top-0 bottom-0 w-full sm:w-72 z-50 shadow-lg"
+          }
         />
       )}
+
+      <div className="relative flex min-w-0 flex-1 flex-col">
       {/* Voice Chat Overlay */}
       {voiceOverlayOpen && (
         <VoiceChatOverlay
@@ -4317,9 +4342,9 @@ export function KodyChat({
                 threads are unified; the sidebar just lists sessions from
                 the global store. Icon-only to match the other header
                 controls (collapse, fullscreen). */}
-            <button
-              type="button"
-              onClick={() => setShowSessionSidebar(!showSessionSidebar)}
+              <button
+                type="button"
+                onClick={() => setShowSessionSidebar(!showSessionSidebar)}
               className={`p-2 rounded-md border transition-all ${
                 showSessionSidebar
                   ? "bg-primary text-primary-foreground border-primary"
@@ -4327,9 +4352,9 @@ export function KodyChat({
               }`}
               title="Conversations"
               aria-label="Toggle conversations"
-            >
-              <MessageSquare className="w-4 h-4" aria-hidden="true" />
-            </button>
+              >
+                <MessageSquare className="w-4 h-4" aria-hidden="true" />
+              </button>
 
             {/* Fullscreen / restore (desktop rail only) */}
             {onToggleFullscreen && (
@@ -5314,6 +5339,7 @@ export function KodyChat({
         onConfirm={executeClearHistory}
         onClose={() => setShowClearConfirm(false)}
       />
+      </div>
     </div>
   );
 }

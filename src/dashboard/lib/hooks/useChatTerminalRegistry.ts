@@ -600,6 +600,7 @@ export function useChatTerminalRegistry({
     flyInventoryLoading,
     hasLiveTerminal,
     mode,
+    modeBySessionId,
     mountedTerminals,
     openTerminalMode,
     recordConnectionState,
