@@ -2,7 +2,7 @@
   "name": "work-briefing",
   "describe": "Work Briefing",
   "every": "manual",
-  "staff": "coo",
+  "runner": "coo",
   "executables": [
     "work-briefing"
   ]

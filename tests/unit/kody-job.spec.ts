@@ -7,13 +7,8 @@ import {
   type KodyJob,
 } from "@dashboard/lib/kody-job";
 
-/**
- * These tests pin the dashboard Job mirror to the engine's `Job` contract
- * (kody2/src/executables/types.ts:457 + kody2/src/job.ts:46). If the engine
- * changes the shape or the validation rules, these break — that's the point.
- */
-describe("KodyJob mirrors the engine Job", () => {
-  it("assembles the four axes: executable(how) + duty(why) + persona(who) + schedule(when)", () => {
+describe("KodyJob duty dispatch boundary", () => {
+  it("assembles a duty run with an implementation executable link", () => {
     const job = validateKodyJob({
       executable: "qa-verify", // HOW
       duty: "nightly-qa", // WHY (slug)
@@ -30,35 +25,40 @@ describe("KodyJob mirrors the engine Job", () => {
     expect(job.flavor).toBe("scheduled");
   });
 
-  it("requires an executable OR a duty (engine: validateJob)", () => {
+  it("requires a duty and rejects executable-only jobs", () => {
     expect(() => validateKodyJob({ flavor: "instant", cliArgs: {} })).toThrow(
       InvalidKodyJobError,
     );
-    // either one alone is valid
-    expect(
-      validateKodyJob({ executable: "run", flavor: "instant" }).executable,
-    ).toBe("run");
+    expect(() =>
+      validateKodyJob({ executable: "run", flavor: "instant" }),
+    ).toThrow(/duty/);
     expect(validateKodyJob({ duty: "health", flavor: "scheduled" }).duty).toBe(
       "health",
     );
   });
 
   it('rejects an unknown flavor (engine accepts only "instant" | "scheduled")', () => {
+    expect(() => validateKodyJob({ duty: "run", flavor: "whenever" })).toThrow(
+      /flavor/,
+    );
+  });
+
+  it("rejects invalid duty slugs", () => {
     expect(() =>
-      validateKodyJob({ executable: "run", flavor: "whenever" }),
-    ).toThrow(/flavor/);
+      validateKodyJob({ duty: "Feature Work", flavor: "instant" }),
+    ).toThrow(/duty slug/);
   });
 
   it("defaults cliArgs to an object and rejects a non-object cliArgs", () => {
-    expect(
-      validateKodyJob({ executable: "run", flavor: "instant" }).cliArgs,
-    ).toEqual({});
+    expect(validateKodyJob({ duty: "run", flavor: "instant" }).cliArgs).toEqual(
+      {},
+    );
     expect(() =>
-      validateKodyJob({ executable: "run", flavor: "instant", cliArgs: 5 }),
+      validateKodyJob({ duty: "run", flavor: "instant", cliArgs: 5 }),
     ).toThrow(/cliArgs/);
   });
 
-  it("resolves the run profile as executable ?? duty (engine: job.ts)", () => {
+  it("resolves the dispatch profile as the duty, not the executable", () => {
     expect(
       resolveJobProfile({
         executable: "feature",
@@ -66,7 +66,7 @@ describe("KodyJob mirrors the engine Job", () => {
         cliArgs: {},
         flavor: "instant",
       }),
-    ).toBe("feature");
+    ).toBe("x");
     expect(
       resolveJobProfile({
         duty: "nightly-qa",
@@ -78,7 +78,7 @@ describe("KodyJob mirrors the engine Job", () => {
 
   it("renders an instant job as the @kody dispatch comment", () => {
     const job: KodyJob = {
-      executable: "research",
+      duty: "research",
       why: "look into the flaky test",
       cliArgs: {},
       flavor: "instant",

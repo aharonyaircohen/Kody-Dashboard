@@ -1,0 +1,8 @@
+{
+  "name": "plan",
+  "describe": "Issue Planning",
+  "action": "plan",
+  "every": "manual",
+  "runner": "kody",
+  "executable": "plan"
+}

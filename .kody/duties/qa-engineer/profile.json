@@ -1,0 +1,8 @@
+{
+  "name": "qa-engineer",
+  "describe": "QA Engineer",
+  "action": "qa-engineer",
+  "every": "manual",
+  "runner": "qa",
+  "executable": "qa-engineer"
+}

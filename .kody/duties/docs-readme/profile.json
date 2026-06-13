@@ -2,7 +2,7 @@
   "name": "docs-readme",
   "describe": "Docs Drift - README / markdown",
   "every": "1d",
-  "staff": "tech-writer",
+  "runner": "tech-writer",
   "mentions": [
     "aguyaharonyair"
   ],

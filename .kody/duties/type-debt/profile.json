@@ -2,7 +2,7 @@
   "name": "type-debt",
   "describe": "Type Debt Tracker",
   "every": "7d",
-  "staff": "cto",
+  "runner": "cto",
   "executables": [
     "type-debt"
   ],

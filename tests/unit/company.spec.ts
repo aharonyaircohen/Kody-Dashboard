@@ -116,8 +116,8 @@ function tickFile(over: Record<string, unknown> = {}) {
     nextEligibleAt: null,
     schedule: null,
     disabled: false,
-    staff: null,
-    stage: null,
+    runner: null,
+    reviewer: null,
     action: null,
     mentions: [],
     executable: null,
@@ -172,7 +172,7 @@ describe("companyBundleSchema", () => {
     ).toThrow();
   });
 
-  it("defaults a duty's schedule/disabled/staff and keeps a valid one", () => {
+  it("defaults a duty's schedule/disabled/runner and keeps a valid one", () => {
     const parsed = companyBundleSchema.parse({
       ...base,
       duties: [
@@ -181,20 +181,22 @@ describe("companyBundleSchema", () => {
           title: "Nightly",
           body: "do it",
           schedule: "1d",
-          staff: "cto",
-          stage: "report-refresh",
+          runner: "cto",
+          reviewer: "qa",
         },
         { slug: "ad-hoc", title: "Ad hoc" },
       ],
     });
     expect(parsed.duties[0]).toMatchObject({
       schedule: "1d",
-      staff: "cto",
+      runner: "cto",
+      reviewer: "qa",
       disabled: false,
     });
     expect(parsed.duties[1]).toMatchObject({
       schedule: null,
-      staff: null,
+      runner: null,
+      reviewer: null,
       disabled: false,
       body: "",
       mentions: [],
@@ -219,8 +221,8 @@ describe("buildCompanyBundle", () => {
         slug: "nightly",
         title: "Nightly",
         schedule: "1d",
-        staff: "cto",
-        stage: "report-refresh",
+        runner: "cto",
+        reviewer: "qa",
         mentions: ["alice"],
         action: "nightly",
         executable: "ci-health-graph",
@@ -284,8 +286,8 @@ describe("buildCompanyBundle", () => {
         body: "b",
         schedule: null,
         disabled: false,
-        staff: null,
-        stage: null,
+        runner: null,
+        reviewer: null,
         mentions: [],
         action: null,
         executable: null,
@@ -299,8 +301,8 @@ describe("buildCompanyBundle", () => {
     expect(bundle.duties[0]).toMatchObject({
       slug: "nightly",
       schedule: "1d",
-      staff: "cto",
-      stage: "report-refresh",
+      runner: "cto",
+      reviewer: "qa",
       mentions: ["alice"],
       action: "nightly",
       executable: "ci-health-graph",
@@ -388,8 +390,8 @@ describe("applyCompanyBundle", () => {
         body: "x",
         schedule: null,
         disabled: false,
-        staff: null,
-        stage: null,
+        runner: null,
+        reviewer: null,
         action: null,
         mentions: [],
         executable: null,
@@ -407,8 +409,8 @@ describe("applyCompanyBundle", () => {
         body: "y",
         schedule: "1d" as const,
         disabled: false,
-        staff: "cto",
-        stage: "report-refresh" as const,
+        runner: "cto",
+        reviewer: "qa",
         action: "nightly",
         mentions: ["alice"],
         executable: "ci-health-graph",
@@ -458,13 +460,13 @@ describe("applyCompanyBundle", () => {
     expect(result.commands).toMatchObject({ created: 1 });
     expect(result.contexts).toMatchObject({ created: 1 });
     expect(result.instructions).toBe("created");
-    // a duty carries its staff slug through to the writer
+    // a duty carries its runner/reviewer staff slugs through to the writer
     expect(h.writeDutyFile).toHaveBeenCalledWith(
       expect.objectContaining({
         slug: "nightly",
-        staff: "cto",
+        runner: "cto",
+        reviewer: "qa",
         schedule: "1d",
-        stage: "report-refresh",
         action: "nightly",
         mentions: ["alice"],
         executable: "ci-health-graph",

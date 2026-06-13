@@ -10,12 +10,9 @@
  * `## Allowed Commands` / `## Restrictions` headings are parsed by the
  * engine's duty-tick executor, so their text is a contract — do not rename.
  */
-export const DUTY_TEMPLATE = `## Job
+import { buildDefaultDutyBody, DEFAULT_DUTY_OUTPUT_KIND } from "./duties/output";
 
-
-## Allowed Commands
-
-
-## Restrictions
-
-`;
+export const DUTY_TEMPLATE = buildDefaultDutyBody(
+  DEFAULT_DUTY_OUTPUT_KIND,
+  "duty-report",
+);

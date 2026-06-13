@@ -2,7 +2,7 @@
   "name": "duty-call",
   "describe": "Duty Call",
   "every": "1d",
-  "staff": "ceo",
+  "runner": "ceo",
   "executables": [
     "duty-call"
   ],

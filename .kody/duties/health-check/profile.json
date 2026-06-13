@@ -2,8 +2,7 @@
   "name": "health-check",
   "describe": "Kody Health Check",
   "every": "1d",
-  "staff": "coo",
-  "stage": "report-refresh",
+  "runner": "coo",
   "executables": [
     "health-check"
   ],

@@ -2,7 +2,7 @@
   "name": "dead-code-sweep",
   "describe": "Dead Code Sweep",
   "every": "7d",
-  "staff": "coo",
+  "runner": "coo",
   "executables": [
     "dead-code-sweep"
   ],

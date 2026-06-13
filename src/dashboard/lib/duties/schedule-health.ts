@@ -7,7 +7,7 @@
  *   "next run" timestamps; this turns them into an actionable status —
  *   "overdue" (a scheduled duty whose next-eligible time passed well beyond
  *   the cron window), "never" (scheduled, old enough to have run, but no run
- *   proof is visible), or "skipped" (scheduled with no staff). No GitHub calls
+ *   proof is visible), or "skipped" (scheduled with no runner). No GitHub calls
  *   — operates on fields already present on every TickFile/duty.
  */
 import { scheduleEveryToMs, type ScheduleEvery } from "../ticked/frontmatter";
@@ -29,8 +29,8 @@ export interface DutyHealthInput {
   nextEligibleAt: string | null;
   /** `disabled: true` in the duty profile; scheduler skips it. */
   disabled: boolean;
-  /** Missing staff means the engine scheduler skips this duty. */
-  staff?: string | null;
+  /** Missing runner means the engine scheduler skips this duty. */
+  runner?: string | null;
   /** Last commit time of the duty body/profile (proxy for "how long it's existed"). */
   updatedAt?: string | null;
 }
@@ -50,7 +50,7 @@ export function dutyScheduleHealth(
 ): DutyHealth {
   if (d.disabled) return "disabled";
   if (d.schedule === "manual") return "manual";
-  if (d.staff === null || d.staff === "") return "skipped";
+  if (d.runner === null || d.runner === "") return "skipped";
 
   const cadenceMs = d.schedule
     ? scheduleEveryToMs(d.schedule)

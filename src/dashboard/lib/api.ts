@@ -18,7 +18,6 @@ import type {
   PRComment,
   WorkflowRun,
 } from "./types";
-import type { DutyStageTemplateSlug } from "./duties/stage-templates";
 
 const API_BASE = "/api/kody";
 
@@ -874,13 +873,13 @@ export interface Duty {
   disabled: boolean;
   /**
    * Slug of the staff member (persona) that executes this duty, from
-   * `profile.json.staff`. The duty owns the schedule; the staff member is
-   * *who* the engine tick runs as. `null` = no staff assigned — the engine
+   * `profile.json.runner`. The duty owns the schedule; the runner is
+   * *who* the engine tick runs as. `null` = no runner assigned — the engine
    * scheduler skips such duties (every duty must name an executor).
    */
-  staff: string | null;
-  /** Friendly progress template slug from `profile.json.stage`. */
-  stage: DutyStageTemplateSlug | null;
+  runner: string | null;
+  /** Staff slug responsible for reviewing this duty's output. */
+  reviewer: string | null;
   /** Public `@kody <action>` name owned by this duty. */
   action: string;
   /**
@@ -930,14 +929,16 @@ export const dutiesApi = {
     body: string;
     schedule?: DutySchedule | null;
     disabled?: boolean;
-    staff?: string | null;
-    stage?: DutyStageTemplateSlug | null;
+    runner?: string | null;
+    reviewer?: string | null;
     action?: string | null;
     mentions?: string[];
     executable?: string | null;
     executables?: string[];
     dutyTools?: string[];
     tickScript?: string | null;
+    readsFrom?: string[];
+    writesTo?: string[];
     actorLogin?: string;
   }): Promise<Duty> => {
     const res = await fetch(`${API_BASE}/duties`, {
@@ -956,14 +957,16 @@ export const dutiesApi = {
       body?: string;
       schedule?: DutySchedule | null;
       disabled?: boolean;
-      staff?: string | null;
-      stage?: DutyStageTemplateSlug | null;
+      runner?: string | null;
+      reviewer?: string | null;
       action?: string | null;
       mentions?: string[];
       executable?: string | null;
       executables?: string[];
       dutyTools?: string[];
       tickScript?: string | null;
+      readsFrom?: string[];
+      writesTo?: string[];
       actorLogin?: string;
     },
   ): Promise<Duty> => {

@@ -2,8 +2,7 @@
   "name": "publish-release",
   "describe": "Publish Release",
   "every": "manual",
-  "staff": "coo",
-  "stage": "simple-check",
+  "runner": "coo",
   "executables": [
     "publish-release"
   ],

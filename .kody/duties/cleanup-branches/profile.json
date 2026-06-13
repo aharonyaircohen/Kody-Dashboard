@@ -2,7 +2,7 @@
   "name": "cleanup-branches",
   "describe": "Clean Up Branches",
   "every": "manual",
-  "staff": "coo",
+  "runner": "coo",
   "executables": [
     "cleanup-branches"
   ],

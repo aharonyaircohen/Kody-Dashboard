@@ -7,7 +7,7 @@ description: Review one duty at a time for design soundness, reachable wiring, c
 
 Use this skill when the `duty-review` executable runs from the matching duty.
 
-Runtime state is owned by the engine and the duty stage template. Do not ask the duty author to configure raw state keys.
+Runtime state is owned by the engine. Do not ask the duty author to configure raw state keys.
 
 ## Method
 
@@ -19,7 +19,7 @@ current structure.
 
 A healthy duty is short and has:
 
-- `profile.json` with `staff`, `stage`, and `executable` or `executables`
+- `profile.json` with `staff` and `executable` or `executables`
 - `duty.md` with a concise human-readable contract
 - a clear `Job`
 - a small `Executable` section
@@ -51,9 +51,9 @@ The executable should hold the method:
 ## Review Checklist
 
 - **Goal clarity:** The duty has one concrete, checkable job.
-- **Profile metadata:** `staff`, `stage`, and `executable` or `executables` are present and point to real repo objects.
+- **Profile metadata:** `staff` and `executable` or `executables` are present and point to real repo objects.
 - **Executable wiring:** The executable exists, has valid JSON, has a tiny prompt, and loads at least one skill unless it is deterministic.
-- **State model:** The duty does not define raw state keys or require the author to paste a state block. Runtime state belongs to the engine/stage/executable.
+- **State model:** The duty does not define raw state keys or require the author to paste a state block. Runtime state belongs to the engine.
 - **No command recipe in duty:** Bash, `gh`, Python, and long step-by-step logic belong in executable skills or executable-owned scripts.
 - **Output path:** Reports go under `.kody/reports/`; durable human guidance goes under `.kody/context/`; hidden cursors stay in runtime state.
 - **Observed behavior:** For enabled duties, recent state/report/activity should roughly match the declared cadence. Disabled duties are reviewed for design only.

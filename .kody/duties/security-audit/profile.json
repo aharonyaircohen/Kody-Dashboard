@@ -2,7 +2,7 @@
   "name": "security-audit",
   "describe": "Security Audit",
   "every": "1d",
-  "staff": "cto",
+  "runner": "cto",
   "executables": [
     "security-audit"
   ],

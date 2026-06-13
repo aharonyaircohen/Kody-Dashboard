@@ -2,11 +2,9 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern jobs-api
- * @ai-summary Run an INSTANT job. A job assembles executable (how) + duty (why)
- *   + persona (who) + schedule (when); an instant job runs once now, so we lower
- *   it onto the same dispatch the executable "Run" button uses — post
- *   `@kody <executable> [why]` on the target issue/PR. The engine mints the
- *   instant Job from that comment (mintInstantJob) and runs it via runJob.
+ * @ai-summary Run an INSTANT duty job. A job may link an executable as the
+ *   implementation, but the dashboard only dispatches duties: it posts
+ *   `@kody <duty> [why]` on the target issue/PR.
  *
  *   Scheduled jobs are NOT dispatched here — their source of truth is a duty
  *   file (staff + every + intent), created via the duties API. This endpoint
@@ -20,8 +18,13 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
-import { invalidateIssueCache } from "@dashboard/lib/github-client";
+import {
+  clearGitHubContext,
+  invalidateIssueCache,
+  setGitHubContext,
+} from "@dashboard/lib/github-client";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { readDutyFile } from "@dashboard/lib/duties-files";
 import {
   validateKodyJob,
   resolveJobProfile,
@@ -37,14 +40,14 @@ export async function POST(req: NextRequest) {
   if (!headerAuth) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
+  setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
     const raw = await req.json();
     const actorLogin =
       typeof raw?.actorLogin === "string" ? raw.actorLogin : undefined;
 
-    // Validate against the engine's Job boundary rules (executable|duty,
-    // known flavor, object cliArgs). Throws InvalidKodyJobError otherwise.
+    // Dashboard boundary: duty is required. Executable-only jobs are rejected.
     const job = validateKodyJob(raw);
 
     if (job.flavor !== "instant") {
@@ -68,7 +71,7 @@ export async function POST(req: NextRequest) {
     }
     if (!resolveJobProfile(job)) {
       return NextResponse.json(
-        { error: "no_executable", message: "Pick an executable (the how)." },
+        { error: "no_duty", message: "Pick a duty to run." },
         { status: 400 },
       );
     }
@@ -84,6 +87,16 @@ export async function POST(req: NextRequest) {
           message: "A signed-in GitHub token is required to comment.",
         },
         { status: 401 },
+      );
+    }
+    const duty = await readDutyFile(job.duty!, userOctokit);
+    if (!duty) {
+      return NextResponse.json(
+        {
+          error: "duty_not_found",
+          message: `Duty "${job.duty}" does not exist.`,
+        },
+        { status: 400 },
       );
     }
 
@@ -125,5 +138,7 @@ export async function POST(req: NextRequest) {
       { error: "run_failed", message: error?.message ?? "Failed to run job" },
       { status: 500 },
     );
+  } finally {
+    clearGitHubContext();
   }
 }

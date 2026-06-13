@@ -2,7 +2,7 @@
   "name": "architecture-audit",
   "describe": "Architecture Audit",
   "every": "7d",
-  "staff": "cto",
+  "runner": "cto",
   "executables": [
     "architecture-audit"
   ],

@@ -20,8 +20,9 @@ A duty owns:
 - **Action name**: the public `@kody <action>` token that runs this duty.
 - **Purpose**: why the work exists and what outcome it maintains.
 - **Cadence**: how often the scheduler may run it.
-- **Staff**: which staff persona should run it.
-- **Progress type**: the simple stage template shown in the dashboard.
+- **Runner**: which staff persona should run it.
+- **Reviewer**: which staff persona should treat the output after it exists.
+- **Output**: whether the duty only runs, or writes a report.
 - **Safety rules**: what it may and may not do.
 - **Executable link**: the implementation executable, when the duty needs one.
 
@@ -32,8 +33,8 @@ A duty does **not** own:
 - A long step-by-step runbook. Put reusable method in executable skills.
 - Bash, Python, or API recipes. Put deterministic work in executable-owned
   scripts, or method details in executable skills.
-- Raw state keys. Runtime state is engine-owned and hidden behind the selected
-  progress type.
+- Raw state keys. Runtime state is engine-owned and not part of the duty
+  authoring surface.
 
 ## Folder shape
 
@@ -54,8 +55,8 @@ Use this shape:
   "action": "broken-links",
   "executable": "broken-link-report",
   "every": "1d",
-  "staff": "qa",
-  "stage": "report-refresh",
+  "runner": "qa",
+  "reviewer": "cto",
   "writesTo": ["broken-link-report"]
 }
 ```
@@ -100,8 +101,8 @@ Do not put metadata frontmatter in `duty.md`. Metadata belongs in
 | `action`      | Public action token. `@kody <action>` runs this duty. Usually the duty slug.                     |
 | `executable`  | Optional implementation executable slug. Use this for the one executable that performs the work. |
 | `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                               |
-| `staff`       | Staff persona slug. A duty without staff should not auto-run.                                    |
-| `stage`       | Progress type. Use one of the built-in templates below.                                          |
+| `runner`      | Staff persona slug that performs the duty. A duty without a runner should not auto-run.         |
+| `reviewer`    | Optional staff persona slug responsible for reviewing or handling the duty output.              |
 | `mentions`    | Optional GitHub logins to notify, without `@`.                                                   |
 | `executables` | Multi-run executable list. Prefer singular `executable` for normal duties.                       |
 | `tools`       | Optional duty tool names exposed to the tick runner.                                             |
@@ -110,15 +111,18 @@ Do not put metadata frontmatter in `duty.md`. Metadata belongs in
 | `writesTo`    | Report or context slugs this duty writes.                                                        |
 | `disabled`    | `true` pauses autonomous scheduling.                                                             |
 
-## Progress types
+## Output choice
 
-| Stage            | Use when                                            |
-| ---------------- | --------------------------------------------------- |
-| `simple-check`   | The duty runs and finishes.                         |
-| `report-refresh` | The duty updates a report or result file.           |
-| `sweep`          | The duty scans many things and records findings.    |
-| `approval-gate`  | The duty waits for review, then approves or blocks. |
-| `review-loop`    | The duty reviews items again and again over time.   |
+The dashboard creation form has two output choices:
+
+| Choice   | Meaning                                                                 |
+| -------- | ----------------------------------------------------------------------- |
+| `Run`    | The duty runs work and does not promise a generated report.             |
+| `Report` | The duty refreshes one `.kody/reports/<slug>.md` file and sets `writesTo`. |
+
+Use `Report` only when the report file is the durable artifact users should
+read later. Use `Run` for checks, dispatches, comments, or any duty whose proof
+is activity/state rather than a report file.
 
 ## Body sections
 
@@ -177,8 +181,9 @@ Before creating a duty, Kody should know:
 - What should happen.
 - Which public action runs it. Usually this should match the slug.
 - How often it should happen.
-- Which staff member runs it.
-- Which progress type fits.
+- Which staff member is the runner.
+- Which staff member is the reviewer, if anyone.
+- Whether the output is `Run` or `Report`.
 - Which implementation executable runs the work, if needed.
 - Which reports or context entries it reads or writes, if any.
 - Which actions are forbidden.

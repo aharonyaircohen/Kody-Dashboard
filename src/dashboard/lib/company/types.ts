@@ -18,10 +18,6 @@
 
 import { z } from "zod";
 import type { ScheduleEvery } from "../ticked/frontmatter";
-import {
-  DUTY_STAGE_TEMPLATE_SLUGS,
-  type DutyStageTemplateSlug,
-} from "../duties/stage-templates";
 
 /** Bump when the on-disk bundle shape changes incompatibly. */
 export const COMPANY_BUNDLE_VERSION = 1 as const;
@@ -42,8 +38,8 @@ const SCHEDULE_TOKENS = [
 
 /**
  * A staff member or duty entry. They share the same portable API shape even
- * though staff are markdown files and duties are folders. `staff` (the executor persona slug) is
- * only ever set on duties; staff files always carry `null`.
+ * though staff are markdown files and duties are folders. `runner` (the executor persona slug)
+ * is only ever set on duties; staff files always carry `null`.
  */
 export interface CompanyTickEntry {
   slug: string;
@@ -52,9 +48,9 @@ export interface CompanyTickEntry {
   schedule: ScheduleEvery | null;
   disabled: boolean;
   /** Executor persona slug — duties only; staff entries are always null. */
-  staff: string | null;
-  /** Friendly progress template slug — duties only; staff entries are null. */
-  stage: DutyStageTemplateSlug | null;
+  runner: string | null;
+  /** Staff slug responsible for reviewing duty output; staff entries are null. */
+  reviewer: string | null;
   /** Public `@kody <action>` name — duties only; staff entries are null. */
   action: string | null;
   /** GitHub logins to mention from duty output. */
@@ -188,8 +184,8 @@ const tickEntrySchema = z.object({
   body: z.string().default(""),
   schedule: z.enum(SCHEDULE_TOKENS).nullable().default(null),
   disabled: z.boolean().default(false),
-  staff: z.string().min(1).nullable().default(null),
-  stage: z.enum(DUTY_STAGE_TEMPLATE_SLUGS).nullable().default(null),
+  runner: z.string().min(1).nullable().default(null),
+  reviewer: z.string().min(1).nullable().default(null),
   action: slugSchema.nullable().default(null),
   mentions: z.array(z.string().min(1)).default([]),
   executable: slugSchema.nullable().default(null),

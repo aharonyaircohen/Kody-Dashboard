@@ -131,7 +131,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
     body:
       "Draft a Kody duty that does the following: $ARGUMENTS.\n\n" +
       "Output a folder proposal for `.kody/duties/<slug>/` with `profile.json` metadata " +
-      "(action, executable when needed, every, staff, stage, readsFrom/writesTo) and a " +
+      "(action, executable when needed, every, staff, readsFrom/writesTo) and a " +
       "`duty.md` body with a clear H1, `## Job`, `## Executable` when relevant, " +
       "`## Output`, `## Allowed Commands`, and `## Restrictions`. Keep implementation " +
       "recipes in executable skills/scripts, not in the duty body.",

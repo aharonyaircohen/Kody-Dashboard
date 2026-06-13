@@ -22,7 +22,7 @@ import {
   FileText,
   FileCode,
   MessageSquare,
-  History,
+  Eraser,
   Target,
   ChevronDown,
   Loader2,
@@ -5084,6 +5084,17 @@ export function KodyChat({
                 }}
                 disabled={activeLoading}
               />
+              {messages.length > 0 && !activeLoading && (
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(true)}
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                  title="Clear history"
+                  aria-label="Clear history"
+                >
+                  <Eraser className="w-5 h-5" aria-hidden="true" />
+                </button>
+              )}
               <div className="flex-1" />
             </>
           )}
@@ -5214,18 +5225,6 @@ export function KodyChat({
             </div>
           )}
         </div>
-        {messages.length > 0 && !activeLoading && (
-          <button
-            onClick={() => setShowClearConfirm(true)}
-            className={`mt-1 text-xs text-muted-foreground transition-colors hover:text-foreground ${
-              chatMode === "ai" ? "" : "invisible pointer-events-none"
-            }`}
-            aria-hidden={chatMode !== "ai"}
-            tabIndex={chatMode === "ai" ? undefined : -1}
-          >
-            Clear history
-          </button>
-        )}
       </div>
 
       <ConfirmDialog

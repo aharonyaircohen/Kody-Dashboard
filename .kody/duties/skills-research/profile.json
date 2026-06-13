@@ -2,8 +2,7 @@
   "name": "skills-research",
   "describe": "Skills Research",
   "every": "7d",
-  "staff": "cto",
-  "stage": "report-refresh",
+  "runner": "cto",
   "executables": [
     "skills-research"
   ]

@@ -178,7 +178,7 @@ export function useTriageStrip(limit = 4): UseTriageStripResult {
         id: `duty:${d.slug}`,
         severity: 2,
         title: `Duty: ${d.title}`,
-        detail: d.staff ?? undefined,
+        detail: d.runner ?? undefined,
         href: "/duties",
         occurredAt: d.lastTickAt ?? d.updatedAt,
         action: {

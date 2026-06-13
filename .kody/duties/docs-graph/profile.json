@@ -2,8 +2,7 @@
   "name": "docs-graph",
   "describe": "Docs Graph",
   "every": "1d",
-  "staff": "tech-writer",
-  "stage": "report-refresh",
+  "runner": "tech-writer",
   "executables": [
     "docs-graph"
   ],

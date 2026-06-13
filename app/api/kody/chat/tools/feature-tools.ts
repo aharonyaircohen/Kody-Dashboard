@@ -119,7 +119,7 @@ Each stage's status is committed to a per-task \`status.json\` on the work branc
       "Folders at .kody/duties/<slug>/ that the engine duty-scheduler ticks.",
     details: `A Kody Duty is a folder at \`.kody/duties/<slug>/\`:
 
-- \`profile.json\` stores action, executable, cadence, staff, stage, mentions, and data-contract metadata.
+- \`profile.json\` stores action, executable, cadence, staff, mentions, and data-contract metadata.
 - \`duty.md\` stores the human-readable purpose, output, allowed commands, and restrictions.
 
 The engine duty-scheduler enumerates duty folders and ticks due duties. Each
@@ -138,8 +138,8 @@ Default chat template is REPORT-PRODUCER: each active tick gathers inputs,
 composes a YAML \`findings:\` report, and refreshes
 \`kody-state:.kody/reports/<slug>.md\`.
 
-Do not put metadata or raw state keys in \`duty.md\`. Use \`profile.json.stage\`
-so progress/state stays engine-owned.
+Do not put metadata or raw state keys in \`duty.md\`. Runtime state stays
+engine-owned.
 
 The chat exposes \`read_duty_creation_guide\` and \`create_kody_duty\` to
 scaffold a new duty after a gap-analysis conversation.`,

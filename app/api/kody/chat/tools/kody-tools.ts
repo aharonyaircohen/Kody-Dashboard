@@ -4,17 +4,16 @@
  * @pattern ai-sdk-tool
  * @ai-summary Kody-pipeline dispatch tools for the kody-direct chat agent.
  *
- * Each tool posts a `@kody <executable>` comment on an existing pull
- * request. The Kody engine picks up the comment and runs the matching
- * executable — same path the user would take by typing the comment
- * themselves. Mirrors the bug-tools / release-tools shape.
+ * Each tool posts a `@kody <duty>` comment on an existing issue or pull
+ * request. The duty owns the public action; its profile links to the
+ * implementation executable.
  *
  * These tools DO trigger the pipeline. They must only be called when
  * the user explicitly asks to run a kody command (e.g. "kody fix #45",
  * "have kody review this PR", "rerun fix-ci on the PR"). Each tool's
  * description repeats this gate so the model carries it through.
  *
- * Supported commands (PR-targeted, see kody2/src/executables/):
+ * Supported PR-targeted duty actions:
  *   fix         — apply fixes; bare = use PR review body
  *   fix-ci      — fix failing CI on the PR
  *   review      — code review
@@ -22,8 +21,8 @@
  *   revert      — revert the PR's merge commit
  *   sync        — merge the PR's base branch into it and push
  *
- * Issue-targeted dispatch (kody_run_issue): posts `@kody <executable>` on
- * an issue so the engine picks it up and executes the work — clone, edit,
+ * Issue-targeted dispatch (kody_run_issue): posts `@kody <duty>` on an
+ * issue so the engine picks it up and executes the work — clone, edit,
  * commit, PR. This is the "execute the plan" handoff: the chat model does
  * research + planning, then on user confirmation calls this tool to hand
  * the plan to the engine for execution.
@@ -36,6 +35,7 @@ import {
   invalidateIssueCache,
   invalidatePRCache,
 } from "@dashboard/lib/github-client";
+import { isValidSlug, readDutyFile } from "@dashboard/lib/duties-files";
 
 interface Ctx {
   octokit: Octokit;
@@ -63,6 +63,26 @@ interface DispatchError {
   error: string;
 }
 
+async function resolveDutyAction(
+  ctx: Ctx,
+  dutySlug: string,
+): Promise<{ slug: string; action: string } | DispatchError> {
+  const slug = dutySlug.trim();
+  if (!slug || !isValidSlug(slug)) {
+    return {
+      error:
+        "Refusing to dispatch: duty must be lowercase letters, digits, dashes, or underscores.",
+    };
+  }
+  const duty = await readDutyFile(slug, ctx.octokit);
+  if (!duty) {
+    return {
+      error: `Refusing to dispatch: duty "${slug}" was not found.`,
+    };
+  }
+  return { slug: duty.slug, action: duty.action ?? duty.slug };
+}
+
 async function dispatchOnPr(
   ctx: Ctx,
   prNumber: number,
@@ -70,9 +90,11 @@ async function dispatchOnPr(
   notes: string | undefined,
 ): Promise<DispatchResult | DispatchError> {
   const { octokit, owner, repo } = ctx;
+  const dutyAction = await resolveDutyAction(ctx, command);
+  if ("error" in dutyAction) return dutyAction;
   const commentBody = notes?.trim()
-    ? `@kody ${command}\n\n${notes.trim()}`
-    : `@kody ${command}`;
+    ? `@kody ${dutyAction.action}\n\n${notes.trim()}`
+    : `@kody ${dutyAction.action}`;
 
   try {
     const existing = await octokit.rest.issues.get({
@@ -102,16 +124,16 @@ async function dispatchOnPr(
     invalidateIssueCache(prNumber);
 
     logger.info(
-      { owner, repo, number: prNumber, command },
+      { owner, repo, number: prNumber, duty: dutyAction.slug },
       "kody-dispatch: posted trigger comment",
     );
 
     return {
       number: prNumber,
       url: existing.data.html_url,
-      command: `@kody ${command}`,
+      command: `@kody ${dutyAction.action}`,
       triggered: true,
-      note: `Posted \`@kody ${command}\` on PR #${prNumber}. Engine should pick it up shortly.`,
+      note: `Posted \`@kody ${dutyAction.action}\` on PR #${prNumber}. Engine should pick it up shortly.`,
     };
   } catch (err) {
     logger.warn(
@@ -122,7 +144,7 @@ async function dispatchOnPr(
       error:
         err instanceof Error
           ? err.message
-          : `Failed to dispatch @kody ${command}`,
+          : `Failed to dispatch @kody ${dutyAction.action}`,
     };
   }
 }
@@ -130,12 +152,13 @@ async function dispatchOnPr(
 async function dispatchOnIssue(
   ctx: Ctx,
   issueNumber: number,
-  executable: string,
+  duty: string,
   notes: string | undefined,
 ): Promise<DispatchResult | DispatchError> {
   const { octokit, owner, repo } = ctx;
-  const exe = executable.trim();
-  const header = exe ? `@kody ${exe}` : "@kody";
+  const dutyAction = await resolveDutyAction(ctx, duty);
+  if ("error" in dutyAction) return dutyAction;
+  const header = `@kody ${dutyAction.action}`;
   const commentBody = notes?.trim() ? `${header}\n\n${notes.trim()}` : header;
 
   try {
@@ -162,7 +185,7 @@ async function dispatchOnIssue(
     invalidateIssueCache(issueNumber);
 
     logger.info(
-      { owner, repo, number: issueNumber, executable: exe || "(default)" },
+      { owner, repo, number: issueNumber, duty: dutyAction.slug },
       "kody-dispatch: posted issue trigger",
     );
 
@@ -175,7 +198,7 @@ async function dispatchOnIssue(
     };
   } catch (err) {
     logger.warn(
-      { err, owner, repo, number: issueNumber, executable: exe },
+      { err, owner, repo, number: issueNumber, duty: dutyAction.slug },
       "kody-dispatch (issue) failed",
     );
     return {
@@ -199,16 +222,12 @@ const ISSUE_NUMBER_SCHEMA = z
   .positive()
   .describe("The GitHub issue number to dispatch on.");
 
-const EXECUTABLE_SCHEMA = z
+const DUTY_SCHEMA = z
   .string()
   .max(64)
   .optional()
   .describe(
-    "Which Kody executable to run. Defaults to `run` (the repo's " +
-      "configured default executable — plan-build-review or similar). " +
-      "Other useful values: `plan` (planning only, no code edits), " +
-      "`orchestrate` (multi-stage orchestrator). Pass through any custom " +
-      "executable name the repo defines.",
+    "Which Kody duty to run. Defaults to `classify`. The duty folder must exist under `.kody/duties/<slug>/`.",
   );
 
 const NOTES_SCHEMA = z
@@ -320,7 +339,7 @@ export function createKodyTools(ctx: Ctx) {
     kody_run_issue: tool({
       description:
         `EXECUTE a plan on an issue in ${owner}/${repo}. Posts ` +
-        "`@kody <executable>` (default: `run`) as a comment on the issue. " +
+        "`@kody <duty>` (default: `classify`) as a comment on the issue. " +
         "The Kody engine in GitHub Actions then clones the repo, edits " +
         "files, commits, and opens a PR for that issue. THIS IS THE ONLY " +
         "way to actually execute code work from this chat — you do not " +
@@ -333,11 +352,19 @@ export function createKodyTools(ctx: Ctx) {
         "tool in the same turn. Use `notes` to pass the plan inline.",
       inputSchema: z.object({
         issueNumber: ISSUE_NUMBER_SCHEMA,
-        executable: EXECUTABLE_SCHEMA,
+        duty: DUTY_SCHEMA,
+        executable: DUTY_SCHEMA.describe(
+          "Deprecated alias for `duty`. Kept only for older tool calls.",
+        ),
         notes: NOTES_SCHEMA,
       }),
-      execute: ({ issueNumber, executable, notes }) =>
-        dispatchOnIssue(ctx, issueNumber, executable ?? "run", notes),
+      execute: ({ issueNumber, duty, executable, notes }) =>
+        dispatchOnIssue(
+          ctx,
+          issueNumber,
+          duty ?? executable ?? "classify",
+          notes,
+        ),
     }),
   };
 }

@@ -45,7 +45,7 @@ So:
 | Owns the schedule?      | No                      | Yes, via `profile.json`      | No                                |
 | Owns the action name?   | No                      | Yes, `profile.json.action`   | No                                |
 | Owns reusable method?   | No                      | No                           | Yes, via skills/scripts/prompts   |
-| Names the staff member? | No                      | Yes, `profile.json.staff`    | No                                |
+| Names the staff member? | No                      | Yes, `profile.json.runner`   | No                                |
 | Independently ticked?   | No                      | Yes                          | No, unless a duty invokes it      |
 
 ## Duty profile
@@ -59,8 +59,8 @@ The profile is JSON, not markdown frontmatter:
   "action": "security-audit",
   "executable": "security-audit",
   "every": "1d",
-  "staff": "kody",
-  "stage": "sweep",
+  "runner": "kody",
+  "reviewer": "cto",
   "mentions": ["aguyaharonyair"],
   "writesTo": ["security-audit"]
 }
@@ -76,17 +76,27 @@ Important fields:
 - `every` - cadence between auto-runs: `15m`, `30m`, `1h`, `2h`, `6h`, `12h`,
   `1d`, `3d`, `7d`, or `manual`.
 - `disabled` - `true` makes the scheduler skip autonomous execution.
-- `staff` - slug of the persona under `.kody/staff/<slug>.md`.
-- `stage` - dashboard progress template, such as `simple-check`,
-  `report-refresh`, `sweep`, `approval-gate`, or `review-loop`.
+- `runner` - slug of the persona under `.kody/staff/<slug>.md` that performs
+  the duty.
+- `reviewer` - optional staff slug responsible for treating the output after
+  the duty produces it.
 - `mentions` - GitHub logins the duty output should mention, without `@`.
 - `tools` - optional duty tool names exposed to the runner.
 - `tickScript` - optional deterministic script path for a scripted duty.
 - `readsFrom` / `writesTo` - context, report, or duty slugs that form the
   duty's data contract.
 
-A duty with no `staff` should not auto-run. A duty pointing at a missing staff
+The dashboard create form asks for an output type:
+
+- `Run` - no generated report is promised.
+- `Report` - one `.kody/reports/<slug>.md` file is the durable output, and the
+  report slug is stored in `writesTo`.
+
+A duty with no `runner` should not auto-run. A duty pointing at a missing staff
 file is a hard error at tick time.
+
+`runner` and `reviewer` are different staff roles: `runner` performs the duty;
+`reviewer` owns the result after it exists.
 
 ## Duty body
 
@@ -112,10 +122,10 @@ engine cron
   -> duty scheduler
      -> enumerate .kody/duties/<slug>/ folders
      -> read profile.json
-     -> skip disabled/no-staff/not-due duties
+     -> skip disabled/no-runner/not-due duties
      -> run the due duty action
         -> load duty.md
-        -> inject .kody/staff/<staff>.md persona
+        -> inject .kody/staff/<runner>.md persona
         -> run linked executable when configured
         -> write activity/state for the dashboard
 ```
@@ -123,7 +133,7 @@ engine cron
 Key points:
 
 - The scheduler runs no agent. It only fans out due duties.
-- The skip gates are: `disabled: true`, missing `staff`, and `every` cadence not
+- The skip gates are: `disabled: true`, missing `runner`, and `every` cadence not
   due yet.
 - `every: manual` never auto-fires; the dashboard "Run now" button still works.
 - Manual "Run now" bypasses the scheduler gate but the duty still needs a valid
@@ -141,8 +151,8 @@ under the state branch, and the dashboard reads it to render run status:
 - `lastOutcome` - coarse result of the most recent tick.
 - `lastDurationMs` - wall-clock duration of the most recent tick.
 
-Users creating duties should pick a `stage` template instead of hand-authoring
-state keys. The template hides state mechanics behind a simple product concept.
+Users creating duties should not author state keys. State mechanics stay behind
+the engine and dashboard runtime contract.
 
 ## Editing and manual runs
 
@@ -188,7 +198,7 @@ No. The persona is injected ahead of every duty that names it, so concrete
 behavior would leak across duties. Put job intent in the duty and reusable
 method in the executable.
 
-**What happens if a duty's `staff` points at a deleted persona?**
+**What happens if a duty's `runner` points at a deleted persona?**
 
 It is a hard error at tick time. A duty never runs without the executor
 identity it declared.

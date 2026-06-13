@@ -1,0 +1,8 @@
+{
+  "name": "fix-ci",
+  "describe": "PR CI Fix",
+  "action": "fix-ci",
+  "every": "manual",
+  "runner": "kody",
+  "executable": "fix-ci"
+}

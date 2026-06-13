@@ -2,8 +2,7 @@
   "name": "approval-gate",
   "describe": "Approval Gate",
   "every": "15m",
-  "staff": "cto",
-  "stage": "approval-gate",
+  "runner": "cto",
   "mentions": [
     "aguyaharonyair"
   ],

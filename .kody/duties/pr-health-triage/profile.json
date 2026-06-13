@@ -2,8 +2,7 @@
   "name": "pr-health-triage",
   "describe": "PR Health Triage",
   "every": "15m",
-  "staff": "cto",
-  "stage": "approval-gate",
+  "runner": "cto",
   "mentions": [
     "aguyaharonyair"
   ],

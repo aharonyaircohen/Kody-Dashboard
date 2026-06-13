@@ -1,0 +1,8 @@
+{
+  "name": "fix",
+  "describe": "PR Feedback Fix",
+  "action": "fix",
+  "every": "manual",
+  "runner": "kody",
+  "executable": "fix"
+}

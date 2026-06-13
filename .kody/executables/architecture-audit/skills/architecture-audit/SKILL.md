@@ -7,7 +7,7 @@ description: Run a periodic architecture-health sweep for boundaries, coupling, 
 
 Use this skill when the `architecture-audit` executable runs from the matching duty.
 
-Runtime state is owned by the engine and the duty stage template. Do not ask the duty author to configure raw state keys.
+Runtime state is owned by the engine. Do not ask the duty author to configure raw state keys.
 
 ## Method
 

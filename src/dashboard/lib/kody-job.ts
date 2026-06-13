@@ -4,19 +4,11 @@
  * @pattern engine-mirror
  * @ai-summary The dashboard's mirror of the engine's `Job` — the unified
  * execution unit. A job ASSEMBLES the reusable nouns into one runnable thing:
- *   - executable (HOW)  · duty (WHY, by slug)  · persona/staff (WHO)
+ *   - duty (public action/WHY) · executable (HOW) · persona/staff (WHO)
  *   - schedule (WHEN)   · target (issue/PR)    · cliArgs · flavor · force
  *
- * This type is a verbatim mirror of `Job` in the kody engine — keep them in
- * lockstep. Source of truth:
- *   kody2/src/executables/types.ts:457-479  (Job interface)
- *   kody2/src/job.ts:46-74                   (validateJob boundary rules)
- *   kody2/src/job.ts:153-192                 (mintInstantJob / mintScheduledJob)
- *
- * The engine validates that a job names at least one of `executable` or `duty`,
- * has a known `flavor`, and carries an object `cliArgs` (defaulting to `{}`).
- * `validateKodyJob` below reproduces those exact rules so the composer can't
- * build a job the engine would reject.
+ * Kody now dispatches duties only. An executable can still be linked as the
+ * implementation, but it cannot be the public run target by itself.
  */
 
 /** Run once now (`@kody`) or on a cron cadence (the tick path). */
@@ -24,9 +16,9 @@ export type KodyJobFlavor = "instant" | "scheduled";
 
 /** Mirror of the engine `Job` (kody2/src/executables/types.ts:457). */
 export interface KodyJob {
-  /** HOW: executable (profile) name to run. Omitted for agent-only intent. */
+  /** HOW: implementation executable linked by the duty. Not a run target. */
   executable?: string;
-  /** WHY (referenced): a duty slug whose intent drives the run. */
+  /** Public duty slug/action whose intent drives the run. Required. */
   duty?: string;
   /** WHY (inline): free-text intent, e.g. an `@kody` comment body. */
   why?: string;
@@ -52,19 +44,24 @@ export class InvalidKodyJobError extends Error {
   }
 }
 
+function isValidDutySlug(slug: string): boolean {
+  return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
+}
+
 /**
- * Validate + normalize a composed job at the boundary — a faithful port of the
- * engine's `validateJob` (kody2/src/job.ts:46). A job must reference an
- * executable OR a duty, declare a known flavor, and (if present) carry an
- * object `cliArgs`; unknown/empty optionals collapse to `undefined`/`{}`.
+ * Validate + normalize a composed job at the boundary. A dashboard-created job
+ * must reference a duty, declare a known flavor, and carry object cliArgs.
  */
 export function validateKodyJob(input: unknown): KodyJob {
   if (!input || typeof input !== "object") {
     throw new InvalidKodyJobError("job must be an object");
   }
   const j = input as Record<string, unknown>;
-  if (typeof j.executable !== "string" && typeof j.duty !== "string") {
-    throw new InvalidKodyJobError("job must reference an executable or a duty");
+  if (typeof j.duty !== "string" || j.duty.trim().length === 0) {
+    throw new InvalidKodyJobError("job must reference a duty");
+  }
+  if (!isValidDutySlug(j.duty)) {
+    throw new InvalidKodyJobError("job.duty must be a valid duty slug");
   }
   if (j.flavor !== "instant" && j.flavor !== "scheduled") {
     throw new InvalidKodyJobError(
@@ -79,7 +76,7 @@ export function validateKodyJob(input: unknown): KodyJob {
   }
   return {
     executable: typeof j.executable === "string" ? j.executable : undefined,
-    duty: typeof j.duty === "string" ? j.duty : undefined,
+    duty: j.duty,
     why: typeof j.why === "string" && j.why.length > 0 ? j.why : undefined,
     persona: typeof j.persona === "string" ? j.persona : undefined,
     schedule: typeof j.schedule === "string" ? j.schedule : undefined,
@@ -90,15 +87,14 @@ export function validateKodyJob(input: unknown): KodyJob {
   };
 }
 
-/** The executable the engine actually runs: `executable ?? duty` (job.ts:106). */
+/** The public action the dashboard dispatches. It is always the duty. */
 export function resolveJobProfile(job: KodyJob): string | undefined {
-  return job.executable ?? job.duty;
+  return job.duty;
 }
 
 /**
- * Render an INSTANT job as the `@kody` dispatch comment the engine resolves —
- * the same path the executable "Run" button and chat tools use. `why` is
- * appended as free text (the engine surfaces it as the operator request).
+ * Render an INSTANT job as the `@kody` dispatch comment the engine resolves.
+ * `why` is appended as free text.
  * Scheduled jobs are not dispatched this way; they persist as a duty folder.
  */
 export function renderInstantJobComment(job: KodyJob): string {

@@ -25,7 +25,7 @@ import {
   deleteDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
-import { DUTY_STAGE_TEMPLATE_SLUGS } from "@dashboard/lib/duties/stage-templates";
+import { readStaffFile } from "@dashboard/lib/staff-files";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(
@@ -71,14 +71,16 @@ const updateDutySchema = z.object({
     .nullable()
     .optional(),
   disabled: z.boolean().optional(),
-  staff: z.string().min(1).nullable().optional(),
-  stage: z.enum(DUTY_STAGE_TEMPLATE_SLUGS).nullable().optional(),
+  runner: z.string().min(1).nullable().optional(),
+  reviewer: z.string().min(1).nullable().optional(),
   action: z.string().min(1).max(64).nullable().optional(),
   mentions: z.array(z.string()).optional(),
   executable: z.string().min(1).max(64).nullable().optional(),
   executables: z.array(z.string()).optional(),
   dutyTools: z.array(z.string()).optional(),
   tickScript: z.string().nullable().optional(),
+  readsFrom: z.array(z.string()).optional(),
+  writesTo: z.array(z.string()).optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -101,6 +103,38 @@ function normalizeOptionalSlug(
 ): string | null {
   const trimmed = value?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeStaffSlug(value: string | null | undefined): string | null {
+  const trimmed = value?.trim().replace(/^@/, "") ?? "";
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+async function validateStaffRole(
+  slug: string | null,
+  field: "runner" | "reviewer",
+): Promise<NextResponse | null> {
+  if (!slug) return null;
+  if (!isValidSlug(slug)) {
+    return NextResponse.json(
+      {
+        error: `invalid_${field}`,
+        message: `${field} must be a staff member slug.`,
+      },
+      { status: 400 },
+    );
+  }
+  const staff = await readStaffFile(slug);
+  if (!staff) {
+    return NextResponse.json(
+      {
+        error: `unknown_${field}`,
+        message: `${field} must reference an existing staff member.`,
+      },
+      { status: 400 },
+    );
+  }
+  return null;
 }
 
 export async function PATCH(
@@ -131,14 +165,16 @@ export async function PATCH(
       body,
       schedule,
       disabled,
-      staff,
-      stage,
+      runner,
+      reviewer,
       action,
       mentions,
       executable,
       executables,
       dutyTools,
       tickScript,
+      readsFrom,
+      writesTo,
       actorLogin,
     } = updateDutySchema.parse(payload);
 
@@ -173,6 +209,18 @@ export async function PATCH(
         { status: 400 },
       );
     }
+    const nextRunner =
+      runner === undefined ? existing.runner : normalizeStaffSlug(runner);
+    const nextReviewer =
+      reviewer === undefined ? existing.reviewer : normalizeStaffSlug(reviewer);
+    if (runner !== undefined) {
+      const runnerError = await validateStaffRole(nextRunner, "runner");
+      if (runnerError) return runnerError;
+    }
+    if (reviewer !== undefined) {
+      const reviewerError = await validateStaffRole(nextReviewer, "reviewer");
+      if (reviewerError) return reviewerError;
+    }
 
     const userOctokit = await getUserOctokit(req);
     if (!userOctokit) {
@@ -192,8 +240,8 @@ export async function PATCH(
       body: body ?? existing.body,
       schedule: schedule === undefined ? existing.schedule : schedule,
       disabled: disabled === undefined ? existing.disabled : disabled,
-      staff: staff === undefined ? existing.staff : staff,
-      stage: stage === undefined ? existing.stage : stage,
+      runner: nextRunner,
+      reviewer: nextReviewer,
       action: nextAction,
       // Read-merge: omitting `mentions` preserves the existing list rather
       // than clearing it. An explicit `[]` clears it.
@@ -214,6 +262,10 @@ export async function PATCH(
           : tickScript?.trim()
             ? tickScript.trim()
             : null,
+      readsFrom:
+        readsFrom === undefined ? existing.readsFrom : normalizeList(readsFrom),
+      writesTo:
+        writesTo === undefined ? existing.writesTo : normalizeList(writesTo),
       sha: existing.sha,
     });
 
@@ -221,7 +273,7 @@ export async function PATCH(
       action: "duty.update",
       resource: slug,
       duty: slug,
-      staff: duty.staff ?? null,
+      staff: duty.runner ?? null,
       detail: "edited duty",
     });
 
@@ -298,7 +350,7 @@ export async function DELETE(
       action: "duty.delete",
       resource: slug,
       duty: slug,
-      staff: existing.staff ?? null,
+      staff: existing.runner ?? null,
       detail: "deleted duty",
     });
 

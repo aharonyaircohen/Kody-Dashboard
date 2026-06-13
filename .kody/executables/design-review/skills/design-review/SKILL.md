@@ -7,7 +7,7 @@ description: Run a periodic design-health sweep for visual coherence, usability,
 
 Use this skill when the `design-review` executable runs from the matching duty.
 
-Runtime state is owned by the engine and the duty stage template. Do not ask the duty author to configure raw state keys.
+Runtime state is owned by the engine. Do not ask the duty author to configure raw state keys.
 
 ## Method
 

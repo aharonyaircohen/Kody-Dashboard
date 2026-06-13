@@ -12,9 +12,11 @@ describe("duty creation guide wiring", () => {
   it("documents the user-facing duty contract", () => {
     expect(DUTY_GUIDE).toContain("A **duty** is recurring work");
     expect(DUTY_GUIDE).toContain("`create_kody_duty`");
-    expect(DUTY_GUIDE).toContain("`staff`");
-    expect(DUTY_GUIDE).toContain("`stage`");
-    expect(DUTY_GUIDE).toContain("Raw state keys");
+    expect(DUTY_GUIDE).toContain("`runner`");
+    expect(DUTY_GUIDE).toContain("`reviewer`");
+    expect(DUTY_GUIDE).toContain("Runtime state");
+    expect(DUTY_GUIDE).not.toContain("Progress types");
+    expect(DUTY_GUIDE).not.toContain("`stage`");
   });
 
   it("exposes a guide tool before duty creation", () => {
@@ -28,9 +30,11 @@ describe("duty creation guide wiring", () => {
   });
 
   it("creates usable duties without authoring raw state keys", () => {
-    expect(DUTY_TOOLS_SOURCE).toContain("staff: input.staff");
+    expect(DUTY_TOOLS_SOURCE).toContain("runner: input.runner");
+    expect(DUTY_TOOLS_SOURCE).toContain("reviewer: input.reviewer");
     expect(DUTY_TOOLS_SOURCE).toContain("schedule: input.schedule");
-    expect(DUTY_TOOLS_SOURCE).toContain("stage: input.stage");
+    expect(DUTY_TOOLS_SOURCE).not.toContain("stage: input.stage");
+    expect(DUTY_TOOLS_SOURCE).not.toContain("DUTY_STAGE");
     expect(DUTY_TOOLS_SOURCE).not.toContain("body += `## State");
     expect(DUTY_TOOLS_SOURCE).not.toContain("data.lastRunISO");
   });

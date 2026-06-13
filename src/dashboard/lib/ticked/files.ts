@@ -30,7 +30,6 @@ import {
   type TickFrontmatter,
   type ScheduleEvery,
 } from "./frontmatter";
-import type { DutyStageTemplateSlug } from "../duties/stage-templates";
 
 export interface TickFile {
   /** Stable identity slug. */
@@ -76,14 +75,17 @@ export interface TickFile {
    */
   disabled: boolean;
   /**
-   * Assigned staff member (persona) slug from metadata, or
+   * Assigned runner staff member (persona) slug from metadata, or
    * `null` if none. Duty-only in practice — staff are personas and never
-   * declare a staff member. The dashboard reads this to render/seed the
-   * duty's staff picker; the engine scheduler skips duties with no staff.
+   * declare a runner. The dashboard reads this to render/seed the
+   * duty's runner picker; the engine scheduler skips duties with no runner.
    */
-  staff: string | null;
-  /** Friendly progress template slug, or null. */
-  stage: DutyStageTemplateSlug | null;
+  runner: string | null;
+  /**
+   * Staff slug responsible for reviewing this duty's output after it is
+   * produced. Duty-only in practice; staff files return `null`.
+   */
+  reviewer: string | null;
   /** Public `@kody <action>` name for duties; null for staff files. */
   action: string | null;
   /**
@@ -124,12 +126,15 @@ export interface TickWriteOptions {
    */
   disabled?: boolean;
   /**
-   * Staff member (persona) slug. `null`/absent writes no staff assignment. Only
+   * Staff member (persona) slug. `null`/absent writes no runner assignment. Only
    * duties set this; staff files never do.
    */
-  staff?: string | null;
-  /** Friendly progress template slug to persist. */
-  stage?: DutyStageTemplateSlug | null;
+  runner?: string | null;
+  /**
+   * Staff slug responsible for reviewing the output. `null`/absent writes no
+   * reviewer metadata.
+   */
+  reviewer?: string | null;
   /**
    * Public `@kody <action>` name. Duties should set this; staff files leave it
    * absent.
@@ -392,8 +397,8 @@ function buildFileContent(
   body: string,
   schedule: ScheduleEvery | null,
   disabled: boolean,
-  staff: string | null,
-  stage: DutyStageTemplateSlug | null,
+  runner: string | null,
+  reviewer: string | null,
   action: string | null,
   executable: string | null,
   mentions: string[],
@@ -414,8 +419,8 @@ function buildFileContent(
   if (action?.trim()) fm.action = action.trim();
   if (executable?.trim()) fm.executable = executable.trim();
   if (schedule) fm.every = schedule;
-  if (staff) fm.staff = staff;
-  if (stage) fm.stage = stage;
+  if (runner) fm.runner = runner;
+  if (reviewer) fm.reviewer = reviewer.replace(/^@/, "");
   if (mentions.length > 0) fm.mentions = mentions;
   if (executables.length > 0) fm.executables = executables;
   if (dutyTools.length > 0) fm.dutyTools = dutyTools;
@@ -572,8 +577,8 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
               : tickState.lastDurationMs,
             schedule: frontmatter.every ?? null,
             disabled: frontmatter.disabled === true,
-            staff: frontmatter.staff ?? null,
-            stage: frontmatter.stage ?? null,
+            runner: frontmatter.runner ?? null,
+            reviewer: frontmatter.reviewer ?? null,
             action: effectiveAction(dir, slug, frontmatter),
             mentions: frontmatter.mentions ?? [],
             executable: effectiveExecutable(frontmatter),
@@ -657,8 +662,8 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
           : tickState.lastDurationMs,
         schedule: frontmatter.every ?? null,
         disabled: frontmatter.disabled === true,
-        staff: frontmatter.staff ?? null,
-        stage: frontmatter.stage ?? null,
+        runner: frontmatter.runner ?? null,
+        reviewer: frontmatter.reviewer ?? null,
         action: effectiveAction(dir, slug, frontmatter),
         mentions: frontmatter.mentions ?? [],
         executable: effectiveExecutable(frontmatter),
@@ -691,8 +696,8 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
       opts.body,
       opts.schedule ?? null,
       opts.disabled === true,
-      opts.staff ?? null,
-      opts.stage ?? null,
+      opts.runner ?? null,
+      opts.reviewer ?? null,
       opts.action ?? null,
       opts.executable ?? null,
       opts.mentions ?? [],

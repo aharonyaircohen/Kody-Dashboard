@@ -1,0 +1,8 @@
+{
+  "name": "classify",
+  "describe": "Issue Classification",
+  "action": "classify",
+  "every": "manual",
+  "runner": "kody",
+  "executable": "classify"
+}

@@ -7,7 +7,7 @@ description: Check CI coverage against the floor and escalate when statements or
 
 Use this skill when the `coverage-floor` executable runs from the matching duty.
 
-Runtime state is owned by the engine and the duty stage template. Do not ask the duty author to configure raw state keys.
+Runtime state is owned by the engine. Do not ask the duty author to configure raw state keys.
 
 ## Method
 

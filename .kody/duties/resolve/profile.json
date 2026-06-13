@@ -1,0 +1,8 @@
+{
+  "name": "resolve",
+  "describe": "PR Conflict Resolution",
+  "action": "resolve",
+  "every": "manual",
+  "runner": "kody",
+  "executable": "resolve"
+}

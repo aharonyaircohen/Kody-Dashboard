@@ -2,8 +2,7 @@
   "name": "memory-compaction",
   "describe": "Memory Compaction",
   "every": "7d",
-  "staff": "coo",
-  "stage": "report-refresh",
+  "runner": "coo",
   "executables": [
     "compact-memory"
   ],

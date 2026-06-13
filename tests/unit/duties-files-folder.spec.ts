@@ -12,8 +12,8 @@ describe("folder-backed duty files", () => {
       executable: "repo-graph",
       schedule: "1d",
       disabled: true,
-      staff: "cto",
-      stage: "report-refresh",
+      runner: "cto",
+      reviewer: "@qa",
       mentions: ["@alice", "bob"],
       dutyTools: ["ensure_issue"],
       readsFrom: ["company-graph"],
@@ -27,13 +27,16 @@ describe("folder-backed duty files", () => {
       executable: "repo-graph",
       every: "1d",
       disabled: true,
-      staff: "cto",
-      stage: "report-refresh",
+      runner: "cto",
+      reviewer: "qa",
       mentions: ["alice", "bob"],
       tools: ["ensure_issue"],
       readsFrom: ["company-graph"],
       writesTo: ["repo-graph"],
     });
+    expect(profile).not.toHaveProperty("stage");
+    expect(profile).not.toHaveProperty("staff");
+    expect(profile).not.toHaveProperty("assignee");
   });
 
   it("keeps duty.md as titled body prose only", () => {

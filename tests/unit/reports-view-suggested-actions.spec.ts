@@ -33,8 +33,12 @@ describe("ReportsView suggested actions", () => {
     const runBlock = SOURCE.match(
       /const runSuggestedAction = async[\s\S]*?\n\s*};/,
     );
-    expect(runBlock, "ReportsView must define runSuggestedAction").not.toBeNull();
+    expect(
+      runBlock,
+      "ReportsView must define runSuggestedAction",
+    ).not.toBeNull();
     expect(runBlock![0]).toMatch(/kodyApi\.jobs\.run\(/);
+    expect(runBlock![0]).toMatch(/duty,/);
     expect(runBlock![0]).toMatch(/executable: action\.executable/);
     expect(runBlock![0]).toMatch(/target: action\.target/);
     expect(runBlock![0]).toMatch(/flavor: "instant"/);
@@ -42,7 +46,9 @@ describe("ReportsView suggested actions", () => {
   });
 
   it("create-task actions open the existing task dialog with report lineage", () => {
-    expect(SOURCE).toMatch(/setTaskFromAction\(\{ report: selected, action \}\)/);
+    expect(SOURCE).toMatch(
+      /setTaskFromAction\(\{ report: selected, action \}\)/,
+    );
     expect(SOURCE).toMatch(/buildTaskPrefillFromAction/);
     expect(SOURCE).toMatch(/labels: \[`from-report:\$\{report\.slug\}`/);
     expect(SOURCE).toMatch(/Source report:/);

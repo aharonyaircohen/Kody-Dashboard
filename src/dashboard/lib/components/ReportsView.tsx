@@ -140,9 +140,10 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
     report: Report,
     action: ReportSuggestedAction,
   ) => {
+    const duty = action.executable;
     if (
       action.type !== "dispatch" ||
-      !action.executable ||
+      !duty ||
       typeof action.target !== "number"
     ) {
       toast.error("This report action cannot be dispatched");
@@ -153,6 +154,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
     try {
       await kodyApi.jobs.run(
         {
+          duty,
           executable: action.executable,
           target: action.target,
           flavor: "instant",
@@ -161,7 +163,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
         },
         auth?.user?.login,
       );
-      toast.success(`Dispatched ${action.executable} on #${action.target}`);
+      toast.success(`Dispatched ${duty} on #${action.target}`);
     } catch (err) {
       toast.error("Dispatch failed", {
         description: err instanceof Error ? err.message : "Unknown error",
@@ -291,7 +293,9 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
               onCreateTaskFromAction={(action) =>
                 setTaskFromAction({ report: selected, action })
               }
-              onRunAction={(action) => void runSuggestedAction(selected, action)}
+              onRunAction={(action) =>
+                void runSuggestedAction(selected, action)
+              }
               runningActionKey={runningActionKey}
             />
           ) : (

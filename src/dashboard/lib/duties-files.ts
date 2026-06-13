@@ -22,10 +22,6 @@ import {
   type CompanyActivityRecord,
 } from "./activity/company";
 import {
-  isDutyStageTemplateSlug,
-  type DutyStageTemplateSlug,
-} from "./duties/stage-templates";
-import {
   isScheduleEvery,
   type ScheduleEvery,
 } from "./ticked/frontmatter";
@@ -41,8 +37,8 @@ interface DutyProfile {
   executable?: string;
   every?: ScheduleEvery;
   disabled?: boolean;
-  staff?: string;
-  stage?: DutyStageTemplateSlug;
+  runner?: string;
+  reviewer?: string;
   mentions?: string[];
   executables?: string[];
   tools?: string[];
@@ -74,8 +70,8 @@ export function buildDutyProfile(opts: TickWriteOptions): DutyProfile {
   if (opts.executable?.trim()) profile.executable = opts.executable.trim();
   if (opts.schedule) profile.every = opts.schedule;
   if (opts.disabled === true) profile.disabled = true;
-  if (opts.staff?.trim()) profile.staff = opts.staff.trim();
-  if (opts.stage) profile.stage = opts.stage;
+  if (opts.runner?.trim()) profile.runner = opts.runner.trim();
+  if (opts.reviewer?.trim()) profile.reviewer = cleanLogin(opts.reviewer);
   if (opts.mentions?.length) profile.mentions = cleanList(opts.mentions, true);
   if (opts.executables?.length) profile.executables = cleanList(opts.executables);
   if (opts.dutyTools?.length) profile.tools = cleanList(opts.dutyTools);
@@ -93,8 +89,8 @@ function parseDutyProfile(raw: unknown, slug: string): DutyProfile {
     executable: stringField(r.executable),
     every: isScheduleEvery(r.every) ? r.every : undefined,
     disabled: typeof r.disabled === "boolean" ? r.disabled : undefined,
-    staff: stringField(r.staff),
-    stage: isDutyStageTemplateSlug(r.stage) ? r.stage : undefined,
+    runner: stringField(r.runner ?? r.staff),
+    reviewer: cleanLoginField(r.reviewer),
     mentions: listField(r.mentions).map((m) => m.replace(/^@/, "")),
     executables: listField(r.executables),
     tools: listField(r.tools ?? r.dutyTools),
@@ -332,8 +328,8 @@ export async function readDutyFile(
       lastDurationMs: useActivity ? activity.durationMs : tickState.lastDurationMs,
       schedule: profile.every ?? null,
       disabled: profile.disabled === true,
-      staff: profile.staff ?? null,
-      stage: profile.stage ?? null,
+      runner: profile.runner ?? null,
+      reviewer: profile.reviewer ?? null,
       action: profile.action ?? slug,
       mentions: profile.mentions ?? [],
       executable:
@@ -511,4 +507,13 @@ function cleanList(values: string[], stripAt = false): string[] {
     .map((v) => v.trim())
     .filter((v) => v.length > 0)
     .map((v) => (stripAt ? v.replace(/^@/, "") : v));
+}
+
+function cleanLogin(value: string): string {
+  return value.trim().replace(/^@/, "");
+}
+
+function cleanLoginField(value: unknown): string | undefined {
+  const raw = stringField(value);
+  return raw ? cleanLogin(raw) : undefined;
 }

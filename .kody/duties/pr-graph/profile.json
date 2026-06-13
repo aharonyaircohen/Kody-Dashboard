@@ -2,8 +2,7 @@
   "name": "pr-graph",
   "describe": "PR Graph",
   "every": "1h",
-  "staff": "coo",
-  "stage": "report-refresh",
+  "runner": "coo",
   "executables": [
     "pr-graph"
   ],

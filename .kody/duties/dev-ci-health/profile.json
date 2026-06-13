@@ -2,7 +2,7 @@
   "name": "dev-ci-health",
   "describe": "Dev CI Health",
   "every": "15m",
-  "staff": "cto",
+  "runner": "cto",
   "executables": [
     "dev-ci-health"
   ]

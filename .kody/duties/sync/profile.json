@@ -1,0 +1,8 @@
+{
+  "name": "sync",
+  "describe": "PR Branch Sync",
+  "action": "sync",
+  "every": "manual",
+  "runner": "kody",
+  "executable": "sync"
+}

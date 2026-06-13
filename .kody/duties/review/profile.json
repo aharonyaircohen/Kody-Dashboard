@@ -1,0 +1,8 @@
+{
+  "name": "review",
+  "describe": "PR Review",
+  "action": "review",
+  "every": "manual",
+  "runner": "kody",
+  "executable": "review"
+}

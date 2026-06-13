@@ -19,7 +19,6 @@ import {
   getStoredAuth,
 } from "../api";
 import { useAuth } from "../auth-context";
-import type { DutyStageTemplateSlug } from "../duties/stage-templates";
 
 export interface DutyQueryScope {
   owner?: string | null;
@@ -90,14 +89,16 @@ export function useCreateDuty(actorLogin?: string) {
       body: string;
       schedule?: DutySchedule | null;
       disabled?: boolean;
-      staff?: string | null;
-      stage?: DutyStageTemplateSlug | null;
+      runner?: string | null;
+      reviewer?: string | null;
       action?: string | null;
       mentions?: string[];
       executable?: string | null;
       executables?: string[];
       dutyTools?: string[];
       tickScript?: string | null;
+      readsFrom?: string[];
+      writesTo?: string[];
     }
   >({
     mutationFn: (data) =>
@@ -128,14 +129,16 @@ export function useUpdateDuty(slug: string, actorLogin?: string) {
       body?: string;
       schedule?: DutySchedule | null;
       disabled?: boolean;
-      staff?: string | null;
-      stage?: DutyStageTemplateSlug | null;
+      runner?: string | null;
+      reviewer?: string | null;
       action?: string | null;
       mentions?: string[];
       executable?: string | null;
       executables?: string[];
       dutyTools?: string[];
       tickScript?: string | null;
+      readsFrom?: string[];
+      writesTo?: string[];
     }
   >({
     mutationFn: (data) =>

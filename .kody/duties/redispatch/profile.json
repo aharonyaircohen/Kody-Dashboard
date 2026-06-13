@@ -2,7 +2,7 @@
   "name": "redispatch",
   "describe": "Redispatch",
   "every": "1h",
-  "staff": "coo",
+  "runner": "coo",
   "executables": [
     "redispatch"
   ],

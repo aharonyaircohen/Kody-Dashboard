@@ -2,7 +2,7 @@
   "name": "dependency-bump",
   "describe": "Dependency Bump",
   "every": "7d",
-  "staff": "coo",
+  "runner": "coo",
   "executables": [
     "dependency-bump"
   ],

@@ -7,7 +7,7 @@ description: Review every staff member by the duties they own and the evidence t
 
 Use this skill when the `ceo-performance-review` executable runs from the matching duty.
 
-Runtime state is owned by the engine and the duty stage template. Do not ask the duty author to configure raw state keys.
+Runtime state is owned by the engine. Do not ask the duty author to configure raw state keys.
 
 ## Method
 

@@ -1,0 +1,8 @@
+{
+  "name": "chore",
+  "describe": "Chore Implementation",
+  "action": "chore",
+  "every": "manual",
+  "runner": "kody",
+  "executable": "chore"
+}

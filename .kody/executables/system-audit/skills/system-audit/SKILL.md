@@ -7,7 +7,7 @@ description: Audit Kody duty, staff, executable, report, and runtime-state wirin
 
 Use this skill when the `system-audit` executable runs from the matching duty.
 
-Runtime state is owned by the engine and the duty stage template. Do not ask the duty author to configure raw state keys.
+Runtime state is owned by the engine. Do not ask the duty author to configure raw state keys.
 
 ## Method
 
@@ -30,12 +30,11 @@ Check:
 
 1. **Broken staff reference:** A duty profile names `"staff": "<slug>"` but `.kody/staff/<slug>.md` does not exist.
 2. **Missing executable reference:** A duty profile names an executable but `.kody/executables/<slug>/profile.json` does not exist.
-3. **Invalid stage:** A duty profile has no `stage` or uses a stage outside the built-in templates.
-4. **Old duty shape:** A duty body contains raw state schemas, `kody-job-next-state`, long shell recipes, or staff/persona prompts.
-5. **Broken executable shape:** An executable has invalid `profile.json`, a large explanatory `prompt.md`, missing declared skills, or shell steps pointing to missing files.
-6. **Stale report:** A report-refresh duty has no report, an empty report, or a report older than expected for its cadence.
-7. **Stuck runtime:** Runtime evidence shows a non-terminal state stuck well beyond the duty cadence.
-8. **Orphan staff:** A staff file owns no active duty. Report as informational, not broken.
+3. **Old duty shape:** A duty profile or body contains raw state schemas, `stage`, `kody-job-next-state`, long shell recipes, or staff/persona prompts.
+4. **Broken executable shape:** An executable has invalid `profile.json`, a large explanatory `prompt.md`, missing declared skills, or shell steps pointing to missing files.
+5. **Stale report:** A report-writing duty has no report, an empty report, or a report older than expected for its cadence.
+6. **Stuck runtime:** Runtime evidence shows a non-terminal state stuck well beyond the duty cadence.
+7. **Orphan staff:** A staff file owns no active duty. Report as informational, not broken.
 
 ## Tick Procedure
 

@@ -10,7 +10,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -32,10 +32,10 @@ import {
   Timer,
   Trash2,
   User,
+  UserCheck,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@dashboard/ui/button";
-import { Checkbox } from "@dashboard/ui/checkbox";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import {
@@ -70,47 +70,46 @@ import {
   summarizeDutyHealth,
 } from "../duties/schedule-health";
 import {
-  DEFAULT_DUTY_STAGE_TEMPLATE,
-  DUTY_STAGE_TEMPLATES,
-  getDutyStageTemplate,
-  type DutyStageTemplateSlug,
-} from "../duties/stage-templates";
-import {
   scheduleEveryLabel,
   ALL_SCHEDULE_EVERY_OPTIONS,
 } from "../duties-frontmatter";
-import { getStoredAuth, type Duty, type DutySchedule } from "../api";
+import {
+  buildDefaultDutyBody,
+  buildDutyWritesTo,
+  defaultReportSlug,
+  dutyOutputFromWritesTo,
+  DEFAULT_DUTY_OUTPUT_KIND,
+  FALLBACK_REPORT_SLUG,
+  normalizeReportSlug,
+  type DutyOutputKind,
+} from "../duties/output";
+import { type Duty, type DutySchedule } from "../api";
 import { DUTY_TEMPLATE } from "../duty-template";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
 import { MarkdownEditor } from "./MarkdownEditor";
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from "./SearchableSelect";
 import { useChatScope } from "./ChatRailShell";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 
-/**
- * Parse the raw "Mentions" text field into a clean login list: split on
- * commas, trim, strip an optional leading `@`, drop empties. Matches the
- * profile serializer's contract so the stored `mentions` list is exact.
- */
-function parseMentionsInput(raw: string): string[] {
-  return raw
-    .split(",")
-    .map((m) => m.trim().replace(/^@/, ""))
-    .filter((m) => m.length > 0);
-}
-
-/** Render a stored mentions list back into the comma-separated text field. */
-function formatMentionsInput(mentions: string[]): string {
-  return mentions.join(", ");
-}
-
 /** Order-insensitive equality for two login lists. */
-function sameMentions(a: string[], b: string[]): boolean {
+function sameStringList(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
   const sortedA = [...a].sort();
   const sortedB = [...b].sort();
   return sortedA.every((v, i) => v === sortedB[i]);
+}
+
+function preventDialogEscapeWhenSearchableSelectOpen(event: {
+  preventDefault: () => void;
+}) {
+  if (document.querySelector('[data-searchable-select-open="true"]')) {
+    event.preventDefault();
+  }
 }
 
 function slugifyAction(value: string): string {
@@ -128,9 +127,8 @@ interface ExecutableSummary {
   describe?: string;
 }
 
-const NO_EXECUTABLE_VALUE = "__none__";
-const ALL_STAFF_FILTER = "__all_staff__";
-const NO_STAFF_FILTER = "__no_staff__";
+const ALL_RUNNER_FILTER = "__all_runner__";
+const NO_RUNNER_FILTER = "__no_runner__";
 const ENABLED_STATUS_FILTER = "__enabled__";
 const DISABLED_STATUS_FILTER = "__disabled__";
 type DutyStatusFilterValue =
@@ -191,7 +189,7 @@ export function DutyControlInner() {
   );
 
   const [search, setSearch] = useState("");
-  const [staffFilter, setStaffFilter] = useState(ALL_STAFF_FILTER);
+  const [runnerFilter, setRunnerFilter] = useState(ALL_RUNNER_FILTER);
   const [statusFilter, setStatusFilter] = useState<DutyStatusFilterValue>(
     ENABLED_STATUS_FILTER,
   );
@@ -200,11 +198,11 @@ export function DutyControlInner() {
     () => new Map(staffMembers.map((s) => [s.slug, s.title])),
     [staffMembers],
   );
-  const staffFilterOptions = useMemo(() => {
+  const runnerFilterOptions = useMemo(() => {
     const slugs = new Set<string>();
     staffMembers.forEach((s) => slugs.add(s.slug));
     duties.forEach((d) => {
-      if (d.staff) slugs.add(d.staff);
+      if (d.runner) slugs.add(d.runner);
     });
     return [...slugs].sort((a, b) =>
       (staffTitleBySlug.get(a) ?? a).localeCompare(
@@ -212,17 +210,17 @@ export function DutyControlInner() {
       ),
     );
   }, [duties, staffMembers, staffTitleBySlug]);
-  const hasUnassignedDuties = useMemo(
-    () => duties.some((d) => !d.staff),
+  const hasDutiesWithoutRunner = useMemo(
+    () => duties.some((d) => !d.runner),
     [duties],
   );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const matchesStaffFilter = (duty: Duty) => {
-      if (staffFilter === ALL_STAFF_FILTER) return true;
-      if (staffFilter === NO_STAFF_FILTER) return !duty.staff;
-      return duty.staff === staffFilter;
+    const matchesRunnerFilter = (duty: Duty) => {
+      if (runnerFilter === ALL_RUNNER_FILTER) return true;
+      if (runnerFilter === NO_RUNNER_FILTER) return !duty.runner;
+      return duty.runner === runnerFilter;
     };
     const matchesStatusFilter = (duty: Duty) => {
       if (statusFilter === ENABLED_STATUS_FILTER) return !duty.disabled;
@@ -230,7 +228,7 @@ export function DutyControlInner() {
     };
     return duties.filter(
       (d) =>
-        matchesStaffFilter(d) &&
+        matchesRunnerFilter(d) &&
         matchesStatusFilter(d) &&
         (!q ||
           d.slug.toLowerCase().includes(q) ||
@@ -238,10 +236,11 @@ export function DutyControlInner() {
           d.body.toLowerCase().includes(q) ||
           d.action.toLowerCase().includes(q) ||
           (d.executable?.toLowerCase().includes(q) ?? false) ||
-          (d.staff?.toLowerCase().includes(q) ?? false) ||
+          (d.runner?.toLowerCase().includes(q) ?? false) ||
+          (d.reviewer?.toLowerCase().includes(q) ?? false) ||
           d.executables.some((e) => e.toLowerCase().includes(q))),
     );
-  }, [duties, search, staffFilter, statusFilter]);
+  }, [duties, search, runnerFilter, statusFilter]);
 
   useEffect(() => {
     if (filtered.length === 0) {
@@ -290,12 +289,12 @@ export function DutyControlInner() {
           duties.length > 0 ? (
             <div className="mt-2 space-y-2">
               <div className="grid grid-cols-[1fr_auto] gap-2">
-                <DutyStaffFilter
-                  value={staffFilter}
-                  onChange={setStaffFilter}
-                  staffSlugs={staffFilterOptions}
+                <DutyRunnerFilter
+                  value={runnerFilter}
+                  onChange={setRunnerFilter}
+                  staffSlugs={runnerFilterOptions}
                   staffTitleBySlug={staffTitleBySlug}
-                  hasUnassignedDuties={hasUnassignedDuties}
+                  hasDutiesWithoutRunner={hasDutiesWithoutRunner}
                 />
                 <DutyStatusToggle
                   value={statusFilter}
@@ -353,7 +352,7 @@ export function DutyControlInner() {
             <EmptyState
               icon={<Target />}
               title="Select a duty"
-              hint="Pick a duty from the list to see its intent and system prompt."
+              hint="Pick a duty from the list to see its purpose and rules."
             />
           )
         }
@@ -364,7 +363,7 @@ export function DutyControlInner() {
           <EmptyState
             icon={<Target />}
             title="No duties yet"
-            hint="Create your first duty to describe the intent, system prompt, and restrictions."
+            hint="Create your first duty to describe the purpose, output, and restrictions."
           />
         ) : filtered.length === 0 ? (
           <EmptyState
@@ -439,6 +438,15 @@ export function DutyControlInner() {
                         {new Date(duty.updatedAt).toLocaleDateString()}
                       </span>
                       <ScheduleInline schedule={duty.schedule} />
+                      {duty.reviewer ? (
+                        <span
+                          className="inline-flex items-center gap-1"
+                          title="Reviewer staff member"
+                        >
+                          <UserCheck className="w-3 h-3" />
+                          {duty.reviewer}
+                        </span>
+                      ) : null}
                       <LastTickInline
                         lastTickAt={duty.lastTickAt}
                         lastOutcome={duty.lastOutcome}
@@ -593,21 +601,21 @@ function DutyDetail({
                   updated {new Date(duty.updatedAt).toLocaleDateString()}
                 </span>
                 <span>·</span>
-                {duty.staff ? (
+                {duty.runner ? (
                   <span
                     className="inline-flex items-center gap-1"
-                    title={`Runs as the ${duty.staff} staff persona`}
+                    title={`Runs as the ${duty.runner} staff persona`}
                   >
                     <User className="w-3 h-3" />
-                    {duty.staff}
+                    {duty.runner}
                   </span>
                 ) : (
                   <span
                     className="inline-flex items-center gap-1 text-amber-400"
-                    title="No staff assigned — the engine scheduler skips this duty"
+                    title="No runner assigned — the engine scheduler skips this duty"
                   >
                     <User className="w-3 h-3" />
-                    no staff
+                    no runner
                   </span>
                 )}
                 {duty.mentions && duty.mentions.length > 0 ? (
@@ -619,13 +627,13 @@ function DutyDetail({
                     {duty.mentions.map((m) => `@${m}`).join(", ")}
                   </span>
                 ) : null}
-                {duty.stage ? (
+                {duty.reviewer ? (
                   <span
                     className="inline-flex items-center gap-1"
-                    title="Progress template"
+                    title="Reviewer staff member responsible for treating this duty's output"
                   >
-                    <Target className="w-3 h-3" />
-                    {getDutyStageTemplate(duty.stage)?.label ?? duty.stage}
+                    <UserCheck className="w-3 h-3" />
+                    {duty.reviewer}
                   </span>
                 ) : null}
                 <ScheduleInline schedule={duty.schedule} />
@@ -732,8 +740,8 @@ function DutyDetail({
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Use <span className="font-medium text-foreground">Edit</span> to
-                describe the duty&apos;s intent, system prompt, allowed
-                commands, and restrictions.
+                describe the duty&apos;s purpose, output, allowed commands, and
+                restrictions.
               </p>
             </div>
             <Button
@@ -763,55 +771,21 @@ function CreateDutyDialog({
 }) {
   const { githubUser } = useGitHubIdentity();
   const createMutation = useCreateDuty(githubUser?.login);
+  const initialValues = useMemo(() => buildNewDutyFormValues(), [open]);
 
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState(DUTY_TEMPLATE);
-  const [enabled, setEnabled] = useState(true);
-  const [staff, setStaff] = useState<string | null>(null);
-  const [stage, setStage] = useState<DutyStageTemplateSlug>(
-    DEFAULT_DUTY_STAGE_TEMPLATE,
-  );
-  const [action, setAction] = useState("");
-  const [actionTouched, setActionTouched] = useState(false);
-  const [mentions, setMentions] = useState("");
-  const [executable, setExecutable] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      setTitle("");
-      setBody(DUTY_TEMPLATE);
-      setEnabled(true);
-      setStaff(null);
-      setStage(DEFAULT_DUTY_STAGE_TEMPLATE);
-      setAction("");
-      setActionTouched(false);
-      setMentions("");
-      setExecutable(null);
-    }
-  }, [open]);
-
-  const updateTitle = (next: string) => {
-    setTitle(next);
-    if (!actionTouched) setAction(slugifyAction(next));
-  };
-
-  const handleSubmit = () => {
-    if (!title.trim() || createMutation.isPending) return;
+  const handleSubmit = (values: DutyFormSubmitValues) => {
+    if (createMutation.isPending) return;
     createMutation.mutate(
       {
-        title: title.trim(),
-        body,
-        // A duty isn't a timer: its core is executable + staff. Created
-        // "manual" (never auto-fires) — schedule it later from the engine
-        // if needed. Omitting `every` entirely would make the engine tick
-        // it every cron wake, the opposite of what we want.
-        schedule: "manual",
-        disabled: !enabled,
-        staff,
-        stage,
-        action: action.trim() || undefined,
-        mentions: parseMentionsInput(mentions),
-        executable,
+        title: values.title,
+        body: values.body,
+        schedule: values.schedule,
+        disabled: false,
+        runner: values.runner,
+        reviewer: values.reviewer,
+        action: values.action || undefined,
+        executable: values.executable,
+        writesTo: values.writesTo,
       },
       {
         onSuccess: (duty) => onCreated(duty),
@@ -821,61 +795,29 @@ function CreateDutyDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent
+        className="max-w-4xl"
+        onEscapeKeyDown={preventDialogEscapeWhenSearchableSelectOpen}
+      >
         <DialogHeader>
           <DialogTitle>New duty</DialogTitle>
           <DialogDescription>
-            Describe the duty&apos;s intent, system prompt, allowed commands,
-            and restrictions.
+            Describe the duty&apos;s purpose, output, allowed commands, and
+            restrictions.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 mt-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="duty-title">Title</Label>
-            <Input
-              id="duty-title"
-              value={title}
-              onChange={(e) => updateTitle(e.target.value)}
-              placeholder="e.g. Release notes manager"
-              autoFocus
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="duty-action">Action</Label>
-            <Input
-              id="duty-action"
-              value={action}
-              onChange={(e) => {
-                setActionTouched(true);
-                setAction(slugifyAction(e.target.value));
-              }}
-              placeholder="release-notes-manager"
-            />
-          </div>
-          <DutyEnabledCheckbox enabled={enabled} onChange={setEnabled} />
-          <StaffSelect value={staff} onChange={setStaff} />
-          <StageTemplateSelect value={stage} onChange={setStage} />
-          <ExecutableSelect value={executable} onChange={setExecutable} />
-          <MentionsInput value={mentions} onChange={setMentions} />
-          <div className="space-y-1.5">
-            <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={14} />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleSubmit}
-            disabled={!title.trim() || createMutation.isPending}
-          >
-            {createMutation.isPending ? "Creating…" : "Create duty"}
-          </Button>
-        </div>
+        <DutyForm
+          initialValues={initialValues}
+          titleId="duty-title"
+          actionId="duty-action"
+          autoBuildBody
+          isPending={createMutation.isPending}
+          submitLabel="Create duty"
+          pendingLabel="Creating…"
+          onCancel={onClose}
+          onSubmit={handleSubmit}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -892,53 +834,35 @@ function EditDutyDialog({
 }) {
   const { githubUser } = useGitHubIdentity();
   const updateMutation = useUpdateDuty(duty.slug, githubUser?.login);
+  const initialOutput = dutyOutputFromWritesTo(duty.writesTo);
+  const initialValues = useMemo(() => buildDutyFormValues(duty), [duty]);
 
-  const [title, setTitle] = useState(duty.title);
-  const [body, setBody] = useState(duty.body || "");
-  const [enabled, setEnabled] = useState(!duty.disabled);
-  const [schedule, setSchedule] = useState<DutySchedule | null>(duty.schedule);
-  const [staff, setStaff] = useState<string | null>(duty.staff);
-  const [stage, setStage] = useState<DutyStageTemplateSlug | null>(duty.stage);
-  const [action, setAction] = useState(duty.action);
-  const [mentions, setMentions] = useState(formatMentionsInput(duty.mentions));
-  const [executable, setExecutable] = useState<string | null>(duty.executable);
-
-  useEffect(() => {
-    setTitle(duty.title);
-    setBody(duty.body || "");
-    setEnabled(!duty.disabled);
-    setSchedule(duty.schedule);
-    setStaff(duty.staff);
-    setStage(duty.stage);
-    setAction(duty.action);
-    setMentions(formatMentionsInput(duty.mentions));
-    setExecutable(duty.executable);
-  }, [duty]);
-
-  const handleSubmit = () => {
-    if (!title.trim() || updateMutation.isPending) return;
+  const handleSubmit = (values: DutyFormSubmitValues) => {
+    if (updateMutation.isPending) return;
     const patch: {
       title?: string;
       body?: string;
-      disabled?: boolean;
       schedule?: DutySchedule | null;
-      staff?: string | null;
-      stage?: DutyStageTemplateSlug | null;
+      runner?: string | null;
+      reviewer?: string | null;
       action?: string | null;
-      mentions?: string[];
       executable?: string | null;
+      writesTo?: string[];
     } = {};
-    if (title !== duty.title) patch.title = title.trim();
-    if (body !== duty.body) patch.body = body;
-    if (enabled !== !duty.disabled) patch.disabled = !enabled;
-    if (schedule !== duty.schedule) patch.schedule = schedule;
-    if (staff !== duty.staff) patch.staff = staff;
-    if (stage !== duty.stage) patch.stage = stage;
-    if (action !== duty.action) patch.action = action.trim() || null;
-    const nextMentions = parseMentionsInput(mentions);
-    if (!sameMentions(nextMentions, duty.mentions))
-      patch.mentions = nextMentions;
-    if (executable !== duty.executable) patch.executable = executable;
+    if (values.title !== duty.title) patch.title = values.title;
+    if (values.body !== duty.body) patch.body = values.body;
+    if (values.schedule !== duty.schedule) patch.schedule = values.schedule;
+    if (values.runner !== duty.runner) patch.runner = values.runner;
+    if (values.reviewer !== duty.reviewer) patch.reviewer = values.reviewer;
+    if (values.action !== duty.action) patch.action = values.action;
+    if (values.executable !== duty.executable)
+      patch.executable = values.executable;
+    const outputChanged =
+      values.outputKind !== initialOutput.outputKind ||
+      normalizeReportSlug(values.reportSlug) !== initialOutput.reportSlug;
+    if (outputChanged && !sameStringList(values.writesTo, duty.writesTo)) {
+      patch.writesTo = values.writesTo;
+    }
     if (Object.keys(patch).length === 0) {
       onSaved();
       return;
@@ -948,7 +872,10 @@ function EditDutyDialog({
 
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent
+        className="max-w-4xl"
+        onEscapeKeyDown={preventDialogEscapeWhenSearchableSelectOpen}
+      >
         <DialogHeader>
           <DialogTitle>Edit duty `{duty.slug}`</DialogTitle>
           <DialogDescription>
@@ -957,52 +884,22 @@ function EditDutyDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 mt-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-duty-title">Title</Label>
-            <Input
-              id="edit-duty-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              autoFocus
+        <DutyForm
+          initialValues={initialValues}
+          titleId="edit-duty-title"
+          actionId="edit-duty-action"
+          isPending={updateMutation.isPending}
+          submitLabel="Save changes"
+          pendingLabel="Saving…"
+          onCancel={onClose}
+          onSubmit={handleSubmit}
+          timing={
+            <DutyTimingReadout
+              lastTickAt={duty.lastTickAt}
+              nextEligibleAt={duty.nextEligibleAt}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-duty-action">Action</Label>
-            <Input
-              id="edit-duty-action"
-              value={action}
-              onChange={(e) => setAction(slugifyAction(e.target.value))}
-            />
-          </div>
-          <DutyEnabledCheckbox enabled={enabled} onChange={setEnabled} />
-          <ScheduleSelect value={schedule} onChange={setSchedule} />
-          <StaffSelect value={staff} onChange={setStaff} />
-          <StageTemplateSelect value={stage} onChange={setStage} />
-          <ExecutableSelect value={executable} onChange={setExecutable} />
-          <MentionsInput value={mentions} onChange={setMentions} />
-          <DutyTimingReadout
-            lastTickAt={duty.lastTickAt}
-            nextEligibleAt={duty.nextEligibleAt}
-          />
-          <div className="space-y-1.5">
-            <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={14} />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleSubmit}
-            disabled={!title.trim() || updateMutation.isPending}
-          >
-            {updateMutation.isPending ? "Saving…" : "Save changes"}
-          </Button>
-        </div>
+          }
+        />
       </DialogContent>
     </Dialog>
   );
@@ -1017,7 +914,7 @@ function EditDutyDialog({
  * Row pill that escalates a duty's raw timestamps into an actionable
  * warning: amber "Overdue" (next-eligible passed beyond the cron window),
  * red "Never run" (scheduled, old enough to have run, no proof yet), or
- * gray "No staff" (the scheduler skips it).
+ * gray "No runner" (the scheduler skips it).
  * Renders nothing for healthy/manual duties.
  */
 function DutyHealthBadge({ duty }: { duty: Duty }) {
@@ -1049,10 +946,10 @@ function DutyHealthBadge({ duty }: { duty: Duty }) {
     return (
       <span
         className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-        title="No staff assigned — the engine scheduler skips this duty."
+        title="No runner assigned — the engine scheduler skips this duty."
       >
         <User className="w-2.5 h-2.5" />
-        No staff
+        No runner
       </span>
     );
   }
@@ -1090,10 +987,10 @@ function DutyHealthSummaryBar({ duties }: { duties: Duty[] }) {
       {skipped > 0 ? (
         <span
           className="inline-flex items-center gap-1 text-muted-foreground"
-          title="Scheduled duties skipped because no staff is assigned"
+          title="Scheduled duties skipped because no runner is assigned"
         >
           <User className="w-3 h-3" />
-          {skipped} no staff
+          {skipped} no runner
         </span>
       ) : null}
     </div>
@@ -1139,42 +1036,42 @@ function DutyStatusToggle({
     </div>
   );
 }
-function DutyStaffFilter({
+function DutyRunnerFilter({
   value,
   onChange,
   staffSlugs,
   staffTitleBySlug,
-  hasUnassignedDuties,
+  hasDutiesWithoutRunner,
 }: {
   value: string;
   onChange: (next: string) => void;
   staffSlugs: string[];
   staffTitleBySlug: Map<string, string>;
-  hasUnassignedDuties: boolean;
+  hasDutiesWithoutRunner: boolean;
 }) {
+  const options: SearchableSelectOption[] = [
+    { value: ALL_RUNNER_FILTER, label: "All runners" },
+    ...(hasDutiesWithoutRunner
+      ? [{ value: NO_RUNNER_FILTER, label: "No runner" }]
+      : []),
+    ...staffSlugs.map((slug) => {
+      const title = staffTitleBySlug.get(slug);
+      return {
+        value: slug,
+        label: title ? `${title} (${slug})` : slug,
+        searchText: `${slug} ${title ?? ""}`,
+      };
+    }),
+  ];
   return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger
-        aria-label="Filter duties by staff"
-        className="h-9 w-full min-w-0 bg-background/40"
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL_STAFF_FILTER}>All staff</SelectItem>
-        {hasUnassignedDuties ? (
-          <SelectItem value={NO_STAFF_FILTER}>No staff</SelectItem>
-        ) : null}
-        {staffSlugs.map((slug) => {
-          const title = staffTitleBySlug.get(slug);
-          return (
-            <SelectItem key={slug} value={slug}>
-              {title ? `${title} (${slug})` : slug}
-            </SelectItem>
-          );
-        })}
-      </SelectContent>
-    </Select>
+    <SearchableSelect
+      value={value}
+      onChange={(next) => onChange(next ?? ALL_RUNNER_FILTER)}
+      options={options}
+      placeholder="All runners"
+      searchPlaceholder="Search runners…"
+      emptyLabel="No runners found"
+    />
   );
 }
 
@@ -1332,28 +1229,336 @@ function LastTickDetail({
   );
 }
 
-function DutyEnabledCheckbox({
-  enabled,
-  onChange,
+interface DutyFormValues {
+  title: string;
+  body: string;
+  schedule: DutySchedule | null;
+  runner: string | null;
+  reviewer: string | null;
+  action: string;
+  executable: string | null;
+  outputKind: DutyOutputKind;
+  reportSlug: string;
+}
+
+interface DutyFormSubmitValues {
+  title: string;
+  body: string;
+  schedule: DutySchedule | null;
+  runner: string | null;
+  reviewer: string | null;
+  action: string | null;
+  executable: string | null;
+  outputKind: DutyOutputKind;
+  reportSlug: string;
+  writesTo: string[];
+}
+
+function buildNewDutyFormValues(): DutyFormValues {
+  return {
+    title: "",
+    body: DUTY_TEMPLATE,
+    schedule: "manual",
+    runner: null,
+    reviewer: null,
+    action: "",
+    executable: null,
+    outputKind: DEFAULT_DUTY_OUTPUT_KIND,
+    reportSlug: FALLBACK_REPORT_SLUG,
+  };
+}
+
+function buildDutyFormValues(duty: Duty): DutyFormValues {
+  const output = dutyOutputFromWritesTo(duty.writesTo);
+  return {
+    title: duty.title,
+    body: duty.body || "",
+    schedule: duty.schedule,
+    runner: duty.runner,
+    reviewer: duty.reviewer,
+    action: duty.action,
+    executable: duty.executable,
+    outputKind: output.outputKind,
+    reportSlug: output.reportSlug,
+  };
+}
+
+function DutyForm({
+  initialValues,
+  titleId,
+  actionId,
+  autoBuildBody = false,
+  isPending,
+  submitLabel,
+  pendingLabel,
+  onCancel,
+  onSubmit,
+  timing,
 }: {
-  enabled: boolean;
-  onChange: (next: boolean) => void;
+  initialValues: DutyFormValues;
+  titleId: string;
+  actionId: string;
+  autoBuildBody?: boolean;
+  isPending: boolean;
+  submitLabel: string;
+  pendingLabel: string;
+  onCancel: () => void;
+  onSubmit: (values: DutyFormSubmitValues) => void;
+  timing?: ReactNode;
+}) {
+  const [title, setTitle] = useState(initialValues.title);
+  const [body, setBody] = useState(initialValues.body);
+  const [bodyTouched, setBodyTouched] = useState(false);
+  const [runner, setRunner] = useState<string | null>(initialValues.runner);
+  const [reviewer, setReviewer] = useState<string | null>(
+    initialValues.reviewer,
+  );
+  const [action, setAction] = useState(initialValues.action);
+  const [actionTouched, setActionTouched] = useState(false);
+  const [schedule, setSchedule] = useState<DutySchedule | null>(
+    initialValues.schedule,
+  );
+  const [outputKind, setOutputKind] = useState<DutyOutputKind>(
+    initialValues.outputKind,
+  );
+  const [reportSlug, setReportSlug] = useState(initialValues.reportSlug);
+  const [reportSlugTouched, setReportSlugTouched] = useState(false);
+  const [executable, setExecutable] = useState<string | null>(
+    initialValues.executable,
+  );
+
+  useEffect(() => {
+    setTitle(initialValues.title);
+    setBody(initialValues.body);
+    setBodyTouched(false);
+    setRunner(initialValues.runner);
+    setReviewer(initialValues.reviewer);
+    setAction(initialValues.action);
+    setActionTouched(false);
+    setSchedule(initialValues.schedule);
+    setOutputKind(initialValues.outputKind);
+    setReportSlug(initialValues.reportSlug);
+    setReportSlugTouched(false);
+    setExecutable(initialValues.executable);
+  }, [initialValues]);
+
+  const updateTitle = (next: string) => {
+    setTitle(next);
+    if (!autoBuildBody) return;
+    const nextAction = actionTouched ? action : slugifyAction(next);
+    if (!actionTouched) setAction(nextAction);
+    if (!reportSlugTouched) {
+      const nextReportSlug = defaultReportSlug(nextAction, next);
+      setReportSlug(nextReportSlug);
+      if (!bodyTouched) {
+        setBody(buildDefaultDutyBody(outputKind, nextReportSlug));
+      }
+    }
+  };
+
+  const updateAction = (next: string) => {
+    const nextAction = slugifyAction(next);
+    setActionTouched(true);
+    setAction(nextAction);
+    if (!autoBuildBody || reportSlugTouched) return;
+    const nextReportSlug = defaultReportSlug(nextAction, title);
+    setReportSlug(nextReportSlug);
+    if (!bodyTouched) {
+      setBody(buildDefaultDutyBody(outputKind, nextReportSlug));
+    }
+  };
+
+  const updateOutputKind = (next: DutyOutputKind) => {
+    setOutputKind(next);
+    if (autoBuildBody && !bodyTouched) {
+      setBody(buildDefaultDutyBody(next, reportSlug));
+    }
+  };
+
+  const updateReportSlug = (next: string) => {
+    setReportSlugTouched(true);
+    setReportSlug(next);
+    if (autoBuildBody && !bodyTouched) {
+      setBody(buildDefaultDutyBody(outputKind, normalizeReportSlug(next)));
+    }
+  };
+
+  const submit = () => {
+    if (!title.trim() || isPending) return;
+    onSubmit({
+      title: title.trim(),
+      body,
+      schedule,
+      runner,
+      reviewer,
+      action: action.trim() || null,
+      executable,
+      outputKind,
+      reportSlug,
+      writesTo: buildDutyWritesTo(outputKind, reportSlug),
+    });
+  };
+
+  return (
+    <>
+      <div className="space-y-4 mt-2">
+        <div className="space-y-1.5">
+          <Label htmlFor={titleId}>Title</Label>
+          <Input
+            id={titleId}
+            value={title}
+            onChange={(e) => updateTitle(e.target.value)}
+            placeholder="e.g. Release notes manager"
+            autoFocus
+          />
+        </div>
+        <DutyActionScheduleRow
+          actionId={actionId}
+          action={action}
+          onActionChange={updateAction}
+          schedule={schedule}
+          onScheduleChange={setSchedule}
+        />
+        <DutyExecutableOutputRow
+          executable={executable}
+          onExecutableChange={setExecutable}
+          outputKind={outputKind}
+          onOutputKindChange={updateOutputKind}
+        />
+        {outputKind === "report" ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="duty-report-target">Report target</Label>
+            <Input
+              id="duty-report-target"
+              value={reportSlug}
+              onChange={(e) => updateReportSlug(e.target.value)}
+              placeholder="release-notes-manager"
+            />
+            <p className="text-xs text-muted-foreground">
+              Writes{" "}
+              <strong>
+                .kody/reports/{normalizeReportSlug(reportSlug)}.md
+              </strong>
+              .
+            </p>
+          </div>
+        ) : null}
+        <DutyStaffRoleRow
+          runner={runner}
+          onRunnerChange={setRunner}
+          reviewer={reviewer}
+          onReviewerChange={setReviewer}
+        />
+        {timing}
+        <div className="space-y-1.5">
+          <Label>Body</Label>
+          <MarkdownEditor
+            value={body}
+            onChange={(next) => {
+              setBodyTouched(true);
+              setBody(next);
+            }}
+            rows={14}
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 mt-4">
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          onClick={submit}
+          disabled={!title.trim() || isPending}
+        >
+          {isPending ? pendingLabel : submitLabel}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+function DutyExecutableOutputRow({
+  executable,
+  onExecutableChange,
+  outputKind,
+  onOutputKindChange,
+}: {
+  executable: string | null;
+  onExecutableChange: (next: string | null) => void;
+  outputKind: DutyOutputKind;
+  onOutputKindChange: (next: DutyOutputKind) => void;
 }) {
   return (
-    <label className="flex items-start gap-2 text-sm text-foreground">
-      <Checkbox
-        id="duty-enabled"
-        checked={enabled}
-        onCheckedChange={(checked) => onChange(checked === true)}
-        className="mt-0.5"
-      />
-      <span className="space-y-1">
-        <span className="block font-medium">Enabled</span>
-        <span className="block text-xs text-muted-foreground">
-          Off stops scheduled runs. Manual Run still works.
-        </span>
-      </span>
-    </label>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <ExecutableSelect value={executable} onChange={onExecutableChange} />
+      <OutputSelect value={outputKind} onChange={onOutputKindChange} />
+    </div>
+  );
+}
+
+function OutputSelect({
+  value,
+  onChange,
+}: {
+  value: DutyOutputKind;
+  onChange: (next: DutyOutputKind) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="duty-output">Output</Label>
+      <Select
+        value={value}
+        onValueChange={(next) => onChange(next as DutyOutputKind)}
+      >
+        <SelectTrigger id="duty-output" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="run" textValue="Run">
+            Run
+          </SelectItem>
+          <SelectItem value="report" textValue="Report">
+            Report
+          </SelectItem>
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {value === "report"
+          ? "Creates or refreshes one report."
+          : "Runs without a generated report."}
+      </p>
+    </div>
+  );
+}
+
+function DutyActionScheduleRow({
+  actionId,
+  action,
+  onActionChange,
+  schedule,
+  onScheduleChange,
+}: {
+  actionId: string;
+  action: string;
+  onActionChange: (next: string) => void;
+  schedule: DutySchedule | null;
+  onScheduleChange: (next: DutySchedule | null) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="space-y-1.5">
+        <Label htmlFor={actionId}>Action</Label>
+        <Input
+          id={actionId}
+          value={action}
+          onChange={(e) => onActionChange(e.target.value)}
+          placeholder="e.g. release-notes"
+        />
+      </div>
+      <ScheduleSelect value={schedule} onChange={onScheduleChange} />
+    </div>
   );
 }
 
@@ -1413,60 +1618,30 @@ function ScheduleSelect({
   );
 }
 
-function StageTemplateSelect({
-  value,
-  onChange,
+/**
+ * Runner picker. A duty is *what* runs on a schedule; the runner is the staff
+ * member whose persona the engine injects ahead of the duty body.
+ */
+function DutyStaffRoleRow({
+  runner,
+  onRunnerChange,
+  reviewer,
+  onReviewerChange,
 }: {
-  value: DutyStageTemplateSlug | null;
-  onChange: (next: DutyStageTemplateSlug) => void;
+  runner: string | null;
+  onRunnerChange: (next: string | null) => void;
+  reviewer: string | null;
+  onReviewerChange: (next: string | null) => void;
 }) {
-  const selected = getDutyStageTemplate(value ?? DEFAULT_DUTY_STAGE_TEMPLATE);
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor="duty-stage">Progress</Label>
-      <Select
-        value={value ?? DEFAULT_DUTY_STAGE_TEMPLATE}
-        onValueChange={(v) => onChange(v as DutyStageTemplateSlug)}
-      >
-        <SelectTrigger id="duty-stage" className="w-full">
-          <span className="truncate">
-            {selected?.label ?? "Select progress"}
-          </span>
-        </SelectTrigger>
-        <SelectContent>
-          {DUTY_STAGE_TEMPLATES.map((template) => (
-            <SelectItem
-              key={template.slug}
-              value={template.slug}
-              textValue={template.label}
-              className="items-start py-2"
-            >
-              <span className="flex flex-col gap-0.5">
-                <span>{template.label}</span>
-                <span className="text-xs leading-snug text-muted-foreground">
-                  {template.description}
-                </span>
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <p className="text-xs text-muted-foreground">
-        {selected?.description ??
-          "Choose how the dashboard should describe progress for this duty."}
-      </p>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <RunnerSelect value={runner} onChange={onRunnerChange} />
+      <ReviewerSelect value={reviewer} onChange={onReviewerChange} />
     </div>
   );
 }
 
-/**
- * Staff (persona) picker. A duty is *what* runs on a schedule; the staff
- * member it names is *who* runs it — the engine injects that persona ahead
- * of the duty body. Every duty must name a staff member: the engine
- * scheduler skips duties with none, so the picker warns when unset and
- * offers the personas under `.kody/staff/`.
- */
-function StaffSelect({
+function RunnerSelect({
   value,
   onChange,
 }: {
@@ -1474,30 +1649,27 @@ function StaffSelect({
   onChange: (next: string | null) => void;
 }) {
   const { data: staff, isLoading } = useStaff();
-  // Radix Select.Item disallows empty-string values; bind `null` to a
-  // sentinel instead.
-  const NONE = "__none__";
+  const options: SearchableSelectOption[] = [
+    { value: null, label: "None (duty won't run)" },
+    ...withSelectedStaffFallback(staff ?? [], value).map((w) => ({
+      value: w.slug,
+      label: `${w.title} (${w.slug})`,
+      searchText: `${w.slug} ${w.title}`,
+    })),
+  ];
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="duty-staff">Staff</Label>
-      <Select
-        value={value ?? NONE}
-        onValueChange={(v) => onChange(v === NONE ? null : v)}
-      >
-        <SelectTrigger id="duty-staff" className="w-full">
-          <SelectValue
-            placeholder={isLoading ? "Loading staff…" : "Select a staff member"}
-          />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={NONE}>None (duty won&apos;t run)</SelectItem>
-          {(staff ?? []).map((w) => (
-            <SelectItem key={w.slug} value={w.slug}>
-              {w.title} ({w.slug})
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Label htmlFor="duty-runner">Runner</Label>
+      <SearchableSelect
+        id="duty-runner"
+        value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={isLoading ? "Loading staff…" : "Select a runner"}
+        searchPlaceholder="Search staff…"
+        emptyLabel="No staff found"
+        disabled={isLoading}
+      />
       <p className="text-xs text-muted-foreground">
         {value ? (
           <>
@@ -1505,13 +1677,61 @@ function StaffSelect({
           </>
         ) : (
           <span className="text-amber-400">
-            No staff assigned — the engine scheduler will skip this duty until
+            No runner assigned — the engine scheduler will skip this duty until
             you pick one.
           </span>
         )}
       </p>
     </div>
   );
+}
+
+function ReviewerSelect({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (next: string | null) => void;
+}) {
+  const { data: staff, isLoading } = useStaff();
+  const options: SearchableSelectOption[] = [
+    { value: null, label: "None" },
+    ...withSelectedStaffFallback(staff ?? [], value).map((w) => ({
+      value: w.slug,
+      label: `${w.title} (${w.slug})`,
+      searchText: `${w.slug} ${w.title}`,
+    })),
+  ];
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="duty-reviewer" className="flex items-center gap-1.5">
+        <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
+        Reviewer
+      </Label>
+      <SearchableSelect
+        id="duty-reviewer"
+        value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={isLoading ? "Loading staff…" : "Select a reviewer"}
+        searchPlaceholder="Search staff…"
+        emptyLabel="No staff found"
+        disabled={isLoading}
+      />
+      <p className="text-xs text-muted-foreground">
+        Staff member responsible for reviewing or handling this duty&apos;s
+        output.
+      </p>
+    </div>
+  );
+}
+
+function withSelectedStaffFallback(
+  staff: Array<{ slug: string; title: string }>,
+  value: string | null,
+): Array<{ slug: string; title: string }> {
+  if (!value || staff.some((s) => s.slug === value)) return staff;
+  return [{ slug: value, title: `Missing staff: ${value}` }, ...staff];
 }
 
 function ExecutableSelect({
@@ -1527,205 +1747,38 @@ function ExecutableSelect({
     isError,
     isLoading,
   } = useExecutableSummaries();
-  const selected = value ?? NO_EXECUTABLE_VALUE;
-  const options =
+  const executableOptions =
     value && !executables.some((exec) => exec.slug === value)
       ? [{ slug: value }, ...executables]
       : executables;
+  const options: SearchableSelectOption[] = [
+    { value: null, label: "No executable" },
+    ...executableOptions.map((exec) => ({
+      value: exec.slug,
+      label: exec.slug,
+      description: exec.describe,
+      searchText: `${exec.slug} ${exec.describe ?? ""}`,
+    })),
+  ];
 
   return (
     <div className="space-y-1.5">
       <Label htmlFor="duty-executable">Executable</Label>
-      <Select
-        value={selected}
-        onValueChange={(next) =>
-          onChange(next === NO_EXECUTABLE_VALUE ? null : next)
-        }
-        disabled={isLoading || isError || options.length === 0}
-      >
-        <SelectTrigger id="duty-executable">
-          <SelectValue
-            placeholder={
-              isLoading ? "Loading executables…" : "Select executable"
-            }
-          />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={NO_EXECUTABLE_VALUE}>No executable</SelectItem>
-          {options.map((exec) => (
-            <SelectItem key={exec.slug} value={exec.slug}>
-              {exec.slug}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <SearchableSelect
+        id="duty-executable"
+        value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={isLoading ? "Loading executables…" : "Select executable"}
+        searchPlaceholder="Search executables…"
+        emptyLabel="No executables found"
+        disabled={isLoading || isError}
+      />
       {isError ? (
         <p className="px-1 text-xs text-rose-300">
           Failed to load executables: {(error as Error).message}
         </p>
       ) : null}
-    </div>
-  );
-}
-
-/**
- * "Mentions" input — a comma-separated list of GitHub logins the duty's
- * output should `@`-mention. Stored as the `mentions` profile list (no
- * `@`); the engine pings the listed users in the duty's report. The
- * raw text is normalized on save (split, trim, strip leading `@`, drop
- * empties) so users can type `@alice, bob` freely.
- */
-/**
- * Comma-separated GitHub logins with collaborator autocomplete. The login
- * being typed is the text after the last comma; matching repo collaborators
- * (from `/api/kody/collaborators`, the same source as the comment composer)
- * are suggested and complete that token on click / Enter / Tab. Storage stays
- * the plain comma-separated string — `parseMentionsInput` is unchanged.
- */
-function MentionsInput({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-}) {
-  const [collaborators, setCollaborators] = useState<{ login: string }[]>([]);
-  const [open, setOpen] = useState(false);
-  const [activeIdx, setActiveIdx] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    const auth = getStoredAuth();
-    fetch("/api/kody/collaborators", {
-      headers: auth
-        ? {
-            "x-kody-token": auth.token,
-            "x-kody-owner": auth.owner,
-            "x-kody-repo": auth.repo,
-          }
-        : {},
-    })
-      .then((r) => (r.ok ? r.json() : { collaborators: [] }))
-      .then((d) => {
-        if (!cancelled) setCollaborators(d.collaborators ?? []);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const lastComma = value.lastIndexOf(",");
-  const head = lastComma >= 0 ? value.slice(0, lastComma + 1) : "";
-  const token = value
-    .slice(lastComma + 1)
-    .trim()
-    .replace(/^@/, "")
-    .toLowerCase();
-
-  const chosen = useMemo(
-    () =>
-      new Set(
-        value
-          .split(",")
-          .map((s) => s.trim().replace(/^@/, "").toLowerCase())
-          .filter(Boolean),
-      ),
-    [value],
-  );
-
-  const suggestions = useMemo(
-    () =>
-      collaborators
-        .filter(
-          (c) =>
-            !chosen.has(c.login.toLowerCase()) ||
-            c.login.toLowerCase() === token,
-        )
-        .filter(
-          (c) => token.length === 0 || c.login.toLowerCase().includes(token),
-        )
-        .slice(0, 6),
-    [collaborators, chosen, token],
-  );
-
-  const showList = open && suggestions.length > 0;
-
-  function choose(login: string) {
-    onChange(`${head ? `${head} ` : ""}${login}, `);
-    setOpen(false);
-    setActiveIdx(0);
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor="duty-mentions" className="flex items-center gap-1.5">
-        <AtSign className="w-3.5 h-3.5 text-muted-foreground" />
-        Mentions
-      </Label>
-      <div className="relative">
-        <Input
-          id="duty-mentions"
-          value={value}
-          autoComplete="off"
-          placeholder="e.g. aguyaharonyair, alice"
-          onChange={(e) => {
-            onChange(e.target.value);
-            setOpen(true);
-            setActiveIdx(0);
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          onKeyDown={(e) => {
-            if (!showList) return;
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              setActiveIdx((i) => (i + 1) % suggestions.length);
-            } else if (e.key === "ArrowUp") {
-              e.preventDefault();
-              setActiveIdx(
-                (i) => (i - 1 + suggestions.length) % suggestions.length,
-              );
-            } else if (e.key === "Enter" || e.key === "Tab") {
-              const sel = suggestions[activeIdx] ?? suggestions[0];
-              if (sel) {
-                e.preventDefault();
-                choose(sel.login);
-              }
-            } else if (e.key === "Escape") {
-              setOpen(false);
-            }
-          }}
-        />
-        {showList && (
-          <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-popover py-1 shadow-md">
-            {suggestions.map((c, i) => (
-              <li key={c.login}>
-                <button
-                  type="button"
-                  className={`flex w-full items-center gap-2 px-2 py-1 text-left text-sm ${
-                    i === activeIdx
-                      ? "bg-accent text-accent-foreground"
-                      : "hover:bg-accent/50"
-                  }`}
-                  onMouseEnter={() => setActiveIdx(i)}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    choose(c.login);
-                  }}
-                >
-                  <AtSign className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span>{c.login}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Comma-separated GitHub logins to <strong>@</strong>-mention in this
-        duty&apos;s output. Leave blank for none.
-      </p>
     </div>
   );
 }

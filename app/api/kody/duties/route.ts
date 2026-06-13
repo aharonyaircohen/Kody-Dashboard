@@ -26,10 +26,7 @@ import {
   writeDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
-import {
-  DEFAULT_DUTY_STAGE_TEMPLATE,
-  DUTY_STAGE_TEMPLATE_SLUGS,
-} from "@dashboard/lib/duties/stage-templates";
+import { readStaffFile } from "@dashboard/lib/staff-files";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export const dynamic = "force-dynamic";
@@ -86,14 +83,16 @@ const createDutySchema = z.object({
     .nullable()
     .optional(),
   disabled: z.boolean().optional(),
-  staff: z.string().min(1).nullable().optional(),
-  stage: z.enum(DUTY_STAGE_TEMPLATE_SLUGS).nullable().optional(),
+  runner: z.string().min(1).nullable().optional(),
+  reviewer: z.string().min(1).nullable().optional(),
   action: z.string().min(1).max(64).nullable().optional(),
   mentions: z.array(z.string()).optional(),
   executable: z.string().min(1).max(64).nullable().optional(),
   executables: z.array(z.string()).optional(),
   dutyTools: z.array(z.string()).optional(),
   tickScript: z.string().nullable().optional(),
+  readsFrom: z.array(z.string()).optional(),
+  writesTo: z.array(z.string()).optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -118,6 +117,38 @@ function normalizeOptionalSlug(
 ): string | null {
   const trimmed = value?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeStaffSlug(value: string | null | undefined): string | null {
+  const trimmed = value?.trim().replace(/^@/, "") ?? "";
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+async function validateStaffRole(
+  slug: string | null,
+  field: "runner" | "reviewer",
+): Promise<NextResponse | null> {
+  if (!slug) return null;
+  if (!isValidSlug(slug)) {
+    return NextResponse.json(
+      {
+        error: `invalid_${field}`,
+        message: `${field} must be a staff member slug.`,
+      },
+      { status: 400 },
+    );
+  }
+  const staff = await readStaffFile(slug);
+  if (!staff) {
+    return NextResponse.json(
+      {
+        error: `unknown_${field}`,
+        message: `${field} must reference an existing staff member.`,
+      },
+      { status: 400 },
+    );
+  }
+  return null;
 }
 
 function slugifyTitle(title: string): string {
@@ -146,14 +177,16 @@ export async function POST(req: NextRequest) {
       body,
       schedule,
       disabled,
-      staff,
-      stage,
+      runner,
+      reviewer,
       action,
       mentions,
       executable,
       executables,
       dutyTools,
       tickScript,
+      readsFrom,
+      writesTo,
       actorLogin,
     } = createDutySchema.parse(payload);
 
@@ -190,6 +223,12 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    const runnerSlug = normalizeStaffSlug(runner);
+    const reviewerSlug = normalizeStaffSlug(reviewer);
+    const runnerError = await validateStaffRole(runnerSlug, "runner");
+    if (runnerError) return runnerError;
+    const reviewerError = await validateStaffRole(reviewerSlug, "reviewer");
+    if (reviewerError) return reviewerError;
 
     const existing = await readDutyFile(slug);
     if (existing) {
@@ -220,21 +259,23 @@ export async function POST(req: NextRequest) {
       body,
       schedule: schedule ?? null,
       disabled: disabled === true,
-      staff: staff ?? null,
-      stage: stage ?? DEFAULT_DUTY_STAGE_TEMPLATE,
+      runner: runnerSlug,
+      reviewer: reviewerSlug,
       action: actionSlug,
       mentions: normalizeMentions(mentions),
       executable: executableSlug,
       executables: normalizeList(executables),
       dutyTools: normalizeList(dutyTools),
       tickScript: tickScript?.trim() ? tickScript.trim() : null,
+      readsFrom: normalizeList(readsFrom),
+      writesTo: normalizeList(writesTo),
     });
 
     recordAudit(req, {
       action: "duty.create",
       resource: slug,
       duty: slug,
-      staff: staff ?? null,
+      staff: runner ?? null,
       detail: `created duty "${title}"${schedule ? ` (${schedule})` : ""}`,
     });
 

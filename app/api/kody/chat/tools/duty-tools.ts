@@ -23,10 +23,6 @@ import {
   writeDutyFile,
   isValidSlug,
 } from "@dashboard/lib/duties-files";
-import {
-  DUTY_STAGE_TEMPLATE_SLUGS,
-  type DutyStageTemplateSlug,
-} from "@dashboard/lib/duties/stage-templates";
 
 const DUTY_SCHEDULE_VALUES = [
   "15m",
@@ -56,9 +52,9 @@ interface DutyInput {
   slug?: string;
   action?: string;
   executable?: string;
-  staff: string;
+  runner: string;
+  reviewer?: string;
   schedule: DutyScheduleToken;
-  stage: DutyStageTemplateSlug;
   purpose: string;
   inputs: string[];
   reportSchema: string;
@@ -89,19 +85,18 @@ async function readDutyGuide(): Promise<string> {
       "",
       "- Kody can create duties with `create_kody_duty`.",
       "- Duties live at `.kody/duties/<slug>/profile.json` plus `duty.md`.",
-      "- A duty owns public action, purpose, cadence, staff, progress type, and safety rules.",
+      "- A duty owns public action, purpose, cadence, runner, reviewer, output, and safety rules.",
       "- Put staff persona in `.kody/staff/<slug>.md`.",
       "- Put reusable action logic in `.kody/executables/<slug>/`.",
-      "- Do not put metadata or raw state keys in `duty.md`; use `profile.json.stage`.",
+      "- Do not put metadata or raw state keys in `duty.md`; runtime state belongs to the engine.",
     ].join("\n");
   }
 }
 
 /**
  * Render the default report-producer duty body. The model fills in the
- * variable parts (purpose, inputs, report schema). Cadence, staff, and
- * progress live in profile.json so the operator does not have to author raw
- * runtime state rules.
+ * variable parts (purpose, inputs, report schema). Cadence and runner live in
+ * profile.json so the operator does not have to author raw runtime state rules.
  */
 function buildDutyBody(slug: string, input: DutyInput): string {
   const inputBullets =
@@ -175,23 +170,23 @@ export const createKodyDutyInputSchema = z.object({
     .describe(
       "Optional implementation executable slug. Omit for normal folder duties that the built-in duty runner should execute.",
     ),
-  staff: z
+  runner: z
     .string()
     .min(1)
     .describe(
-      "Staff persona slug that will run this duty, e.g. `qa` or `cto`. A duty without staff should not auto-run.",
+      "Staff persona slug that will run this duty, e.g. `qa` or `cto`. A duty without runner should not auto-run.",
+    ),
+  reviewer: z
+    .string()
+    .optional()
+    .describe(
+      "Optional staff persona slug responsible for reviewing or handling the duty output.",
     ),
   schedule: z
     .enum(DUTY_SCHEDULE_VALUES)
     .default("1d")
     .describe(
       "Duty profile cadence for `every`. Use `manual` for run-button only, or values like `1h`, `1d`, `7d` for auto-run.",
-    ),
-  stage: z
-    .enum(DUTY_STAGE_TEMPLATE_SLUGS)
-    .default("report-refresh")
-    .describe(
-      "Duty profile progress type for `stage`. For this report-producing tool, `report-refresh` is usually correct.",
     ),
   purpose: z
     .string()
@@ -255,8 +250,8 @@ export function createDutyTools(ctx: Ctx) {
         "scheduled run gathers inputs, composes a YAML findings report, and refreshes " +
         `\`${STATE_BRANCH}:.kody/reports/<slug>.md\`. The kody engine's duty-scheduler ticks every duty folder in ` +
         "`.kody/duties/`; the duty profile's `every` value decides how often it may run.\n\n" +
-        "BEFORE CALLING: gather title, purpose, staff, schedule, stage, inputs (data sources " +
-        "as concrete `gh` commands), and reportSchema (YAML fragment for the " +
+        "BEFORE CALLING: gather title, purpose, runner, reviewer, schedule, output path, inputs (data sources " +
+        "as concrete `gh` commands), and reportSchema when this is a report duty (YAML fragment for the " +
         "`findings:` array). Ask the user clarifying questions in small batches " +
         "until each field is well-specified — never invent inputs or schema. Show " +
         "the proposed profile JSON and markdown body for approval before calling.\n\n" +
@@ -310,8 +305,8 @@ export function createDutyTools(ctx: Ctx) {
             title: input.title,
             body,
             schedule: input.schedule,
-            staff: input.staff,
-            stage: input.stage,
+            runner: input.runner,
+            reviewer: input.reviewer?.trim().replace(/^@/, "") || null,
             action,
             executable,
             message,
@@ -325,8 +320,7 @@ export function createDutyTools(ctx: Ctx) {
               action,
               executable,
               schedule: input.schedule,
-              staff: input.staff,
-              stage: input.stage,
+              runner: input.runner,
               actorLogin,
             },
             "create_kody_duty: created duty folder",

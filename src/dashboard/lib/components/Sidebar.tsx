@@ -36,12 +36,13 @@ import { InboxBadge } from "./InboxBadge";
 import { MessagesBadge } from "./MessagesBadge";
 import { ReportsBadge } from "./ReportsBadge";
 import {
+  DASHBOARD_NAV_ITEM,
   PRIMARY_NAV_ITEMS,
   PRIMARY_NAV_TITLE,
   PREVIEW_NAV_ITEM,
-  PRIMARY_VIEW_ITEMS,
   PRIMARY_VIEW_TITLE,
   SETTINGS_NAV_SECTIONS,
+  TASKS_NAV_ITEM,
   VIBE_NAV_ITEM,
   type SettingsNavItem,
 } from "./settings-nav";
@@ -53,14 +54,81 @@ function iconTintClass(item: SettingsNavItem): string | undefined {
 }
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
-const SIDEBAR_WORKSPACE_HREFS = new Set(["/files", "/docs", "/changelog"]);
 
 type NavItem = SettingsNavItem;
 type SidebarMode = "vibe" | "engineer";
 
 const COLLAPSED_KEY = "kody.sidebar.collapsed";
+const MODE_KEY = "kody.sidebar.mode";
+const NAV_ITEM_BY_HREF = new Map(
+  [
+    DASHBOARD_NAV_ITEM,
+    TASKS_NAV_ITEM,
+    VIBE_NAV_ITEM,
+    PREVIEW_NAV_ITEM,
+    ...PRIMARY_NAV_ITEMS,
+    ...SETTINGS_NAV_SECTIONS.flatMap((section) => section.items),
+  ].map((item) => [item.href, item] as const),
+);
+
+function sidebarItem(href: string): NavItem {
+  const item = NAV_ITEM_BY_HREF.get(href);
+  if (!item) throw new Error(`Missing sidebar item for ${href}`);
+  return item;
+}
+
+function settingsSection(title: string): {
+  title: string;
+  items: readonly NavItem[];
+} {
+  const section = SETTINGS_NAV_SECTIONS.find((item) => item.title === title);
+  if (!section) throw new Error(`Missing sidebar section ${title}`);
+  return section;
+}
+
 const VIBE_MODE_SECTIONS: Array<{ title: string; items: readonly NavItem[] }> =
-  [{ title: "Vibe", items: [VIBE_NAV_ITEM] }];
+  [
+    {
+      title: PRIMARY_VIEW_TITLE,
+      items: [VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
+    },
+    {
+      title: PRIMARY_NAV_TITLE,
+      items: [
+        sidebarItem("/messages"),
+        sidebarItem("/reports"),
+        sidebarItem("/docs"),
+        sidebarItem("/changelog"),
+      ],
+    },
+  ];
+const ENGINEER_MODE_SECTIONS: Array<{
+  title: string;
+  items: readonly NavItem[];
+}> = [
+  {
+    title: PRIMARY_VIEW_TITLE,
+    items: [TASKS_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
+  },
+  settingsSection("Automation"),
+  {
+    title: PRIMARY_NAV_TITLE,
+    items: [
+      sidebarItem("/messages"),
+      sidebarItem("/reports"),
+      sidebarItem("/files"),
+      sidebarItem("/docs"),
+      sidebarItem("/changelog"),
+    ],
+  },
+  settingsSection("Monitoring"),
+  settingsSection("Fly"),
+  settingsSection("Agent"),
+  settingsSection("Company"),
+  settingsSection("Infrastructure"),
+  settingsSection("Alerts"),
+  { title: "General", items: [sidebarItem("/settings")] },
+];
 
 function isActive(pathname: string, search: string, item: NavItem): boolean {
   // Hrefs may include a query string (e.g. "/reports"). Compare the
@@ -74,6 +142,15 @@ function isActive(pathname: string, search: string, item: NavItem): boolean {
   return pathname === hrefPath || pathname.startsWith(`${hrefPath}/`);
 }
 
+function isSidebarMode(value: string | null): value is SidebarMode {
+  return value === "vibe" || value === "engineer";
+}
+
+function defaultModeForPathname(pathname: string): SidebarMode {
+  if (pathname === "/vibe" || pathname.startsWith("/vibe/")) return "vibe";
+  return "engineer";
+}
+
 export function Sidebar() {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
@@ -85,14 +162,18 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [hydrated, setHydrated] = useState<boolean>(false);
   const [query, setQuery] = useState<string>("");
-  const isVibeRoute =
-    pathname === "/vibe" || (pathname?.startsWith("/vibe/") ?? false);
-  const sidebarMode: SidebarMode = isVibeRoute ? "vibe" : "engineer";
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() =>
+    defaultModeForPathname(pathname),
+  );
 
   useEffect(() => {
     try {
       if (window.localStorage.getItem(COLLAPSED_KEY) === "1") {
         setCollapsed(true);
+      }
+      const storedMode = window.localStorage.getItem(MODE_KEY);
+      if (isSidebarMode(storedMode)) {
+        setSidebarMode(storedMode);
       }
     } catch {
       // localStorage unavailable (private mode, etc.) — fall back to defaults
@@ -114,57 +195,26 @@ export function Sidebar() {
 
   const selectSidebarMode = (next: SidebarMode) => {
     if (next === sidebarMode) return;
+    setSidebarMode(next);
     setQuery("");
-    router.push(next === "vibe" ? "/vibe" : "/");
+    try {
+      window.localStorage.setItem(MODE_KEY, next);
+    } catch {
+      // ignore — UI still updates
+    }
+    router.push(next === "vibe" ? "/vibe" : "/tasks");
   };
 
   useEffect(() => {
-    if (sidebarMode === "vibe") setQuery("");
+    setQuery("");
   }, [sidebarMode]);
 
   // Inline filter — narrows the rail's own sections by label/description as
   // the user types. Empty sections drop out so a query collapses the list to
   // just its matches.
   const filteredSections = useMemo(() => {
-    if (sidebarMode === "vibe") return VIBE_MODE_SECTIONS;
-
-    const automationSections = SETTINGS_NAV_SECTIONS.filter(
-      (section) => section.title === "Automation",
-    );
-    const flySections = SETTINGS_NAV_SECTIONS.filter(
-      (section) => section.title === "Fly",
-    );
-    const monitoringSections = SETTINGS_NAV_SECTIONS.filter(
-      (section) => section.title === "Monitoring",
-    );
-    const remainingSettingsSections = SETTINGS_NAV_SECTIONS.filter(
-      (section) =>
-        section.title !== "Automation" &&
-        section.title !== "Fly" &&
-        section.title !== "Monitoring",
-    )
-      .map((section) => ({
-        ...section,
-        items: section.items.filter(
-          (item) => !SIDEBAR_WORKSPACE_HREFS.has(item.href),
-        ),
-      }))
-      .filter((section) => section.items.length > 0);
-    const sidebarViewItems = [...PRIMARY_VIEW_ITEMS, PREVIEW_NAV_ITEM];
-    const repoWorkspaceItems = SETTINGS_NAV_SECTIONS.flatMap(
-      (section) => section.items,
-    ).filter((item) => SIDEBAR_WORKSPACE_HREFS.has(item.href));
-    const sidebarWorkspaceItems = PRIMARY_NAV_ITEMS.filter(
-      (item) => item.href !== PREVIEW_NAV_ITEM.href,
-    ).concat(repoWorkspaceItems);
-    const all = [
-      { title: PRIMARY_VIEW_TITLE, items: sidebarViewItems },
-      ...automationSections,
-      { title: PRIMARY_NAV_TITLE, items: sidebarWorkspaceItems },
-      ...monitoringSections,
-      ...flySections,
-      ...remainingSettingsSections,
-    ];
+    const all =
+      sidebarMode === "vibe" ? VIBE_MODE_SECTIONS : ENGINEER_MODE_SECTIONS;
     const q = query.trim().toLowerCase();
     if (!q) return all;
     return all
@@ -276,13 +326,13 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
+        <div className="pb-2">{renderLink(DASHBOARD_NAV_ITEM)}</div>
+
         <div className="pb-2">
           {collapsed ? (
             <SimpleTooltip
               content={
-                sidebarMode === "vibe"
-                  ? "Switch to Engineer"
-                  : "Switch to Vibe"
+                sidebarMode === "vibe" ? "Switch to Engineer" : "Switch to Vibe"
               }
               side="right"
             >

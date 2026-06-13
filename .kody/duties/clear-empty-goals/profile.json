@@ -2,8 +2,7 @@
   "name": "clear-empty-goals",
   "describe": "Clear Empty Goals",
   "every": "1d",
-  "staff": "coo",
-  "stage": "simple-check",
+  "runner": "coo",
   "executables": [
     "clear-empty-goals"
   ],

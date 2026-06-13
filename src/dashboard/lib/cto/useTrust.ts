@@ -88,7 +88,7 @@ export function useTrust(): UseTrustResult {
     };
     const dutyLinks = (dutiesQuery.data ?? []).map((d) => ({
       slug: d.slug,
-      staff: d.staff,
+      staff: d.runner,
     }));
     return summarizeTrust(manifest, dutyLinks);
   }, [trustQuery.data, dutiesQuery.data]);

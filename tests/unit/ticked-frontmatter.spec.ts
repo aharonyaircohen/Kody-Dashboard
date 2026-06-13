@@ -21,13 +21,13 @@ describe("splitFrontmatter", () => {
     expect(body).toBe("# Just a heading\n");
   });
 
-  it("parses every / disabled / staff and strips the block from the body", () => {
+  it("parses every / disabled / runner and strips the block from the body", () => {
     const raw =
-      "---\nevery: 1h\nstaff: triage-bot\ndisabled: true\n---\nDo the thing\n";
+      "---\nevery: 1h\nrunner: triage-bot\ndisabled: true\n---\nDo the thing\n";
     const { frontmatter, body } = splitFrontmatter(raw);
     expect(frontmatter).toEqual({
       every: "1h",
-      staff: "triage-bot",
+      runner: "triage-bot",
       disabled: true,
     });
     expect(body).toBe("Do the thing\n");
@@ -58,19 +58,19 @@ describe("splitFrontmatter", () => {
     ).toBeUndefined();
   });
 
-  it("ignores comments and unknown keys", () => {
+  it("ignores comments, unknown keys, and legacy duty stage metadata", () => {
     const { frontmatter } = splitFrontmatter(
-      "---\n# a comment\nevery: 6h\nunknown: value\n---\nbody",
+      "---\n# a comment\nevery: 6h\nstage: report-refresh\nunknown: value\n---\nbody",
     );
     expect(frontmatter).toEqual({ every: "6h" });
   });
 
   it("strips surrounding quotes from values", () => {
     expect(
-      splitFrontmatter('---\nstaff: "my-bot"\n---\nx').frontmatter.staff,
+      splitFrontmatter('---\nrunner: "my-bot"\n---\nx').frontmatter.runner,
     ).toBe("my-bot");
     expect(
-      splitFrontmatter("---\nstaff: 'my-bot'\n---\nx").frontmatter.staff,
+      splitFrontmatter("---\nrunner: 'my-bot'\n---\nx").frontmatter.runner,
     ).toBe("my-bot");
   });
 
@@ -125,14 +125,6 @@ describe("splitFrontmatter", () => {
     expect(frontmatter.writesTo).toEqual(["ci-health-graph"]);
   });
 
-  it("parses a valid duty stage template and drops unknown stages", () => {
-    expect(
-      splitFrontmatter("---\nstage: report-refresh\n---\nx").frontmatter.stage,
-    ).toBe("report-refresh");
-    expect(
-      splitFrontmatter("---\nstage: make-it-so\n---\nx").frontmatter.stage,
-    ).toBeUndefined();
-  });
 });
 
 describe("joinFrontmatter", () => {
@@ -141,9 +133,9 @@ describe("joinFrontmatter", () => {
   });
 
   it("emits a block with fields in a stable order, omitting disabled:false", () => {
-    const fm: TickFrontmatter = { every: "2h", staff: "bot", disabled: false };
+    const fm: TickFrontmatter = { every: "2h", runner: "bot", disabled: false };
     const out = joinFrontmatter(fm, "body");
-    expect(out).toBe("---\nevery: 2h\nstaff: bot\n---\n\nbody");
+    expect(out).toBe("---\nevery: 2h\nrunner: bot\n---\n\nbody");
   });
 
   it("emits disabled:true explicitly", () => {
@@ -152,11 +144,29 @@ describe("joinFrontmatter", () => {
     );
   });
 
-  it("emits mentions as a comma-joined line after staff, no @", () => {
-    const fm: TickFrontmatter = { staff: "bot", mentions: ["alice", "bob"] };
+  it("emits mentions as a comma-joined line after reviewer, no @", () => {
+    const fm: TickFrontmatter = { runner: "bot", mentions: ["alice", "bob"] };
     expect(joinFrontmatter(fm, "body")).toBe(
-      "---\nstaff: bot\nmentions: alice, bob\n---\n\nbody",
+      "---\nrunner: bot\nmentions: alice, bob\n---\n\nbody",
     );
+  });
+
+  it("emits reviewer after runner and strips @", () => {
+    const fm: TickFrontmatter = { runner: "bot", reviewer: "@qa" };
+    expect(joinFrontmatter(fm, "body")).toBe(
+      "---\nrunner: bot\nreviewer: qa\n---\n\nbody",
+    );
+    expect(
+      splitFrontmatter("---\nrunner: bot\nreviewer: @qa\n---\nbody")
+        .frontmatter,
+    ).toMatchObject({ runner: "bot", reviewer: "qa" });
+  });
+
+  it("reads legacy staff as runner but does not turn assignee into reviewer", () => {
+    expect(
+      splitFrontmatter("---\nstaff: bot\nassignee: @qa\n---\nbody")
+        .frontmatter,
+    ).toEqual({ runner: "bot" });
   });
 
   it("omits the mentions line when the array is empty", () => {
@@ -169,7 +179,7 @@ describe("joinFrontmatter", () => {
   it("round-trips through splitFrontmatter", () => {
     const fm: TickFrontmatter = {
       every: "7d",
-      staff: "weekly",
+      runner: "weekly",
       disabled: true,
     };
     const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
@@ -179,7 +189,7 @@ describe("joinFrontmatter", () => {
   it("round-trips mentions through splitFrontmatter", () => {
     const fm: TickFrontmatter = {
       every: "1d",
-      staff: "weekly",
+      runner: "weekly",
       mentions: ["alice", "bob"],
     };
     const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
@@ -191,8 +201,8 @@ describe("joinFrontmatter", () => {
       action: "repo-graph",
       executable: "repo-graph-refresh",
       every: "1h",
-      staff: "kody",
-      stage: "sweep",
+      runner: "kody",
+      reviewer: "qa",
       mentions: ["alice"],
       executables: ["db-worker", "api-worker"],
       dutyTools: ["list_prs_to_repair", "sync_pr"],
@@ -207,8 +217,8 @@ describe("joinFrontmatter", () => {
         "action: repo-graph",
         "executable: repo-graph-refresh",
         "every: 1h",
-        "staff: kody",
-        "stage: sweep",
+        "runner: kody",
+        "reviewer: qa",
         "mentions: alice",
         "executables: db-worker, api-worker",
         "tools: list_prs_to_repair, sync_pr",

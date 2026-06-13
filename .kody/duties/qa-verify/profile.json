@@ -2,8 +2,7 @@
   "name": "qa-verify",
   "describe": "QA Fix Verification",
   "every": "30m",
-  "staff": "qa",
-  "stage": "approval-gate",
+  "runner": "qa",
   "executables": [
     "qa-verify"
   ]

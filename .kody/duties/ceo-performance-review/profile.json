@@ -1,9 +1,10 @@
 {
   "name": "ceo-performance-review",
   "describe": "CEO Performance Review",
-  "action": "ceo-performance-review",
-  "executable": "ceo-performance-review",
   "every": "7d",
   "runner": "ceo",
-  "reviewer": "ceo"
+  "reviewer": "ceo",
+  "executables": [
+    "ceo-performance-review"
+  ]
 }

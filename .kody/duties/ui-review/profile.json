@@ -1,0 +1,8 @@
+{
+  "name": "ui-review",
+  "describe": "UI Review",
+  "action": "ui-review",
+  "every": "manual",
+  "runner": "ux-designer",
+  "executable": "ui-review"
+}

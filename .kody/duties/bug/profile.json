@@ -1,0 +1,8 @@
+{
+  "name": "bug",
+  "describe": "Bug Fix",
+  "action": "bug",
+  "every": "manual",
+  "runner": "kody",
+  "executable": "bug"
+}
