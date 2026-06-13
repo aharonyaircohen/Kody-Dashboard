@@ -10,6 +10,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
 } from "@dashboard/lib/auth";
+import { createIssueWithBestEffortMetadata } from "@dashboard/lib/github-issue-create";
 
 function buildScenarioIssueBody(input: {
   category: string;
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const issue = await octokit.rest.issues.create({
+    const issue = await createIssueWithBestEffortMetadata(octokit, {
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       title,
@@ -99,6 +100,7 @@ export async function POST(request: NextRequest) {
       success: true,
       number: issue.data.number,
       url: issue.data.html_url,
+      warnings: issue.metadataWarnings,
     });
   } catch (error) {
     console.error("Failed to create GitHub issue:", error);

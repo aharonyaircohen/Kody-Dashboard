@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js
+.next/
+out/
+
+# Build
+dist/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+.history/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Vercel
+.vercel
+
+# Kody action state (legacy local-FS store — now GitHub-backed)
+.kody-action-store/
+
+# Test results
+test-results/
+
+# Coverage
+coverage/
+_tmp-drive.mjs

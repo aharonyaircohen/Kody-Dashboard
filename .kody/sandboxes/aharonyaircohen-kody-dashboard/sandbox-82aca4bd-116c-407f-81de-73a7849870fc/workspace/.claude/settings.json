@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s https://kody-dashboard-sable.vercel.app/api/kody/prs)",
+      "Bash(git -C /Users/aguy/projects/Kody-Dashboard diff src/dashboard/lib/agents.ts src/dashboard/lib/components/KodyChat.tsx)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(mkdir -p /Users/aguy/.claude/output-styles)",
+      "Read(//Users/aguy/.claude/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/aguy/.claude/output-styles",
+      "/Users/aguy/.claude"
+    ]
+  }
+}

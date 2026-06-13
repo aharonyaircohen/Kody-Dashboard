@@ -19,6 +19,7 @@ import {
 } from "./constants";
 import { isProtectedBranch } from "./branches";
 import { STATE_BRANCH } from "./state-branch";
+import { createIssueWithBestEffortMetadata } from "./github-issue-create";
 import {
   parseActivityJsonl,
   sortActivityNewestFirst,
@@ -2975,7 +2976,7 @@ export async function createIssue(
 ): Promise<GitHubIssue> {
   const octokit = userOctokit ?? getOctokit();
 
-  const { data } = await octokit.issues.create({
+  const { data } = await createIssueWithBestEffortMetadata(octokit, {
     owner: getOwner(),
     repo: getRepo(),
     title: options.title,

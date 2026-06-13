@@ -256,6 +256,8 @@ If your research turned up nothing relevant (the goal is greenfield in this code
 If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create the listed numbers. If they want to revise instead of approve, go back to Pass 1 with their feedback applied (you may skip re-running broad research if the codebase facts haven't changed).
 
 ### Hard rules
+
+- **Clarifying questions are rare.** Use repo evidence and sensible defaults for minor missing details. Ask at most one clarifying question, and only when the answer changes scope, data safety, user-facing behavior, or acceptance criteria. Do not ask about wording, naming, priority, file choice, labels, or other details runner can infer from code. If there is no blocking question, ask only for approval.
 - Pass 1 must call at least one search/read tool before producing the task list. A list with no \`### What's already in the repo\` block is malformed.
 - Do not call \`create_task_for_goal\` until the user explicitly approves.
 - Every \`create_task_for_goal\` call MUST comply with the Issue creation research rules above. Generic, codebase-agnostic specs are not acceptable.
@@ -340,6 +342,7 @@ If a \`## Current task\` block is present below, the issue **already exists** �
 
 ### Hard rules
 
+- **Clarifying questions are rare.** Use repo evidence and sensible defaults for minor missing details. Ask at most one clarifying question, and only when the answer changes scope, data safety, user-facing behavior, or acceptance criteria. Do not ask about wording, naming, priority, file choice, labels, or details runner can infer from code. If there is no blocking question, ask only for approval.
 - **Never** post \`@kody ...\` comments on issues or PRs. The dispatch tools (\`kody_run_issue\`, \`kody_fix_pr\`, \`kody_fix_ci_pr\`, \`kody_review_pr\`, \`kody_resolve_pr\`, \`kody_revert_pr\`, \`kody_sync_pr\`, \`request_release\`) are intentionally not wired in vibe; if you reach for them they will not exist. Do not narrate posting them either.
 - Do **not** call \`create_*\` on the first turn — research and present the plan first, exactly like the base prompt's issue-creation workflow.
 - Call \`vibe_start_execution\` IMMEDIATELY after the create-issue tool succeeds in the same turn — one approval is enough. The user's plan approval in step 3 covers both issue creation AND execution. Never ask for a second "ship it / run it / go" confirmation. Never prompt the user to pick between Live and Fly — read the Runner availability block below and pass the right \`targetAgent\` yourself. The only valid reason to NOT call \`vibe_start_execution\` after creating the issue is if the user explicitly said "just create the issue, don't run it" (or similar) during the plan phase.

@@ -1,0 +1,246 @@
+"use client";
+/**
+ * @fileType component
+ * @domain kody
+ * @pattern inbox-thread-dialog
+ * @ai-summary Modal that renders an inbox entry's GitHub thread (Issue or
+ *   PR body + comments) inside the dashboard so the user reads it here
+ *   instead of being bounced to github.com. A prominent "Open on GitHub"
+ *   link stays in the header for users who do want the source. Only
+ *   Issue/PullRequest are resolvable inline; other thread types never open
+ *   this dialog (InboxList opens github.com directly for them).
+ */
+import { useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Check, ExternalLink, Link2, Loader2 } from "lucide-react";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@dashboard/ui/dialog";
+import { useAuth, buildAuthHeaders } from "../auth-context";
+import type { InboxEntry } from "../inbox/types";
+import { buildThreadShareLink } from "../inbox/deep-link";
+import type { GitHubComment } from "../types";
+import { CommentList } from "./CommentList";
+import { MarkdownViewer } from "./MarkdownViewer";
+
+interface ThreadResponse {
+  thread: {
+    title: string;
+    body: string;
+    state: string;
+    htmlUrl: string;
+    createdAt: string;
+    comments: GitHubComment[];
+  };
+}
+
+/** Parse `Issue`/`PullRequest` + number out of an inbox entry, or null. */
+type ResolvableType = "Issue" | "PullRequest" | "Discussion";
+
+export function resolvableThread(
+  entry: InboxEntry,
+  connectedRepo: string | undefined,
+): { type: ResolvableType; number: number } | null {
+  if (
+    entry.threadType !== "Issue" &&
+    entry.threadType !== "PullRequest" &&
+    entry.threadType !== "Discussion"
+  ) {
+    return null;
+  }
+  // The inline fetch is scoped to the connected repo's GitHub context.
+  // GitHub's notification payload uses canonical repo casing, which can
+  // differ from how the connected repo is stored — compare case-insensitively.
+  if (
+    connectedRepo &&
+    entry.repoFullName.toLowerCase() !== connectedRepo.toLowerCase()
+  ) {
+    return null;
+  }
+
+  const m = entry.url.match(/\/(?:issues|pull|discussions)\/(\d+)/);
+  if (!m) return null;
+  return { type: entry.threadType, number: Number(m[1]) };
+}
+
+interface InboxThreadDialogProps {
+  entry: InboxEntry | null;
+  onClose: () => void;
+  /**
+   * Optional sticky footer (e.g. CTO Approve/Reject for a recommendation
+   * entry). The dialog stays presentation-only — the caller owns the
+   * action logic and just hands us the rendered controls.
+   */
+  footer?: ReactNode;
+}
+
+export function InboxThreadDialog({
+  entry,
+  onClose,
+  footer,
+}: InboxThreadDialogProps) {
+  const { auth } = useAuth();
+  const target = entry
+    ? resolvableThread(entry, auth ? `${auth.owner}/${auth.repo}` : undefined)
+    : null;
+
+  const query = useQuery<ThreadResponse>({
+    queryKey: [
+      "inbox-thread",
+      auth?.owner,
+      auth?.repo,
+      target?.type,
+      target?.number,
+    ],
+    enabled: !!entry && !!target && !!auth,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const headers = buildAuthHeaders(auth);
+      const res = await fetch(
+        `/api/kody/inbox/thread?type=${target!.type}&number=${target!.number}`,
+        { headers },
+      );
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Thread fetch failed (${res.status})`);
+      }
+      return res.json();
+    },
+  });
+
+  const thread = query.data?.thread;
+  const githubUrl = thread?.htmlUrl ?? entry?.url ?? "#";
+
+  // GitHub appends the triggering comment to the entry URL as a hash
+  // anchor (#issuecomment-N / #discussioncomment-N). Pull the id so the
+  // comment list can focus exactly the comment this inbox item describes.
+  const targetCommentId = (() => {
+    const m = entry?.url.match(/#(?:issue|discussion)comment-(\d+)/);
+    return m ? Number(m[1]) : undefined;
+  })();
+
+  const [copied, setCopied] = useState(false);
+  const copyShareLink = async () => {
+    if (!target || typeof window === "undefined") return;
+    const link = buildThreadShareLink(
+      window.location.origin,
+      target.type,
+      target.number,
+    );
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard blocked (insecure context / denied) — fall back to a
+      // prompt so the user can still grab the link manually.
+      window.prompt("Copy this link", link);
+    }
+  };
+
+  return (
+    <Dialog open={!!entry} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <div className="flex items-start justify-between gap-3 pr-6">
+            <DialogTitle className="text-base leading-snug">
+              {thread?.title || entry?.title || "Thread"}
+            </DialogTitle>
+            <div className="shrink-0 flex items-center gap-3">
+              {target && (
+                <button
+                  type="button"
+                  onClick={copyShareLink}
+                  className="inline-flex items-center gap-1 text-xs text-white/50 hover:text-white/80"
+                  title="Copy a shareable dashboard link to this thread"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3 h-3" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="w-3 h-3" />
+                      Copy link
+                    </>
+                  )}
+                </button>
+              )}
+              <a
+                href={githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200"
+              >
+                Open on GitHub
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+          {entry && (
+            <p className="text-[11px] text-white/40">
+              {entry.repoFullName} · {entry.threadType}
+              {thread?.state ? ` · ${thread.state}` : ""}
+            </p>
+          )}
+        </DialogHeader>
+
+        <div className="overflow-y-auto flex-1 space-y-4 pr-1">
+          {query.isLoading && (
+            <div className="flex items-center justify-center py-12 text-white/50">
+              <Loader2 className="w-5 h-5 animate-spin" />
+            </div>
+          )}
+
+          {query.isError && (
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/[0.06] p-3 text-xs text-rose-200">
+              Couldn&apos;t load this thread inline. Use{" "}
+              <a
+                href={githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                Open on GitHub
+              </a>{" "}
+              instead.
+            </div>
+          )}
+
+          {thread && (
+            <>
+              {thread.body ? (
+                <MarkdownViewer content={thread.body} title="Description" />
+              ) : (
+                <p className="text-xs text-white/40 italic">No description.</p>
+              )}
+
+              {thread.comments.length > 0 && (
+                <div>
+                  <h3 className="text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-2">
+                    Comments ({thread.comments.length})
+                  </h3>
+                  <CommentList
+                    comments={thread.comments}
+                    targetCommentId={targetCommentId}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {footer && (
+          <div className="border-t border-white/10 pt-3 mt-1 flex items-center justify-end gap-2">
+            {footer}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

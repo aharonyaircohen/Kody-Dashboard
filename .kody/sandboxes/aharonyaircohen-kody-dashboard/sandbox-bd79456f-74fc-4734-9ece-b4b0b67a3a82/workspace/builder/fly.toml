@@ -1,0 +1,16 @@
+# Fly app config used ONLY to host the builder image in the Fly registry.
+# No service runs here. The dashboard pulls this image when spawning
+# per-build Fly Machines elsewhere.
+#
+# To push a new builder image after editing src/ or default-Dockerfile.preview:
+#   flyctl deploy -c builder/fly.toml --app kody-preview-builder --build-only --push --image-label latest
+
+app = "kody-preview-builder"
+primary_region = "fra"
+
+[env]
+  kody_pr = ""  # set via fly secrets set
+  kody_repo_context = ""  # set via fly secrets set
+
+[build]
+  dockerfile = "Dockerfile"

@@ -1,0 +1,15 @@
+{
+  "name": "kody-preview-builder",
+  "version": "0.2.0",
+  "description": "One-shot CLI run as a per-build Fly Machine: clone repo+ref, build Dockerfile.preview, push image to Fly registry. No long-running service.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node --experimental-strip-types src/builder.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.2"
+  }
+}

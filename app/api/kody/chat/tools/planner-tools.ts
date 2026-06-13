@@ -17,6 +17,7 @@ import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@dashboard/lib/logger";
 import { PRIORITY_LEVELS, type PriorityLevel } from "@dashboard/lib/constants";
+import { createIssueWithBestEffortMetadata } from "@dashboard/lib/github-issue-create";
 import {
   CATEGORY_LABEL,
   CATEGORY_VALUES,
@@ -33,6 +34,10 @@ interface Ctx {
   actorLogin: string | null;
   /** The goal id this planner session is scoped to (becomes `goal:<id>` label). */
   goalId: string;
+}
+
+function appendWarnings(note: string, warnings: string[]): string {
+  return warnings.length ? `${note} ${warnings.join(" ")}` : note;
 }
 
 // Mirror of GOAL_LABEL_PREFIX in src/dashboard/lib/goals.ts. Duplicated here
@@ -85,14 +90,15 @@ export function createPlannerTools(ctx: Ctx) {
               ? [actorLogin]
               : undefined;
         try {
-          const { data } = await octokit.rest.issues.create({
-            owner,
-            repo,
-            title: input.title,
-            body,
-            labels,
-            assignees: resolvedAssignees,
-          });
+          const { data, metadataWarnings } =
+            await createIssueWithBestEffortMetadata(octokit, {
+              owner,
+              repo,
+              title: input.title,
+              body,
+              labels,
+              assignees: resolvedAssignees,
+            });
           logger.info(
             { owner, repo, number: data.number, goalId, category, priority },
             "create_task_for_goal: created issue",
@@ -109,9 +115,11 @@ export function createPlannerTools(ctx: Ctx) {
             category,
             categoryLabel: CATEGORY_LABEL[category],
             goalId,
-            note:
+            note: appendWarnings(
               `${CATEGORY_LABEL[category]} task filed and attached to goal "${goalId}". ` +
-              "Kody pipeline NOT auto-triggered — comment `@kody` on the issue to run it.",
+                "Kody pipeline NOT auto-triggered — comment `@kody` on the issue to run it.",
+              metadataWarnings,
+            ),
           };
         } catch (err) {
           logger.warn(

@@ -1,0 +1,895 @@
+@import 'tailwindcss';
+@import 'highlight.js/styles/github-dark.css';
+@import '@xterm/xterm/css/xterm.css';
+@config "../../tailwind.config.mjs";
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: unset;
+    font-weight: unset;
+  }
+
+  :root,
+  [data-theme='light'] {
+    /* Base: warm "paper" ground — soft, non-clinical, lets white cards lift */
+    --background: 30 24% 97%; /* #f9f7f4 */
+    --foreground: 24 14% 13%; /* #241f1c warm near-black */
+
+    /* Card: pure white for elevated surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 24 14% 13%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 14% 13%;
+
+    /* Primary: brand burgundy, balanced for AA contrast on white */
+    --primary: 353 66% 41%; /* #ad303b */
+    --primary-soft: 353 64% 96%; /* #fbe9eb - light wash for hover states */
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: warm neutral surface */
+    --secondary: 30 14% 92%; /* #ece8e3 */
+    --secondary-foreground: 24 12% 22%;
+
+    /* Muted: hover/zebra surfaces and secondary text */
+    --muted: 30 16% 94%; /* #f0ece7 */
+    --muted-foreground: 25 8% 40%; /* #6b635d */
+
+    /* Accent: subtle brand-tinted wash for selected/active (was stray indigo) */
+    --accent: 353 44% 95%; /* #f7e9eb */
+    --accent-foreground: 353 54% 33%; /* #8a2f37 */
+
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Border: warm, visible enough to define structure without harshness */
+    --border: 24 14% 14% / 0.11; /* warm rgba ~0.11 */
+    --input: 30 18% 98%; /* #fbf9f6 */
+
+    /* Focus ring follows primary */
+    --ring: 353 66% 41%;
+
+    /* Elevation - warm-tinted layered shadows for real depth */
+    --shadow-card: 0 1px 2px 0 rgb(40 33 28 / 0.05), 0 1px 3px 0 rgb(40 33 28 / 0.07);
+    --shadow-card-hover: 0 4px 8px -2px rgb(40 33 28 / 0.1), 0 2px 6px -2px rgb(40 33 28 / 0.07);
+    --shadow-modal: 0 24px 48px -12px rgb(40 33 28 / 0.22);
+    --shadow-dropdown: 0 10px 16px -4px rgb(40 33 28 / 0.12), 0 4px 8px -4px rgb(40 33 28 / 0.08);
+
+    /* Radius system */
+    --radius: 0.75rem; /* 12px - default */
+
+    --success: 142 64% 36%;
+    --warning: 32 90% 42%;
+    --error: 0 70% 47%;
+
+    /* Badge colors - for course categories */
+    --badge-orange: 25 95% 53%; /* Orange badge */
+    --badge-orange-bg: 24 95% 97%; /* Light orange background */
+
+    /* Semantic colors - components use these */
+    --header-bg: var(--card);
+    --header-fg: var(--card-foreground);
+    --footer-bg: var(--card);
+
+    /* Interactive element states - neutral hover, brand-tied selection */
+    --hover-bg: var(--muted);
+    --selected-bg: var(--accent);
+    --selected-fg: var(--accent-foreground);
+
+    /* Form elements - slightly altered background for visual distinction */
+    --form-bg: var(--input);
+    --form-border: var(--border);
+    --form-placeholder: var(--muted-foreground);
+
+    /* Command palette / Modals */
+    --surface-elevated: var(--background);
+    --surface-elevated-fg: var(--foreground);
+
+    /* Text highlight tokens - for markdown ::text-highlight-N{} syntax */
+    --text-highlight-1: 0 72% 51%; /* Red */
+    --text-highlight-2: 25 95% 53%; /* Orange */
+    --text-highlight-3: 45 93% 47%; /* Yellow */
+    --text-highlight-4: 142 71% 45%; /* Green */
+    --text-highlight-5: 217 91% 60%; /* Blue */
+    --text-highlight-6: 271 91% 65%; /* Purple */
+    --text-highlight-7: 330 81% 60%; /* Pink */
+    --text-highlight-8: 220 8% 45%; /* Gray */
+
+    /* Course tab accent colors */
+    --tab-learn: 217 91% 60%; /* Blue */
+    --tab-practice: 0 72% 51%; /* Red */
+    --tab-exams: 330 81% 60%; /* Pink */
+    --tab-ask: 142 71% 45%; /* Green */
+  }
+
+  [data-theme='dark'] {
+    /* Deep navy blue background - slightly darker for depth */
+    --background: 222 47% 7%;
+    --foreground: 210 40% 98%;
+
+    /* Card surfaces - slightly elevated from background */
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    /* Primary: vibrant coral-red (brand-aligned with light mode burgundy) */
+    --primary: 353 73% 56%;
+    --primary-soft: 353 73% 15%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: muted blue-gray (different from muted) */
+    --secondary: 220 25% 16%;
+    --secondary-foreground: 210 40% 90%;
+
+    /* Muted: dark gray-blue */
+    --muted: 215 20% 14%;
+    --muted-foreground: 215 15% 60%;
+
+    /* Accent: brand-tinted surface for selected/active (matches light mode) */
+    --accent: 353 42% 24%;
+    --accent-foreground: 353 78% 85%;
+
+    --destructive: 0 70% 35%;
+    --destructive-foreground: 0 0% 95%;
+
+    /* Borders - subtle borders with alpha */
+    --border: 222 25% 18% / 0.7;
+    --input: 222 20% 14%;
+
+    /* Focus ring follows primary */
+    --ring: 353 73% 56%;
+
+    /* Shadow system - darker shadows for dark mode */
+    --shadow-card: 0 4px 16px 0 rgb(0 0 0 / 0.3);
+    --shadow-card-hover: 0 8px 24px 0 rgb(0 0 0 / 0.4);
+    --shadow-modal: 0 20px 40px -10px rgb(0 0 0 / 0.5);
+    --shadow-dropdown: 0 8px 12px -2px rgb(0 0 0 / 0.3), 0 4px 8px -2px rgb(0 0 0 / 0.2);
+
+    /* Semantic colors - optimized for dark background visibility */
+    --success: 158 64% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 90% 50%;
+    --warning-foreground: 0 0% 10%;
+    --error: 0 72% 45%;
+    --error-foreground: 0 0% 100%;
+
+    /* Badge colors - for course categories */
+    --badge-orange: 25 95% 60%;
+    --badge-orange-bg: 25 90% 15%;
+
+    /* Semantic colors - components use these */
+    --header-bg: var(--card);
+    --header-fg: var(--card-foreground);
+    --footer-bg: var(--card);
+
+    /* Interactive element states - neutral hover, brand-tied selection */
+    --hover-bg: 222 25% 16%;
+    --selected-bg: var(--accent);
+    --selected-fg: var(--accent-foreground);
+
+    /* Form elements - slightly altered background for visual distinction */
+    --form-bg: var(--card);
+    --form-border: var(--border);
+    --form-placeholder: var(--muted-foreground);
+
+    /* Command palette / Modals */
+    --surface-elevated: var(--card);
+    --surface-elevated-fg: var(--card-foreground);
+
+    /* Text highlight tokens - for markdown ::text-highlight-N{} syntax */
+    --text-highlight-1: 0 72% 51%; /* Red */
+    --text-highlight-2: 25 95% 53%; /* Orange */
+    --text-highlight-3: 45 93% 47%; /* Yellow */
+    --text-highlight-4: 142 71% 45%; /* Green */
+    --text-highlight-5: 217 91% 60%; /* Blue */
+    --text-highlight-6: 271 91% 65%; /* Purple */
+    --text-highlight-7: 330 81% 60%; /* Pink */
+    --text-highlight-8: 220 8% 45%; /* Gray */
+
+    /* Course tab accent colors */
+    --tab-learn: 217 91% 60%; /* Blue */
+    --tab-practice: 0 72% 51%; /* Red */
+    --tab-exams: 330 81% 60%; /* Pink */
+    --tab-ask: 142 71% 45%; /* Green */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground min-h-[100vh] flex flex-col;
+    font-family:
+      'Assistant',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      sans-serif;
+  }
+}
+
+/* ===================================================================
+   Light-mode utility remaps
+
+   The dashboard has ~90 hardcoded `bg-white/x`, `border-white/x`, and
+   `bg-black/x` classes baked into components — they were tuned for dark
+   surfaces. In light mode `bg-white/[0.06]` is invisible and `bg-black/20`
+   reads as muddy gray. These overrides remap the common patterns to subtle
+   neutral grays that read correctly on a light background, without
+   touching any component file. Dark mode is unaffected because the
+   selector is scoped to [data-theme='light'].
+   =================================================================== */
+
+[data-theme='light'] {
+  /* white/x backgrounds → soft neutral fills that show on light bg */
+  .bg-white\/\[0\.01\],
+  .bg-white\/\[0\.02\],
+  .bg-white\/\[0\.03\] {
+    background-color: rgb(40 33 28 / 0.025);
+  }
+  .bg-white\/\[0\.04\],
+  .bg-white\/\[0\.06\],
+  .bg-white\/5 {
+    background-color: rgb(40 33 28 / 0.04);
+  }
+  .bg-white\/\[0\.08\],
+  .bg-white\/\[0\.1\],
+  .bg-white\/10,
+  .bg-white\/\[0\.12\] {
+    background-color: rgb(40 33 28 / 0.06);
+  }
+  .hover\:bg-white\/\[0\.04\]:hover,
+  .hover\:bg-white\/\[0\.06\]:hover,
+  .hover\:bg-white\/\[0\.08\]:hover,
+  .hover\:bg-white\/5:hover,
+  .hover\:bg-white\/10:hover {
+    background-color: rgb(40 33 28 / 0.06);
+  }
+
+  /* white/x borders → visible neutral borders */
+  .border-white\/\[0\.04\],
+  .border-white\/\[0\.06\],
+  .border-white\/\[0\.08\] {
+    border-color: rgb(40 33 28 / 0.08);
+  }
+  .border-white\/\[0\.1\],
+  .border-white\/10,
+  .border-white\/\[0\.12\],
+  .border-white\/\[0\.18\] {
+    border-color: rgb(40 33 28 / 0.12);
+  }
+  .hover\:border-white\/\[0\.18\]:hover,
+  .hover\:border-white\/10:hover {
+    border-color: rgb(40 33 28 / 0.18);
+  }
+
+  /* black/x backgrounds → light mode equivalents
+     Used for chat headers, modal backdrops, and (importantly) the
+     Notifications page background. */
+  .bg-black\/5,
+  .bg-black\/10 {
+    background-color: rgb(40 33 28 / 0.04);
+  }
+  .bg-black\/20,
+  .bg-black\/30 {
+    /* Used as section header tints — pick a soft warm surface, not gray haze */
+    background-color: hsl(30 16% 93%);
+  }
+  /* bg-black/95 is used as a page-level background on /notifications.
+     In light mode it must become the page bg, not a dim overlay. */
+  .bg-black\/95 {
+    background-color: hsl(30 24% 97%);
+  }
+  /* bg-black/80 and bg-black/90 are genuine modal/preview dimming overlays
+     — keep them as a dark scrim so modals still pop above content. */
+  .bg-black\/80,
+  .bg-black\/90 {
+    background-color: rgb(40 33 28 / 0.55);
+  }
+
+  /* ----- Text on previously-dark surfaces -----
+     `text-white/X` is everywhere on pages designed dark-first. In light
+     mode these need to flip to dark-on-light with matching contrast. */
+  .text-white {
+    color: hsl(24 14% 13%);
+  }
+  .text-white\/90 {
+    color: hsl(24 13% 16%);
+  }
+  .text-white\/70,
+  .text-white\/60 {
+    color: hsl(25 9% 34%);
+  }
+  .text-white\/50,
+  .text-white\/40 {
+    color: hsl(25 7% 46%);
+  }
+  .text-white\/30,
+  .text-white\/20 {
+    color: hsl(25 6% 60%);
+  }
+
+  /* white solid fills used for toggle thumbs, progress bars — keep light */
+  .bg-white\/40,
+  .bg-white\/15 {
+    background-color: hsl(30 10% 74%);
+  }
+
+  /* ----- Sky / rose accent palettes used on this page ----- */
+  .text-sky-400,
+  .text-sky-300 {
+    color: rgb(2 132 199); /* sky-600 */
+  }
+  .bg-sky-400,
+  .bg-sky-400\/70 {
+    background-color: rgb(56 189 248);
+  }
+  .bg-sky-500\/10,
+  .bg-sky-500\/\[0\.04\] {
+    background-color: rgb(14 165 233 / 0.1);
+  }
+  .bg-sky-500\/15 {
+    background-color: rgb(14 165 233 / 0.14);
+  }
+
+  .text-rose-400,
+  .text-rose-300,
+  .text-rose-200\/70 {
+    color: rgb(190 18 60); /* rose-700 */
+  }
+  .bg-rose-500\/\[0\.04\] {
+    background-color: rgb(244 63 94 / 0.08);
+  }
+  .bg-rose-950\/20 {
+    background-color: rgb(244 63 94 / 0.08);
+  }
+  .border-rose-500\/30,
+  .border-rose-500\/40 {
+    border-color: rgb(244 63 94 / 0.3);
+  }
+
+  /* ----- Status text colors -----
+     `text-{color}-400` / `-300` are tuned for dark backgrounds. On light
+     bg they fade out — remap to `-600/-700` shades for proper contrast.
+     We don't touch the base `bg-{color}-500` solids because those are
+     always meant to be vibrant. */
+  .text-red-400,
+  .text-red-400\/80 {
+    color: rgb(185 28 28);
+  }
+  .text-red-300,
+  .text-red-500 {
+    color: rgb(220 38 38);
+  }
+  .text-blue-400,
+  .text-blue-300,
+  .text-blue-200 {
+    color: rgb(29 78 216);
+  }
+  .text-emerald-400,
+  .text-emerald-300,
+  .text-emerald-200 {
+    color: rgb(4 120 87);
+  }
+  .text-emerald-500 {
+    color: rgb(5 150 105);
+  }
+  .text-green-400,
+  .text-green-300 {
+    color: rgb(21 128 61);
+  }
+  .text-yellow-400 {
+    color: rgb(161 98 7);
+  }
+  .text-amber-400,
+  .text-amber-300 {
+    color: rgb(180 83 9);
+  }
+
+  /* ----- Status background tints -----
+     `bg-{color}-500/10..20` overlays on dark bg are very subtle. On light
+     bg they need to be slightly more saturated/visible to read as a tint. */
+  .bg-red-500\/10,
+  .bg-red-500\/15 {
+    background-color: rgb(239 68 68 / 0.1);
+  }
+  .bg-red-500\/20 {
+    background-color: rgb(239 68 68 / 0.14);
+  }
+  .border-red-500\/20,
+  .border-red-500\/30,
+  .border-red-500\/40 {
+    border-color: rgb(239 68 68 / 0.3);
+  }
+  .hover\:bg-red-500\/10:hover {
+    background-color: rgb(239 68 68 / 0.14);
+  }
+
+  .bg-blue-500\/10 {
+    background-color: rgb(59 130 246 / 0.1);
+  }
+  .bg-blue-500\/20 {
+    background-color: rgb(59 130 246 / 0.14);
+  }
+  .bg-emerald-500\/10,
+  .bg-emerald-500\/15 {
+    background-color: rgb(16 185 129 / 0.12);
+  }
+  .bg-emerald-500\/20 {
+    background-color: rgb(16 185 129 / 0.16);
+  }
+  .bg-amber-500\/10,
+  .bg-amber-500\/15 {
+    background-color: rgb(245 158 11 / 0.14);
+  }
+  .bg-orange-500\/10 {
+    background-color: rgb(249 115 22 / 0.1);
+  }
+  .bg-orange-500\/20 {
+    background-color: rgb(249 115 22 / 0.14);
+  }
+  .bg-purple-500\/10 {
+    background-color: rgb(168 85 247 / 0.1);
+  }
+  .bg-purple-500\/20 {
+    background-color: rgb(168 85 247 / 0.14);
+  }
+  .bg-yellow-500\/20 {
+    background-color: rgb(234 179 8 / 0.18);
+  }
+
+  /* ----- Neutral scales (zinc / slate / gray) -----
+     Goal, task and detail components are written dark-first with raw
+     zinc/slate/gray utilities. On the warm light ground the light shades
+     (zinc-50..300) render as near-white invisible text and the dark
+     shades (zinc-700..950) read as heavy charcoal blocks. Remap the whole
+     scale to warm-coherent values so titles, labels and surfaces match
+     the rest of light mode. */
+
+  /* Light text shades → warm dark foreground (these are titles/body on dark) */
+  .text-zinc-50,
+  .text-zinc-100,
+  .text-zinc-200 {
+    color: hsl(24 14% 13%);
+  }
+  .text-zinc-300,
+  .text-slate-300,
+  .text-gray-300 {
+    color: hsl(24 12% 24%);
+  }
+  .text-zinc-400,
+  .text-slate-400,
+  .text-gray-400 {
+    color: hsl(25 8% 40%);
+  }
+  .text-zinc-500,
+  .text-slate-500 {
+    color: hsl(25 8% 45%);
+  }
+  .text-zinc-600,
+  .text-gray-600 {
+    color: hsl(25 8% 48%);
+  }
+  .text-zinc-700,
+  .text-gray-700 {
+    color: hsl(25 9% 36%);
+  }
+
+  /* Solid dark surfaces → light neutral surface */
+  .bg-zinc-600,
+  .bg-zinc-700,
+  .bg-zinc-800,
+  .bg-zinc-900,
+  .bg-zinc-950,
+  .bg-neutral-900 {
+    background-color: hsl(30 14% 91%);
+  }
+  .bg-gray-100 {
+    background-color: hsl(30 16% 94%);
+  }
+
+  /* Dark surfaces with alpha → subtle / elevated light surfaces */
+  .bg-gray-900\/30,
+  .bg-zinc-800\/40,
+  .bg-zinc-800\/50,
+  .bg-zinc-900\/50 {
+    background-color: rgb(40 33 28 / 0.05);
+  }
+  .bg-zinc-800\/60,
+  .bg-zinc-900\/60,
+  .bg-zinc-700\/70,
+  .bg-zinc-950\/50 {
+    background-color: rgb(40 33 28 / 0.07);
+  }
+  .bg-zinc-900\/95,
+  .bg-zinc-950\/80,
+  .bg-zinc-950\/95 {
+    /* dropdown / menu panels — make them elevated light cards */
+    background-color: hsl(30 18% 97%);
+  }
+
+  /* Solid mid fills (status dots) → warm mid so they read on white */
+  .bg-zinc-500,
+  .bg-slate-500 {
+    background-color: rgb(150 140 130);
+  }
+
+  /* Neutral tints */
+  .bg-slate-500\/\[0\.03\],
+  .bg-zinc-500\/10,
+  .bg-zinc-500\/15 {
+    background-color: rgb(40 33 28 / 0.06);
+  }
+  .bg-zinc-500\/20 {
+    background-color: rgb(40 33 28 / 0.09);
+  }
+  .bg-zinc-600\/40 {
+    background-color: rgb(40 33 28 / 0.12);
+  }
+  .bg-zinc-500\/70 {
+    background-color: rgb(40 33 28 / 0.16);
+  }
+
+  /* Neutral borders → warm visible borders */
+  .border-zinc-600,
+  .border-zinc-700,
+  .border-zinc-800,
+  .border-zinc-700\/50,
+  .border-zinc-700\/60 {
+    border-color: rgb(40 33 28 / 0.14);
+  }
+  .border-zinc-500\/30,
+  .border-l-slate-500\/40 {
+    border-color: rgb(40 33 28 / 0.22);
+  }
+  .ring-zinc-400\/30 {
+    --tw-ring-color: rgb(40 33 28 / 0.25);
+  }
+}
+
+@layer utilities {
+  /* Smooth scrolling for anchor links */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Backdrop blur support */
+  @supports (backdrop-filter: blur(10px)) {
+    .backdrop-blur-lg {
+      backdrop-filter: blur(16px);
+    }
+  }
+
+  /* Smooth transitions for theme changes */
+  * {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+
+  /* Prevent transition on page load */
+  .no-transition {
+    transition: none !important;
+  }
+
+  /* Gradient utilities inspired by LearnFlow */
+  .gradient-border {
+    position: relative;
+    border-radius: var(--radius);
+    background: linear-gradient(to bottom right, hsl(var(--card)), hsl(var(--secondary)));
+  }
+
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.4), hsl(var(--accent) / 0.2));
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Improved gradient for dark mode */
+  [data-theme='dark'] .gradient-border::before {
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.6), hsl(var(--accent) / 0.4));
+  }
+
+  .glass-card {
+    background: hsl(var(--card) / 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border));
+  }
+}
+
+html {
+  opacity: 0;
+}
+
+html[data-theme='dark'],
+html[data-theme='light'] {
+  opacity: initial;
+}
+
+/* Rich Text Content Styles */
+.rich-text-content {
+  p {
+    @apply my-2 first:mt-0 last:mb-0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply mt-6 mb-3 font-semibold text-foreground leading-tight first:mt-0;
+  }
+
+  h1 {
+    @apply text-3xl;
+  }
+  h2 {
+    @apply text-2xl;
+  }
+  h3 {
+    @apply text-xl;
+  }
+  h4 {
+    @apply text-lg;
+  }
+
+  ul,
+  ol {
+    @apply my-3 pl-6;
+
+    li {
+      @apply my-1;
+    }
+  }
+
+  strong {
+    @apply font-semibold text-foreground;
+  }
+
+  em {
+    @apply italic;
+  }
+
+  a {
+    @apply text-primary underline underline-offset-2 transition-colors hover:text-primary/80;
+  }
+
+  code {
+    @apply bg-muted text-foreground px-1.5 py-0.5 rounded text-sm font-mono;
+  }
+
+  pre {
+    @apply bg-muted p-4 rounded-lg overflow-x-auto my-4 border border-border;
+
+    code {
+      @apply bg-transparent p-0 text-sm;
+    }
+  }
+
+  blockquote {
+    @apply border-l-4 border-primary my-4 pl-4 text-muted-foreground italic;
+  }
+
+  hr {
+    @apply border-0 border-t border-border my-6;
+  }
+
+  img {
+    @apply max-w-full h-auto rounded-lg my-4;
+  }
+
+  table {
+    @apply w-full border-collapse my-4;
+
+    th,
+    td {
+      @apply p-2 border border-border text-left;
+    }
+
+    th {
+      @apply bg-muted font-semibold;
+    }
+  }
+
+  /* KaTeX math rendering */
+  .katex {
+    @apply text-foreground;
+    font-size: 1.1em;
+  }
+
+  .katex-display {
+    @apply my-5 overflow-x-auto overflow-y-hidden py-2;
+
+    /* Scrollbar styling for dark mode support */
+    &::-webkit-scrollbar {
+      height: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+      @apply bg-muted rounded;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      @apply bg-border rounded hover:bg-muted-foreground/50;
+    }
+  }
+
+  .katex-inline {
+    @apply inline-block;
+  }
+}
+
+/* MathLive mathfield theming */
+math-field {
+  --primary: hsl(var(--primary));
+  --caret-color: hsl(var(--foreground));
+  --selection-background-color: hsl(var(--accent));
+  --selection-color: hsl(var(--accent-foreground));
+  --placeholder-color: hsl(var(--muted-foreground));
+  --placeholder-opacity: 0.5;
+  font-size: 1.1em;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  background: hsl(var(--input));
+  color: hsl(var(--foreground));
+  min-height: 2.5rem;
+  width: 100%;
+  direction: ltr;
+}
+
+math-field:focus-within {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Exercise View Animations */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+/* Scrollbar hide utility */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* RTL/LTR Isolation for Math - must be flat selectors */
+.math-inline {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.math-block {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: block;
+  text-align: center;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.chat-message-text {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
+/* KaTeX math expression styling in chat */
+.chat-message-content .katex {
+  @apply bg-muted text-foreground p-5 rounded-xl inline-block;
+  margin: calc(var(--spacing) * 1);
+}
+
+/* Dark mode: keep original secondary background */
+[data-theme='dark'] .chat-message-content .katex {
+  @apply bg-secondary text-secondary-foreground;
+}
+
+/* KaTeX in user messages: inherit background from parent (primary) */
+.bg-primary .chat-message-content .katex {
+  @apply bg-inherit text-inherit;
+}
+
+/* Chat table: reset KaTeX math padding inside table cells */
+.chat-message-content .chat-table .katex {
+  @apply bg-transparent p-0 m-0 rounded-none text-primary;
+  font-size: 1em;
+}
+
+[data-theme='dark'] .chat-message-content .chat-table .katex {
+  @apply bg-transparent text-primary;
+}
+
+/* ===================================================================
+   Color Syntax Support
+   =================================================================== */
+
+/* Text highlight classes for ::text-highlight-N{} markdown syntax (exercise editor) */
+.aguy-text-highlight-1 {
+  color: hsl(var(--text-highlight-1));
+}
+
+.aguy-text-highlight-2 {
+  color: hsl(var(--text-highlight-2));
+}
+
+.aguy-text-highlight-3 {
+  color: hsl(var(--text-highlight-3));
+}
+
+.aguy-text-highlight-4 {
+  color: hsl(var(--text-highlight-4));
+}
+
+.aguy-text-highlight-5 {
+  color: hsl(var(--text-highlight-5));
+}
+
+.aguy-text-highlight-6 {
+  color: hsl(var(--text-highlight-6));
+}
+
+.aguy-text-highlight-7 {
+  color: hsl(var(--text-highlight-7));
+}
+
+.aguy-text-highlight-8 {
+  color: hsl(var(--text-highlight-8));
+}

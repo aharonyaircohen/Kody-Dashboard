@@ -1,0 +1,81 @@
+name: E2E Tests
+
+on:
+  # Fast checks on every PR (no deploy — previews are built on Fly by the
+  # dashboard webhook, not in CI).
+  pull_request:
+    branches: [main]
+  # On-demand smoke against the production deployment.
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target deployment"
+        required: false
+        default: "production"
+        type: choice
+        options:
+          - production
+  # Nightly smoke test against production
+  schedule:
+    - cron: "0 6 * * 1-5" # Weekdays at 6am UTC
+
+jobs:
+  # ─── Vitest: unit + integration (fast, no deploy needed) ─────────────────
+  vitest:
+    name: Vitest (unit + integration)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Run vitest
+        run: pnpm test
+        env:
+          # chat-trigger.int.spec.ts needs this to mint the HMAC token.
+          KODY_SESSION_SECRET: ci-test-secret-do-not-use-in-prod
+
+  # ─── Production Smoke (scheduled / manual) ───────────────────────────────────
+  smoke-prod:
+    name: Production Smoke
+    runs-on: ubuntu-latest
+    # Don't run deploy step — use production URL directly
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'production')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run API smoke tests against production
+        run: pnpm exec playwright test --grep-invert "@real"
+        env:
+          # Test against production
+          BASE_URL: https://kody-dashboard-mwoy3ttr6-aharon-yair-cohens-projects.vercel.app
+          KODY_BOT_TOKEN: ${{ secrets.KODY_BOT_TOKEN }}
+          CI: "true"
+
+      - name: Run real-system chat e2e (nightly only)
+        if: github.event_name == 'schedule'
+        run: pnpm exec playwright test tests/e2e/chat-real-system.spec.ts
+        env:
+          BASE_URL: https://kody-dashboard-mwoy3ttr6-aharon-yair-cohens-projects.vercel.app
+          E2E_GITHUB_TOKEN: ${{ secrets.E2E_GITHUB_TOKEN }}
+          E2E_GITHUB_REPO: ${{ secrets.E2E_GITHUB_REPO }}
+          E2E_CHAT_MODEL: ${{ vars.E2E_CHAT_MODEL }}
+          RUN_REAL_E2E: "1"
+          CI: "true"

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "id": "sandbox-0c93f9ce-7cf5-4120-87e1-c62a9ce24aa5",
+  "name": "My GitHub Actions sandboxn2",
+  "runtime": "github-actions",
+  "scope": "aharonyaircohen-kody-dashboard",
+  "createdAt": "2026-06-13T10:44:28.369Z",
+  "updatedAt": "2026-06-13T10:44:28.369Z"
+}
