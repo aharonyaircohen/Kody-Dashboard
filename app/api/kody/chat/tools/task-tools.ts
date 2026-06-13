@@ -13,6 +13,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@dashboard/lib/logger";
+import { createIssueWithBestEffortMetadata } from "@dashboard/lib/github-issue-create";
 import {
   PRIORITY_LEVELS,
   PRIORITY_META,
@@ -133,6 +134,10 @@ export function formatTaskBody(category: Category, input: TaskInput): string {
   return body;
 }
 
+function appendWarnings(note: string, warnings: string[]): string {
+  return warnings.length ? `${note} ${warnings.join(" ")}` : note;
+}
+
 // Shared input schema. Field text per category is set in the tool description
 // (e.g. "what to refactor" vs "requirements") — schema stays uniform so the
 // model can call any of the five with the same fields.
@@ -222,14 +227,17 @@ async function executeCreate(
         : undefined;
 
   try {
-    const { data } = await octokit.rest.issues.create({
-      owner,
-      repo,
-      title: input.title,
-      body,
-      labels,
-      assignees: resolvedAssignees,
-    });
+    const { data, metadataWarnings } = await createIssueWithBestEffortMetadata(
+      octokit,
+      {
+        owner,
+        repo,
+        title: input.title,
+        body,
+        labels,
+        assignees: resolvedAssignees,
+      },
+    );
     logger.info(
       { owner, repo, number: data.number, category, priority },
       "create_task: created issue",
@@ -244,7 +252,10 @@ async function executeCreate(
         .filter(Boolean) as string[],
       priority,
       category,
-      note: `${CATEGORY_LABEL[category]} task filed. Kody pipeline NOT auto-triggered — comment \`@kody\` on the issue to run it.`,
+      note: appendWarnings(
+        `${CATEGORY_LABEL[category]} task filed. Kody pipeline NOT auto-triggered — comment \`@kody\` on the issue to run it.`,
+        metadataWarnings,
+      ),
     };
   } catch (err) {
     logger.warn(

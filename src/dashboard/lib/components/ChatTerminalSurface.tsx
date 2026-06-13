@@ -31,7 +31,8 @@ interface TerminalSessionState {
 }
 
 export type ChatTerminalTransport =
-  | { type: "local" }
+  | { type: "local"; sandboxId?: string; label?: string }
+  | { type: "github-actions"; sandboxId: string; label?: string }
   | { type: "fly"; app: string; machineId: string; label?: string };
 
 export type ChatTerminalConnectionState =
@@ -67,6 +68,7 @@ interface ChatTerminalSurfaceProps {
 
 export interface ChatTerminalSurfaceHandle {
   sendLine: (line: string) => boolean;
+  stop: () => Promise<void>;
   focus: () => void;
 }
 
@@ -74,9 +76,11 @@ const MAX_CAPTURE_CHARS = 16_000;
 const MAX_CAPTURE_LINES = 160;
 
 function transportKey(transport: ChatTerminalTransport): string {
-  return transport.type === "fly"
-    ? `fly:${transport.app}:${transport.machineId}`
-    : "local";
+  if (transport.type === "fly") return `fly:${transport.app}:${transport.machineId}`;
+  if (transport.type === "github-actions") {
+    return `github-actions-sandbox:${transport.sandboxId}`;
+  }
+  return transport.sandboxId ? `local-sandbox:${transport.sandboxId}` : "local";
 }
 
 function parseBridgeMessage(
@@ -156,6 +160,8 @@ export const ChatTerminalSurface = forwardRef<
   const activeRef = useRef(active);
   const outputCaptureRef = useRef("");
   const pollBusyRef = useRef(false);
+  const githubActionsInputBufferRef = useRef("");
+  const stopRef = useRef<() => Promise<void>>(async () => {});
   const [ready, setReady] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [session, setSession] = useState<TerminalSessionState | null>(null);
@@ -223,6 +229,34 @@ export const ChatTerminalSurface = forwardRef<
       }
       return;
     }
+    if (transportRef.current.type === "github-actions") {
+      const current = sessionRef.current;
+      if (!current?.alive) return;
+      for (const char of input) {
+        if (char === "\r" || char === "\n") {
+          const command = githubActionsInputBufferRef.current.trimEnd();
+          githubActionsInputBufferRef.current = "";
+          terminalRef.current?.write("\r\n");
+          if (command.trim().length > 0) {
+            void fetch("/api/kody/chat/terminal/github/input", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...authHeaders() },
+              body: JSON.stringify({ sessionId: current.sessionId, input: command }),
+            }).catch(() => {});
+          }
+          continue;
+        }
+        if (char === "\u007f" || char === "\b") {
+          githubActionsInputBufferRef.current =
+            githubActionsInputBufferRef.current.slice(0, -1);
+          terminalRef.current?.write("\b \b");
+          continue;
+        }
+        githubActionsInputBufferRef.current += char;
+        terminalRef.current?.write(char);
+      }
+      return;
+    }
     const current = sessionRef.current;
     if (!current?.alive) return;
     void fetch("/api/kody/chat/terminal/input", {
@@ -248,6 +282,7 @@ export const ChatTerminalSurface = forwardRef<
         sendRawInput(`${line}\r`);
         return true;
       },
+      stop: () => stopRef.current(),
       focus: () => {
         terminalRef.current?.focus();
       },
@@ -328,24 +363,36 @@ export const ChatTerminalSurface = forwardRef<
 
   const start = useCallback(async () => {
     const terminal = terminalRef.current;
-    if (transportRef.current.type !== "local") return;
+    if (
+      transportRef.current.type !== "local" &&
+      transportRef.current.type !== "github-actions"
+    )
+      return;
     if (!terminal || connecting || sessionRef.current?.alive) return;
 
-    const startKey = `local:${chatSessionId}`;
+      const currentTransport = transportRef.current;
+    const startKey = `${currentTransport.type}:${chatSessionId}:${transportKey(currentTransport)}`;
     if (localStartFailureKeyRef.current === startKey) return;
 
     setConnecting(true);
     setError(null);
     try {
       fitAddonRef.current?.fit();
-      const res = await fetch("/api/kody/chat/terminal/start", {
+      const startEndpoint =
+        currentTransport.type === "github-actions"
+          ? "/api/kody/chat/terminal/github/start"
+          : "/api/kody/chat/terminal/start";
+      const res = await fetch(startEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          chatSessionId,
-          cols: terminal.cols,
-          rows: terminal.rows,
-        }),
+          body: JSON.stringify({
+            chatSessionId,
+          ...(currentTransport.sandboxId
+            ? { sandboxId: currentTransport.sandboxId }
+            : {}),
+            cols: terminal.cols,
+            rows: terminal.rows,
+          }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         session?: TerminalSessionState;
@@ -508,7 +555,11 @@ export const ChatTerminalSurface = forwardRef<
         sessionId: current.sessionId,
         cursor: String(current.cursor),
       });
-      const res = await fetch(`/api/kody/chat/terminal/output?${params}`, {
+      const outputEndpoint =
+        transportRef.current.type === "github-actions"
+          ? "/api/kody/chat/terminal/github/output"
+          : "/api/kody/chat/terminal/output";
+      const res = await fetch(`${outputEndpoint}?${params}`, {
         headers: authHeaders(),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -570,8 +621,14 @@ export const ChatTerminalSurface = forwardRef<
   ]);
 
   useEffect(() => {
-    if (!active || !session || transport.type !== "local") return;
-    const interval = setInterval(() => void pollOutput(), 200);
+    if (
+      !active ||
+      !session ||
+      (transport.type !== "local" && transport.type !== "github-actions")
+    )
+      return;
+    const intervalMs = transport.type === "github-actions" ? 2_000 : 200;
+    const interval = setInterval(() => void pollOutput(), intervalMs);
     void pollOutput();
     return () => clearInterval(interval);
   }, [
@@ -589,7 +646,11 @@ export const ChatTerminalSurface = forwardRef<
       sessionRef.current = null;
       setSession(null);
       onConnectionStateChange?.("closed");
-      await fetch("/api/kody/chat/terminal/stop", {
+      const stopEndpoint =
+        transportRef.current.type === "github-actions"
+          ? "/api/kody/chat/terminal/github/stop"
+          : "/api/kody/chat/terminal/stop";
+      await fetch(stopEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ sessionId: current.sessionId }),
@@ -598,6 +659,9 @@ export const ChatTerminalSurface = forwardRef<
     },
     [onConnectionStateChange],
   );
+  useEffect(() => {
+    stopRef.current = () => stop();
+  }, [stop]);
 
   useEffect(() => {
     if (transport.type === "fly") {
@@ -656,12 +720,19 @@ export const ChatTerminalSurface = forwardRef<
           {transport.type === "fly"
             ? (error ??
               `${transport.label ?? transport.app} · ${flyConnectionState}`)
-            : (error ??
-              (session?.alive
-                ? session.cwd
-                : connecting
-                  ? "starting"
-                  : "closed"))}
+                : transport.type === "github-actions"
+                  ? (error ??
+                    (session?.alive
+                      ? `${transport.label ?? "GitHub Actions sandbox"} · running`
+                      : connecting
+                        ? "Starting GitHub Actions terminal..."
+                        : "closed"))
+                  : (error ??
+                    (session?.alive
+                      ? session.cwd
+                      : connecting
+                        ? "starting"
+                        : "closed"))}
         </span>
         <div className="flex shrink-0 items-center gap-1">
           <button

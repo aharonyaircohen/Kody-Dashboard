@@ -192,6 +192,7 @@ export interface KodyChatProps {
  * transfer logic kicks in (see `pendingCreatedIssue` in `sendText`).
  */
 export const ISSUE_CREATION_TOOL_NAMES = new Set<string>([
+  "create_task",
   "create_feature",
   "create_enhancement",
   "create_refactor",

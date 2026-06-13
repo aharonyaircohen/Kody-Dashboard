@@ -84,9 +84,10 @@ describe("round-trip", () => {
 });
 
 describe("ISSUE_CREATION_TOOL_NAMES", () => {
-  it("contains exactly the six issue-creation tools", () => {
+  it("contains exactly the seven issue-creation tools", () => {
     expect([...ISSUE_CREATION_TOOL_NAMES].sort()).toEqual(
       [
+        "create_task",
         "create_chore",
         "create_documentation",
         "create_enhancement",

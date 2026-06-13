@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 
 const Body = z.object({
   chatSessionId: z.string().min(1).max(120).optional(),
+  sandboxId: z.string().min(1).max(80).optional(),
   cols: z.number().int().min(20).max(300).optional(),
   rows: z.number().int().min(8).max(120).optional(),
 });
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
       owner: auth.owner,
       repo: auth.repo,
       chatSessionId: parsed.data.chatSessionId,
+      sandboxId: parsed.data.sandboxId,
       cols: parsed.data.cols,
       rows: parsed.data.rows,
     });

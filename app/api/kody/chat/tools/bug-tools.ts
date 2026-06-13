@@ -13,6 +13,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@dashboard/lib/logger";
+import { createIssueWithBestEffortMetadata } from "@dashboard/lib/github-issue-create";
 import {
   PRIORITY_LEVELS,
   PRIORITY_META,
@@ -92,6 +93,10 @@ function formatBugReport(input: BugReportInput): string {
   report += `${reproducibility}\n`;
 
   return report;
+}
+
+function appendWarnings(note: string, warnings: string[]): string {
+  return warnings.length ? `${note} ${warnings.join(" ")}` : note;
 }
 
 export function createBugTools(ctx: Ctx) {
@@ -177,14 +182,15 @@ export function createBugTools(ctx: Ctx) {
               : undefined;
 
         try {
-          const { data } = await octokit.rest.issues.create({
-            owner,
-            repo,
-            title: input.title,
-            body,
-            labels,
-            assignees: resolvedAssignees,
-          });
+          const { data, metadataWarnings } =
+            await createIssueWithBestEffortMetadata(octokit, {
+              owner,
+              repo,
+              title: input.title,
+              body,
+              labels,
+              assignees: resolvedAssignees,
+            });
           logger.info(
             { owner, repo, number: data.number, priority },
             "report_bug: created issue",
@@ -197,7 +203,10 @@ export function createBugTools(ctx: Ctx) {
             assignees:
               data.assignees?.map((a) => a?.login).filter(Boolean) ?? [],
             priority,
-            note: "Bug filed. Kody pipeline NOT auto-triggered — comment `@kody` on the issue to run it.",
+            note: appendWarnings(
+              "Bug filed. Kody pipeline NOT auto-triggered — comment `@kody` on the issue to run it.",
+              metadataWarnings,
+            ),
           };
         } catch (err) {
           logger.warn(

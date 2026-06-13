@@ -21,6 +21,7 @@ import {
   Image as ImageIcon,
   FileText,
   FileCode,
+  Github,
   MessageSquare,
   Eraser,
   Target,
@@ -33,8 +34,10 @@ import {
   Plus,
   Power,
   RefreshCw,
+  Save,
   Square,
   SquareTerminal,
+  Trash2,
   Unplug,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
@@ -143,6 +146,14 @@ import {
 } from "@dashboard/lib/chat-ui-actions";
 
 type MessageDirection = "ltr" | "rtl" | "auto";
+
+interface LocalSandboxSummary {
+  id: string;
+  name: string;
+  runtime: "local" | "github-actions";
+  updatedAt: string;
+  snapshotUpdatedAt?: string | null;
+}
 
 const LETTER_RE = /\p{L}/u;
 
@@ -886,11 +897,6 @@ export function KodyChat({
     useState<import("../hooks/useChatSessions").ChatSessionScope>(
       desiredSessionScope,
     );
-  useEffect(() => {
-    if (desiredSessionScope === sessionStoreScope) return;
-    const t = setTimeout(() => setSessionStoreScope(desiredSessionScope), 150);
-    return () => clearTimeout(t);
-  }, [desiredSessionScope, sessionStoreScope]);
   const sessionHook = useChatSessions(sessionStoreScope);
   const createChatSession = sessionHook.createSession;
 
@@ -904,7 +910,7 @@ export function KodyChat({
     sessions: sessionHook.sessions,
     storageScope: sessionStoreScope,
   });
-  const chatMode = terminalRegistry.mode;
+  const chatMode = vibeMode ? "ai" : terminalRegistry.mode;
   const terminalMachines = terminalRegistry.terminalMachines;
   const activeTerminalTransport = terminalRegistry.activeTransport;
   const activeTerminalInstanceId = terminalRegistry.activeInstanceId;
@@ -918,11 +924,251 @@ export function KodyChat({
   const setActiveChatMode = terminalRegistry.setActiveMode;
   const refreshChatTerminalFlyMachines = terminalRegistry.refreshFlyMachines;
   const handleTerminalTargetChange = terminalRegistry.selectTarget;
+  const handleTerminalSandboxTargetChange =
+    terminalRegistry.selectSandboxTarget;
+  const handleTerminalGitHubActionsSandboxTargetChange =
+    terminalRegistry.selectGitHubActionsSandboxTarget;
   const handleTerminalFlyConnectToggle = terminalRegistry.toggleFlyConnection;
   const recordTerminalConnectionState = terminalRegistry.recordConnectionState;
   const activeSessionHasLiveTerminal = terminalRegistry.hasLiveTerminal(
     activeSessionIdForReset,
   );
+  const [localSandboxes, setLocalSandboxes] = useState<LocalSandboxSummary[]>(
+    [],
+  );
+  const [sandboxBusy, setSandboxBusy] = useState(false);
+  const [sandboxBusyLabel, setSandboxBusyLabel] = useState<string | null>(null);
+  const [sandboxCreateMenuOpen, setSandboxCreateMenuOpen] = useState(false);
+
+  const refreshLocalSandboxes = useCallback(async () => {
+    const headers = authHeaders();
+    if (Object.keys(headers).length === 0) {
+      setLocalSandboxes([]);
+      return;
+    }
+    try {
+      const res = await fetch("/api/kody/sandboxes", { headers });
+      if (!res.ok) return;
+      const body = (await res.json().catch(() => ({}))) as {
+        sandboxes?: LocalSandboxSummary[];
+      };
+      setLocalSandboxes(body.sandboxes ?? []);
+    } catch {
+      /* local sandbox list is optional in terminal mode */
+    }
+  }, []);
+  useEffect(() => {
+    if (chatMode !== "terminal") return;
+    void refreshLocalSandboxes();
+  }, [chatMode, refreshLocalSandboxes]);
+  const handleCreateSandbox = useCallback(async (
+    runtime: "local" | "github-actions",
+  ) => {
+    setSandboxCreateMenuOpen(false);
+    const name = window.prompt(
+      "Sandbox name",
+      runtime === "github-actions" ? "My GitHub Actions sandbox" : "My sandbox",
+    );
+    if (name === null) return;
+    setSandboxBusy(true);
+    setSandboxBusyLabel(
+      runtime === "github-actions"
+        ? "Creating GitHub Actions sandbox..."
+        : "Creating local sandbox...",
+    );
+    try {
+      const res = await fetch("/api/kody/sandboxes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          name,
+          runtime,
+          ...(activeTerminalTransport.type === "local" &&
+          activeTerminalTransport.sandboxId
+            ? { sourceSandboxId: activeTerminalTransport.sandboxId }
+            : {}),
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        sandbox?: LocalSandboxSummary;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok || !body.sandbox) {
+        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+      }
+      setLocalSandboxes((prev) => [
+        body.sandbox!,
+        ...prev.filter((sandbox) => sandbox.id !== body.sandbox!.id),
+      ]);
+      if (body.sandbox.runtime === "local") {
+        handleTerminalSandboxTargetChange(body.sandbox);
+      } else {
+        handleTerminalGitHubActionsSandboxTargetChange(body.sandbox);
+      }
+      toast.success(
+        body.sandbox.runtime === "github-actions"
+          ? "GitHub Actions sandbox selected"
+          : "Sandbox created",
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to create sandbox",
+      );
+    } finally {
+      setSandboxBusy(false);
+      setSandboxBusyLabel(null);
+    }
+  }, [
+    activeTerminalTransport,
+    handleTerminalGitHubActionsSandboxTargetChange,
+    handleTerminalSandboxTargetChange,
+  ]);
+  const handleSaveSandbox = useCallback(async () => {
+    if (
+      (activeTerminalTransport.type !== "local" &&
+        activeTerminalTransport.type !== "github-actions") ||
+      !activeTerminalTransport.sandboxId
+    ) {
+      return;
+    }
+    if (activeTerminalTransport.type === "github-actions") {
+      const terminal =
+        activeTerminalInstanceId !== null
+          ? terminalSurfaceRefs.current[activeTerminalInstanceId]
+          : null;
+      if (!terminal) {
+        toast.error("GitHub Actions terminal is not connected");
+        return;
+      }
+      setSandboxBusy(true);
+      setSandboxBusyLabel("Saving GitHub Actions sandbox...");
+      try {
+        await terminal.stop();
+        toast.success("Save requested. GitHub Actions will save after stop.");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to save sandbox");
+      } finally {
+        setSandboxBusy(false);
+        setSandboxBusyLabel(null);
+      }
+      return;
+    }
+    setSandboxBusy(true);
+    setSandboxBusyLabel("Saving sandbox...");
+    try {
+      const res = await fetch(
+        `/api/kody/sandboxes/${encodeURIComponent(
+          activeTerminalTransport.sandboxId,
+        )}/save`,
+        { method: "POST", headers: authHeaders() },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        sandbox?: LocalSandboxSummary;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok || !body.sandbox) {
+        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+      }
+      setLocalSandboxes((prev) =>
+        prev.map((sandbox) =>
+          sandbox.id === body.sandbox!.id ? body.sandbox! : sandbox,
+        ),
+      );
+      toast.success("Sandbox saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save sandbox");
+    } finally {
+      setSandboxBusy(false);
+      setSandboxBusyLabel(null);
+    }
+  }, [activeTerminalInstanceId, activeTerminalTransport]);
+  const handleDeleteSandbox = useCallback(async () => {
+    if (
+      (activeTerminalTransport.type !== "local" &&
+        activeTerminalTransport.type !== "github-actions") ||
+      !activeTerminalTransport.sandboxId
+    ) {
+      return;
+    }
+    const sandboxName = activeTerminalTransport.label ?? "this sandbox";
+    if (
+      !window.confirm(
+        `Delete ${sandboxName}? This removes its saved files and settings.`,
+      )
+    ) {
+      return;
+    }
+    setSandboxBusy(true);
+    setSandboxBusyLabel("Deleting sandbox...");
+    try {
+      const sandboxId = activeTerminalTransport.sandboxId;
+      if (activeTerminalTransport.type === "github-actions") {
+        const terminal =
+          activeTerminalInstanceId !== null
+            ? terminalSurfaceRefs.current[activeTerminalInstanceId]
+            : null;
+        await terminal?.stop();
+      }
+      const res = await fetch(
+        `/api/kody/sandboxes/${encodeURIComponent(sandboxId)}`,
+        { method: "DELETE", headers: authHeaders() },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+      }
+      setLocalSandboxes((prev) =>
+        prev.filter((sandbox) => sandbox.id !== sandboxId),
+      );
+      handleTerminalTargetChange("local");
+      toast.success("Sandbox deleted");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete sandbox",
+      );
+    } finally {
+      setSandboxBusy(false);
+      setSandboxBusyLabel(null);
+    }
+  }, [activeTerminalInstanceId, activeTerminalTransport, handleTerminalTargetChange]);
+  const handleTerminalTargetSelect = useCallback(
+    (value: string) => {
+      if (value.startsWith("sandbox:")) {
+        const id = value.slice("sandbox:".length);
+      const sandbox = localSandboxes.find(
+        (candidate) => candidate.id === id && candidate.runtime === "local",
+      );
+ if (sandbox) handleTerminalSandboxTargetChange(sandbox);
+      return;
+    }
+      if (value.startsWith("gha:")) {
+        const id = value.slice("gha:".length);
+        const sandbox = localSandboxes.find(
+          (candidate) =>
+            candidate.id === id && candidate.runtime === "github-actions",
+      );
+ if (sandbox) handleTerminalGitHubActionsSandboxTargetChange(sandbox);
+      return;
+    }
+ handleTerminalTargetChange(value);
+ },
+ [
+ handleTerminalGitHubActionsSandboxTargetChange,
+ handleTerminalSandboxTargetChange,
+    handleTerminalTargetChange,
+    localSandboxes,
+  ],
+  );
+  useEffect(() => {
+    if (desiredSessionScope === sessionStoreScope) return;
+    const t = setTimeout(() => setSessionStoreScope(desiredSessionScope), 150);
+    return () => clearTimeout(t);
+  }, [desiredSessionScope, sessionStoreScope]);
   const terminalSurfaceRefs = useRef<
     Record<string, ChatTerminalSurfaceHandle | null>
   >({});
@@ -4139,7 +4385,7 @@ export function KodyChat({
           onDeleteSession={sessionHook.deleteSession}
           onRenameSession={sessionHook.renameSession}
           onPinSession={sessionHook.pinSession}
-          modeBySessionId={terminalRegistry.modeBySessionId}
+          modeBySessionId={vibeMode ? undefined : terminalRegistry.modeBySessionId}
           pinnedOpen={sessionSidebarPinned}
           onTogglePinnedOpen={() => setSessionSidebarPinned((prev) => !prev)}
           onClose={() => setShowSessionSidebar(false)}
@@ -5206,13 +5452,37 @@ export function KodyChat({
               <select
                 value={activeTerminalValue}
                 onChange={(event) =>
-                  handleTerminalTargetChange(event.target.value)
+                  handleTerminalTargetSelect(event.target.value)
                 }
                 className="h-8 min-w-0 max-w-[260px] flex-1 rounded-md border bg-background px-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
                 title="Terminal target"
                 aria-label="Terminal target"
               >
                 <option value="local">Local terminal</option>
+                {activeTerminalTransport.type === "local" &&
+                  activeTerminalTransport.sandboxId &&
+                  !localSandboxes.some(
+                    (sandbox) =>
+                      `sandbox:${sandbox.id}` === activeTerminalValue,
+                  ) && (
+                    <option value={activeTerminalValue}>
+                      {activeTerminalTransport.label ?? "Sandbox"} · selected
+                    </option>
+                  )}
+                {localSandboxes
+                  .filter((sandbox) => sandbox.runtime === "local")
+                  .map((sandbox) => (
+                    <option key={sandbox.id} value={`sandbox:${sandbox.id}`}>
+                      Local: {sandbox.name}
+                    </option>
+                  ))}
+                {localSandboxes
+                  .filter((sandbox) => sandbox.runtime === "github-actions")
+                  .map((sandbox) => (
+                    <option key={sandbox.id} value={`gha:${sandbox.id}`}>
+                      GitHub Actions profile: {sandbox.name}
+                    </option>
+                  ))}
                 {activeTerminalTransport.type === "fly" &&
                   !terminalMachines.some(
                     (machine) =>
@@ -5232,8 +5502,83 @@ export function KodyChat({
                     {machine.label} · {machine.state} · {machine.region} ·{" "}
                     {terminalMachineIdShort(machine.machineId)}
                   </option>
-                ))}
+                  ))}
               </select>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSandboxCreateMenuOpen((current) => !current)
+                  }
+                  disabled={sandboxBusy}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Create sandbox"
+                  aria-label="Create sandbox"
+                  aria-haspopup="menu"
+                  aria-expanded={sandboxCreateMenuOpen}
+                >
+                  {sandboxBusy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                </button>
+                {sandboxCreateMenuOpen && (
+                  <div className="absolute bottom-9 left-0 z-30 min-w-52 overflow-hidden rounded-md border bg-popover py-1 text-xs text-popover-foreground shadow-md">
+                    <button
+                      type="button"
+                      onClick={() => void handleCreateSandbox("local")}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Local sandbox
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleCreateSandbox("github-actions")}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+                    >
+                      <Github className="h-3.5 w-3.5" />
+                      {activeTerminalTransport.type === "local" &&
+                      activeTerminalTransport.sandboxId
+                        ? "Copy to GitHub Actions"
+                        : "GitHub Actions sandbox"}
+                    </button>
+                  </div>
+              )}
+            </div>
+            {sandboxBusyLabel && (
+              <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-[11px] text-muted-foreground">
+                <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                <span className="truncate">{sandboxBusyLabel}</span>
+              </span>
+            )}
+            {(activeTerminalTransport.type === "local" ||
+              activeTerminalTransport.type === "github-actions") &&
+              activeTerminalTransport.sandboxId && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveSandbox()}
+                    disabled={sandboxBusy}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                      title="Save sandbox"
+                      aria-label="Save sandbox"
+                    >
+                      <Save className="h-4 w-4" />
+                    </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteSandbox()}
+                      disabled={sandboxBusy}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+                      title="Delete sandbox"
+                      aria-label="Delete sandbox"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
               <button
                 type="button"
                 onClick={() => void refreshChatTerminalFlyMachines()}
@@ -5283,7 +5628,7 @@ export function KodyChat({
             </div>
           )}
           {chatMode === "ai" && <div className="flex-1" />}
-          {!lockedAgentId && (
+          {!lockedAgentId && !vibeMode && (
             <div
               className={`inline-flex items-center rounded-md border p-0.5 ${
                 chatMode === "terminal"
