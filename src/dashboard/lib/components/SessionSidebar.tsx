@@ -15,6 +15,7 @@ import type { SessionMeta } from "../chat-types";
 interface SessionSidebarProps {
   sessions: SessionMeta[];
   activeSessionId: string | null;
+  modeBySessionId?: Record<string, "ai" | "terminal">;
   onSwitchSession: (sessionId: string) => void;
   onCreateSession: () => void;
   onDeleteSession: (sessionId: string) => void;
@@ -49,6 +50,7 @@ function formatRelativeTime(dateString: string): string {
 export function SessionSidebar({
   sessions,
   activeSessionId,
+  modeBySessionId,
   onSwitchSession,
   onCreateSession,
   onDeleteSession,
@@ -218,6 +220,18 @@ export function SessionSidebar({
 
                   {/* Meta */}
                   <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                    <span
+                      className={cn(
+                        "rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase leading-none",
+                        modeBySessionId?.[session.id] === "terminal"
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600"
+                          : "border-border bg-muted/50 text-muted-foreground",
+                      )}
+                    >
+                      {modeBySessionId?.[session.id] === "terminal"
+                        ? "Terminal"
+                        : "Chat"}
+                    </span>
                     <span>{formatRelativeTime(session.updatedAt)}</span>
                     <span>•</span>
                     <span>{session.messageCount} messages</span>
