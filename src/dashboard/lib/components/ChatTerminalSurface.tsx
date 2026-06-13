@@ -8,7 +8,14 @@
 "use client";
 
 import { ClipboardCopy, Eraser, Loader2, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import type { FitAddon as XTermFitAddon } from "@xterm/addon-fit";
 import type { Terminal as XTerm } from "@xterm/xterm";
 import { toast } from "sonner";
@@ -56,6 +63,11 @@ interface ChatTerminalSurfaceProps {
   transport?: ChatTerminalTransport;
   onAddToChat: (context: string) => void;
   onConnectionStateChange?: (state: ChatTerminalConnectionState) => void;
+}
+
+export interface ChatTerminalSurfaceHandle {
+  sendLine: (line: string) => boolean;
+  focus: () => void;
 }
 
 const MAX_CAPTURE_CHARS = 16_000;
@@ -118,14 +130,20 @@ function usefulCapturedOutput(value: string): string {
     : tail;
 }
 
-export function ChatTerminalSurface({
-  active,
-  chatSessionId,
-  connectNonce = 0,
-  transport = { type: "local" },
-  onAddToChat,
-  onConnectionStateChange,
-}: ChatTerminalSurfaceProps) {
+export const ChatTerminalSurface = forwardRef<
+  ChatTerminalSurfaceHandle,
+  ChatTerminalSurfaceProps
+>(function ChatTerminalSurface(
+  {
+    active,
+    chatSessionId,
+    connectNonce = 0,
+    transport = { type: "local" },
+    onAddToChat,
+    onConnectionStateChange,
+  },
+  ref,
+) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<XTermFitAddon | null>(null);
@@ -218,6 +236,25 @@ export function ChatTerminalSurface({
     }).catch(() => {});
   }, []);
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      sendLine: (line: string) => {
+        const canSend =
+          transportRef.current.type === "fly"
+            ? flySocketRef.current?.readyState === WebSocket.OPEN
+            : !!sessionRef.current?.alive;
+        if (!canSend) return false;
+        sendRawInput(`${line}\r`);
+        return true;
+      },
+      focus: () => {
+        terminalRef.current?.focus();
+      },
+    }),
+    [sendRawInput],
+  );
+
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -277,7 +314,6 @@ export function ChatTerminalSurface({
       terminalRef.current = terminal;
       fitAddonRef.current = fitAddon;
       setReady(true);
-      terminal.focus();
     })();
 
     return () => {
@@ -323,7 +359,6 @@ export function ChatTerminalSurface({
       sessionRef.current = data.session;
       setSession(data.session);
       onConnectionStateChange?.("connected");
-      terminal.focus();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to start terminal";
@@ -422,7 +457,6 @@ export function ChatTerminalSurface({
           }
           if (message.type === "ready") {
             updateFlyConnectionState("connected");
-            terminalRef.current?.focus();
             return;
           }
           if (message.type === "error") {
@@ -519,7 +553,6 @@ export function ChatTerminalSurface({
   useEffect(() => {
     if (!ready || !active) return;
     fitAddonRef.current?.fit();
-    terminalRef.current?.focus();
     if (transport.type === "fly") {
       void connectFly();
       return;
@@ -670,4 +703,4 @@ export function ChatTerminalSurface({
       </div>
     </div>
   );
-}
+});

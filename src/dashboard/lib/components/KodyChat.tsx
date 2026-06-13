@@ -93,7 +93,10 @@ import {
 } from "./kody-chat-types";
 import { MessageAttachments } from "./MessageAttachments";
 import { TypingIndicator } from "./TypingIndicator";
-import { ChatTerminalSurface } from "./ChatTerminalSurface";
+import {
+  ChatTerminalSurface,
+  type ChatTerminalSurfaceHandle,
+} from "./ChatTerminalSurface";
 
 import { flushSync } from "react-dom";
 import type {
@@ -220,6 +223,7 @@ export function KodyChat({
   // one global store keyed by sessionId — no per-scope parallel stores.
 
   const [input, setInput] = useState("");
+  const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   // Context chips attached to the composer (e.g. picked preview elements).
   // Shown as removable pills above the input; their `context` is appended to
   // the outgoing message on send so the visible input stays clean.
@@ -910,6 +914,9 @@ export function KodyChat({
   const activeSessionHasLiveTerminal = terminalRegistry.hasLiveTerminal(
     activeSessionIdForReset,
   );
+  const terminalSurfaceRefs = useRef<
+    Record<string, ChatTerminalSurfaceHandle | null>
+  >({});
 
   const prevAgentIdRef = useRef<string>(selectedAgentId);
   useEffect(() => {
@@ -3586,7 +3593,43 @@ export function KodyChat({
     dispatchLive,
   ]);
 
+  const sendInputToTerminal = useCallback(() => {
+    const command = input;
+    if (!command.trim()) return;
+    if (!activeTerminalInstanceId) {
+      toast.error("Terminal is not ready yet");
+      return;
+    }
+
+    const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
+    if (!terminal) {
+      toast.error("Terminal is still opening");
+      return;
+    }
+
+    if (!terminal.sendLine(command)) {
+      toast.error("Terminal is not connected yet");
+      terminal.focus();
+      return;
+    }
+
+    setInput("");
+    setSlashMenuOpen(false);
+    setSlashSelectedIndex(0);
+    requestAnimationFrame(() => {
+      const textarea = composerTextareaRef.current;
+      if (!textarea) return;
+      textarea.style.height = "auto";
+      textarea.focus();
+    });
+  }, [activeTerminalInstanceId, input]);
+
   const sendMessage = async () => {
+    if (chatMode === "terminal") {
+      sendInputToTerminal();
+      return;
+    }
+
     if (!input.trim() && attachments.length === 0 && contextChips.length === 0)
       return;
     // A real user prompt restarts the budget for chained preview actions.
@@ -3823,7 +3866,7 @@ export function KodyChat({
     // Slash menu keyboard navigation. Only intercept when the menu is
     // open AND the input still looks like a slug-in-progress (so once
     // the user types a space the menu's gone and normal handling resumes).
-    if (slashMenuOpen) {
+    if (chatMode === "ai" && slashMenuOpen) {
       const { filter } = parseSlashTrigger(input);
       const matches = filterCommands(slashCommands, filter);
       if (e.key === "ArrowDown") {
@@ -3867,7 +3910,12 @@ export function KodyChat({
     }
     // ↑ on an empty composer recalls the last user message for editing —
     // matches the shell history convention.
-    if (e.key === "ArrowUp" && !input && attachments.length === 0) {
+    if (
+      chatMode === "ai" &&
+      e.key === "ArrowUp" &&
+      !input &&
+      attachments.length === 0
+    ) {
       const lastUser = [...messages].reverse().find((m) => m.role === "user");
       if (lastUser) {
         e.preventDefault();
@@ -3994,7 +4042,8 @@ export function KodyChat({
   //   empty + booting   → 'cancel' (abandon the boot attempt)
   //   empty + ready     → 'stop'  (end the live session)
   // For non-Kody-Live agents the button is always 'send' (disabled if empty).
-  const hasComposerContent = input.trim().length > 0 || attachments.length > 0;
+  const hasComposerContent =
+    input.trim().length > 0 || (chatMode === "ai" && attachments.length > 0);
   type ComposerAction = "send" | "start" | "stop" | "cancel";
   const composerAction: ComposerAction = !isKodyLive
     ? "send"
@@ -4013,23 +4062,26 @@ export function KodyChat({
   const genericPlaceholder = pageLabel
     ? `Ask Kody about ${pageLabel}...`
     : `Ask Kody about any page, duty, or feature...`;
-  const placeholder = isKodyLive
-    ? interactiveState === "idle" || interactiveState === "ended"
-      ? "Click Start to warm up the runner."
-      : interactiveState === "booting"
-        ? selectedAgentId === "kody-live-fly"
-          ? "Booting runner — ~45-60s on Fly..."
-          : "Booting runner — ~90s on GitHub Actions..."
-        : pageLabel
-          ? `Ask Kody (live runner) about ${pageLabel}...`
-          : "Ask Kody (live runner)..."
-    : isKodyWaiting
-      ? `Give Kody instructions...`
-      : isTaskMode
-        ? `Ask about task #${selectedTask?.issueNumber}...`
-        : isDutyMode
-          ? `Ask about duty \`${selectedDuty?.slug ?? ""}\`...`
-          : genericPlaceholder;
+  const placeholder =
+    chatMode === "terminal"
+      ? "Send command to terminal..."
+      : isKodyLive
+        ? interactiveState === "idle" || interactiveState === "ended"
+          ? "Click Start to warm up the runner."
+          : interactiveState === "booting"
+            ? selectedAgentId === "kody-live-fly"
+              ? "Booting runner — ~45-60s on Fly..."
+              : "Booting runner — ~90s on GitHub Actions..."
+            : pageLabel
+              ? `Ask Kody (live runner) about ${pageLabel}...`
+              : "Ask Kody (live runner)..."
+        : isKodyWaiting
+          ? `Give Kody instructions...`
+          : isTaskMode
+            ? `Ask about task #${selectedTask?.issueNumber}...`
+            : isDutyMode
+              ? `Ask about duty \`${selectedDuty?.slug ?? ""}\`...`
+              : genericPlaceholder;
 
   return (
     <div
@@ -4414,7 +4466,7 @@ export function KodyChat({
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className={`flex-1 relative ${
+        className={`flex-1 min-h-0 relative ${
           chatMode === "terminal"
             ? "overflow-hidden bg-[#050608]"
             : "overflow-auto px-1.5 py-2 sm:p-4 space-y-4"
@@ -4539,6 +4591,10 @@ export function KodyChat({
               className={isActiveTerminal ? "h-full min-h-0" : "hidden"}
             >
               <ChatTerminalSurface
+                ref={(node) => {
+                  terminalSurfaceRefs.current[terminal.id] = node;
+                  if (!node) delete terminalSurfaceRefs.current[terminal.id];
+                }}
                 active={isActiveTerminal}
                 chatSessionId={terminal.sessionId}
                 connectNonce={
@@ -4831,27 +4887,27 @@ export function KodyChat({
 
       {/* Input area */}
       <div
-        className={`border-t px-1.5 py-2 sm:p-3 ${
+        className={`relative z-10 shrink-0 border-t px-1.5 py-2 sm:p-3 ${
           chatMode === "terminal"
             ? "border-white/10 bg-[#050608]"
             : "bg-background"
         }`}
       >
-        <div
-          className={chatMode === "ai" ? "" : "invisible pointer-events-none"}
-          aria-hidden={chatMode !== "ai"}
-        >
+        <div>
           {/* Vibe mode: explicit one-shot execution action. Sits with the
               composer so the executor handoff feels like a chat affordance
               rather than a UI button parked elsewhere. Hides itself once
               any work has started. */}
-          {vibeMode && context?.kind === "task" && !isKodyLive ? (
+          {chatMode === "ai" &&
+          vibeMode &&
+          context?.kind === "task" &&
+          !isKodyLive ? (
             <VibeRunButton task={context.task} />
           ) : null}
           {/* Kody Live status dot — compact indicator above the composer.
               Color encodes state; hover for full detail + links. Restart
               affordance only surfaces on stuck/error. */}
-          {isKodyLive ? (
+          {chatMode === "ai" && isKodyLive ? (
             <div className="mb-1 flex items-center gap-2">
               <SimpleTooltip
                 content={(() => {
@@ -4930,6 +4986,7 @@ export function KodyChat({
                 />
               )}
               <textarea
+                ref={composerTextareaRef}
                 value={input}
                 onChange={(e) => {
                   const next = e.target.value;
@@ -4937,9 +4994,15 @@ export function KodyChat({
                   // Slash menu opens on `/` at line start, stays open while
                   // the user types the slug, closes when they add a space
                   // or clear the slash.
-                  const trigger = parseSlashTrigger(next);
-                  setSlashMenuOpen(trigger.active && slashCommands.length > 0);
-                  if (trigger.active) setSlashSelectedIndex(0);
+                  if (chatMode === "ai") {
+                    const trigger = parseSlashTrigger(next);
+                    setSlashMenuOpen(
+                      trigger.active && slashCommands.length > 0,
+                    );
+                    if (trigger.active) setSlashSelectedIndex(0);
+                  } else {
+                    setSlashMenuOpen(false);
+                  }
                   // Auto-expand height
                   e.target.style.height = "auto";
                   e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
@@ -4955,9 +5018,15 @@ export function KodyChat({
                 placeholder={placeholder}
                 rows={1}
                 dir="auto"
-                className="w-full px-3 py-2 text-base rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`w-full px-3 py-2 text-base rounded-md border focus:outline-none focus:ring-1 resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${
+                  chatMode === "terminal"
+                    ? "border-white/10 bg-black/40 text-zinc-100 placeholder:text-zinc-500 focus:ring-white/20"
+                    : "bg-background focus:ring-primary"
+                }`}
                 disabled={
-                  activeLoading || (isKodyLive && interactiveState !== "ready")
+                  chatMode === "ai" &&
+                  (activeLoading ||
+                    (isKodyLive && interactiveState !== "ready"))
                 }
                 style={{ height: "auto" }}
               />
@@ -4973,25 +5042,34 @@ export function KodyChat({
                 the previous "no send affordance when empty" behavior. */}
             {(() => {
               const isInFlight =
-                activeLoading ||
-                composerAction === "stop" ||
-                composerAction === "cancel";
-              const showTrailingButton = isInFlight
-                ? true
-                : hasComposerContent || isKodyLive;
+                chatMode === "ai" &&
+                (activeLoading ||
+                  composerAction === "stop" ||
+                  composerAction === "cancel");
+              const showTrailingButton =
+                chatMode === "terminal"
+                  ? hasComposerContent
+                  : isInFlight
+                    ? true
+                    : hasComposerContent || isKodyLive;
               if (!showTrailingButton) return null;
-              const title = isInFlight
-                ? composerAction === "cancel"
-                  ? "Cancel boot"
-                  : "Stop run"
-                : composerAction === "start"
-                  ? "Boot runner"
-                  : "Send message";
+              const title =
+                chatMode === "terminal"
+                  ? "Send command"
+                  : isInFlight
+                    ? composerAction === "cancel"
+                      ? "Cancel boot"
+                      : "Stop run"
+                    : composerAction === "start"
+                      ? "Boot runner"
+                      : "Send message";
               return (
                 <button
                   type="button"
                   onClick={() => {
-                    if (activeLoading) {
+                    if (chatMode === "terminal") {
+                      void sendMessage();
+                    } else if (activeLoading) {
                       handleStop();
                     } else if (
                       composerAction === "stop" ||
