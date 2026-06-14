@@ -1,12 +1,15 @@
 import { readFileSync } from "fs";
 import { describe, expect, it } from "vitest";
+import {
+  loadChatDefaults,
+} from "../../src/dashboard/lib/chat-defaults";
+import { DEFAULT_EXECUTABLE } from "../../src/dashboard/lib/chat-defaults/defaults";
 
 const DUTY_GUIDE = readFileSync("docs/duties.md", "utf8");
 const DUTY_TOOLS_SOURCE = readFileSync(
   "app/api/kody/chat/tools/duty-tools.ts",
   "utf8",
 );
-const AGENT_SOURCE = readFileSync("src/dashboard/lib/agents.ts", "utf8");
 const DUTY_FILES_SOURCE = readFileSync(
   "src/dashboard/lib/duties-files.ts",
   "utf8",
@@ -34,7 +37,8 @@ describe("duty creation guide wiring", () => {
     expect(DUTY_TOOLS_SOURCE).toContain(
       "Before calling it, call read_duty_creation_guide",
     );
-    expect(AGENT_SOURCE).toContain("read_duty_creation_guide");
+    // The bundle's executable declares the tool the agent should call.
+    expect(DEFAULT_EXECUTABLE.tools).toContain("read_duty_creation_guide");
   });
 
   it("creates usable duties without authoring raw state keys", () => {
@@ -55,8 +59,9 @@ describe("duty creation guide wiring", () => {
     expect(DUTY_TOOLS_SOURCE).toContain("create_or_update_kody_duty");
     expect(DUTY_TOOLS_SOURCE).not.toContain('"create_kody_duty"');
     expect(DUTY_TOOLS_SOURCE).not.toContain("'create_kody_duty'");
-    expect(AGENT_SOURCE).toContain("create_or_update_kody_duty");
-    expect(AGENT_SOURCE).not.toContain("`create_kody_duty`");
+    // The bundle's executable declares the tool the agent should call.
+    expect(DEFAULT_EXECUTABLE.tools).toContain("create_or_update_kody_duty");
+    expect(DEFAULT_EXECUTABLE.tools).not.toContain("create_kody_duty");
   });
 
   it("branches on existing-folder presence to choose create vs update", () => {
@@ -84,7 +89,7 @@ describe("duty creation guide wiring", () => {
     expect(DUTY_TOOLS_SOURCE).toContain("nextBody = existing.body");
   });
 
-  it("accepts `staff` as the engine-aligned persona field, with `runner` as a deprecated alias", () => {
+  it("accepts `staff` as the engine-aligned persona field, with `runner` as a deprecated alias", async () => {
     // The tool schema exposes `staff` (primary) and `runner` (alias).
     expect(DUTY_TOOLS_SOURCE).toMatch(/staff:\s*z[\s\S]*?\.string\(\)/);
     expect(DUTY_TOOLS_SOURCE).toMatch(/runner:\s*z[\s\S]*?\.string\(\)/);
@@ -96,12 +101,14 @@ describe("duty creation guide wiring", () => {
     expect(DUTY_FILES_SOURCE).toMatch(
       /opts\.staff\s*\?\?\s*opts\.runner/,
     );
-    // The agent prompt teaches the model the new field name. The system
-    // prompt is itself a template literal, so each backtick is escaped
-    // with a leading backslash in the source.
-    expect(AGENT_SOURCE).toMatch(/\\`staff\\`/);
-    expect(AGENT_SOURCE).toMatch(/\\`runner\\`/);
-    expect(AGENT_SOURCE).toMatch(/\\`config\.staff\\`/);
+    // The chat-defaults bundle's `create-duty` skill teaches the model
+    // the new field name.
+    const bundle = await loadChatDefaults("acme", "repo");
+    const createDuty = bundle.skills["create-duty"];
+    expect(createDuty).toBeDefined();
+    expect(createDuty!.body).toContain("`staff`");
+    expect(createDuty!.body).toContain("`runner`");
+    expect(createDuty!.body).toContain("`config.staff`");
   });
 
   it("supports multi-executable duties via the `executables` array", () => {
