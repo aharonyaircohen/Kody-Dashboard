@@ -59,6 +59,8 @@ import {
   loadChatDefaults,
   composeBasePrompt,
   filterToolsByAllowlist,
+  buildToolIndex,
+  CRITICAL_REMINDERS_MD,
 } from "@dashboard/lib/chat-defaults";
 import { createGitHubTools } from "../tools/github-tools";
 import { createPipelineTools } from "../tools/pipeline-tools";
@@ -587,40 +589,11 @@ export async function POST(req: NextRequest) {
   // allowlist. Repo-stored with a TS fallback; step 1 returns TS defaults.
   const chatBundle = await loadChatDefaults(repo?.owner, repo?.repo);
 
-  const assembledPrompt = buildSystemPrompt(
-    composeBasePrompt(chatBundle),
-    repo ? { owner: repo.owner, repo: repo.repo } : null,
-    body.task,
-    {
-      duty: body.duty,
-      goalPlanner: goalPlannerActive,
-      goal: goalPlannerActive ? body.goal : undefined,
-      report: body.report,
-      currentPage: body.currentPage,
-      memoryIndex,
-      vibeMode,
-      flyConfigured,
-      userInstructions,
-      context,
-    },
-  );
-
-  // Voice modality is layered onto the FULLY-ASSEMBLED prompt, appended
-  // LAST so its rules ("no markdown, short sentences, symbols-as-words")
-  // win by recency over the research/issue-creation/memory blocks above
-  // which otherwise teach the model to reply in bullet-heavy markdown.
-  // The agent's brain and tools are untouched — the user picks the brain
-  // in the dropdown; only the output shape changes.
-  const systemPrompt = applyVoiceOverlay(assembledPrompt, voiceMode);
-
-  // Build the per-request tool set. GitHub + pipeline tools require a
-  // resolved repo; remote tools require a configured actorLogin. The
-  // built-in `fetch_url` is always wired so the model can browse links.
-  //
-  // We never wire provider-defined tools (provider-native URL context or
-  // web search, etc.) — many providers forbid combining them
-  // with custom function tools, which would silently disable everything
-  // else. `fetch_url` is the universal swap-in replacement.
+  // Build the per-request tool set FIRST. The tool list feeds into the
+  // system prompt as a `## Tool index` block (item 1 of the accuracy
+  // improvements) — the model picks the right tool from the descriptions,
+  // not by guessing from names. Tool building requires repo + actor
+  // resolution done above.
   const baseTools: Record<string, unknown> = {
     fetch_url: fetchUrlTool,
     ...featureTools,
@@ -810,6 +783,47 @@ export async function POST(req: NextRequest) {
     chatBundle.executable.tools,
   );
   const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
+
+  // Build the system prompt. The tool index (name + description) is
+  // computed from the FINAL allowlisted tools and injected into the
+  // bundle's base prompt — the model sees a `## Tool index` block
+  // listing every callable with a one-sentence description, so it
+  // picks the right tool instead of guessing by name.
+  const toolIndex = buildToolIndex(allowlistedTools);
+
+  const basePrompt = composeBasePrompt(chatBundle, { toolIndex });
+  const assembledPrompt = buildSystemPrompt(
+    basePrompt,
+    repo ? { owner: repo.owner, repo: repo.repo } : null,
+    body.task,
+    {
+      duty: body.duty,
+      goalPlanner: goalPlannerActive,
+      goal: goalPlannerActive ? body.goal : undefined,
+      report: body.report,
+      currentPage: body.currentPage,
+      memoryIndex,
+      vibeMode,
+      flyConfigured,
+      userInstructions,
+      context,
+    },
+  );
+
+  // Critical reminders appended LAST among the static rules (recency
+  // bias) so the model holds them through the runtime blocks. The voice
+  // overlay still wins over these when voice is on (applied next).
+  const promptWithReminders = voiceMode
+    ? assembledPrompt
+    : `${assembledPrompt}\n\n${CRITICAL_REMINDERS_MD}`;
+
+  // Voice modality is layered onto the FULLY-ASSEMBLED prompt, appended
+  // LAST so its rules ("no markdown, short sentences, symbols-as-words")
+  // win by recency over the research/issue-creation/memory blocks above
+  // which otherwise teach the model to reply in bullet-heavy markdown.
+  // The agent's brain and tools are untouched — the user picks the brain
+  // in the dropdown; only the output shape changes.
+  const systemPrompt = applyVoiceOverlay(promptWithReminders, voiceMode);
 
   // Build a tool-name → description map from the merged tool set. Every
   // tool in this repo calls `tool({ description, inputSchema, execute })`

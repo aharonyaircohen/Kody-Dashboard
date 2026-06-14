@@ -8,6 +8,9 @@ import { readFileSync } from "fs";
 import {
   loadChatDefaults,
   composeChatPrompt,
+  composeBasePrompt,
+  buildToolIndex,
+  CRITICAL_REMINDERS_MD,
 } from "@dashboard/lib/chat-defaults";
 import {
   DEFAULT_PERSONA_MD,
@@ -313,5 +316,76 @@ describe("composeChatPrompt", () => {
     });
     expect(prompt).toContain("## Remembered context");
     expect(prompt).toContain("- foo: bar");
+  });
+});
+
+describe("buildToolIndex", () => {
+  it("formats each tool as `- `name` — description`", () => {
+    const out = buildToolIndex({
+      foo: { description: "Does the foo thing." },
+      bar: { description: "Does the bar thing." },
+    } as never);
+    expect(out).toContain("- `foo` — Does the foo thing.");
+    expect(out).toContain("- `bar` — Does the bar thing.");
+  });
+
+  it("truncates long descriptions to the first sentence or ~240 chars", () => {
+    const long =
+      "First sentence here. Second sentence that is way past the cap so it should be cut off at the first boundary.";
+    const out = buildToolIndex({
+      foo: { description: long },
+    } as never);
+    expect(out).toContain("First sentence here.");
+    expect(out).not.toContain("Second sentence");
+  });
+
+  it("falls back to `- `name`` when a tool has no description", () => {
+    const out = buildToolIndex({
+      foo: { description: "" },
+      bar: {},
+    } as never);
+    expect(out).toContain("- `foo`");
+    expect(out).toContain("- `bar`");
+  });
+});
+
+describe("composeBasePrompt toolIndex option", () => {
+  it("includes a `## Tool index` block when toolIndex is provided", async () => {
+    const bundle = await loadChatDefaults();
+    const prompt = composeBasePrompt(bundle, {
+      toolIndex: "- `github_search_code` — find candidate files",
+    });
+    expect(prompt).toContain("## Tool index");
+    expect(prompt).toContain("`github_search_code` — find candidate files");
+  });
+
+  it("omits the Tool index block when toolIndex is not provided", async () => {
+    const bundle = await loadChatDefaults();
+    const prompt = composeBasePrompt(bundle);
+    expect(prompt).not.toContain("## Tool index");
+  });
+});
+
+describe("CRITICAL_REMINDERS_MD", () => {
+  it("is a non-empty markdown string with the key reminders", () => {
+    expect(typeof CRITICAL_REMINDERS_MD).toBe("string");
+    expect(CRITICAL_REMINDERS_MD.length).toBeGreaterThan(100);
+    expect(CRITICAL_REMINDERS_MD).toContain("## Critical reminders");
+    expect(CRITICAL_REMINDERS_MD).toContain("Read the repo before answering");
+    expect(CRITICAL_REMINDERS_MD).toContain("Verify before claiming");
+    expect(CRITICAL_REMINDERS_MD).toContain("No fabrication");
+    expect(CRITICAL_REMINDERS_MD).toContain("Cite your evidence");
+    expect(CRITICAL_REMINDERS_MD).toContain("forward-driving question");
+    expect(CRITICAL_REMINDERS_MD).toContain("No sycophantic openers");
+  });
+});
+
+describe("persona: verify-before-claiming rule", () => {
+  it("persona contains a hard rule requiring verification before claiming", () => {
+    // The do-not-invent-labels memory is a symptom of a missing hard
+    // rule. The persona must have an explicit verify-before-claiming
+    // rule so the model holds the line even when memory isn't read.
+    expect(DEFAULT_PERSONA_MD).toMatch(/verify before claiming/i);
+    expect(DEFAULT_PERSONA_MD).toMatch(/do not invent|inventing/i);
   });
 });
