@@ -1,0 +1,10 @@
+[
+  {
+    "type": "decision",
+    "name": "review-noise-isolation",
+    "hook": "Prettier-only reformatting goes in a separate chore PR, not mixed with feature work",
+    "body": "When a review flags prettier-only reformatting mixed into a feature PR as 'review-fatigue noise', the right move is to (a) keep load-bearing config like .prettierignore that unblocks a CI gate, and (b) revert the source-file reformatting so the feature diff stays focused. The reformatting can land in a separate chore PR later.\n\n**Why:** Mixing 22 source-file whitespace/indentation changes with a chat-thread feature (PR #68 review) made the actual feature work hard to see. Reviewers shouldn't have to scroll past a 488-line reformatted file to find the real change.\n\n**How to apply:** When auto-formatting drift on a branch, prefer running prettier --write in a dedicated commit (or PR) titled `chore: format` rather than as part of a feature branch. If it's already mixed in and a reviewer complains, revert the source files but keep any .prettierignore (or equivalent config) that's load-bearing for the format:check gate.",
+    "why": "Review-fatigue from noise makes it harder to catch real issues; a focused diff is faster and safer to review.",
+    "confidence": 0.85
+  }
+]

@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Repo-wide prettier chore (re-land the 22 reformatted files)",
+    "body": "Re-add the 22 prettier-only source files (DutyControl.tsx, DashboardHome.tsx, TriageStrip.tsx, app/api/kody/brain/stored/route.ts, app/api/kody/ci/rerun/route.ts, docs/company.md, docs/executables.md, BrainFlyCard.tsx, BranchPreviewCard.tsx, CreateTaskDialog.tsx, ExecutablesManager.tsx, HappeningNow.tsx, JobsManager.tsx, RunnerManager.tsx, VaultLockedBanner.tsx, src/dashboard/lib/executables/files.ts, useDashboardActions.ts, useTriageStrip.ts, useVaultStatus.ts, brain-fly.ts, litellm-fly.ts, tests/unit/engine/install.spec.ts) as a separate chore PR. These were reformatted in commit 3eaf9c3a then reverted in PR #68 to keep the chat-thread feature diff focused. They still need reformatting eventually — the 55-file followup tracked in .kody/tasks/66/followups.json.",
+    "rationale": "The review explicitly asked for the prettier reformatting noise to be split out of the chat-thread PR. The chore is independent and should land separately.",
+    "priority": "low"
+  }
+]
