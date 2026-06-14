@@ -1,0 +1,17 @@
+{
+  "taskId": "324",
+  "taskType": "pr",
+  "target": "324",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Resolved merge conflicts between PR #324 and origin/main in KodyChat.tsx and duty-creation-guide.spec.ts; applied main's per-session agent refactor that the auto-merge had partially applied; tests and typecheck pass.",
+  "prUrl": "https://github.com/aharonyaircohen/Kody-Dashboard/pull/324",
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/KodyChat.tsx",
+    "tests/unit/duty-creation-guide.spec.ts"
+  ],
+  "sessionLog": ".kody/sessions/324.jsonl",
+  "startedAt": "2026-06-14T18:55:00Z",
+  "finishedAt": "2026-06-14T18:58:37Z"
+}

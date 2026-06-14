@@ -55,6 +55,11 @@ import {
   type DutyContext,
   type TaskContext,
 } from "./system-prompt";
+import {
+  loadChatDefaults,
+  composeBasePrompt,
+  filterToolsByAllowlist,
+} from "@dashboard/lib/chat-defaults";
 import { createGitHubTools } from "../tools/github-tools";
 import { createPipelineTools } from "../tools/pipeline-tools";
 import { createRemoteTools } from "../tools/remote-tools";
@@ -577,8 +582,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Load the chat defaults bundle — persona + executable + duties + skills.
+  // The bundle is the source of truth for the chat's prompt base + tool
+  // allowlist. Repo-stored with a TS fallback; step 1 returns TS defaults.
+  const chatBundle = await loadChatDefaults(repo?.owner, repo?.repo);
+
   const assembledPrompt = buildSystemPrompt(
-    agent.systemPrompt,
+    composeBasePrompt(chatBundle),
     repo ? { owner: repo.owner, repo: repo.repo } : null,
     body.task,
     {
@@ -792,7 +802,14 @@ export async function POST(req: NextRequest) {
     { ...baseTools, ...extraTools },
     { vibeMode, hasCurrentTask: body.task?.issueNumber != null },
   );
-  const tools = mergedTools as Parameters<typeof streamText>[0]["tools"];
+  // Bundle allowlist — the executable's `tools` field is the single source
+  // of truth for which tools the chat exposes. Empty list = expose all
+  // (preserves current behavior when the bundle is unconfigured).
+  const allowlistedTools = filterToolsByAllowlist(
+    mergedTools,
+    chatBundle.executable.tools,
+  );
+  const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
 
   // Build a tool-name → description map from the merged tool set. Every
   // tool in this repo calls `tool({ description, inputSchema, execute })`
