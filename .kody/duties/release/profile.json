@@ -1,0 +1,14 @@
+{
+  "name": "release",
+  "describe": "Release",
+  "action": "release",
+  "every": "manual",
+  "staff": "kody",
+  "runner": "kody",
+  "executables": [
+    "release-prepare",
+    "release-merge",
+    "release-publish",
+    "release-deploy"
+  ]
+}
