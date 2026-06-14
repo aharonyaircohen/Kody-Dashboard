@@ -7,11 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1103] - 2026-06-14
+
+### Changed
+
+- Bump package version to 0.1.1103 in preparation for the v0.1.1103 release.
+
 ## [0.1.1102] - 2026-06-14
 
 ### Changed
 
 - Bump package version to 0.1.1102 in preparation for the v0.1.1102 release.
 
-[Unreleased]: https://github.com/aharonyaircohen/Kody-Dashboard/compare/v0.1.1102...HEAD
+[Unreleased]: https://github.com/aharonyaircohen/Kody-Dashboard/compare/v0.1.1103...HEAD
+[0.1.1103]: https://github.com/aharonyaircohen/Kody-Dashboard/releases/tag/v0.1.1103
 [0.1.1102]: https://github.com/aharonyaircohen/Kody-Dashboard/releases/tag/v0.1.1102
