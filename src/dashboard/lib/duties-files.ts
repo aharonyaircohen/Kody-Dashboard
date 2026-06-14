@@ -21,11 +21,12 @@ import {
   latestActivityByDuty,
   type CompanyActivityRecord,
 } from "./activity/company";
+import { isScheduleEvery, type ScheduleEvery } from "./ticked/frontmatter";
 import {
-  isScheduleEvery,
-  type ScheduleEvery,
-} from "./ticked/frontmatter";
-import { parseTickedMarkdown, type TickFile, type TickWriteOptions } from "./ticked/files";
+  parseTickedMarkdown,
+  type TickFile,
+  type TickWriteOptions,
+} from "./ticked/files";
 
 const DUTIES_DIR = ".kody/duties";
 const PROFILE_FILE = "profile.json";
@@ -87,7 +88,8 @@ export function buildDutyProfile(opts: TickWriteOptions): DutyProfile {
   }
   if (opts.reviewer?.trim()) profile.reviewer = cleanLogin(opts.reviewer);
   if (opts.mentions?.length) profile.mentions = cleanList(opts.mentions, true);
-  if (opts.executables?.length) profile.executables = cleanList(opts.executables);
+  if (opts.executables?.length)
+    profile.executables = cleanList(opts.executables);
   if (opts.dutyTools?.length) profile.tools = cleanList(opts.dutyTools);
   if (opts.tickScript?.trim()) profile.tickScript = opts.tickScript.trim();
   if (opts.readsFrom?.length) profile.readsFrom = cleanList(opts.readsFrom);
@@ -132,7 +134,8 @@ const MANAGED_PROFILE_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 function parseDutyProfile(raw: unknown, slug: string): DutyProfile {
-  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const r =
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   return {
     name: stringField(r.name) ?? slug,
     action: stringField(r.action),
@@ -322,27 +325,33 @@ export async function readDutyFile(
   const bodyPath = `${DUTIES_DIR}/${slug}/${BODY_FILE}`;
 
   try {
-    const [profileResult, bodyResult, updatedAt, lastTickAt, tickState, activityByDuty] =
-      await Promise.all([
-        octokit.repos.getContent({
-          owner: getOwner(),
-          repo: getRepo(),
-          path: profilePath,
-        }),
-        octokit.repos.getContent({
-          owner: getOwner(),
-          repo: getRepo(),
-          path: bodyPath,
-        }),
-        fetchLastCommitDate(octokit, bodyPath),
-        fetchLastCommitDateOrNull(
-          octokit,
-          `${DUTIES_DIR}/${slug}.state.json`,
-          STATE_BRANCH,
-        ),
-        fetchTickState(octokit, slug),
-        fetchRecentDutyActivity(),
-      ]);
+    const [
+      profileResult,
+      bodyResult,
+      updatedAt,
+      lastTickAt,
+      tickState,
+      activityByDuty,
+    ] = await Promise.all([
+      octokit.repos.getContent({
+        owner: getOwner(),
+        repo: getRepo(),
+        path: profilePath,
+      }),
+      octokit.repos.getContent({
+        owner: getOwner(),
+        repo: getRepo(),
+        path: bodyPath,
+      }),
+      fetchLastCommitDate(octokit, bodyPath),
+      fetchLastCommitDateOrNull(
+        octokit,
+        `${DUTIES_DIR}/${slug}.state.json`,
+        STATE_BRANCH,
+      ),
+      fetchTickState(octokit, slug),
+      fetchRecentDutyActivity(),
+    ]);
     const profileData = profileResult.data;
     const bodyData = bodyResult.data;
     if (
@@ -375,7 +384,9 @@ export async function readDutyFile(
       lastOutcome: useActivity
         ? activityOutcome(activity)
         : tickState.lastOutcome,
-      lastDurationMs: useActivity ? activity.durationMs : tickState.lastDurationMs,
+      lastDurationMs: useActivity
+        ? activity.durationMs
+        : tickState.lastDurationMs,
       schedule: profile.every ?? null,
       disabled: profile.disabled === true,
       runner: profile.runner ?? null,
@@ -401,9 +412,7 @@ export async function readDutyFile(
   }
 }
 
-export async function writeDutyFile(
-  opts: TickWriteOptions,
-): Promise<DutyFile> {
+export async function writeDutyFile(opts: TickWriteOptions): Promise<DutyFile> {
   if (!isValidSlug(opts.slug)) {
     throw new Error(
       `Invalid duties slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`,
@@ -434,7 +443,9 @@ export async function writeDutyFile(
   invalidateDutiesCache(opts.slug);
   const refreshed = await readDutyFile(opts.slug, opts.octokit);
   if (!refreshed) {
-    throw new Error("writeDutyFile: duty folder was written but could not be re-read");
+    throw new Error(
+      "writeDutyFile: duty folder was written but could not be re-read",
+    );
   }
   return refreshed;
 }
@@ -460,7 +471,10 @@ export async function deleteDutyFile(
   invalidateDutiesCache(slug);
 }
 
-async function contentExists(octokit: Octokit, filePath: string): Promise<boolean> {
+async function contentExists(
+  octokit: Octokit,
+  filePath: string,
+): Promise<boolean> {
   try {
     const { data } = await octokit.repos.getContent({
       owner: getOwner(),
@@ -495,7 +509,12 @@ async function writeTreeCommit(
   const tree = await Promise.all(
     files.map(async (file) => {
       if (file.content === null) {
-        return { path: file.path, mode: "100644" as const, type: "blob" as const, sha: null };
+        return {
+          path: file.path,
+          mode: "100644" as const,
+          type: "blob" as const,
+          sha: null,
+        };
       }
       const { data: blob } = await octokit.git.createBlob({
         owner: getOwner(),
@@ -503,7 +522,12 @@ async function writeTreeCommit(
         content: file.content,
         encoding: "utf-8",
       });
-      return { path: file.path, mode: "100644" as const, type: "blob" as const, sha: blob.sha };
+      return {
+        path: file.path,
+        mode: "100644" as const,
+        type: "blob" as const,
+        sha: blob.sha,
+      };
     }),
   );
   const { data: newTree } = await octokit.git.createTree({

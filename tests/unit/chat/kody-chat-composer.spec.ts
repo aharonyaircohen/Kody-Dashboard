@@ -138,8 +138,7 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
     // The new internal hairline must be a *child* of that container.
     const internalBorderLines = COMPOSER_LINES.filter(
       (line) =>
-        /\bborder-t\b/.test(line) &&
-        !line.includes("px-1.5 py-2 sm:p-3"),
+        /\bborder-t\b/.test(line) && !line.includes("px-1.5 py-2 sm:p-3"),
     );
     const hasInternalHairline = internalBorderLines.length > 0;
     expect(

@@ -89,20 +89,20 @@ function terminalRegistryStorageKey(scope: string): string {
 function isTransport(value: unknown): value is ChatTerminalTransport {
   if (!value || typeof value !== "object") return false;
   const transport = value as Partial<ChatTerminalTransport>;
- if (transport.type === "local") {
- return (
- (transport.sandboxId === undefined ||
- typeof transport.sandboxId === "string") &&
- (transport.label === undefined || typeof transport.label === "string")
- );
- }
- if (transport.type === "github-actions") {
- return (
- typeof transport.sandboxId === "string" &&
- (transport.label === undefined || typeof transport.label === "string")
- );
- }
- return (
+  if (transport.type === "local") {
+    return (
+      (transport.sandboxId === undefined ||
+        typeof transport.sandboxId === "string") &&
+      (transport.label === undefined || typeof transport.label === "string")
+    );
+  }
+  if (transport.type === "github-actions") {
+    return (
+      typeof transport.sandboxId === "string" &&
+      (transport.label === undefined || typeof transport.label === "string")
+    );
+  }
+  return (
     transport.type === "fly" &&
     typeof transport.app === "string" &&
     typeof transport.machineId === "string"
@@ -180,10 +180,11 @@ export function terminalMachineIdShort(machineId: string): string {
 }
 
 function chatTerminalTransportKey(transport: ChatTerminalTransport): string {
- if (transport.type === "fly") return `fly:${transport.app}:${transport.machineId}`;
- if (transport.type === "github-actions")
- return `github-actions-sandbox:${transport.sandboxId}`;
- return transport.sandboxId ? `local-sandbox:${transport.sandboxId}` : "local";
+  if (transport.type === "fly")
+    return `fly:${transport.app}:${transport.machineId}`;
+  if (transport.type === "github-actions")
+    return `github-actions-sandbox:${transport.sandboxId}`;
+  return transport.sandboxId ? `local-sandbox:${transport.sandboxId}` : "local";
 }
 
 function chatTerminalInstanceId(
@@ -261,14 +262,14 @@ export function useChatTerminalRegistry({
   const activeInstanceId = activeSessionId
     ? chatTerminalInstanceId(activeSessionId, activeTransport)
     : null;
- const activeTargetValue =
- activeTransport.type === "fly"
- ? terminalFlyMachineKey(activeTransport)
- : activeTransport.type === "github-actions"
- ? `gha:${activeTransport.sandboxId}`
- : activeTransport.sandboxId
- ? `sandbox:${activeTransport.sandboxId}`
- : "local";
+  const activeTargetValue =
+    activeTransport.type === "fly"
+      ? terminalFlyMachineKey(activeTransport)
+      : activeTransport.type === "github-actions"
+        ? `gha:${activeTransport.sandboxId}`
+        : activeTransport.sandboxId
+          ? `sandbox:${activeTransport.sandboxId}`
+          : "local";
   const activeConnectionState = activeSessionId
     ? (connectionStateByInstanceId[activeInstanceId ?? ""] ?? "idle")
     : "idle";
@@ -465,26 +466,26 @@ export function useChatTerminalRegistry({
     [setActiveTransport, terminalMachines],
   );
 
- const selectSandboxTarget = useCallback(
- (sandbox: { id: string; name: string }) => {
- setActiveTransport({
- type: "local",
- sandboxId: sandbox.id,
- label: sandbox.name,
- });
- },
- [setActiveTransport],
- );
- const selectGitHubActionsSandboxTarget = useCallback(
- (sandbox: { id: string; name: string }) => {
- setActiveTransport({
- type: "github-actions",
- sandboxId: sandbox.id,
- label: sandbox.name,
- });
- },
- [setActiveTransport],
- );
+  const selectSandboxTarget = useCallback(
+    (sandbox: { id: string; name: string }) => {
+      setActiveTransport({
+        type: "local",
+        sandboxId: sandbox.id,
+        label: sandbox.name,
+      });
+    },
+    [setActiveTransport],
+  );
+  const selectGitHubActionsSandboxTarget = useCallback(
+    (sandbox: { id: string; name: string }) => {
+      setActiveTransport({
+        type: "github-actions",
+        sandboxId: sandbox.id,
+        label: sandbox.name,
+      });
+    },
+    [setActiveTransport],
+  );
 
   const toggleFlyConnection = useCallback(() => {
     if (!activeSessionId || activeTransport.type !== "fly") return;
@@ -642,10 +643,10 @@ export function useChatTerminalRegistry({
     mountedTerminals,
     openTerminalMode,
     recordConnectionState,
- refreshFlyMachines,
- selectGitHubActionsSandboxTarget,
- selectSandboxTarget,
- selectTarget,
+    refreshFlyMachines,
+    selectGitHubActionsSandboxTarget,
+    selectSandboxTarget,
+    selectTarget,
     setActiveMode,
     terminalMachines,
     toggleFlyConnection,

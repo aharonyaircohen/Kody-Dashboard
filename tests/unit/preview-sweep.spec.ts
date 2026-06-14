@@ -177,7 +177,10 @@ describe("sweepExpiredPreviews", () => {
     const now = Date.parse("2026-06-10T00:00:00.000Z");
     const fresh = new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString();
 
-    mocks.listAppsByPrefix.mockResolvedValue(["kp-repo-pr-bad", "kp-repo-pr-ok"]);
+    mocks.listAppsByPrefix.mockResolvedValue([
+      "kp-repo-pr-bad",
+      "kp-repo-pr-ok",
+    ]);
     mocks.listMachines.mockImplementation(async (appName: string) => {
       if (appName === "kp-repo-pr-bad") throw new Error("fly down");
       return [

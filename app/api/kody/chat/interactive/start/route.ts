@@ -152,7 +152,8 @@ export async function POST(req: NextRequest) {
     // fall back to its own default (off).
     const workflowInputs: Record<string, string> = {
       sessionId: taskId,
-      ...(typeof reasoningEffort === "string" && reasoningEffort.trim().length > 0
+      ...(typeof reasoningEffort === "string" &&
+      reasoningEffort.trim().length > 0
         ? { reasoningEffort: reasoningEffort.trim() }
         : {}),
     };
@@ -201,7 +202,8 @@ export async function POST(req: NextRequest) {
           taskId,
           idleExitMs,
           hardCapMs,
-          ...(typeof reasoningEffort === "string" && reasoningEffort.trim().length > 0
+          ...(typeof reasoningEffort === "string" &&
+          reasoningEffort.trim().length > 0
             ? { reasoningEffort: reasoningEffort.trim() }
             : {}),
         }),

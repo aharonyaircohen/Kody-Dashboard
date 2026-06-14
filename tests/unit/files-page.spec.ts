@@ -138,9 +138,7 @@ describe("replacePathPrefix", () => {
 
 describe("duplicatePath", () => {
   it("adds copy before a file extension", () => {
-    expect(duplicatePath("src/Button.tsx", "file")).toBe(
-      "src/Button copy.tsx",
-    );
+    expect(duplicatePath("src/Button.tsx", "file")).toBe("src/Button copy.tsx");
   });
 
   it("adds copy after an extensionless file", () => {

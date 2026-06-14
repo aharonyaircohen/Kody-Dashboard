@@ -1,0 +1,18 @@
+[
+  {
+    "type": "lesson",
+    "name": "auth-is-header-based-pat",
+    "hook": "Dashboard auth is header-based PAT (localStorage → x-kody-token) — no server-side session, no OAuth flow, no JWT.",
+    "body": "Authentication on the Kody Dashboard is **entirely header-based**: the user's GitHub PAT lives in `localStorage` as `kody_auth` and is sent on every API call as the `x-kody-token` header. The server resolves the identity via `/api/kody/auth/me` → GitHub `/user`. There is no session cookie, no OAuth callback, no JWT. Source: `src/dashboard/lib/hooks/useGitHubIdentity.ts` (`@ai-summary` comment).\n\n**Why:** Older docs (README, AGENTS, DEPLOY) and many code comments still reference the old OAuth flow. The OAuth flow was removed; the docs were never fully updated. This causes churn on every auth-touching chore (you have to keep re-asserting \"this is stale, don't trust it\").\n\n**How to apply:** When working on anything auth-related, treat any reference to \"OAuth\", `/api/oauth/`, \"OAuth callback URL\", \"OAuth scopes\", or \"session JWT\" as suspect. The truth lives in `useGitHubIdentity.ts` and the App-installation-token helpers in `src/dashboard/lib/auth/`. The KODY_MASTER_KEY powers vault AES + chat-ingest HMAC only — not session JWT. If a doc or comment says otherwise, it is stale.",
+    "why": "Stale auth references in user-facing docs are a recurring source of confusion; having a single source of truth prevents the next chore from re-discovering the same drift.",
+    "confidence": 0.9
+  },
+  {
+    "type": "lesson",
+    "name": "verify-gate-fails-on-prettier-drift-not-just-changed-files",
+    "hook": "The verify gate runs prettier --check on the whole tree — pre-existing format drift on main will fail the gate even if the chore's own files are clean. Plan for a format sweep if format drift is likely.",
+    "body": "The Kody `verify` tool runs `prettier --check \"**/*.{js,jsx,ts,tsx,json,md,yml,yaml}\"` against the entire repo, not just files touched by the chore. If `main` has any pre-existing format drift (currently ~70 files), the verify gate fails and the chore is re-invoked with a retry, even when the chore's own changes are format-clean.\n\n**Why:** Hit on issue #322 — docs chore edited 3 files, all passed prettier, but the gate still failed on 70 unrelated files. The previous run's handoff noted \"pre-existing in unrelated files, out of scope\" — correct per the chore contract, but the gate doesn't care about chore scope.\n\n**How to apply:** (1) Before declaring success on a chore, run the full `prettier --check` (not just the changed files) to see if a sweep will be needed. (2) If format drift is likely, budget for `npx prettier --write` on the failing files in the same PR — note explicitly in the handoff that this is a format-only sweep, not feature work. (3) Strongly consider a followup to add `prettier --check` to the husky pre-commit hook so drift can't reach `main`.",
+    "why": "Format drift on main is a known recurring failure mode for this project's verify gate; a future chore agent shouldn't have to rediscover this from a verify-failed retry message.",
+    "confidence": 0.85
+  }
+]

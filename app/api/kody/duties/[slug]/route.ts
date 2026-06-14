@@ -227,7 +227,8 @@ export async function PATCH(
       return NextResponse.json(
         {
           error: "no_user_token",
-          message: "A signed-in GitHub token is required to commit duty folders.",
+          message:
+            "A signed-in GitHub token is required to commit duty folders.",
         },
         { status: 401 },
       );
@@ -338,7 +339,8 @@ export async function DELETE(
       return NextResponse.json(
         {
           error: "no_user_token",
-          message: "A signed-in GitHub token is required to delete duty folders.",
+          message:
+            "A signed-in GitHub token is required to delete duty folders.",
         },
         { status: 401 },
       );

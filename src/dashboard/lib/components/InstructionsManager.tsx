@@ -65,9 +65,17 @@ export const instructionsQueryKeys = {
   file: (scope: InstructionsQueryScope = {}) =>
     ["kody-instructions", scope.owner ?? null, scope.repo ?? null] as const,
   basePrompt: (scope: InstructionsQueryScope = {}) =>
-    ["kody-instructions-base", scope.owner ?? null, scope.repo ?? null] as const,
+    [
+      "kody-instructions-base",
+      scope.owner ?? null,
+      scope.repo ?? null,
+    ] as const,
   fullPrompt: (scope: InstructionsQueryScope = {}) =>
-    ["kody-instructions-full", scope.owner ?? null, scope.repo ?? null] as const,
+    [
+      "kody-instructions-full",
+      scope.owner ?? null,
+      scope.repo ?? null,
+    ] as const,
 };
 
 type PromptView = "base" | "full";

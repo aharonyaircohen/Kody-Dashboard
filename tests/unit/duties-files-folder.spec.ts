@@ -103,11 +103,13 @@ describe("folder-backed duty files", () => {
   });
 
   it("keeps duty.md as titled body prose only", () => {
-    const body = buildDutyBody("Repo Graph", "# Old Title\n\n## Job\n\nRefresh the graph.");
+    const body = buildDutyBody(
+      "Repo Graph",
+      "# Old Title\n\n## Job\n\nRefresh the graph.",
+    );
 
     expect(body).toBe("# Repo Graph\n\n## Job\n\nRefresh the graph.\n");
     expect(body).not.toContain("---");
     expect(body).not.toContain("action:");
   });
 });
-

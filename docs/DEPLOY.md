@@ -46,11 +46,11 @@ vercel env add GITHUB_TOKEN production
 Optional variables:
 
 ```bash
-# Public URL (used for OAuth redirects)
+# Public URL (used as the deployment base for webhooks, OG metadata, etc.)
 vercel env add NEXT_PUBLIC_SERVER_URL
 
 # Optional: centralize the chat workflow on a single engine repo.
-# Without this, chat dispatches against the repo the user connected at login.
+# Without this, chat dispatches against the repo the user connected via PAT.
 vercel env add KODY_CHAT_WORKFLOW_REPO
 
 # Optional: override the chat workflow filename (default: kody.yml).
@@ -195,20 +195,6 @@ vercel --prod --yes
 ```
 
 Vercel will run the build automatically from `package.json` scripts.
-
-### OAuth callback URL mismatch
-
-The GitHub OAuth App callback URL must exactly match:
-
-```
-https://<your-project>.vercel.app/api/oauth/github/callback
-```
-
-Update it in your GitHub OAuth App settings at:
-
-```
-GitHub → Settings → Developer settings → OAuth Apps → <your-app> → Callback URL
-```
 
 ---
 

@@ -18,10 +18,7 @@
  *   against, and are limited by, the cap.
  */
 import type { InboxFeedEntry } from "../inbox/feed";
-import {
-  trustDecisionKey,
-  type TrustLatestDecision,
-} from "./trust-state";
+import { trustDecisionKey, type TrustLatestDecision } from "./trust-state";
 import { DEFAULT_STAFF_SLUG } from "./recommendation";
 
 /**

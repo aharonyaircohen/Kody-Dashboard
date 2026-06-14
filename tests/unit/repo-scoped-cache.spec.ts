@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { contextApi, memoryApi, reportsApi, staffApi } from "@dashboard/lib/api";
+import {
+  contextApi,
+  memoryApi,
+  reportsApi,
+  staffApi,
+} from "@dashboard/lib/api";
 import { commandsQueryKeys } from "@dashboard/lib/components/CommandsManager";
 import { executableQueryKeys } from "@dashboard/lib/components/ExecutablesManager";
 import { instructionsQueryKeys } from "@dashboard/lib/components/InstructionsManager";
@@ -93,7 +98,9 @@ describe("repo-scoped dashboard caches", () => {
     expect(memoryQueryKeys.list(scope)).not.toEqual(
       memoryQueryKeys.list(other),
     );
-    expect(reportQueryKeys.list(scope)).not.toEqual(reportQueryKeys.list(other));
+    expect(reportQueryKeys.list(scope)).not.toEqual(
+      reportQueryKeys.list(other),
+    );
     expect(executableQueryKeys.list(scope)).not.toEqual(
       executableQueryKeys.list(other),
     );

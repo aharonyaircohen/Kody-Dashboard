@@ -189,12 +189,18 @@ export function applyReasoning(
  * matters — more specific patterns (GPT-5, o1) come before looser ones
  * (claude).
  */
-export function defaultReasoningForModel(model: ModelLike): ModelReasoning | null {
+export function defaultReasoningForModel(
+  model: ModelLike,
+): ModelReasoning | null {
   const name = (model.modelName ?? model.id ?? "").toLowerCase();
   if (!name) return null;
 
   // Always-on reasoning families — single-entry "On" pill.
-  if (/\bo1\b/.test(name) || /\bo3\b/.test(name) || /\bdeepseek-r1\b/.test(name)) {
+  if (
+    /\bo1\b/.test(name) ||
+    /\bo3\b/.test(name) ||
+    /\bdeepseek-r1\b/.test(name)
+  ) {
     return {
       efforts: ALWAYS_ON_EFFORTS,
       default: "on",
@@ -266,7 +272,10 @@ export function defaultReasoningForModel(model: ModelLike): ModelReasoning | nul
     return {
       efforts: STANDARD_EFFORTS,
       default: "medium",
-      wire: model.protocol === "anthropic" ? "anthropic_budget" : "openai_extra_body",
+      wire:
+        model.protocol === "anthropic"
+          ? "anthropic_budget"
+          : "openai_extra_body",
     };
   }
 
@@ -299,7 +308,9 @@ export const FALLBACK_REASONING: ModelReasoning = {
  * dropdown (it always renders for gateway models now); the route uses
  * `applyReasoning` to translate the chosen level.
  */
-export function resolveReasoning(model: ModelLike | null | undefined): ModelReasoning | null {
+export function resolveReasoning(
+  model: ModelLike | null | undefined,
+): ModelReasoning | null {
   if (!model) return null;
   if (model.reasoning) return model.reasoning;
   return defaultReasoningForModel(model) ?? FALLBACK_REASONING;

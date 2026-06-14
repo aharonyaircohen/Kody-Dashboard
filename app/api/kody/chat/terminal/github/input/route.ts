@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
   const auth = getRequestAuth(req);
-  if (!auth) return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+  if (!auth)
+    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
 
   let body: unknown;
   try {
@@ -37,11 +38,21 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await writeGitHubActionsTerminalInput(req, auth, parsed.data.sessionId, parsed.data.input);
+    await writeGitHubActionsTerminalInput(
+      req,
+      auth,
+      parsed.data.sessionId,
+      parsed.data.input,
+    );
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message =
-      err instanceof Error ? err.message : "Failed to write GitHub Actions terminal input";
-    return NextResponse.json({ error: "github_terminal_input_failed", message }, { status: 500 });
+      err instanceof Error
+        ? err.message
+        : "Failed to write GitHub Actions terminal input";
+    return NextResponse.json(
+      { error: "github_terminal_input_failed", message },
+      { status: 500 },
+    );
   }
 }

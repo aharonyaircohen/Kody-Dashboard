@@ -835,9 +835,7 @@ export async function POST(req: NextRequest) {
       // Optimized for deep analysis: see DEFAULT_MAX_STEPS for the cap
       // rationale and the per-model override path. The constant lives at
       // module level so tests can assert the value.
-      stopWhen: stepCountIs(
-        resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS,
-      ),
+      stopWhen: stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
       // Per-provider thinking config so reasoning-delta chunks actually
       // reach the client. Without this, `sendReasoning: true` below has
       // nothing to stream and the chat looks idle until the final answer.
@@ -849,9 +847,7 @@ export async function POST(req: NextRequest) {
       // as `body.reasoningEffort` and validated against the model's
       // declared `efforts` list. Returns `{}` for models that don't
       // reason, so non-reasoning providers stay untouched.
-      ...(voiceMode
-        ? {}
-        : applyReasoning(resolvedModel, body.reasoningEffort)),
+      ...(voiceMode ? {} : applyReasoning(resolvedModel, body.reasoningEffort)),
       // Per-tool tracing. `experimental_onToolCallStart` fires before the
       // tool's `execute` is invoked; `experimental_onToolCallFinish`
       // afterward with the SDK-measured `durationMs` and a success flag.

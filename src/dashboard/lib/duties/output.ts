@@ -25,9 +25,10 @@ export function buildDutyWritesTo(
   return outputKind === "report" ? [normalizeReportSlug(reportSlug)] : [];
 }
 
-export function dutyOutputFromWritesTo(
-  writesTo: string[] | null | undefined,
-): { outputKind: DutyOutputKind; reportSlug: string } {
+export function dutyOutputFromWritesTo(writesTo: string[] | null | undefined): {
+  outputKind: DutyOutputKind;
+  reportSlug: string;
+} {
   const firstReport = writesTo?.find((value) => value.trim().length > 0);
   return {
     outputKind: firstReport ? "report" : "run",

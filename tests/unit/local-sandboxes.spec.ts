@@ -43,7 +43,9 @@ describe("local sandboxes", () => {
     expect(sandbox.name).toBe("CLI auth test");
     expect(sandbox.homeDir).toContain(sandbox.id);
     expect(sandbox.workspaceDir).toContain(sandbox.id);
-    await expect(getLocalSandbox(scope, sandbox.id, { rootDir })).resolves.toMatchObject({
+    await expect(
+      getLocalSandbox(scope, sandbox.id, { rootDir }),
+    ).resolves.toMatchObject({
       id: sandbox.id,
       name: "CLI auth test",
     });
@@ -100,7 +102,7 @@ describe("local sandboxes", () => {
       { rootDir, seedWorkspace: false },
     );
     await writeFile(join(source.homeDir, ".zsh_history"), "codex login\n");
-    await writeFile(join(source.workspaceDir, "settings.json"), "{\"ok\":true}");
+    await writeFile(join(source.workspaceDir, "settings.json"), '{"ok":true}');
 
     const copy = await createLocalSandbox(
       scope,
@@ -108,12 +110,12 @@ describe("local sandboxes", () => {
       { rootDir },
     );
 
-    await expect(readFile(join(copy.homeDir, ".zsh_history"), "utf8")).resolves.toBe(
-      "codex login\n",
-    );
+    await expect(
+      readFile(join(copy.homeDir, ".zsh_history"), "utf8"),
+    ).resolves.toBe("codex login\n");
     await expect(
       readFile(join(copy.workspaceDir, "settings.json"), "utf8"),
-    ).resolves.toBe("{\"ok\":true}");
+    ).resolves.toBe('{"ok":true}');
   });
 
   it("creates a GitHub Actions sandbox profile from an existing sandbox", async () => {
@@ -135,9 +137,9 @@ describe("local sandboxes", () => {
     );
 
     expect(gha.runtime).toBe("github-actions");
-    await expect(readFile(join(gha.homeDir, ".zsh_history"), "utf8")).resolves.toBe(
-      "gha ready\n",
-    );
+    await expect(
+      readFile(join(gha.homeDir, ".zsh_history"), "utf8"),
+    ).resolves.toBe("gha ready\n");
   });
 
   it("deletes a sandbox directory and removes it from the list", async () => {
@@ -147,11 +149,13 @@ describe("local sandboxes", () => {
       { rootDir, seedWorkspace: false },
     );
 
-    await expect(deleteLocalSandbox(scope, sandbox.id, { rootDir })).resolves.toBe(
-      true,
-    );
+    await expect(
+      deleteLocalSandbox(scope, sandbox.id, { rootDir }),
+    ).resolves.toBe(true);
 
-    await expect(getLocalSandbox(scope, sandbox.id, { rootDir })).resolves.toBeNull();
+    await expect(
+      getLocalSandbox(scope, sandbox.id, { rootDir }),
+    ).resolves.toBeNull();
     await expect(listLocalSandboxes(scope, { rootDir })).resolves.toEqual([]);
   });
 
@@ -169,11 +173,11 @@ describe("local sandboxes", () => {
     await writeFile(join(sandbox.workspaceDir, "note.txt"), "changed");
     await restoreLocalSandboxSnapshot(scope, sandbox.id, { rootDir });
 
-    await expect(readFile(join(sandbox.homeDir, ".zsh_history"), "utf8")).resolves.toBe(
-      "gh auth login\n",
-    );
-    await expect(readFile(join(sandbox.workspaceDir, "note.txt"), "utf8")).resolves.toBe(
-      "workspace state",
-    );
+    await expect(
+      readFile(join(sandbox.homeDir, ".zsh_history"), "utf8"),
+    ).resolves.toBe("gh auth login\n");
+    await expect(
+      readFile(join(sandbox.workspaceDir, "note.txt"), "utf8"),
+    ).resolves.toBe("workspace state");
   });
 });
