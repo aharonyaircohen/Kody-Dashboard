@@ -1,0 +1,7 @@
+allowBuilds:
+  '@sentry/cli': true
+  esbuild: true
+  node-pty: true
+  protobufjs: true
+  sharp: true
+  unrs-resolver: true

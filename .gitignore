@@ -35,6 +35,9 @@ pnpm-debug.log*
 # Kody action state (legacy local-FS store — now GitHub-backed)
 .kody-action-store/
 
+# Kody sandboxes — local agent working copies (do not commit)
+.kody/sandboxes/
+
 # Test results
 test-results/
 
