@@ -1,0 +1,14 @@
+{
+  "taskId": "153",
+  "taskType": "issue",
+  "target": "153",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Added folder-level purpose header to runner-dispatch.ts (orchestrator); all 15 modules already carry @ai-summary so no per-file changes were needed.",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": ["src/dashboard/lib/runners/runner-dispatch.ts"],
+  "sessionLog": ".kody/sessions/153.jsonl",
+  "startedAt": "2026-06-08T10:12:00Z",
+  "finishedAt": "2026-06-08T10:19:34Z"
+}

@@ -1,0 +1,5 @@
+Issue #153 asked for a folder-level "start here" header in `src/dashboard/lib/runners/`, plus `@ai-summary` headers on any module that lacked one.
+
+What I did: added a single top-of-file JSDoc block to `src/dashboard/lib/runners/runner-dispatch.ts` (the orchestrator, named in the issue as the central file). It names the folder's purpose, points at `dispatchRun` as the entry point, lists the spine (`runner-dispatch.ts` + `runner-router.ts`), groups the other 13 modules by surface (Fly REST, GitHub health, pool/claim, fly-context, Brain/LiteLLM, activity/cost), and flags the three load-bearing gotchas the issue called out: (1) Fly token from the per-repo vault, never `process.env`; (2) GitHub→Fly fallback only when GitHub is unhealthy AND a Fly token exists; (3) `POOL_API_KEY` is derived from `KODY_MASTER_KEY` via HKDF, rotation = bump info string on both sides.
+
+No per-file changes: a grep confirmed all 15 modules already carry an `@ai-summary` block. The work is documentation-only — verify passed clean on the first attempt.
