@@ -51,8 +51,8 @@ interface PreviewEnvSwitcherProps {
   onSave: (next: PreviewEnvironment[]) => Promise<void>;
   /** Add an environment with label + url (parent persists + selects). */
   onAdd: (label: string, url: string) => Promise<void>;
-  /** Upload a file → boot a static preview → add it as an environment. */
-  onUpload: (file: File) => Promise<void>;
+  /** Upload file(s) → boot a static preview → add it as an environment. */
+  onUpload: (files: File[]) => Promise<void>;
   /** Destroy the Fly app behind an uploaded environment, if it has one. */
   onRemoveStatic?: (staticId: string) => Promise<void>;
   /** Push an uploaded environment's expiry out by another TTL. */
@@ -135,10 +135,11 @@ export function PreviewEnvSwitcher({
     }
   };
 
-  const handleUpload = async (file: File): Promise<void> => {
+  const handleUpload = async (files: File[]): Promise<void> => {
+    if (files.length === 0) return;
     setUploading(true);
     try {
-      await onUpload(file);
+      await onUpload(files);
       setMenuOpen(false);
     } finally {
       setUploading(false);
@@ -296,10 +297,11 @@ export function PreviewEnvSwitcher({
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handleUpload(f);
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length > 0) void handleUpload(files);
                 }}
               />
               <button

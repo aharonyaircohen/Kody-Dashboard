@@ -43,6 +43,8 @@ export const runtime = "nodejs";
  *  create-machine request stays well within limits. A self-contained HTML
  *  page is comfortably under this. */
 const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 10 * 1024 * 1024;
+const MAX_FILES = 50;
 
 /** Keep only filesystem-safe characters; drop any path component. */
 function sanitizeName(name: string): string {
@@ -81,6 +83,54 @@ function redirectIndexHtml(fileName: string): string {
 /** PDF.js pinned via CDN — renders PDFs to <canvas>, which works inside the
  *  dashboard's sandboxed preview iframe where the browser's native PDF plugin
  *  is blocked (a redirect to the raw .pdf just shows blank there). */
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      default:
+        return "&#39;";
+    }
+  });
+}
+
+function uniquePath(name: string, used: Set<string>): string {
+  if (!used.has(name)) {
+    used.add(name);
+    return name;
+  }
+
+  const dot = name.lastIndexOf(".");
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : "";
+  let index = 2;
+  let next = `${stem}-${index}${ext}`;
+  while (used.has(next)) {
+    index += 1;
+    next = `${stem}-${index}${ext}`;
+  }
+  used.add(next);
+  return next;
+}
+
+function fileListIndexHtml(files: StaticPreviewFile[]): string {
+  const items = files
+    .filter((file) => file.path !== "index.html")
+    .map((file) => {
+      const href = `./${encodeURI(file.path)}`;
+      const label = escapeHtml(file.path);
+      return `<li><a href="${href}">${label}</a></li>`;
+    })
+    .join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Uploaded files</title><style>body{margin:0;background:#0b0b0b;color:#eee;font-family:system-ui,sans-serif;padding:2rem}a{color:#7cc4ff}li{margin:.5rem 0}</style></head><body><h1>Uploaded files</h1><ul>${items}</ul></body></html>`;
+}
+
 const PDFJS_VERSION = "3.11.174";
 
 function pdfViewerHtml(fileName: string): string {
@@ -165,58 +215,132 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "invalid_form" }, { status: 400 });
   }
-  const file = form.get("file");
-  if (!(file instanceof File)) {
+  const uploadedFiles = form
+    .getAll("file")
+    .filter((entry): entry is File => entry instanceof File);
+  if (uploadedFiles.length === 0) {
     return NextResponse.json({ error: "no_file" }, { status: 400 });
   }
-
-  const raw = Buffer.from(await file.arrayBuffer());
-  if (raw.length === 0) {
-    return NextResponse.json({ error: "empty_file" }, { status: 400 });
-  }
-  if (raw.length > MAX_BYTES) {
+  if (uploadedFiles.length > MAX_FILES) {
     return NextResponse.json(
-      { error: "file_too_large", message: "File too large (5 MB max)" },
+      {
+        error: "too_many_files",
+        message: `Too many files (${MAX_FILES} max)`,
+      },
       { status: 413 },
     );
   }
 
-  const originalName = (file.name || "upload.html").trim();
-  const safeName = sanitizeName(originalName);
-  const mime = (file.type || "").toLowerCase();
+  const uploads = await Promise.all(
+    uploadedFiles.map(async (file) => ({
+      file,
+      raw: Buffer.from(await file.arrayBuffer()),
+      originalName: (file.name || "upload.html").trim(),
+    })),
+  );
+  const empty = uploads.find((upload) => upload.raw.length === 0);
+  if (empty) {
+    return NextResponse.json(
+      {
+        error: "empty_file",
+        message: `${empty.originalName} is empty`,
+      },
+      { status: 400 },
+    );
+  }
+  const tooLarge = uploads.find((upload) => upload.raw.length > MAX_BYTES);
+  if (tooLarge) {
+    return NextResponse.json(
+      {
+        error: "file_too_large",
+        message: `${tooLarge.originalName} is too large (5 MB max)`,
+      },
+      { status: 413 },
+    );
+  }
+  const totalBytes = uploads.reduce(
+    (sum, upload) => sum + upload.raw.length,
+    0,
+  );
+  if (totalBytes > MAX_TOTAL_BYTES) {
+    return NextResponse.json(
+      {
+        error: "files_too_large",
+        message: "Files are too large together (10 MB max)",
+      },
+      { status: 413 },
+    );
+  }
 
-  // Decide the type from three signals: filename extension, the browser's
-  // MIME, then the file's own bytes (magic number / leading markup). PDF wins
-  // ties (a file can't be both). This way an extension-less PDF or HTML still
-  // previews correctly.
   const asB64 = (s: string) => Buffer.from(s, "utf8").toString("base64");
-  const isPdf =
-    isPdfName(safeName) || mime === "application/pdf" || looksLikePdf(raw);
-  const isHtml =
-    !isPdf &&
-    (isHtmlName(safeName) ||
-      mime.startsWith("text/html") ||
-      looksLikeHtml(raw));
-
-  // HTML → serve as the index itself. PDF → an index that renders it with
-  // PDF.js (the sandboxed preview iframe blocks the native PDF plugin).
-  // Anything else (images, …) → serve under its name + a redirecting index.
   let files: StaticPreviewFile[];
-  if (isHtml) {
-    files = [{ path: "index.html", contentBase64: raw.toString("base64") }];
-  } else if (isPdf) {
-    // Ensure a .pdf name so the "open directly" link gets the right
-    // content-type (PDF.js itself sniffs bytes, so it doesn't care).
-    const pdfName = isPdfName(safeName) ? safeName : `${safeName}.pdf`;
-    files = [
-      { path: pdfName, contentBase64: raw.toString("base64") },
-      { path: "index.html", contentBase64: asB64(pdfViewerHtml(pdfName)) },
-    ];
+  const previewName =
+    uploads.length === 1
+      ? uploads[0]!.originalName
+      : `${uploads[0]!.originalName} + ${uploads.length - 1} ${
+          uploads.length === 2 ? "file" : "files"
+        }`;
+
+  if (uploads.length === 1) {
+    const upload = uploads[0]!;
+    const safeName = sanitizeName(upload.originalName);
+    const mime = (upload.file.type || "").toLowerCase();
+
+    // Decide the type from three signals: filename extension, the browser's
+    // MIME, then the file's own bytes (magic number / leading markup). PDF wins
+    // ties (a file can't be both). This way an extension-less PDF or HTML still
+    // previews correctly.
+    const isPdf =
+      isPdfName(safeName) ||
+      mime === "application/pdf" ||
+      looksLikePdf(upload.raw);
+    const isHtml =
+      !isPdf &&
+      (isHtmlName(safeName) ||
+        mime.startsWith("text/html") ||
+        looksLikeHtml(upload.raw));
+
+    // HTML → serve as the index itself. PDF → an index that renders it with
+    // PDF.js (the sandboxed preview iframe blocks the native PDF plugin).
+    // Anything else (images, …) → serve under its name + a redirecting index.
+    if (isHtml) {
+      files = [
+        { path: "index.html", contentBase64: upload.raw.toString("base64") },
+      ];
+    } else if (isPdf) {
+      // Ensure a .pdf name so the "open directly" link gets the right
+      // content-type (PDF.js itself sniffs bytes, so it doesn't care).
+      const pdfName = isPdfName(safeName) ? safeName : `${safeName}.pdf`;
+      files = [
+        { path: pdfName, contentBase64: upload.raw.toString("base64") },
+        { path: "index.html", contentBase64: asB64(pdfViewerHtml(pdfName)) },
+      ];
+    } else {
+      files = [
+        { path: safeName, contentBase64: upload.raw.toString("base64") },
+        {
+          path: "index.html",
+          contentBase64: asB64(redirectIndexHtml(safeName)),
+        },
+      ];
+    }
   } else {
-    files = [
-      { path: safeName, contentBase64: raw.toString("base64") },
-      { path: "index.html", contentBase64: asB64(redirectIndexHtml(safeName)) },
-    ];
+    const used = new Set<string>();
+    files = uploads.map((upload) => {
+      const safeName = sanitizeName(upload.originalName);
+      const path = uniquePath(
+        /^index\.html?$/i.test(safeName) ? "index.html" : safeName,
+        used,
+      );
+      return { path, contentBase64: upload.raw.toString("base64") };
+    });
+
+    if (!files.some((file) => file.path === "index.html")) {
+      files.push({
+        path: "index.html",
+        contentBase64: asB64(fileListIndexHtml(files)),
+      });
+    }
   }
 
   const staticId = randomUUID().slice(0, 8);
@@ -227,7 +351,7 @@ export async function POST(req: NextRequest) {
       cfg,
     );
     return NextResponse.json(
-      { id: staticId, name: originalName, url: info.url, state: info.state },
+      { id: staticId, name: previewName, url: info.url, state: info.state },
       { status: 201 },
     );
   } catch (err) {

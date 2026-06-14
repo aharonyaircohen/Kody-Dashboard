@@ -10,7 +10,11 @@ import { Buffer } from "node:buffer";
 import type { Octokit } from "@octokit/rest";
 import type { NextRequest } from "next/server";
 import { getUserOctokit } from "@dashboard/lib/auth";
-import { getLocalSandbox } from "@dashboard/lib/sandboxes/local-sandboxes";
+import {
+  getLocalSandbox,
+  saveLocalSandboxSnapshot,
+} from "@dashboard/lib/sandboxes/local-sandboxes";
+import { ensureGitHubActionsSandboxSnapshotWithOctokit } from "@dashboard/lib/sandboxes/github-actions-snapshot";
 
 export interface TerminalSessionState {
   sessionId: string;
@@ -101,13 +105,23 @@ export async function startGitHubActionsTerminalSession(
   auth: GitHubRepoAuth,
   input: { chatSessionId?: string; sandboxId: string },
 ): Promise<TerminalSessionState> {
-  if (!SANDBOX_ID_RE.test(input.sandboxId)) throw new Error("Invalid sandbox id");
+  if (!SANDBOX_ID_RE.test(input.sandboxId))
+    throw new Error("Invalid sandbox id");
   const sandbox = await getLocalSandbox(auth, input.sandboxId);
   if (!sandbox || sandbox.runtime !== "github-actions") {
     throw new Error("GitHub Actions sandbox not found");
   }
   const octokit = await getUserOctokit(req);
   if (!octokit) throw new Error("No GitHub token available");
+
+  const savedSandbox = sandbox.snapshotUpdatedAt
+    ? sandbox
+    : await saveLocalSandboxSnapshot(auth, input.sandboxId);
+  await ensureGitHubActionsSandboxSnapshotWithOctokit(
+    octokit,
+    auth,
+    savedSandbox,
+  );
 
   const sessionId = `gha-terminal-${Date.now()}-${randomUUID().slice(0, 8)}`;
   await writeFile(
@@ -191,7 +205,11 @@ export async function readGitHubActionsTerminalEvents(
 ): Promise<{ events: unknown[]; cursor: number; alive: boolean }> {
   const octokit = await getUserOctokit(req);
   if (!octokit) throw new Error("No GitHub token available");
-  const file = await getFile(octokit, auth, terminalPath(sessionId, "output.jsonl"));
+  const file = await getFile(
+    octokit,
+    auth,
+    terminalPath(sessionId, "output.jsonl"),
+  );
   const lines = file.text.split("\n").filter(Boolean);
   const events = lines
     .slice(cursor)

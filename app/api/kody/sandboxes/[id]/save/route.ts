@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
 import { saveLocalSandboxSnapshot } from "@dashboard/lib/sandboxes/local-sandboxes";
+import { publishGitHubActionsSandboxSnapshot } from "@dashboard/lib/sandboxes/github-actions-snapshot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +27,9 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
   try {
     const sandbox = await saveLocalSandboxSnapshot(auth, id);
+    if (sandbox.runtime === "github-actions") {
+      await publishGitHubActionsSandboxSnapshot(req, auth, sandbox);
+    }
     return NextResponse.json({
       ok: true,
       sandbox: {

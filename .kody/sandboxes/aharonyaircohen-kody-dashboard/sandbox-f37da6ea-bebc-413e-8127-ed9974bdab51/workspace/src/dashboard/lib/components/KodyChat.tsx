@@ -933,12 +933,6 @@ export function KodyChat({
   const activeSessionHasLiveTerminal = terminalRegistry.hasLiveTerminal(
     activeSessionIdForReset,
   );
-  const terminalStatusLabel =
-    activeTerminalConnectionState === "connected"
-      ? "On"
-      : activeTerminalConnectionState === "connecting"
-        ? "Starting"
-        : "Off";
   const [localSandboxes, setLocalSandboxes] = useState<LocalSandboxSummary[]>(
     [],
   );
@@ -5655,29 +5649,10 @@ export function KodyChat({
                 }`}
                 aria-pressed={chatMode === "terminal"}
                 title="Terminal"
-                aria-label={`Terminal ${terminalStatusLabel}`}
+                aria-label="Terminal"
               >
                 <SquareTerminal className="w-3.5 h-3.5" aria-hidden="true" />
-                <span
-                  className={`text-[10px] font-semibold uppercase leading-none ${
-                    activeTerminalConnectionState === "connected"
-                      ? chatMode === "terminal"
-                        ? "text-primary-foreground"
-                        : "text-emerald-600"
-                      : activeTerminalConnectionState === "connecting"
-                        ? chatMode === "terminal"
-                          ? "text-primary-foreground"
-                          : "text-amber-600"
-                        : chatMode === "terminal"
-                          ? "text-primary-foreground/80"
-                          : "text-muted-foreground"
-                  }`}
-                >
-                  {terminalStatusLabel}
-                </span>
-                {activeSessionHasLiveTerminal &&
-                  chatMode === "ai" &&
-                  activeTerminalConnectionState === "connected" && (
+                {activeSessionHasLiveTerminal && chatMode === "ai" && (
                   <span
                     className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
                     aria-hidden="true"

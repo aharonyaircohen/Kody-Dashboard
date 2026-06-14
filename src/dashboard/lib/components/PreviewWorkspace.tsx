@@ -143,14 +143,16 @@ export function PreviewWorkspace() {
     if (created) selectEnv(created);
   };
 
-  // Upload a file → boot a Fly static preview → add it as an environment and
+  // Upload file(s) → boot a Fly static preview → add it as an environment and
   // select it. The environment carries the staticId so removal tears the Fly
   // app down (see removeStatic + PreviewEnvSwitcher.handleRemove), and an
   // expiresAt so it auto-reaps after the TTL even if nobody deletes it.
-  const uploadFile = async (file: File): Promise<void> => {
+  const uploadFiles = async (files: File[]): Promise<void> => {
+    if (files.length === 0) return;
     try {
-      const uploadContext = await createUploadContext(file);
-      const res = await uploadStaticPreview(file);
+      const uploadContext =
+        files.length === 1 ? await createUploadContext(files[0]!) : undefined;
+      const res = await uploadStaticPreview(files);
       const next = addUploadedEnvironment(
         environments,
         res.name,
@@ -162,7 +164,11 @@ export function PreviewWorkspace() {
       await persist(next);
       const created = next[next.length - 1];
       if (created) selectEnv(created);
-      toast.success(`Serving "${res.name}" — ready in a few seconds`);
+      toast.success(
+        files.length === 1
+          ? `Serving "${res.name}" — ready in a few seconds`
+          : `Serving ${files.length} files — ready in a few seconds`,
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
       throw err;
@@ -232,7 +238,7 @@ export function PreviewWorkspace() {
               onSelect={selectEnv}
               onSave={persist}
               onAdd={addFirst}
-              onUpload={uploadFile}
+              onUpload={uploadFiles}
               onRemoveStatic={removeStatic}
               onExtend={extendEnv}
               isSaving={saveMutation.isPending}
@@ -274,10 +280,11 @@ export function PreviewWorkspace() {
                 <input
                   ref={emptyUploadRef}
                   type="file"
+                  multiple
                   className="hidden"
                   onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void uploadFile(f);
+                    const files = Array.from(e.target.files ?? []);
+                    if (files.length > 0) void uploadFiles(files);
                     if (emptyUploadRef.current)
                       emptyUploadRef.current.value = "";
                   }}
