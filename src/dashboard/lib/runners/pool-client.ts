@@ -43,6 +43,14 @@ export interface PoolJob {
   hardCapMs?: number;
   ref?: string;
   model?: string;
+  /**
+   * Thinking level for the chat runner (off|low|medium|high). Forwarded
+   * to the engine via the REASONING_EFFORT env var on the claimed
+   * machine. Pool-side support depends on the pool server version;
+   * unknown values are ignored, matching the kody.yml workflow's
+   * behavior for unknown inputs.
+   */
+  reasoningEffort?: string;
   /** Event-ingest URL (interactive runner streams chat events here). */
   dashboardUrl?: string;
 }

@@ -3640,6 +3640,13 @@ export function KodyChat({
             dashboardUrl,
             idleExitMs: 5 * 60_000,
             hardCapMs: 30 * 60_000,
+            // Forward the chat-level thinking pick so the engine's
+            // extended-thinking budget matches the chat's reasoning
+            // dropdown. Empty when the user is on Live (no chat-level
+            // pick) — engine falls back to its own default.
+            ...(effectiveReasoningEffort
+              ? { reasoningEffort: effectiveReasoningEffort }
+              : {}),
             // First turn folded into the session-create commit (atomic) so the
             // runner sees it on first read — no racy follow-up append.
             ...(opts?.initialContent

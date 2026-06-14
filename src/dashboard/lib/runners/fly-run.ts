@@ -20,6 +20,12 @@ export interface ClaimOrSpawnOpts {
   hardCapMs?: number;
   /** Pre-signed ingest URL with inline HMAC token; undefined → git-polling. */
   dashboardUrl?: string;
+  /**
+   * Thinking level (off|low|medium|high). Forwarded to both the warm
+   * pool claim and the cold spawn. Engine reads REASONING_EFFORT env
+   * var — empty/undefined means the engine uses its own default.
+   */
+  reasoningEffort?: string;
 }
 
 export interface ClaimOrSpawnResult {
@@ -46,6 +52,7 @@ export async function claimOrSpawnFly(
     idleExitMs: opts.idleExitMs,
     hardCapMs: opts.hardCapMs,
     dashboardUrl: opts.dashboardUrl,
+    ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
   });
   if (claim.ok) {
     logger.info(
@@ -67,6 +74,7 @@ export async function claimOrSpawnFly(
     dashboardUrl: opts.dashboardUrl,
     idleExitMs: opts.idleExitMs,
     hardCapMs: opts.hardCapMs,
+    ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
     allSecrets,
     flyToken,
     perfTier,

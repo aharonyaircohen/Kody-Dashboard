@@ -56,6 +56,13 @@ export interface SpawnRunnerInput {
   /** Hard cap override (ms) for interactive mode */
   hardCapMs?: number;
   /**
+   * Thinking level (off|low|medium|high). Set as REASONING_EFFORT env
+   * var on the spawned machine so the engine's chat turn respects the
+   * chat-level pick. Empty/undefined → engine uses its own default
+   * (off = no thinking = cheapest path).
+   */
+  reasoningEffort?: string;
+  /**
    * Fly Machines API token. Required — must come from the user-scoped
    * Settings (see SettingsManager). The server does NOT fall back to an
    * env var; the token has to be attributed to the authenticated user.
@@ -141,6 +148,7 @@ function buildMachineEnv(input: SpawnRunnerInput): Record<string, string> {
   if (input.dashboardUrl) env.DASHBOARD_URL = input.dashboardUrl;
   if (input.idleExitMs) env.KODY_IDLE_EXIT_MS = String(input.idleExitMs);
   if (input.hardCapMs) env.KODY_HARD_CAP_MS = String(input.hardCapMs);
+  if (input.reasoningEffort) env.REASONING_EFFORT = input.reasoningEffort;
   if (input.issueNumber && input.issueNumber > 0) {
     env.ISSUE_NUMBER = String(input.issueNumber);
   }

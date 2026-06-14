@@ -43,6 +43,10 @@ on:
         description: "Model override (optional, e.g. anthropic/claude-haiku-4-5-20251001)"
         type: string
         default: ""
+      reasoningEffort:
+        description: "Thinking level for Claude extended thinking (off|low|medium|high). Optional — engine uses config default or no-thinking if unset."
+        type: string
+        default: ""
       dashboardUrl:
         description: "Dashboard event ingest URL with inline ?token=... (chat mode)"
         type: string
@@ -93,5 +97,6 @@ jobs:
           SESSION_ID: ${{ inputs.sessionId }}
           INIT_MESSAGE: ${{ inputs.message }}
           MODEL: ${{ inputs.model }}
+          REASONING_EFFORT: ${{ inputs.reasoningEffort }}
           DASHBOARD_URL: ${{ inputs.dashboardUrl }}
         run: npx -y -p @kody-ade/kody-engine@latest kody-engine
