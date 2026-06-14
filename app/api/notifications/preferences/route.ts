@@ -8,12 +8,9 @@
  *   auth) or env token fallback.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
 import { z } from "zod";
-import {
-  requireKodyAuth,
-  getRequestAuth,
-  getUserOctokit,
-} from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -62,7 +59,7 @@ export async function GET(req: NextRequest) {
 
   // The caller's login is embedded in the token JWT — extract it to identify
   // whose prefs file to read.
-  const tokenPayload = parseKodyToken(auth.token);
+  const tokenPayload = await verifyKodyToken(auth.token);
   const login = tokenPayload?.login;
   if (!login) {
     return NextResponse.json({ error: "invalid_token" }, { status: 401 });
@@ -106,7 +103,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Extract caller login from token
-  const tokenPayload = parseKodyToken(auth.token);
+  const tokenPayload = await verifyKodyToken(auth.token);
   const login = tokenPayload?.login;
   if (!login) {
     return NextResponse.json({ error: "invalid_token" }, { status: 401 });
@@ -166,17 +163,20 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * Decode the `x-kody-token` JWT to extract the GitHub login.
- * The token is a JWT signed with KODY_MASTER_KEY; its payload contains `login`.
+ * Verify the `x-kody-token` JWT and extract the GitHub login.
+ * The token is signed with KODY_MASTER_KEY and its payload contains `login`.
  */
-function parseKodyToken(token: string): { login?: string } | null {
+async function verifyKodyToken(
+  token: string,
+): Promise<{ login?: string } | null> {
   try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const payload = parts[1]!;
-    const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
-    const json = Buffer.from(padded, "base64").toString("utf-8");
-    return JSON.parse(json) as { login?: string };
+    const secret = process.env.KODY_MASTER_KEY;
+    if (!secret) return null;
+    const { payload } = await jwtVerify(
+      token,
+      new TextEncoder().encode(secret),
+    );
+    return typeof payload.login === "string" ? { login: payload.login } : null;
   } catch {
     return null;
   }
