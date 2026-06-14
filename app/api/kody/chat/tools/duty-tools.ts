@@ -269,9 +269,7 @@ function buildReportStyleBody(slug: string, input: DutyInput): string {
  */
 function canonicalizeExecutables(input: DutyInput): string[] {
   if (input.executables && input.executables.length > 0) {
-    return input.executables
-      .map((e) => e.trim())
-      .filter((e) => e.length > 0);
+    return input.executables.map((e) => e.trim()).filter((e) => e.length > 0);
   }
   const singular = input.executable?.trim();
   return singular ? [singular] : [];
@@ -481,7 +479,7 @@ export function createDutyTools(ctx: Ctx) {
         "singular convenience alias; prefer the array for >1.\n" +
         "- `output` — `run` (generic Run-style body, no report markers) or `report` (default; " +
         "bakes the report-producer template into duty.md). The engine reads body markers to " +
-        "route duties, so multi-executable / dispatch-style duties MUST use `output: \"run\"` " +
+        'route duties, so multi-executable / dispatch-style duties MUST use `output: "run"` ' +
         "(auto-detected when `executables` has 2+ items). On UPDATE, switching `output` " +
         "regenerates the body in the new mode (requires the appropriate body-building fields).\n" +
         "- `profile` — raw profile.json field overrides. Use for engine-specific fields the " +
@@ -500,9 +498,7 @@ export function createDutyTools(ctx: Ctx) {
       inputSchema: createOrUpdateKodyDutyInputSchema,
       execute: async (input) => {
         const slugFromInput = (input.slug ?? "").toLowerCase();
-        const slugFromTitle = input.title
-          ? slugifyTitle(input.title)
-          : "";
+        const slugFromTitle = input.title ? slugifyTitle(input.title) : "";
         const slug = (slugFromInput || slugFromTitle).toLowerCase();
         if (!slug || !isValidSlug(slug)) {
           return {
@@ -634,18 +630,17 @@ export function createDutyTools(ctx: Ctx) {
           // (unless `output` is changing — see below); everything else falls
           // back to the existing duty.
           const nextTitle = input.title ?? existing.title;
-          const nextSchedule =
-            input.schedule ?? existing.schedule ?? undefined;
+          const nextSchedule = input.schedule ?? existing.schedule ?? undefined;
           // `staff` (engine-aligned) wins over the deprecated `runner` alias.
           const staffProvided = input.staff ?? input.runner;
           const nextStaff = staffProvided ?? existing.runner;
           const nextReviewer =
             input.reviewer !== undefined
-              ? (input.reviewer?.trim().replace(/^@/, "") || null)
+              ? input.reviewer?.trim().replace(/^@/, "") || null
               : existing.reviewer;
           const nextAction =
             input.action !== undefined
-              ? (slugifyTitle(input.action) || existing.action || slug)
+              ? slugifyTitle(input.action) || existing.action || slug
               : (existing.action ?? slug);
           if (!isValidSlug(nextAction)) {
             return {
@@ -657,7 +652,7 @@ export function createDutyTools(ctx: Ctx) {
           }
           const nextExecutable =
             input.executable !== undefined
-              ? (input.executable?.trim() || null)
+              ? input.executable?.trim() || null
               : existing.executable;
           if (nextExecutable && !isValidSlug(nextExecutable)) {
             return {
@@ -668,7 +663,9 @@ export function createDutyTools(ctx: Ctx) {
             };
           }
           const nextExecutables =
-            input.executables !== undefined ? input.executables : existing.executables;
+            input.executables !== undefined
+              ? input.executables
+              : existing.executables;
           for (const exe of nextExecutables) {
             if (!isValidSlug(exe)) {
               return {
@@ -680,9 +677,7 @@ export function createDutyTools(ctx: Ctx) {
             }
           }
           const nextDisabled =
-            input.disabled !== undefined
-              ? input.disabled
-              : existing.disabled;
+            input.disabled !== undefined ? input.disabled : existing.disabled;
           // Body resolution: explicit `body` wins; otherwise, if `output`
           // changed mode, regenerate in the new mode (requires the
           // body-building fields appropriate for that mode); otherwise
@@ -701,15 +696,19 @@ export function createDutyTools(ctx: Ctx) {
                 return {
                   error: "missing_required_fields",
                   message:
-                    "Switching an existing duty to `output: \"run\"` requires a `purpose` (used to regenerate the body) — pass `purpose` to regen, or pass `body` directly to override verbatim.",
+                    'Switching an existing duty to `output: "run"` requires a `purpose` (used to regenerate the body) — pass `purpose` to regen, or pass `body` directly to override verbatim.',
                 };
               }
               nextBody = buildDutyBody(slug, {
                 purpose: input.purpose,
-                inputs: input.inputs ?? existing.executables ? [] : [],
+                inputs: (input.inputs ?? existing.executables) ? [] : [],
                 reportSchema: input.reportSchema ?? "",
-                executable: input.executable ?? existing.executable ?? undefined,
-                executables: nextExecutables.length > 0 ? nextExecutables : input.executables,
+                executable:
+                  input.executable ?? existing.executable ?? undefined,
+                executables:
+                  nextExecutables.length > 0
+                    ? nextExecutables
+                    : input.executables,
                 extraAllowedCommands: input.extraAllowedCommands,
                 extraRestrictions: input.extraRestrictions,
                 output: "run",
@@ -722,15 +721,19 @@ export function createDutyTools(ctx: Ctx) {
                 return {
                   error: "missing_required_fields",
                   message:
-                    "Switching an existing duty to `output: \"report\"` requires `purpose`, `inputs` (≥1), and `reportSchema` (used to regenerate the body) — pass those three to regen, or pass `body` directly to override verbatim.",
+                    'Switching an existing duty to `output: "report"` requires `purpose`, `inputs` (≥1), and `reportSchema` (used to regenerate the body) — pass those three to regen, or pass `body` directly to override verbatim.',
                 };
               }
               nextBody = buildDutyBody(slug, {
                 purpose,
                 inputs,
                 reportSchema,
-                executable: input.executable ?? existing.executable ?? undefined,
-                executables: nextExecutables.length > 0 ? nextExecutables : input.executables,
+                executable:
+                  input.executable ?? existing.executable ?? undefined,
+                executables:
+                  nextExecutables.length > 0
+                    ? nextExecutables
+                    : input.executables,
                 extraAllowedCommands: input.extraAllowedCommands,
                 extraRestrictions: input.extraRestrictions,
                 output: "report",
@@ -746,20 +749,29 @@ export function createDutyTools(ctx: Ctx) {
           const changedFields: string[] = [];
           if (input.title !== undefined && input.title !== existing.title)
             changedFields.push("title");
-          if (input.schedule !== undefined && input.schedule !== existing.schedule)
-            changedFields.push("schedule");
-          if (input.disabled !== undefined && input.disabled !== existing.disabled)
-            changedFields.push("disabled");
           if (
-            staffProvided !== undefined &&
-            staffProvided !== existing.runner
+            input.schedule !== undefined &&
+            input.schedule !== existing.schedule
           )
+            changedFields.push("schedule");
+          if (
+            input.disabled !== undefined &&
+            input.disabled !== existing.disabled
+          )
+            changedFields.push("disabled");
+          if (staffProvided !== undefined && staffProvided !== existing.runner)
             changedFields.push("staff");
-          if (input.reviewer !== undefined && input.reviewer !== existing.reviewer)
+          if (
+            input.reviewer !== undefined &&
+            input.reviewer !== existing.reviewer
+          )
             changedFields.push("reviewer");
           if (input.action !== undefined && input.action !== existing.action)
             changedFields.push("action");
-          if (input.executable !== undefined && input.executable !== existing.executable)
+          if (
+            input.executable !== undefined &&
+            input.executable !== existing.executable
+          )
             changedFields.push("executable");
           if (
             input.executables !== undefined &&

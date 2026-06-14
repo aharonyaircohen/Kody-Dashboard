@@ -84,10 +84,7 @@ export async function deliverInbox(
     // (ETag/304) — no extra GitHub budget on the webhook path.
     let toAppend = entries;
     try {
-      const [feed, ledger] = await Promise.all([
-        readInboxFeed(),
-        readTrust(),
-      ]);
+      const [feed, ledger] = await Promise.all([readInboxFeed(), readTrust()]);
       const { admitted, withheld } = applyCtoBackpressure(
         feed.entries,
         entries,

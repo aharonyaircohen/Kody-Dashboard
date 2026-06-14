@@ -148,11 +148,16 @@ export async function sweepExpiredPreviews(
       for (const machine of machines) {
         const ref = `${appName}/${machine.id}`;
         const memoryMb = machine.guest?.memoryMb ?? previews.memoryMb;
-        const result = await alignPreviewMachineSleep(appName, machine.id, cfg, {
-          idleSuspend: previews.idleSuspend,
-          healthCheck: previews.healthCheck,
-          memoryMb,
-        });
+        const result = await alignPreviewMachineSleep(
+          appName,
+          machine.id,
+          cfg,
+          {
+            idleSuspend: previews.idleSuspend,
+            healthCheck: previews.healthCheck,
+            memoryMb,
+          },
+        );
         if (result.changed) {
           aligned.push(ref);
         } else if (result.skipped) {

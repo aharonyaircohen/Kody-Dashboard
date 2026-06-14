@@ -12,24 +12,24 @@ the runner image's own local model-proxy startup path.
 
 ## The Pieces
 
-| Piece                      | What it does                                                                                                                    | Where                                                                                                |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `chooseRunner`             | Pure decision: GitHub if healthy; Fly only if GitHub is unhealthy and a Fly token exists.                                       | [`../src/dashboard/lib/runners/runner-router.ts`](../src/dashboard/lib/runners/runner-router.ts)     |
-| `dispatchRun`              | Probes health, calls `chooseRunner`, dispatches GitHub, and falls back to Fly if GitHub dispatch throws.                        | [`../src/dashboard/lib/runners/runner-dispatch.ts`](../src/dashboard/lib/runners/runner-dispatch.ts) |
-| `checkGitHubActionsHealth` | Checks GitHub Actions status and the `kody.yml` queue. Both probes fail open.                                                   | [`../src/dashboard/lib/runners/github-health.ts`](../src/dashboard/lib/runners/github-health.ts)     |
-| `resolveFlyContext`        | Builds the Fly spawn context: auth, repo, vault secrets, per-repo `FLY_API_TOKEN`, and perf tier.                               | [`../src/dashboard/lib/runners/fly-context.ts`](../src/dashboard/lib/runners/fly-context.ts)         |
+| Piece                      | What it does                                                                                                                     | Where                                                                                                |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `chooseRunner`             | Pure decision: GitHub if healthy; Fly only if GitHub is unhealthy and a Fly token exists.                                        | [`../src/dashboard/lib/runners/runner-router.ts`](../src/dashboard/lib/runners/runner-router.ts)     |
+| `dispatchRun`              | Probes health, calls `chooseRunner`, dispatches GitHub, and falls back to Fly if GitHub dispatch throws.                         | [`../src/dashboard/lib/runners/runner-dispatch.ts`](../src/dashboard/lib/runners/runner-dispatch.ts) |
+| `checkGitHubActionsHealth` | Checks GitHub Actions status and the `kody.yml` queue. Both probes fail open.                                                    | [`../src/dashboard/lib/runners/github-health.ts`](../src/dashboard/lib/runners/github-health.ts)     |
+| `resolveFlyContext`        | Builds the Fly spawn context: auth, repo, vault secrets, per-repo `FLY_API_TOKEN`, and perf tier.                                | [`../src/dashboard/lib/runners/fly-context.ts`](../src/dashboard/lib/runners/fly-context.ts)         |
 | `claimOrSpawnFly`          | Shared Fly path for the fallback route and the dedicated Fly route. Claims pool first, then fresh-spawns on miss.                | [`../src/dashboard/lib/runners/fly-run.ts`](../src/dashboard/lib/runners/fly-run.ts)                 |
-| `claimFromPool`            | Claims a pre-warmed runner from the configured pool owner. Never throws; misses fall back to fresh spawn.                       | [`../src/dashboard/lib/runners/pool-client.ts`](../src/dashboard/lib/runners/pool-client.ts)         |
-| `spawnRunner`              | Thin Fly Machines API client. Creates a one-shot machine that runs the engine image and auto-destroys.                          | [`../src/dashboard/lib/runners/fly.ts`](../src/dashboard/lib/runners/fly.ts)                         |
+| `claimFromPool`            | Claims a pre-warmed runner from the configured pool owner. Never throws; misses fall back to fresh spawn.                        | [`../src/dashboard/lib/runners/pool-client.ts`](../src/dashboard/lib/runners/pool-client.ts)         |
+| `spawnRunner`              | Thin Fly Machines API client. Creates a one-shot machine that runs the engine image and auto-destroys.                           | [`../src/dashboard/lib/runners/fly.ts`](../src/dashboard/lib/runners/fly.ts)                         |
 | `/runner` page             | Per-repo Fly token status, live machine inventory, activity, previews, Brain-on-Fly, and this browser's Fly performance setting. | [`../app/(chat-rail)/runner/page.tsx`](<../app/(chat-rail)/runner/page.tsx>)                         |
 
 ## Routing
 
-| GitHub Actions healthy? | Fly token present? | Runner             |
-| ----------------------- | ------------------ | ------------------ |
-| yes                     | any                | GitHub Actions     |
-| no                      | yes                | Fly Machines       |
-| no                      | no                 | GitHub Actions     |
+| GitHub Actions healthy? | Fly token present? | Runner         |
+| ----------------------- | ------------------ | -------------- |
+| yes                     | any                | GitHub Actions |
+| no                      | yes                | Fly Machines   |
+| no                      | no                 | GitHub Actions |
 
 If GitHub dispatch itself throws and Fly is available, the route falls back
 to Fly. If GitHub throws and Fly is not available, the error is surfaced.

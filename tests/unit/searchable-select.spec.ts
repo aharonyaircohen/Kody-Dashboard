@@ -13,7 +13,9 @@ describe("SearchableSelect", () => {
     expect(SOURCE).toContain("event.preventDefault()");
     expect(SOURCE).toContain("event.stopPropagation()");
     expect(SOURCE).toContain("event.stopImmediatePropagation()");
-    expect(SOURCE).toContain('window.addEventListener("keydown", onKeyDown, true)');
+    expect(SOURCE).toContain(
+      'window.addEventListener("keydown", onKeyDown, true)',
+    );
     expect(SOURCE).toContain(
       'window.removeEventListener("keydown", onKeyDown, true)',
     );

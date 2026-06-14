@@ -48,8 +48,8 @@ src/dashboard/
 | `GITHUB_TOKEN` / `KODY_BOT_TOKEN` | GitHub API access for server-side flows.                                           |
 | `NEXT_PUBLIC_SERVER_URL`          | Public URL for redirects/callbacks (set in dev; in prod, Vercel headers are used). |
 
-
 <!-- headroom:rtk-instructions -->
+
 # RTK (Rust Token Killer) - Token-Optimized Commands
 
 When running shell commands, **always prefix with `rtk`**. This reduces context
@@ -57,6 +57,7 @@ usage by 60-90% with zero behavior change. If rtk has no filter for a command,
 it passes through unchanged — so it is always safe to use.
 
 ## Key Commands
+
 ```bash
 # Git (59-80% savings)
 rtk git status          rtk git diff            rtk git log
@@ -87,6 +88,7 @@ rtk pip list            rtk pnpm install        rtk npm run <script>
 ```
 
 ## Rules
+
 - In command chains, prefix each segment: `rtk git add . && rtk git commit -m "msg"`
 - For debugging, use raw command without rtk prefix
 - `rtk proxy <cmd>` runs command without filtering but tracks usage

@@ -111,7 +111,8 @@ export function useCommentAttachments() {
       ]);
 
       try {
-        const { markdown, name, path } = await uploadCommentAttachmentFile(file);
+        const { markdown, name, path } =
+          await uploadCommentAttachmentFile(file);
         patch(id, { status: "done", markdown, name, path });
       } catch (err) {
         patch(id, {

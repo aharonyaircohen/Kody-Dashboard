@@ -37,11 +37,11 @@ allowed to act, it acts through its declared operation.
 
 ## Legacy Files
 
-| File | Legacy purpose |
-| --- | --- |
-| [inbox/feed.ts](../src/dashboard/lib/inbox/feed.ts) | Feed manifest types and serialization. |
-| [inbox/feed-server.ts](../src/dashboard/lib/inbox/feed-server.ts) | Server read/append path for feed entries. |
-| [inbox/useInbox.ts](../src/dashboard/lib/inbox/useInbox.ts) | Client bindings for inbox entries. |
-| [inbox/useInboxWatcher.tsx](../src/dashboard/lib/inbox/useInboxWatcher.tsx) | Poller that syncs a user's feed slice. |
-| [InboxList.tsx](../src/dashboard/lib/components/InboxList.tsx) | Legacy inbox UI for deep links/backward compatibility. |
-| [ReportsView.tsx](../src/dashboard/lib/components/ReportsView.tsx) | Current report review and suggested-action surface. |
+| File                                                                        | Legacy purpose                                         |
+| --------------------------------------------------------------------------- | ------------------------------------------------------ |
+| [inbox/feed.ts](../src/dashboard/lib/inbox/feed.ts)                         | Feed manifest types and serialization.                 |
+| [inbox/feed-server.ts](../src/dashboard/lib/inbox/feed-server.ts)           | Server read/append path for feed entries.              |
+| [inbox/useInbox.ts](../src/dashboard/lib/inbox/useInbox.ts)                 | Client bindings for inbox entries.                     |
+| [inbox/useInboxWatcher.tsx](../src/dashboard/lib/inbox/useInboxWatcher.tsx) | Poller that syncs a user's feed slice.                 |
+| [InboxList.tsx](../src/dashboard/lib/components/InboxList.tsx)              | Legacy inbox UI for deep links/backward compatibility. |
+| [ReportsView.tsx](../src/dashboard/lib/components/ReportsView.tsx)          | Current report review and suggested-action surface.    |

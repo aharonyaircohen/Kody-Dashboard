@@ -55,15 +55,8 @@ export async function POST(req: NextRequest) {
       { status: ctxResult.status },
     );
   }
-  const {
-    owner,
-    repo,
-    githubToken,
-    octokit,
-    allSecrets,
-    flyToken,
-    perfTier,
-  } = ctxResult.context;
+  const { owner, repo, githubToken, octokit, allSecrets, flyToken, perfTier } =
+    ctxResult.context;
 
   // sessionId is traceable but unused by the engine in agent mode —
   // entry.ts only consults SESSION_ID when argv is empty, and our

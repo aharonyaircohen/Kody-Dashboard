@@ -62,11 +62,11 @@ to use it.
 
 Supported action types:
 
-| Type | Required fields | What the dashboard does |
-| --- | --- | --- |
-| `dispatch` | `id`, `type`, `label`, `executable`, `target` | Runs an instant job for the named executable against the issue/PR number. |
-| `create-task` | `id`, `type`, `label`, `title` | Opens the existing task dialog prefilled from the action and source report. |
-| `dismiss` | `id`, `type`, `label` | Hides that suggested action locally for the current browser. |
+| Type          | Required fields                               | What the dashboard does                                                     |
+| ------------- | --------------------------------------------- | --------------------------------------------------------------------------- |
+| `dispatch`    | `id`, `type`, `label`, `executable`, `target` | Runs an instant job for the named executable against the issue/PR number.   |
+| `create-task` | `id`, `type`, `label`, `title`                | Opens the existing task dialog prefilled from the action and source report. |
+| `dismiss`     | `id`, `type`, `label`                         | Hides that suggested action locally for the current browser.                |
 
 Dispatch actions must name a real executable and a concrete issue/PR number.
 The dashboard does not infer commands from prose.
@@ -114,10 +114,10 @@ pnpm exec vitest run tests/unit/reports-files.spec.ts tests/unit/report-schema-v
 
 ## Related Files
 
-| File | Purpose |
-| --- | --- |
-| [ReportsView.tsx](../src/dashboard/lib/components/ReportsView.tsx) | Reports page, markdown rendering, suggested-action buttons. |
-| [reports-files.ts](../src/dashboard/lib/reports-files.ts) | Reads report markdown from the state branch. |
-| [report-suggested-actions.ts](../src/dashboard/lib/report-suggested-actions.ts) | Parses `suggestedActions` frontmatter. |
-| [report-schema-validator.mjs](../scripts/report-schema-validator.mjs) | Validates report frontmatter in tests/scripts. |
-| [_schema.yaml](../.kody/reports/_schema.yaml) | Human-readable report schema. |
+| File                                                                            | Purpose                                                     |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| [ReportsView.tsx](../src/dashboard/lib/components/ReportsView.tsx)              | Reports page, markdown rendering, suggested-action buttons. |
+| [reports-files.ts](../src/dashboard/lib/reports-files.ts)                       | Reads report markdown from the state branch.                |
+| [report-suggested-actions.ts](../src/dashboard/lib/report-suggested-actions.ts) | Parses `suggestedActions` frontmatter.                      |
+| [report-schema-validator.mjs](../scripts/report-schema-validator.mjs)           | Validates report frontmatter in tests/scripts.              |
+| [\_schema.yaml](../.kody/reports/_schema.yaml)                                  | Human-readable report schema.                               |

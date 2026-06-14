@@ -246,7 +246,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "no_user_token",
-          message: "A signed-in GitHub token is required to commit duty folders.",
+          message:
+            "A signed-in GitHub token is required to commit duty folders.",
         },
         { status: 401 },
       );

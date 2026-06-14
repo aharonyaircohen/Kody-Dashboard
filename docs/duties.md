@@ -103,8 +103,8 @@ Do not put metadata frontmatter in `duty.md`. Metadata belongs in
 | `action`      | Public action token. `@kody <action>` runs this duty. Usually the duty slug.                     |
 | `executable`  | Optional implementation executable slug. Use this for the one executable that performs the work. |
 | `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                               |
-| `runner`      | Staff persona slug that performs the duty. A duty without a runner should not auto-run.         |
-| `reviewer`    | Optional staff persona slug responsible for reviewing or handling the duty output.              |
+| `runner`      | Staff persona slug that performs the duty. A duty without a runner should not auto-run.          |
+| `reviewer`    | Optional staff persona slug responsible for reviewing or handling the duty output.               |
 | `mentions`    | Optional GitHub logins to notify, without `@`.                                                   |
 | `executables` | Multi-run executable list. Prefer singular `executable` for normal duties.                       |
 | `tools`       | Optional duty tool names exposed to the tick runner.                                             |
@@ -117,9 +117,9 @@ Do not put metadata frontmatter in `duty.md`. Metadata belongs in
 
 The dashboard creation form has two output choices:
 
-| Choice   | Meaning                                                                 |
-| -------- | ----------------------------------------------------------------------- |
-| `Run`    | The duty runs work and does not promise a generated report.             |
+| Choice   | Meaning                                                                    |
+| -------- | -------------------------------------------------------------------------- |
+| `Run`    | The duty runs work and does not promise a generated report.                |
 | `Report` | The duty refreshes one `.kody/reports/<slug>.md` file and sets `writesTo`. |
 
 Use `Report` only when the report file is the durable artifact users should

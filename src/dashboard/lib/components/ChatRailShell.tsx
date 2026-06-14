@@ -344,8 +344,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // are also reached mid-session via KodyDashboard's history.pushState when a
   // modal opens, so they must be listed even though no route file navigates
   // here directly.
-  const pageOwnsHeader =
-    routeOwnsAppHeader(pathname) || pageHeaderOwnedByChild;
+  const pageOwnsHeader = routeOwnsAppHeader(pathname) || pageHeaderOwnedByChild;
   const lockedAgentId = undefined;
 
   const chatPane = auth ? (

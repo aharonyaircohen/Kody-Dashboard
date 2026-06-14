@@ -31,11 +31,12 @@ describe("duties client", () => {
       removeItem: vi.fn(),
     });
     vi.stubGlobal("window", { localStorage: globalThis.localStorage });
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ duties: [] }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ duties: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
     );
     vi.stubGlobal("fetch", fetchMock);
 

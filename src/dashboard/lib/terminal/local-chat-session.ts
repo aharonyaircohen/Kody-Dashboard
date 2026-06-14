@@ -104,7 +104,9 @@ function getStore(): LocalTerminalStore {
   return globalStore.__kodyLocalTerminalStore;
 }
 
-function envForPty(overrides: Record<string, string> = {}): Record<string, string> {
+function envForPty(
+  overrides: Record<string, string> = {},
+): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (typeof value === "string") env[key] = value;
@@ -125,7 +127,9 @@ function chatSessionKey(input: {
   chatSessionId: string;
   sandboxId?: string;
 }): string {
-  const terminalScope = input.sandboxId ? `sandbox:${input.sandboxId}` : "local";
+  const terminalScope = input.sandboxId
+    ? `sandbox:${input.sandboxId}`
+    : "local";
   return `${input.owner.toLowerCase()}/${input.repo.toLowerCase()}::${terminalScope}::${input.chatSessionId}`;
 }
 
@@ -337,11 +341,11 @@ export async function startLocalTerminalSession(input: {
   const tmuxSessionName =
     input.chatSessionId && isTmuxAvailable()
       ? tmuxSessionNameForChat({
-        owner: input.owner,
-        repo: input.repo,
-        chatSessionId: input.chatSessionId,
-        sandboxId: input.sandboxId,
-      })
+          owner: input.owner,
+          repo: input.repo,
+          chatSessionId: input.chatSessionId,
+          sandboxId: input.sandboxId,
+        })
       : undefined;
   const backend: LocalTerminalBackend = tmuxSessionName ? "tmux" : "pty";
   const shell = backend === "tmux" ? "tmux" : defaultShell;

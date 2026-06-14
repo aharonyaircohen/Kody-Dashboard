@@ -91,9 +91,7 @@ test.describe("warm pool — live through deployed dashboard", () => {
     expect(json.status?.min).toBeGreaterThan(0);
   });
 
-  test("Runner page renders the warm-pool control", async ({
-    page,
-  }) => {
+  test("Runner page renders the warm-pool control", async ({ page }) => {
     await page.goto(`${BASE_URL}/login`);
     await page.waitForLoadState("domcontentloaded");
     await injectAuth(page);

@@ -62,7 +62,9 @@ export function IssueAttachmentButton({
 
     setIsAddingAttachment(true);
     try {
-      const uploaded = await Promise.all(files.map(uploadCommentAttachmentFile));
+      const uploaded = await Promise.all(
+        files.map(uploadCommentAttachmentFile),
+      );
       const paths = uploaded.map((a) => a.path);
       await postComment(buildIssueAttachmentComment(paths));
       toast.success(

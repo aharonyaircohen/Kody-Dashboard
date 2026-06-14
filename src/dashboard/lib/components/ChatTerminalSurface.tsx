@@ -76,7 +76,8 @@ const MAX_CAPTURE_CHARS = 16_000;
 const MAX_CAPTURE_LINES = 160;
 
 function transportKey(transport: ChatTerminalTransport): string {
-  if (transport.type === "fly") return `fly:${transport.app}:${transport.machineId}`;
+  if (transport.type === "fly")
+    return `fly:${transport.app}:${transport.machineId}`;
   if (transport.type === "github-actions") {
     return `github-actions-sandbox:${transport.sandboxId}`;
   }
@@ -241,7 +242,10 @@ export const ChatTerminalSurface = forwardRef<
             void fetch("/api/kody/chat/terminal/github/input", {
               method: "POST",
               headers: { "Content-Type": "application/json", ...authHeaders() },
-              body: JSON.stringify({ sessionId: current.sessionId, input: command }),
+              body: JSON.stringify({
+                sessionId: current.sessionId,
+                input: command,
+              }),
             }).catch(() => {});
           }
           continue;
@@ -370,7 +374,7 @@ export const ChatTerminalSurface = forwardRef<
       return;
     if (!terminal || connecting || sessionRef.current?.alive) return;
 
-      const currentTransport = transportRef.current;
+    const currentTransport = transportRef.current;
     const startKey = `${currentTransport.type}:${chatSessionId}:${transportKey(currentTransport)}`;
     if (localStartFailureKeyRef.current === startKey) return;
 
@@ -385,14 +389,14 @@ export const ChatTerminalSurface = forwardRef<
       const res = await fetch(startEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            chatSessionId,
+        body: JSON.stringify({
+          chatSessionId,
           ...(currentTransport.sandboxId
             ? { sandboxId: currentTransport.sandboxId }
             : {}),
-            cols: terminal.cols,
-            rows: terminal.rows,
-          }),
+          cols: terminal.cols,
+          rows: terminal.rows,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         session?: TerminalSessionState;
@@ -720,19 +724,19 @@ export const ChatTerminalSurface = forwardRef<
           {transport.type === "fly"
             ? (error ??
               `${transport.label ?? transport.app} · ${flyConnectionState}`)
-                : transport.type === "github-actions"
-                  ? (error ??
-                    (session?.alive
-                      ? `${transport.label ?? "GitHub Actions sandbox"} · running`
-                      : connecting
-                        ? "Starting GitHub Actions terminal..."
-                        : "closed"))
-                  : (error ??
-                    (session?.alive
-                      ? session.cwd
-                      : connecting
-                        ? "starting"
-                        : "closed"))}
+            : transport.type === "github-actions"
+              ? (error ??
+                (session?.alive
+                  ? `${transport.label ?? "GitHub Actions sandbox"} · running`
+                  : connecting
+                    ? "Starting GitHub Actions terminal..."
+                    : "closed"))
+              : (error ??
+                (session?.alive
+                  ? session.cwd
+                  : connecting
+                    ? "starting"
+                    : "closed"))}
         </span>
         <div className="flex shrink-0 items-center gap-1">
           <button

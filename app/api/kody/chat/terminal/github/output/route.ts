@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
   const auth = getRequestAuth(req);
-  if (!auth) return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+  if (!auth)
+    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
 
   const parsed = Query.safeParse({
     sessionId: req.nextUrl.searchParams.get("sessionId"),
@@ -43,7 +44,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     const message =
-      err instanceof Error ? err.message : "Failed to read GitHub Actions terminal output";
-    return NextResponse.json({ error: "github_terminal_output_failed", message }, { status: 500 });
+      err instanceof Error
+        ? err.message
+        : "Failed to read GitHub Actions terminal output";
+    return NextResponse.json(
+      { error: "github_terminal_output_failed", message },
+      { status: 500 },
+    );
   }
 }

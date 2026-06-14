@@ -25,6 +25,14 @@ export interface Message {
     result?: unknown;
     status: "running" | "success" | "error";
     durationMs?: number;
+    /**
+     * Human-readable description of the tool (the same string the model uses
+     * to decide whether to call it). Populated for Kody Direct turns from the
+     * `data-tools-index` event the route emits at the start of the stream;
+     * absent for Brain/Engine chats until their streams are updated to
+     * populate the same slot.
+     */
+    description?: string;
   }>;
   /** Attachment refs (blobs live in IndexedDB). */
   attachments?: AttachmentRef[];
@@ -82,6 +90,14 @@ export interface ToolCall {
   status: "running" | "success" | "error";
   startedAt?: number;
   durationMs?: number;
+  /**
+   * Human-readable description of the tool (the same string the model uses
+   * to decide whether to call it). Populated for Kody Direct turns from the
+   * `data-tools-index` event the route emits at the start of the stream;
+   * absent for Brain/Engine chats until their streams are updated to
+   * populate the same slot.
+   */
+  description?: string;
 }
 
 export interface Attachment {

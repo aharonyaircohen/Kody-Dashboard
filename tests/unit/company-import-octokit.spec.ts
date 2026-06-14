@@ -72,7 +72,10 @@ import { COMPANY_BUNDLE_VERSION } from "@dashboard/lib/company/types";
 function makeGoodOctokit() {
   const written = new Map<string, string>(); // path -> base64 content
   const blobs = new Map<string, string>(); // blob sha -> raw utf-8 content
-  const trees = new Map<string, Array<{ path?: string; sha?: string | null }>>();
+  const trees = new Map<
+    string,
+    Array<{ path?: string; sha?: string | null }>
+  >();
   let blobId = 0;
   let treeId = 0;
   let commitId = 0;
@@ -107,7 +110,11 @@ function makeGoodOctokit() {
         return { data: { sha } };
       }),
       createTree: vi.fn(
-        async ({ tree }: { tree: Array<{ path?: string; sha?: string | null }> }) => {
+        async ({
+          tree,
+        }: {
+          tree: Array<{ path?: string; sha?: string | null }>;
+        }) => {
           const sha = `tree-${++treeId}`;
           trees.set(sha, tree);
           return { data: { sha } };
@@ -127,7 +134,10 @@ function makeGoodOctokit() {
           }
           const content = blobs.get(entry.sha ?? "");
           if (content !== undefined) {
-            written.set(entry.path, Buffer.from(content, "utf-8").toString("base64"));
+            written.set(
+              entry.path,
+              Buffer.from(content, "utf-8").toString("base64"),
+            );
           }
         }
         return { data: {} };

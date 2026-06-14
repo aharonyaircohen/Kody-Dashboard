@@ -37,7 +37,9 @@ function storageKey(modelId: string): string {
  * The user's saved effort for this (repo, modelId), or `null` when none
  * is set — caller should fall back to `reasoning.default`.
  */
-export function readReasoningEffort(modelId: string | null | undefined): string | null {
+export function readReasoningEffort(
+  modelId: string | null | undefined,
+): string | null {
   if (typeof window === "undefined" || !modelId) return null;
   try {
     return window.localStorage.getItem(storageKey(modelId));
@@ -63,6 +65,7 @@ export function resolveEffort(
 ): string | null {
   if (!modelId || !reasoning) return null;
   const stored = readReasoningEffort(modelId);
-  if (stored && reasoning.efforts.some((e) => e.value === stored)) return stored;
+  if (stored && reasoning.efforts.some((e) => e.value === stored))
+    return stored;
   return reasoning.default;
 }

@@ -107,26 +107,28 @@ const mcpServerSchema = z.object({
   env: z.record(z.string(), z.string()).optional(),
 });
 
-const createExecutableSchema = z.object({
-  slug: z.string().min(1).max(64),
-  describe: z.string().default(""),
-  instructions: z.string().min(1, "instructions are required").optional(),
-  // Backward-compatible alias for older dashboard builds/API callers. The
-  // authored concept is instructions; the engine storage file is prompt.md.
-  prompt: z.string().min(1).optional(),
-  model: z.string().default("inherit"),
-  permissionMode: z.enum(PERMISSION_MODES).default("acceptEdits"),
-  tools: z.array(z.string()).default([]),
-  skills: z.array(skillSchema).default([]),
-  shellScripts: z.array(shellSchema).default([]),
-  mcpServers: z.array(mcpServerSchema).default([]),
-  landing: z.enum(["pr", "comment"]).default("pr"),
-  profileJsonOverride: z.string().optional(),
-  actorLogin: z.string().optional(),
-}).refine((input) => input.instructions || input.prompt, {
-  message: "instructions are required",
-  path: ["instructions"],
-});
+const createExecutableSchema = z
+  .object({
+    slug: z.string().min(1).max(64),
+    describe: z.string().default(""),
+    instructions: z.string().min(1, "instructions are required").optional(),
+    // Backward-compatible alias for older dashboard builds/API callers. The
+    // authored concept is instructions; the engine storage file is prompt.md.
+    prompt: z.string().min(1).optional(),
+    model: z.string().default("inherit"),
+    permissionMode: z.enum(PERMISSION_MODES).default("acceptEdits"),
+    tools: z.array(z.string()).default([]),
+    skills: z.array(skillSchema).default([]),
+    shellScripts: z.array(shellSchema).default([]),
+    mcpServers: z.array(mcpServerSchema).default([]),
+    landing: z.enum(["pr", "comment"]).default("pr"),
+    profileJsonOverride: z.string().optional(),
+    actorLogin: z.string().optional(),
+  })
+  .refine((input) => input.instructions || input.prompt, {
+    message: "instructions are required",
+    path: ["instructions"],
+  });
 
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);

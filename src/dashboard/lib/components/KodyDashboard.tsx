@@ -493,13 +493,7 @@ export function KodyDashboard({
   });
 
   const taskVisibilityMutation = useMutation({
-    mutationFn: ({
-      task,
-      hidden,
-    }: {
-      task: KodyTask;
-      hidden: boolean;
-    }) =>
+    mutationFn: ({ task, hidden }: { task: KodyTask; hidden: boolean }) =>
       hidden
         ? kodyApi.tasks.addLabel(
             task.issueNumber,

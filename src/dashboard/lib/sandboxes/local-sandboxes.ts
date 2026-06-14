@@ -92,7 +92,10 @@ export function sandboxScopeKey(scope: SandboxScope): string {
 }
 
 function rootForScope(scope: SandboxScope, options: StoreOptions = {}): string {
-  return join(resolve(options.rootDir ?? defaultRootDir()), sandboxScopeKey(scope));
+  return join(
+    resolve(options.rootDir ?? defaultRootDir()),
+    sandboxScopeKey(scope),
+  );
 }
 
 function metadataPath(rootDir: string): string {
@@ -117,7 +120,9 @@ function cleanName(value: string | undefined): string {
 
 async function readMetadata(rootDir: string): Promise<SandboxMetadata | null> {
   try {
-    const parsed = JSON.parse(await readFile(metadataPath(rootDir), "utf8")) as {
+    const parsed = JSON.parse(
+      await readFile(metadataPath(rootDir), "utf8"),
+    ) as {
       version?: unknown;
       id?: unknown;
       name?: unknown;
@@ -192,7 +197,10 @@ async function writeMetadata(sandbox: LocalSandbox): Promise<void> {
   );
 }
 
-async function seedWorkspace(targetDir: string, sourceDir: string): Promise<void> {
+async function seedWorkspace(
+  targetDir: string,
+  sourceDir: string,
+): Promise<void> {
   const sourceRoot = resolve(sourceDir);
   const targetRoot = resolve(targetDir);
   const entries = await readdir(sourceRoot, { withFileTypes: true });
@@ -364,7 +372,10 @@ function runCommand(
   });
 }
 
-async function encryptFile(inputPath: string, outputPath: string): Promise<void> {
+async function encryptFile(
+  inputPath: string,
+  outputPath: string,
+): Promise<void> {
   const key = normalizeSnapshotKey();
   const iv = randomBytes(12);
   const plaintext = await readFile(inputPath);
@@ -377,7 +388,10 @@ async function encryptFile(inputPath: string, outputPath: string): Promise<void>
   await writeFile(outputPath, Buffer.concat([Buffer.from(header), ciphertext]));
 }
 
-async function decryptFile(inputPath: string, outputPath: string): Promise<void> {
+async function decryptFile(
+  inputPath: string,
+  outputPath: string,
+): Promise<void> {
   const key = normalizeSnapshotKey();
   const payload = await readFile(inputPath);
   const newline = payload.indexOf(10);

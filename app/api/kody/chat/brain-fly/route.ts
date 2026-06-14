@@ -220,9 +220,7 @@ export async function POST(req: NextRequest) {
     repo,
     repoToken,
     voiceMode: body.voiceMode === true,
-    ...(body.reasoningEffort
-      ? { reasoningEffort: body.reasoningEffort }
-      : {}),
+    ...(body.reasoningEffort ? { reasoningEffort: body.reasoningEffort } : {}),
     // Per-user Brain on Fly answers in plain, simple terms (external /brain
     // keeps its own style). See PLAIN_LANGUAGE_PREAMBLE in brain-proxy.
     plainLanguage: true,

@@ -407,7 +407,10 @@ function ExecutablesManagerInner() {
       queryClient.invalidateQueries({ queryKey: executableQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: listQueryKey });
       queryClient.invalidateQueries({
-        queryKey: executableQueryKeys.detail(selected?.slug ?? null, queryScope),
+        queryKey: executableQueryKeys.detail(
+          selected?.slug ?? null,
+          queryScope,
+        ),
       });
       toast.success("Executable saved");
       setEditingSlug(null);

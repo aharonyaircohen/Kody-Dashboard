@@ -71,9 +71,7 @@ describe("duty creation guide wiring", () => {
     expect(DUTY_TOOLS_SOURCE).toContain("feat(duties): add");
     // staff/runner read-merge: prefer input.staff, fall back to input.runner,
     // then to existing.runner. Either as one chain or split into steps.
-    expect(DUTY_TOOLS_SOURCE).toMatch(
-      /input\.staff\s*\?\?\s*input\.runner/,
-    );
+    expect(DUTY_TOOLS_SOURCE).toMatch(/input\.staff\s*\?\?\s*input\.runner/);
     expect(DUTY_TOOLS_SOURCE).toMatch(
       /input\.schedule\s*\?\?\s*existing\.schedule\s*\?\?\s*undefined/,
     );
@@ -93,9 +91,7 @@ describe("duty creation guide wiring", () => {
     // readers that look for `runner` still work.
     expect(DUTY_FILES_SOURCE).toContain("profile.staff = staffSlug");
     expect(DUTY_FILES_SOURCE).toContain("profile.runner = staffSlug");
-    expect(DUTY_FILES_SOURCE).toMatch(
-      /opts\.staff\s*\?\?\s*opts\.runner/,
-    );
+    expect(DUTY_FILES_SOURCE).toMatch(/opts\.staff\s*\?\?\s*opts\.runner/);
     // The agent prompt teaches the model the new field name. The system
     // prompt is itself a template literal, so each backtick is escaped
     // with a leading backslash in the source.
@@ -177,9 +173,7 @@ describe("duty creation guide wiring", () => {
   });
 
   it("auto-detects `run` output mode when `executables` has 2+ items", () => {
-    expect(DUTY_TOOLS_SOURCE).toMatch(
-      /executables\.length\s*>\s*1/,
-    );
+    expect(DUTY_TOOLS_SOURCE).toMatch(/executables\.length\s*>\s*1/);
   });
 });
 
