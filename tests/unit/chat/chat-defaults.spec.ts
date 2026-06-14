@@ -4,7 +4,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { loadChatDefaults, composeChatPrompt } from "@dashboard/lib/chat-defaults";
+import { readFileSync } from "fs";
+import {
+  loadChatDefaults,
+  composeChatPrompt,
+} from "@dashboard/lib/chat-defaults";
 import {
   DEFAULT_PERSONA_MD,
   DEFAULT_EXECUTABLE,
@@ -29,20 +33,120 @@ describe("chat-defaults bundle", () => {
     // refactor that drops # Hard rules or # Tool policy fails fast.
     expect(DEFAULT_PERSONA_MD).toContain("# Hard rules");
     expect(DEFAULT_PERSONA_MD).toContain("# Tool policy");
-    // The legacy string's verbatim distinctive phrases.
+    // The legacy string's verbatim distinctive phrases (the ones the
+    // model behavior depends on). The read-tool list is also pinned
+    // here so a future refactor that adds a phantom tool name (one
+    // that doesn't exist in the chat registry) fails this test.
     const phrases = [
       "Your prose must match the tool result",
       "injected context block",
       "Always end with a forward-driving question",
       "Never start with sycophancy",
       "Disambiguate dispatch vs. create-issue",
-      "github_get_pull_request_files",
-      "github_list_branches",
-      "github_get_commit",
-      "github_get_tree",
+      "github_search_code",
+      "github_get_file",
+      "github_list_tree",
+      "github_blame",
+      "github_commits_for_path",
+      "github_get_pull_request",
     ];
     for (const p of phrases) {
       expect(DEFAULT_PERSONA_MD).toContain(p);
+    }
+  });
+
+  it("persona does not mention phantom tools (regression: phantom tools cause hallucinations)", () => {
+    // The persona must only list tools that ACTUALLY exist in the
+    // chat registry. Phantom names make the model attempt calls that
+    // fail silently and then fabricate results to keep the user happy.
+    const phantomTools = [
+      "github_get_pull_request_files",
+      "github_list_branches",
+      "github_get_commit",
+      "github_get_tree", // wrong name; registry has `github_list_tree`
+    ];
+    for (const t of phantomTools) {
+      expect(DEFAULT_PERSONA_MD).not.toContain(t);
+    }
+  });
+
+  it("executable's tools list contains only names that exist in the chat registry", () => {
+    // Every name in DEFAULT_EXECUTABLE.tools must match a tool the
+    // route actually wires. If we add a name here that the registry
+    // doesn't have, the model is told about a tool that doesn't
+    // exist → it tries to call → call fails → it hallucinates. The
+    // recent hallucination regression (do-not-invent-labels memory)
+    // was caused by exactly this kind of phantom tool mention.
+    const toolFiles = [
+      "app/api/kody/chat/tools/github-tools.ts",
+      "app/api/kody/chat/tools/pipeline-tools.ts",
+      "app/api/kody/chat/tools/kody-tools.ts",
+      "app/api/kody/chat/tools/task-tools.ts",
+      "app/api/kody/chat/tools/bug-tools.ts",
+      "app/api/kody/chat/tools/goal-tools.ts",
+      "app/api/kody/chat/tools/duty-tools.ts",
+      "app/api/kody/chat/tools/duty-admin-tools.ts",
+      "app/api/kody/chat/tools/staff-tools.ts",
+      "app/api/kody/chat/tools/staff-admin-tools.ts",
+      "app/api/kody/chat/tools/executable-tools.ts",
+      "app/api/kody/chat/tools/commands-tools.ts",
+      "app/api/kody/chat/tools/context-tools.ts",
+      "app/api/kody/chat/tools/instructions-tools.ts",
+      "app/api/kody/chat/tools/variables-tools.ts",
+      "app/api/kody/chat/tools/secrets-tools.ts",
+      "app/api/kody/chat/tools/models-tools.ts",
+      "app/api/kody/chat/tools/reports-tools.ts",
+      "app/api/kody/chat/tools/notifications-tools.ts",
+      "app/api/kody/chat/tools/company-tools.ts",
+      "app/api/kody/chat/tools/webhooks-tools.ts",
+      "app/api/kody/chat/tools/inbox-tools.ts",
+      "app/api/kody/chat/tools/release-tools.ts",
+      "app/api/kody/chat/tools/planner-tools.ts",
+      "app/api/kody/chat/tools/vibe-tools.ts",
+      "app/api/kody/chat/tools/memory-tools.ts",
+      "app/api/kody/chat/tools/macros-tools.ts",
+      "app/api/kody/chat/tools/remote-tools.ts",
+      "app/api/kody/chat/tools/feature-tools.ts",
+      "app/api/kody/chat/tools/ui-tools.ts",
+      "app/api/kody/chat/tools/fetch-url.ts",
+    ];
+    // Two registries: tools declared inline as `tool({` in a file
+    // (the common shape), and tools grouped in a map like
+    // `export const uiTools = { name: tool, ... }`. The map keys
+    // are the model's tool names.
+    const toolKeys = new Set<string>();
+    for (const f of toolFiles) {
+      const src = readFileSync(f, "utf8");
+      // Inline: "  name: tool({"
+      for (const m of src.matchAll(
+        /^\s{2,8}([a-zA-Z_][a-zA-Z0-9_]*):\s*tool\(\{/gm,
+      )) {
+        toolKeys.add(m[1]);
+      }
+      // Map keys: "  name: variableName," inside an exported object.
+      // The variable is a tool built with tool({…}) earlier in the file.
+      // We accept any "key: identifier," pair inside an `export const` block.
+      const mapBlocks = src.matchAll(
+        /export\s+const\s+\w+\s*=\s*\{([\s\S]*?)\n\};/g,
+      );
+      for (const block of mapBlocks) {
+        for (const m of block[1].matchAll(
+          /^\s{2,8}([a-zA-Z_][a-zA-Z0-9_]*):\s*\w+,?\s*$/gm,
+        )) {
+          toolKeys.add(m[1]);
+        }
+      }
+    }
+    // Direct imports aliased in the route — `fetch_url: fetchUrlTool`
+    // is the only one currently; if more land, add them here.
+    toolKeys.add("fetch_url");
+    for (const name of DEFAULT_EXECUTABLE.tools) {
+      expect(
+        toolKeys.has(name),
+        `Tool "${name}" is in the executable's allowlist but not in any chat tool file. ` +
+          "The model will be told it can call this tool but the call will fail. " +
+          "Either implement the tool or remove it from the allowlist.",
+      ).toBe(true);
     }
   });
 
