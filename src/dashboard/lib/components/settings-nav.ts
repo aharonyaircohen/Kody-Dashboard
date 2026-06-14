@@ -253,16 +253,21 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     ],
   },
   {
-    title: "Company",
+    title: "Engine",
     items: [
       {
         href: "/config",
-        label: "Config",
+        label: "Engine config",
         icon: SlidersHorizontal,
         description:
-          "Repo-wide engine settings: operators, quality commands, the @kody access gate, default branch, and aliases.",
+          "Repo-wide engine settings: reasoning effort, operators, quality commands, the @kody access gate, default branch, and aliases.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
+    ],
+  },
+  {
+    title: "Company",
+    items: [
       {
         href: "/company",
         label: "Import / Export",

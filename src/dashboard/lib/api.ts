@@ -2172,8 +2172,8 @@ export const companyApi = {
   },
 };
 
-/** The dashboard-editable slice of kody.config.json (see /company/config).
- * `perExecutable` (model routing) is edited on /models, the rest on /company. */
+/** The dashboard-editable slice of kody.config.json (see /engine).
+ * `perExecutable` (model routing) is edited on /models, the rest here. */
 export interface EngineEditableConfig {
   quality: {
     typecheck?: string;
@@ -2185,6 +2185,10 @@ export interface EngineEditableConfig {
   allowedAssociations: string[];
   defaultBranch: string;
   perExecutable: Record<string, string>;
+  /** Thinking level for the engine (off|low|medium|high). Null = unset.
+   * Loose string here — the route validates the canonical vocabulary
+   * via Zod, so the client only needs the string channel. */
+  reasoningEffort: string | null;
 }
 
 // ============ Jobs API ============

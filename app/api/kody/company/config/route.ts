@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
       allowedAssociations: config.access?.allowedAssociations ?? [],
       defaultBranch: config.git?.defaultBranch ?? "",
       perExecutable: config.agent?.perExecutable ?? {},
+      reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
   } catch (err) {
     logger.error(
@@ -91,6 +92,13 @@ const PatchSchema = z
       .record(z.string().max(64), z.string().max(128))
       .nullable()
       .optional(),
+    // Thinking level for the engine. Server-side validation enforces
+    // the canonical vocabulary (off|low|medium|high); unknown values
+    // get a 400 instead of silently landing in kody.config.json.
+    reasoningEffort: z
+      .enum(["off", "low", "medium", "high"])
+      .nullable()
+      .optional(),
     actorLogin: z.string().optional(),
   })
   // Require at least one editable field so an empty PATCH can't churn a commit.
@@ -100,7 +108,8 @@ const PatchSchema = z
       b.aliases !== undefined ||
       b.allowedAssociations !== undefined ||
       b.defaultBranch !== undefined ||
-      b.perExecutable !== undefined,
+      b.perExecutable !== undefined ||
+      b.reasoningEffort !== undefined,
     { message: "no_fields" },
   );
 
@@ -142,6 +151,7 @@ export async function PATCH(req: NextRequest) {
     allowedAssociations,
     defaultBranch,
     perExecutable,
+    reasoningEffort,
   } = parsed.data;
 
   try {
@@ -149,7 +159,14 @@ export async function PATCH(req: NextRequest) {
       octokit,
       auth.owner,
       auth.repo,
-      { quality, aliases, allowedAssociations, defaultBranch, perExecutable },
+      {
+        quality,
+        aliases,
+        allowedAssociations,
+        defaultBranch,
+        perExecutable,
+        reasoningEffort: reasoningEffort ?? null,
+      },
       `chore(kody): update config (${actorLogin})`,
     );
     // Read back the merged result so the client reflects exactly what landed.
@@ -162,6 +179,7 @@ export async function PATCH(req: NextRequest) {
       allowedAssociations: config.access?.allowedAssociations ?? [],
       defaultBranch: config.git?.defaultBranch ?? "",
       perExecutable: config.agent?.perExecutable ?? {},
+      reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
   } catch (err) {
     logger.error(
