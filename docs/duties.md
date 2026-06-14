@@ -11,7 +11,9 @@ A duty is stored as one folder:
 ```
 
 Kody chat can create one too. It must first read this guide, then use the
-`create_kody_duty` tool.
+`create_or_update_kody_duty` tool — same tool handles both creating a new
+duty and patching an existing one (omit a field to preserve it; pass `body`
+to replace the markdown).
 
 ## What a duty owns
 

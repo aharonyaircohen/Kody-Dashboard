@@ -121,6 +121,40 @@ export const ChatModelSchema = z.object({
    * let a model run a longer research chain; the function-level
    * `maxDuration` (300s) still bounds wall-clock time regardless. */
   maxSteps: z.number().int().min(1).max(500).optional(),
+  /**
+   * Optional override of the auto-detected thinking config. Most users
+   * never set this — the chat route's `defaultReasoningForModel`
+   * infers a sensible `efforts` list + wire format from `modelName`
+   * (Claude, GPT-5, o1, Gemini 2.5/3, Grok 4, DeepSeek R1, Magistral).
+   * Set this to (a) override the detected efforts list, (b) change the
+   * wire format for a non-standard endpoint, or (c) force a model that
+   * has no auto-detected config into the dropdown. The chat UI uses it
+   * to decide whether to render the `🧠` dropdown; the route uses
+   * `applyReasoning()` to translate the chosen effort into the
+   * provider's wire shape at request time.
+   */
+  reasoning: z
+    .object({
+      efforts: z
+        .array(
+          z.object({
+            value: z.string().min(1).max(40),
+            label: z.string().min(1).max(40),
+          }),
+        )
+        .min(1)
+        .max(8),
+      default: z.string().min(1).max(40),
+      wire: z.enum([
+        "anthropic_budget",
+        "openai_effort",
+        "openai_extra_body",
+        "gemini_budget",
+        "gemini_level",
+        "xai_effort",
+      ]),
+    })
+    .optional(),
 });
 
 export const ChatModelsSchema = z.array(ChatModelSchema);

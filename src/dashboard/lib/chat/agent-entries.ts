@@ -9,6 +9,10 @@
  */
 
 import { AGENTS, type AgentConfig, type AgentId } from "../agents";
+import {
+  resolveReasoning,
+  type ModelReasoning,
+} from "./reasoning-adapter";
 
 /** A single selectable row in the chat agent picker. */
 export interface ChatDropdownEntry {
@@ -18,6 +22,13 @@ export interface ChatDropdownEntry {
   name: string;
   description: string;
   icon: AgentConfig["icon"];
+  /**
+   * Effective thinking config for this entry. `null` when the model has
+   * no `reasoning` block AND the model-name auto-detect couldn't pick
+   * one — the chat header hides the `🧠` dropdown in that case.
+   * Surfaced here so the UI never reaches into the raw `ChatModel` list.
+   */
+  reasoning: ModelReasoning | null;
 }
 
 /** A user-managed chat model from /api/kody/models (LLM_MODELS variable). */
@@ -67,6 +78,7 @@ export function buildAgentList(
       name: liveFly.name,
       description: liveFly.description,
       icon: liveFly.icon,
+      reasoning: null,
     });
   } else {
     const live = AGENTS["kody-live"];
@@ -77,6 +89,7 @@ export function buildAgentList(
       name: live.name,
       description: live.description,
       icon: live.icon,
+      reasoning: null,
     });
   }
   if (flyConfigured && brainFlyChatEnabled) {
@@ -88,6 +101,7 @@ export function buildAgentList(
       name: brainFly.name,
       description: brainFly.description,
       icon: brainFly.icon,
+      reasoning: null,
     });
   } else if (brainConfigured) {
     const brain = AGENTS.brain;
@@ -98,6 +112,7 @@ export function buildAgentList(
       name: brain.name,
       description: brain.description,
       icon: brain.icon,
+      reasoning: null,
     });
   }
   // One row per enabled user-managed model. All route through the in-process
@@ -113,6 +128,7 @@ export function buildAgentList(
       name: m.label,
       description: m.id,
       icon: kody.icon,
+      reasoning: resolveReasoning(m),
     });
   }
   return entries;

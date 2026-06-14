@@ -126,8 +126,17 @@ export interface TickWriteOptions {
    */
   disabled?: boolean;
   /**
-   * Staff member (persona) slug. `null`/absent writes no runner assignment. Only
-   * duties set this; staff files never do.
+   * Staff member (persona) slug. `null`/absent writes no runner assignment.
+   * Aliased to `runner` in the input; the engine reads `config.staff` from
+   * profile.json, so the dashboard writes `staff` to profile.json and
+   * `runner` here is preserved for legacy callers. Only duties set this;
+   * staff files never do.
+   */
+  staff?: string | null;
+  /**
+   * @deprecated Prefer `staff` (matches the engine field name). Kept as an
+   * alias for callers that still pass `runner`; `buildDutyProfile` reads
+   * `staff` first and falls back to `runner`.
    */
   runner?: string | null;
   /**
@@ -161,6 +170,16 @@ export interface TickWriteOptions {
   sha?: string;
   /** Commit message override. */
   message?: string;
+  /**
+   * Raw profile.json field overrides. Keys are profile.json field names
+   * (e.g. `tickScript`, `readsFrom`, `writesTo`, `mentions`, `dutyTools`,
+   * or any engine field the typed schema doesn't expose). Merged on top
+   * of the typed fields — typed values still win for the well-known keys
+   * the build function manages directly (name, describe, action, runner,
+   * reviewer, executable, schedule, disabled). Use this for advanced
+   * shapes the typed schema doesn't cover; pass `null` to clear a key.
+   */
+  extraProfile?: Record<string, unknown>;
 }
 
 /** Config that distinguishes one ticked-file kind (e.g. duties) from another. */

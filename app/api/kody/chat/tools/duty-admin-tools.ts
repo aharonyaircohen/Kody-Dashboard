@@ -3,7 +3,7 @@
  * @domain duties
  * @pattern chat-tools
  * @ai-summary Lifecycle chat tools for scheduled duties, complementing
- *   create_kody_duty (in duty-tools.ts): list, read, delete, and run-now. Run
+ *   create_or_update_kody_duty (in duty-tools.ts): list, read, delete, and run-now. Run
  *   dispatches kody.yml with the duty-owned action. Kept separate from the
  *   creation flow.
  */

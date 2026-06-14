@@ -141,8 +141,12 @@ composes a YAML \`findings:\` report, and refreshes
 Do not put metadata or raw state keys in \`duty.md\`. Runtime state stays
 engine-owned.
 
-The chat exposes \`read_duty_creation_guide\` and \`create_kody_duty\` to
-scaffold a new duty after a gap-analysis conversation.`,
+The chat exposes \`read_duty_creation_guide\` and \`create_or_update_kody_duty\` to
+scaffold a new duty after a gap-analysis conversation. The same
+\`create_or_update_kody_duty\` tool patches an existing duty in place —
+read-merge: omit a field to preserve it, pass \`body\` to replace the
+markdown, never first turn and always call \`read_duty\` first to surface
+the current profile.`,
   },
   {
     id: "kody-staff",

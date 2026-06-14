@@ -96,6 +96,16 @@ export interface BrainChatRequest {
    */
   resumeText?: string;
   /**
+   * User-picked thinking level for the upstream Brain model (e.g. "low",
+   * "medium", "high"). Forwarded verbatim — Brain server ≥ the version
+   * that knows this field translates it to its provider's wire shape.
+   * Older servers ignore it. Brain chat rows don't surface a `reasoning`
+   * block in the picker (Brain owns its own reasoning config) so this
+   * only flows when the user is on a gateway model that the Brain proxy
+   * is *not* serving — kept here for forward compatibility.
+   */
+  reasoningEffort?: string;
+  /**
    * When true, append the plain-language style preamble so Brain answers in
    * simpler terms (short sentences, no jargon, lead with the answer). Set by
    * the brain-fly route only; the external `/brain` endpoint leaves Brain's
@@ -300,6 +310,9 @@ export async function streamBrainChat(
               ...(input.repo ? { repo: input.repo } : {}),
               ...(input.repoToken ? { repoToken: input.repoToken } : {}),
               ...(input.voiceMode === true ? { voiceMode: true } : {}),
+              ...(input.reasoningEffort
+                ? { reasoningEffort: input.reasoningEffort }
+                : {}),
             }),
           }),
       signal: connectController.signal,

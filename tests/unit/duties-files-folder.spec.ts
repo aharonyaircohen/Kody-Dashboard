@@ -27,6 +27,10 @@ describe("folder-backed duty files", () => {
       executable: "repo-graph",
       every: "1d",
       disabled: true,
+      // The engine reads `config.staff`; the dashboard mirrors the
+      // typed `runner` value to BOTH `staff` and `runner` in profile.json
+      // so engine-side picks it up while legacy readers still see `runner`.
+      staff: "cto",
       runner: "cto",
       reviewer: "qa",
       mentions: ["alice", "bob"],
@@ -35,8 +39,67 @@ describe("folder-backed duty files", () => {
       writesTo: ["repo-graph"],
     });
     expect(profile).not.toHaveProperty("stage");
-    expect(profile).not.toHaveProperty("staff");
     expect(profile).not.toHaveProperty("assignee");
+  });
+
+  it("accepts the new `staff` input field as the primary name", () => {
+    const profile = buildDutyProfile({
+      octokit: {} as never,
+      slug: "from-staff",
+      title: "From Staff",
+      body: "ignored",
+      staff: "qa",
+    });
+    expect(profile.staff).toBe("qa");
+    expect(profile.runner).toBe("qa");
+  });
+
+  it("prefers `staff` over `runner` when both are provided", () => {
+    const profile = buildDutyProfile({
+      octokit: {} as never,
+      slug: "both",
+      title: "Both",
+      body: "ignored",
+      staff: "qa",
+      runner: "cto",
+    });
+    expect(profile.staff).toBe("qa");
+    expect(profile.runner).toBe("qa");
+  });
+
+  it("merges `extraProfile` raw overrides on top of the typed fields", () => {
+    const profile = buildDutyProfile({
+      octokit: {} as never,
+      slug: "override",
+      title: "Override",
+      body: "ignored",
+      staff: "qa",
+      schedule: "1d",
+      extraProfile: {
+        version: 2,
+        customFlag: "yes",
+        every: "OVERRIDDEN", // typed schedule still wins
+      },
+    });
+    expect(profile).toMatchObject({
+      staff: "qa",
+      version: 2,
+      customFlag: "yes",
+    });
+    // Typed schedule beats the override.
+    expect(profile.every).toBe("1d");
+  });
+
+  it("protects the identity keys from extraProfile overrides", () => {
+    const profile = buildDutyProfile({
+      octokit: {} as never,
+      slug: "identity",
+      title: "Identity",
+      body: "ignored",
+      extraProfile: { name: "hijacked", describe: "hijacked" },
+    });
+    expect(profile.name).toBe("identity");
+    expect(profile.describe).toBe("Identity");
   });
 
   it("keeps duty.md as titled body prose only", () => {
@@ -47,3 +110,4 @@ describe("folder-backed duty files", () => {
     expect(body).not.toContain("action:");
   });
 });
+

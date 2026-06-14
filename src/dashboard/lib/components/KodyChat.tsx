@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { navLabelForPath } from "./settings-nav";
 import {
@@ -14,6 +14,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
+  Brain,
   Globe,
   Paperclip,
   Send,
@@ -46,6 +47,11 @@ import {
   readDefaultChatEntry,
   writeDefaultChatEntry,
 } from "../chat/default-entry";
+import {
+  readReasoningEffort,
+  writeReasoningEffort,
+  resolveEffort,
+} from "../chat/reasoning-pref";
 import { getStoredAuth, getStoredBrainConfig, getStoredFlyPerf } from "../api";
 import { useAuth } from "../auth-context";
 import { toast } from "sonner";
@@ -306,6 +312,15 @@ export function KodyChat({
   // The chat request forwards it as `body.model`. Null = no override.
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
+  // Thinking-level state. The chat header shows a small `🧠` dropdown
+  // next to the agent picker when the current model declares a
+  // `reasoning` block (or one can be auto-detected from `modelName`).
+  // The pick is persisted per (repo, modelId) so switching models
+  // doesn't reset your "High" on Claude when you swap to GPT-5. Sent
+  // on every chat request as `body.reasoningEffort`; the chat route
+  // translates it to the provider's wire shape at request time.
+  const [reasoningMenuOpen, setReasoningMenuOpen] = useState(false);
+  const [reasoningEffort, setReasoningEffort] = useState<string | null>(null);
   // Reactive: re-derives whenever the auth context updates `brain`. Without
   // useAuth this stayed stale because KodyChat lives in the persistent rail
   // and never remounts after Settings saves a Brain config — the dropdown
@@ -478,6 +493,34 @@ export function KodyChat({
         e.agentId === selectedAgentId &&
         (e.modelId ?? null) === selectedModelId,
     ) ?? null;
+  // Effective thinking config for the active model. `null` when the model
+  // has no `reasoning` block AND the model-name auto-detect couldn't pick
+  // one — the header hides the dropdown in that case (no clutter for
+  // models that don't reason).
+  const currentReasoning = currentEntry?.reasoning ?? null;
+  // Resolved effort. Read directly from localStorage on every render so
+  // the dropdown never flashes the model's `default` before snapping to
+  // the stored pick on mount. The `reasoningEffort` state still wins
+  // during the current session (overrides the storage read with the
+  // user's just-clicked pick before the localStorage write is observed
+  // by React's next render). Per-(repo, modelId) scoping lives in
+  // `reasoning-pref.ts`.
+  const effectiveReasoningEffort = useMemo(() => {
+    if (!currentReasoning) return null;
+    if (
+      reasoningEffort &&
+      currentReasoning.efforts.some((e) => e.value === reasoningEffort)
+    ) {
+      return reasoningEffort;
+    }
+    if (selectedModelId) {
+      const stored = readReasoningEffort(selectedModelId);
+      if (stored && currentReasoning.efforts.some((e) => e.value === stored)) {
+        return stored;
+      }
+    }
+    return currentReasoning.default;
+  }, [currentReasoning, selectedModelId, reasoningEffort]);
 
   // Auto-default to Brain on first load when it's already configured. Runs
   // once after auth hydrates so we don't preempt the user's later picks.
@@ -2408,6 +2451,14 @@ export function KodyChat({
                       // chat server, which is responsible for appending the
                       // voice overlay to its system prompt for this turn.
                       ...(voiceMode ? { voiceMode: true } : {}),
+                      // Thinking level. Brain chat rows don't surface a
+                      // `reasoning` dropdown in the picker (Brain owns its
+                      // own reasoning config), but we forward the field when
+                      // it's set so a future Brain server version can pick
+                      // it up without a route change.
+                      ...(effectiveReasoningEffort
+                        ? { reasoningEffort: effectiveReasoningEffort }
+                        : {}),
                     },
               ),
               signal: abort.signal,
@@ -2773,6 +2824,13 @@ export function KodyChat({
               // active. The server validates against the LLM_MODELS list,
               // so a stale value falls back to the configured default.
               ...(selectedModelId ? { model: selectedModelId } : {}),
+              // Forward the user's picked thinking level. Server translates
+              // to the provider's wire shape (anthropic_budget, openai_effort,
+              // gemini_budget, etc.) at request time. Omitted when the
+              // active model has no reasoning config.
+              ...(effectiveReasoningEffort
+                ? { reasoningEffort: effectiveReasoningEffort }
+                : {}),
               ...(actorLogin ? { actorLogin } : {}),
               // The dashboard page the user is on, so "what am I viewing?"
               // resolves. Surfaced as a `## Current page` system section.
@@ -4384,9 +4442,10 @@ export function KodyChat({
           pinnedOpen={sessionSidebarPinned}
           onTogglePinnedOpen={() => setSessionSidebarPinned((prev) => !prev)}
           onClose={() => setShowSessionSidebar(false)}
+          fullscreen={railFullscreen}
           className={
             railFullscreen
-              ? "relative z-10 w-80 shrink-0 shadow-none"
+              ? "relative z-10 w-80 min-w-0 max-w-full basis-80 shrink shadow-none"
               : "absolute left-0 top-0 bottom-0 w-full sm:w-72 z-50 shadow-lg"
           }
         />
@@ -4479,6 +4538,96 @@ export function KodyChat({
               <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
                 {messages.length}
               </span>
+            )}
+            {/* Thinking-level control. Rendered only when the active model
+                declares a `reasoning` block (or one is auto-detected from
+                the model name). Three cases:
+                  • 1 effort  → static pill (e.g. o1 / R1 → "On")
+                  • 2+ efforts → dropdown, current value highlighted
+                  • no reasoning → nothing rendered (most models) */}
+            {currentReasoning && (
+              <div className="relative">
+                {currentReasoning.efforts.length === 1 ? (
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium bg-muted/60 text-muted-foreground border border-border/60"
+                    title={`This model always reasons at ${currentReasoning.efforts[0].label.toLowerCase()}.`}
+                    aria-label={`Thinking: ${currentReasoning.efforts[0].label}`}
+                  >
+                    <Brain className="w-3.5 h-3.5" aria-hidden="true" />
+                    {currentReasoning.efforts[0].label}
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReasoningMenuOpen((v) => !v);
+                        setAgentMenuOpen(false);
+                      }}
+                      className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium bg-muted/60 hover:bg-accent border border-border/60 focus:outline-none focus:ring-2 focus:ring-ring"
+                      aria-haspopup="listbox"
+                      aria-expanded={reasoningMenuOpen}
+                      title={`Thinking level (current: ${currentReasoning.efforts.find((e) => e.value === effectiveReasoningEffort)?.label ?? "default"})`}
+                    >
+                      <Brain className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>
+                        {currentReasoning.efforts.find(
+                          (e) => e.value === effectiveReasoningEffort,
+                        )?.label ?? "—"}
+                      </span>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+                    {reasoningMenuOpen && (
+                      <ul
+                        role="listbox"
+                        className="absolute top-full left-0 mt-1 z-30 min-w-[140px] rounded-md border bg-popover shadow-md"
+                      >
+                        {currentReasoning.efforts.map((effort) => (
+                          <li key={effort.value}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReasoningEffort(effort.value);
+                                if (selectedModelId) {
+                                  writeReasoningEffort(
+                                    selectedModelId,
+                                    effort.value,
+                                  );
+                                }
+                                setReasoningMenuOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 text-sm hover:bg-accent ${
+                                effectiveReasoningEffort === effort.value
+                                  ? "bg-accent/50 font-medium"
+                                  : ""
+                              }`}
+                              role="option"
+                              aria-selected={
+                                effectiveReasoningEffort === effort.value
+                              }
+                            >
+                              {effort.label}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </div>
             )}
             {!lockedAgentId && agentMenuOpen && (
               <ul

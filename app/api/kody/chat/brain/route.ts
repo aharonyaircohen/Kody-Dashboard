@@ -73,6 +73,12 @@ export async function POST(req: NextRequest) {
      * Brain is stateful and keeps it for the chat's life.
      */
     includeContext?: boolean;
+    /**
+     * User-picked thinking level. Forwarded verbatim to the Brain server.
+     * Server-side: older Brain versions ignore this field; newer versions
+     * translate it to the upstream provider's wire shape.
+     */
+    reasoningEffort?: string;
   };
   try {
     body = await req.json();
@@ -125,6 +131,9 @@ export async function POST(req: NextRequest) {
     repo,
     repoToken,
     voiceMode: body.voiceMode === true,
+    ...(body.reasoningEffort
+      ? { reasoningEffort: body.reasoningEffort }
+      : {}),
     ...(isResume
       ? { resumeSince: Number(body.resumeSince), resumeText: body.resumeText }
       : {}),

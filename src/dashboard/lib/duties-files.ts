@@ -38,6 +38,12 @@ interface DutyProfile {
   every?: ScheduleEvery;
   disabled?: boolean;
   runner?: string;
+  /**
+   * Engine-facing staff slug. Mirrors `runner` and is the field the engine
+   * scheduler actually reads (`config.staff`). The dashboard writes both
+   * for now; readers that pick `runner ?? staff` keep working.
+   */
+  staff?: string;
   reviewer?: string;
   mentions?: string[];
   executables?: string[];
@@ -70,7 +76,15 @@ export function buildDutyProfile(opts: TickWriteOptions): DutyProfile {
   if (opts.executable?.trim()) profile.executable = opts.executable.trim();
   if (opts.schedule) profile.every = opts.schedule;
   if (opts.disabled === true) profile.disabled = true;
-  if (opts.runner?.trim()) profile.runner = opts.runner.trim();
+  // The engine reads `config.staff`; mirror the typed value to BOTH
+  // `staff` and `runner` in profile.json so existing readers (dashboard
+  // UI, parsers that look for `runner`) keep working while the engine
+  // finds the field it expects. `staff` wins when both are provided.
+  const staffSlug = (opts.staff ?? opts.runner ?? "").trim();
+  if (staffSlug) {
+    profile.staff = staffSlug;
+    profile.runner = staffSlug;
+  }
   if (opts.reviewer?.trim()) profile.reviewer = cleanLogin(opts.reviewer);
   if (opts.mentions?.length) profile.mentions = cleanList(opts.mentions, true);
   if (opts.executables?.length) profile.executables = cleanList(opts.executables);
@@ -78,8 +92,44 @@ export function buildDutyProfile(opts: TickWriteOptions): DutyProfile {
   if (opts.tickScript?.trim()) profile.tickScript = opts.tickScript.trim();
   if (opts.readsFrom?.length) profile.readsFrom = cleanList(opts.readsFrom);
   if (opts.writesTo?.length) profile.writesTo = cleanList(opts.writesTo);
+  // Raw profile override — merged last. The keys this function manages
+  // directly (identity + every typed field above) WIN: callers can't use
+  // `extraProfile` to clobber them. The override is for ADDING fields the
+  // typed schema doesn't expose (e.g. `version`, custom engine flags), or
+  // for REPLACING values on keys we don't manage (pass `null` to clear).
+  if (opts.extraProfile) {
+    for (const [key, value] of Object.entries(opts.extraProfile)) {
+      if (MANAGED_PROFILE_KEYS.has(key)) continue;
+      (profile as unknown as Record<string, unknown>)[key] = value;
+    }
+  }
   return profile;
 }
+
+/**
+ * Profile.json keys `buildDutyProfile` writes from typed options. The raw
+ * `extraProfile` override cannot clobber these — typed values always win.
+ * Use the override to ADD new keys, not to replace typed ones. To clear a
+ * typed value, pass the corresponding option as `null`/empty (e.g. omit
+ * `staff` to remove the runner).
+ */
+const MANAGED_PROFILE_KEYS: ReadonlySet<string> = new Set([
+  "name",
+  "describe",
+  "action",
+  "executable",
+  "every",
+  "disabled",
+  "staff",
+  "runner",
+  "reviewer",
+  "mentions",
+  "executables",
+  "tools",
+  "tickScript",
+  "readsFrom",
+  "writesTo",
+]);
 
 function parseDutyProfile(raw: unknown, slug: string): DutyProfile {
   const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};

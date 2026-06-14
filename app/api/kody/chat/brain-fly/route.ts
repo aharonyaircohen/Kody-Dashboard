@@ -81,6 +81,8 @@ export async function POST(req: NextRequest) {
     currentPage?: string;
     /** First turn: fold the dashboard's curated Context into the message. */
     includeContext?: boolean;
+    /** User-picked thinking level. Forwarded verbatim to Brain. */
+    reasoningEffort?: string;
   };
   try {
     body = await req.json();
@@ -218,6 +220,9 @@ export async function POST(req: NextRequest) {
     repo,
     repoToken,
     voiceMode: body.voiceMode === true,
+    ...(body.reasoningEffort
+      ? { reasoningEffort: body.reasoningEffort }
+      : {}),
     // Per-user Brain on Fly answers in plain, simple terms (external /brain
     // keeps its own style). See PLAIN_LANGUAGE_PREAMBLE in brain-proxy.
     plainLanguage: true,

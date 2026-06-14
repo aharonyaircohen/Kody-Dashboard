@@ -195,6 +195,22 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     }
   }, [pathname, router]);
 
+  // Escape always exits the full /chat view, even if the chat header is
+  // hidden by a layout glitch (e.g. session sidebar overflowing on a narrow
+  // window). Without this the user is stuck and has to reach for the
+  // browser back button.
+  useEffect(() => {
+    if (pathname !== "/chat") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        router.push(preExpandRouteRef.current || "/tasks");
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [pathname, router]);
+
   const [dragging, setDragging] = useState(false);
   const startResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
@@ -375,7 +391,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 survive navigation. */}
               <div
                 className={cn(
-                  "flex-col min-h-0 bg-black/20",
+                  "flex-col min-h-0 min-w-0 bg-black/20",
                   isChatRoute
                     ? "flex flex-1"
                     : "hidden md:flex shrink-0 border-r border-border",

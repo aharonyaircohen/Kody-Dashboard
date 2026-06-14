@@ -78,6 +78,7 @@ import { createWebhookTools } from "../tools/webhooks-tools";
 import { createNotificationTools } from "../tools/notifications-tools";
 import { createCompanyTools } from "../tools/company-tools";
 import { createInboxTools } from "../tools/inbox-tools";
+import { applyReasoning } from "@dashboard/lib/chat/reasoning-adapter";
 import { createStaffAdminTools } from "../tools/staff-admin-tools";
 import { createDutyAdminTools } from "../tools/duty-admin-tools";
 import { createMacroTools } from "../tools/macros-tools";
@@ -431,6 +432,15 @@ export async function POST(req: NextRequest) {
      * stripped from the tool set so the model can't trigger the pipeline.
      */
     vibeMode?: boolean;
+    /**
+     * User-picked thinking level for the resolved model. Validated against
+     * the model's declared `reasoning.efforts` — unknown values fall back
+     * to `reasoning.default`. Translated to the provider's wire shape
+     * (anthropic_budget, openai_effort, …) by `applyReasoning()` before
+     * being merged into `streamText` options. Omitted when the model has
+     * no reasoning config — `applyReasoning` then returns `{}`.
+     */
+    reasoningEffort?: string;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -831,23 +841,17 @@ export async function POST(req: NextRequest) {
       // Per-provider thinking config so reasoning-delta chunks actually
       // reach the client. Without this, `sendReasoning: true` below has
       // nothing to stream and the chat looks idle until the final answer.
-      // Anthropic via the native SDK accepts extended-thinking under a
-      // stable provider-options key — wire it whenever the resolved model
-      // uses that protocol. The openai-compatible SDK has no comparable
-      // stable path for some providers' thinking config; in that case we
-      // lean on tool-call chips (now rendered in KodyChat) to surface progress.
       // Voice mode skips reasoning entirely — the voice overlay forbids
       // reading anything other than the final answer, and the chat client
       // also drops reasoning chunks defensively in this mode.
-      ...(resolvedModel.protocol === "anthropic" && !voiceMode
-        ? {
-            providerOptions: {
-              anthropic: {
-                thinking: { type: "enabled", budgetTokens: 5000 },
-              },
-            },
-          }
-        : {}),
+      // `applyReasoning` is the single source of truth for the
+      // effort→wire-shape translation; the user-picked level is forwarded
+      // as `body.reasoningEffort` and validated against the model's
+      // declared `efforts` list. Returns `{}` for models that don't
+      // reason, so non-reasoning providers stay untouched.
+      ...(voiceMode
+        ? {}
+        : applyReasoning(resolvedModel, body.reasoningEffort)),
       // Per-tool tracing. `experimental_onToolCallStart` fires before the
       // tool's `execute` is invoked; `experimental_onToolCallFinish`
       // afterward with the SDK-measured `durationMs` and a success flag.
