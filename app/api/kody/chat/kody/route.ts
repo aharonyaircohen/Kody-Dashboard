@@ -165,6 +165,22 @@ function parseFileData(
 // the request to the model is trimmed.
 const MAX_HISTORY_MESSAGES = 50;
 
+/**
+ * Default cap on tool-calling rounds per turn. Optimized for deep analysis:
+ * the model can run a real research loop (search → read → blame → commits
+ * → re-search → …) without the prompt's "no fixed budget" rule getting cut
+ * off by the code. The `maxDuration: 300` Vercel ceiling still bounds
+ * wall-clock time, and a long turn that runs out of wall-clock is a
+ * better failure mode than a mid-investigation cut-off.
+ *
+ * Per-model override: `maxSteps` on the LLM_MODELS entry wins over this
+ * default, so a model that runs longer research chains (e.g. reasoning
+ * models that branch more) can be lifted individually without raising the
+ * cap for every other model. Pass `null` to disable the cap for a model
+ * (rely on `maxDuration` alone).
+ */
+export const DEFAULT_MAX_STEPS = 100;
+
 // Stream tracing uses console.* (not the pino `logger`) on purpose: pino
 // buffers writes asynchronously, and Vercel functions can be killed or
 // suspended mid-stream — losing the trail. console.* is line-flushed on
@@ -806,24 +822,11 @@ export async function POST(req: NextRequest) {
       system: systemPrompt,
       messages: modelMessages,
       tools,
-      // Allow up to 10 tool-calling rounds so the model can run a real
-      // research loop (search → read → blame → commits → re-search) in
-      // one turn. Tools are individually rate-limit-aware (cache + ETag),
-      // so 10 cache hits cost essentially nothing. Higher caps push us
-      // toward the function timeout without meaningfully helping research.
-      //
-      // Goal planner is the exception: Pass 1 (broad research + listing)
-      // and Pass 2 (per-task research + create) each chain ~2–4 calls per
-      // task, so 10 silently truncates a 5-task plan after the first
-      // create. Raise to 30 in planner mode so the full sweep can land.
-      //
-      // Per-model override: `maxSteps` on the LLM_MODELS entry wins over
-      // both defaults, so a model that runs longer research chains (e.g.
-      // reasoning models that branch more) can be lifted individually
-      // without raising the cap for every other model. The
-      // `maxDuration: 300` Vercel ceiling still bounds wall-clock time.
+      // Optimized for deep analysis: see DEFAULT_MAX_STEPS for the cap
+      // rationale and the per-model override path. The constant lives at
+      // module level so tests can assert the value.
       stopWhen: stepCountIs(
-        resolvedModel.maxSteps ?? (goalPlannerActive ? 30 : 10),
+        resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS,
       ),
       // Per-provider thinking config so reasoning-delta chunks actually
       // reach the client. Without this, `sendReasoning: true` below has
