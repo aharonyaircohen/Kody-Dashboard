@@ -8,4 +8,5 @@ Each entry: `- [Title](id.md) — one-line hook (type: <type>)`.
 - [Goal pipeline = engine, not duty](goal-pipeline-engine-not-duty.md) — Use engine plumbing for goal lifecycle, not scheduled duties (type: feedback)
 - [Kody dispatch uses bare @kody](kody-dispatch-uses-bare-kody.md) — Use bare @kody comment to trigger pipeline, not @kody run (type: feedback)
 - [Trust list_executables, not the create return shape](trust-list_executables-not-the-create-return-shape.md) — After any create_or_update_executable call, verify with list_executables — the create tool can return ok=true/action=created while the file is never actually written. (type: feedback)
+- [chain executables need landing comment](chain-executables-need-landing-comment.md) — For multi-executable duties, use landing=comment so postflight is postAgentComment (not pr-branch lifecycle with strict COMMIT_MSG/PR_SUMMARY output). (type: project)
 - [Voice wake-lock is a recurring issue](voice-wake-lock-recurring.md) — User has flagged \"voice screen dims on mobile\" multiple times; prior fixes haven't stuck — verify any new fix actually holds on Android Chrome before closing. (type: project)
