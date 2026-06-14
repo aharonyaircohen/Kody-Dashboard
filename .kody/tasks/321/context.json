@@ -1,0 +1,19 @@
+{
+  "taskId": "321",
+  "taskType": "issue",
+  "target": "321",
+  "outcome": "success",
+  "exitCode": 0,
+  "reason": "Implemented tool descriptions in Kody Chat thinking panel for Kody Direct via a single data-tools-index event emitted at the start of the stream; client hydrates a name→description lookup and ToolCallCard renders it as a muted one-liner under the tool name (clipped to 140 chars, no card expansion needed).",
+  "prUrl": null,
+  "runUrl": null,
+  "filesTouched": [
+    "src/dashboard/lib/components/kody-chat-types.ts",
+    "src/dashboard/lib/components/ToolCallCard.tsx",
+    "src/dashboard/lib/components/KodyChat.tsx",
+    "app/api/kody/chat/kody/route.ts"
+  ],
+  "sessionLog": ".kody/sessions/321.jsonl",
+  "startedAt": "2026-06-14T18:09:51.510Z",
+  "finishedAt": "2026-06-14T18:25:50.000Z"
+}

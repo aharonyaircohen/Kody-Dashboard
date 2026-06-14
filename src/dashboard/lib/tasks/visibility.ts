@@ -4,10 +4,7 @@
  * @pattern task-visibility
  * @ai-summary Helpers for hiding GitHub issues from the dashboard task list.
  */
-import {
-  HIDDEN_TASK_LABEL,
-  TASK_LIST_EXCLUDED_LABELS,
-} from "../constants";
+import { HIDDEN_TASK_LABEL, TASK_LIST_EXCLUDED_LABELS } from "../constants";
 import { INBOX_FEED_ISSUE_TITLE, INBOX_FEED_START } from "../inbox/feed";
 
 export function isTaskHidden(labels: readonly string[] | null | undefined) {

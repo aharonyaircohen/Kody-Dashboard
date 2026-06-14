@@ -19,7 +19,11 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function deleteGitHubSnapshot(req: NextRequest, auth: NonNullable<ReturnType<typeof getRequestAuth>>, path: string) {
+async function deleteGitHubSnapshot(
+  req: NextRequest,
+  auth: NonNullable<ReturnType<typeof getRequestAuth>>,
+  path: string,
+) {
   const octokit = await getUserOctokit(req);
   if (!octokit) return;
   try {
@@ -74,10 +78,7 @@ export async function DELETE(req: NextRequest, ctx: RouteContext) {
     }
     const deleted = await deleteLocalSandbox(auth, id);
     if (!deleted) {
-      return NextResponse.json(
-        { error: "sandbox_not_found" },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: "sandbox_not_found" }, { status: 404 });
     }
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -131,9 +131,7 @@ export async function POST(req: NextRequest) {
     repo,
     repoToken,
     voiceMode: body.voiceMode === true,
-    ...(body.reasoningEffort
-      ? { reasoningEffort: body.reasoningEffort }
-      : {}),
+    ...(body.reasoningEffort ? { reasoningEffort: body.reasoningEffort } : {}),
     ...(isResume
       ? { resumeSince: Number(body.resumeSince), resumeText: body.resumeText }
       : {}),

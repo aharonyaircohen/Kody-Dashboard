@@ -161,7 +161,7 @@ with a Refresh button and a "View on GitHub" link.
 | [`../src/dashboard/lib/hooks/useChangelog.ts`](../src/dashboard/lib/hooks/useChangelog.ts)                   | React Query hook (30s stale)                                     |
 | [`../app/changelog/page.tsx`](../app/changelog/page.tsx)                                                     | `/changelog` page entry point                                    |
 | [`../.husky/pre-commit`](../.husky/pre-commit), [`../scripts/bump-version.mjs`](../scripts/bump-version.mjs) | `main`-only `package.json` patch bump                            |
-| [`../.kody/duties/qa/duty.md`](../.kody/duties/qa/duty.md)                                                             | The duty that writes QA markers (see [./qa.md](./qa.md))         |
+| [`../.kody/duties/qa/duty.md`](../.kody/duties/qa/duty.md)                                                   | The duty that writes QA markers (see [./qa.md](./qa.md))         |
 
 ## FAQ
 

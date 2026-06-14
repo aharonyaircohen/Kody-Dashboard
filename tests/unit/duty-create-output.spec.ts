@@ -67,9 +67,7 @@ describe("duty create output choice", () => {
   });
 
   it("builds a report body only when report output is selected", () => {
-    expect(buildDefaultDutyBody("run", "ci-health")).not.toContain(
-      "## Output",
-    );
+    expect(buildDefaultDutyBody("run", "ci-health")).not.toContain("## Output");
     expect(buildDefaultDutyBody("report", "ci-health")).toContain(
       "Refresh `.kody/reports/ci-health.md`.",
     );
@@ -142,7 +140,7 @@ describe("duty create output choice", () => {
       "preventDialogEscapeWhenSearchableSelectOpen",
     );
     expect(DUTY_CONTROL_SOURCE).toContain(
-      'querySelector(\'[data-searchable-select-open="true"]\')',
+      "querySelector('[data-searchable-select-open=\"true\"]')",
     );
     expect(DUTY_CONTROL_SOURCE).toContain(
       "onEscapeKeyDown={preventDialogEscapeWhenSearchableSelectOpen}",

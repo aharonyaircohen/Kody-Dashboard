@@ -38,15 +38,15 @@ duty supplies its own job and the persona only supplies judgment and voice.
 
 So:
 
-|                         | Staff (persona)         | Duty (job)                   | Executable (implementation)       |
-| ----------------------- | ----------------------- | ---------------------------- | --------------------------------- |
-| Path                    | `.kody/staff/<slug>.md` | `.kody/duties/<slug>/`       | `.kody/executables/<slug>/`       |
-| Answers                 | Who is acting?          | Why/what/how often?          | How is the work performed?        |
-| Owns the schedule?      | No                      | Yes, via `profile.json`      | No                                |
-| Owns the action name?   | No                      | Yes, `profile.json.action`   | No                                |
-| Owns reusable method?   | No                      | No                           | Yes, via skills/scripts/prompts   |
-| Names the staff member? | No                      | Yes, `profile.json.runner`   | No                                |
-| Independently ticked?   | No                      | Yes                          | No, unless a duty invokes it      |
+|                         | Staff (persona)         | Duty (job)                 | Executable (implementation)     |
+| ----------------------- | ----------------------- | -------------------------- | ------------------------------- |
+| Path                    | `.kody/staff/<slug>.md` | `.kody/duties/<slug>/`     | `.kody/executables/<slug>/`     |
+| Answers                 | Who is acting?          | Why/what/how often?        | How is the work performed?      |
+| Owns the schedule?      | No                      | Yes, via `profile.json`    | No                              |
+| Owns the action name?   | No                      | Yes, `profile.json.action` | No                              |
+| Owns reusable method?   | No                      | No                         | Yes, via skills/scripts/prompts |
+| Names the staff member? | No                      | Yes, `profile.json.runner` | No                              |
+| Independently ticked?   | No                      | Yes                        | No, unless a duty invokes it    |
 
 ## Duty profile
 
@@ -176,19 +176,19 @@ important per-duty throttle.
 
 ## File reference
 
-| File                                                                                       | Purpose                                                          |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| [`docs/duties.md`](../duties.md)                                                           | Duty creation guide and folder contract                          |
-| [`src/dashboard/lib/staff-files.ts`](../../src/dashboard/lib/staff-files.ts)               | Staff markdown store                                             |
-| [`src/dashboard/lib/duties-files.ts`](../../src/dashboard/lib/duties-files.ts)             | Folder-backed duty store                                         |
-| [`src/dashboard/lib/ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts)       | Dashboard next-tick display math                                 |
-| [`app/api/kody/staff/route.ts`](../../app/api/kody/staff/route.ts)                         | Staff API                                                        |
-| [`app/api/kody/duties/route.ts`](../../app/api/kody/duties/route.ts)                       | Duties API                                                       |
-| [`.kody/staff/cto.md`](../../.kody/staff/cto.md)                                           | Example identity-only persona                                    |
-| [`.kody/duties/security-audit/duty.md`](../../.kody/duties/security-audit/duty.md)         | Example duty body                                                |
-| [`.kody/duties/security-audit/profile.json`](../../.kody/duties/security-audit/profile.json) | Example duty profile                                             |
-| `kody2/src/scripts/dispatchDutyFileTicks.ts` (engine)                                      | Scheduler fan-out                                                |
-| `kody2/src/scripts/loadJobFromFile.ts` (engine)                                            | Duty loader                                                      |
+| File                                                                                         | Purpose                                 |
+| -------------------------------------------------------------------------------------------- | --------------------------------------- |
+| [`docs/duties.md`](../duties.md)                                                             | Duty creation guide and folder contract |
+| [`src/dashboard/lib/staff-files.ts`](../../src/dashboard/lib/staff-files.ts)                 | Staff markdown store                    |
+| [`src/dashboard/lib/duties-files.ts`](../../src/dashboard/lib/duties-files.ts)               | Folder-backed duty store                |
+| [`src/dashboard/lib/ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts)         | Dashboard next-tick display math        |
+| [`app/api/kody/staff/route.ts`](../../app/api/kody/staff/route.ts)                           | Staff API                               |
+| [`app/api/kody/duties/route.ts`](../../app/api/kody/duties/route.ts)                         | Duties API                              |
+| [`.kody/staff/cto.md`](../../.kody/staff/cto.md)                                             | Example identity-only persona           |
+| [`.kody/duties/security-audit/duty.md`](../../.kody/duties/security-audit/duty.md)           | Example duty body                       |
+| [`.kody/duties/security-audit/profile.json`](../../.kody/duties/security-audit/profile.json) | Example duty profile                    |
+| `kody2/src/scripts/dispatchDutyFileTicks.ts` (engine)                                        | Scheduler fan-out                       |
+| `kody2/src/scripts/loadJobFromFile.ts` (engine)                                              | Duty loader                             |
 
 ## FAQ
 

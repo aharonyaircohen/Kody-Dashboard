@@ -38,7 +38,12 @@ export const staffQueryKeys = {
   list: (scope: StaffQueryScope = {}) =>
     ["kody-staff", scope.owner ?? null, scope.repo ?? null] as const,
   detail: (slug: string, scope: StaffQueryScope = {}) =>
-    ["kody-staff-member", scope.owner ?? null, scope.repo ?? null, slug] as const,
+    [
+      "kody-staff-member",
+      scope.owner ?? null,
+      scope.repo ?? null,
+      slug,
+    ] as const,
 };
 
 function useStaffQueryScope() {
@@ -126,10 +131,7 @@ export function useUpdateStaff(slug: string, actorLogin?: string) {
     onSuccess: (staffMember) => {
       queryClient.invalidateQueries({ queryKey: staffQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: staffQueryKeys.list(scope) });
-      queryClient.setQueryData(
-        staffQueryKeys.detail(slug, scope),
-        staffMember,
-      );
+      queryClient.setQueryData(staffQueryKeys.detail(slug, scope), staffMember);
       toast.success("Staff member updated");
     },
     onError: (error) => {

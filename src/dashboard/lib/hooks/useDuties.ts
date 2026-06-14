@@ -194,7 +194,9 @@ export function useDeleteDuty(actorLogin?: string) {
     onSuccess: (_, slug) => {
       queryClient.invalidateQueries({ queryKey: dutyQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: dutyQueryKeys.list(scope) });
-      queryClient.removeQueries({ queryKey: dutyQueryKeys.detail(slug, scope) });
+      queryClient.removeQueries({
+        queryKey: dutyQueryKeys.detail(slug, scope),
+      });
       toast.success("Duty deleted");
     },
     onError: (error) => {

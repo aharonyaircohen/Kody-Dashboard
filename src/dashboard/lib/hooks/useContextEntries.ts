@@ -41,7 +41,12 @@ export const contextQueryKeys = {
   list: (scope: ContextQueryScope = {}) =>
     ["kody-context", scope.owner ?? null, scope.repo ?? null] as const,
   detail: (slug: string, scope: ContextQueryScope = {}) =>
-    ["kody-context-entry", scope.owner ?? null, scope.repo ?? null, slug] as const,
+    [
+      "kody-context-entry",
+      scope.owner ?? null,
+      scope.repo ?? null,
+      slug,
+    ] as const,
 };
 
 function useContextQueryScope() {

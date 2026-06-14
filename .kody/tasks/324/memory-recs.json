@@ -1,0 +1,18 @@
+[
+  {
+    "type": "lesson",
+    "name": "kodychat-merge-blocks-agent-pick-onclick",
+    "hook": "When merging a per-session agent refactor into a branch that also touched onClick handlers, git may put conflict markers in the wrong onClick.",
+    "body": "When resolving conflicts in KodyChat.tsx between a reasoning-level button refactor and a per-session agent pick refactor, the auto-merge placed the per-session agent onClick code INSIDE the reasoning-level button's onClick (where it would not compile — `a` is not in scope there). The reasoning-level button is unrelated; the agent-pick code belongs in the dropdown item button. Symptom: the conflict marker shows `a.agentId` in an onClick that doesn't iterate over agents. Fix: take the reasoning-level button's simple `setReasoningMenuOpen((v) => !v); setAgentMenuOpen(false);` and apply the per-session agent onClick separately at the agent-pick button.\n\n**Why:** Hit this in a real merge of #321 (show tool descriptions) + origin/main (per-session agent). Without the lesson, the resolver would either pick the wrong side wholesale or produce a button that tries to call `setSelectedAgentId(a.agentId)` where `a` is undefined.\n\n**How to apply:** When resolving onClick conflicts in KodyChat.tsx, identify the iteration variable that the onClick captures. If a conflict side references a variable that doesn't exist in that scope, that side belongs in a different onClick — search the file for the matching pattern.",
+    "why": "Recurring trap: large refactors that touch multiple onClick handlers in the same file will produce asymmetric conflicts that look like they're in the same spot but are actually in different buttons. Future resolves need to know to look at the iteration scope.",
+    "confidence": 0.85
+  },
+  {
+    "type": "lesson",
+    "name": "auto-merge-may-miss-line-modifications",
+    "hook": "A clean auto-merge (no conflict markers) can still leave the file in a state where main's refactor didn't fully apply to existing lines.",
+    "body": "When main's commit modifies an existing line (e.g. `writeDefaultChatEntry(a.key)` → `sessionHook.setSessionAgent(activeId, a.key)`) AND adds new code elsewhere, the auto-merge can drop the modification while keeping the new code. The file has no conflict markers, but tests fail because the modified line is still in its old form. Always run the failing test file and read the diff against `origin/main` to catch missed modifications.\n\n**Why:** In the #321 merge, the per-session agent commit (d3b4ced5) added a new `useEffect` calling `setSessionAgent` (auto-merged cleanly) but didn't update the existing `writeDefaultChatEntry(a.key)` line in the agent-pick onClick. `kody-chat-per-session-agent.spec.ts` failed with \"expected 1 to be 0\" for `writeDefaultChatEntry` matches — a clear signal that the auto-merge missed a modification.\n\n**How to apply:** After resolving conflict markers, run the full test suite. If a main-branch test fails, the auto-merge probably missed a line modification. Grep for the old API (e.g. `writeDefaultChatEntry`) to find the line that should have been updated.",
+    "why": "This isn't a conflict-marker problem — it's a silent auto-merge incompleteness. The wrapper will commit the resolution either way, but the merge will be broken in CI. Catching it at resolve time saves a back-and-forth.",
+    "confidence": 0.9
+  }
+]

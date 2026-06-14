@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
   const auth = getRequestAuth(req);
-  if (!auth) return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+  if (!auth)
+    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
 
   let body: unknown = {};
   try {
@@ -37,11 +38,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const session = await startGitHubActionsTerminalSession(req, auth, parsed.data);
+    const session = await startGitHubActionsTerminalSession(
+      req,
+      auth,
+      parsed.data,
+    );
     return NextResponse.json({ ok: true, session });
   } catch (err) {
     const message =
-      err instanceof Error ? err.message : "Failed to start GitHub Actions terminal";
+      err instanceof Error
+        ? err.message
+        : "Failed to start GitHub Actions terminal";
     return NextResponse.json(
       { error: "github_terminal_start_failed", message },
       { status: message.includes("not found") ? 404 : 500 },

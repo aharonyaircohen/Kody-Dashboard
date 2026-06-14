@@ -18,10 +18,7 @@ import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth-context";
 import { kodyApi } from "../api";
-import {
-  trustDecisionKey,
-  type TrustLatestDecision,
-} from "./trust-state";
+import { trustDecisionKey, type TrustLatestDecision } from "./trust-state";
 import type { CtoActionable } from "./recommendation";
 
 export const trustDecisionsQueryKey = (owner?: string, repo?: string) =>

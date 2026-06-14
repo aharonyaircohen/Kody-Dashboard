@@ -119,8 +119,7 @@ function collapseBlankLines(text: string): string {
 
 const FINAL_ANSWER_MARKER_RE =
   /(?:^|\n)\s*(?:final\s+answer|final|answer)\s*:\s*/i;
-const LEADING_ANSWER_MARKER_RE =
-  /^\s*(?:final\s+answer|final|answer)\s*:\s*/i;
+const LEADING_ANSWER_MARKER_RE = /^\s*(?:final\s+answer|final|answer)\s*:\s*/i;
 const SCRATCHPAD_LABEL_RE =
   /^\s*(?:analysis|reasoning|thinking|thoughts?|scratchpad)\s*[:.-]/i;
 // First/second-person reasoning preambles the model commonly emits as raw
@@ -176,10 +175,7 @@ function stripDuplicatedReasoningPrefix(
   };
 }
 
-function appendLeaked(
-  collected: string,
-  next: string,
-): string {
+function appendLeaked(collected: string, next: string): string {
   const trimmed = next.trim();
   if (!trimmed) return collected;
   return collected ? `${collected}\n\n${trimmed}` : trimmed;

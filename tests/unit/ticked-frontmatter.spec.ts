@@ -124,7 +124,6 @@ describe("splitFrontmatter", () => {
     expect(frontmatter.readsFrom).toEqual(["company-graph", "reports"]);
     expect(frontmatter.writesTo).toEqual(["ci-health-graph"]);
   });
-
 });
 
 describe("joinFrontmatter", () => {
@@ -164,8 +163,7 @@ describe("joinFrontmatter", () => {
 
   it("reads legacy staff as runner but does not turn assignee into reviewer", () => {
     expect(
-      splitFrontmatter("---\nstaff: bot\nassignee: @qa\n---\nbody")
-        .frontmatter,
+      splitFrontmatter("---\nstaff: bot\nassignee: @qa\n---\nbody").frontmatter,
     ).toEqual({ runner: "bot" });
   });
 

@@ -260,16 +260,16 @@ the company files in [`../src/dashboard/lib/company/`](../src/dashboard/lib/comp
 
 ## File reference
 
-| File                                                                                                               | Purpose                                                               |
-| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           | Folder CRUD via the Git Data API (atomic multi-file commits)          |
-| [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       | Form fields ↔ `profile.json`, slug + profile validation, contract     |
-| [`../src/dashboard/lib/executables/index.ts`](../src/dashboard/lib/executables/index.ts)                           | Public re-export surface                                              |
-| [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) | The /executables CRUD UI                                              |
-| [`../app/api/kody/executables/route.ts`](../app/api/kody/executables/route.ts)                                     | List (`GET`) + create (`POST`)                                        |
-| [`../app/api/kody/executables/[slug]/route.ts`](../app/api/kody/executables/[slug]/route.ts)                       | Read (`GET`) / update (`PATCH`) / delete (`DELETE`) one               |
-| [`../app/api/kody/executables/import-skill/route.ts`](../app/api/kody/executables/import-skill/route.ts)           | Fetch a skill's `SKILL.md` from a GitHub source                       |
-| [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)                 | Chat tools for conversational CRUD                                    |
+| File                                                                                                               | Purpose                                                           |
+| ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           | Folder CRUD via the Git Data API (atomic multi-file commits)      |
+| [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       | Form fields ↔ `profile.json`, slug + profile validation, contract |
+| [`../src/dashboard/lib/executables/index.ts`](../src/dashboard/lib/executables/index.ts)                           | Public re-export surface                                          |
+| [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) | The /executables CRUD UI                                          |
+| [`../app/api/kody/executables/route.ts`](../app/api/kody/executables/route.ts)                                     | List (`GET`) + create (`POST`)                                    |
+| [`../app/api/kody/executables/[slug]/route.ts`](../app/api/kody/executables/[slug]/route.ts)                       | Read (`GET`) / update (`PATCH`) / delete (`DELETE`) one           |
+| [`../app/api/kody/executables/import-skill/route.ts`](../app/api/kody/executables/import-skill/route.ts)           | Fetch a skill's `SKILL.md` from a GitHub source                   |
+| [`../app/api/kody/chat/tools/executable-tools.ts`](../app/api/kody/chat/tools/executable-tools.ts)                 | Chat tools for conversational CRUD                                |
 
 ## FAQ
 

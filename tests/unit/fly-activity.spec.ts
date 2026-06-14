@@ -54,7 +54,12 @@ describe("computeActivity", () => {
         {
           ts: 5_000,
           machines: [
-            { app: "kody-brain-alice", machineId: "z", state: "started", ...SIZE },
+            {
+              app: "kody-brain-alice",
+              machineId: "z",
+              state: "started",
+              ...SIZE,
+            },
           ],
         },
       ]),

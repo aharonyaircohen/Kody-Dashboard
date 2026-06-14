@@ -20,7 +20,9 @@ import {
 import type { InboxFeedEntry } from "@dashboard/lib/inbox/feed";
 
 /** Helper: wrap a verdict with an ISO timestamp older than any test fixture. */
-function decided(decision: TrustLatestDecision["decision"]): TrustLatestDecision {
+function decided(
+  decision: TrustLatestDecision["decision"],
+): TrustLatestDecision {
   return { decision, at: "2025-01-01T00:00:00.000Z" };
 }
 

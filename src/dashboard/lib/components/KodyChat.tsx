@@ -990,69 +990,72 @@ export function KodyChat({
     if (chatMode !== "terminal") return;
     void refreshLocalSandboxes();
   }, [chatMode, refreshLocalSandboxes]);
-  const handleCreateSandbox = useCallback(async (
-    runtime: "local" | "github-actions",
-  ) => {
-    setSandboxCreateMenuOpen(false);
-    const name = window.prompt(
-      "Sandbox name",
-      runtime === "github-actions" ? "My GitHub Actions sandbox" : "My sandbox",
-    );
-    if (name === null) return;
-    setSandboxBusy(true);
-    setSandboxBusyLabel(
-      runtime === "github-actions"
-        ? "Creating GitHub Actions sandbox..."
-        : "Creating local sandbox...",
-    );
-    try {
-      const res = await fetch("/api/kody/sandboxes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          name,
-          runtime,
-          ...(activeTerminalTransport.type === "local" &&
-          activeTerminalTransport.sandboxId
-            ? { sourceSandboxId: activeTerminalTransport.sandboxId }
-            : {}),
-        }),
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        sandbox?: LocalSandboxSummary;
-        message?: string;
-        error?: string;
-      };
-      if (!res.ok || !body.sandbox) {
-        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
-      }
-      setLocalSandboxes((prev) => [
-        body.sandbox!,
-        ...prev.filter((sandbox) => sandbox.id !== body.sandbox!.id),
-      ]);
-      if (body.sandbox.runtime === "local") {
-        handleTerminalSandboxTargetChange(body.sandbox);
-      } else {
-        handleTerminalGitHubActionsSandboxTargetChange(body.sandbox);
-      }
-      toast.success(
-        body.sandbox.runtime === "github-actions"
-          ? "GitHub Actions sandbox selected"
-          : "Sandbox created",
+  const handleCreateSandbox = useCallback(
+    async (runtime: "local" | "github-actions") => {
+      setSandboxCreateMenuOpen(false);
+      const name = window.prompt(
+        "Sandbox name",
+        runtime === "github-actions"
+          ? "My GitHub Actions sandbox"
+          : "My sandbox",
       );
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to create sandbox",
+      if (name === null) return;
+      setSandboxBusy(true);
+      setSandboxBusyLabel(
+        runtime === "github-actions"
+          ? "Creating GitHub Actions sandbox..."
+          : "Creating local sandbox...",
       );
-    } finally {
-      setSandboxBusy(false);
-      setSandboxBusyLabel(null);
-    }
-  }, [
-    activeTerminalTransport,
-    handleTerminalGitHubActionsSandboxTargetChange,
-    handleTerminalSandboxTargetChange,
-  ]);
+      try {
+        const res = await fetch("/api/kody/sandboxes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({
+            name,
+            runtime,
+            ...(activeTerminalTransport.type === "local" &&
+            activeTerminalTransport.sandboxId
+              ? { sourceSandboxId: activeTerminalTransport.sandboxId }
+              : {}),
+          }),
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+          sandbox?: LocalSandboxSummary;
+          message?: string;
+          error?: string;
+        };
+        if (!res.ok || !body.sandbox) {
+          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+        }
+        setLocalSandboxes((prev) => [
+          body.sandbox!,
+          ...prev.filter((sandbox) => sandbox.id !== body.sandbox!.id),
+        ]);
+        if (body.sandbox.runtime === "local") {
+          handleTerminalSandboxTargetChange(body.sandbox);
+        } else {
+          handleTerminalGitHubActionsSandboxTargetChange(body.sandbox);
+        }
+        toast.success(
+          body.sandbox.runtime === "github-actions"
+            ? "GitHub Actions sandbox selected"
+            : "Sandbox created",
+        );
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to create sandbox",
+        );
+      } finally {
+        setSandboxBusy(false);
+        setSandboxBusyLabel(null);
+      }
+    },
+    [
+      activeTerminalTransport,
+      handleTerminalGitHubActionsSandboxTargetChange,
+      handleTerminalSandboxTargetChange,
+    ],
+  );
   const handleSaveSandbox = useCallback(async () => {
     if (
       (activeTerminalTransport.type !== "local" &&
@@ -1076,7 +1079,9 @@ export function KodyChat({
         await terminal.stop();
         toast.success("Save requested. GitHub Actions will save after stop.");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to save sandbox");
+        toast.error(
+          err instanceof Error ? err.message : "Failed to save sandbox",
+        );
       } finally {
         setSandboxBusy(false);
         setSandboxBusyLabel(null);
@@ -1107,7 +1112,9 @@ export function KodyChat({
       );
       toast.success("Sandbox saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save sandbox");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save sandbox",
+      );
     } finally {
       setSandboxBusy(false);
       setSandboxBusyLabel(null);
@@ -1164,34 +1171,38 @@ export function KodyChat({
       setSandboxBusy(false);
       setSandboxBusyLabel(null);
     }
-  }, [activeTerminalInstanceId, activeTerminalTransport, handleTerminalTargetChange]);
+  }, [
+    activeTerminalInstanceId,
+    activeTerminalTransport,
+    handleTerminalTargetChange,
+  ]);
   const handleTerminalTargetSelect = useCallback(
     (value: string) => {
       if (value.startsWith("sandbox:")) {
         const id = value.slice("sandbox:".length);
-      const sandbox = localSandboxes.find(
-        (candidate) => candidate.id === id && candidate.runtime === "local",
-      );
- if (sandbox) handleTerminalSandboxTargetChange(sandbox);
-      return;
-    }
+        const sandbox = localSandboxes.find(
+          (candidate) => candidate.id === id && candidate.runtime === "local",
+        );
+        if (sandbox) handleTerminalSandboxTargetChange(sandbox);
+        return;
+      }
       if (value.startsWith("gha:")) {
         const id = value.slice("gha:".length);
         const sandbox = localSandboxes.find(
           (candidate) =>
             candidate.id === id && candidate.runtime === "github-actions",
-      );
- if (sandbox) handleTerminalGitHubActionsSandboxTargetChange(sandbox);
-      return;
-    }
- handleTerminalTargetChange(value);
- },
- [
- handleTerminalGitHubActionsSandboxTargetChange,
- handleTerminalSandboxTargetChange,
-    handleTerminalTargetChange,
-    localSandboxes,
-  ],
+        );
+        if (sandbox) handleTerminalGitHubActionsSandboxTargetChange(sandbox);
+        return;
+      }
+      handleTerminalTargetChange(value);
+    },
+    [
+      handleTerminalGitHubActionsSandboxTargetChange,
+      handleTerminalSandboxTargetChange,
+      handleTerminalTargetChange,
+      localSandboxes,
+    ],
   );
   useEffect(() => {
     if (desiredSessionScope === sessionStoreScope) return;
@@ -2871,6 +2882,13 @@ export function KodyChat({
           // chunks so we can identify the source tool when its
           // `tool-output-available` arrives (the output chunk omits the name).
           const toolNameById = new Map<string, string>();
+          // Map of toolName → human-readable description, hydrated from the
+          // `data-tools-index` event the route emits at the start of the
+          // stream (issue #321). One event per turn — not one per call —
+          // so this map is small and stable for the lifetime of the turn.
+          // Each new `tool-input-available` chip looks its name up here to
+          // attach the description the model saw when picking the tool.
+          const toolDescriptionByName = new Map<string, string>();
           // Pending UI directives surfaced by tools. Applied AFTER the stream
           // closes so the assistant bubble settles before the agent flips —
           // otherwise the in-flight message would be re-routed mid-render.
@@ -2911,6 +2929,10 @@ export function KodyChat({
                   | { type: "reasoning-delta"; delta: string }
                   | { type: "error"; errorText: string }
                   | {
+                      type: "data-tools-index";
+                      data: Record<string, string>;
+                    }
+                  | {
                       type: "tool-input-start";
                       toolCallId: string;
                       toolName: string;
@@ -2949,6 +2971,24 @@ export function KodyChat({
                 } else if (chunk.type === "error" && "errorText" in chunk) {
                   textBuf += `\n\n[Error] ${chunk.errorText}`;
                 } else if (
+                  chunk.type === "data-tools-index" &&
+                  "data" in chunk &&
+                  chunk.data &&
+                  typeof chunk.data === "object"
+                ) {
+                  // The route ships one `data-tools-index` event at the
+                  // start of the stream with a name→description map for
+                  // every tool in the merged tool set (issue #321). The
+                  // thinking panel reads this back as a muted one-liner
+                  // under each tool name. Brain/Engine chats never emit
+                  // it — the map stays empty and the card omits the line.
+                  toolDescriptionByName.clear();
+                  for (const [name, desc] of Object.entries(chunk.data)) {
+                    if (typeof desc === "string" && desc.length > 0) {
+                      toolDescriptionByName.set(name, desc);
+                    }
+                  }
+                } else if (
                   // The AI SDK emits `tool-input-start` *before* it
                   // streams the input deltas, and `tool-input-available`
                   // once the full input has been parsed. Both carry the
@@ -2980,6 +3020,10 @@ export function KodyChat({
                     typeof chunk.input === "object"
                       ? (chunk.input as Record<string, unknown>)
                       : {};
+                  // Look up the tool's description from the index event
+                  // emitted at the start of the stream. Absent for
+                  // Brain/Engine chats; the card omits the line gracefully.
+                  const description = toolDescriptionByName.get(chunk.toolName);
                   setMessages((prev) => {
                     const copy = [...prev];
                     let idx = copy.findIndex(
@@ -3005,6 +3049,7 @@ export function KodyChat({
                           name: chunk.toolName,
                           arguments: toolInput,
                           status: "running",
+                          ...(description ? { description } : {}),
                         },
                       ],
                     };
@@ -4431,13 +4476,13 @@ export function KodyChat({
         isGlobalMode &&
         !sessionSidebarPinned &&
         !railFullscreen && (
-        <button
-          type="button"
-          aria-label="Close conversations"
-          onClick={() => setShowSessionSidebar(false)}
-          className="absolute inset-0 z-40 cursor-default bg-black/20"
-        />
-      )}
+          <button
+            type="button"
+            aria-label="Close conversations"
+            onClick={() => setShowSessionSidebar(false)}
+            className="absolute inset-0 z-40 cursor-default bg-black/20"
+          />
+        )}
       {showSessionSidebar && isGlobalMode && (
         <SessionSidebar
           sessions={sessionHook.sessions}
@@ -4451,7 +4496,9 @@ export function KodyChat({
           onDeleteSession={sessionHook.deleteSession}
           onRenameSession={sessionHook.renameSession}
           onPinSession={sessionHook.pinSession}
-          modeBySessionId={vibeMode ? undefined : terminalRegistry.modeBySessionId}
+          modeBySessionId={
+            vibeMode ? undefined : terminalRegistry.modeBySessionId
+          }
           pinnedOpen={sessionSidebarPinned}
           onTogglePinnedOpen={() => setSessionSidebarPinned((prev) => !prev)}
           onClose={() => setShowSessionSidebar(false)}
@@ -4465,1023 +4512,1037 @@ export function KodyChat({
       )}
 
       <div className="relative flex min-w-0 flex-1 flex-col">
-      {/* Voice Chat Overlay */}
-      {voiceOverlayOpen && (
-        <VoiceChatOverlay
-          state={voiceChat.state}
-          currentTranscript={voiceChat.currentTranscript}
-          turnCount={voiceChat.turnCount}
-          error={voiceChat.error}
-          ttsEngine={voiceChat.ttsEngine}
-          ttsError={voiceChat.ttsError}
-          voiceId={voiceId}
-          voices={PIPER_VOICES}
-          onSelectVoice={handleSelectVoice}
-          messages={messages}
-          agentName={currentAgent.name}
-          onStop={() => {
-            voiceChat.stopConversation();
-            setVoiceOverlayOpen(false);
-            setVoiceMuted(false);
-          }}
-          onInterrupt={() => {
-            voiceChat.interruptConversation();
-          }}
-          onToggleMute={handleVoiceToggleMute}
-          isMuted={voiceMuted}
-        />
-      )}
-      {/* Header with context */}
-      <div className="px-2 py-1.5 sm:px-4 sm:py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
-        <div className="flex items-center justify-between">
-          {/* Left: agent picker (locked label when parent forces an agent) */}
-          <div className="relative flex items-center gap-2">
-            {(() => {
-              // Header label/icon prefers the matched dropdown entry — that
-              // way a user-managed model surfaces its own label (e.g.
-              // "Claude Sonnet 4.6") rather than the generic "Kody" agent
-              // name. Falls back to the static agent for locked views or
-              // when the selection points at a model that was just removed.
-              const headerIcon = currentEntry?.icon ?? currentAgent.icon;
-              const headerName = currentEntry?.name ?? currentAgent.name;
-              return lockedAgentId ? (
-                <div
-                  className="flex items-center gap-2 px-2 py-1"
-                  title={`${headerName} (locked for this view)`}
-                  aria-label={`${headerName} (locked)`}
-                >
-                  {(() => {
-                    const Icon = headerIcon;
-                    return <Icon className="w-5 h-5" aria-label={headerName} />;
-                  })()}
-                  <span className="font-semibold text-base">{headerName}</span>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAgentMenuOpen((v) => !v)}
-                  className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
-                  aria-haspopup="listbox"
-                  aria-expanded={agentMenuOpen}
-                  title={`Switch assistant (current: ${headerName})`}
-                >
-                  {(() => {
-                    const Icon = headerIcon;
-                    return <Icon className="w-5 h-5" aria-label={headerName} />;
-                  })()}
-                  <span className="font-semibold text-base">{headerName}</span>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
+        {/* Voice Chat Overlay */}
+        {voiceOverlayOpen && (
+          <VoiceChatOverlay
+            state={voiceChat.state}
+            currentTranscript={voiceChat.currentTranscript}
+            turnCount={voiceChat.turnCount}
+            error={voiceChat.error}
+            ttsEngine={voiceChat.ttsEngine}
+            ttsError={voiceChat.ttsError}
+            voiceId={voiceId}
+            voices={PIPER_VOICES}
+            onSelectVoice={handleSelectVoice}
+            messages={messages}
+            agentName={currentAgent.name}
+            onStop={() => {
+              voiceChat.stopConversation();
+              setVoiceOverlayOpen(false);
+              setVoiceMuted(false);
+            }}
+            onInterrupt={() => {
+              voiceChat.interruptConversation();
+            }}
+            onToggleMute={handleVoiceToggleMute}
+            isMuted={voiceMuted}
+          />
+        )}
+        {/* Header with context */}
+        <div className="px-2 py-1.5 sm:px-4 sm:py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
+          <div className="flex items-center justify-between">
+            {/* Left: agent picker (locked label when parent forces an agent) */}
+            <div className="relative flex items-center gap-2">
+              {(() => {
+                // Header label/icon prefers the matched dropdown entry — that
+                // way a user-managed model surfaces its own label (e.g.
+                // "Claude Sonnet 4.6") rather than the generic "Kody" agent
+                // name. Falls back to the static agent for locked views or
+                // when the selection points at a model that was just removed.
+                const headerIcon = currentEntry?.icon ?? currentAgent.icon;
+                const headerName = currentEntry?.name ?? currentAgent.name;
+                return lockedAgentId ? (
+                  <div
+                    className="flex items-center gap-2 px-2 py-1"
+                    title={`${headerName} (locked for this view)`}
+                    aria-label={`${headerName} (locked)`}
                   >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
-              );
-            })()}
-            {messages.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
-                {messages.length}
-              </span>
-            )}
-            {/* Thinking-level control. Rendered only when the active model
+                    {(() => {
+                      const Icon = headerIcon;
+                      return (
+                        <Icon className="w-5 h-5" aria-label={headerName} />
+                      );
+                    })()}
+                    <span className="font-semibold text-base">
+                      {headerName}
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAgentMenuOpen((v) => !v)}
+                    className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+                    aria-haspopup="listbox"
+                    aria-expanded={agentMenuOpen}
+                    title={`Switch assistant (current: ${headerName})`}
+                  >
+                    {(() => {
+                      const Icon = headerIcon;
+                      return (
+                        <Icon className="w-5 h-5" aria-label={headerName} />
+                      );
+                    })()}
+                    <span className="font-semibold text-base">
+                      {headerName}
+                    </span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                );
+              })()}
+              {messages.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
+                  {messages.length}
+                </span>
+              )}
+              {/* Thinking-level control. Rendered only when the active model
                 declares a `reasoning` block (or one is auto-detected from
                 the model name). Three cases:
                   • 1 effort  → static pill (e.g. o1 / R1 → "On")
                   • 2+ efforts → dropdown, current value highlighted
                   • no reasoning → nothing rendered (most models) */}
-            {currentReasoning && (
-              <div className="relative">
-                {currentReasoning.efforts.length === 1 ? (
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium bg-muted/60 text-muted-foreground border border-border/60"
-                    title={`This model always reasons at ${currentReasoning.efforts[0].label.toLowerCase()}.`}
-                    aria-label={`Thinking: ${currentReasoning.efforts[0].label}`}
-                  >
-                    <Brain className="w-3.5 h-3.5" aria-hidden="true" />
-                    {currentReasoning.efforts[0].label}
-                  </span>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setReasoningMenuOpen((v) => !v);
-                        setAgentMenuOpen(false);
-                      }}
-                      className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium bg-muted/60 hover:bg-accent border border-border/60 focus:outline-none focus:ring-2 focus:ring-ring"
-                      aria-haspopup="listbox"
-                      aria-expanded={reasoningMenuOpen}
-                      title={`Thinking level (current: ${currentReasoning.efforts.find((e) => e.value === effectiveReasoningEffort)?.label ?? "default"})`}
+              {currentReasoning && (
+                <div className="relative">
+                  {currentReasoning.efforts.length === 1 ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium bg-muted/60 text-muted-foreground border border-border/60"
+                      title={`This model always reasons at ${currentReasoning.efforts[0].label.toLowerCase()}.`}
+                      aria-label={`Thinking: ${currentReasoning.efforts[0].label}`}
                     >
                       <Brain className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span>
-                        {currentReasoning.efforts.find(
-                          (e) => e.value === effectiveReasoningEffort,
-                        )?.label ?? "—"}
-                      </span>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </button>
-                    {reasoningMenuOpen && (
-                      <ul
-                        role="listbox"
-                        className="absolute top-full left-0 mt-1 z-30 min-w-[140px] rounded-md border bg-popover shadow-md"
-                      >
-                        {currentReasoning.efforts.map((effort) => (
-                          <li key={effort.value}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setReasoningEffort(effort.value);
-                                if (selectedModelId) {
-                                  writeReasoningEffort(
-                                    selectedModelId,
-                                    effort.value,
-                                  );
-                                }
-                                setReasoningMenuOpen(false);
-                              }}
-                              className={`w-full text-left px-3 py-2 text-sm hover:bg-accent ${
-                                effectiveReasoningEffort === effort.value
-                                  ? "bg-accent/50 font-medium"
-                                  : ""
-                              }`}
-                              role="option"
-                              aria-selected={
-                                effectiveReasoningEffort === effort.value
-                              }
-                            >
-                              {effort.label}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-            {!lockedAgentId && agentMenuOpen && (
-              <ul
-                role="listbox"
-                className="absolute top-full left-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
-              >
-                {agentList.map((a) => {
-                  const isSelected =
-                    a.agentId === selectedAgentId &&
-                    (a.modelId ?? null) === selectedModelId;
-                  return (
-                    <li key={a.key}>
+                      {currentReasoning.efforts[0].label}
+                    </span>
+                  ) : (
+                    <>
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedAgentId(a.agentId);
-                          setSelectedModelId(a.modelId);
-                          // Per-session pick: the same agent stays
-                          // active when the user comes back to THIS
-                          // conversation. Each session remembers its
-                          // own choice — switching to another chat and
-                          // back restores the agent that was active
-                          // for that thread, not whichever one the
-                          // user just clicked.
-                          //
-                          // The global `defaultChatEntryKey` is
-                          // intentionally NOT touched here. Settings →
-                          // "Default chat" is the single owner of the
-                          // default for new sessions; the chat picker
-                          // only mutates the active session.
-                          const activeId = sessionHook.activeSession?.id;
-                          if (activeId) {
-                            sessionHook.setSessionAgent(activeId, a.key);
-                          }
+                          setReasoningMenuOpen((v) => !v);
                           setAgentMenuOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-2 hover:bg-accent text-sm flex items-start gap-2 ${
-                          isSelected ? "bg-accent/50" : ""
-                        }`}
-                        role="option"
-                        aria-selected={isSelected}
+                        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium bg-muted/60 hover:bg-accent border border-border/60 focus:outline-none focus:ring-2 focus:ring-ring"
+                        aria-haspopup="listbox"
+                        aria-expanded={reasoningMenuOpen}
+                        title={`Thinking level (current: ${currentReasoning.efforts.find((e) => e.value === effectiveReasoningEffort)?.label ?? "default"})`}
                       >
-                        {(() => {
-                          const Icon = a.icon;
-                          return (
-                            <Icon
-                              className="w-4 h-4 mt-0.5"
-                              aria-hidden="true"
-                            />
-                          );
-                        })()}
-                        <span className="flex flex-col flex-1 min-w-0">
-                          <span className="font-medium">{a.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {a.description}
-                          </span>
+                        <Brain className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>
+                          {currentReasoning.efforts.find(
+                            (e) => e.value === effectiveReasoningEffort,
+                          )?.label ?? "—"}
                         </span>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
                       </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-
-          {/* Remote dev status indicator — only visible when configured */}
-          {remoteStatus?.configured && (
-            <div
-              className="flex items-center gap-1 text-xs text-muted-foreground"
-              title={
-                remoteStatus.online
-                  ? "Remote dev: online"
-                  : "Remote dev: offline"
-              }
-            >
-              <span
-                className={`w-2 h-2 rounded-full ${remoteStatus.online ? "bg-green-500" : "bg-red-400"}`}
-                aria-label={
-                  remoteStatus.online
-                    ? "Remote dev online"
-                    : "Remote dev offline"
-                }
-              />
-              <span className="hidden sm:inline">
-                {remoteStatus.online ? "Remote" : "Offline"}
-              </span>
+                      {reasoningMenuOpen && (
+                        <ul
+                          role="listbox"
+                          className="absolute top-full left-0 mt-1 z-30 min-w-[140px] rounded-md border bg-popover shadow-md"
+                        >
+                          {currentReasoning.efforts.map((effort) => (
+                            <li key={effort.value}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReasoningEffort(effort.value);
+                                  if (selectedModelId) {
+                                    writeReasoningEffort(
+                                      selectedModelId,
+                                      effort.value,
+                                    );
+                                  }
+                                  setReasoningMenuOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 text-sm hover:bg-accent ${
+                                  effectiveReasoningEffort === effort.value
+                                    ? "bg-accent/50 font-medium"
+                                    : ""
+                                }`}
+                                role="option"
+                                aria-selected={
+                                  effectiveReasoningEffort === effort.value
+                                }
+                              >
+                                {effort.label}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+              {!lockedAgentId && agentMenuOpen && (
+                <ul
+                  role="listbox"
+                  className="absolute top-full left-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
+                >
+                  {agentList.map((a) => {
+                    const isSelected =
+                      a.agentId === selectedAgentId &&
+                      (a.modelId ?? null) === selectedModelId;
+                    return (
+                      <li key={a.key}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAgentId(a.agentId);
+                            setSelectedModelId(a.modelId);
+                            // Per-session pick: the same agent stays
+                            // active when the user comes back to THIS
+                            // conversation. Each session remembers its
+                            // own choice — switching to another chat and
+                            // back restores the agent that was active
+                            // for that thread, not whichever one the
+                            // user just clicked.
+                            //
+                            // The global `defaultChatEntryKey` is
+                            // intentionally NOT touched here. Settings →
+                            // "Default chat" is the single owner of the
+                            // default for new sessions; the chat picker
+                            // only mutates the active session.
+                            const activeId = sessionHook.activeSession?.id;
+                            if (activeId) {
+                              sessionHook.setSessionAgent(activeId, a.key);
+                            }
+                            setAgentMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 hover:bg-accent text-sm flex items-start gap-2 ${
+                            isSelected ? "bg-accent/50" : ""
+                          }`}
+                          role="option"
+                          aria-selected={isSelected}
+                        >
+                          {(() => {
+                            const Icon = a.icon;
+                            return (
+                              <Icon
+                                className="w-4 h-4 mt-0.5"
+                                aria-hidden="true"
+                              />
+                            );
+                          })()}
+                          <span className="flex flex-col flex-1 min-w-0">
+                            <span className="font-medium">{a.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {a.description}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
-          )}
 
-          {/* Right: Action buttons (session sidebar, task history) */}
-          <div className="flex items-center gap-1">
-            {/* New conversation — wires to useChatSessions.createSession().
+            {/* Remote dev status indicator — only visible when configured */}
+            {remoteStatus?.configured && (
+              <div
+                className="flex items-center gap-1 text-xs text-muted-foreground"
+                title={
+                  remoteStatus.online
+                    ? "Remote dev: online"
+                    : "Remote dev: offline"
+                }
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${remoteStatus.online ? "bg-green-500" : "bg-red-400"}`}
+                  aria-label={
+                    remoteStatus.online
+                      ? "Remote dev online"
+                      : "Remote dev offline"
+                  }
+                />
+                <span className="hidden sm:inline">
+                  {remoteStatus.online ? "Remote" : "Offline"}
+                </span>
+              </div>
+            )}
+
+            {/* Right: Action buttons (session sidebar, task history) */}
+            <div className="flex items-center gap-1">
+              {/* New conversation — wires to useChatSessions.createSession().
                 The unified thread means there's only ONE store across all
                 pages, so a new conversation is the only way to reset. The
                 button is visible everywhere except on locked views (Vibe),
                 where the parent owns the chat lifecycle. Icon-only to
                 match the other header controls (collapse, fullscreen). */}
-            {!lockedAgentId && (
-              <button
-                type="button"
-                onClick={() => {
-                  // Seed the new session with the current effective
-                  // agent so a fresh conversation inherits the agent
-                  // the user is currently on. Without this, the new
-                  // session would have no agentKey and fall back to
-                  // the global default on first render — which is
-                  // fine for the very first session but surprises
-                  // users who expect a "new chat" to start where the
-                  // last one left off.
-                  const seed = currentEntry?.key;
-                  sessionHook.createSession(seed ? { agentKey: seed } : undefined);
-                  setToolCalls([]);
-                }}
-                disabled={activeLoading}
-                className="p-2 rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Start a new conversation"
-                aria-label="New conversation"
-              >
-                <Plus className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
+              {!lockedAgentId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Seed the new session with the current effective
+                    // agent so a fresh conversation inherits the agent
+                    // the user is currently on. Without this, the new
+                    // session would have no agentKey and fall back to
+                    // the global default on first render — which is
+                    // fine for the very first session but surprises
+                    // users who expect a "new chat" to start where the
+                    // last one left off.
+                    const seed = currentEntry?.key;
+                    sessionHook.createSession(seed ? { agentKey: seed } : undefined);
+                    setToolCalls([]);
+                  }}
+                  disabled={activeLoading}
+                  className="p-2 rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Start a new conversation"
+                  aria-label="New conversation"
+                >
+                  <Plus className="w-4 h-4" aria-hidden="true" />
+                </button>
+              )}
 
-            {/* Session sidebar toggle — available in any mode now that all
+              {/* Session sidebar toggle — available in any mode now that all
                 threads are unified; the sidebar just lists sessions from
                 the global store. Icon-only to match the other header
                 controls (collapse, fullscreen). */}
               <button
                 type="button"
                 onClick={() => setShowSessionSidebar(!showSessionSidebar)}
-              className={`p-2 rounded-md border transition-all ${
-                showSessionSidebar
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
-              }`}
-              title="Conversations"
-              aria-label="Toggle conversations"
+                className={`p-2 rounded-md border transition-all ${
+                  showSessionSidebar
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
+                }`}
+                title="Conversations"
+                aria-label="Toggle conversations"
               >
                 <MessageSquare className="w-4 h-4" aria-hidden="true" />
               </button>
 
-            {/* Fullscreen / restore (desktop rail only) */}
-            {onToggleFullscreen && (
-              <button
-                type="button"
-                onClick={onToggleFullscreen}
-                aria-label={
-                  railFullscreen
-                    ? "Restore chat width"
-                    : "Expand chat fullscreen"
-                }
-                title={railFullscreen ? "Restore" : "Fullscreen"}
-                className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
-              >
-                {railFullscreen ? (
-                  <Minimize2 className="w-4 h-4" />
-                ) : (
-                  <Maximize2 className="w-4 h-4" />
-                )}
-              </button>
-            )}
+              {/* Fullscreen / restore (desktop rail only) */}
+              {onToggleFullscreen && (
+                <button
+                  type="button"
+                  onClick={onToggleFullscreen}
+                  aria-label={
+                    railFullscreen
+                      ? "Restore chat width"
+                      : "Expand chat fullscreen"
+                  }
+                  title={railFullscreen ? "Restore" : "Fullscreen"}
+                  className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+                >
+                  {railFullscreen ? (
+                    <Minimize2 className="w-4 h-4" />
+                  ) : (
+                    <Maximize2 className="w-4 h-4" />
+                  )}
+                </button>
+              )}
 
-            {/* Collapse to a strip (desktop rail only) */}
-            {onCollapseRail && (
-              <button
-                type="button"
-                onClick={onCollapseRail}
-                aria-label="Collapse chat"
-                title="Collapse"
-                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
-              >
-                <PanelLeftClose className="w-4 h-4" />
-              </button>
-            )}
+              {/* Collapse to a strip (desktop rail only) */}
+              {onCollapseRail && (
+                <button
+                  type="button"
+                  onClick={onCollapseRail}
+                  aria-label="Collapse chat"
+                  title="Collapse"
+                  className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              )}
 
-            {/* Close (mobile sheet) — only when an onClose handler is provided */}
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close chat"
-                title="Close"
-                className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              {/* Close (mobile sheet) — only when an onClose handler is provided */}
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close chat"
+                  title="Close"
+                  className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Context bar: task, duty, duty draft, or global */}
+          <div className="mt-1 sm:mt-2">
+            {isTaskMode && selectedTask ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded font-medium">
+                  #{selectedTask.issueNumber}
+                </span>
+                <span className="truncate text-muted-foreground">
+                  {selectedTask.title}
+                </span>
+              </div>
+            ) : isDutyMode && selectedDuty ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 rounded font-medium inline-flex items-center gap-1">
+                  <Target className="w-3 h-3" />
+                  {selectedDuty.slug}
+                </span>
+                <span className="truncate text-muted-foreground">
+                  {selectedDuty.title}
+                </span>
+              </div>
+            ) : isPlannerMode && plannerGoal ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="px-1.5 py-0.5 bg-sky-500/15 text-sky-400 rounded font-medium inline-flex items-center gap-1">
+                  Planning
+                </span>
+                <span className="truncate text-muted-foreground flex-1 min-w-0">
+                  {plannerGoal.name}
+                </span>
+                {onPlannerExit ? (
+                  <button
+                    type="button"
+                    onClick={onPlannerExit}
+                    className="shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-accent"
+                    aria-label="Stop planning this goal"
+                    title="Stop planning"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              (() => {
+                const sessionTitle = sessionHook.activeSession?.title;
+                const hasRealTitle =
+                  !!sessionTitle && sessionTitle !== "New conversation";
+                return (
+                  <div className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <Globe className="w-3 h-3 shrink-0" />
+                    <span className="truncate">
+                      {hasRealTitle
+                        ? sessionTitle
+                        : "Global chat — not tied to any task"}
+                    </span>
+                  </div>
+                );
+              })()
             )}
           </div>
         </div>
 
-        {/* Context bar: task, duty, duty draft, or global */}
-        <div className="mt-1 sm:mt-2">
-          {isTaskMode && selectedTask ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded font-medium">
-                #{selectedTask.issueNumber}
-              </span>
-              <span className="truncate text-muted-foreground">
-                {selectedTask.title}
-              </span>
-            </div>
-          ) : isDutyMode && selectedDuty ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 rounded font-medium inline-flex items-center gap-1">
-                <Target className="w-3 h-3" />
-                {selectedDuty.slug}
-              </span>
-              <span className="truncate text-muted-foreground">
-                {selectedDuty.title}
-              </span>
-            </div>
-          ) : isPlannerMode && plannerGoal ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="px-1.5 py-0.5 bg-sky-500/15 text-sky-400 rounded font-medium inline-flex items-center gap-1">
-                Planning
-              </span>
-              <span className="truncate text-muted-foreground flex-1 min-w-0">
-                {plannerGoal.name}
-              </span>
-              {onPlannerExit ? (
-                <button
-                  type="button"
-                  onClick={onPlannerExit}
-                  className="shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-accent"
-                  aria-label="Stop planning this goal"
-                  title="Stop planning"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              ) : null}
-            </div>
-          ) : (
-            (() => {
-              const sessionTitle = sessionHook.activeSession?.title;
-              const hasRealTitle =
-                !!sessionTitle && sessionTitle !== "New conversation";
-              return (
-                <div className="text-sm text-muted-foreground flex items-center gap-1.5">
-                  <Globe className="w-3 h-3 shrink-0" />
-                  <span className="truncate">
-                    {hasRealTitle
-                      ? sessionTitle
-                      : "Global chat — not tied to any task"}
-                  </span>
-                </div>
-              );
-            })()
-          )}
-        </div>
-      </div>
-
-      {/* Kody waiting for instructions banner */}
-      {isKodyWaiting && actionState && (
-        <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2 text-sm text-amber-800">
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500" />
-          </span>
-          <span className="font-medium">
-            Kody is waiting for your instructions
-          </span>
-          {actionState.step && (
-            <span className="text-amber-600">
-              — paused at{" "}
-              <code className="bg-amber-100 px-1 rounded">
-                {actionState.step}
-              </code>
+        {/* Kody waiting for instructions banner */}
+        {isKodyWaiting && actionState && (
+          <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2 text-sm text-amber-800">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500" />
             </span>
-          )}
-        </div>
-      )}
-
-      {/* Messages area */}
-      <div
-        ref={messagesContainerRef}
-        onScroll={handleMessagesScroll}
-        className={`flex-1 min-h-0 relative ${
-          chatMode === "terminal"
-            ? "overflow-hidden bg-[#050608]"
-            : "overflow-auto px-1.5 py-2 sm:p-4 space-y-4"
-        }`}
-      >
-        {chatMode === "ai" && messages.length === 0 && !activeLoading && (
-          <div className="text-center text-muted-foreground text-base py-8">
-            {isTaskMode ? (
-              <>
-                <p className="font-medium">Chat about this task</p>
-                <p className="text-sm mt-1">
-                  Messages will be saved to the task
-                </p>
-                <p className="text-sm mt-3 font-medium text-foreground">
-                  I can help you:
-                </p>
-                <ul className="mt-2 text-left text-sm space-y-2 max-w-sm mx-auto">
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>
-                      Diagnose the linked PR if it didn&apos;t fully fix the
-                      issue — try{" "}
-                      <span className="font-mono">
-                        &quot;diagnose{" "}
-                        {selectedTask?.associatedPR
-                          ? `PR #${selectedTask.associatedPR.number}`
-                          : "this PR"}
-                        &quot;
-                      </span>
-                      . I&apos;ll read the diff, find the gap, and draft a
-                      sharper <span className="font-mono">@kody fix</span> for
-                      your approval.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>
-                      Explain the issue, the PR diff, or pipeline status
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>
-                      Browse and search the repository for related code
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>
-                      Draft a follow-up <span className="font-mono">@kody</span>{" "}
-                      instruction
-                    </span>
-                  </li>
-                </ul>
-              </>
-            ) : isDutyMode && selectedDuty ? (
-              <>
-                <p className="font-medium text-foreground">
-                  Chat about `{selectedDuty.slug}`
-                </p>
-                <p className="text-sm mt-1 max-w-sm mx-auto">
-                  Ask anything about this duty&apos;s intent, scope, or rules.
-                  Each duty has its own thread.
-                </p>
-              </>
-            ) : isPlannerMode && plannerGoal ? (
-              <>
-                <p className="font-medium text-foreground">
-                  Plan tasks for &ldquo;{plannerGoal.name}&rdquo;
-                </p>
-                <p className="text-sm mt-1 max-w-md mx-auto">
-                  Say <span className="font-mono">&quot;plan it&quot;</span> (or
-                  paste extra context first). I&apos;ll propose a task list, you
-                  approve, then I&apos;ll deepen each spec and create the issues
-                  attached to this goal.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-medium">Hi! I can help you with:</p>
-                <ul className="mt-3 text-left text-sm space-y-2">
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>Browse repository files and code</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>Search code across the codebase</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>List and explain tasks</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>Show pipeline status and progress</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    <span>
-                      Diagnose a Kody PR that didn&apos;t fully solve its issue
-                      — try{" "}
-                      <span className="font-mono">
-                        &quot;diagnose PR #1404&quot;
-                      </span>
-                    </span>
-                  </li>
-                </ul>
-              </>
+            <span className="font-medium">
+              Kody is waiting for your instructions
+            </span>
+            {actionState.step && (
+              <span className="text-amber-600">
+                — paused at{" "}
+                <code className="bg-amber-100 px-1 rounded">
+                  {actionState.step}
+                </code>
+              </span>
             )}
           </div>
         )}
 
-        {mountedChatTerminals.map((terminal) => {
-          const isActiveTerminal =
-            chatMode === "terminal" &&
-            activeSessionIdForReset === terminal.sessionId &&
-            activeTerminalInstanceId === terminal.id;
-          return (
-            <div
-              key={terminal.id}
-              className={isActiveTerminal ? "h-full min-h-0" : "hidden"}
-            >
-              <ChatTerminalSurface
-                ref={(node) => {
-                  terminalSurfaceRefs.current[terminal.id] = node;
-                  if (!node) delete terminalSurfaceRefs.current[terminal.id];
-                }}
-                active={isActiveTerminal}
-                chatSessionId={terminal.sessionId}
-                connectNonce={
-                  terminalConnectNonceByInstanceId[terminal.id] ?? 0
-                }
-                transport={terminal.transport}
-                onAddToChat={addTerminalContextToChat}
-                onConnectionStateChange={(state) =>
-                  recordTerminalConnectionState(terminal.id, state)
-                }
-              />
+        {/* Messages area */}
+        <div
+          ref={messagesContainerRef}
+          onScroll={handleMessagesScroll}
+          className={`flex-1 min-h-0 relative ${
+            chatMode === "terminal"
+              ? "overflow-hidden bg-[#050608]"
+              : "overflow-auto px-1.5 py-2 sm:p-4 space-y-4"
+          }`}
+        >
+          {chatMode === "ai" && messages.length === 0 && !activeLoading && (
+            <div className="text-center text-muted-foreground text-base py-8">
+              {isTaskMode ? (
+                <>
+                  <p className="font-medium">Chat about this task</p>
+                  <p className="text-sm mt-1">
+                    Messages will be saved to the task
+                  </p>
+                  <p className="text-sm mt-3 font-medium text-foreground">
+                    I can help you:
+                  </p>
+                  <ul className="mt-2 text-left text-sm space-y-2 max-w-sm mx-auto">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>
+                        Diagnose the linked PR if it didn&apos;t fully fix the
+                        issue — try{" "}
+                        <span className="font-mono">
+                          &quot;diagnose{" "}
+                          {selectedTask?.associatedPR
+                            ? `PR #${selectedTask.associatedPR.number}`
+                            : "this PR"}
+                          &quot;
+                        </span>
+                        . I&apos;ll read the diff, find the gap, and draft a
+                        sharper <span className="font-mono">@kody fix</span> for
+                        your approval.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>
+                        Explain the issue, the PR diff, or pipeline status
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>
+                        Browse and search the repository for related code
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>
+                        Draft a follow-up{" "}
+                        <span className="font-mono">@kody</span> instruction
+                      </span>
+                    </li>
+                  </ul>
+                </>
+              ) : isDutyMode && selectedDuty ? (
+                <>
+                  <p className="font-medium text-foreground">
+                    Chat about `{selectedDuty.slug}`
+                  </p>
+                  <p className="text-sm mt-1 max-w-sm mx-auto">
+                    Ask anything about this duty&apos;s intent, scope, or rules.
+                    Each duty has its own thread.
+                  </p>
+                </>
+              ) : isPlannerMode && plannerGoal ? (
+                <>
+                  <p className="font-medium text-foreground">
+                    Plan tasks for &ldquo;{plannerGoal.name}&rdquo;
+                  </p>
+                  <p className="text-sm mt-1 max-w-md mx-auto">
+                    Say <span className="font-mono">&quot;plan it&quot;</span>{" "}
+                    (or paste extra context first). I&apos;ll propose a task
+                    list, you approve, then I&apos;ll deepen each spec and
+                    create the issues attached to this goal.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">Hi! I can help you with:</p>
+                  <ul className="mt-3 text-left text-sm space-y-2">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>Browse repository files and code</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>Search code across the codebase</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>List and explain tasks</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>Show pipeline status and progress</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>
+                        Diagnose a Kody PR that didn&apos;t fully solve its
+                        issue — try{" "}
+                        <span className="font-mono">
+                          &quot;diagnose PR #1404&quot;
+                        </span>
+                      </span>
+                    </li>
+                  </ul>
+                </>
+              )}
             </div>
-          );
-        })}
+          )}
 
-        {chatMode === "ai" &&
-          messages.map((msg, i) => {
-            if (msg.hidden) return null;
-
-            const parsedAssistant =
-              msg.role === "assistant"
-                ? parseAssistantContent(msg.content)
-                : null;
-            const visibleText = parsedAssistant?.answer || msg.content;
-            const messageDirection = getMessageDirection(visibleText);
-
+          {mountedChatTerminals.map((terminal) => {
+            const isActiveTerminal =
+              chatMode === "terminal" &&
+              activeSessionIdForReset === terminal.sessionId &&
+              activeTerminalInstanceId === terminal.id;
             return (
               <div
-                key={i}
-                data-role={msg.role}
-                className={`group flex ${msg.role === "user" ? "justify-end" : "justify-start"} relative`}
+                key={terminal.id}
+                className={isActiveTerminal ? "h-full min-h-0" : "hidden"}
               >
-                <div
-                  dir={messageDirection}
-                  className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  }`}
-                >
-                  {/* Message Actions */}
-                  <MessageActions
-                    role={msg.role}
-                    content={msg.content}
-                    isLast={i === messages.length - 1}
-                    isLoading={!!msg.isLoading}
-                    hasToolCalls={!!msg.toolCalls && msg.toolCalls.length > 0}
-                    onCopy={() => msg.content}
-                    onRetry={
-                      msg.role === "assistant" && i === messages.length - 1
-                        ? () => {
-                            // Walk back to the last user message. Drop both that
-                            // user turn AND the failed assistant reply — sendText
-                            // pushes a fresh user bubble, so trimming both keeps
-                            // the transcript intact (no duplicate user msg).
-                            let userIdx = -1;
-                            for (let j = i - 1; j >= 0; j--) {
-                              if (messages[j].role === "user") {
-                                userIdx = j;
-                                break;
-                              }
-                            }
-                            if (userIdx < 0) return;
-                            const lastUserContent = messages[userIdx].content;
-                            setMessages((prev) => prev.slice(0, userIdx));
-                            void sendText(lastUserContent, []);
-                          }
-                        : undefined
-                    }
-                    onEdit={
-                      msg.role === "user"
-                        ? (content) => {
-                            // Drop the edited user msg + everything after it,
-                            // then resubmit. sendText repushes the user bubble
-                            // with the new content, so we don't keep the old one.
-                            setMessages((prev) => prev.slice(0, i));
-                            void sendText(content, []);
-                          }
-                        : undefined
-                    }
-                    onDelete={() => {
-                      setMessages((prev) => prev.filter((_, idx) => idx !== i));
-                    }}
-                  />
-
-                  {msg.role === "assistant" ? (
-                    <>
-                      {msg.toolCalls && msg.toolCalls.length > 0 && (
-                        <ThinkingPanel
-                          toolCalls={msg.toolCalls}
-                          isStreaming={!!msg.isLoading}
-                          persistKey={
-                            sessionHook.activeSession?.id && !msg.isLoading
-                              ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
-                              : undefined
-                          }
-                        />
-                      )}
-                      {(() => {
-                        // Strip model-emitted tool-call markup (`<kody_run_issue />`
-                        // and `<tool_call>…</tool_call>` blocks) from the visible
-                        // answer — the structured call is already surfaced via
-                        // the ThinkingPanel above, and the raw XML in the
-                        // text stream is just noise. Bare URLs get auto-linked
-                        // by `remark-gfm` below.
-                        const { reasoning, answer } = parsedAssistant ?? {
-                          reasoning: "",
-                          answer: "",
-                        };
-                        const isActive =
-                          activeLoading && i === messages.length - 1;
-                        const hasAnswer = answer.trim().length > 0;
-                        return (
-                          <>
-                            {reasoning && (
-                              <ReasoningPanel
-                                content={reasoning}
-                                isStreaming={!!msg.isLoading}
-                                persistKey={
-                                  sessionHook.activeSession?.id &&
-                                  !msg.isLoading
-                                    ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
-                                    : undefined
-                                }
-                              />
-                            )}
-                            {hasAnswer && (
-                              <div
-                                dir={messageDirection}
-                                className="chat-message-text prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
-                              >
-                                <ReactMarkdown
-                                  remarkPlugins={[remarkGfm]}
-                                  components={{
-                                    a: ({ href, children, ...props }) => (
-                                      <a
-                                        href={href}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-primary hover:underline break-all"
-                                        {...props}
-                                      >
-                                        {children}
-                                      </a>
-                                    ),
-                                  }}
-                                >
-                                  {answer}
-                                </ReactMarkdown>
-                              </div>
-                            )}
-                            {/* Never a blank bubble: while the turn is in flight and
-                            no visible answer text has arrived yet, show the
-                            thinking indicator. Covers the reasoning-only /
-                            tool-call phase where content is just <think> blocks. */}
-                            {isActive && !hasAnswer && (
-                              <TypingIndicator label={currentAgent.name} />
-                            )}
-                          </>
-                        );
-                      })()}
-                    </>
-                  ) : (
-                    <>
-                      {msg.attachments && msg.attachments.length > 0 && (
-                        <MessageAttachments attachments={msg.attachments} />
-                      )}
-                      {msg.content && (
-                        <div
-                          dir={messageDirection}
-                          className="chat-message-text"
-                        >
-                          {msg.content}
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {activeLoading &&
-                    i === messages.length - 1 &&
-                    msg.role === "assistant" &&
-                    parsedAssistant?.answer.trim() && (
-                      <span className="inline-block ml-2 animate-pulse text-primary">
-                        ●
-                      </span>
-                    )}
-                </div>
+                <ChatTerminalSurface
+                  ref={(node) => {
+                    terminalSurfaceRefs.current[terminal.id] = node;
+                    if (!node) delete terminalSurfaceRefs.current[terminal.id];
+                  }}
+                  active={isActiveTerminal}
+                  chatSessionId={terminal.sessionId}
+                  connectNonce={
+                    terminalConnectNonceByInstanceId[terminal.id] ?? 0
+                  }
+                  transport={terminal.transport}
+                  onAddToChat={addTerminalContextToChat}
+                  onConnectionStateChange={(state) =>
+                    recordTerminalConnectionState(terminal.id, state)
+                  }
+                />
               </div>
             );
           })}
 
-        {/* Typing indicator shown before an assistant placeholder exists.
+          {chatMode === "ai" &&
+            messages.map((msg, i) => {
+              if (msg.hidden) return null;
+
+              const parsedAssistant =
+                msg.role === "assistant"
+                  ? parseAssistantContent(msg.content)
+                  : null;
+              const visibleText = parsedAssistant?.answer || msg.content;
+              const messageDirection = getMessageDirection(visibleText);
+
+              return (
+                <div
+                  key={i}
+                  data-role={msg.role}
+                  className={`group flex ${msg.role === "user" ? "justify-end" : "justify-start"} relative`}
+                >
+                  <div
+                    dir={messageDirection}
+                    className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
+                      msg.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    }`}
+                  >
+                    {/* Message Actions */}
+                    <MessageActions
+                      role={msg.role}
+                      content={msg.content}
+                      isLast={i === messages.length - 1}
+                      isLoading={!!msg.isLoading}
+                      hasToolCalls={!!msg.toolCalls && msg.toolCalls.length > 0}
+                      onCopy={() => msg.content}
+                      onRetry={
+                        msg.role === "assistant" && i === messages.length - 1
+                          ? () => {
+                              // Walk back to the last user message. Drop both that
+                              // user turn AND the failed assistant reply — sendText
+                              // pushes a fresh user bubble, so trimming both keeps
+                              // the transcript intact (no duplicate user msg).
+                              let userIdx = -1;
+                              for (let j = i - 1; j >= 0; j--) {
+                                if (messages[j].role === "user") {
+                                  userIdx = j;
+                                  break;
+                                }
+                              }
+                              if (userIdx < 0) return;
+                              const lastUserContent = messages[userIdx].content;
+                              setMessages((prev) => prev.slice(0, userIdx));
+                              void sendText(lastUserContent, []);
+                            }
+                          : undefined
+                      }
+                      onEdit={
+                        msg.role === "user"
+                          ? (content) => {
+                              // Drop the edited user msg + everything after it,
+                              // then resubmit. sendText repushes the user bubble
+                              // with the new content, so we don't keep the old one.
+                              setMessages((prev) => prev.slice(0, i));
+                              void sendText(content, []);
+                            }
+                          : undefined
+                      }
+                      onDelete={() => {
+                        setMessages((prev) =>
+                          prev.filter((_, idx) => idx !== i),
+                        );
+                      }}
+                    />
+
+                    {msg.role === "assistant" ? (
+                      <>
+                        {msg.toolCalls && msg.toolCalls.length > 0 && (
+                          <ThinkingPanel
+                            toolCalls={msg.toolCalls}
+                            isStreaming={!!msg.isLoading}
+                            persistKey={
+                              sessionHook.activeSession?.id && !msg.isLoading
+                                ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
+                                : undefined
+                            }
+                          />
+                        )}
+                        {(() => {
+                          // Strip model-emitted tool-call markup (`<kody_run_issue />`
+                          // and `<tool_call>…</tool_call>` blocks) from the visible
+                          // answer — the structured call is already surfaced via
+                          // the ThinkingPanel above, and the raw XML in the
+                          // text stream is just noise. Bare URLs get auto-linked
+                          // by `remark-gfm` below.
+                          const { reasoning, answer } = parsedAssistant ?? {
+                            reasoning: "",
+                            answer: "",
+                          };
+                          const isActive =
+                            activeLoading && i === messages.length - 1;
+                          const hasAnswer = answer.trim().length > 0;
+                          return (
+                            <>
+                              {reasoning && (
+                                <ReasoningPanel
+                                  content={reasoning}
+                                  isStreaming={!!msg.isLoading}
+                                  persistKey={
+                                    sessionHook.activeSession?.id &&
+                                    !msg.isLoading
+                                      ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
+                                      : undefined
+                                  }
+                                />
+                              )}
+                              {hasAnswer && (
+                                <div
+                                  dir={messageDirection}
+                                  className="chat-message-text prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
+                                >
+                                  <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                      a: ({ href, children, ...props }) => (
+                                        <a
+                                          href={href}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary hover:underline break-all"
+                                          {...props}
+                                        >
+                                          {children}
+                                        </a>
+                                      ),
+                                    }}
+                                  >
+                                    {answer}
+                                  </ReactMarkdown>
+                                </div>
+                              )}
+                              {/* Never a blank bubble: while the turn is in flight and
+                            no visible answer text has arrived yet, show the
+                            thinking indicator. Covers the reasoning-only /
+                            tool-call phase where content is just <think> blocks. */}
+                              {isActive && !hasAnswer && (
+                                <TypingIndicator label={currentAgent.name} />
+                              )}
+                            </>
+                          );
+                        })()}
+                      </>
+                    ) : (
+                      <>
+                        {msg.attachments && msg.attachments.length > 0 && (
+                          <MessageAttachments attachments={msg.attachments} />
+                        )}
+                        {msg.content && (
+                          <div
+                            dir={messageDirection}
+                            className="chat-message-text"
+                          >
+                            {msg.content}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {activeLoading &&
+                      i === messages.length - 1 &&
+                      msg.role === "assistant" &&
+                      parsedAssistant?.answer.trim() && (
+                        <span className="inline-block ml-2 animate-pulse text-primary">
+                          ●
+                        </span>
+                      )}
+                  </div>
+                </div>
+              );
+            })}
+
+          {/* Typing indicator shown before an assistant placeholder exists.
             Covers the Kody-engine first-byte window where the placeholder is
             only pushed once the first SSE event arrives. */}
-        {chatMode === "ai" &&
-          activeLoading &&
-          messages.length > 0 &&
-          messages[messages.length - 1]?.role === "user" && (
-            <div className="flex justify-start">
-              <div className="max-w-[92%] sm:max-w-[85%] rounded-lg px-3 py-2 bg-muted">
-                <TypingIndicator label={currentAgent.name} />
+          {chatMode === "ai" &&
+            activeLoading &&
+            messages.length > 0 &&
+            messages[messages.length - 1]?.role === "user" && (
+              <div className="flex justify-start">
+                <div className="max-w-[92%] sm:max-w-[85%] rounded-lg px-3 py-2 bg-muted">
+                  <TypingIndicator label={currentAgent.name} />
+                </div>
               </div>
+            )}
+
+          {/* Tool calls display - using ToolCallList component */}
+          {chatMode === "ai" && toolCalls.length > 0 && (
+            <div className="flex justify-start">
+              <ToolCallList
+                toolCalls={toolCalls.map((tc) => ({
+                  name: tc.name,
+                  arguments: tc.arguments,
+                  result: tc.result,
+                  status: tc.status,
+                  startedAt: tc.startedAt,
+                  durationMs: tc.durationMs,
+                  description: tc.description,
+                }))}
+              />
             </div>
           )}
 
-        {/* Tool calls display - using ToolCallList component */}
-        {chatMode === "ai" && toolCalls.length > 0 && (
-          <div className="flex justify-start">
-            <ToolCallList
-              toolCalls={toolCalls.map((tc) => ({
-                name: tc.name,
-                arguments: tc.arguments,
-                result: tc.result,
-                status: tc.status,
-                startedAt: tc.startedAt,
-                durationMs: tc.durationMs,
-              }))}
-            />
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* "Jump to latest" pill — visible only when the user has scrolled up
+          and is therefore not pinned to the bottom. Clicking re-engages
+          sticky scrolling. */}
+        {!isAtBottom && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => scrollToBottom("smooth")}
+              className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:opacity-90 transition-opacity"
+              aria-label="Jump to latest messages"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+              {activeLoading ? "New messages" : "Jump to latest"}
+            </button>
           </div>
         )}
 
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* "Jump to latest" pill — visible only when the user has scrolled up
-          and is therefore not pinned to the bottom. Clicking re-engages
-          sticky scrolling. */}
-      {!isAtBottom && (
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => scrollToBottom("smooth")}
-            className="absolute -top-12 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:opacity-90 transition-opacity"
-            aria-label="Jump to latest messages"
-          >
-            <ChevronDown className="w-3.5 h-3.5" />
-            {activeLoading ? "New messages" : "Jump to latest"}
-          </button>
-        </div>
-      )}
-
-      {/* Attachments preview */}
-      {chatMode === "ai" && attachments.length > 0 && (
-        <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
-          {attachments.map((attachment) => (
-            <div
-              key={attachment.id}
-              className="flex items-center gap-1.5 px-2 py-1 bg-muted rounded-md text-xs"
-            >
-              {getFileIcon(attachment.mimeType)}
-              <span className="max-w-[100px] truncate">{attachment.name}</span>
-              <span className="text-muted-foreground">
-                {formatFileSize(attachment.size)}
-              </span>
-              <button
-                onClick={() => removeAttachment(attachment.id)}
-                className="ml-1 hover:text-destructive"
-                disabled={activeLoading}
+        {/* Attachments preview */}
+        {chatMode === "ai" && attachments.length > 0 && (
+          <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
+            {attachments.map((attachment) => (
+              <div
+                key={attachment.id}
+                className="flex items-center gap-1.5 px-2 py-1 bg-muted rounded-md text-xs"
               >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+                {getFileIcon(attachment.mimeType)}
+                <span className="max-w-[100px] truncate">
+                  {attachment.name}
+                </span>
+                <span className="text-muted-foreground">
+                  {formatFileSize(attachment.size)}
+                </span>
+                <button
+                  onClick={() => removeAttachment(attachment.id)}
+                  className="ml-1 hover:text-destructive"
+                  disabled={activeLoading}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
-      {/* Context chips (e.g. picked preview elements) — compact removable
+        {/* Context chips (e.g. picked preview elements) — compact removable
           pills; the full element details ride along on send, not in the box. */}
-      {chatMode === "ai" && contextChips.length > 0 && (
-        <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
-          {contextChips.map((chip) => (
-            <div
-              key={chip.id}
-              className="flex items-center gap-1.5 px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-md text-xs font-mono"
-              title={chip.context}
-            >
-              <MousePointerClick className="w-3 h-3 shrink-0" />
-              <span className="max-w-[180px] truncate">{chip.label}</span>
-              <button
-                type="button"
-                onClick={() => removeContextChip(chip.id)}
-                className="ml-0.5 hover:text-destructive"
-                aria-label="Remove element context"
+        {chatMode === "ai" && contextChips.length > 0 && (
+          <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-2">
+            {contextChips.map((chip) => (
+              <div
+                key={chip.id}
+                className="flex items-center gap-1.5 px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-md text-xs font-mono"
+                title={chip.context}
               >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+                <MousePointerClick className="w-3 h-3 shrink-0" />
+                <span className="max-w-[180px] truncate">{chip.label}</span>
+                <button
+                  type="button"
+                  onClick={() => removeContextChip(chip.id)}
+                  className="ml-0.5 hover:text-destructive"
+                  aria-label="Remove element context"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
-      {/* Input area */}
-      <div
-        className={`relative z-10 shrink-0 border-t px-1.5 py-2 sm:p-3 ${
-          chatMode === "terminal"
-            ? "border-white/10 bg-[#050608]"
-            : "bg-background"
-        }`}
-      >
-        <div>
-          {/* Vibe mode: explicit one-shot execution action. Sits with the
+        {/* Input area */}
+        <div
+          className={`relative z-10 shrink-0 border-t px-1.5 py-2 sm:p-3 ${
+            chatMode === "terminal"
+              ? "border-white/10 bg-[#050608]"
+              : "bg-background"
+          }`}
+        >
+          <div>
+            {/* Vibe mode: explicit one-shot execution action. Sits with the
               composer so the executor handoff feels like a chat affordance
               rather than a UI button parked elsewhere. Hides itself once
               any work has started. */}
-          {chatMode === "ai" &&
-          vibeMode &&
-          context?.kind === "task" &&
-          !isKodyLive ? (
-            <VibeRunButton task={context.task} />
-          ) : null}
-          {/* Kody Live status dot — compact indicator above the composer.
+            {chatMode === "ai" &&
+            vibeMode &&
+            context?.kind === "task" &&
+            !isKodyLive ? (
+              <VibeRunButton task={context.task} />
+            ) : null}
+            {/* Kody Live status dot — compact indicator above the composer.
               Color encodes state; hover for full detail + links. Restart
               affordance only surfaces on stuck/error. */}
-          {chatMode === "ai" && isKodyLive ? (
-            <div className="mb-1 flex items-center gap-2">
-              <SimpleTooltip
-                content={(() => {
-                  if (interactiveState === "booting") {
-                    const phase = bootPhaseLabel(
-                      bootElapsed,
-                      selectedAgentId === "kody-live-fly" ? "fly" : "gh",
-                    );
-                    const elapsed = formatElapsed(bootElapsed);
-                    const watch =
-                      interactiveTarget && selectedAgentId !== "kody-live-fly"
-                        ? ` · watching ${interactiveTarget.owner}/${interactiveTarget.repo}`
-                        : "";
-                    return `${phase} · ${elapsed} elapsed${watch}`;
-                  }
-                  if (interactiveState === "ready") {
-                    return "Live runner ready. Chat normally — clear the box and hit Stop to end.";
-                  }
-                  if (interactiveState === "awaiting") {
-                    return "Live runner is processing — waiting for reply...";
-                  }
-                  if (
-                    interactiveState === "stuck" ||
-                    interactiveState === "error"
-                  ) {
-                    return liveState.errorMessage
-                      ? `Runner stuck — ${liveState.errorMessage}`
-                      : "Runner stuck — click Restart.";
-                  }
-                  if (interactiveState === "ended") {
-                    return "Live runner ended. Start a new session to chat.";
-                  }
-                  return "Live runner is offline. Start it to enable chat.";
-                })()}
-              >
-                <span
-                  className={`inline-block h-2.5 w-2.5 rounded-full ${
-                    interactiveState === "ready"
-                      ? "bg-green-500"
-                      : interactiveState === "booting" ||
-                          interactiveState === "awaiting"
-                        ? "animate-pulse bg-yellow-500"
-                        : interactiveState === "stuck" ||
-                            interactiveState === "error"
-                          ? "bg-red-500"
-                          : "bg-muted-foreground/50"
-                  }`}
-                  aria-label={`Live runner: ${interactiveState}`}
-                />
-              </SimpleTooltip>
-              {interactiveState === "stuck" || interactiveState === "error" ? (
-                <button
-                  type="button"
-                  onClick={() => void restartInteractiveSession()}
-                  className="rounded-md bg-red-600/90 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-red-700"
+            {chatMode === "ai" && isKodyLive ? (
+              <div className="mb-1 flex items-center gap-2">
+                <SimpleTooltip
+                  content={(() => {
+                    if (interactiveState === "booting") {
+                      const phase = bootPhaseLabel(
+                        bootElapsed,
+                        selectedAgentId === "kody-live-fly" ? "fly" : "gh",
+                      );
+                      const elapsed = formatElapsed(bootElapsed);
+                      const watch =
+                        interactiveTarget && selectedAgentId !== "kody-live-fly"
+                          ? ` · watching ${interactiveTarget.owner}/${interactiveTarget.repo}`
+                          : "";
+                      return `${phase} · ${elapsed} elapsed${watch}`;
+                    }
+                    if (interactiveState === "ready") {
+                      return "Live runner ready. Chat normally — clear the box and hit Stop to end.";
+                    }
+                    if (interactiveState === "awaiting") {
+                      return "Live runner is processing — waiting for reply...";
+                    }
+                    if (
+                      interactiveState === "stuck" ||
+                      interactiveState === "error"
+                    ) {
+                      return liveState.errorMessage
+                        ? `Runner stuck — ${liveState.errorMessage}`
+                        : "Runner stuck — click Restart.";
+                    }
+                    if (interactiveState === "ended") {
+                      return "Live runner ended. Start a new session to chat.";
+                    }
+                    return "Live runner is offline. Start it to enable chat.";
+                  })()}
                 >
-                  Restart
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          {/* Composer input row (issue #131): the textarea and a single
+                  <span
+                    className={`inline-block h-2.5 w-2.5 rounded-full ${
+                      interactiveState === "ready"
+                        ? "bg-green-500"
+                        : interactiveState === "booting" ||
+                            interactiveState === "awaiting"
+                          ? "animate-pulse bg-yellow-500"
+                          : interactiveState === "stuck" ||
+                              interactiveState === "error"
+                            ? "bg-red-500"
+                            : "bg-muted-foreground/50"
+                    }`}
+                    aria-label={`Live runner: ${interactiveState}`}
+                  />
+                </SimpleTooltip>
+                {interactiveState === "stuck" ||
+                interactiveState === "error" ? (
+                  <button
+                    type="button"
+                    onClick={() => void restartInteractiveSession()}
+                    className="rounded-md bg-red-600/90 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-red-700"
+                  >
+                    Restart
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            {/* Composer input row (issue #131): the textarea and a single
               trailing send/stop icon button share this row, with the
               button swapped by state. The action row below (Paperclip,
               VoiceButton) no longer hosts the send affordance — the
               hairline separates input from action rows. */}
-          <div className="flex gap-2 items-center">
-            <div className="flex-1 relative">
-              {slashMenuOpen && (
-                <SlashCommandMenu
-                  commands={slashCommands}
-                  filter={parseSlashTrigger(input).filter}
-                  selectedIndex={slashSelectedIndex}
-                  onSelect={applySlashSelection}
-                  onHover={setSlashSelectedIndex}
-                />
-              )}
-              <textarea
-                ref={composerTextareaRef}
-                value={input}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setInput(next);
-                  // Slash menu opens on `/` at line start, stays open while
-                  // the user types the slug, closes when they add a space
-                  // or clear the slash.
-                  if (chatMode === "ai") {
-                    const trigger = parseSlashTrigger(next);
-                    setSlashMenuOpen(
-                      trigger.active && slashCommands.length > 0,
-                    );
-                    if (trigger.active) setSlashSelectedIndex(0);
-                  } else {
-                    setSlashMenuOpen(false);
+            <div className="flex gap-2 items-center">
+              <div className="flex-1 relative">
+                {slashMenuOpen && (
+                  <SlashCommandMenu
+                    commands={slashCommands}
+                    filter={parseSlashTrigger(input).filter}
+                    selectedIndex={slashSelectedIndex}
+                    onSelect={applySlashSelection}
+                    onHover={setSlashSelectedIndex}
+                  />
+                )}
+                <textarea
+                  ref={composerTextareaRef}
+                  value={input}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setInput(next);
+                    // Slash menu opens on `/` at line start, stays open while
+                    // the user types the slug, closes when they add a space
+                    // or clear the slash.
+                    if (chatMode === "ai") {
+                      const trigger = parseSlashTrigger(next);
+                      setSlashMenuOpen(
+                        trigger.active && slashCommands.length > 0,
+                      );
+                      if (trigger.active) setSlashSelectedIndex(0);
+                    } else {
+                      setSlashMenuOpen(false);
+                    }
+                    // Auto-expand height
+                    e.target.style.height = "auto";
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+                  }}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  onBlur={() => {
+                    // Small delay so the menu's onMouseDown can fire before
+                    // close — onMouseDown uses preventDefault to avoid blur,
+                    // but defensive close keeps stale menus from hanging.
+                    setTimeout(() => setSlashMenuOpen(false), 120);
+                  }}
+                  placeholder={placeholder}
+                  rows={1}
+                  dir="auto"
+                  className={`w-full px-3 py-2 text-base rounded-md border focus:outline-none focus:ring-1 resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${
+                    chatMode === "terminal"
+                      ? "border-white/10 bg-black/40 text-zinc-100 placeholder:text-zinc-500 focus:ring-white/20"
+                      : "bg-background focus:ring-primary"
+                  }`}
+                  disabled={
+                    chatMode === "ai" &&
+                    (activeLoading ||
+                      (isKodyLive && interactiveState !== "ready"))
                   }
-                  // Auto-expand height
-                  e.target.style.height = "auto";
-                  e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-                }}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                onBlur={() => {
-                  // Small delay so the menu's onMouseDown can fire before
-                  // close — onMouseDown uses preventDefault to avoid blur,
-                  // but defensive close keeps stale menus from hanging.
-                  setTimeout(() => setSlashMenuOpen(false), 120);
-                }}
-                placeholder={placeholder}
-                rows={1}
-                dir="auto"
-                className={`w-full px-3 py-2 text-base rounded-md border focus:outline-none focus:ring-1 resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${
-                  chatMode === "terminal"
-                    ? "border-white/10 bg-black/40 text-zinc-100 placeholder:text-zinc-500 focus:ring-white/20"
-                    : "bg-background focus:ring-primary"
-                }`}
-                disabled={
-                  chatMode === "ai" &&
-                  (activeLoading ||
-                    (isKodyLive && interactiveState !== "ready"))
-                }
-                style={{ height: "auto" }}
-              />
-            </div>
-            {/* Trailing send/stop icon button — single role that swaps by
+                  style={{ height: "auto" }}
+                />
+              </div>
+              {/* Trailing send/stop icon button — single role that swaps by
                 state (issue #131 refinement):
                   * Idle / no in-flight run → paper-plane Send icon
                   * In-flight run (loading or stop/cancel) → Square stop icon
@@ -5490,398 +5551,400 @@ export function KodyChat({
                 live in the action row below. The button is hidden when
                 there's no content and the agent isn't Kody-Live, matching
                 the previous "no send affordance when empty" behavior. */}
-            {(() => {
-              const isInFlight =
-                chatMode === "ai" &&
-                (activeLoading ||
-                  composerAction === "stop" ||
-                  composerAction === "cancel");
-              const showTrailingButton =
-                chatMode === "terminal"
-                  ? hasComposerContent
-                  : isInFlight
-                    ? true
-                    : hasComposerContent || isKodyLive;
-              if (!showTrailingButton) return null;
-              const title =
-                chatMode === "terminal"
-                  ? "Send command"
-                  : isInFlight
-                    ? composerAction === "cancel"
-                      ? "Cancel boot"
-                      : "Stop run"
-                    : composerAction === "start"
-                      ? "Boot runner"
-                      : "Send message";
-              return (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (chatMode === "terminal") {
-                      void sendMessage();
-                    } else if (activeLoading) {
-                      handleStop();
-                    } else if (
-                      composerAction === "stop" ||
-                      composerAction === "cancel"
-                    ) {
-                      endInteractiveSession();
-                    } else if (composerAction === "start") {
-                      void startInteractiveSession();
-                    } else {
-                      void sendMessage();
-                    }
-                  }}
-                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-                  title={title}
-                  aria-label={title}
-                >
-                  {isInFlight ? (
-                    <Square className="w-5 h-5" fill="currentColor" />
-                  ) : (
-                    <Send className="w-5 h-5" />
-                  )}
-                </button>
-              );
-            })()}
+              {(() => {
+                const isInFlight =
+                  chatMode === "ai" &&
+                  (activeLoading ||
+                    composerAction === "stop" ||
+                    composerAction === "cancel");
+                const showTrailingButton =
+                  chatMode === "terminal"
+                    ? hasComposerContent
+                    : isInFlight
+                      ? true
+                      : hasComposerContent || isKodyLive;
+                if (!showTrailingButton) return null;
+                const title =
+                  chatMode === "terminal"
+                    ? "Send command"
+                    : isInFlight
+                      ? composerAction === "cancel"
+                        ? "Cancel boot"
+                        : "Stop run"
+                      : composerAction === "start"
+                        ? "Boot runner"
+                        : "Send message";
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (chatMode === "terminal") {
+                        void sendMessage();
+                      } else if (activeLoading) {
+                        handleStop();
+                      } else if (
+                        composerAction === "stop" ||
+                        composerAction === "cancel"
+                      ) {
+                        endInteractiveSession();
+                      } else if (composerAction === "start") {
+                        void startInteractiveSession();
+                      } else {
+                        void sendMessage();
+                      }
+                    }}
+                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                    title={title}
+                    aria-label={title}
+                  >
+                    {isInFlight ? (
+                      <Square className="w-5 h-5" fill="currentColor" />
+                    ) : (
+                      <Send className="w-5 h-5" />
+                    )}
+                  </button>
+                );
+              })()}
+            </div>
+            <div className="border-t border-border/40" />
           </div>
-          <div className="border-t border-border/40" />
-        </div>
-        <div className="flex min-h-10 gap-2 items-center">
-          {chatMode === "ai" && (
-            <>
-              {/* Attachment button — hidden file input lives alongside the
+          <div className="flex min-h-10 gap-2 items-center">
+            {chatMode === "ai" && (
+              <>
+                {/* Attachment button — hidden file input lives alongside the
                   Paperclip so the picker click handler still targets the
                   same ref. */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,.txt,.md,.json,.js,.ts,.jsx,.tsx,.html,.css,.scss,.yaml,.yml,.sh"
-                onChange={handleFileSelect}
-                className="hidden"
-                disabled={activeLoading}
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={activeLoading}
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-                title="Attach files"
-              >
-                <Paperclip className="w-5 h-5" />
-              </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.txt,.md,.json,.js,.ts,.jsx,.tsx,.html,.css,.scss,.yaml,.yml,.sh"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  disabled={activeLoading}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={activeLoading}
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                  title="Attach files"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
 
-              {/* Voice button — gated on `agent.supportsVoice`. Each agent
+                {/* Voice button — gated on `agent.supportsVoice`. Each agent
                   declares whether its backend can honor the voice overlay
                   (see AgentConfig.supportsVoice). Brain agents support it
                   once the brain server applies the overlay server-side;
                   kody-live/engine agents don't (latency). The mic stays
                   hidden for unsupported agents so the dropdown never lies. */}
-              <VoiceButton
-                isActive={voiceOverlayOpen}
-                isSupported={
-                  voiceChat.isSupported && currentAgent.supportsVoice
-                }
-                onTap={() => {
-                  // Handle tap based on current voice state:
-                  // - If AI is speaking: interrupt and start listening (voice interrupt)
-                  // - If listening/processing: stop conversation
-                  // - If idle: start conversation
-                  if (voiceChat.state === "speaking") {
-                    // Voice interrupt: cancel AI speech and start listening
-                    voiceChat.interruptConversation();
-                    setVoiceOverlayOpen(true);
-                    setVoiceMuted(false);
-                  } else if (voiceOverlayOpen) {
-                    // Already in voice mode - stop it
-                    voiceChat.stopConversation();
-                    setVoiceOverlayOpen(false);
-                    setVoiceMuted(false);
-                  } else {
-                    // Not in voice mode - start it
+                <VoiceButton
+                  isActive={voiceOverlayOpen}
+                  isSupported={
+                    voiceChat.isSupported && currentAgent.supportsVoice
+                  }
+                  onTap={() => {
+                    // Handle tap based on current voice state:
+                    // - If AI is speaking: interrupt and start listening (voice interrupt)
+                    // - If listening/processing: stop conversation
+                    // - If idle: start conversation
+                    if (voiceChat.state === "speaking") {
+                      // Voice interrupt: cancel AI speech and start listening
+                      voiceChat.interruptConversation();
+                      setVoiceOverlayOpen(true);
+                      setVoiceMuted(false);
+                    } else if (voiceOverlayOpen) {
+                      // Already in voice mode - stop it
+                      voiceChat.stopConversation();
+                      setVoiceOverlayOpen(false);
+                      setVoiceMuted(false);
+                    } else {
+                      // Not in voice mode - start it
+                      voiceChat.startConversation();
+                      setVoiceOverlayOpen(true);
+                    }
+                  }}
+                  onLongPressStart={() => {
                     voiceChat.startConversation();
                     setVoiceOverlayOpen(true);
-                  }
-                }}
-                onLongPressStart={() => {
-                  voiceChat.startConversation();
-                  setVoiceOverlayOpen(true);
-                }}
-                onLongPressEnd={() => {
-                  /* let conversation handle it */
-                }}
-                disabled={activeLoading}
-              />
-              {messages.length > 0 && !activeLoading && (
-                <button
-                  type="button"
-                  onClick={() => setShowClearConfirm(true)}
-                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-                  title="Clear history"
-                  aria-label="Clear history"
-                >
-                  <Eraser className="w-5 h-5" aria-hidden="true" />
-                </button>
-              )}
-              <div className="flex-1" />
-            </>
-          )}
-          {chatMode === "terminal" && (
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <select
-                value={activeTerminalValue}
-                onChange={(event) =>
-                  handleTerminalTargetSelect(event.target.value)
-                }
-                className="h-8 min-w-0 max-w-[260px] flex-1 rounded-md border bg-background px-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
-                title="Terminal target"
-                aria-label="Terminal target"
-              >
-                <option value="local">Local terminal</option>
-                {activeTerminalTransport.type === "local" &&
-                  activeTerminalTransport.sandboxId &&
-                  !localSandboxes.some(
-                    (sandbox) =>
-                      `sandbox:${sandbox.id}` === activeTerminalValue,
-                  ) && (
-                    <option value={activeTerminalValue}>
-                      {activeTerminalTransport.label ?? "Sandbox"} · selected
-                    </option>
-                  )}
-                {localSandboxes
-                  .filter((sandbox) => sandbox.runtime === "local")
-                  .map((sandbox) => (
-                    <option key={sandbox.id} value={`sandbox:${sandbox.id}`}>
-                      Local: {sandbox.name}
-                    </option>
-                  ))}
-                {localSandboxes
-                  .filter((sandbox) => sandbox.runtime === "github-actions")
-                  .map((sandbox) => (
-                    <option key={sandbox.id} value={`gha:${sandbox.id}`}>
-                      GitHub Actions profile: {sandbox.name}
-                    </option>
-                  ))}
-                {activeTerminalTransport.type === "fly" &&
-                  !terminalMachines.some(
-                    (machine) =>
-                      terminalFlyMachineKey(machine) === activeTerminalValue,
-                  ) && (
-                    <option value={activeTerminalValue}>
-                      {activeTerminalTransport.label ??
-                        activeTerminalTransport.app}{" "}
-                      · selected
-                    </option>
-                  )}
-                {terminalMachines.map((machine) => (
-                  <option
-                    key={terminalFlyMachineKey(machine)}
-                    value={terminalFlyMachineKey(machine)}
+                  }}
+                  onLongPressEnd={() => {
+                    /* let conversation handle it */
+                  }}
+                  disabled={activeLoading}
+                />
+                {messages.length > 0 && !activeLoading && (
+                  <button
+                    type="button"
+                    onClick={() => setShowClearConfirm(true)}
+                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                    title="Clear history"
+                    aria-label="Clear history"
                   >
-                    {machine.label} · {machine.state} · {machine.region} ·{" "}
-                    {terminalMachineIdShort(machine.machineId)}
-                  </option>
-                  ))}
-              </select>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSandboxCreateMenuOpen((current) => !current)
-                  }
-                  disabled={sandboxBusy}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Create sandbox"
-                  aria-label="Create sandbox"
-                  aria-haspopup="menu"
-                  aria-expanded={sandboxCreateMenuOpen}
-                >
-                  {sandboxBusy ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
-                </button>
-                {sandboxCreateMenuOpen && (
-                  <div className="absolute bottom-9 left-0 z-30 min-w-52 overflow-hidden rounded-md border bg-popover py-1 text-xs text-popover-foreground shadow-md">
-                    <button
-                      type="button"
-                      onClick={() => void handleCreateSandbox("local")}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Local sandbox
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleCreateSandbox("github-actions")}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
-                    >
-                      <Github className="h-3.5 w-3.5" />
-                      {activeTerminalTransport.type === "local" &&
-                      activeTerminalTransport.sandboxId
-                        ? "Copy to GitHub Actions"
-                        : "GitHub Actions sandbox"}
-                    </button>
-                  </div>
-              )}
-            </div>
-            {sandboxBusyLabel && (
-              <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-[11px] text-muted-foreground">
-                <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                <span className="truncate">{sandboxBusyLabel}</span>
-              </span>
+                    <Eraser className="w-5 h-5" aria-hidden="true" />
+                  </button>
+                )}
+                <div className="flex-1" />
+              </>
             )}
-            {(activeTerminalTransport.type === "local" ||
-              activeTerminalTransport.type === "github-actions") &&
-              activeTerminalTransport.sandboxId && (
-                <>
+            {chatMode === "terminal" && (
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <select
+                  value={activeTerminalValue}
+                  onChange={(event) =>
+                    handleTerminalTargetSelect(event.target.value)
+                  }
+                  className="h-8 min-w-0 max-w-[260px] flex-1 rounded-md border bg-background px-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
+                  title="Terminal target"
+                  aria-label="Terminal target"
+                >
+                  <option value="local">Local terminal</option>
+                  {activeTerminalTransport.type === "local" &&
+                    activeTerminalTransport.sandboxId &&
+                    !localSandboxes.some(
+                      (sandbox) =>
+                        `sandbox:${sandbox.id}` === activeTerminalValue,
+                    ) && (
+                      <option value={activeTerminalValue}>
+                        {activeTerminalTransport.label ?? "Sandbox"} · selected
+                      </option>
+                    )}
+                  {localSandboxes
+                    .filter((sandbox) => sandbox.runtime === "local")
+                    .map((sandbox) => (
+                      <option key={sandbox.id} value={`sandbox:${sandbox.id}`}>
+                        Local: {sandbox.name}
+                      </option>
+                    ))}
+                  {localSandboxes
+                    .filter((sandbox) => sandbox.runtime === "github-actions")
+                    .map((sandbox) => (
+                      <option key={sandbox.id} value={`gha:${sandbox.id}`}>
+                        GitHub Actions profile: {sandbox.name}
+                      </option>
+                    ))}
+                  {activeTerminalTransport.type === "fly" &&
+                    !terminalMachines.some(
+                      (machine) =>
+                        terminalFlyMachineKey(machine) === activeTerminalValue,
+                    ) && (
+                      <option value={activeTerminalValue}>
+                        {activeTerminalTransport.label ??
+                          activeTerminalTransport.app}{" "}
+                        · selected
+                      </option>
+                    )}
+                  {terminalMachines.map((machine) => (
+                    <option
+                      key={terminalFlyMachineKey(machine)}
+                      value={terminalFlyMachineKey(machine)}
+                    >
+                      {machine.label} · {machine.state} · {machine.region} ·{" "}
+                      {terminalMachineIdShort(machine.machineId)}
+                    </option>
+                  ))}
+                </select>
+                <div className="relative">
                   <button
                     type="button"
-                    onClick={() => void handleSaveSandbox()}
+                    onClick={() =>
+                      setSandboxCreateMenuOpen((current) => !current)
+                    }
                     disabled={sandboxBusy}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                      title="Save sandbox"
-                      aria-label="Save sandbox"
-                    >
-                      <Save className="h-4 w-4" />
-                    </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteSandbox()}
-                      disabled={sandboxBusy}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
-                      title="Delete sandbox"
-                      aria-label="Delete sandbox"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </>
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Create sandbox"
+                    aria-label="Create sandbox"
+                    aria-haspopup="menu"
+                    aria-expanded={sandboxCreateMenuOpen}
+                  >
+                    {sandboxBusy ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                  </button>
+                  {sandboxCreateMenuOpen && (
+                    <div className="absolute bottom-9 left-0 z-30 min-w-52 overflow-hidden rounded-md border bg-popover py-1 text-xs text-popover-foreground shadow-md">
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateSandbox("local")}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Local sandbox
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleCreateSandbox("github-actions")
+                        }
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+                      >
+                        <Github className="h-3.5 w-3.5" />
+                        {activeTerminalTransport.type === "local" &&
+                        activeTerminalTransport.sandboxId
+                          ? "Copy to GitHub Actions"
+                          : "GitHub Actions sandbox"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {sandboxBusyLabel && (
+                  <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-[11px] text-muted-foreground">
+                    <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                    <span className="truncate">{sandboxBusyLabel}</span>
+                  </span>
                 )}
-              <button
-                type="button"
-                onClick={() => void refreshChatTerminalFlyMachines()}
-                disabled={flyInventoryLoading}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                title="Refresh Fly machines"
-                aria-label="Refresh Fly machines"
-              >
-                {flyInventoryLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-              </button>
-              {activeTerminalTransport.type === "fly" && (
+                {(activeTerminalTransport.type === "local" ||
+                  activeTerminalTransport.type === "github-actions") &&
+                  activeTerminalTransport.sandboxId && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveSandbox()}
+                        disabled={sandboxBusy}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Save sandbox"
+                        aria-label="Save sandbox"
+                      >
+                        <Save className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteSandbox()}
+                        disabled={sandboxBusy}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Delete sandbox"
+                        aria-label="Delete sandbox"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
                 <button
                   type="button"
-                  onClick={handleTerminalFlyConnectToggle}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  title={
-                    activeTerminalConnectionState === "connected" ||
-                    activeTerminalConnectionState === "connecting"
-                      ? "Disconnect Fly terminal"
-                      : "Connect Fly terminal"
-                  }
-                  aria-label={
-                    activeTerminalConnectionState === "connected" ||
-                    activeTerminalConnectionState === "connecting"
-                      ? "Disconnect Fly terminal"
-                      : "Connect Fly terminal"
-                  }
+                  onClick={() => void refreshChatTerminalFlyMachines()}
+                  disabled={flyInventoryLoading}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Refresh Fly machines"
+                  aria-label="Refresh Fly machines"
                 >
-                  {activeTerminalConnectionState === "connecting" ? (
+                  {flyInventoryLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : activeTerminalConnectionState === "connected" ? (
-                    <Unplug className="h-4 w-4" />
                   ) : (
-                    <Power className="h-4 w-4" />
+                    <RefreshCw className="h-4 w-4" />
                   )}
                 </button>
-              )}
-              {flyInventoryError && (
-                <span className="min-w-0 truncate text-[11px] text-destructive">
-                  {flyInventoryError}
-                </span>
-              )}
-            </div>
-          )}
-          {chatMode === "ai" && <div className="flex-1" />}
-          {!lockedAgentId && !vibeMode && (
-            <div
-              className={`inline-flex items-center rounded-md border p-0.5 ${
-                chatMode === "terminal"
-                  ? "border-white/10 bg-white/5"
-                  : "bg-background/70"
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => setActiveChatMode("ai")}
-                className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors ${
-                  chatMode === "ai"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
-                aria-pressed={chatMode === "ai"}
-                title="AI chat"
-                aria-label="AI chat"
-              >
-                <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onClick={openTerminalMode}
-                className={`relative inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                {activeTerminalTransport.type === "fly" && (
+                  <button
+                    type="button"
+                    onClick={handleTerminalFlyConnectToggle}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    title={
+                      activeTerminalConnectionState === "connected" ||
+                      activeTerminalConnectionState === "connecting"
+                        ? "Disconnect Fly terminal"
+                        : "Connect Fly terminal"
+                    }
+                    aria-label={
+                      activeTerminalConnectionState === "connected" ||
+                      activeTerminalConnectionState === "connecting"
+                        ? "Disconnect Fly terminal"
+                        : "Connect Fly terminal"
+                    }
+                  >
+                    {activeTerminalConnectionState === "connecting" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : activeTerminalConnectionState === "connected" ? (
+                      <Unplug className="h-4 w-4" />
+                    ) : (
+                      <Power className="h-4 w-4" />
+                    )}
+                  </button>
+                )}
+                {flyInventoryError && (
+                  <span className="min-w-0 truncate text-[11px] text-destructive">
+                    {flyInventoryError}
+                  </span>
+                )}
+              </div>
+            )}
+            {chatMode === "ai" && <div className="flex-1" />}
+            {!lockedAgentId && !vibeMode && (
+              <div
+                className={`inline-flex items-center rounded-md border p-0.5 ${
                   chatMode === "terminal"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    ? "border-white/10 bg-white/5"
+                    : "bg-background/70"
                 }`}
-                aria-pressed={chatMode === "terminal"}
-                title="Terminal"
-                aria-label={`Terminal ${terminalStatusLabel}`}
               >
-                <SquareTerminal className="w-3.5 h-3.5" aria-hidden="true" />
-                <span
-                  className={`text-[10px] font-semibold uppercase leading-none ${
-                    activeTerminalConnectionState === "connected"
-                      ? chatMode === "terminal"
-                        ? "text-primary-foreground"
-                        : "text-emerald-600"
-                      : activeTerminalConnectionState === "connecting"
+                <button
+                  type="button"
+                  onClick={() => setActiveChatMode("ai")}
+                  className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                    chatMode === "ai"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  aria-pressed={chatMode === "ai"}
+                  title="AI chat"
+                  aria-label="AI chat"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={openTerminalMode}
+                  className={`relative inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                    chatMode === "terminal"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  aria-pressed={chatMode === "terminal"}
+                  title="Terminal"
+                  aria-label={`Terminal ${terminalStatusLabel}`}
+                >
+                  <SquareTerminal className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span
+                    className={`text-[10px] font-semibold uppercase leading-none ${
+                      activeTerminalConnectionState === "connected"
                         ? chatMode === "terminal"
                           ? "text-primary-foreground"
-                          : "text-amber-600"
-                        : chatMode === "terminal"
-                          ? "text-primary-foreground/80"
-                          : "text-muted-foreground"
-                  }`}
-                >
-                  {terminalStatusLabel}
-                </span>
-                {activeSessionHasLiveTerminal &&
-                  chatMode === "ai" &&
-                  activeTerminalConnectionState === "connected" && (
-                  <span
-                    className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
-                    aria-hidden="true"
-                  />
-                )}
-              </button>
-            </div>
-          )}
+                          : "text-emerald-600"
+                        : activeTerminalConnectionState === "connecting"
+                          ? chatMode === "terminal"
+                            ? "text-primary-foreground"
+                            : "text-amber-600"
+                          : chatMode === "terminal"
+                            ? "text-primary-foreground/80"
+                            : "text-muted-foreground"
+                    }`}
+                  >
+                    {terminalStatusLabel}
+                  </span>
+                  {activeSessionHasLiveTerminal &&
+                    chatMode === "ai" &&
+                    activeTerminalConnectionState === "connected" && (
+                      <span
+                        className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
+                        aria-hidden="true"
+                      />
+                    )}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      <ConfirmDialog
-        open={showClearConfirm}
-        title="Clear history"
-        description="Clear conversation history? This cannot be undone."
-        confirmLabel="Clear"
-        variant="destructive"
-        onConfirm={executeClearHistory}
-        onClose={() => setShowClearConfirm(false)}
-      />
+        <ConfirmDialog
+          open={showClearConfirm}
+          title="Clear history"
+          description="Clear conversation history? This cannot be undone."
+          confirmLabel="Clear"
+          variant="destructive"
+          onConfirm={executeClearHistory}
+          onClose={() => setShowClearConfirm(false)}
+        />
       </div>
     </div>
   );

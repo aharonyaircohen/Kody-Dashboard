@@ -444,7 +444,10 @@ export async function POST(
         }
         // GitHub's addLabels endpoint 422s on unknown labels — auto-create
         // dashboard-managed labels defensively so first use always succeeds.
-        if (label.startsWith(GOAL_LABEL_PREFIX) || label === HIDDEN_TASK_LABEL) {
+        if (
+          label.startsWith(GOAL_LABEL_PREFIX) ||
+          label === HIDDEN_TASK_LABEL
+        ) {
           try {
             await ensureLabel(
               label,
