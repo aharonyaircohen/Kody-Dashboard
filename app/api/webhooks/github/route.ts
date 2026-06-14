@@ -5,10 +5,9 @@
  *
  * POST /api/webhooks/github
  *
- * GitHub webhook receiver. Verifies the source IP against GitHub's
- * published webhook CIDR ranges (https://api.github.com/meta) instead
- * of using a shared HMAC secret — no env var to manage. See
- * src/dashboard/lib/webhooks/github-ip.ts for rationale.
+ * GitHub webhook receiver. When GITHUB_WEBHOOK_SECRET or KODY_WEBHOOK_SECRET
+ * is configured, verifies X-Hub-Signature-256 before accepting a delivery.
+ * Deployments without a secret keep the legacy GitHub CIDR check.
  *
  * On accepted delivery, invalidates the in-memory cache for the affected
  * resource so the next read picks up the change without waiting for TTL.
@@ -26,6 +25,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   invalidateIssueCache,
   invalidatePRCache,
@@ -54,6 +54,35 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// ============ Delivery auth ============
+
+function getWebhookSecret(): string | null {
+  return (
+    process.env.GITHUB_WEBHOOK_SECRET?.trim() ||
+    process.env.KODY_WEBHOOK_SECRET?.trim() ||
+    null
+  );
+}
+
+function verifyWebhookSignature(
+  rawBody: string,
+  signatureHeader: string | null,
+  secret: string,
+): boolean {
+  if (!signatureHeader?.startsWith("sha256=")) return false;
+  const suppliedHex = signatureHeader.slice("sha256=".length);
+  if (!/^[0-9a-f]{64}$/i.test(suppliedHex)) return false;
+
+  const expectedHex = createHmac("sha256", secret)
+    .update(rawBody, "utf8")
+    .digest("hex");
+  const supplied = Buffer.from(suppliedHex, "hex");
+  const expected = Buffer.from(expectedHex, "hex");
+  return (
+    supplied.length === expected.length && timingSafeEqual(supplied, expected)
+  );
+}
 
 // ============ Delivery dedupe (per-instance) ============
 
@@ -343,14 +372,37 @@ function dispatch(
 // ============ Handler ============
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const ip = getClientIp(req.headers);
-  const allowed = await isFromGitHub(ip);
-  if (!allowed) {
-    logger.warn(
-      { event: "webhook_unauthorized_ip", ip: ip ?? "(none)" },
-      "Webhook rejected: source IP not in GitHub's hook CIDRs",
+  let rawBody: string;
+  try {
+    rawBody = await req.text();
+  } catch {
+    return NextResponse.json({ error: "invalid body" }, { status: 400 });
+  }
+
+  const secret = getWebhookSecret();
+  if (secret) {
+    const ok = verifyWebhookSignature(
+      rawBody,
+      req.headers.get("x-hub-signature-256"),
+      secret,
     );
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    if (!ok) {
+      logger.warn(
+        { event: "webhook_bad_signature" },
+        "Webhook rejected: invalid GitHub signature",
+      );
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+  } else {
+    const ip = getClientIp(req.headers);
+    const allowed = await isFromGitHub(ip);
+    if (!allowed) {
+      logger.warn(
+        { event: "webhook_unauthorized_ip", ip: ip ?? "(none)" },
+        "Webhook rejected: source IP not in GitHub's hook CIDRs",
+      );
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
   }
 
   const eventType = req.headers.get("x-github-event") ?? "";
@@ -362,7 +414,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   let payload: unknown;
   try {
-    payload = await req.json();
+    payload = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
